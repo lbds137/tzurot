@@ -1,8 +1,8 @@
 /**
- * Tests for Me Model Set Handler
+ * Tests for Me Preset Set Handler
  *
- * Tests the /me model set command which allows users to set
- * a model override for a specific personality. Covers:
+ * Tests the /me preset set command which allows users to set
+ * a preset override for a specific personality. Covers:
  * - Unlock models upsell flow
  * - Successful override setting
  * - Guest mode restrictions (premium model blocking)

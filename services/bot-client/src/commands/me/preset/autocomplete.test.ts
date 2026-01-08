@@ -1,5 +1,5 @@
 /**
- * Tests for Model Command Autocomplete Handler
+ * Tests for Preset Command Autocomplete Handler
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

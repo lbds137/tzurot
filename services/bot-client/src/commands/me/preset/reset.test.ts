@@ -1,7 +1,7 @@
 /**
- * Tests for Me Model Reset Handler
+ * Tests for Me Preset Reset Handler
  *
- * Tests /me model reset subcommand:
+ * Tests /me preset reset subcommand:
  * - Successful override removal
  * - API error handling
  */

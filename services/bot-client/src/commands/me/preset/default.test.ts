@@ -1,5 +1,5 @@
 /**
- * Tests for Model Default Handler
+ * Tests for Preset Default Handler
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
