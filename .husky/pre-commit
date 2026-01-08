@@ -10,7 +10,7 @@ STAGED_PRISMA_SCHEMA=$(git diff --cached --name-only | grep -E '^prisma/schema\.
 if [ -n "$STAGED_PRISMA_SCHEMA" ]; then
     echo "Prisma schema changed - regenerating pglite integration test schema..."
 
-    # Source DATABASE_URL from .env if not set (safe parsing without xargs)
+    # Parse DATABASE_URL from .env if not already set
     if [ -z "$DATABASE_URL" ]; then
         if [ -f ".env" ]; then
             DATABASE_URL=$(grep -E '^DATABASE_URL=' .env | cut -d '=' -f2-)
