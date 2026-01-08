@@ -1,0 +1,23 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
+  "changelog": ["@changesets/changelog-github", { "repo": "lbds137/tzurot" }],
+  "commit": false,
+  "fixed": [
+    [
+      "@tzurot/bot-client",
+      "@tzurot/api-gateway",
+      "@tzurot/ai-worker",
+      "@tzurot/common-types",
+      "@tzurot/tooling"
+    ]
+  ],
+  "linked": [],
+  "access": "restricted",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": [],
+  "privatePackages": {
+    "version": true,
+    "tag": false
+  }
+}

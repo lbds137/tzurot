@@ -1,7 +1,7 @@
 ---
 name: tzurot-observability
 description: Use when adding logging, debugging production issues, checking service health, or performing routine operations (adding personalities, database queries). Covers structured logging, correlation IDs, Railway log analysis, and common operations.
-lastUpdated: '2025-12-20'
+lastUpdated: '2026-01-07'
 ---
 
 # Tzurot v3 Observability & Operations
@@ -120,13 +120,14 @@ railway logs --service api-gateway --tail 50
 ### Database Quick Commands
 
 ```bash
-# Check migrations
+# Using the ops CLI (local inspection)
+pnpm ops db:inspect              # Show tables, indexes, migrations
+pnpm ops db:inspect --table users # Inspect specific table
+pnpm ops db:check-drift          # Check for migration drift
+
+# Railway database operations
 railway run npx prisma migrate status
-
-# Apply migrations
 railway run npx prisma migrate deploy
-
-# Direct database access
 railway run psql
 
 # Open Prisma Studio
