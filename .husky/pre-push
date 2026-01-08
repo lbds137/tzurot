@@ -61,7 +61,11 @@ echo "Code changes detected. Running Turbo build and tests..."
 export CI=true
 
 # Use Turbo for cached execution
-# --filter=[HEAD^1] would only run affected packages, but for pre-push we want all
+# Why we run ALL packages instead of --filter=[origin/main]:
+# 1. HEAD^1 is dangerous: pushes with multiple commits would only check the last one
+# 2. With ~7 packages, hash calculation is milliseconds - filtering adds more overhead than it saves
+# 3. Caching handles performance: unchanged packages are instant cache hits (~5s total)
+# 4. Reconsider filtering only at 50+ packages when graph calculation becomes slow
 if ! pnpm turbo run build lint test --output-logs=errors-only; then
     echo "${RED}Pre-push checks failed!${NC}"
     echo "Fix the issues before pushing, or use: git push --no-verify"
