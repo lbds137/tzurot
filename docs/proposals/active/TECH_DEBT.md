@@ -24,6 +24,39 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 
 ## Priority 2: MEDIUM
 
+### Unbounded History Scanning in Duplicate Detection
+
+**Problem**: `getRecentAssistantMessages()` scans the entire conversation history looking for 5 assistant messages. In edge cases (1000+ messages with no assistant messages in the last 500), this scans all messages.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:547-553`
+
+**Violation**: CLAUDE.md "Bounded Data Access" rule - "All queries returning arrays must be bounded."
+
+**Solution**: Add maximum scan depth:
+```typescript
+const MAX_SCAN_DEPTH = 100; // Don't scan more than 100 messages back
+for (let i = history.length - 1; i >= Math.max(0, history.length - MAX_SCAN_DEPTH) && messages.length < maxMessages; i--) {
+```
+
+**Source**: PR #453 code review (2026-01-07)
+
+---
+
+### Duplicate Detection Logging Verbosity
+
+**Problem**: `isRecentDuplicate()` logs at INFO level for EVERY response, even when no duplicate is detected. This is intentional for diagnosing the January 2026 production incident, but creates log noise.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:520-535`
+
+**Solution**: After incident is diagnosed (target: Feb 2026):
+- [ ] Downgrade PASSED logs from INFO to DEBUG
+- [ ] Keep NEAR-MISS and DUPLICATE at INFO
+- [ ] Consider adding feature flag for verbose mode
+
+**Source**: PR #453 code review (2026-01-07)
+
+---
+
 ### Basic Observability
 
 **Problem**: No way to answer "Is the bot slow?" or "Why did it ignore that message?" without reading logs manually.
@@ -87,6 +120,87 @@ Log these events:
 - Production data shows duplicates occurring further back than 5 turns
 
 **Why low priority**: Current value (5) is based on production observations (January 2026). No evidence yet that it needs tuning per-model or per-personality.
+
+---
+
+### Use MessageRole Enum in Duplicate Detection
+
+**Problem**: String literal `'assistant'` used for role comparison instead of `MessageRole.Assistant` enum.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:552`
+
+**Current Code**:
+```typescript
+if (history[i].role === 'assistant') {
+```
+
+**Solution**:
+```typescript
+import { MessageRole } from '@tzurot/common-types';
+if (history[i].role === MessageRole.Assistant) {
+```
+
+**Why**: Prevents issues if enum value ever changes, makes code self-documenting.
+
+**Source**: PR #453 code review (2026-01-07)
+
+---
+
+### DRY Role Distribution Calculation
+
+**Problem**: Role distribution calculation is duplicated in two places.
+
+**Locations**:
+- `services/ai-worker/src/jobs/handlers/pipeline/steps/GenerationStep.ts:221-227`
+- `services/ai-worker/src/utils/duplicateDetection.ts:569-586`
+
+**Solution**: Extract shared helper to `duplicateDetection.ts`:
+```typescript
+export function getRoleDistribution(
+  history: { role: string; content: string }[] | undefined
+): Record<string, number>
+```
+
+**Source**: PR #453 code review (2026-01-07)
+
+---
+
+### Missing Test: Mixed UUID + discord: Format Participants
+
+**Problem**: No test validates `getAllParticipantPersonas()` with participants that have mixed formats.
+
+**Current Location**: `packages/common-types/src/services/resolvers/PersonaResolver.test.ts`
+
+**Missing Test Case**:
+```typescript
+it('should handle mixed UUID and discord: format participants', async () => {
+  const participants = [
+    { personaId: 'valid-uuid-1234', ... },
+    { personaId: 'discord:456789', ... }
+  ];
+  // Verify both formats are resolved correctly
+});
+```
+
+**Source**: PR #453 code review (2026-01-07)
+
+---
+
+### Document discord:XXXX Format
+
+**Problem**: The `discord:XXXX` format for participant IDs is used in multiple places but not documented in architecture docs.
+
+**Locations using this format**:
+- `PersonaResolver.resolveToUuid()`
+- Extended context participant handling
+- Conversation history sync
+
+**Solution**: Add section to `docs/reference/architecture/` explaining:
+- When discord: format is used (webhook messages before persona resolution)
+- How it's resolved to UUIDs
+- Why normalization at API boundary might be cleaner long-term
+
+**Source**: PR #453 code review (2026-01-07)
 
 ---
 
