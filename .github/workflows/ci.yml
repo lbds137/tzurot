@@ -43,6 +43,9 @@ jobs:
         run: pnpm run lint
 
       - name: Check pglite schema is in sync with Prisma
+        # Dummy URL - prisma migrate diff doesn't connect, just needs provider hint
+        env:
+          DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
         run: |
           # Verify schema file exists
           if [ ! -f "tests/integration/schema/pglite-schema.sql" ]; then
@@ -51,11 +54,11 @@ jobs:
             exit 1
           fi
 
-          # Generate fresh schema from Prisma
+          # Generate fresh schema from Prisma (no DB connection needed)
           npx prisma migrate diff \
             --from-empty \
             --to-schema ./prisma/schema.prisma \
-            --script 2>/dev/null > /tmp/fresh-pglite-schema.sql
+            --script > /tmp/fresh-pglite-schema.sql
 
           # Compare with committed schema
           if ! diff -q tests/integration/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql > /dev/null 2>&1; then
