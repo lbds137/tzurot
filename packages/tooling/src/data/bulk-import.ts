@@ -3,7 +3,8 @@
  *
  * Import all personalities from v2 data.
  *
- * TODO: Migrate from scripts/data/import-personality/bulk-import.ts
+ * @deprecated This is a stub. Use `pnpm bulk-import` until migrated.
+ * @todo Migrate from scripts/data/import-personality/bulk-import.ts
  */
 
 import chalk from 'chalk';
@@ -13,6 +14,7 @@ export interface BulkImportOptions {
   skipMemories?: boolean;
 }
 
+/** @deprecated Stub - not yet implemented */
 export async function bulkImport(options: BulkImportOptions = {}): Promise<void> {
   console.log(chalk.yellow('⚠️  bulk-import not yet migrated to tooling package'));
   console.log(chalk.dim('   Original: scripts/data/import-personality/bulk-import.ts'));

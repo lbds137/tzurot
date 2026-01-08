@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
 
 // Get the directory name of the current module (monorepo root)
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -75,6 +76,9 @@ export default tseslint.config(
   // Configuration for TypeScript files
   {
     files: ['**/*.ts'],
+    plugins: {
+      '@tzurot': tzurotPlugin,
+    },
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'module',
@@ -201,6 +205,14 @@ export default tseslint.config(
 
       // Enforce maximum nested callbacks
       'max-nested-callbacks': ['warn', { max: 3 }],
+
+      // ============================================================================
+      // CUSTOM TZUROT RULES
+      // ============================================================================
+
+      // Detect singleton anti-patterns (export instantiated objects at module level)
+      // Makes code harder to test because instances are created at import time
+      '@tzurot/no-singleton-export': 'warn',
     },
   },
 

@@ -3,7 +3,8 @@
  *
  * Import a single personality from v2 data.
  *
- * TODO: Migrate from scripts/data/import-personality/
+ * @deprecated This is a stub. Use `pnpm import-personality` until migrated.
+ * @todo Migrate from scripts/data/import-personality/
  */
 
 import chalk from 'chalk';
@@ -13,6 +14,7 @@ export interface ImportOptions {
   skipMemories?: boolean;
 }
 
+/** @deprecated Stub - not yet implemented */
 export async function importPersonality(
   personality: string,
   options: ImportOptions = {}
