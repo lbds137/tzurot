@@ -54,19 +54,40 @@ elif [ -z "$CODE_FILES" ]; then
     exit 0
 fi
 
-# 4. Run Turbo for cached builds and tests
-echo "Code changes detected. Running Turbo build and tests..."
+# 4. Detect resource-constrained environment (Steam Deck, etc.)
+# Check hostname or explicit env var for low-resource mode
+TURBO_ARGS="--output-logs=errors-only"
+HOSTNAME=$(hostname 2>/dev/null || echo "")
 
+if echo "$HOSTNAME" | grep -qi "deck" || [ -n "$LOW_RESOURCE_MODE" ]; then
+    echo "${YELLOW}Low-resource mode detected - throttling for Steam Deck${NC}"
+    # Limit to 1 concurrent task to prevent memory explosion
+    TURBO_ARGS="$TURBO_ARGS --concurrency=1"
+    # Cap Node.js memory to 2GB per process
+    export NODE_OPTIONS="--max-old-space-size=2048"
+fi
+
+# 5. Determine filter scope for Turbo
+# Use origin/develop as base (or origin/main as fallback)
+FILTER_BASE=$(git rev-parse --verify origin/develop 2>/dev/null && echo "origin/develop" || \
+              git rev-parse --verify origin/main 2>/dev/null && echo "origin/main" || echo "")
+
+if [ -n "$FILTER_BASE" ]; then
+    # Filter to only packages changed since base branch (plus their dependents)
+    TURBO_FILTER="--filter=...[$FILTER_BASE]"
+    echo "Code changes detected. Running Turbo on affected packages..."
+else
+    # No base branch found, run on all packages
+    TURBO_FILTER=""
+    echo "Code changes detected. Running Turbo on all packages..."
+fi
+
+# 6. Run Turbo for cached builds and tests
 # Ensure CI mode (no watch mode, no prompts)
 export CI=true
 
-# Use Turbo for cached execution
-# Why we run ALL packages instead of --filter=[origin/main]:
-# 1. HEAD^1 is dangerous: pushes with multiple commits would only check the last one
-# 2. With ~7 packages, hash calculation is milliseconds - filtering adds more overhead than it saves
-# 3. Caching handles performance: unchanged packages are instant cache hits (~5s total)
-# 4. Reconsider filtering only at 50+ packages when graph calculation becomes slow
-if ! pnpm turbo run build lint test --output-logs=errors-only; then
+# shellcheck disable=SC2086
+if ! pnpm turbo run build lint test $TURBO_FILTER $TURBO_ARGS; then
     echo "${RED}Pre-push checks failed!${NC}"
     echo "Fix the issues before pushing, or use: git push --no-verify"
     exit 1
