@@ -1,7 +1,7 @@
 /**
- * Tests for Me Model List Handler
+ * Tests for Me Preset List Handler
  *
- * Tests /me model list subcommand:
+ * Tests /me preset list subcommand:
  * - Empty overrides list
  * - List with overrides
  * - API error handling
