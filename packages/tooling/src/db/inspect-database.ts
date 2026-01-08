@@ -11,6 +11,25 @@
 import chalk from 'chalk';
 import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
 
+/**
+ * Safely extract host from DATABASE_URL using URL parser
+ * Handles edge cases that split() would miss
+ */
+function getDatabaseHost(): string {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    return 'unknown';
+  }
+
+  try {
+    const url = new URL(databaseUrl);
+    return url.host;
+  } catch {
+    // Fallback for malformed URLs
+    return 'unknown';
+  }
+}
+
 // Known drift patterns - indexes that Prisma can't represent in schema.prisma
 // These are EXPECTED to exist but will show as "drift" if Prisma detects them
 const PROTECTED_INDEXES = [
@@ -218,8 +237,7 @@ export async function inspectDatabase(options: InspectOptions = {}): Promise<voi
 
   console.log(chalk.bold('🔍 DATABASE INSPECTOR'));
   console.log('═'.repeat(70));
-  const dbHost = process.env.DATABASE_URL?.split('@')[1]?.split('/')[0] ?? 'unknown';
-  console.log(chalk.dim(`   Database: ${dbHost}`));
+  console.log(chalk.dim(`   Database: ${getDatabaseHost()}`));
 
   try {
     if (options.table !== undefined) {
