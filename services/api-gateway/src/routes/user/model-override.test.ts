@@ -399,7 +399,7 @@ describe('/user/model-override routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should return 404 when override not found', async () => {
+    it('should return 200 (idempotent) when override not found', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
@@ -408,10 +408,13 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ deleted: true, wasSet: false })
+      );
     });
 
-    it('should return 400 when no model override is set', async () => {
+    it('should return 200 (idempotent) when no model override is set', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
         id: 'override-1',
         llmConfigId: null,
@@ -424,11 +427,9 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          message: expect.stringContaining('No model override'),
-        })
+        expect.objectContaining({ deleted: true, wasSet: false })
       );
     });
 

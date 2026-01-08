@@ -52,6 +52,7 @@ interface UserDefaultConfigResponse {
   configName: string | null;
 }
 
+// eslint-disable-next-line max-lines-per-function -- Route factory with multiple endpoints
 export function createModelOverrideRoutes(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
@@ -387,18 +388,16 @@ export function createModelOverrideRoutes(
         select: { id: true, llmConfigId: true, personality: { select: { name: true } } },
       });
 
-      if (override === null) {
-        return sendError(res, ErrorResponses.notFound('No override found for this personality'));
-      }
-
-      if (override.llmConfigId === null) {
-        return sendError(
-          res,
-          ErrorResponses.validationError('No model override set for this personality')
+      // Idempotent: if no override exists or llmConfigId is already null, return success
+      if (override?.llmConfigId === null || override?.llmConfigId === undefined) {
+        logger.info(
+          { discordUserId, personalityId, hadOverride: false },
+          '[ModelOverride] Reset called but no override was set (idempotent success)'
         );
+        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
       }
 
-      // Remove the override (set llmConfigId to null, or delete if no other data)
+      // Remove the override (set llmConfigId to null)
       await prisma.userPersonalityConfig.update({
         where: { id: override.id },
         data: { llmConfigId: null },
