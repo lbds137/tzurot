@@ -1,7 +1,7 @@
 /**
- * Me Model Clear-Default Handler
- * Handles /me model clear-default subcommand
- * Clears the user's global default LLM config
+ * Me Preset Clear-Default Handler
+ * Handles /me preset clear-default subcommand
+ * Clears the user's global default preset
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -10,10 +10,10 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('me-model-clear-default');
+const logger = createLogger('me-preset-clear-default');
 
 /**
- * Handle /me model clear-default
+ * Handle /me preset clear-default
  */
 export async function handleClearDefault(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -25,24 +25,24 @@ export async function handleClearDefault(interaction: ChatInputCommandInteractio
     });
 
     if (!result.ok) {
-      logger.warn({ userId, status: result.status }, '[Me/Model] Failed to clear default');
+      logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to clear default');
       await replyWithError(interaction, `Failed to clear default: ${result.error}`);
       return;
     }
 
     const embed = new EmbedBuilder()
-      .setTitle('✅ Default Config Cleared')
+      .setTitle('✅ Default Preset Cleared')
       .setColor(DISCORD_COLORS.SUCCESS)
       .setDescription(
-        'Your default LLM config has been removed.\n\n' +
+        'Your default preset has been removed.\n\n' +
           'Personalities will now use their own defaults unless you have a specific override.'
       )
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId }, '[Me/Model] Cleared default config');
+    logger.info({ userId }, '[Me/Preset] Cleared default config');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Model Clear-Default' });
+    await handleCommandError(interaction, error, { userId, command: 'Preset Clear-Default' });
   }
 }

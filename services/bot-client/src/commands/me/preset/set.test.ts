@@ -40,13 +40,13 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('Me Model Set Handler', () => {
-  const createMockInteraction = (personalityId: string, configId: string) =>
+  const createMockInteraction = (personalityId: string, presetId: string) =>
     ({
       user: { id: 'user-123' },
       options: {
         getString: vi.fn((name: string, _required?: boolean) => {
           if (name === 'personality') return personalityId;
-          if (name === 'config') return configId;
+          if (name === 'preset') return presetId;
           return null;
         }),
       },
@@ -126,7 +126,7 @@ describe('Me Model Set Handler', () => {
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
 
-      expect(embedData.title).toContain('Model Override Set');
+      expect(embedData.title).toContain('Preset Override Set');
       expect(embedData.description).toContain('Test Bot');
       expect(embedData.description).toContain('Fast Claude');
     });
@@ -224,7 +224,7 @@ describe('Me Model Set Handler', () => {
 
       expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
         mockInteraction,
-        'Failed to set model: Personality not found'
+        'Failed to set preset: Personality not found'
       );
     });
 
@@ -238,7 +238,7 @@ describe('Me Model Set Handler', () => {
 
       expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(mockInteraction, testError, {
         userId: 'user-123',
-        command: 'Model Set',
+        command: 'Preset Set',
       });
     });
 

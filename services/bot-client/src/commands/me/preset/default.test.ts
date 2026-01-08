@@ -1,9 +1,9 @@
 /**
- * Tests for Model Set-Default Handler
+ * Tests for Model Default Handler
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleSetDefault } from './set-default.js';
+import { handleSetDefault } from './default.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import {
@@ -116,7 +116,7 @@ describe('handleSetDefault', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: expect.stringContaining('Default Config Set'),
+            title: expect.stringContaining('Default Preset Set'),
           }),
         }),
       ],
@@ -166,7 +166,7 @@ describe('handleSetDefault', () => {
 
     expect(handleCommandError).toHaveBeenCalledWith(mockInteraction, expect.any(Error), {
       userId: 'user-123',
-      command: 'Model Set-Default',
+      command: 'Preset Default',
     });
   });
 
@@ -258,7 +258,7 @@ describe('handleSetDefault', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: expect.stringContaining('Default Config Set'),
+            title: expect.stringContaining('Default Preset Set'),
           }),
         }),
       ],
