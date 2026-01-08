@@ -5,6 +5,7 @@ node_modules/
 # Build outputs
 dist/
 *.tsbuildinfo
+.turbo/
 
 # Prevent accidental JS commits in TS source directories
 # (TypeScript compiles to dist/, not alongside source files)
