@@ -73,8 +73,8 @@ describe('Me Model List Handler', () => {
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
 
-      expect(embedData.title).toContain('Model Overrides');
-      expect(embedData.description).toContain("You haven't set any model overrides");
+      expect(embedData.title).toContain('Preset Overrides');
+      expect(embedData.description).toContain("You haven't set any preset overrides");
     });
 
     it('should list overrides when present', async () => {
@@ -154,7 +154,7 @@ describe('Me Model List Handler', () => {
       expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
         mockInteraction,
         networkError,
-        { userId: 'user-123', command: 'Model List' }
+        { userId: 'user-123', command: 'Preset List' }
       );
     });
   });

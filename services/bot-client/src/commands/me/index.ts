@@ -13,11 +13,11 @@
  * - /me profile override-clear <personality> - Clear profile override for personality
  * - /me timezone set <timezone> - Set your timezone
  * - /me timezone get - Show your current timezone
- * - /me model list - Show your model overrides
- * - /me model set <personality> <config> - Override model for a personality
- * - /me model reset <personality> - Remove model override
- * - /me model set-default <config> - Set your global default config
- * - /me model clear-default - Clear your global default config
+ * - /me preset list - Show your preset overrides
+ * - /me preset set <personality> <preset> - Override preset for a personality
+ * - /me preset reset <personality> - Remove preset override
+ * - /me preset default <preset> - Set your global default preset
+ * - /me preset clear-default - Clear your global default preset
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -43,13 +43,13 @@ import { handleTimezoneSet } from './timezone/set.js';
 import { handleTimezoneGet } from './timezone/get.js';
 // Autocomplete handlers
 import { handleMePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
-// Model subcommand handlers
-import { handleListOverrides as handleModelList } from './model/list.js';
-import { handleSet as handleModelSet } from './model/set.js';
-import { handleReset as handleModelReset } from './model/reset.js';
-import { handleSetDefault as handleModelSetDefault } from './model/set-default.js';
-import { handleClearDefault as handleModelClearDefault } from './model/clear-default.js';
-import { handleAutocomplete as handleModelAutocomplete } from './model/autocomplete.js';
+// Preset subcommand handlers (user's model/preset preferences)
+import { handleListOverrides as handlePresetList } from './preset/list.js';
+import { handleSet as handlePresetSet } from './preset/set.js';
+import { handleReset as handlePresetReset } from './preset/reset.js';
+import { handleSetDefault as handlePresetDefault } from './preset/default.js';
+import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
+import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-command');
@@ -166,15 +166,15 @@ export const data = new SlashCommandBuilder()
   )
   .addSubcommandGroup(group =>
     group
-      .setName('model')
-      .setDescription('Override which model a personality uses')
+      .setName('preset')
+      .setDescription('Choose which preset a personality uses for you')
       .addSubcommand(subcommand =>
-        subcommand.setName('list').setDescription('Show your model overrides')
+        subcommand.setName('list').setDescription('Show your preset overrides')
       )
       .addSubcommand(subcommand =>
         subcommand
           .setName('set')
-          .setDescription('Override model for a personality')
+          .setDescription('Override preset for a personality')
           .addStringOption(option =>
             option
               .setName('personality')
@@ -184,8 +184,8 @@ export const data = new SlashCommandBuilder()
           )
           .addStringOption(option =>
             option
-              .setName('config')
-              .setDescription('The LLM config to use')
+              .setName('preset')
+              .setDescription('The preset to use')
               .setRequired(true)
               .setAutocomplete(true)
           )
@@ -193,7 +193,7 @@ export const data = new SlashCommandBuilder()
       .addSubcommand(subcommand =>
         subcommand
           .setName('reset')
-          .setDescription('Remove model override for a personality')
+          .setDescription('Remove preset override for a personality')
           .addStringOption(option =>
             option
               .setName('personality')
@@ -204,18 +204,18 @@ export const data = new SlashCommandBuilder()
       )
       .addSubcommand(subcommand =>
         subcommand
-          .setName('set-default')
-          .setDescription('Set your global default LLM config')
+          .setName('default')
+          .setDescription('Set your global default preset')
           .addStringOption(option =>
             option
-              .setName('config')
-              .setDescription('The LLM config to use as default')
+              .setName('preset')
+              .setDescription('The preset to use as default')
               .setRequired(true)
               .setAutocomplete(true)
           )
       )
       .addSubcommand(subcommand =>
-        subcommand.setName('clear-default').setDescription('Clear your global default LLM config')
+        subcommand.setName('clear-default').setDescription('Clear your global default preset')
       )
   );
 
@@ -248,17 +248,17 @@ const timezoneRouter = createSubcommandRouter(
 );
 
 /**
- * Model subcommand router
+ * Preset subcommand router
  */
-const modelRouter = createSubcommandRouter(
+const presetRouter = createSubcommandRouter(
   {
-    list: handleModelList,
-    set: handleModelSet,
-    reset: handleModelReset,
-    'set-default': handleModelSetDefault,
-    'clear-default': handleModelClearDefault,
+    list: handlePresetList,
+    set: handlePresetSet,
+    reset: handlePresetReset,
+    default: handlePresetDefault,
+    'clear-default': handlePresetClearDefault,
   },
-  { logger, logPrefix: '[Me/Model]' }
+  { logger, logPrefix: '[Me/Preset]' }
 );
 
 /**
@@ -318,8 +318,8 @@ export async function execute(
     }
   } else if (group === 'timezone') {
     await timezoneRouter(interaction);
-  } else if (group === 'model') {
-    await modelRouter(interaction);
+  } else if (group === 'preset') {
+    await presetRouter(interaction);
   } else {
     logger.warn({ group }, '[Me] Unknown subcommand group');
   }
@@ -334,17 +334,17 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
   const subcommand = interaction.options.getSubcommand();
 
   if (focusedOption.name === 'personality') {
-    // Personality autocomplete (for profile override and model commands)
-    if (subcommandGroup === 'model') {
-      // Model subcommands use their own personality autocomplete
-      await handleModelAutocomplete(interaction);
+    // Personality autocomplete (for profile override and preset commands)
+    if (subcommandGroup === 'preset') {
+      // Preset subcommands use their own personality autocomplete
+      await handlePresetAutocomplete(interaction);
     } else {
       // Profile override subcommands use personality autocomplete with visibility icons
       await handleMePersonalityAutocomplete(interaction);
     }
-  } else if (focusedOption.name === 'config') {
-    // Config autocomplete (for model commands)
-    await handleModelAutocomplete(interaction);
+  } else if (focusedOption.name === 'preset') {
+    // Preset autocomplete (for preset commands)
+    await handlePresetAutocomplete(interaction);
   } else if (focusedOption.name === 'profile') {
     // Profile autocomplete
     // Include "Create new" option only for override-set (not for other profile commands)

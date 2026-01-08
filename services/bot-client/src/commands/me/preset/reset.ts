@@ -1,6 +1,6 @@
 /**
- * Me Model Reset Handler
- * Handles /me model reset subcommand
+ * Me Preset Reset Handler
+ * Handles /me preset reset subcommand
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
@@ -12,10 +12,10 @@ import {
   createSuccessEmbed,
 } from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('me-model-reset');
+const logger = createLogger('me-preset-reset');
 
 /**
- * Handle /me model reset
+ * Handle /me preset reset
  */
 export async function handleReset(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
@@ -30,20 +30,20 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
     if (!result.ok) {
       logger.warn(
         { userId, status: result.status, personalityId },
-        '[Me/Model] Failed to reset override'
+        '[Me/Preset] Failed to reset override'
       );
-      await replyWithError(interaction, `Failed to reset model: ${result.error}`);
+      await replyWithError(interaction, `Failed to reset preset: ${result.error}`);
       return;
     }
 
     const embed = createSuccessEmbed(
-      '🔄 Model Override Removed',
-      'The personality will now use its default model configuration.'
+      '🔄 Preset Override Removed',
+      'The personality will now use its default preset.'
     );
     await interaction.editReply({ embeds: [embed] });
 
-    logger.info({ userId, personalityId }, '[Me/Model] Reset override');
+    logger.info({ userId, personalityId }, '[Me/Preset] Reset override');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Model Reset' });
+    await handleCommandError(interaction, error, { userId, command: 'Preset Reset' });
   }
 }

@@ -27,7 +27,6 @@ model User {
   usageLogs             UsageLog[]
   channelSettings       ChannelSettings[]
   adminSettingsUpdates  AdminSettings[]
-  botSettingsUpdates    BotSettings[] // @deprecated - for migration only
   defaultLlmConfig      LlmConfig?                 @relation("UserDefaultLlmConfig", fields: [defaultLlmConfigId], references: [id], onDelete: SetNull)
   defaultPersona        Persona?                   @relation("UserDefaultPersona", fields: [defaultPersonaId], references: [id], onDelete: SetNull)
   ownedLlmConfigs       LlmConfig[]                @relation("LlmConfigOwner")
@@ -87,22 +86,6 @@ model AdminSettings {
   updatedByUser User? @relation(fields: [updatedBy], references: [id])
 
   @@map("admin_settings")
-}
-
-/// @deprecated Legacy key-value settings - use AdminSettings instead.
-/// Kept for migration purposes only. Will be removed in future release.
-model BotSettings {
-  id          String   @id @db.Uuid
-  key         String   @unique @db.VarChar(100)
-  value       String   @db.Text
-  description String?  @db.Text
-  updatedBy   String?  @map("updated_by") @db.Uuid
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  updatedByUser User? @relation(fields: [updatedBy], references: [id])
-
-  @@map("bot_settings")
 }
 
 /// Encrypted API keys for BYOK (Bring Your Own Key) support.

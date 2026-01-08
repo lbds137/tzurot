@@ -79,8 +79,8 @@ describe('Me Model Reset Handler', () => {
       );
 
       expect(commandHelpers.createSuccessEmbed).toHaveBeenCalledWith(
-        '🔄 Model Override Removed',
-        'The personality will now use its default model configuration.'
+        '🔄 Preset Override Removed',
+        'The personality will now use its default preset.'
       );
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
@@ -101,7 +101,7 @@ describe('Me Model Reset Handler', () => {
 
       expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
         mockInteraction,
-        'Failed to reset model: Override not found'
+        'Failed to reset preset: Override not found'
       );
     });
 
@@ -116,7 +116,7 @@ describe('Me Model Reset Handler', () => {
       expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
         mockInteraction,
         networkError,
-        { userId: 'user-123', command: 'Model Reset' }
+        { userId: 'user-123', command: 'Preset Reset' }
       );
     });
   });
