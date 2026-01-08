@@ -36,11 +36,42 @@ run_check() {
     fi
 }
 
-# Check for v3 TypeScript files in the repository
-V3_TS_FILES=$(find packages services -name "*.ts" -o -name "*.tsx" 2>/dev/null || true)
+# Determine what files are actually being pushed
+# Compare current branch HEAD against its upstream tracking branch
+CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "")
 
-if [ -n "$V3_TS_FILES" ]; then
-    echo -e "\n📦 V3 TypeScript changes detected"
+if [ -n "$UPSTREAM" ]; then
+    # Has upstream - compare against it
+    CHANGED_FILES=$(git diff --name-only "$UPSTREAM" HEAD 2>/dev/null || true)
+else
+    # No upstream (new branch) - compare against origin/develop or origin/main
+    BASE_BRANCH=$(git rev-parse --verify origin/develop 2>/dev/null || git rev-parse --verify origin/main 2>/dev/null || echo "")
+    if [ -n "$BASE_BRANCH" ]; then
+        MERGE_BASE=$(git merge-base HEAD "$BASE_BRANCH" 2>/dev/null || echo "$BASE_BRANCH")
+        CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" HEAD 2>/dev/null || true)
+    else
+        CHANGED_FILES=""
+    fi
+fi
+
+# Remove duplicates and empty lines
+CHANGED_FILES=$(echo "$CHANGED_FILES" | tr ' ' '\n' | sort -u | grep -v '^$' || true)
+
+# Check if only documentation/config files changed (no code changes)
+CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx|json)$' | grep -v 'package\.json' | grep -v '\.eslintrc' || true)
+TS_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx)$' || true)
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo -e "${YELLOW}⚠️  No files detected in push - skipping checks${NC}"
+elif [ -z "$CODE_FILES" ]; then
+    echo -e "${GREEN}📝 Only documentation/config files changed - skipping build and tests${NC}"
+    echo "Changed files:"
+    echo "$CHANGED_FILES" | sed 's/^/  /'
+else
+    echo -e "\n📦 Code changes detected"
+    echo "Changed files:"
+    echo "$CHANGED_FILES" | sed 's/^/  /'
 
     # Run all quality checks (Prettier moved to pre-commit)
     run_check "TypeScript build verification" "./scripts/deployment/verify-build.sh"
