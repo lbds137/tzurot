@@ -26,6 +26,10 @@ vi.mock('../../../utils/commandHelpers.js', () => ({
     const { EmbedBuilder } = require('discord.js');
     return new EmbedBuilder().setTitle('Success');
   }),
+  createInfoEmbed: vi.fn().mockImplementation(() => {
+    const { EmbedBuilder } = require('discord.js');
+    return new EmbedBuilder().setTitle('Info');
+  }),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -60,12 +64,12 @@ describe('Me Preset Reset Handler', () => {
   });
 
   describe('handleReset', () => {
-    it('should successfully reset model override', async () => {
+    it('should successfully reset model override when one exists', async () => {
       const mockInteraction = createMockInteraction('personality-123');
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
         ok: true,
-        data: undefined,
+        data: { deleted: true }, // wasSet defaults to true when not specified
       });
 
       await handleReset(mockInteraction);
@@ -81,6 +85,26 @@ describe('Me Preset Reset Handler', () => {
       expect(commandHelpers.createSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The personality will now use its default preset.'
+      );
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
+      });
+    });
+
+    it('should show info message when no override was set', async () => {
+      const mockInteraction = createMockInteraction('personality-123');
+
+      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+        ok: true,
+        data: { deleted: true, wasSet: false },
+      });
+
+      await handleReset(mockInteraction);
+
+      expect(commandHelpers.createInfoEmbed).toHaveBeenCalledWith(
+        'ℹ️ No Override Set',
+        'This personality was already using its default preset.'
       );
 
       expect(mockInteraction.editReply).toHaveBeenCalledWith({
