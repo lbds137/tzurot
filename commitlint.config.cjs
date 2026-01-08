@@ -10,6 +10,7 @@ module.exports = {
         'ai-worker',
         'bot-client',
         'common-types',
+        'tooling',
         'hooks',
         'docs',
         'deps',

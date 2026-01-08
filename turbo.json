@@ -10,7 +10,7 @@
     },
     "lint": {
       "dependsOn": ["^build"],
-      "inputs": ["src/**", "*.config.js", "*.config.ts", ".eslintrc*"],
+      "inputs": ["src/**", "*.config.js", "*.config.ts", "eslint.config.js"],
       "outputs": [],
       "cache": true
     },
