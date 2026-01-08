@@ -25,7 +25,7 @@ function getDatabaseHost(): string {
     const url = new URL(databaseUrl);
     return url.host;
   } catch {
-    // Fallback for malformed URLs
+    console.warn(chalk.yellow('⚠️  DATABASE_URL appears malformed, cannot extract host'));
     return 'unknown';
   }
 }
