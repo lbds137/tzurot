@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { registerDbCommands } from './commands/db.js';
 import { registerDataCommands } from './commands/data.js';
 import { registerDeployCommands } from './commands/deploy.js';
+import { registerCacheCommands } from './commands/cache.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -28,6 +29,7 @@ const cli = cac('ops');
 registerDbCommands(cli);
 registerDataCommands(cli);
 registerDeployCommands(cli);
+registerCacheCommands(cli);
 
 // Global options
 cli.help();

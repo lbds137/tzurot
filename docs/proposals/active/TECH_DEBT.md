@@ -274,6 +274,32 @@ it('should handle mixed UUID and discord: format participants', async () => {
 
 ---
 
+### Singleton Export Pattern Cleanup
+
+**Problem**: 18 module-level singletons detected by `@tzurot/no-singleton-export` ESLint rule. These make testing harder because instances are created at import time.
+
+**Locations** (run `pnpm lint 2>&1 | grep @tzurot/no-singleton-export` for full list):
+
+- `services/api-gateway/src/queue/` - BullMQ Queue, FlowProducer, QueueEvents
+- `services/api-gateway/src/services/` - RedisService, VoiceTranscriptCache, VisionDescriptionCache
+- Various `new Set()` exports for allowed values
+
+**Legitimate singletons** (intentional for connection pooling):
+
+- Redis connections
+- BullMQ queue instances
+
+**Candidates for refactoring**:
+
+- Set collections should be `as const` arrays instead
+- Date exports should be values, not `new Date()` instances
+
+**Rule status**: Enabled as warning in `eslint.config.js`. Does not block CI.
+
+**Source**: PR #455 code review (2026-01-08)
+
+---
+
 ## Deferred (Not Worth It Yet)
 
 These items are optimizations for problems we don't have at current scale:
