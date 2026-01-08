@@ -47,7 +47,7 @@ import { handleMePersonalityAutocomplete, handlePersonaAutocomplete } from './au
 import { handleListOverrides as handlePresetList } from './preset/list.js';
 import { handleSet as handlePresetSet } from './preset/set.js';
 import { handleReset as handlePresetReset } from './preset/reset.js';
-import { handleSetDefault as handlePresetDefault } from './preset/default.js';
+import { handleDefault as handlePresetDefault } from './preset/default.js';
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
 import { MeCustomIds } from '../../utils/customIds.js';

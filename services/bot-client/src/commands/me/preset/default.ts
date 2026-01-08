@@ -40,7 +40,7 @@ interface ConfigListResponse {
 /**
  * Handle /me preset default
  */
-export async function handleSetDefault(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleDefault(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const configId = interaction.options.getString('preset', true);
 
