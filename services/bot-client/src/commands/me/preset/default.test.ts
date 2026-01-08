@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleSetDefault } from './default.js';
+import { handleDefault } from './default.js';
 import type { ChatInputCommandInteraction, User } from 'discord.js';
 import { MessageFlags } from 'discord.js';
 import {
@@ -40,7 +40,7 @@ vi.mock('../../../utils/commandHelpers.js', () => ({
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
-describe('handleSetDefault', () => {
+describe('handleDefault', () => {
   let mockInteraction: ChatInputCommandInteraction;
   let mockUser: User;
 
@@ -97,7 +97,7 @@ describe('handleSetDefault', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('config-456');
     mockNonGuestUserApis('config-456', 'Test Config');
 
-    await handleSetDefault(mockInteraction);
+    await handleDefault(mockInteraction);
 
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
@@ -110,7 +110,7 @@ describe('handleSetDefault', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('config-123');
     mockNonGuestUserApis('config-123', 'My Default Config');
 
-    await handleSetDefault(mockInteraction);
+    await handleDefault(mockInteraction);
 
     expect(mockInteraction.editReply).toHaveBeenCalledWith({
       embeds: [
@@ -150,7 +150,7 @@ describe('handleSetDefault', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
-    await handleSetDefault(mockInteraction);
+    await handleDefault(mockInteraction);
 
     expect(replyWithError).toHaveBeenCalledWith(
       mockInteraction,
@@ -162,7 +162,7 @@ describe('handleSetDefault', () => {
     vi.mocked(mockInteraction.options.getString).mockReturnValue('config-123');
     vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-    await handleSetDefault(mockInteraction);
+    await handleDefault(mockInteraction);
 
     expect(handleCommandError).toHaveBeenCalledWith(mockInteraction, expect.any(Error), {
       userId: 'user-123',
@@ -191,7 +191,7 @@ describe('handleSetDefault', () => {
       return Promise.resolve({ ok: false, error: 'Should not be called' });
     });
 
-    await handleSetDefault(mockInteraction);
+    await handleDefault(mockInteraction);
 
     // Should NOT call the set-default API
     expect(callGatewayApi).not.toHaveBeenCalledWith(
@@ -244,7 +244,7 @@ describe('handleSetDefault', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
-    await handleSetDefault(mockInteraction);
+    await handleDefault(mockInteraction);
 
     // Should call the set-default API
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {

@@ -54,13 +54,13 @@ elif [ -z "$CODE_FILES" ]; then
     exit 0
 fi
 
-# 4. Detect resource-constrained environment (Steam Deck, etc.)
-# Check hostname or explicit env var for low-resource mode
+# 4. Detect resource-constrained environment
+# Use LOW_RESOURCE_MODE=1 env var to enable throttling (e.g., for Steam Deck)
+# Set in your shell profile: export LOW_RESOURCE_MODE=1
 TURBO_ARGS="--output-logs=errors-only"
-HOSTNAME=$(hostname 2>/dev/null || echo "")
 
-if echo "$HOSTNAME" | grep -qi "deck" || [ -n "$LOW_RESOURCE_MODE" ]; then
-    echo "${YELLOW}Low-resource mode detected - throttling for Steam Deck${NC}"
+if [ -n "$LOW_RESOURCE_MODE" ]; then
+    echo "${YELLOW}Low-resource mode enabled - throttling builds${NC}"
     # Limit to 1 concurrent task to prevent memory explosion
     TURBO_ARGS="$TURBO_ARGS --concurrency=1"
     # Cap Node.js memory to 2GB per process
@@ -69,8 +69,13 @@ fi
 
 # 5. Determine filter scope for Turbo
 # Use origin/develop as base (or origin/main as fallback)
-FILTER_BASE=$(git rev-parse --verify origin/develop 2>/dev/null && echo "origin/develop" || \
-              git rev-parse --verify origin/main 2>/dev/null && echo "origin/main" || echo "")
+if git rev-parse --verify origin/develop >/dev/null 2>&1; then
+    FILTER_BASE="origin/develop"
+elif git rev-parse --verify origin/main >/dev/null 2>&1; then
+    FILTER_BASE="origin/main"
+else
+    FILTER_BASE=""
+fi
 
 if [ -n "$FILTER_BASE" ]; then
     # Filter to only packages changed since base branch (plus their dependents)
