@@ -98,14 +98,20 @@ describe('inspectDatabase', () => {
     expect(disconnectPrisma).toHaveBeenCalled();
   });
 
-  it('should report table not found when empty columns', async () => {
+  it('should exit with code 1 when table not found', async () => {
     mockQueryRaw.mockResolvedValueOnce([]);
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const processExitSpy = vi.spyOn(process, 'exit').mockImplementation(() => undefined as never);
 
     const { inspectDatabase } = await import('./inspect-database.js');
     await inspectDatabase({ table: 'nonexistent' });
 
-    const output = consoleLogSpy.mock.calls.flat().join(' ');
+    const output = consoleErrorSpy.mock.calls.flat().join(' ');
     expect(output).toContain('not found');
+    expect(processExitSpy).toHaveBeenCalledWith(1);
+
+    consoleErrorSpy.mockRestore();
+    processExitSpy.mockRestore();
   });
 
   it('should call inspectIndexes when indexes option is true', async () => {
