@@ -90,7 +90,7 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
               'In **Guest Mode**, you can only use configs with free models (marked with 🆓).\n\n' +
               'Use `/wallet set` to add your own API key for full model access.'
           )
-          .setFooter({ text: 'Use /preset list to see available free configs' })
+          .setFooter({ text: 'Use /me preset list to see available free presets' })
           .setTimestamp();
 
         await interaction.editReply({ embeds: [embed] });
