@@ -10,19 +10,20 @@
 
 ---
 
-## Active: Quick Wins (Tech Debt & Naming)
+## Completed: Quick Wins (Tech Debt & Naming)
 
 Fast cleanup before building new features:
 
-- [ ] Drop deprecated `BotSettings` table (replaced by `AdminSettings`)
-- [ ] Rename `/me model` → `/me preset` (fix confusing terminology)
-  - Rename command group
-  - Update parameter names (`config` → `preset`)
-  - Update help text and documentation
+- [x] Drop deprecated `BotSettings` table (replaced by `AdminSettings`) ✅ PR #456
+- [x] Rename `/me model` → `/me preset` (fix confusing terminology) ✅ PR #456
+  - Renamed command group from `model` to `preset`
+  - Updated parameter names (`config` → `preset`)
+  - Renamed `set-default` → `default` for consistency with `/me profile default`
+  - Updated help text and documentation
 
 ---
 
-## Up Next: Memory Management Commands (Phase 2 + Read Toggle)
+## Active: Memory Management Commands (Phase 2 + Read Toggle)
 
 **Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
@@ -45,8 +46,10 @@ Fast cleanup before building new features:
 
 **Phase 3 (Incognito) - NOT STARTED:**
 
-- [ ] `/incognito enable/disable/status/forget`
+- [ ] `/memory incognito enable/disable/status/forget`
 - [ ] Visual indicator in responses when active
+
+**Note**: Incognito moved under `/memory` for consistency - all LTM controls in one place.
 
 ---
 
@@ -81,14 +84,14 @@ Key areas remaining:
 
 ## Next Up
 
-| #   | Feature                        | Why                                                     |
-| --- | ------------------------------ | ------------------------------------------------------- |
-| 1   | **Quick Wins** ⬅️              | Drop BotSettings, rename `/me model` → `/me preset`     |
-| 2   | **Memory Management Phase 2**  | LTM commands + Read Toggle ("Focus Mode")               |
-| 3   | **Channel Allowlist/Denylist** | User-requested - prevents unwanted channel responses    |
-| 4   | **Dashboard + User Prompts**   | Session manager, preset editing, sidecar system prompts |
-| 5   | **DM Personality Chat**        | User-requested - chat with personalities in DMs         |
-| 6   | **v2 Parity** (deprioritized)  | NSFW verification, Shapes import                        |
+| #   | Feature                          | Why                                                     |
+| --- | -------------------------------- | ------------------------------------------------------- |
+| 1   | ~~Quick Wins~~ ✅                | Drop BotSettings, rename `/me model` → `/me preset`     |
+| 2   | **Memory Management Phase 2** ⬅️ | LTM commands + Read Toggle ("Focus Mode")               |
+| 3   | **Channel Allowlist/Denylist**   | User-requested - prevents unwanted channel responses    |
+| 4   | **Dashboard + User Prompts**     | Session manager, preset editing, sidecar system prompts |
+| 5   | **DM Personality Chat**          | User-requested - chat with personalities in DMs         |
+| 6   | **v2 Parity** (deprioritized)    | NSFW verification, Shapes import                        |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 

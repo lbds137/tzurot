@@ -78,6 +78,37 @@ Log these events:
 
 ## Priority 3: LOW
 
+### Unsafe xargs Pattern in Schema Regeneration Script
+
+**Problem**: The `regenerate-pglite-schema.sh` script uses an unsafe shell pattern for sourcing environment variables:
+
+```bash
+export $(grep -v '^#' "$PROJECT_ROOT/.env" | xargs)
+```
+
+This is vulnerable to shell injection if `.env` contains malicious values.
+
+**Current Location**: `scripts/testing/regenerate-pglite-schema.sh:22`
+
+**Solution**: Use safe parsing like the pre-commit hook does:
+
+```bash
+if [ -f "$PROJECT_ROOT/.env" ]; then
+    DATABASE_URL=$(grep -E '^DATABASE_URL=' "$PROJECT_ROOT/.env" | cut -d '=' -f2-)
+    export DATABASE_URL
+fi
+```
+
+**Why low priority**:
+
+- `.env` is gitignored (requires local file compromise)
+- Script is only run manually by developers
+- Pre-commit hook already uses safe pattern (the primary automated path)
+
+**Source**: PR #456 code review (2026-01-08)
+
+---
+
 ### MessageContentBuilder Complexity Reduction
 
 **Problem**: `buildMessageContent()` has complexity 37 (threshold: 15). It orchestrates multiple extraction paths (text, voice, forwarded messages, attachments) in a single function.
