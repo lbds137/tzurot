@@ -79,7 +79,10 @@ describe('command handlers', () => {
       cli.parse(['node', 'test', 'db:fix-drift', 'migration1', 'migration2'], { run: true });
 
       await vi.waitFor(() => {
-        expect(fixMigrationDrift).toHaveBeenCalledWith(['migration1', 'migration2']);
+        expect(fixMigrationDrift).toHaveBeenCalledWith(
+          ['migration1', 'migration2'],
+          expect.objectContaining({})
+        );
       });
     });
 

@@ -43,8 +43,8 @@ else
 fi
 
 # 3. Check if only docs/config changed
-# Include package.json as it can affect builds (dependencies, scripts)
-CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|d\.ts)$|package\.json$' || true)
+# Include package.json and pnpm-lock.yaml as they can affect builds (dependencies, scripts)
+CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx|mjs|cjs|d\.ts)$|package\.json$|pnpm-lock\.yaml$' || true)
 
 if [ -z "$CHANGED_FILES" ]; then
     echo "${YELLOW}No files detected in push - skipping checks${NC}"

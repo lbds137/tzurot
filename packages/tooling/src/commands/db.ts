@@ -7,16 +7,18 @@ import type { CAC } from 'cac';
 export function registerDbCommands(cli: CAC): void {
   cli
     .command('db:check-drift', 'Check for migration drift between schema and database')
-    .action(async () => {
+    .option('--migrations-path <path>', 'Path to prisma migrations directory')
+    .action(async (options: { migrationsPath?: string }) => {
       const { checkMigrationDrift } = await import('../db/check-migration-drift.js');
-      await checkMigrationDrift();
+      await checkMigrationDrift(options);
     });
 
   cli
     .command('db:fix-drift [...migrations]', 'Fix migration drift issues')
-    .action(async (migrations: string[]) => {
+    .option('--migrations-path <path>', 'Path to prisma migrations directory')
+    .action(async (migrations: string[], options: { migrationsPath?: string }) => {
       const { fixMigrationDrift } = await import('../db/fix-migration-drift.js');
-      await fixMigrationDrift(migrations);
+      await fixMigrationDrift(migrations, options);
     });
 
   cli
