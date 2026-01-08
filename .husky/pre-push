@@ -56,8 +56,13 @@ fi
 
 # 4. Detect resource-constrained environment
 # Use LOW_RESOURCE_MODE=1 env var to enable throttling (e.g., for Steam Deck)
-# Set in your shell profile: export LOW_RESOURCE_MODE=1
+# Can be set in .env or shell profile
 TURBO_ARGS="--output-logs=errors-only"
+
+# Source LOW_RESOURCE_MODE from .env if not already set
+if [ -z "$LOW_RESOURCE_MODE" ] && [ -f ".env" ]; then
+    LOW_RESOURCE_MODE=$(grep -E '^LOW_RESOURCE_MODE=' .env | cut -d '=' -f2-)
+fi
 
 if [ -n "$LOW_RESOURCE_MODE" ]; then
     echo "${YELLOW}Low-resource mode enabled - throttling builds${NC}"
