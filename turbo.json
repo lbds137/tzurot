@@ -21,6 +21,13 @@
       "cache": true,
       "env": ["CI", "NODE_ENV"]
     },
+    "test:coverage": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "*.config.ts", "vitest.config.ts"],
+      "outputs": ["coverage/**"],
+      "cache": true,
+      "env": ["CI", "NODE_ENV"]
+    },
     "typecheck": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "tsconfig.json"],

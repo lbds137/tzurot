@@ -202,5 +202,19 @@ export default tseslint.config(
       // Enforce maximum nested callbacks
       'max-nested-callbacks': ['warn', { max: 3 }],
     },
+  },
+
+  // Tooling package overrides - must come AFTER main config to take precedence
+  // CLI tools need console.log for user output and have async stubs
+  {
+    files: ['packages/tooling/**/*.ts'],
+    rules: {
+      'no-console': 'off', // CLI tools output to console
+      '@typescript-eslint/require-await': 'off', // Placeholder functions may not await yet
+      '@typescript-eslint/strict-boolean-expressions': 'off', // CLI arg parsing has nullable checks
+      'max-depth': ['warn', { max: 5 }], // ESLint rules can be deeply nested
+      curly: 'off', // Allow compact conditional returns in CLI
+      'no-restricted-syntax': 'off', // console.error is fine in CLI tools (not pino logger)
+    },
   }
 );
