@@ -8,16 +8,20 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export interface FixDriftOptions {
+  migrationsPath?: string;
+}
 
-export async function fixMigrationDrift(migrationNames?: string[]): Promise<void> {
+export async function fixMigrationDrift(
+  migrationNames?: string[],
+  options: FixDriftOptions = {}
+): Promise<void> {
   const prisma = getPrismaClient();
-  // Navigate from packages/tooling/dist/db to project root
-  const migrationsDir = path.join(__dirname, '..', '..', '..', '..', 'prisma', 'migrations');
+  // Default to prisma/migrations relative to cwd (monorepo root)
+  const migrationsDir = options.migrationsPath ?? path.join(process.cwd(), 'prisma', 'migrations');
 
   const names = migrationNames ?? process.argv.slice(2).filter(arg => arg !== '--');
 
