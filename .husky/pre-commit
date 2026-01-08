@@ -3,6 +3,36 @@
 # Run lint-staged (prettier, eslint, secretlint on staged files only)
 npx lint-staged
 
+# Auto-regenerate pglite schema when Prisma schema changes
+# This prevents integration test schema drift
+STAGED_PRISMA_SCHEMA=$(git diff --cached --name-only | grep -E '^prisma/schema\.prisma$' || true)
+
+if [ -n "$STAGED_PRISMA_SCHEMA" ]; then
+    echo "Prisma schema changed - regenerating pglite integration test schema..."
+
+    # Source DATABASE_URL from .env if not set
+    if [ -z "$DATABASE_URL" ]; then
+        if [ -f ".env" ]; then
+            export $(grep -E '^DATABASE_URL=' .env | xargs)
+        fi
+    fi
+
+    if [ -n "$DATABASE_URL" ]; then
+        # Regenerate the schema
+        npx prisma migrate diff \
+            --from-empty \
+            --to-schema ./prisma/schema.prisma \
+            --script 2>/dev/null > tests/integration/schema/pglite-schema.sql
+
+        # Stage the regenerated file
+        git add tests/integration/schema/pglite-schema.sql
+        echo "✓ pglite-schema.sql regenerated and staged"
+    else
+        echo "⚠ WARNING: DATABASE_URL not set - cannot regenerate pglite schema"
+        echo "  Run: ./scripts/testing/regenerate-pglite-schema.sh manually"
+    fi
+fi
+
 # Check for dangerous Prisma migrations
 STAGED_MIGRATION_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^prisma/migrations/.*\.sql$' || true)
 
