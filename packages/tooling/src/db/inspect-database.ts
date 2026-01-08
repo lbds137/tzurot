@@ -157,8 +157,9 @@ async function inspectTableDetails(prisma: PrismaClient, tableName: string): Pro
   `;
 
   if (columns.length === 0) {
-    console.log(chalk.red(`  ❌ Table '${tableName}' not found`));
-    return;
+    console.error(chalk.red(`  ❌ Table '${tableName}' not found`));
+    process.exit(1);
+    return; // For test safety (process.exit is mocked in tests)
   }
 
   console.log('\n  Column                           Type                 Nullable  Default');
