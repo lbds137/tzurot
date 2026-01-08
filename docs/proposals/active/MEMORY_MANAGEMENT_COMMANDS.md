@@ -1,8 +1,8 @@
 # Memory Management Commands Implementation Plan
 
-> **Status**: Planning Phase
+> **Status**: Phase 1 Complete, Phase 2 In Progress
 > **Created**: 2025-12-13
-> **Last Updated**: 2025-12-13
+> **Last Updated**: 2026-01-08
 > **Priority**: High (User-requested feature)
 > **Estimated Sessions**: 6-8
 
@@ -10,12 +10,16 @@
 
 This document outlines the implementation plan for comprehensive memory management commands, enabling users to:
 
-1. **Short-Term Memory (STM)**: Clear conversation context with optional restore capability
-2. **Long-Term Memory (LTM)**: Reset, search, browse, and edit memories
-3. **Incognito Mode**: Temporarily disable LTM storage for privacy
-4. **Memory Browsing**: Paginated view with filtering and editing
+1. **Short-Term Memory (STM)**: Clear conversation context with optional restore capability ✅ COMPLETE
+2. **Long-Term Memory (LTM)**: Search, browse, edit, and delete memories
+3. **Focus Mode**: Temporarily disable LTM **reading** (memories not retrieved)
+4. **Incognito Mode**: Temporarily disable LTM **writing** (memories not saved)
+5. **Memory Browsing**: Dashboard-style view with filtering and inline editing
 
-Key architectural decision: Use **Context Epochs** (timestamp-based soft reset) for STM to enable non-destructive clearing with undo capability.
+Key architectural decisions:
+
+- **Context Epochs** (timestamp-based soft reset) for STM to enable non-destructive clearing with undo capability
+- **Focus Mode vs Incognito**: Separate controls for reading vs writing LTM (different use cases)
 
 ---
 
@@ -103,7 +107,28 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 - `[🔒 Lock]` / `[🔓 Unlock]` - Toggle core memory protection
 - `[❌ Close]` - Exit browser
 
-### `/incognito` - Privacy Mode
+### `/memory focus` - Memory Read Toggle ("Focus Mode")
+
+**Design Principle**: Focus Mode disables LTM **reading** (retrieval), not writing. This is distinct from Incognito which disables **writing**. Use case: "I want the bot to respond without referencing past memories" without deleting anything.
+
+| Subcommand | Description                    | Tier | Options                  |
+| ---------- | ------------------------------ | ---- | ------------------------ |
+| `enable`   | Disable LTM retrieval          | 0    | `personality:[specific]` |
+| `disable`  | Re-enable LTM retrieval        | 0    | `personality:[specific]` |
+| `status`   | Check current focus mode state | 0    | `personality:[specific]` |
+
+**Visual Indicator**: When focus mode is active, bot responses include:
+
+```
+🔒 [Focus Mode Active]
+*Response content here...*
+━━━━━━━━━━━━━━━━━━━━━━━━
+📭 Long-term memories are not being retrieved
+```
+
+### `/memory incognito` - Privacy Mode (Write Toggle)
+
+**Design Principle**: Incognito Mode disables LTM **writing** (storage), not reading. This is distinct from Focus Mode which disables **reading**. Use case: "I want to have a private conversation that won't be remembered."
 
 | Subcommand | Description                     | Tier | Options                                                                |
 | ---------- | ------------------------------- | ---- | ---------------------------------------------------------------------- |
@@ -111,6 +136,18 @@ Incognito mode is a **timed session state**, not a permanent toggle:
 | `disable`  | End incognito session           | 0    | -                                                                      |
 | `status`   | Check current incognito state   | 0    | -                                                                      |
 | `forget`   | Retroactively delete recent LTM | 1    | `timeframe:[5m\|15m\|1h]`, **requires confirmation**                   |
+
+**Visual Indicator**: When incognito is active, bot responses include:
+
+```
+👻 [Incognito Mode Active]
+*Response content here...*
+━━━━━━━━━━━━━━━━━━━━━━━━
+🛑 This conversation is not being saved to long-term memory
+⏱️ Incognito expires in: 45 minutes
+```
+
+**Note**: Previously this was a separate `/incognito` top-level command. Moved under `/memory` for consistency - all LTM controls in one place.
 
 ---
 
@@ -363,33 +400,25 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 
 ## Implementation Phases
 
-### Phase 1: STM Management (Sessions 1-2)
+### Phase 1: STM Management ✅ COMPLETE (beta.19)
 
 **Goal**: Users can clear and restore conversation context
 
-- [ ] Add `lastContextReset`, `previousContextReset` to UserPersonalityConfig
-- [ ] Update conversation history queries to filter by epoch
-- [ ] Implement `/history clear` command
-- [ ] Implement `/history undo` command
-- [ ] Implement `/history stats` command
-- [ ] Add gateway routes for STM operations
-- [ ] Write tests for epoch filtering logic
+- [x] Add `lastContextReset`, `previousContextReset` to UserPersonalityConfig
+- [x] Update conversation history queries to filter by epoch
+- [x] Implement `/history clear` command
+- [x] Implement `/history undo` command
+- [x] Implement `/history hard-delete` with confirmation
+- [x] Implement `/history view` command (later renamed to `/history stats`)
+- [x] Add gateway routes for STM operations
+- [x] Write tests for epoch filtering logic
+- [x] Per-persona epoch tracking
 
-### Phase 2: Incognito Mode (Session 3)
+### Phase 2: LTM Management (Current)
 
-**Goal**: Users can temporarily disable LTM recording
+**Goal**: Users can search, browse, edit, and delete long-term memories
 
-- [ ] Create Redis-based incognito session manager
-- [ ] Implement `/incognito enable` with duration options
-- [ ] Implement `/incognito disable`
-- [ ] Implement `/incognito status`
-- [ ] Add incognito check to memory storage flow
-- [ ] Add visual indicator to responses when incognito
-- [ ] Implement `/incognito forget` (retroactive delete)
-
-### Phase 3: Memory Browser Dashboard (Sessions 4-5)
-
-**Goal**: Users can browse, view, and manage individual memories via dashboard
+**2A: Memory Browser Dashboard**
 
 - [ ] Add source tracking fields to memory schema (`sourceServerId`, `sourceChannelId`, `isLocked`)
 - [ ] Create `MemoryBrowserSession` type (extends dashboard session pattern)
@@ -401,28 +430,56 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 - [ ] Regenerate embeddings on edit (call ai-worker)
 - [ ] Build autocomplete for server/channel name resolution
 
-### Phase 4: Memory Search & Batch Operations (Session 6)
-
-**Goal**: Users can search memories and perform batch operations
+**2B: Memory Search**
 
 - [ ] Implement `/memory search` with semantic search via pgvector
 - [ ] Search results show numbered list with [View] buttons
 - [ ] Clicking [View] opens browser at that memory
+
+**2C: Batch Operations**
+
 - [ ] Implement `/memory delete` for batch deletion with filters
 - [ ] Implement `/memory purge` with typed confirmation modal
 - [ ] Add isLocked check to batch operations (skip locked memories)
 - [ ] Implement `/memory stats` for memory statistics
 
-### Phase 5: Hard Delete & Polish (Sessions 7-8)
+**2D: Memory Read Toggle ("Focus Mode")**
 
-**Goal**: Complete destructive operations with proper UX
+- [ ] Add `focusModeEnabled` boolean to UserPersonalityConfig (or Redis session)
+- [ ] Implement `/memory focus enable` - disable LTM retrieval for a personality
+- [ ] Implement `/memory focus disable` - re-enable LTM retrieval
+- [ ] Implement `/memory focus status` - check current state
+- [ ] Add focus mode check to RAG retrieval pipeline
+- [ ] Visual indicator in responses when focus mode is active
 
-- [ ] Implement `/history hard-delete` with confirmation
-- [ ] Add memory statistics to `/memory stats`
-- [ ] Implement date range filtering
+**UX Distinction**:
+
+- 🛑 **Incognito** ("Stop Recording") = Disable LTM **writing** (new memories not saved)
+- 🔒 **Focus Mode** = Disable LTM **reading** (existing memories not retrieved)
+
+Focus Mode is useful when users want the personality to respond without referencing past memories - like a "fresh start" without deleting anything.
+
+### Phase 3: Incognito Mode (`/memory incognito`)
+
+**Goal**: Users can temporarily disable LTM recording for privacy
+
+- [ ] Create Redis-based incognito session manager
+- [ ] Implement `/memory incognito enable` with duration options
+- [ ] Implement `/memory incognito disable`
+- [ ] Implement `/memory incognito status`
+- [ ] Add incognito check to memory storage flow
+- [ ] Add visual indicator to responses when incognito
+- [ ] Implement `/memory incognito forget` (retroactive delete)
+
+### Phase 4: Polish & Edge Cases
+
+**Goal**: Complete UX polish and handle edge cases
+
+- [ ] Implement date range filtering for all operations
 - [ ] Polish all confirmation modals
 - [ ] Add audit logging for destructive operations
 - [ ] Comprehensive E2E testing
+- [ ] Documentation and help text
 
 ---
 
@@ -464,17 +521,12 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 └─────────────────────────────────────────┘
 ```
 
-### Incognito Visual Indicator
+### Memory Mode Visual Indicators
 
-When incognito is active, bot responses include:
+See command structure section for visual indicators:
 
-```
-👻 [Incognito Mode Active]
-*Response content here...*
-━━━━━━━━━━━━━━━━━━━━━━━━
-🔒 This conversation is not being saved to long-term memory
-⏱️ Incognito expires in: 45 minutes
-```
+- **Focus Mode**: 🔒 indicator when LTM reading is disabled
+- **Incognito Mode**: 👻 indicator when LTM writing is disabled
 
 ### Memory Search Results
 
@@ -529,14 +581,22 @@ When incognito is active, bot responses include:
 | DELETE | `/user/memory/:id/lock` | Unlock memory                                |
 | GET    | `/user/memory/stats`    | Memory statistics                            |
 
-**Incognito Routes:**
+**Focus Mode Routes (Read Toggle):**
 
-| Method | Route                    | Description          |
-| ------ | ------------------------ | -------------------- |
-| POST   | `/user/incognito`        | Enable incognito     |
-| DELETE | `/user/incognito`        | Disable incognito    |
-| GET    | `/user/incognito`        | Get incognito status |
-| POST   | `/user/incognito/forget` | Retroactive delete   |
+| Method | Route                | Description           |
+| ------ | -------------------- | --------------------- |
+| POST   | `/user/memory/focus` | Enable focus mode     |
+| DELETE | `/user/memory/focus` | Disable focus mode    |
+| GET    | `/user/memory/focus` | Get focus mode status |
+
+**Incognito Routes (Write Toggle):**
+
+| Method | Route                           | Description          |
+| ------ | ------------------------------- | -------------------- |
+| POST   | `/user/memory/incognito`        | Enable incognito     |
+| DELETE | `/user/memory/incognito`        | Disable incognito    |
+| GET    | `/user/memory/incognito`        | Get incognito status |
+| POST   | `/user/memory/incognito/forget` | Retroactive delete   |
 
 **Note**: Browse dashboard session state is managed client-side (in bot-client) using the `SessionManager` pattern, not via API. Only data fetching goes through gateway.
 

@@ -14,17 +14,18 @@
 
 ## Next Up (In Order)
 
-### 1. Quick Wins (Tech Debt & Naming)
+### ~~1. Quick Wins (Tech Debt & Naming)~~ ✅ COMPLETE (PR #456)
 
 **Why first**: Fast cleanup before building new features. Fix terminology before more UI work.
 
-- [ ] Drop deprecated `BotSettings` table (replaced by `AdminSettings`)
-- [ ] Rename `/me model` → `/me preset` (fix confusing terminology)
-  - Rename command group
-  - Update parameter names (`config` → `preset`)
-  - Update help text and documentation
+- [x] Drop deprecated `BotSettings` table (replaced by `AdminSettings`)
+- [x] Rename `/me model` → `/me preset` (fix confusing terminology)
+  - Renamed command group from `model` to `preset`
+  - Updated parameter names (`config` → `preset`)
+  - Renamed `set-default` → `default` for consistency
+  - Updated help text and documentation
 
-### 2. Memory Management Commands (Phase 2 + Read Toggle)
+### 2. Memory Management Commands (Phase 2 + Read Toggle) ⬅️ CURRENT
 
 **Why**: User-requested, high retention value. Bundle LTM commands with memory read toggle.
 
@@ -49,8 +50,10 @@
 
 **Phase 3 - Incognito Mode (NOT STARTED):**
 
-- [ ] `/incognito enable/disable/status/forget`
+- [ ] `/memory incognito enable/disable/status/forget`
 - [ ] Visual indicator in responses when active
+
+**Note**: Incognito consolidated under `/memory` - all LTM controls in one place.
 
 ### 3. Channel Allowlist/Denylist
 
