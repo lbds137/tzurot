@@ -26,6 +26,7 @@ git config core.hooksPath hooks
 ```
 
 **Changes**:
+
 - [ ] Add `postinstall` script to root `package.json`
 - [ ] Remove `scripts/git/install-hooks.sh` (no longer needed)
 - [ ] Update CLAUDE.md to remove "run install-hooks" instructions
@@ -46,6 +47,7 @@ pnpm add -D husky
 ```
 
 **Changes**:
+
 - [ ] Install husky
 - [ ] Add `prepare` script: `"prepare": "husky"`
 - [ ] Migrate existing hooks to `.husky/` format
@@ -68,6 +70,7 @@ pnpm add -D lint-staged
 ```
 
 **Configuration** (`.lintstagedrc.json`):
+
 ```json
 {
   "*.{ts,tsx}": ["prettier --write", "eslint --fix --max-warnings=0"],
@@ -77,6 +80,7 @@ pnpm add -D lint-staged
 ```
 
 **Changes**:
+
 - [ ] Install lint-staged
 - [ ] Create `.lintstagedrc.json`
 - [ ] Update pre-commit hook to use `npx lint-staged`
@@ -93,11 +97,13 @@ pnpm add -D lint-staged
 **Why**: AI-assisted coding increases risk of pasting API keys. GitGuardian only catches after push.
 
 **Option A: secretlint** (Node-based, integrates with lint-staged)
+
 ```bash
 pnpm add -D @secretlint/secretlint-rule-preset-recommend secretlint
 ```
 
 **Option B: gitleaks** (Go binary, faster, runs standalone)
+
 ```bash
 # Install via brew or download binary
 brew install gitleaks
@@ -106,6 +112,7 @@ brew install gitleaks
 **Recommendation**: Use **secretlint** for integration with lint-staged, fall back to gitleaks for CI.
 
 **Configuration** (`.secretlintrc.json`):
+
 ```json
 {
   "rules": [
@@ -117,6 +124,7 @@ brew install gitleaks
 ```
 
 **Changes**:
+
 - [ ] Install secretlint
 - [ ] Create `.secretlintrc.json`
 - [ ] Add to pre-commit: `npx secretlint --secretlintrcJSON .secretlintrc.json`
@@ -135,25 +143,23 @@ pnpm add -D @commitlint/cli @commitlint/config-conventional
 ```
 
 **Configuration** (`commitlint.config.js`):
+
 ```javascript
 module.exports = {
   extends: ['@commitlint/config-conventional'],
   rules: {
-    'scope-enum': [2, 'always', [
-      'api-gateway',
-      'ai-worker',
-      'bot-client',
-      'common-types',
-      'hooks',
-      'docs',
-      'deps'
-    ]],
+    'scope-enum': [
+      2,
+      'always',
+      ['api-gateway', 'ai-worker', 'bot-client', 'common-types', 'hooks', 'docs', 'deps'],
+    ],
     'body-max-line-length': [0], // Allow long bodies (changelogs, etc.)
-  }
+  },
 };
 ```
 
 **Changes**:
+
 - [ ] Install commitlint
 - [ ] Create `commitlint.config.js`
 - [ ] Add commit-msg hook: `npx --no -- commitlint --edit ${1}`
@@ -167,6 +173,7 @@ module.exports = {
 **Why**: Enforce `feat/`, `fix/`, `chore/` prefixes for cleaner branch organization.
 
 **Add to pre-push hook**:
+
 ```bash
 # Validate branch name format
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -179,6 +186,7 @@ fi
 ```
 
 **Changes**:
+
 - [ ] Add validation to pre-push hook
 - [ ] Allow `develop` and `main` branches to bypass
 - [ ] Allow `scratch/` prefix for WIP branches (skips all checks)
@@ -194,6 +202,7 @@ fi
 **Why**: Skip tests if package hasn't changed. Could reduce pre-push from 2 min to seconds.
 
 **Deferred because**:
+
 - Requires restructuring test commands
 - Need to validate caching works correctly
 - Current performance is acceptable for solo dev
@@ -207,6 +216,7 @@ fi
 After implementation:
 
 ### `.husky/pre-commit`
+
 ```bash
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
@@ -219,6 +229,7 @@ npx lint-staged
 ```
 
 ### `.husky/commit-msg`
+
 ```bash
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
@@ -227,6 +238,7 @@ npx --no -- commitlint --edit ${1}
 ```
 
 ### `.husky/pre-push`
+
 ```bash
 #!/bin/sh
 . "$(dirname "$0")/_/husky.sh"
@@ -262,6 +274,7 @@ pnpm test
 ## Rollback Plan
 
 If issues arise:
+
 1. `git config --unset core.hooksPath` restores default behavior
 2. Delete `.husky/` and hooks are disabled
 3. Old hooks are preserved in git history
@@ -289,10 +302,10 @@ If issues arise:
 
 ## Success Metrics
 
-| Metric | Current | Target |
-|--------|---------|--------|
-| Pre-commit time (docs change) | ~35s | <5s |
-| Pre-push time (docs change) | ~2min | <5s |
-| Hook installation | Manual script | Automatic |
-| Secret scanning | Post-push only | Pre-commit |
-| Commit message validation | None | Conventional commits |
+| Metric                        | Current        | Target               |
+| ----------------------------- | -------------- | -------------------- |
+| Pre-commit time (docs change) | ~35s           | <5s                  |
+| Pre-push time (docs change)   | ~2min          | <5s                  |
+| Hook installation             | Manual script  | Automatic            |
+| Secret scanning               | Post-push only | Pre-commit           |
+| Commit message validation     | None           | Conventional commits |

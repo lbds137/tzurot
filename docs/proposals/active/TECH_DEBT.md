@@ -33,6 +33,7 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 **Violation**: CLAUDE.md "Bounded Data Access" rule - "All queries returning arrays must be bounded."
 
 **Solution**: Add maximum scan depth:
+
 ```typescript
 const MAX_SCAN_DEPTH = 100; // Don't scan more than 100 messages back
 for (let i = history.length - 1; i >= Math.max(0, history.length - MAX_SCAN_DEPTH) && messages.length < maxMessages; i--) {
@@ -49,6 +50,7 @@ for (let i = history.length - 1; i >= Math.max(0, history.length - MAX_SCAN_DEPT
 **Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:520-535`
 
 **Solution**: After incident is diagnosed (target: Feb 2026):
+
 - [ ] Downgrade PASSED logs from INFO to DEBUG
 - [ ] Keep NEAR-MISS and DUPLICATE at INFO
 - [ ] Consider adding feature flag for verbose mode
@@ -130,11 +132,13 @@ Log these events:
 **Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:552`
 
 **Current Code**:
+
 ```typescript
 if (history[i].role === 'assistant') {
 ```
 
 **Solution**:
+
 ```typescript
 import { MessageRole } from '@tzurot/common-types';
 if (history[i].role === MessageRole.Assistant) {
@@ -151,14 +155,16 @@ if (history[i].role === MessageRole.Assistant) {
 **Problem**: Role distribution calculation is duplicated in two places.
 
 **Locations**:
+
 - `services/ai-worker/src/jobs/handlers/pipeline/steps/GenerationStep.ts:221-227`
 - `services/ai-worker/src/utils/duplicateDetection.ts:569-586`
 
 **Solution**: Extract shared helper to `duplicateDetection.ts`:
+
 ```typescript
 export function getRoleDistribution(
   history: { role: string; content: string }[] | undefined
-): Record<string, number>
+): Record<string, number>;
 ```
 
 **Source**: PR #453 code review (2026-01-07)
@@ -172,6 +178,7 @@ export function getRoleDistribution(
 **Current Location**: `packages/common-types/src/services/resolvers/PersonaResolver.test.ts`
 
 **Missing Test Case**:
+
 ```typescript
 it('should handle mixed UUID and discord: format participants', async () => {
   const participants = [
@@ -191,11 +198,13 @@ it('should handle mixed UUID and discord: format participants', async () => {
 **Problem**: The `discord:XXXX` format for participant IDs is used in multiple places but not documented in architecture docs.
 
 **Locations using this format**:
+
 - `PersonaResolver.resolveToUuid()`
 - Extended context participant handling
 - Conversation history sync
 
 **Solution**: Add section to `docs/reference/architecture/` explaining:
+
 - When discord: format is used (webhook messages before persona resolution)
 - How it's resolved to UUIDs
 - Why normalization at API boundary might be cleaner long-term

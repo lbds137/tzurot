@@ -1,0 +1,70 @@
+#!/bin/sh
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m'
+
+echo "Running pre-push checks..."
+
+# 1. Validate branch name (skip for main/develop/scratch)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+if [ "$BRANCH" != "develop" ] && [ "$BRANCH" != "main" ]; then
+    # Allow scratch/ prefix for WIP branches (skip all checks)
+    if echo "$BRANCH" | grep -q "^scratch/"; then
+        echo "${YELLOW}Scratch branch detected - skipping all checks${NC}"
+        exit 0
+    fi
+
+    # Validate branch naming convention
+    if ! echo "$BRANCH" | grep -qE "^(feat|fix|chore|refactor|docs|test|ci)/"; then
+        echo "${RED}Branch name must follow pattern: type/description${NC}"
+        echo "   Valid types: feat, fix, chore, refactor, docs, test, ci"
+        echo "   Example: feat/add-user-auth"
+        echo "   Use scratch/ prefix for WIP branches that skip checks"
+        exit 1
+    fi
+fi
+
+# 2. Determine what files are being pushed
+UPSTREAM=$(git rev-parse --abbrev-ref --symbolic-full-name @{u} 2>/dev/null || echo "")
+
+if [ -n "$UPSTREAM" ]; then
+    CHANGED_FILES=$(git diff --name-only "$UPSTREAM" HEAD 2>/dev/null || true)
+else
+    BASE_BRANCH=$(git rev-parse --verify origin/develop 2>/dev/null || git rev-parse --verify origin/main 2>/dev/null || echo "")
+    if [ -n "$BASE_BRANCH" ]; then
+        MERGE_BASE=$(git merge-base HEAD "$BASE_BRANCH" 2>/dev/null || echo "$BASE_BRANCH")
+        CHANGED_FILES=$(git diff --name-only "$MERGE_BASE" HEAD 2>/dev/null || true)
+    else
+        CHANGED_FILES=""
+    fi
+fi
+
+# 3. Check if only docs/config changed
+CODE_FILES=$(echo "$CHANGED_FILES" | grep -E '\.(ts|tsx|js|jsx)$' || true)
+
+if [ -z "$CHANGED_FILES" ]; then
+    echo "${YELLOW}No files detected in push - skipping checks${NC}"
+    exit 0
+elif [ -z "$CODE_FILES" ]; then
+    echo "${GREEN}Only documentation/config files changed - skipping build and tests${NC}"
+    exit 0
+fi
+
+# 4. Run Turbo for cached builds and tests
+echo "Code changes detected. Running Turbo build and tests..."
+
+# Ensure CI mode (no watch mode, no prompts)
+export CI=true
+
+# Use Turbo for cached execution
+# --filter=[HEAD^1] would only run affected packages, but for pre-push we want all
+if ! pnpm turbo run build lint test --output-logs=errors-only; then
+    echo "${RED}Pre-push checks failed!${NC}"
+    echo "Fix the issues before pushing, or use: git push --no-verify"
+    exit 1
+fi
+
+echo "${GREEN}All pre-push checks passed!${NC}"
