@@ -37,7 +37,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-describe('Me Model List Handler', () => {
+describe('Me Preset List Handler', () => {
   const createMockInteraction = () =>
     ({
       user: { id: 'user-123' },

@@ -50,7 +50,7 @@ vi.mock('../../../utils/commandHelpers.js', () => ({
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
 }));
 
-describe('Model Command Handlers', () => {
+describe('Preset Command Handlers', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {

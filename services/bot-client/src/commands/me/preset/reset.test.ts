@@ -41,7 +41,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-describe('Me Model Reset Handler', () => {
+describe('Me Preset Reset Handler', () => {
   const createMockInteraction = (personalityId: string) =>
     ({
       user: { id: 'user-123' },
