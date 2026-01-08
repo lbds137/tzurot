@@ -96,7 +96,8 @@ fi
 # Ensure CI mode (no watch mode, no prompts)
 export CI=true
 
-# shellcheck disable=SC2086
+# shellcheck disable=SC2086 - Intentional word splitting for Turbo args
+# TURBO_FILTER and TURBO_ARGS are space-separated flags, never contain spaces in values
 if ! pnpm turbo run build lint test $TURBO_FILTER $TURBO_ARGS; then
     echo "${RED}Pre-push checks failed!${NC}"
     echo "Fix the issues before pushing, or use: git push --no-verify"
