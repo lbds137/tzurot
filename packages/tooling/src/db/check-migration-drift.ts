@@ -8,21 +8,22 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import chalk from 'chalk';
 import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 interface MigrationRecord {
   migration_name: string;
   checksum: string;
 }
 
-export async function checkMigrationDrift(): Promise<void> {
+export interface CheckDriftOptions {
+  migrationsPath?: string;
+}
+
+export async function checkMigrationDrift(options: CheckDriftOptions = {}): Promise<void> {
   const prisma = getPrismaClient();
-  // Navigate from packages/tooling/dist/db to project root
-  const migrationsDir = path.join(__dirname, '..', '..', '..', '..', 'prisma', 'migrations');
+  // Default to prisma/migrations relative to cwd (monorepo root)
+  const migrationsDir = options.migrationsPath ?? path.join(process.cwd(), 'prisma', 'migrations');
 
   console.log(chalk.bold('Checking all migrations for drift...\n'));
 
