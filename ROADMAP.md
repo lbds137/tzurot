@@ -1,22 +1,32 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-04
-> **Current Version**: v3.0.0-beta.33
+> **Last Updated**: 2026-01-08
+> **Current Version**: v3.0.0-beta.40
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
 
-## Current Priority: Kill v2
+## Current Priority: User-Requested Features
 
-**Goal**: Finish v2 feature parity → delete tzurot-legacy → reduce maintenance burden.
+**Goal**: Deliver user value first. v2 parity is not urgent - legacy system isn't hurting anything.
 
 ---
 
 ## Next Up (In Order)
 
-### 1. Memory Management Commands ⬅️ ACTIVE (Phase 2)
+### 1. Quick Wins (Tech Debt & Naming)
 
-**Why first**: User-requested, high retention value. Comprehensive memory control enables privacy features.
+**Why first**: Fast cleanup before building new features. Fix terminology before more UI work.
+
+- [ ] Drop deprecated `BotSettings` table (replaced by `AdminSettings`)
+- [ ] Rename `/me model` → `/me preset` (fix confusing terminology)
+  - Rename command group
+  - Update parameter names (`config` → `preset`)
+  - Update help text and documentation
+
+### 2. Memory Management Commands (Phase 2 + Read Toggle)
+
+**Why**: User-requested, high retention value. Bundle LTM commands with memory read toggle.
 
 **Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
@@ -33,42 +43,51 @@
 - [ ] `/memory delete` - single memory deletion
 - [ ] `/memory purge` - bulk deletion with typed confirmation
 - [ ] `/memory lock/unlock` - core memory protection
+- [ ] **Memory Read Toggle** ("Focus Mode") - disable LTM retrieval per-user/personality
+  - Different from Incognito (write) - this controls read
+  - UX: 🛑 "Stop Recording" (Incognito) vs 🔒 "Focus Mode" (Read Toggle)
 
 **Phase 3 - Incognito Mode (NOT STARTED):**
 
 - [ ] `/incognito enable/disable/status/forget`
 - [ ] Visual indicator in responses when active
 
-### 2. Shapes.inc Import
+### 3. Channel Allowlist/Denylist
 
-**Why**: Can't kill v2 until users can migrate their data. This unblocks deletion.
+**Why**: User-requested. Prevents bot from spamming unwanted channels, reduces server kicks.
 
-- [ ] Parse shapes.inc backup JSON format
-- [ ] Import wizard slash command (`/character import`)
-- [ ] Map shapes.inc fields to v3 personality schema
-- [ ] Handle avatar migration
-- [ ] Validation and preview before import
+- [ ] Add `mode` (allowlist/denylist) and `channels` array to ChannelSettings or new table
+- [ ] `/channel restrict` command for server admins
+- [ ] Middleware check in message handler
+- [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### 3. DM Personality Chat
+### 4. Slash Command Dashboard Pattern + User System Prompts
 
-**Why**: Biggest feature gap from v2. Multiple user requests.
+**Why**: Fix UX before adding complex features. Bundle system prompts into preset editor.
+
+- [ ] Session manager abstraction for multi-step flows
+- [ ] Redis-backed session storage
+- [ ] `/preset edit` - dashboard with all LLM params (temperature, topP, etc.)
+- [ ] `/me profile` dashboard upgrade
+- [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
+- [ ] Standardize modal/button patterns across commands
+
+### 5. DM Personality Chat
+
+**Why**: User-requested. Multiple requests for this feature.
 
 - [ ] Detect DM context in message handler
 - [ ] Use conversation history to identify which personality user was chatting with
 - [ ] Allow personality selection in DMs (`/character chat` in DMs)
 - [ ] Handle first-time DM (no history yet)
 
-### 4. Slash Command Dashboard Pattern
+---
 
-**Why**: Fix UX before adding complex features like NSFW settings.
+## v2 Parity (When Ready)
 
-- [ ] Session manager abstraction for multi-step flows
-- [ ] Redis-backed session storage
-- [ ] `/preset edit` - users can finally edit their presets
-- [ ] `/me profile` dashboard upgrade
-- [ ] Standardize modal/button patterns across commands
+**Goal**: Eventually kill v2, but not urgent. Do these when convenient.
 
-### 5. NSFW Verification
+### NSFW Verification
 
 **Why**: Required for certain content. Keep it simple and TOS-compliant.
 
@@ -78,7 +97,21 @@
 - [ ] "Handshake" verification: user must interact with bot in a Discord age-gated channel
 - [ ] Once verified, NSFW content unlocked globally for that user
 
-### 6. Agentic Scaffolding
+### Shapes.inc Import
+
+**Why**: Users need migration path from v2. Do after other features stabilize.
+
+- [ ] Parse shapes.inc backup JSON format
+- [ ] Import wizard slash command (`/character import`)
+- [ ] Map shapes.inc fields to v3 personality schema
+- [ ] Handle avatar migration
+- [ ] Validation and preview before import
+
+---
+
+## Later (Post User Features)
+
+### Agentic Scaffolding
 
 **Why**: Build capabilities before building the storage for them. Do this before OpenMemory.
 

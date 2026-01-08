@@ -1,16 +1,28 @@
 # Current Work
 
-> Last updated: 2026-01-07
+> Last updated: 2026-01-08
 
 ## Status: Public Beta Live
 
 **Version**: v3.0.0-beta.40
 **Deployment**: Railway (stable)
-**Current Goal**: Kill v2 (finish feature parity → delete tzurot-legacy)
+**Current Goal**: User-Requested Features (v2 parity deprioritized)
 
 ---
 
-## Active: Memory Management Commands (Phase 2)
+## Active: Quick Wins (Tech Debt & Naming)
+
+Fast cleanup before building new features:
+
+- [ ] Drop deprecated `BotSettings` table (replaced by `AdminSettings`)
+- [ ] Rename `/me model` → `/me preset` (fix confusing terminology)
+  - Rename command group
+  - Update parameter names (`config` → `preset`)
+  - Update help text and documentation
+
+---
+
+## Up Next: Memory Management Commands (Phase 2 + Read Toggle)
 
 **Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
@@ -27,14 +39,18 @@
 - [ ] `/memory delete` - Single memory deletion
 - [ ] `/memory purge` - Bulk deletion with typed confirmation
 - [ ] `/memory lock/unlock` - Core memory protection
+- [ ] **Memory Read Toggle** ("Focus Mode") - disable LTM retrieval per-user/personality
+  - Different from Incognito (write) - this controls read
+  - UX: 🛑 "Stop Recording" (Incognito) vs 🔒 "Focus Mode" (Read Toggle)
 
 **Phase 3 (Incognito) - NOT STARTED:**
 
 - [ ] `/incognito enable/disable/status/forget`
+- [ ] Visual indicator in responses when active
 
 ---
 
-## High Priority (Deferred): DRY Message Extraction Refactor
+## Deferred: DRY Message Extraction Refactor
 
 **Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)
 **Tech Debt Tracking**: [`docs/proposals/active/TECH_DEBT.md`](docs/proposals/active/TECH_DEBT.md)
@@ -65,13 +81,14 @@ Key areas remaining:
 
 ## Next Up
 
-| #   | Feature                  | Why                                              |
-| --- | ------------------------ | ------------------------------------------------ |
-| 1   | **Memory Management** ⬅️ | Phase 2 (LTM) - user-requested, privacy control  |
-| 2   | **Shapes.inc Import**    | Unblocks v2 deletion - users need migration path |
-| 3   | **DM Personality Chat**  | Biggest v2 feature gap, user-requested           |
-| 4   | **Dashboard Pattern**    | Fix UX before adding complex features            |
-| 5   | **NSFW Verification**    | User-level, one-time via age-gated channel       |
+| #   | Feature                        | Why                                                     |
+| --- | ------------------------------ | ------------------------------------------------------- |
+| 1   | **Quick Wins** ⬅️              | Drop BotSettings, rename `/me model` → `/me preset`     |
+| 2   | **Memory Management Phase 2**  | LTM commands + Read Toggle ("Focus Mode")               |
+| 3   | **Channel Allowlist/Denylist** | User-requested - prevents unwanted channel responses    |
+| 4   | **Dashboard + User Prompts**   | Session manager, preset editing, sidecar system prompts |
+| 5   | **DM Personality Chat**        | User-requested - chat with personalities in DMs         |
+| 6   | **v2 Parity** (deprioritized)  | NSFW verification, Shapes import                        |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
