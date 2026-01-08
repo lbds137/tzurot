@@ -1,5 +1,5 @@
 /**
- * Tests for Model Command Handlers (list, set, reset)
+ * Tests for Preset Command Handlers (list, set, reset)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
