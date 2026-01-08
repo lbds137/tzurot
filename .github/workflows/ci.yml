@@ -42,6 +42,27 @@ jobs:
       - name: Run linter
         run: pnpm run lint
 
+      - name: Check pglite schema is in sync with Prisma
+        run: |
+          # Generate fresh schema from Prisma
+          npx prisma migrate diff \
+            --from-empty \
+            --to-schema ./prisma/schema.prisma \
+            --script 2>/dev/null > /tmp/fresh-pglite-schema.sql
+
+          # Compare with committed schema
+          if ! diff -q tests/integration/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql > /dev/null 2>&1; then
+            echo "❌ ERROR: pglite-schema.sql is out of sync with prisma/schema.prisma"
+            echo ""
+            echo "The integration test schema must match the Prisma schema."
+            echo "Run: ./scripts/testing/regenerate-pglite-schema.sh"
+            echo ""
+            echo "Diff:"
+            diff tests/integration/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql || true
+            exit 1
+          fi
+          echo "✓ pglite-schema.sql is in sync with Prisma schema"
+
       - name: Audit contract test coverage
         run: npx tsx scripts/testing/audit-contract-coverage.ts
 
