@@ -44,11 +44,25 @@ describe('getDatabaseHost', () => {
     expect(module.inspectDatabase).toBeDefined();
   });
 
-  it('should handle malformed DATABASE_URL', async () => {
+  it('should handle malformed DATABASE_URL and warn', async () => {
     process.env.DATABASE_URL = 'not-a-valid-url';
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    const module = await import('./inspect-database.js');
-    expect(module.inspectDatabase).toBeDefined();
+    // Reset module to pick up new env
+    vi.resetModules();
+    const { inspectDatabase } = await import('./inspect-database.js');
+
+    // Mock Prisma for the call
+    vi.mocked(getPrismaClient).mockReturnValue({
+      $queryRaw: vi.fn().mockResolvedValue([]),
+    } as never);
+
+    await inspectDatabase({ indexes: true });
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('DATABASE_URL appears malformed')
+    );
+    consoleWarnSpy.mockRestore();
   });
 });
 
