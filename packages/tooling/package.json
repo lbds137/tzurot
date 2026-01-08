@@ -1,0 +1,45 @@
+{
+  "name": "@tzurot/tooling",
+  "version": "3.0.0-beta.40",
+  "private": true,
+  "description": "Internal tooling and CLI for Tzurot monorepo operations",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./eslint": {
+      "import": "./dist/eslint/index.js",
+      "types": "./dist/eslint/index.d.ts"
+    }
+  },
+  "bin": {
+    "ops": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@tzurot/common-types": "workspace:*",
+    "cac": "^6.7.14",
+    "chalk": "^5.4.1",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/eslint": "^9.6.1",
+    "@types/estree": "^1.0.8",
+    "@types/node": "^25.0.3",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "eslint": ">=9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "eslint": {
+      "optional": true
+    }
+  }
+}

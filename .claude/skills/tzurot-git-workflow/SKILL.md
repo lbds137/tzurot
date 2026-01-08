@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
-lastUpdated: '2025-12-31'
+lastUpdated: '2026-01-07'
 ---
 
 # Tzurot v3 Git Workflow
@@ -122,16 +122,23 @@ git branch -d feat/your-feature
 2. **Use safe alternatives:** `--force-with-lease`, `git branch -d` (not -D)
 3. **When user says "get changes"** → They mean COMMIT, not DISCARD
 
-## Git Hooks
+## Git Hooks (Husky)
 
-**Source-controlled in `./hooks/`** (not `.git/hooks/`)
+**Managed by Husky** - auto-installed on `pnpm install`.
 
-| Hook       | When         | What                        | Speed |
-| ---------- | ------------ | --------------------------- | ----- |
-| pre-commit | Every commit | Prettier + migration safety | ~5s   |
-| pre-push   | Before push  | Lint, typecheck, tests      | ~60s  |
+| Hook       | Tools                   | What                          | Speed   |
+| ---------- | ----------------------- | ----------------------------- | ------- |
+| pre-commit | lint-staged, secretlint | Format staged files + secrets | ~3s     |
+| commit-msg | commitlint              | Validate conventional commits | instant |
+| pre-push   | Turborepo               | Cached build/lint/test        | varies  |
 
-**Install:** `./scripts/git/install-hooks.sh`
+**Configuration:**
+
+- `.husky/` - Hook scripts
+- `.lintstagedrc.json` - Staged file linting
+- `commitlint.config.cjs` - Commit message rules
+
+**Skip for docs-only changes:** Pre-push auto-skips tests when only `.md`, `.json`, etc. files changed.
 
 **Never skip:** Don't use `--no-verify`
 
@@ -153,21 +160,34 @@ git push --force-with-lease origin feat/your-feature
 
 ## Release Workflow
 
-### Version Bump (ALL package.json files!)
+### Option 1: Changesets (Recommended)
 
 ```bash
-# Use the bump-version script - handles all 9 package.json files
-pnpm bump-version 3.0.0-beta.31
+# During development: add changeset describing your changes
+pnpm changeset
 
-# Review changes
-git diff
+# Before release: check pending changesets
+pnpm changeset:status
 
-# Commit
-git commit -am "chore: bump version to 3.0.0-beta.31"
+# Apply changesets and bump versions
+pnpm changeset:version
+
+# Review and commit
+git add . && git commit -m "chore: version packages"
 git push origin develop
 ```
 
-**Script location:** `scripts/utils/bump-version.sh`
+### Option 2: Manual Version Bump
+
+```bash
+# Use the bump-version script - handles all package.json files
+pnpm bump-version 3.0.0-beta.31
+
+# Review and commit
+git diff
+git commit -am "chore: bump version to 3.0.0-beta.31"
+git push origin develop
+```
 
 ### Create Release PR
 

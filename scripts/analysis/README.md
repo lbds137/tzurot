@@ -1,25 +1,55 @@
-# Code Analysis Scripts
+# Analysis Scripts
 
-Scripts for analyzing code quality, patterns, and potential issues.
+Code quality and pattern analysis utilities.
 
-## Scripts
+## Migration to ESLint Rules
 
-- **check-singleton-exports.js** - Find singleton export patterns
-- **check-hardcoded-prefix.js** - Detect hardcoded bot prefix usage (should use config)
-- **check-module-size.sh** - Analyze module bundle sizes
-- **check-job-validation.sh** - Verify BullMQ job validation patterns
+Static analysis scripts are being migrated to ESLint rules in `@tzurot/tooling/eslint`. This provides:
 
-## Usage
+- Automatic execution on save (via IDE integration)
+- CI enforcement
+- Better developer experience (inline errors)
 
-```bash
-# Check for singletons
-node scripts/analysis/check-singleton-exports.js
+### Migrated
 
-# Find hardcoded prefixes
-node scripts/analysis/check-hardcoded-prefix.js
+| Script                       | ESLint Rule                   | Status                 |
+| ---------------------------- | ----------------------------- | ---------------------- |
+| `check-singleton-exports.js` | `@tzurot/no-singleton-export` | ✅ Migrated            |
+| `check-hardcoded-prefix.js`  | N/A                           | 🗑️ Deleted (v2 relic)  |
+| `check-module-size.sh`       | Built-in `max-lines`          | 🗑️ Deleted (redundant) |
 
-# Check module sizes
-./scripts/analysis/check-module-size.sh
+### Remaining Scripts
+
+| Script                       | Purpose                           | Migration Plan                                      |
+| ---------------------------- | --------------------------------- | --------------------------------------------------- |
+| `check-singleton-exports.js` | Detect singleton anti-patterns    | Keep as reference until ESLint rule is fully tested |
+| `check-job-validation.sh`    | Ensure BullMQ jobs use validation | → ESLint rule (future)                              |
+
+## Using the ESLint Rules
+
+To enable the custom rules, add to `eslint.config.js`:
+
+```javascript
+import tzurotPlugin from '@tzurot/tooling/eslint';
+
+export default [
+  // ... other configs
+  {
+    plugins: {
+      '@tzurot': tzurotPlugin,
+    },
+    rules: {
+      '@tzurot/no-singleton-export': 'error',
+    },
+  },
+];
 ```
 
-**⚠️ See:** `tzurot-constants` skill for magic number detection and centralization patterns
+## Adding New Rules
+
+See `packages/tooling/src/eslint/` for examples. New rules should:
+
+1. Be created in `packages/tooling/src/eslint/`
+2. Exported from `packages/tooling/src/eslint/index.ts`
+3. Include comprehensive JSDoc with examples
+4. Have test cases (future: add vitest tests)
