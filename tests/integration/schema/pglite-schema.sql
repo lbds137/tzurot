@@ -198,6 +198,7 @@ CREATE TABLE "user_personality_configs" (
     "personality_id" UUID NOT NULL,
     "persona_id" UUID,
     "llm_config_id" UUID,
+    "focus_mode_enabled" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -300,8 +301,11 @@ CREATE TABLE "memories" (
     "message_ids" TEXT[],
     "senders" TEXT[],
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "legacy_shapes_user_id" UUID,
     "source_system" VARCHAR(50) NOT NULL DEFAULT 'tzurot-v3',
+    "is_locked" BOOLEAN NOT NULL DEFAULT false,
+    "visibility" VARCHAR(20) NOT NULL DEFAULT 'normal',
     "chunk_group_id" UUID,
     "chunk_index" INTEGER,
     "total_chunks" INTEGER,
@@ -522,6 +526,12 @@ CREATE INDEX "memories_legacy_shapes_user_id_idx" ON "memories"("legacy_shapes_u
 
 -- CreateIndex
 CREATE INDEX "memories_source_system_idx" ON "memories"("source_system");
+
+-- CreateIndex
+CREATE INDEX "memories_is_locked_idx" ON "memories"("is_locked");
+
+-- CreateIndex
+CREATE INDEX "memories_visibility_idx" ON "memories"("visibility");
 
 -- CreateIndex
 CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");

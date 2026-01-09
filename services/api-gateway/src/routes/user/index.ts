@@ -38,6 +38,9 @@
  * - DELETE /user/channel/deactivate - Deactivate personality from a channel
  * - GET /user/channel/:channelId - Get activation status for a channel
  * - GET /user/channel/list - List all activated channels
+ * - GET /user/memory/stats - Get memory statistics for a personality
+ * - GET /user/memory/focus - Get focus mode status
+ * - POST /user/memory/focus - Enable/disable focus mode
  */
 
 import { Router } from 'express';
@@ -54,6 +57,7 @@ import { createModelOverrideRoutes } from './model-override.js';
 import { createPersonaRoutes } from './persona.js';
 import { createHistoryRoutes } from './history.js';
 import { createChannelRoutes } from './channel/index.js';
+import { createMemoryRoutes } from './memory.js';
 
 /**
  * Create user router with injected dependencies
@@ -91,6 +95,9 @@ export function createUserRouter(
 
   // Channel activation routes (auto-respond to all messages in a channel)
   router.use('/channel', createChannelRoutes(prisma));
+
+  // Memory routes (LTM management - stats, focus mode, search, browse)
+  router.use('/memory', createMemoryRoutes(prisma));
 
   return router;
 }
