@@ -78,6 +78,13 @@ export function getRailwayDatabaseUrl(env: 'dev' | 'prod'): string {
  * Run a command with Railway database URL injected
  *
  * Fetches the public database URL from Railway and runs the command locally.
+ *
+ * @param env - Railway environment ('dev' or 'prod')
+ * @param command - The executable to run (e.g., 'npx')
+ * @param args - Arguments to pass to the command (e.g., ['prisma', 'migrate', 'deploy'])
+ *
+ * SECURITY: Uses shell: false with explicit array arguments to prevent command injection.
+ * The command and args are passed directly to the process, not through a shell.
  */
 export async function runWithRailway(
   env: 'dev' | 'prod',
@@ -87,9 +94,10 @@ export async function runWithRailway(
   const databaseUrl = getRailwayDatabaseUrl(env);
 
   return new Promise((resolve, reject) => {
+    // SECURITY: shell: false ensures args are passed directly without shell interpretation
     const proc = spawn(command, args, {
       stdio: ['inherit', 'pipe', 'pipe'],
-      shell: true,
+      shell: false,
       env: {
         ...process.env,
         DATABASE_URL: databaseUrl,
@@ -120,22 +128,50 @@ export async function runWithRailway(
 }
 
 /**
+ * Known safe Prisma subcommands that can be executed
+ * SECURITY: Only allow known commands to prevent injection via the command parameter
+ */
+const ALLOWED_PRISMA_COMMANDS = [
+  'migrate',
+  'db',
+  'generate',
+  'studio',
+  'validate',
+  'format',
+] as const;
+
+/**
  * Execute a Prisma command in the specified environment
+ *
+ * @param env - Environment to run in ('local', 'dev', or 'prod')
+ * @param command - Prisma subcommand (must be one of ALLOWED_PRISMA_COMMANDS)
+ * @param args - Additional arguments to pass to the command
+ *
+ * SECURITY: Uses shell: false with explicit array arguments to prevent command injection.
+ * The command parameter is validated against a whitelist of known safe commands.
  */
 export async function runPrismaCommand(
   env: Environment,
   command: string,
   args: string[] = []
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const fullCommand = `npx prisma ${command}`;
-  const fullArgs = args;
+  // SECURITY: Validate command is a known safe value
+  if (!ALLOWED_PRISMA_COMMANDS.includes(command as (typeof ALLOWED_PRISMA_COMMANDS)[number])) {
+    throw new Error(
+      `Invalid Prisma command: "${command}". Allowed: ${ALLOWED_PRISMA_COMMANDS.join(', ')}`
+    );
+  }
+
+  // Build explicit array of arguments (no shell interpolation)
+  const prismaArgs = ['prisma', command, ...args];
 
   if (env === 'local') {
     // Run directly with local DATABASE_URL
     return new Promise((resolve, reject) => {
-      const proc = spawn(fullCommand, fullArgs, {
+      // SECURITY: shell: false ensures args are passed directly without shell interpretation
+      const proc = spawn('npx', prismaArgs, {
         stdio: ['inherit', 'pipe', 'pipe'],
-        shell: true,
+        shell: false,
         env: { ...process.env },
       });
 
@@ -161,8 +197,8 @@ export async function runPrismaCommand(
       });
     });
   } else {
-    // Run via Railway CLI
-    return runWithRailway(env, fullCommand, fullArgs);
+    // Run via Railway environment with injected DATABASE_URL
+    return runWithRailway(env, 'npx', prismaArgs);
   }
 }
 
