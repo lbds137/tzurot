@@ -1,7 +1,7 @@
 ---
 name: tzurot-security
 description: Security best practices for Tzurot v3 - Secret management, AI-specific security (prompt injection, PII scrubbing), Economic DoS prevention, Discord permission verification, microservices security, and supply chain integrity. Use when handling secrets, user input, or security-critical code.
-lastUpdated: '2026-01-05'
+lastUpdated: '2026-01-09'
 ---
 
 # Security Skill - Tzurot v3
@@ -130,9 +130,54 @@ const member = await guild.members.fetch(userId);
 const hasAdmin = member.permissions.has(PermissionFlagsBits.Administrator);
 ```
 
+### 6. Shell Command Safety (Command Injection Prevention)
+
+**This vulnerability has occurred multiple times.** When executing shell commands with user-controlled or external data, NEVER use string interpolation.
+
+```typescript
+import { execFileSync, execSync } from 'node:child_process';
+
+// ❌ WRONG - Command injection via string interpolation
+execSync(`railway variables --set "${key}=${value}"`);
+// If value = 'foo"; rm -rf /; echo "' → disaster!
+
+// ❌ WRONG - Even with "trusted" variables, avoid habits
+execSync(`git commit -m "${message}"`);
+
+// ✅ CORRECT - Use execFileSync with array arguments
+execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
+
+// ✅ CORRECT - Shell never interprets the arguments
+execFileSync('git', ['commit', '-m', message]);
+
+// ✅ OK - Static commands without interpolation
+execSync('railway status');
+execSync('git log --oneline -5');
+```
+
+**Why `execFileSync` is safe:**
+
+- Arguments are passed directly to the process, not through a shell
+- Shell metacharacters (`"; $ \` ()`) are treated as literal strings
+- No possibility of command injection regardless of input
+
+**When to use which:**
+| Function | Use When | Safety |
+|----------|----------|--------|
+| `execFileSync(cmd, args)` | Any external data in args | ✅ Safe |
+| `execSync(staticCmd)` | Fully static command string | ✅ Safe |
+| `execSync(\`...\${var}\`)` | ❌ NEVER | ⚠️ Vulnerable |
+
+**Test for this:** Add tests with shell metacharacters in values:
+
+```typescript
+const maliciousValue = 'test"; rm -rf /; echo "pwned';
+// Verify your code passes this literally, not interprets it
+```
+
 ## 🛡️ Tier 2: Important Security (SHOULD IMPLEMENT)
 
-### 6. PII Scrubbing Before Embedding
+### 7. PII Scrubbing Before Embedding
 
 Scrub emails, phones, SSNs before storing in pgvector:
 
@@ -141,7 +186,7 @@ const EMAIL_REGEX = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}/g;
 const scrubbedText = text.replace(EMAIL_REGEX, '<EMAIL_REDACTED>');
 ```
 
-### 7. Prompt Injection Detection
+### 8. Prompt Injection Detection
 
 ```typescript
 const JAILBREAK_PATTERNS = [
@@ -156,7 +201,7 @@ if (JAILBREAK_PATTERNS.some(p => p.test(prompt))) {
 }
 ```
 
-### 8. Signed BullMQ Jobs (If Redis Compromised)
+### 9. Signed BullMQ Jobs (If Redis Compromised)
 
 Sign jobs with HMAC to prevent injection:
 
@@ -165,7 +210,7 @@ const signature = crypto.createHmac('sha256', SECRET).update(JSON.stringify(payl
 // Include signature in job, verify in worker
 ```
 
-### 9. Content Validation for Attachments
+### 10. Content Validation for Attachments
 
 Validate using magic numbers, not extensions:
 
@@ -177,7 +222,7 @@ if (!ALLOWED_TYPES.includes(detected?.mime)) {
 }
 ```
 
-### 10. Dependency Management
+### 11. Dependency Management
 
 **Before installing ANY package:**
 
@@ -190,7 +235,7 @@ npm audit                    # Vulnerabilities?
 
 **Dependabot** handles weekly updates. See `.github/dependabot.yml`.
 
-### 11. Discord Markdown Injection Prevention
+### 12. Discord Markdown Injection Prevention
 
 **ALWAYS escape user-provided content** before displaying in Discord embeds:
 
@@ -234,6 +279,7 @@ const adminRateLimiter = rateLimit({
 - Installing npm packages suggested by AI
 - Implementing admin/destructive commands
 - Logging anything with user data
+- **Writing shell commands with execSync/spawn** (use execFileSync with arrays!)
 
 ## Related Skills
 

@@ -8,6 +8,7 @@ import { setupRailwayVariables } from './setup-railway-variables.js';
 // Mock node modules
 vi.mock('node:child_process', () => ({
   execSync: vi.fn(),
+  execFileSync: vi.fn(),
 }));
 
 vi.mock('node:fs', () => ({
@@ -36,9 +37,10 @@ vi.mock('chalk', () => ({
 // Mock env-runner
 vi.mock('../utils/env-runner.js', () => ({
   checkRailwayCli: vi.fn(() => true),
+  getRailwayEnvName: vi.fn((env: string) => (env === 'dev' ? 'development' : 'production')),
 }));
 
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { checkRailwayCli } from '../utils/env-runner.js';
 
@@ -268,6 +270,66 @@ AI_WORKER_PORT=3001
       expect(output).toContain('DISCORD_TOKEN: ***set***');
       // Non-secrets should be visible
       expect(output).toContain('AI_PROVIDER: openrouter');
+    });
+  });
+
+  describe('shell safety', () => {
+    const mockExecFileSync = vi.mocked(execFileSync);
+
+    it('should safely handle values with shell metacharacters', async () => {
+      // Values with shell metacharacters that could cause injection
+      mockReadFileSync.mockReturnValue(`
+OPENROUTER_API_KEY=sk-test-key
+DISCORD_TOKEN=test-token"; rm -rf /; echo "injected
+DISCORD_CLIENT_ID=123456789
+`);
+
+      // Mock execFileSync to not throw (simulate successful railway call)
+      mockExecFileSync.mockReturnValue(Buffer.from(''));
+
+      await setupRailwayVariables({ env: 'dev', dryRun: false, yes: true });
+
+      // Find a call that sets DISCORD_TOKEN
+      const discordTokenCall = mockExecFileSync.mock.calls.find(call => {
+        const args = call[1] as string[] | undefined;
+        return (
+          call[0] === 'railway' &&
+          args?.some(arg => typeof arg === 'string' && arg.startsWith('DISCORD_TOKEN='))
+        );
+      });
+
+      expect(discordTokenCall).toBeDefined();
+      // The value should be passed as-is, not interpreted by shell
+      const args = discordTokenCall![1] as string[];
+      const setArg = args.find(arg => arg.startsWith('DISCORD_TOKEN='));
+      expect(setArg).toBe('DISCORD_TOKEN=test-token"; rm -rf /; echo "injected');
+    });
+
+    it('should safely handle values with backticks and $() subshells', async () => {
+      mockReadFileSync.mockReturnValue(`
+OPENROUTER_API_KEY=sk-test-key
+DISCORD_TOKEN=token-with-\`whoami\`-and-$(id)
+DISCORD_CLIENT_ID=123456789
+`);
+
+      // Mock execFileSync to not throw (simulate successful railway call)
+      mockExecFileSync.mockReturnValue(Buffer.from(''));
+
+      await setupRailwayVariables({ env: 'dev', dryRun: false, yes: true });
+
+      const discordTokenCall = mockExecFileSync.mock.calls.find(call => {
+        const args = call[1] as string[] | undefined;
+        return (
+          call[0] === 'railway' &&
+          args?.some(arg => typeof arg === 'string' && arg.startsWith('DISCORD_TOKEN='))
+        );
+      });
+
+      expect(discordTokenCall).toBeDefined();
+      const args = discordTokenCall![1] as string[];
+      const setArg = args.find(arg => arg.startsWith('DISCORD_TOKEN='));
+      // Backticks and $() should be preserved literally
+      expect(setArg).toBe('DISCORD_TOKEN=token-with-`whoami`-and-$(id)');
     });
   });
 });
