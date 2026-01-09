@@ -36,20 +36,13 @@ export class MemoryRetriever {
   }
 
   /**
-   * Retrieve and log relevant memories from vector store
+   * Calculate STM/LTM deduplication cutoff timestamp
+   * Applies buffer to prevent overlap between short-term and long-term memories
    */
-  async retrieveRelevantMemories(
-    personality: LoadedPersonality,
-    userMessage: string,
-    context: ConversationContext
-  ): Promise<MemoryDocument[]> {
-    // Calculate cutoff timestamp with buffer to prevent STM/LTM overlap
-    // If conversation history exists, exclude memories within buffer window of oldest message
+  private calculateDeduplicationCutoff(context: ConversationContext): number | undefined {
     let excludeNewerThan: number | undefined = context.oldestHistoryTimestamp;
 
     if (excludeNewerThan !== undefined) {
-      // Apply time buffer to ensure no overlap
-      // If oldest STM message is at timestamp T, exclude LTM memories after (T - buffer)
       const originalTimestamp = excludeNewerThan;
       excludeNewerThan = excludeNewerThan - AI_DEFAULTS.STM_LTM_BUFFER_MS;
 
@@ -63,8 +56,6 @@ export class MemoryRetriever {
         '[MemoryRetriever] STM/LTM deduplication active - excluding memories newer than cutoff'
       );
     } else {
-      // IMPORTANT: No deduplication! All memories will be returned regardless of recency.
-      // This can cause verbatim repetition if recent responses are stored in LTM.
       logger.warn(
         {
           hasConversationHistory: context.conversationHistory !== undefined,
@@ -74,6 +65,49 @@ export class MemoryRetriever {
           'Recent memories may duplicate conversation history content.'
       );
     }
+
+    return excludeNewerThan;
+  }
+
+  /**
+   * Log retrieved memories with ID, score, timestamp, and truncated content
+   */
+  private logRetrievedMemories(memories: MemoryDocument[], personalityName: string): void {
+    if (memories.length === 0) {
+      logger.debug(
+        `[MemoryRetriever] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`
+      );
+      return;
+    }
+
+    logger.info(
+      `[MemoryRetriever] Retrieved ${memories.length} relevant memories for ${personalityName}`
+    );
+
+    memories.forEach((doc, idx) => {
+      const id = typeof doc.metadata?.id === 'string' ? doc.metadata.id : 'unknown';
+      const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
+      const createdAt = doc.metadata?.createdAt;
+      const timestamp =
+        createdAt !== undefined && createdAt !== null ? formatMemoryTimestamp(createdAt) : null;
+      const content = doc.pageContent.substring(0, 120);
+      const truncated = doc.pageContent.length > 120 ? '...' : '';
+
+      logger.info(
+        `[MemoryRetriever] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp ?? 'unknown'} content="${content}${truncated}"`
+      );
+    });
+  }
+
+  /**
+   * Retrieve and log relevant memories from vector store
+   */
+  async retrieveRelevantMemories(
+    personality: LoadedPersonality,
+    userMessage: string,
+    context: ConversationContext
+  ): Promise<MemoryDocument[]> {
+    const excludeNewerThan = this.calculateDeduplicationCutoff(context);
 
     // Resolve user's personaId for this personality using PersonaResolver
     const personaResult = await this.personaResolver.resolveForMemory(
@@ -89,11 +123,23 @@ export class MemoryRetriever {
       return [];
     }
 
-    const { personaId, shareLtmAcrossPersonalities } = personaResult;
+    const { personaId, shareLtmAcrossPersonalities, focusModeEnabled } = personaResult;
+
+    // Check if focus mode is enabled - skip retrieval but continue saving memories
+    if (focusModeEnabled) {
+      logger.info(
+        {
+          userId: context.userId,
+          personalityId: personality.id,
+          personalityName: personality.name,
+        },
+        '[MemoryRetriever] Focus mode enabled - skipping LTM retrieval (memories still being saved)'
+      );
+      return [];
+    }
 
     const memoryQueryOptions: MemoryQueryOptions = {
-      personaId, // Required: which persona's memories to search
-      // Only filter by personality if user hasn't enabled cross-personality LTM sharing
+      personaId,
       personalityId: shareLtmAcrossPersonalities ? undefined : personality.id,
       sessionId: context.sessionId,
       limit:
@@ -120,7 +166,6 @@ export class MemoryRetriever {
     }
 
     // Query memories only if memory manager is available
-    // Use waterfall method when channels are specified for additive retrieval
     const relevantMemories =
       this.memoryManager !== undefined
         ? memoryQueryOptions.channelIds !== undefined && memoryQueryOptions.channelIds.length > 0
@@ -131,30 +176,7 @@ export class MemoryRetriever {
           : await this.memoryManager.queryMemories(userMessage, memoryQueryOptions)
         : [];
 
-    if (relevantMemories.length > 0) {
-      logger.info(
-        `[MemoryRetriever] Retrieved ${relevantMemories.length} relevant memories for ${personality.name}`
-      );
-
-      // Log each memory with ID, score, timestamp, and truncated content
-      relevantMemories.forEach((doc, idx) => {
-        const id = typeof doc.metadata?.id === 'string' ? doc.metadata.id : 'unknown';
-        const score = typeof doc.metadata?.score === 'number' ? doc.metadata.score : 0;
-        const createdAt = doc.metadata?.createdAt as string | number | undefined;
-        const timestamp =
-          createdAt !== undefined && createdAt !== null ? formatMemoryTimestamp(createdAt) : null;
-        const content = doc.pageContent.substring(0, 120);
-        const truncated = doc.pageContent.length > 120 ? '...' : '';
-
-        logger.info(
-          `[MemoryRetriever] Memory ${idx + 1}: id=${id} score=${score.toFixed(3)} date=${timestamp ?? 'unknown'} content="${content}${truncated}"`
-        );
-      });
-    } else {
-      logger.debug(
-        `[MemoryRetriever] No memory retrieval (${this.memoryManager !== undefined ? 'no memories found' : 'memory disabled'})`
-      );
-    }
+    this.logRetrievedMemories(relevantMemories, personality.name);
 
     return relevantMemories;
   }

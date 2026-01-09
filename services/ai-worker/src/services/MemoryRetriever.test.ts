@@ -88,6 +88,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const result = await retriever.resolvePersonaForMemory('discord-123', 'personality-123');
@@ -99,6 +100,7 @@ describe('MemoryRetriever', () => {
       expect(result).toEqual({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
     });
 
@@ -431,6 +433,45 @@ describe('MemoryRetriever', () => {
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
+    it('should return empty array when focus mode is enabled', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: true, // Focus mode enabled!
+      });
+
+      const result = await retriever.retrieveRelevantMemories(
+        mockPersonality,
+        'test query',
+        context
+      );
+
+      expect(result).toEqual([]);
+      // Should NOT query memories when focus mode is on
+      expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
+    });
+
+    it('should query memories normally when focus mode is disabled', async () => {
+      mockPersonaResolver.resolveForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false, // Focus mode disabled
+      });
+
+      const mockMemories = [{ pageContent: 'Memory content', metadata: { id: 'mem-1' } }];
+      (mockMemoryManager.queryMemories as any).mockResolvedValue(mockMemories);
+
+      const result = await retriever.retrieveRelevantMemories(
+        mockPersonality,
+        'test query',
+        context
+      );
+
+      expect(result).toEqual(mockMemories);
+      // Should query memories when focus mode is off
+      expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
+    });
+
     it('should return empty array if memory manager not available', async () => {
       const retrieverWithoutMemory = new MemoryRetriever(
         undefined,
@@ -440,6 +481,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const result = await retrieverWithoutMemory.retrieveRelevantMemories(
@@ -455,6 +497,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const mockMemories = [
@@ -499,6 +542,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const oldestTimestamp = Date.now() - 3600000; // 1 hour ago
@@ -523,6 +567,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const contextWithSession: ConversationContext = {
@@ -544,6 +589,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: true,
+        focusModeEnabled: false,
       });
 
       await retriever.retrieveRelevantMemories(mockPersonality, 'test', context);
@@ -561,6 +607,7 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const contextWithChannels: ConversationContext = {

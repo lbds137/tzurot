@@ -45,6 +45,8 @@ export interface ResolvedPersona {
 export interface PersonaMemoryInfo {
   personaId: string;
   shareLtmAcrossPersonalities: boolean;
+  /** Whether focus mode is enabled (disables LTM retrieval) */
+  focusModeEnabled: boolean;
 }
 
 /**
@@ -70,10 +72,10 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   }
 
   /**
-   * Resolve persona for memory retrieval (lightweight - just ID and LTM flag)
+   * Resolve persona for memory retrieval (lightweight - just ID, LTM flag, and focus mode)
    *
    * This is optimized for the memory retrieval path where we don't need
-   * the full persona content, just the ID and sharing preference.
+   * the full persona content, just the ID, sharing preference, and focus mode status.
    */
   async resolveForMemory(
     discordUserId: string,
@@ -85,10 +87,49 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       return null;
     }
 
+    // Query focusModeEnabled separately (it's per-user-per-personality, not part of persona)
+    const focusModeEnabled = await this.getFocusModeStatus(discordUserId, personalityId);
+
     return {
       personaId: result.config.personaId,
       shareLtmAcrossPersonalities: result.config.shareLtmAcrossPersonalities,
+      focusModeEnabled,
     };
+  }
+
+  /**
+   * Check if focus mode is enabled for a user-personality combination
+   * Focus mode disables LTM retrieval without affecting memory storage
+   */
+  private async getFocusModeStatus(discordUserId: string, personalityId: string): Promise<boolean> {
+    try {
+      // Get user's internal ID
+      const user = await this.prisma.user.findUnique({
+        where: { discordId: discordUserId },
+        select: { id: true },
+      });
+
+      if (user === null) {
+        return false; // Default to disabled if user not found
+      }
+
+      // Check UserPersonalityConfig for focus mode
+      const config = await this.prisma.userPersonalityConfig.findFirst({
+        where: {
+          userId: user.id,
+          personalityId,
+        },
+        select: { focusModeEnabled: true },
+      });
+
+      return config?.focusModeEnabled ?? false;
+    } catch (error) {
+      logger.error(
+        { err: error, discordUserId, personalityId },
+        'Failed to get focus mode status, defaulting to disabled'
+      );
+      return false;
+    }
   }
 
   /**
