@@ -286,13 +286,15 @@ model PersonalityAlias {
 /// Note: STM epoch fields (lastContextReset) are in UserPersonaHistoryConfig,
 /// which tracks per-persona history (user + personality + persona).
 model UserPersonalityConfig {
-  id            String   @id @db.Uuid
-  userId        String   @map("user_id") @db.Uuid
-  personalityId String   @map("personality_id") @db.Uuid
-  personaId     String?  @map("persona_id") @db.Uuid
-  llmConfigId   String?  @map("llm_config_id") @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  id               String   @id @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  personalityId    String   @map("personality_id") @db.Uuid
+  personaId        String?  @map("persona_id") @db.Uuid
+  llmConfigId      String?  @map("llm_config_id") @db.Uuid
+  /// Focus Mode: When true, LTM retrieval is disabled (memories still saved, just not retrieved)
+  focusModeEnabled Boolean  @default(false) @map("focus_mode_enabled")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   llmConfig   LlmConfig?  @relation(fields: [llmConfigId], references: [id])
   persona     Persona?    @relation(fields: [personaId], references: [id])
@@ -454,8 +456,14 @@ model Memory {
   messageIds           String[]               @map("message_ids")
   senders              String[]
   createdAt            DateTime               @default(now()) @map("created_at")
+  /// Track when memory content was last modified (for edit history)
+  updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at")
   legacyShapesUserId   String?                @map("legacy_shapes_user_id") @db.Uuid
   sourceSystem         String                 @default("tzurot-v3") @map("source_system") @db.VarChar(50)
+  /// Protected "core memories" that survive batch delete and purge operations
+  isLocked             Boolean                @default(false) @map("is_locked")
+  /// Memory visibility: normal, hidden, archived (for future use)
+  visibility           String                 @default("normal") @map("visibility") @db.VarChar(20)
   // Chunk linking fields for oversized memories split into multiple chunks
   chunkGroupId         String?                @map("chunk_group_id") @db.Uuid
   chunkIndex           Int?                   @map("chunk_index")
@@ -472,6 +480,10 @@ model Memory {
   @@index([isSummarized])
   @@index([legacyShapesUserId])
   @@index([sourceSystem])
+  // NOTE: isLocked uses a PARTIAL index (WHERE is_locked = true) managed via raw migration
+  // for efficient locked memory queries. Declared here for drift detection.
+  @@index([isLocked])
+  @@index([visibility])
   // NOTE: chunkGroupId uses a PARTIAL index (WHERE chunk_group_id IS NOT NULL)
   // managed via raw migration. Prisma schema declares it for drift detection but
   // the actual index excludes NULL values to save space on non-chunked memories.

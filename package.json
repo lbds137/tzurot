@@ -20,6 +20,7 @@
     "audit:contracts": "tsx scripts/testing/audit-contract-coverage.ts",
     "audit:services": "tsx scripts/testing/audit-service-integration.ts",
     "format": "prettier --write .",
+    "generate:pglite": "./scripts/testing/regenerate-pglite-schema.sh",
     "typecheck": "tsc --noEmit",
     "update-deps": "tsx scripts/utils/update-deps.ts",
     "import-personality": "tsx scripts/data/import-personality/import-personality.ts",

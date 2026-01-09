@@ -253,25 +253,110 @@ describe('PersonaResolver', () => {
 
   describe('resolveForMemory', () => {
     it('should return lightweight memory info when persona exists', async () => {
-      mockPrismaClient.user.findUnique.mockResolvedValue({
-        id: 'user-uuid',
-        defaultPersonaId: 'persona-123',
-        defaultPersona: {
-          id: 'persona-123',
-          preferredName: 'Name',
-          pronouns: 'they/them',
-          content: 'Content',
-          shareLtmAcrossPersonalities: true,
-        },
-        ownedPersonas: [],
-      });
+      mockPrismaClient.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-uuid',
+          defaultPersonaId: 'persona-123',
+          defaultPersona: {
+            id: 'persona-123',
+            preferredName: 'Name',
+            pronouns: 'they/them',
+            content: 'Content',
+            shareLtmAcrossPersonalities: true,
+          },
+          ownedPersonas: [],
+        })
+        // Second call for focus mode check
+        .mockResolvedValueOnce({ id: 'user-uuid' });
+
+      mockPrismaClient.userPersonalityConfig.findFirst
+        .mockResolvedValueOnce(null) // persona override check
+        .mockResolvedValueOnce({ focusModeEnabled: false }); // focus mode check
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
       expect(result).toEqual({
         personaId: 'persona-123',
         shareLtmAcrossPersonalities: true,
+        focusModeEnabled: false,
       });
+    });
+
+    it('should return focusModeEnabled true when focus mode is enabled', async () => {
+      mockPrismaClient.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-uuid',
+          defaultPersonaId: 'persona-123',
+          defaultPersona: {
+            id: 'persona-123',
+            preferredName: 'Name',
+            pronouns: 'they/them',
+            content: 'Content',
+            shareLtmAcrossPersonalities: false,
+          },
+          ownedPersonas: [],
+        })
+        .mockResolvedValueOnce({ id: 'user-uuid' });
+
+      mockPrismaClient.userPersonalityConfig.findFirst
+        .mockResolvedValueOnce(null) // persona override
+        .mockResolvedValueOnce({ focusModeEnabled: true }); // focus mode enabled
+
+      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
+
+      expect(result).toEqual({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: true,
+      });
+    });
+
+    it('should default focusModeEnabled to false when no config exists', async () => {
+      mockPrismaClient.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-uuid',
+          defaultPersonaId: 'persona-123',
+          defaultPersona: {
+            id: 'persona-123',
+            preferredName: 'Name',
+            pronouns: null,
+            content: 'Content',
+            shareLtmAcrossPersonalities: false,
+          },
+          ownedPersonas: [],
+        })
+        .mockResolvedValueOnce({ id: 'user-uuid' });
+
+      mockPrismaClient.userPersonalityConfig.findFirst
+        .mockResolvedValueOnce(null) // persona override
+        .mockResolvedValueOnce(null); // no config for focus mode
+
+      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
+
+      expect(result?.focusModeEnabled).toBe(false);
+    });
+
+    it('should default focusModeEnabled to false when user not found in focus mode check', async () => {
+      mockPrismaClient.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-uuid',
+          defaultPersonaId: 'persona-123',
+          defaultPersona: {
+            id: 'persona-123',
+            preferredName: 'Name',
+            pronouns: null,
+            content: 'Content',
+            shareLtmAcrossPersonalities: false,
+          },
+          ownedPersonas: [],
+        })
+        .mockResolvedValueOnce(null); // user not found in focus mode check
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null);
+
+      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
+
+      expect(result?.focusModeEnabled).toBe(false);
     });
 
     it('should return null for system-default resolution', async () => {
@@ -295,6 +380,34 @@ describe('PersonaResolver', () => {
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
       expect(result).toBeNull();
+    });
+
+    it('should handle focus mode check errors gracefully', async () => {
+      mockPrismaClient.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'user-uuid',
+          defaultPersonaId: 'persona-123',
+          defaultPersona: {
+            id: 'persona-123',
+            preferredName: 'Name',
+            pronouns: null,
+            content: 'Content',
+            shareLtmAcrossPersonalities: false,
+          },
+          ownedPersonas: [],
+        })
+        .mockRejectedValueOnce(new Error('DB error')); // focus mode check fails
+
+      mockPrismaClient.userPersonalityConfig.findFirst.mockResolvedValueOnce(null);
+
+      const result = await resolver.resolveForMemory('discord-123', 'personality-456');
+
+      // Should still return valid result with focusModeEnabled defaulting to false
+      expect(result).toEqual({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
+      });
     });
   });
 
