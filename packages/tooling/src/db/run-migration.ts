@@ -79,7 +79,16 @@ async function runRailwayMigration(env: 'dev' | 'prod', dryRun: boolean): Promis
   if (result.exitCode !== 0) {
     console.error(chalk.red('\n❌ Migration failed'));
     console.error(chalk.dim('\nTo rollback, restore from Railway backup:'));
-    console.error(chalk.dim('  https://railway.app → Project → PostgreSQL → Backups'));
+    console.error(chalk.dim('  1. Go to: https://railway.app → Project → PostgreSQL → Backups'));
+    console.error(chalk.dim('  2. Select the backup taken before migration'));
+    console.error(chalk.dim('  3. Click "Restore" and confirm'));
+    console.error(chalk.dim('\nOr mark migration as rolled back (for partial failures):'));
+    console.error(chalk.dim('  npx prisma migrate resolve --rolled-back <migration-name>'));
+    console.error(
+      chalk.dim(
+        '\nSee: https://www.prisma.io/docs/reference/api-reference/command-reference#migrate-resolve'
+      )
+    );
     process.exit(1);
   }
 
@@ -101,11 +110,16 @@ export async function runMigration(options: RunMigrationOptions = {}): Promise<v
   showEnvironmentBanner(env);
 
   // Production safety check
-  if (env === 'prod' && !dryRun && !force) {
-    const confirmed = await confirmProductionOperation('run migrations');
-    if (!confirmed) {
-      console.log(chalk.yellow('\n⛔ Operation cancelled'));
-      process.exit(0);
+  if (env === 'prod' && !dryRun) {
+    if (force) {
+      // AUDIT: Log when --force bypasses confirmation for prod operations
+      console.warn(chalk.yellow('⚠️  Using --force flag - confirmation bypassed for PRODUCTION'));
+    } else {
+      const confirmed = await confirmProductionOperation('run migrations');
+      if (!confirmed) {
+        console.log(chalk.yellow('\n⛔ Operation cancelled'));
+        process.exit(0);
+      }
     }
   }
 
