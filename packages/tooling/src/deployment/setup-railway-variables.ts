@@ -5,11 +5,11 @@
  * Reads from local .env file and sets variables via Railway CLI.
  */
 
-import { execSync } from 'node:child_process';
+import { execFileSync, execSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
-import { checkRailwayCli, type Environment } from '../utils/env-runner.js';
+import { checkRailwayCli, getRailwayEnvName, type Environment } from '../utils/env-runner.js';
 
 interface VariableConfig {
   key: string;
@@ -183,13 +183,6 @@ function parseEnvFile(filePath: string): Map<string, string> {
 }
 
 /**
- * Get Railway environment name
- */
-function getRailwayEnvName(env: Exclude<Environment, 'local'>): string {
-  return env === 'dev' ? 'development' : 'production';
-}
-
-/**
  * Validate Railway CLI is authenticated and project is linked
  */
 function validateRailwayEnvironment(): void {
@@ -330,13 +323,16 @@ function setVariable(
   }
 
   try {
-    const serviceFlag = service !== null ? `--service ${service}` : '';
-    execSync(
-      `railway variables --environment ${railwayEnv} ${serviceFlag} --set "${key}=${value}"`,
-      {
-        stdio: 'pipe',
-      }
-    );
+    // Use execFileSync with array args to prevent command injection
+    // Value could contain shell metacharacters from .env file
+    const args = ['variables', '--environment', railwayEnv];
+    if (service !== null) {
+      args.push('--service', service);
+    }
+    args.push('--set', `${key}=${value}`);
+
+    execFileSync('railway', args, { stdio: 'pipe' });
+
     const scope = service !== null ? `${service}` : 'shared';
     console.log(`  Set ${scope} variable: ${chalk.green(key)}`);
   } catch (error) {
