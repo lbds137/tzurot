@@ -141,6 +141,8 @@ async function handleGetStats(
   }
 
   // Query only normal visibility memories (hidden/archived filtering coming in future iteration)
+  // Note: Using parallel queries instead of aggregate because Prisma aggregate doesn't support
+  // conditional counts (locked memories). Four parallel queries ≈ same latency as 2 aggregate calls.
   const [totalCount, lockedCount, oldestMemory, newestMemory] = await Promise.all([
     prisma.memory.count({
       where: { personaId, personalityId, visibility: 'normal' },
