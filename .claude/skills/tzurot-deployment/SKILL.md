@@ -75,24 +75,34 @@ railway logs | grep "requestId:abc123"
 ### Environment Variables
 
 ```bash
-# List all
-railway variables --service api-gateway
+# Setup all variables from .env (recommended)
+pnpm ops deploy:setup-vars --env dev --dry-run  # Preview first
+pnpm ops deploy:setup-vars --env dev            # Apply to dev
+pnpm ops deploy:setup-vars --env prod           # Apply to prod
 
-# Set variable
-railway variables set OPENROUTER_API_KEY=sk-or-v1-... --service ai-worker
+# List all for a service
+railway variables --service api-gateway --environment development
+
+# Set single variable
+railway variables --set OPENROUTER_API_KEY=sk-or-v1-... --service ai-worker --environment development
 
 # Delete variable
-railway variables delete OLD_VAR_NAME --service ai-worker
+railway variables --unset OLD_VAR_NAME --service ai-worker --environment development
 ```
 
 ### Database Operations
 
 ```bash
-# Run migrations
-railway run npx prisma migrate deploy
+# Check migration status (uses Railway CLI for auth)
+pnpm ops db:status --env dev
+pnpm ops db:status --env prod
 
-# Check migration status
-railway run npx prisma migrate status
+# Run pending migrations
+pnpm ops db:migrate --env dev
+pnpm ops db:migrate --env prod --force  # Prod requires --force
+
+# Inspect database tables/indexes (local only)
+pnpm ops db:inspect
 
 # Open Prisma Studio (local)
 npx prisma studio
@@ -106,12 +116,12 @@ railway restart --service bot-client
 
 ## Troubleshooting
 
-| Symptom            | Check                           | Solution                    |
-| ------------------ | ------------------------------- | --------------------------- |
-| Service crashed    | `railway logs --tail 100`       | Check for missing env vars  |
-| Slow responses     | `railway logs \| grep duration` | Check DB/Redis connection   |
-| Bot not responding | `bot-client` logs               | Verify DISCORD_TOKEN        |
-| Migration failed   | `prisma migrate status`         | Apply with `migrate deploy` |
+| Symptom            | Check                           | Solution                      |
+| ------------------ | ------------------------------- | ----------------------------- |
+| Service crashed    | `railway logs --tail 100`       | Check for missing env vars    |
+| Slow responses     | `railway logs \| grep duration` | Check DB/Redis connection     |
+| Bot not responding | `bot-client` logs               | Verify DISCORD_TOKEN          |
+| Migration failed   | `pnpm ops db:status --env dev`  | Apply with `db:migrate --env` |
 
 ### Service Won't Start
 
@@ -175,5 +185,6 @@ for (let attempt = 1; attempt <= 5; attempt++) {
 ## References
 
 - Railway CLI: `docs/reference/RAILWAY_CLI_REFERENCE.md`
-- Railway deployment: `docs/deployment/RAILWAY_DEPLOYMENT.md`
+- Railway variables: `docs/reference/deployment/RAILWAY_SHARED_VARIABLES.md`
+- Railway deployment: `docs/reference/deployment/RAILWAY_DEPLOYMENT.md`
 - Railway docs: https://docs.railway.app/

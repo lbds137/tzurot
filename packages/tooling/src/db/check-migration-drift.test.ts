@@ -18,7 +18,14 @@ vi.mock('chalk', () => ({
     green: (s: string) => s,
     yellow: (s: string) => s,
     red: (s: string) => s,
+    blue: (s: string) => s,
   },
+}));
+
+// Mock env-runner to avoid Railway CLI checks in tests
+vi.mock('../utils/env-runner.js', () => ({
+  validateEnvironment: vi.fn(),
+  showEnvironmentBanner: vi.fn(),
 }));
 
 // Mock fs

@@ -10,6 +10,11 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import chalk from 'chalk';
 import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import {
+  type Environment,
+  validateEnvironment,
+  showEnvironmentBanner,
+} from '../utils/env-runner.js';
 
 interface MigrationRecord {
   migration_name: string;
@@ -17,10 +22,26 @@ interface MigrationRecord {
 }
 
 export interface CheckDriftOptions {
+  env?: Environment;
   migrationsPath?: string;
 }
 
 export async function checkMigrationDrift(options: CheckDriftOptions = {}): Promise<void> {
+  const env = options.env ?? 'local';
+
+  // This command requires direct database access via Prisma client
+  // For Railway environments, use db:status instead
+  if (env !== 'local') {
+    console.log(chalk.yellow(`\n⚠️  db:check-drift currently only supports local environment.`));
+    console.log(chalk.dim(`\nFor Railway environments, use:`));
+    console.log(chalk.cyan(`  pnpm ops db:status --env ${env}`));
+    console.log(chalk.dim(`\nThis shows migration status via Prisma CLI.\n`));
+    process.exit(0);
+  }
+
+  validateEnvironment(env);
+  showEnvironmentBanner(env);
+
   const prisma = getPrismaClient();
   // Default to prisma/migrations relative to cwd (monorepo root)
   const migrationsDir = options.migrationsPath ?? path.join(process.cwd(), 'prisma', 'migrations');

@@ -10,6 +10,11 @@
 
 import chalk from 'chalk';
 import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import {
+  type Environment,
+  validateEnvironment,
+  showEnvironmentBanner,
+} from '../utils/env-runner.js';
 
 /**
  * Safely extract host from DATABASE_URL using URL parser
@@ -229,11 +234,27 @@ async function inspectMigrations(prisma: PrismaClient): Promise<void> {
 }
 
 export interface InspectOptions {
+  env?: Environment;
   table?: string;
   indexes?: boolean;
 }
 
 export async function inspectDatabase(options: InspectOptions = {}): Promise<void> {
+  const env = options.env ?? 'local';
+
+  // This command requires direct database access via Prisma client
+  // For Railway environments, use db:status instead
+  if (env !== 'local') {
+    console.log(chalk.yellow(`\n⚠️  db:inspect currently only supports local environment.`));
+    console.log(chalk.dim(`\nFor Railway environments, use:`));
+    console.log(chalk.cyan(`  pnpm ops db:status --env ${env}`));
+    console.log(chalk.dim(`\nOr connect directly via Railway dashboard → PostgreSQL → Connect\n`));
+    process.exit(0);
+  }
+
+  validateEnvironment(env);
+  showEnvironmentBanner(env);
+
   const prisma = getPrismaClient();
 
   console.log(chalk.bold('🔍 DATABASE INSPECTOR'));

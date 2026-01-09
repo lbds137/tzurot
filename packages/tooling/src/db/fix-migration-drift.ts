@@ -10,8 +10,14 @@ import crypto from 'node:crypto';
 import path from 'node:path';
 import chalk from 'chalk';
 import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+import {
+  type Environment,
+  validateEnvironment,
+  showEnvironmentBanner,
+} from '../utils/env-runner.js';
 
 export interface FixDriftOptions {
+  env?: Environment;
   migrationsPath?: string;
 }
 
@@ -19,6 +25,23 @@ export async function fixMigrationDrift(
   migrationNames?: string[],
   options: FixDriftOptions = {}
 ): Promise<void> {
+  const env = options.env ?? 'local';
+
+  // This command requires direct database access via Prisma client
+  // For Railway environments, manual intervention is needed
+  if (env !== 'local') {
+    console.log(chalk.yellow(`\n⚠️  db:fix-drift currently only supports local environment.`));
+    console.log(chalk.dim(`\nFor Railway environments, you have two options:`));
+    console.log(chalk.dim(`  1. Connect directly via Railway dashboard → PostgreSQL → Connect`));
+    console.log(chalk.dim(`  2. Use: railway run psql -c "UPDATE _prisma_migrations SET ..."`));
+    console.log(chalk.dim(`\nFirst, check current status:`));
+    console.log(chalk.cyan(`  pnpm ops db:status --env ${env}\n`));
+    process.exit(0);
+  }
+
+  validateEnvironment(env);
+  showEnvironmentBanner(env);
+
   const prisma = getPrismaClient();
   // Default to prisma/migrations relative to cwd (monorepo root)
   const migrationsDir = options.migrationsPath ?? path.join(process.cwd(), 'prisma', 'migrations');
