@@ -5,7 +5,6 @@ Scripts for deploying to Railway and managing environment variables.
 ## Scripts
 
 - **deploy-railway-dev.sh** - Deploy to Railway development environment
-- **setup-railway-variables.sh** - Configure Railway environment variables for all services
 - **update-gateway-url.sh** - Update GATEWAY_URL environment variable
 - **verify-build.sh** - Verify all services build successfully before deployment
 
@@ -15,8 +14,9 @@ Scripts for deploying to Railway and managing environment variables.
 # Deploy to Railway dev
 ./scripts/deployment/deploy-railway-dev.sh
 
-# Setup Railway variables
-./scripts/deployment/setup-railway-variables.sh
+# Setup Railway variables (use pnpm ops instead)
+pnpm ops deploy:setup-vars --env dev --dry-run
+pnpm ops deploy:setup-vars --env dev
 ```
 
 ## Creating Releases
