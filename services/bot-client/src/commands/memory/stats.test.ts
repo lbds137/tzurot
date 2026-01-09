@@ -148,6 +148,15 @@ describe('handleStats', () => {
       'Memory Statistics',
       expect.stringContaining('No profile configured')
     );
+
+    // Should NOT include Date Range field when totalCount is 0
+    const addFieldsCalls = mockEmbed.addFields.mock.calls;
+    const allFieldNames = addFieldsCalls.flatMap((call: { name: string }[][]) =>
+      call.flatMap((fields: { name: string }[]) =>
+        Array.isArray(fields) ? fields.map(f => f.name) : [fields.name]
+      )
+    );
+    expect(allFieldNames).not.toContain('Date Range');
   });
 
   it('should handle personality not found from resolver', async () => {
