@@ -140,6 +140,7 @@ async function handleGetStats(
     return;
   }
 
+  // Query only normal visibility memories (hidden/archived filtering coming in future iteration)
   const [totalCount, lockedCount, oldestMemory, newestMemory] = await Promise.all([
     prisma.memory.count({
       where: { personaId, personalityId, visibility: 'normal' },
