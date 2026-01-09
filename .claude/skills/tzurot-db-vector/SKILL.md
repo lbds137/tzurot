@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: '2026-01-01'
+lastUpdated: '2026-01-08'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -11,19 +11,27 @@ lastUpdated: '2026-01-01'
 ## Quick Reference
 
 ```bash
-# PREFERRED: Create migration with automatic drift sanitization
-pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+# Check migration status (applied, pending, failed)
+pnpm ops db:status                   # Local database
+pnpm ops db:status --env dev         # Railway development
+pnpm ops db:status --env prod        # Railway production
 
-# Inspect current database state (tables, indexes, migrations)
-pnpm --filter @tzurot/scripts run db:inspect
-pnpm --filter @tzurot/scripts run db:inspect -- --table memories
+# Run migrations
+pnpm ops db:migrate                  # Local (interactive)
+pnpm ops db:migrate --env dev        # Railway dev
+pnpm ops db:migrate --env prod --force  # Railway prod (requires --force)
 
-# Check migration status
-npx prisma migrate status
+# Inspect database state (tables, indexes, migrations) - local only
+pnpm ops db:inspect
+pnpm ops db:inspect --table memories
+pnpm ops db:inspect --indexes
 
-# Drift detection and fix (NON-DESTRUCTIVE)
-pnpm --filter @tzurot/scripts run db:check-drift
-pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>
+# Create migration with automatic drift sanitization
+pnpm ops db:safe-migrate
+
+# Drift detection and fix (NON-DESTRUCTIVE) - local only
+pnpm ops db:check-drift
+pnpm ops db:fix-drift <migration_name>
 ```
 
 ## Core Principles
@@ -76,7 +84,7 @@ CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");  -- 
 
 ```bash
 # PREFERRED - Automatically sanitizes drift patterns
-pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+pnpm ops db:safe-migrate
 ```
 
 This script:
@@ -199,8 +207,8 @@ Drift occurs when a migration file is modified after being applied to the databa
 ### Detecting Drift
 
 ```bash
-# Check all migrations for drift
-pnpm --filter @tzurot/scripts run db:check-drift
+# Check all migrations for drift (local only)
+pnpm ops db:check-drift
 
 # Output shows:
 # ✅ 20251201221930_add_share_ltm_flag: OK
@@ -218,11 +226,11 @@ pnpm --filter @tzurot/scripts run db:check-drift
 - No actual SQL logic changes
 
 ```bash
-# Fix specific migration(s)
-pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>
+# Fix specific migration(s) - local only
+pnpm ops db:fix-drift <migration_name>
 
 # Example:
-pnpm --filter @tzurot/scripts run db:fix-drift -- 20251213200000_add_tombstones
+pnpm ops db:fix-drift 20251213200000_add_tombstones
 ```
 
 This updates the checksum in `_prisma_migrations` to match the current file.
@@ -254,20 +262,28 @@ This updates the checksum in `_prisma_migrations` to match the current file.
 
 ## Database Scripts
 
-Located in `scripts/src/db/`:
+Available via `pnpm ops db:*`:
 
 ```bash
-# Inspect database state (tables, columns, indexes, migrations)
-pnpm --filter @tzurot/scripts run db:inspect
-pnpm --filter @tzurot/scripts run db:inspect -- --table <name>
-pnpm --filter @tzurot/scripts run db:inspect -- --indexes
+# Check migration status (supports --env local|dev|prod)
+pnpm ops db:status
+pnpm ops db:status --env dev
+
+# Run migrations (supports --env, --force for prod)
+pnpm ops db:migrate
+pnpm ops db:migrate --env prod --force
+
+# Inspect database state (local only)
+pnpm ops db:inspect
+pnpm ops db:inspect --table <name>
+pnpm ops db:inspect --indexes
 
 # Create migration with automatic drift sanitization
-pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+pnpm ops db:safe-migrate
 
-# Check/fix migration checksum drift
-pnpm --filter @tzurot/scripts run db:check-drift
-pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>
+# Check/fix migration checksum drift (local only)
+pnpm ops db:check-drift
+pnpm ops db:fix-drift <migration_name>
 ```
 
 ### ⚠️ Prisma db execute Limitation

@@ -7,6 +7,9 @@
  * Usage: pnpm ops <command> [options]
  */
 
+// Load environment variables from .env file
+import 'dotenv/config';
+
 import { cac } from 'cac';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';

@@ -4,9 +4,28 @@ This guide explains how to use the automated script to set up shared and service
 
 ## Quick Start
 
-**⚠️ IMPORTANT**: Railway's CLI **cannot create shared variables**! Shared variables must be configured through the Railway dashboard. The setup script only sets service-specific variables.
+### Using pnpm ops (Recommended)
 
-### Using Railway Dashboard (Recommended)
+```bash
+# Preview what will be set (dry run)
+pnpm ops deploy:setup-vars --env dev --dry-run
+
+# Set variables in development environment
+pnpm ops deploy:setup-vars --env dev
+
+# Set variables in production environment
+pnpm ops deploy:setup-vars --env prod
+```
+
+The command reads from your local `.env` file and sets variables in Railway.
+
+**Options:**
+
+- `--env dev|prod` - Target environment (default: dev)
+- `--dry-run` - Show what would be set without making changes
+- `--yes, -y` - Skip confirmation prompts
+
+### Using Railway Dashboard (Alternative)
 
 1. Go to Railway project → **Project Settings** → **Shared Variables**
 2. Add shared variables (see list below)
@@ -16,21 +35,13 @@ This guide explains how to use the automated script to set up shared and service
 
 See **"Setting Up Shared Variables in Dashboard"** section below for detailed steps.
 
-### Using CLI (Service-Specific Only)
+## Command Options
 
-```bash
-# This only sets service-specific variables, NOT shared ones
-./scripts/setup-railway-variables.sh --dry-run
-./scripts/setup-railway-variables.sh
-```
-
-## Script Options
-
-| Option         | Description                                            |
-| -------------- | ------------------------------------------------------ |
-| `--dry-run`    | Show what would be set without actually making changes |
-| `--yes`, `-y`  | Skip confirmation prompts (for CI/CD)                  |
-| `--help`, `-h` | Show help message                                      |
+| Option        | Description                                            |
+| ------------- | ------------------------------------------------------ |
+| `--env <env>` | Target environment: `dev` or `prod` (default: `dev`)   |
+| `--dry-run`   | Show what would be set without actually making changes |
+| `--yes`, `-y` | Skip confirmation prompts (for CI/CD)                  |
 
 ## How It Works
 
@@ -50,20 +61,17 @@ The script sets variables in three categories:
 
 - `DATABASE_URL` - PostgreSQL connection (see Database URL Strategy below)
 - `REDIS_URL` - Redis connection (Railway addon provides this automatically)
-- `N/A (pgvector in PostgreSQL)` - Vector database
-- `N/A (pgvector in PostgreSQL)` - Qdrant authentication
 - `AI_PROVIDER` - Which AI provider to use
-- `GEMINI_API_KEY` - Gemini API key
-- `OPENROUTER_API_KEY` - OpenRouter API key (if using)
-- `OPENAI_API_KEY` - OpenAI API key (for embeddings)
+- `OPENROUTER_API_KEY` - OpenRouter API key
+- `OPENAI_API_KEY` - OpenAI API key (for embeddings and Whisper transcription)
 - `DEFAULT_AI_MODEL` - Default model
-- `WHISPER_MODEL` - Audio transcription
+- `WHISPER_MODEL` - Audio transcription (OpenAI API: `whisper-1`)
 - `VISION_FALLBACK_MODEL` - Image analysis
 - `EMBEDDING_MODEL` - Vector embeddings
 - `NODE_ENV` - Environment (production/development)
 - `LOG_LEVEL` - Logging verbosity
 
-**Note on Memory**: RAG memory (pgvector) is always enabled using the PostgreSQL database. No environment variable needed.
+**Note on Memory**: RAG memory uses pgvector extension in PostgreSQL. No separate vector database needed.
 
 **bot-client only**:
 
@@ -148,8 +156,7 @@ DATABASE_URL="postgresql://user:pass@region.proxy.rlwy.net:port/db"
 The script will fail if these critical variables are missing:
 
 - `DATABASE_URL`
-- `N/A (pgvector in PostgreSQL)`
-- `GEMINI_API_KEY`
+- `OPENROUTER_API_KEY` (or `OPENAI_API_KEY` for embeddings)
 - `DISCORD_TOKEN`
 
 ## Safety Features
@@ -159,7 +166,7 @@ The script will fail if these critical variables are missing:
 **ALWAYS run with `--dry-run` first!**
 
 ```bash
-./scripts/setup-railway-variables.sh --dry-run --yes
+pnpm ops deploy:setup-vars --env dev --dry-run
 ```
 
 This shows exactly what will be set without making any changes.
@@ -199,18 +206,15 @@ The script validates:
 railway status
 
 # 2. Preview what will be set
-./scripts/setup-railway-variables.sh --dry-run
+pnpm ops deploy:setup-vars --env dev --dry-run
 
 # 3. Review output carefully - check all values
 
 # 4. Run it for real
-./scripts/setup-railway-variables.sh
+pnpm ops deploy:setup-vars --env dev
 
 # 5. Verify
-railway variables
-railway variables --service bot-client
-railway variables --service api-gateway
-railway variables --service ai-worker
+railway variables --environment development
 ```
 
 ### Updating a Single Variable
@@ -308,9 +312,7 @@ Railway will automatically:
 
 ```
 DATABASE_URL=<Railway PostgreSQL URL - includes pgvector>
-# No separate pgvector credentials needed - uses DATABASE_URL
 AI_PROVIDER=openrouter
-GEMINI_API_KEY=<your-gemini-key>
 OPENROUTER_API_KEY=<your-openrouter-key>
 OPENAI_API_KEY=<your-openai-key>
 DEFAULT_AI_MODEL=anthropic/claude-haiku-4.5
@@ -528,17 +530,16 @@ If you want to lock down production databases:
 
 ## Advanced: CI/CD Integration
 
-You can use this script in CI/CD:
+You can use this command in CI/CD:
 
 ```yaml
 # GitHub Actions example
 - name: Setup Railway Variables
-  run: |
-    ./scripts/setup-railway-variables.sh --yes
+  run: pnpm ops deploy:setup-vars --env dev --yes
   env:
-    DATABASE_URL: ${{ secrets.DATABASE_URL }}
+    OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
-    # ... other secrets
+    # ... other secrets from .env
 ```
 
 ## Connecting JetBrains IDE to Railway Database

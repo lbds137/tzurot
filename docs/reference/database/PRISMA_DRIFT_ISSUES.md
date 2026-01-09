@@ -5,20 +5,30 @@ This document tracks known cases where the database state intentionally differs 
 ## Quick Reference: Scripts
 
 ```bash
+# Check migration status (applied, pending, failed)
+pnpm ops db:status
+pnpm ops db:status --env dev    # Railway development
+pnpm ops db:status --env prod   # Railway production
+
+# Run migrations
+pnpm ops db:migrate             # Local (interactive)
+pnpm ops db:migrate --env dev   # Railway dev
+pnpm ops db:migrate --env prod --force  # Railway prod (requires --force)
+
 # Inspect current database state (tables, indexes, migrations)
-pnpm --filter @tzurot/scripts run db:inspect
+pnpm ops db:inspect
 
 # Inspect specific table
-pnpm --filter @tzurot/scripts run db:inspect -- --table memories
+pnpm ops db:inspect --table memories
 
 # Create a migration with automatic drift sanitization
-pnpm --filter @tzurot/scripts run db:migrate:safe -- <name>
+pnpm ops db:safe-migrate
 
 # Check for checksum drift (modified migration files)
-pnpm --filter @tzurot/scripts run db:check-drift
+pnpm ops db:check-drift
 
 # Fix checksum drift
-pnpm --filter @tzurot/scripts run db:fix-drift -- <migration_name>
+pnpm ops db:fix-drift <migration_name>
 ```
 
 ## Background
@@ -107,7 +117,7 @@ This was previously a drift issue but Prisma 6+ supports GIN indexes natively.
 Use the safe migration script which automatically sanitizes drift patterns:
 
 ```bash
-pnpm --filter @tzurot/scripts run db:migrate:safe -- <migration_name>
+pnpm ops db:safe-migrate
 ```
 
 This script:
@@ -125,7 +135,7 @@ If you need to run Prisma directly:
 1. **Inspect current state first:**
 
    ```bash
-   pnpm --filter @tzurot/scripts run db:inspect
+   pnpm ops db:inspect
    ```
 
 2. **Create the migration:**
