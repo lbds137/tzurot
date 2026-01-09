@@ -275,6 +275,16 @@ gh pr merge <number> --rebase --delete-branch
 git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redis://)'
 ```
 
+**🚨 SHELL COMMANDS - USE `execFileSync` WITH ARRAYS:**
+
+```typescript
+// ❌ WRONG - Command injection vulnerability
+execSync(`railway variables --set "${key}=${value}"`);
+
+// ✅ CORRECT - Arguments passed directly, no shell interpretation
+execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
+```
+
 **📚 See**: `tzurot-security` for comprehensive security patterns
 
 ## Skills Reference

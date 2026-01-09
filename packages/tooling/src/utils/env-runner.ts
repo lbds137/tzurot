@@ -7,7 +7,7 @@
  * - 'prod': Fetches DATABASE_PUBLIC_URL from Railway prod environment
  */
 
-import { spawn, execSync } from 'node:child_process';
+import { spawn, execSync, execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 
 export type Environment = 'local' | 'dev' | 'prod';
@@ -49,8 +49,10 @@ export function getRailwayDatabaseUrl(env: 'dev' | 'prod'): string {
   try {
     console.log(chalk.dim(`Fetching database URL from Railway ${railwayEnv}...`));
 
-    const result = execSync(
-      `railway variables --environment ${railwayEnv} --service pgvector --json`,
+    // Use execFileSync with array args to prevent command injection
+    const result = execFileSync(
+      'railway',
+      ['variables', '--environment', railwayEnv, '--service', 'pgvector', '--json'],
       { stdio: 'pipe', encoding: 'utf-8' }
     );
 
