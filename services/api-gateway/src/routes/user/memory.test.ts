@@ -64,6 +64,7 @@ const mockPrisma = {
   memory: {
     count: vi.fn(),
     findFirst: vi.fn(),
+    findMany: vi.fn(),
   },
   $queryRaw: vi.fn(),
 };
@@ -133,6 +134,7 @@ describe('/user/memory routes', () => {
 
     mockPrisma.memory.count.mockResolvedValue(0);
     mockPrisma.memory.findFirst.mockResolvedValue(null);
+    mockPrisma.memory.findMany.mockResolvedValue([]);
   });
 
   describe('route factory', () => {
@@ -777,6 +779,238 @@ describe('/user/memory routes', () => {
       const responseCall = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(responseCall.results.length).toBeLessThanOrEqual(5);
       expect(responseCall.hasMore).toBe(true);
+    });
+  });
+
+  describe('GET /user/memory/list', () => {
+    it('should have GET /list route registered', () => {
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+
+      const route = (
+        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
+      ).find(layer => layer.route?.path === '/list' && layer.route?.methods?.get);
+      expect(route).toBeDefined();
+    });
+
+    it('should return 404 when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return empty list when user has no persona', async () => {
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({ id: TEST_USER_ID }) // First call - check user
+        .mockResolvedValueOnce({ defaultPersonaId: null }); // Second call - get default persona
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memories: [],
+          total: 0,
+          hasMore: false,
+        })
+      );
+    });
+
+    it('should return paginated memories', async () => {
+      const mockMemories = [
+        {
+          id: 'memory-1',
+          content: 'Test memory 1',
+          createdAt: new Date('2025-06-15'),
+          updatedAt: new Date('2025-06-15'),
+          personalityId: TEST_PERSONALITY_ID,
+          isLocked: false,
+          personality: { name: 'test', displayName: 'Test Personality' },
+        },
+        {
+          id: 'memory-2',
+          content: 'Test memory 2',
+          createdAt: new Date('2025-06-14'),
+          updatedAt: new Date('2025-06-14'),
+          personalityId: TEST_PERSONALITY_ID,
+          isLocked: true,
+          personality: { name: 'test', displayName: 'Test Personality' },
+        },
+      ];
+
+      mockPrisma.memory.count.mockResolvedValue(2);
+      mockPrisma.memory.findMany.mockResolvedValue(mockMemories);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, { limit: '10', offset: '0' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          memories: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'memory-1',
+              content: 'Test memory 1',
+              personalityName: 'Test Personality',
+              isLocked: false,
+            }),
+            expect.objectContaining({
+              id: 'memory-2',
+              isLocked: true,
+            }),
+          ]),
+          total: 2,
+          limit: 10,
+          offset: 0,
+          hasMore: false,
+        })
+      );
+    });
+
+    it('should filter by personalityId when provided', async () => {
+      mockPrisma.memory.count.mockResolvedValue(0);
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req, res);
+
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            personalityId: TEST_PERSONALITY_ID,
+          }),
+        })
+      );
+    });
+
+    it('should clamp limit to max 50', async () => {
+      mockPrisma.memory.count.mockResolvedValue(0);
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, { limit: '100' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 50,
+        })
+      );
+    });
+
+    it('should use default limit when not specified', async () => {
+      mockPrisma.memory.count.mockResolvedValue(0);
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, {});
+
+      await handler(req, res);
+
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 15, // Default limit
+        })
+      );
+    });
+
+    it('should handle pagination offset', async () => {
+      mockPrisma.memory.count.mockResolvedValue(25);
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, { limit: '10', offset: '10' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          skip: 10,
+          take: 10,
+        })
+      );
+    });
+
+    it('should detect hasMore correctly', async () => {
+      const mockMemories = [
+        {
+          id: 'memory-1',
+          content: 'Test memory',
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          personalityId: TEST_PERSONALITY_ID,
+          isLocked: false,
+          personality: { name: 'test', displayName: 'Test' },
+        },
+      ];
+
+      mockPrisma.memory.count.mockResolvedValue(25);
+      mockPrisma.memory.findMany.mockResolvedValue(mockMemories);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, { limit: '10', offset: '0' });
+
+      await handler(req, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hasMore: true, // 0 + 1 < 25
+        })
+      );
+    });
+
+    it('should support sort order parameters', async () => {
+      mockPrisma.memory.count.mockResolvedValue(0);
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, { sort: 'updatedAt', order: 'asc' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { updatedAt: 'asc' },
+        })
+      );
+    });
+
+    it('should default to createdAt desc when sort not specified', async () => {
+      mockPrisma.memory.count.mockResolvedValue(0);
+      mockPrisma.memory.findMany.mockResolvedValue([]);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/list');
+      const { req, res } = createMockReqRes({}, {});
+
+      await handler(req, res);
+
+      expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { createdAt: 'desc' },
+        })
+      );
     });
   });
 });
