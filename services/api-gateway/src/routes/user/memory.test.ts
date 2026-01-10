@@ -622,7 +622,7 @@ describe('/user/memory routes', () => {
       );
     });
 
-    it('should return search results', async () => {
+    it('should return semantic search results with searchType', async () => {
       const mockResults = [
         {
           id: 'memory-1',
@@ -657,6 +657,69 @@ describe('/user/memory routes', () => {
             }),
           ]),
           hasMore: false,
+          searchType: 'semantic',
+        })
+      );
+    });
+
+    it('should fallback to text search when semantic returns no results', async () => {
+      const textResults = [
+        {
+          id: 'memory-text-1',
+          content: 'Memory containing Draco the dragon',
+          created_at: new Date('2025-01-01'),
+          personality_id: TEST_PERSONALITY_ID,
+          personality_name: 'Test Personality',
+          is_locked: false,
+        },
+      ];
+      // First call (semantic) returns empty, second call (text) returns results
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([]) // semantic search - no results
+        .mockResolvedValueOnce(textResults); // text search - has results
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'Draco' }, {});
+
+      await handler(req, res);
+
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'memory-text-1',
+              content: 'Memory containing Draco the dragon',
+              similarity: null, // Text search has no similarity
+              personalityName: 'Test Personality',
+            }),
+          ]),
+          searchType: 'text',
+        })
+      );
+    });
+
+    it('should return empty when both semantic and text search find nothing', async () => {
+      // Both searches return empty
+      mockPrisma.$queryRaw
+        .mockResolvedValueOnce([]) // semantic search
+        .mockResolvedValueOnce([]); // text search
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'nonexistent' }, {});
+
+      await handler(req, res);
+
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: [],
+          count: 0,
+          searchType: 'text', // Falls through to text, which also returns empty
         })
       );
     });
