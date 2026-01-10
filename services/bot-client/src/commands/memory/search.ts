@@ -24,7 +24,7 @@ interface SearchResult {
 
 interface SearchResponse {
   results: SearchResult[];
-  total: number;
+  count: number;
   hasMore: boolean;
 }
 

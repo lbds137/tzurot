@@ -570,6 +570,23 @@ describe('/user/memory routes', () => {
       );
     });
 
+    it('should return 400 for query exceeding max length', async () => {
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const longQuery = 'a'.repeat(501); // Exceeds 500 char limit
+      const { req, res } = createMockReqRes({ query: longQuery }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('exceeds maximum length'),
+        })
+      );
+    });
+
     it('should return 404 when user not found', async () => {
       mockPrisma.user.findUnique.mockResolvedValue(null);
 
@@ -599,7 +616,7 @@ describe('/user/memory routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           results: [],
-          total: 0,
+          count: 0,
           hasMore: false,
         })
       );
