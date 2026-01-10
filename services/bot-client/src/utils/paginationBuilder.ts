@@ -24,6 +24,9 @@ export interface PaginationConfig {
   /** Command prefix for custom IDs (e.g., 'character', 'channel', 'memory') */
   prefix: string;
 
+  /** Hide the sort toggle button (useful for commands where sorting doesn't apply) */
+  hideSortToggle?: boolean;
+
   /** Custom labels (optional) */
   labels?: {
     previous?: string;
@@ -31,6 +34,20 @@ export interface PaginationConfig {
     sortByName?: string;
     sortByDate?: string;
   };
+}
+
+/**
+ * Options for building pagination buttons
+ */
+export interface PaginationButtonOptions {
+  /** Current page (0-indexed) */
+  currentPage: number;
+  /** Total number of pages (or estimated if hasMore is true) */
+  totalPages: number;
+  /** Current sort type */
+  currentSort: ListSortType;
+  /** Whether there may be more pages beyond totalPages */
+  hasMore?: boolean;
 }
 
 /**
@@ -150,6 +167,7 @@ export function isPaginationId(customId: string, prefix: string): boolean {
  * @param currentPage - Current page (0-indexed)
  * @param totalPages - Total number of pages
  * @param currentSort - Current sort type
+ * @param hasMore - Whether there may be more pages (shows "+" indicator)
  * @returns ActionRowBuilder with pagination buttons
  *
  * @example
@@ -167,7 +185,8 @@ export function buildPaginationButtons(
   config: PaginationConfig,
   currentPage: number,
   totalPages: number,
-  currentSort: ListSortType
+  currentSort: ListSortType,
+  hasMore?: boolean
 ): ActionRowBuilder<ButtonBuilder> {
   const labels = { ...DEFAULT_LABELS, ...config.labels };
   const row = new ActionRowBuilder<ButtonBuilder>();
@@ -181,33 +200,41 @@ export function buildPaginationButtons(
       .setDisabled(currentPage === 0)
   );
 
-  // Page indicator (disabled button)
+  // Page indicator (disabled button) - show "+" when hasMore and on last known page
+  const isOnLastKnownPage = currentPage >= totalPages - 1;
+  const pageIndicator =
+    hasMore === true && isOnLastKnownPage
+      ? `Page ${currentPage + 1} of ${totalPages}+`
+      : `Page ${currentPage + 1} of ${totalPages}`;
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(buildListInfoId(config.prefix))
-      .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
+      .setLabel(pageIndicator)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(true)
   );
 
-  // Next button
+  // Next button - enable if hasMore even when on "last" page
+  const disableNext = hasMore === true ? false : currentPage >= totalPages - 1;
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(buildListPageId(config.prefix, currentPage + 1, currentSort))
       .setLabel(labels.next)
       .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= totalPages - 1)
+      .setDisabled(disableNext)
   );
 
-  // Sort toggle button
-  const newSort: ListSortType = currentSort === 'date' ? 'name' : 'date';
-  const sortLabel = currentSort === 'date' ? labels.sortByName : labels.sortByDate;
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildSortToggleId(config.prefix, currentPage, newSort))
-      .setLabel(sortLabel)
-      .setStyle(ButtonStyle.Primary)
-  );
+  // Sort toggle button (optional)
+  if (config.hideSortToggle !== true) {
+    const newSort: ListSortType = currentSort === 'date' ? 'name' : 'date';
+    const sortLabel = currentSort === 'date' ? labels.sortByName : labels.sortByDate;
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(buildSortToggleId(config.prefix, currentPage, newSort))
+        .setLabel(sortLabel)
+        .setStyle(ButtonStyle.Primary)
+    );
+  }
 
   return row;
 }
