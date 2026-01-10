@@ -291,22 +291,23 @@ execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
 
 14 project-specific skills in `.claude/skills/`:
 
-| Skill                | Use When                       | Enforces                |
-| -------------------- | ------------------------------ | ----------------------- |
-| tzurot-code-quality  | Lint errors, refactoring       | ESLint rules, SOLID     |
-| tzurot-testing       | Writing tests, mocking         | Coverage, test behavior |
-| tzurot-types         | Types, constants, Zod schemas  | Type safety, DRY        |
-| tzurot-git-workflow  | Commits, PRs, rebasing         | Git safety, hooks       |
-| tzurot-security      | Secrets, user input            | Least privilege         |
-| tzurot-observability | Logging, debugging, operations | Structured logging      |
-| tzurot-architecture  | Service design, error patterns | SRP, service boundaries |
-| tzurot-docs          | Documentation, session handoff | Knowledge continuity    |
-| tzurot-council-mcp   | Consulting external AI         | Second opinions         |
-| tzurot-db-vector     | PostgreSQL, pgvector           | Query patterns          |
-| tzurot-async-flow    | BullMQ, Discord deferrals      | Async patterns          |
-| tzurot-deployment    | Railway, troubleshooting       | Deploy safety           |
-| tzurot-caching       | Cache patterns                 | Cache invalidation      |
-| tzurot-skills-guide  | Creating/updating skills       | Skill quality           |
+| Skill                   | Use When                       | Enforces                 |
+| ----------------------- | ------------------------------ | ------------------------ |
+| tzurot-code-quality     | Lint errors, refactoring       | ESLint rules, SOLID      |
+| tzurot-testing          | Writing tests, mocking         | Coverage, test behavior  |
+| tzurot-types            | Types, constants, Zod schemas  | Type safety, DRY         |
+| tzurot-git-workflow     | Commits, PRs, rebasing         | Git safety, hooks        |
+| tzurot-security         | Secrets, user input            | Least privilege          |
+| tzurot-observability    | Logging, debugging, operations | Structured logging       |
+| tzurot-architecture     | Service design, error patterns | SRP, service boundaries  |
+| tzurot-docs             | Documentation, session handoff | Knowledge continuity     |
+| tzurot-council-mcp      | Consulting external AI         | Second opinions          |
+| tzurot-db-vector        | PostgreSQL, pgvector           | Query patterns           |
+| tzurot-async-flow       | BullMQ, Discord deferrals      | Async patterns           |
+| tzurot-deployment       | Railway, troubleshooting       | Deploy safety            |
+| tzurot-caching          | Cache patterns                 | Cache invalidation       |
+| tzurot-slash-command-ux | Slash commands, pagination     | Standard naming, buttons |
+| tzurot-skills-guide     | Creating/updating skills       | Skill quality            |
 
 ## Post-Mortems
 
