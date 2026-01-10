@@ -4,6 +4,7 @@
  *
  * Commands:
  * - /memory stats <personality> - View memory statistics
+ * - /memory search <query> [personality] [limit] - Semantic search of memories
  * - /memory focus enable <personality> - Disable LTM retrieval
  * - /memory focus disable <personality> - Re-enable LTM retrieval
  * - /memory focus status <personality> - Check focus mode status
@@ -14,6 +15,7 @@ import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'disco
 import { createLogger } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
+import { handleSearch } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
 
@@ -35,6 +37,32 @@ export const data = new SlashCommandBuilder()
           .setDescription('The personality to view stats for')
           .setRequired(true)
           .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('search')
+      .setDescription('Search your memories semantically')
+      .addStringOption(option =>
+        option
+          .setName('query')
+          .setDescription('What to search for (natural language)')
+          .setRequired(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('personality')
+          .setDescription('Filter by personality (optional)')
+          .setRequired(false)
+          .setAutocomplete(true)
+      )
+      .addIntegerOption(option =>
+        option
+          .setName('limit')
+          .setDescription('Number of results (1-10, default 5)')
+          .setRequired(false)
+          .setMinValue(1)
+          .setMaxValue(10)
       )
   )
   .addSubcommandGroup(group =>
@@ -102,6 +130,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await focusRouter(interaction);
   } else if (subcommand === 'stats') {
     await handleStats(interaction);
+  } else if (subcommand === 'search') {
+    await handleSearch(interaction);
   } else {
     logger.warn({ subcommandGroup, subcommand }, '[Memory] Unknown subcommand');
   }
