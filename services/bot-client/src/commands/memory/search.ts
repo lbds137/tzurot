@@ -3,14 +3,31 @@
  * Handles /memory search command - semantic search of memories
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { escapeMarkdown } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import { escapeMarkdown, EmbedBuilder, ComponentType } from 'discord.js';
+import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
+import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
+import {
+  buildPaginationButtons,
+  parsePaginationId,
+  calculatePagination,
+  type PaginationConfig,
+} from '../../utils/paginationBuilder.js';
 
 const logger = createLogger('memory-search');
+
+/** Pagination configuration for search */
+const PAGINATION_CONFIG: PaginationConfig = {
+  prefix: 'msearch',
+};
+
+/** Items per page */
+const RESULTS_PER_PAGE = 5;
+
+/** Collector timeout in milliseconds (5 minutes) */
+const COLLECTOR_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface SearchResult {
   id: string;
@@ -25,8 +42,19 @@ interface SearchResult {
 interface SearchResponse {
   results: SearchResult[];
   count: number;
+  total?: number; // Total matching results (for pagination)
   hasMore: boolean;
   searchType?: 'semantic' | 'text'; // undefined for backwards compatibility
+}
+
+interface BuildSearchEmbedOptions {
+  results: SearchResult[];
+  query: string;
+  page: number;
+  totalPages: number;
+  hasMore: boolean;
+  searchType?: 'semantic' | 'text';
+  personalityFilter?: string;
 }
 
 /** Maximum content length before truncation */
@@ -66,13 +94,182 @@ function formatSimilarity(similarity: number | null): string {
 }
 
 /**
+ * Build the search results embed
+ */
+function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
+  const { results, query, page, totalPages, hasMore, searchType, personalityFilter } = options;
+  const isTextFallback = searchType === 'text';
+
+  const embed = new EmbedBuilder().setTitle('🔍 Memory Search').setColor(DISCORD_COLORS.BLURPLE);
+
+  if (results.length === 0) {
+    embed.setDescription(
+      `No memories found matching: **${escapeMarkdown(truncateContent(query, 50))}**\n\nTry a different search query or check if you have memories with this personality.`
+    );
+    return embed;
+  }
+
+  // Build results description
+  const lines: string[] = [`Results for: **${escapeMarkdown(truncateContent(query, 50))}**`, ''];
+
+  results.forEach((memory, index) => {
+    const num = page * RESULTS_PER_PAGE + index + 1;
+    const lockIcon = memory.isLocked ? ' 🔒' : '';
+    const similarity = formatSimilarity(memory.similarity);
+    const content = truncateContent(escapeMarkdown(memory.content));
+    const date = formatDate(memory.createdAt);
+    const personality = escapeMarkdown(memory.personalityName);
+
+    lines.push(`**${num}.** ${content}${lockIcon}`);
+    lines.push(`   _${personality} • ${similarity} • ${date}_`);
+    lines.push('');
+  });
+
+  embed.setDescription(lines.join('\n').trim());
+
+  // Build footer
+  const footerParts: string[] = [];
+  if (isTextFallback) {
+    footerParts.push('Text search');
+  } else {
+    footerParts.push('Semantic search');
+  }
+  if (personalityFilter !== undefined) {
+    footerParts.push('Filtered');
+  }
+  footerParts.push(`Page ${page + 1} of ${totalPages}${hasMore ? '+' : ''}`);
+
+  embed.setFooter({ text: footerParts.join(' • ') });
+
+  return embed;
+}
+
+interface SearchCollectorContext {
+  userId: string;
+  query: string;
+  personalityId: string | undefined;
+  initialSearchType?: 'semantic' | 'text';
+}
+
+/**
+ * Set up pagination collector for search results
+ */
+function setupSearchCollector(
+  interaction: ChatInputCommandInteraction,
+  response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
+  context: SearchCollectorContext
+): void {
+  const { userId, query, personalityId, initialSearchType } = context;
+
+  const collector = response.createMessageComponentCollector({
+    componentType: ComponentType.Button,
+    time: COLLECTOR_TIMEOUT_MS,
+    filter: i => i.user.id === userId,
+  });
+
+  let currentSearchType = initialSearchType;
+
+  collector.on('collect', (buttonInteraction: ButtonInteraction) => {
+    void (async () => {
+      const parsed = parsePaginationId(buttonInteraction.customId, 'msearch');
+      if (parsed === null) {
+        return;
+      }
+
+      await buttonInteraction.deferUpdate();
+
+      const newPage = parsed.page ?? 0;
+
+      const newData = await fetchSearchResults(
+        userId,
+        query,
+        personalityId,
+        newPage * RESULTS_PER_PAGE,
+        RESULTS_PER_PAGE
+      );
+
+      if (newData === null) {
+        return;
+      }
+
+      if (newData.searchType !== undefined) {
+        currentSearchType = newData.searchType;
+      }
+
+      const newEstimatedTotal = newData.hasMore
+        ? (newPage + 2) * RESULTS_PER_PAGE
+        : newPage * RESULTS_PER_PAGE + newData.results.length;
+      const { totalPages: newTotalPages } = calculatePagination(
+        newEstimatedTotal,
+        RESULTS_PER_PAGE,
+        newPage
+      );
+
+      const newEmbed = buildSearchEmbed({
+        results: newData.results,
+        query,
+        page: newPage,
+        totalPages: newTotalPages,
+        hasMore: newData.hasMore,
+        searchType: currentSearchType,
+        personalityFilter: personalityId,
+      });
+
+      const newComponents = [
+        buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
+      ];
+
+      await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
+    })();
+  });
+
+  collector.on('end', () => {
+    interaction.editReply({ components: [] }).catch(() => {
+      // Ignore errors if message was deleted
+    });
+  });
+}
+
+/**
+ * Fetch search results from API
+ */
+async function fetchSearchResults(
+  userId: string,
+  query: string,
+  personalityId: string | undefined,
+  offset: number,
+  limit: number
+): Promise<SearchResponse | null> {
+  const requestBody: Record<string, unknown> = {
+    query,
+    limit,
+    offset,
+  };
+
+  if (personalityId !== undefined) {
+    requestBody.personalityId = personalityId;
+  }
+
+  const result = await callGatewayApi<SearchResponse>('/user/memory/search', {
+    userId,
+    method: 'POST',
+    body: requestBody,
+  });
+
+  if (!result.ok) {
+    return null;
+  }
+
+  return result.data;
+}
+
+/**
  * Handle /memory search
  */
 export async function handleSearch(interaction: ChatInputCommandInteraction): Promise<void> {
   const userId = interaction.user.id;
   const query = interaction.options.getString('query', true);
   const personalityInput = interaction.options.getString('personality');
-  const limit = interaction.options.getInteger('limit') ?? 5;
 
   try {
     // Resolve personality if provided
@@ -89,76 +286,38 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
       personalityId = resolved;
     }
 
-    // Build request body
-    const requestBody: Record<string, unknown> = {
-      query,
-      limit: Math.min(Math.max(1, limit), 10), // Clamp to 1-10 for display
-    };
+    // Fetch first page
+    const data = await fetchSearchResults(userId, query, personalityId, 0, RESULTS_PER_PAGE);
 
-    if (personalityId !== undefined) {
-      requestBody.personalityId = personalityId;
-    }
-
-    const result = await callGatewayApi<SearchResponse>('/user/memory/search', {
-      userId,
-      method: 'POST',
-      body: requestBody,
-    });
-
-    if (!result.ok) {
-      const errorMessage =
-        result.status === 503
-          ? 'Memory search is not currently available. Please try again later.'
-          : 'Failed to search memories. Please try again later.';
-      logger.warn(
-        { userId, query: query.substring(0, 50), status: result.status },
-        '[Memory] Search failed'
-      );
-      await replyWithError(interaction, errorMessage);
+    if (data === null) {
+      logger.warn({ userId, query: query.substring(0, 50) }, '[Memory] Search failed');
+      await replyWithError(interaction, 'Failed to search memories. Please try again later.');
       return;
     }
 
-    const { results, hasMore, searchType } = result.data;
-    const isTextFallback = searchType === 'text';
+    const { results, hasMore, searchType } = data;
 
-    // Build embed
-    const embed = createInfoEmbed(
-      'Memory Search Results',
-      `Found ${results.length} result${results.length !== 1 ? 's' : ''}${hasMore ? '+' : ''} for: **${escapeMarkdown(truncateContent(query, 50))}**`
-    );
+    // For search, we estimate total pages based on hasMore
+    // Since we don't have exact total, we use a practical approach
+    const estimatedTotal = hasMore ? results.length * 10 : results.length; // Rough estimate
+    const { totalPages } = calculatePagination(estimatedTotal, RESULTS_PER_PAGE, 0);
 
-    if (results.length === 0) {
-      embed.setDescription(
-        `No memories found matching: **${escapeMarkdown(truncateContent(query, 50))}**\n\nTry a different search query or check if you have memories with this personality.`
-      );
-    } else {
-      // Add each result as a field
-      results.forEach((memory, index) => {
-        const lockIcon = memory.isLocked ? ' :locked:' : '';
-        const header = `${index + 1}. ${escapeMarkdown(memory.personalityName)}${lockIcon} (${formatSimilarity(memory.similarity)})`;
-        const content = `${truncateContent(escapeMarkdown(memory.content))}\n*${formatDate(memory.createdAt)}*`;
+    // Build initial embed
+    const embed = buildSearchEmbed({
+      results,
+      query,
+      page: 0,
+      totalPages,
+      hasMore,
+      searchType,
+      personalityFilter: personalityId,
+    });
 
-        embed.addFields({
-          name: header,
-          value: content,
-          inline: false,
-        });
-      });
+    // Build components (only if there are results and possibly more)
+    const components =
+      results.length > 0 ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, 'date')] : [];
 
-      // Build footer text
-      const footerParts: string[] = [];
-      if (isTextFallback) {
-        footerParts.push('Results from text search (no semantic matches found)');
-      }
-      if (hasMore) {
-        footerParts.push('More results available. Use a more specific query to refine results.');
-      }
-      if (footerParts.length > 0) {
-        embed.setFooter({ text: footerParts.join(' • ') });
-      }
-    }
-
-    await interaction.editReply({ embeds: [embed] });
+    const response = await interaction.editReply({ embeds: [embed], components });
 
     logger.info(
       {
@@ -169,8 +328,18 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
         hasMore,
         searchType: searchType ?? 'semantic',
       },
-      '[Memory] Search completed'
+      '[Memory] Search displayed'
     );
+
+    // Set up collector for pagination
+    if (components.length > 0) {
+      setupSearchCollector(interaction, response, {
+        userId,
+        query,
+        personalityId,
+        initialSearchType: searchType,
+      });
+    }
   } catch (error) {
     await handleCommandError(interaction, error, { userId, command: 'Memory Search' });
   }

@@ -3,6 +3,7 @@
  * LTM (Long-Term Memory) management endpoints
  *
  * GET /user/memory/stats - Get memory statistics for a personality
+ * GET /user/memory/list - Paginated list of memories for browsing
  * GET /user/memory/focus - Get focus mode status
  * POST /user/memory/focus - Enable/disable focus mode
  * POST /user/memory/search - Semantic search of memories
@@ -21,6 +22,7 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { handleSearch } from './memorySearch.js';
+import { handleList } from './memoryList.js';
 
 const logger = createLogger('user-memory');
 
@@ -99,10 +101,14 @@ async function handleGetStats(
   }
 
   const user = await getUserByDiscordId(prisma, discordUserId, res);
-  if (!user) {return;}
+  if (!user) {
+    return;
+  }
 
   const personality = await getPersonalityById(prisma, personalityId, res);
-  if (!personality) {return;}
+  if (!personality) {
+    return;
+  }
 
   const config = await prisma.userPersonalityConfig.findUnique({
     where: { userId_personalityId: { userId: user.id, personalityId } },
@@ -184,7 +190,9 @@ async function handleGetFocus(
   }
 
   const user = await getUserByDiscordId(prisma, discordUserId, res);
-  if (!user) {return;}
+  if (!user) {
+    return;
+  }
 
   const config = await prisma.userPersonalityConfig.findUnique({
     where: { userId_personalityId: { userId: user.id, personalityId } },
@@ -222,10 +230,14 @@ async function handleSetFocus(
   }
 
   const user = await getUserByDiscordId(prisma, discordUserId, res);
-  if (!user) {return;}
+  if (!user) {
+    return;
+  }
 
   const personality = await getPersonalityById(prisma, personalityId, res);
-  if (!personality) {return;}
+  if (!personality) {
+    return;
+  }
 
   await prisma.userPersonalityConfig.upsert({
     where: { userId_personalityId: { userId: user.id, personalityId } },
@@ -264,6 +276,20 @@ export function createMemoryRoutes(prisma: PrismaClient): Router {
     '/stats',
     requireUserAuth(),
     asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetStats(prisma, req, res))
+  );
+
+  router.get(
+    '/list',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleList(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
   );
 
   router.get(

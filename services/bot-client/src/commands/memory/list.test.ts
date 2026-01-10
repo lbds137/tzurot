@@ -1,9 +1,9 @@
 /**
- * Tests for Memory Search Subcommand
+ * Tests for Memory List Subcommand
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleSearch } from './search.js';
+import { handleList } from './list.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -27,10 +27,8 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 
 // Mock commandHelpers
 const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 vi.mock('../../utils/commandHelpers.js', () => ({
   replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
 }));
 
 // Mock autocomplete
@@ -39,7 +37,7 @@ vi.mock('./autocomplete.js', () => ({
   resolvePersonalityId: (...args: unknown[]) => mockResolvePersonalityId(...args),
 }));
 
-describe('handleSearch', () => {
+describe('handleList', () => {
   const mockEditReply = vi.fn();
   const mockCreateMessageComponentCollector = vi.fn();
 
@@ -53,49 +51,49 @@ describe('handleSearch', () => {
     });
   });
 
-  function createMockInteraction(query: string, personality: string | null = null) {
+  function createMockInteraction(personality: string | null = null) {
     return {
       user: { id: '123456789' },
       options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'query') return query;
+        getString: (name: string) => {
           if (name === 'personality') return personality;
           return null;
         },
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleSearch>[0];
+    } as unknown as Parameters<typeof handleList>[0];
   }
 
-  it('should search successfully without personality filter', async () => {
+  it('should list memories successfully without filter', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        results: [
+        memories: [
           {
             id: 'memory-1',
             content: 'Test memory about cats',
-            similarity: 0.92,
             createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
             personalityId: 'personality-123',
             personalityName: 'Lilith',
             isLocked: false,
           },
         ],
-        count: 1,
+        total: 1,
+        limit: 10,
+        offset: 0,
         hasMore: false,
       },
     });
 
-    const interaction = createMockInteraction('cats');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction();
+    await handleList(interaction);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
+      expect.stringContaining('/user/memory/list'),
       expect.objectContaining({
         userId: '123456789',
-        method: 'POST',
-        body: expect.objectContaining({ query: 'cats' }),
+        method: 'GET',
       })
     );
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -104,33 +102,34 @@ describe('handleSearch', () => {
     });
   });
 
-  it('should search with personality filter', async () => {
+  it('should list memories with personality filter', async () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], count: 0, hasMore: false },
+      data: {
+        memories: [],
+        total: 0,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
     });
 
-    const interaction = createMockInteraction('test query', 'lilith');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction('lilith');
+    await handleList(interaction);
 
     expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/memory/search',
-      expect.objectContaining({
-        body: expect.objectContaining({
-          query: 'test query',
-          personalityId: 'personality-uuid-123',
-        }),
-      })
+      expect.stringContaining('personalityId=personality-uuid-123'),
+      expect.any(Object)
     );
   });
 
   it('should show error when personality not found', async () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
-    const interaction = createMockInteraction('test', 'unknown-personality');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction('unknown-personality');
+    await handleList(interaction);
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
@@ -145,23 +144,29 @@ describe('handleSearch', () => {
       error: 'Internal error',
     });
 
-    const interaction = createMockInteraction('test query');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction();
+    await handleList(interaction);
 
     expect(mockReplyWithError).toHaveBeenCalledWith(
       interaction,
-      expect.stringContaining('Failed to search')
+      expect.stringContaining('Failed to load')
     );
   });
 
-  it('should handle empty results gracefully', async () => {
+  it('should display empty state when no memories', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], count: 0, hasMore: false },
+      data: {
+        memories: [],
+        total: 0,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
     });
 
-    const interaction = createMockInteraction('nonexistent query');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction();
+    await handleList(interaction);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -169,41 +174,30 @@ describe('handleSearch', () => {
     });
   });
 
-  it('should handle unexpected errors', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
-
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
-
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      interaction,
-      expect.any(Error),
-      expect.objectContaining({ command: 'Memory Search' })
-    );
-  });
-
-  it('should set up pagination collector when results exist', async () => {
+  it('should set up pagination collector when memories exist', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        results: [
+        memories: [
           {
             id: 'memory-1',
             content: 'Test memory',
-            similarity: 0.9,
             createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
             personalityId: 'personality-123',
             personalityName: 'Test',
             isLocked: false,
           },
         ],
-        count: 1,
+        total: 25, // More than one page
+        limit: 10,
+        offset: 0,
         hasMore: true,
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction();
+    await handleList(interaction);
 
     expect(mockCreateMessageComponentCollector).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -212,74 +206,97 @@ describe('handleSearch', () => {
     );
   });
 
-  it('should not set up collector when no results', async () => {
+  it('should not set up collector when no memories', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], count: 0, hasMore: false },
+      data: {
+        memories: [],
+        total: 0,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction();
+    await handleList(interaction);
 
     expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
+  });
+
+  it('should handle unexpected errors', async () => {
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    expect(mockReplyWithError).toHaveBeenCalledWith(
+      interaction,
+      expect.stringContaining('unexpected error')
+    );
+  });
+
+  it('should include pagination buttons with memories', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test memory',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'personality-123',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: expect.any(Array),
+      components: expect.arrayContaining([expect.any(Object)]),
+    });
   });
 
   it('should display locked indicator for locked memories', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        results: [
+        memories: [
           {
             id: 'memory-1',
             content: 'Locked memory',
-            similarity: 0.85,
             createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
             personalityId: 'personality-123',
             personalityName: 'Test',
             isLocked: true,
           },
         ],
-        count: 1,
+        total: 1,
+        limit: 10,
+        offset: 0,
         hasMore: false,
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const interaction = createMockInteraction();
+    await handleList(interaction);
 
+    // The embed should contain the lock emoji for locked memories
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: expect.any(Array),
       })
     );
-  });
-
-  it('should include pagination buttons with results', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        results: [
-          {
-            id: 'memory-1',
-            content: 'Test memory',
-            similarity: 0.9,
-            createdAt: '2025-06-15T12:00:00.000Z',
-            personalityId: 'personality-123',
-            personalityName: 'Test',
-            isLocked: false,
-          },
-        ],
-        count: 1,
-        hasMore: false,
-      },
-    });
-
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: expect.any(Array),
-      components: expect.arrayContaining([expect.any(Object)]),
-    });
   });
 });
