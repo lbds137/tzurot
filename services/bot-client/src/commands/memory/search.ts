@@ -15,7 +15,7 @@ const logger = createLogger('memory-search');
 interface SearchResult {
   id: string;
   content: string;
-  similarity: number;
+  similarity: number | null; // null for text search results
   createdAt: string;
   personalityId: string;
   personalityName: string;
@@ -26,6 +26,7 @@ interface SearchResponse {
   results: SearchResult[];
   count: number;
   hasMore: boolean;
+  searchType?: 'semantic' | 'text'; // undefined for backwards compatibility
 }
 
 /** Maximum content length before truncation */
@@ -54,9 +55,12 @@ function truncateContent(content: string, maxLength: number = MAX_CONTENT_DISPLA
 }
 
 /**
- * Format similarity score for display
+ * Format similarity score for display (or 'text match' for fallback)
  */
-function formatSimilarity(similarity: number): string {
+function formatSimilarity(similarity: number | null): string {
+  if (similarity === null) {
+    return 'text match';
+  }
   const percentage = Math.round(similarity * 100);
   return `${percentage}%`;
 }
@@ -114,7 +118,8 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
       return;
     }
 
-    const { results, hasMore } = result.data;
+    const { results, hasMore, searchType } = result.data;
+    const isTextFallback = searchType === 'text';
 
     // Build embed
     const embed = createInfoEmbed(
@@ -140,10 +145,16 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
         });
       });
 
+      // Build footer text
+      const footerParts: string[] = [];
+      if (isTextFallback) {
+        footerParts.push('Results from text search (no semantic matches found)');
+      }
       if (hasMore) {
-        embed.setFooter({
-          text: 'More results available. Use a more specific query to refine results.',
-        });
+        footerParts.push('More results available. Use a more specific query to refine results.');
+      }
+      if (footerParts.length > 0) {
+        embed.setFooter({ text: footerParts.join(' • ') });
       }
     }
 
@@ -156,6 +167,7 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
         personalityId,
         resultCount: results.length,
         hasMore,
+        searchType: searchType ?? 'semantic',
       },
       '[Memory] Search completed'
     );
