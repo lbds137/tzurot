@@ -1,8 +1,8 @@
 # Memory Management Commands Implementation Plan
 
-> **Status**: Phase 1 Complete, Phase 2 In Progress
+> **Status**: Phase 1 Complete, Phase 2 In Progress (2B, 2D done; 2A active)
 > **Created**: 2025-12-13
-> **Last Updated**: 2026-01-08
+> **Last Updated**: 2026-01-10
 > **Priority**: High (User-requested feature)
 > **Estimated Sessions**: 6-8
 
@@ -418,37 +418,46 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 
 **Goal**: Users can search, browse, edit, and delete long-term memories
 
-**2A: Memory Browser Dashboard**
+**2A: Memory Browser Dashboard** ← ACTIVE
 
+_Prerequisite: Shared pagination utility for consistent UX across list commands_
+
+- [ ] Create shared pagination utility (`paginationBuilder.ts`)
+  - [ ] Generic button builder (◀ Previous | Page X of Y | Next ▶ | Sort toggle)
+  - [ ] Configurable custom ID prefixes
+  - [ ] Optional per-item action buttons
+- [ ] Refactor `/character list` and `/channel list` to use shared utility
 - [ ] Add source tracking fields to memory schema (`sourceServerId`, `sourceChannelId`, `isLocked`)
+- [ ] Implement `/memory list` command with pagination
 - [ ] Create `MemoryBrowserSession` type (extends dashboard session pattern)
-- [ ] Implement `/memory browse` dashboard with navigation buttons
 - [ ] Build memory card embed component with metadata display
 - [ ] Add [Edit] button → modal for editing memory content
 - [ ] Add [Delete] button → confirmation for single memory deletion
 - [ ] Add [Lock/Unlock] button → toggle core memory protection
 - [ ] Regenerate embeddings on edit (call ai-worker)
 - [ ] Build autocomplete for server/channel name resolution
+- [ ] Enhance `/memory search` with pagination (same shared utility)
 
-**2B: Memory Search**
+**2B: Memory Search** ✅ COMPLETE (beta.42)
 
-- [ ] Implement `/memory search` with semantic search via pgvector
-- [ ] Search results show numbered list with [View] buttons
-- [ ] Clicking [View] opens browser at that memory
+- [x] Implement `/memory search` with semantic search via pgvector
+- [x] Add text search fallback when semantic returns no results
+- [x] Show `searchType` indicator (semantic vs text match)
+- [ ] Search results show numbered list with [View] buttons ← moved to 2A
+- [ ] Clicking [View] opens browser at that memory ← moved to 2A
 
 **2C: Batch Operations**
 
 - [ ] Implement `/memory delete` for batch deletion with filters
 - [ ] Implement `/memory purge` with typed confirmation modal
 - [ ] Add isLocked check to batch operations (skip locked memories)
-- [ ] Implement `/memory stats` for memory statistics
+- [x] Implement `/memory stats` for memory statistics ✅ COMPLETE (beta.42)
 
-**2D: Memory Read Toggle ("Focus Mode")**
+**2D: Memory Read Toggle ("Focus Mode")** ✅ COMPLETE (beta.42)
 
-- [ ] Add `focusModeEnabled` boolean to UserPersonalityConfig (or Redis session)
-- [ ] Implement `/memory focus enable` - disable LTM retrieval for a personality
-- [ ] Implement `/memory focus disable` - re-enable LTM retrieval
-- [ ] Implement `/memory focus status` - check current state
+- [x] Add `focusModeEnabled` boolean to UserPersonalityConfig
+- [x] Implement `/memory focus` toggle (enable/disable via POST body)
+- [x] Implement `/memory focus` GET - check current state
 - [ ] Add focus mode check to RAG retrieval pipeline
 - [ ] Visual indicator in responses when focus mode is active
 
