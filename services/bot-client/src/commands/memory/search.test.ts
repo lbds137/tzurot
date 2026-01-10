@@ -89,7 +89,7 @@ describe('handleSearch', () => {
             isLocked: false,
           },
         ],
-        total: 1,
+        count: 1,
         hasMore: false,
       },
     });
@@ -112,7 +112,7 @@ describe('handleSearch', () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], total: 0, hasMore: false },
+      data: { results: [], count: 0, hasMore: false },
     });
 
     const interaction = createMockInteraction('test query', 'lilith');
@@ -177,7 +177,7 @@ describe('handleSearch', () => {
   it('should respect limit parameter', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], total: 0, hasMore: false },
+      data: { results: [], count: 0, hasMore: false },
     });
 
     const interaction = createMockInteraction('test', null, 3);
@@ -196,7 +196,7 @@ describe('handleSearch', () => {
   it('should clamp limit to max 10 for display', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], total: 0, hasMore: false },
+      data: { results: [], count: 0, hasMore: false },
     });
 
     const interaction = createMockInteraction('test', null, 100);
@@ -215,7 +215,7 @@ describe('handleSearch', () => {
   it('should handle empty results gracefully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { results: [], total: 0, hasMore: false },
+      data: { results: [], count: 0, hasMore: false },
     });
 
     const interaction = createMockInteraction('nonexistent query');

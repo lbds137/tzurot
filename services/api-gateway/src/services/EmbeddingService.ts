@@ -90,7 +90,14 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
 
 /**
  * Format embedding array as PostgreSQL vector string
+ * Validates all elements are finite numbers to prevent SQL injection
+ * @throws Error if any element is not a valid finite number
  */
 export function formatAsVector(embedding: number[]): string {
+  for (const value of embedding) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new Error('Invalid embedding: all elements must be finite numbers');
+    }
+  }
   return `[${embedding.join(',')}]`;
 }
