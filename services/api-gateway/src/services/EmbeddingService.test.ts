@@ -128,5 +128,29 @@ describe('EmbeddingService', () => {
 
       expect(result).toBe('[0.1,0.2,0.3]');
     });
+
+    it('should throw on non-number elements', async () => {
+      const { formatAsVector } = await import('./EmbeddingService.js');
+
+      expect(() => formatAsVector(['malicious' as unknown as number])).toThrow(
+        'Invalid embedding: all elements must be finite numbers'
+      );
+    });
+
+    it('should throw on NaN elements', async () => {
+      const { formatAsVector } = await import('./EmbeddingService.js');
+
+      expect(() => formatAsVector([0.1, NaN, 0.3])).toThrow(
+        'Invalid embedding: all elements must be finite numbers'
+      );
+    });
+
+    it('should throw on Infinity elements', async () => {
+      const { formatAsVector } = await import('./EmbeddingService.js');
+
+      expect(() => formatAsVector([0.1, Infinity, 0.3])).toThrow(
+        'Invalid embedding: all elements must be finite numbers'
+      );
+    });
   });
 });

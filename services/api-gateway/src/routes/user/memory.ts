@@ -34,6 +34,7 @@ const SEARCH_DEFAULTS = {
   limit: 10,
   maxLimit: 50,
   minSimilarity: 0.7, // Lower threshold for search (vs 0.85 for automatic retrieval)
+  maxQueryLength: 500, // Prevent excessive query lengths
 } as const;
 
 interface FocusModeRequest {
@@ -431,6 +432,16 @@ async function handleSearch(
     return;
   }
 
+  if (query.length > SEARCH_DEFAULTS.maxQueryLength) {
+    sendError(
+      res,
+      ErrorResponses.validationError(
+        `query exceeds maximum length of ${SEARCH_DEFAULTS.maxQueryLength} characters`
+      )
+    );
+    return;
+  }
+
   const effectiveLimit = Math.min(
     Math.max(1, limit ?? SEARCH_DEFAULTS.limit),
     SEARCH_DEFAULTS.maxLimit
@@ -444,7 +455,7 @@ async function handleSearch(
 
   const personaId = await getDefaultPersonaId(prisma, user.id);
   if (personaId === null) {
-    sendCustomSuccess(res, { results: [], total: 0, hasMore: false }, StatusCodes.OK);
+    sendCustomSuccess(res, { results: [], count: 0, hasMore: false }, StatusCodes.OK);
     return;
   }
 
@@ -488,7 +499,7 @@ async function handleSearch(
 
   sendCustomSuccess(
     res,
-    { results: responseResults, total: responseResults.length + effectiveOffset, hasMore },
+    { results: responseResults, count: responseResults.length, hasMore },
     StatusCodes.OK
   );
 }
