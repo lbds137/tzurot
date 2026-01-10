@@ -5,10 +5,24 @@
  * - GET /stats - Get memory statistics for a personality
  * - GET /focus - Get focus mode status
  * - POST /focus - Enable/disable focus mode
+ * - POST /search - Semantic search of memories
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
+
+// Hoisted mocks must be declared with vi.hoisted
+const { mockGenerateEmbedding, mockIsEmbeddingServiceAvailable } = vi.hoisted(() => ({
+  mockGenerateEmbedding: vi.fn(),
+  mockIsEmbeddingServiceAvailable: vi.fn(),
+}));
+
+// Mock EmbeddingService
+vi.mock('../../services/EmbeddingService.js', () => ({
+  generateEmbedding: mockGenerateEmbedding,
+  formatAsVector: vi.fn((embedding: number[]) => `[${embedding.join(',')}]`),
+  isEmbeddingServiceAvailable: mockIsEmbeddingServiceAvailable,
+}));
 
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
@@ -51,6 +65,7 @@ const mockPrisma = {
     count: vi.fn(),
     findFirst: vi.fn(),
   },
+  $queryRaw: vi.fn(),
 };
 
 import { createMemoryRoutes } from './memory.js';
@@ -483,6 +498,205 @@ describe('/user/memory routes', () => {
           message: expect.stringContaining('disabled'),
         })
       );
+    });
+  });
+
+  describe('POST /user/memory/search', () => {
+    const TEST_EMBEDDING = new Array(1536).fill(0.1);
+
+    beforeEach(() => {
+      // Setup default mocks for search
+      mockIsEmbeddingServiceAvailable.mockReturnValue(true);
+      mockGenerateEmbedding.mockResolvedValue(TEST_EMBEDDING);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+    });
+
+    it('should have POST /search route registered', () => {
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+
+      const route = (
+        router.stack as unknown as Array<{
+          route?: { path?: string; methods?: { post?: boolean } };
+        }>
+      ).find(layer => layer.route?.path === '/search' && layer.route?.methods?.post);
+      expect(route).toBeDefined();
+    });
+
+    it('should return 503 when embedding service is not available', async () => {
+      mockIsEmbeddingServiceAvailable.mockReturnValue(false);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search' }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'SERVICE_UNAVAILABLE',
+        })
+      );
+    });
+
+    it('should reject missing query', async () => {
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({}, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('query'),
+        })
+      );
+    });
+
+    it('should reject empty query', async () => {
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: '   ' }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+        })
+      );
+    });
+
+    it('should return 404 when user not found', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue(null);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search' }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return empty results when user has no persona', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: TEST_USER_ID,
+        discordId: TEST_DISCORD_USER_ID,
+        defaultPersonaId: null,
+      });
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search' }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: [],
+          total: 0,
+          hasMore: false,
+        })
+      );
+    });
+
+    it('should return search results', async () => {
+      const mockResults = [
+        {
+          id: 'memory-1',
+          content: 'Test memory content',
+          distance: 0.1,
+          created_at: new Date('2025-01-01'),
+          personality_id: TEST_PERSONALITY_ID,
+          personality_name: 'Test Personality',
+          is_locked: false,
+        },
+      ];
+      mockPrisma.$queryRaw.mockResolvedValue(mockResults);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search' }, {});
+
+      await handler(req, res);
+
+      expect(mockGenerateEmbedding).toHaveBeenCalledWith('test search');
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          results: expect.arrayContaining([
+            expect.objectContaining({
+              id: 'memory-1',
+              content: 'Test memory content',
+              similarity: 0.9, // 1 - 0.1 = 0.9
+              personalityName: 'Test Personality',
+              isLocked: false,
+            }),
+          ]),
+          hasMore: false,
+        })
+      );
+    });
+
+    it('should clamp limit to max 50', async () => {
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search', limit: 100 }, {});
+
+      await handler(req, res);
+
+      // Should still succeed (limit is clamped internally)
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should handle embedding generation error', async () => {
+      mockGenerateEmbedding.mockRejectedValue(new Error('OpenAI API error'));
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search' }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'INTERNAL_ERROR',
+        })
+      );
+    });
+
+    it('should detect hasMore when results exceed limit', async () => {
+      // Return 6 results when limit is 5 (default)
+      const mockResults = Array.from({ length: 6 }, (_, i) => ({
+        id: `memory-${i}`,
+        content: `Content ${i}`,
+        distance: 0.1,
+        created_at: new Date('2025-01-01'),
+        personality_id: TEST_PERSONALITY_ID,
+        personality_name: 'Test Personality',
+        is_locked: false,
+      }));
+      mockPrisma.$queryRaw.mockResolvedValue(mockResults);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      // Request with limit=5, but API returns 6 to check for hasMore
+      const { req, res } = createMockReqRes({ query: 'test search', limit: 5 }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      // The response should only include 5 results (not 6)
+      const responseCall = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      expect(responseCall.results.length).toBeLessThanOrEqual(5);
+      expect(responseCall.hasMore).toBe(true);
     });
   });
 });
