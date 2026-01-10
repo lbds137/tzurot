@@ -21,6 +21,7 @@ export enum ErrorCode {
   CONFLICT = 'CONFLICT',
   INTERNAL_ERROR = 'INTERNAL_ERROR',
   CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
   JOB_FAILED = 'JOB_FAILED',
   JOB_NOT_FOUND = 'JOB_NOT_FOUND',
   PROCESSING_ERROR = 'PROCESSING_ERROR',
@@ -39,6 +40,7 @@ const ERROR_STATUS_CODES: Record<ErrorCode, number> = {
   [ErrorCode.CONFLICT]: 409,
   [ErrorCode.INTERNAL_ERROR]: 500,
   [ErrorCode.CONFIGURATION_ERROR]: 500,
+  [ErrorCode.SERVICE_UNAVAILABLE]: 503,
   [ErrorCode.JOB_FAILED]: 500,
   [ErrorCode.JOB_NOT_FOUND]: 404,
   [ErrorCode.PROCESSING_ERROR]: 500,
@@ -121,6 +123,9 @@ export const ErrorResponses = {
 
   configurationError: (message: string, requestId?: string) =>
     createErrorResponse(ErrorCode.CONFIGURATION_ERROR, message, requestId),
+
+  serviceUnavailable: (message = 'Service temporarily unavailable', requestId?: string) =>
+    createErrorResponse(ErrorCode.SERVICE_UNAVAILABLE, message, requestId),
 
   jobFailed: (message: string, requestId?: string) =>
     createErrorResponse(ErrorCode.JOB_FAILED, message, requestId),
