@@ -15,13 +15,13 @@ import {
   calculatePagination,
   type PaginationConfig,
 } from '../../utils/paginationBuilder.js';
-import type { ListSortType } from '../../utils/listSorting.js';
 
 const logger = createLogger('memory-list');
 
 /** Pagination configuration for memory list */
 const PAGINATION_CONFIG: PaginationConfig = {
   prefix: 'memory',
+  hideSortToggle: true, // Memories don't have a "name" to sort by
 };
 
 /** Items per page */
@@ -80,7 +80,6 @@ interface BuildListEmbedOptions {
   total: number;
   page: number;
   totalPages: number;
-  sortType: ListSortType;
   personalityFilter?: string;
 }
 
@@ -88,7 +87,7 @@ interface BuildListEmbedOptions {
  * Build the memory list embed
  */
 function buildListEmbed(options: BuildListEmbedOptions): EmbedBuilder {
-  const { memories, total, page, totalPages, sortType, personalityFilter } = options;
+  const { memories, total, page, totalPages, personalityFilter } = options;
   const embed = new EmbedBuilder().setTitle('🧠 Memory Browser').setColor(DISCORD_COLORS.BLURPLE);
 
   if (memories.length === 0) {
@@ -117,10 +116,9 @@ function buildListEmbed(options: BuildListEmbedOptions): EmbedBuilder {
   embed.setDescription(lines.join('\n').trim());
 
   // Build footer
-  const sortLabel = sortType === 'date' ? 'newest first' : 'alphabetically';
-  const filterLabel = personalityFilter !== undefined ? ` • Filtered` : '';
+  const filterLabel = personalityFilter !== undefined ? ' • Filtered' : '';
   embed.setFooter({
-    text: `${total} memories${filterLabel} • Sorted ${sortLabel} • Page ${page + 1} of ${totalPages}`,
+    text: `${total} memories${filterLabel} • Newest first • Page ${page + 1} of ${totalPages}`,
   });
 
   return embed;
@@ -190,7 +188,6 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
     const { memories, total } = data;
     const { totalPages } = calculatePagination(total, MEMORIES_PER_PAGE, 0);
-    const currentSort: ListSortType = 'date';
 
     // Build initial embed
     const embed = buildListEmbed({
@@ -198,15 +195,12 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       total,
       page: 0,
       totalPages,
-      sortType: currentSort,
       personalityFilter: personalityId,
     });
 
     // Build components (only if there are memories)
     const components =
-      memories.length > 0
-        ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, currentSort)]
-        : [];
+      memories.length > 0 ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, 'date')] : [];
 
     const response = await interaction.editReply({ embeds: [embed], components });
 
@@ -229,13 +223,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
           await buttonInteraction.deferUpdate();
 
-          let newPage = parsed.page ?? 0;
-          const newSort: ListSortType = parsed.sort ?? 'date';
-
-          // Reset to first page when changing sort
-          if (parsed.action === 'sort') {
-            newPage = 0;
-          }
+          const newPage = parsed.page ?? 0;
 
           // Fetch the requested page
           const newData = await fetchMemories(
@@ -246,7 +234,12 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
           );
 
           if (newData === null) {
-            return; // Keep existing content on error
+            // Provide user feedback on error
+            await buttonInteraction.followUp({
+              content: '❌ Failed to load page. Please try again.',
+              ephemeral: true,
+            });
+            return;
           }
 
           const { totalPages: newTotalPages } = calculatePagination(
@@ -260,12 +253,11 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
             total: newData.total,
             page: newPage,
             totalPages: newTotalPages,
-            sortType: newSort,
             personalityFilter: personalityId,
           });
 
           const newComponents = [
-            buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, newSort),
+            buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
           ];
 
           await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });

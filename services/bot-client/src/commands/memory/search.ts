@@ -21,6 +21,7 @@ const logger = createLogger('memory-search');
 /** Pagination configuration for search */
 const PAGINATION_CONFIG: PaginationConfig = {
   prefix: 'msearch',
+  hideSortToggle: true, // Search results are sorted by relevance, not name/date
 };
 
 /** Items per page */
@@ -189,6 +190,11 @@ function setupSearchCollector(
       );
 
       if (newData === null) {
+        // Provide user feedback on error
+        await buttonInteraction.followUp({
+          content: '❌ Failed to load results. Please try again.',
+          ephemeral: true,
+        });
         return;
       }
 
@@ -216,7 +222,7 @@ function setupSearchCollector(
       });
 
       const newComponents = [
-        buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
+        buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, 'date', newData.hasMore),
       ];
 
       await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
@@ -315,7 +321,9 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
 
     // Build components (only if there are results and possibly more)
     const components =
-      results.length > 0 ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, 'date')] : [];
+      results.length > 0
+        ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, 'date', hasMore)]
+        : [];
 
     const response = await interaction.editReply({ embeds: [embed], components });
 
