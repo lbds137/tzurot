@@ -4,6 +4,7 @@
  *
  * Commands:
  * - /memory stats <personality> - View memory statistics
+ * - /memory list [personality] - Browse memories with pagination
  * - /memory search <query> [personality] [limit] - Semantic search of memories
  * - /memory focus enable <personality> - Disable LTM retrieval
  * - /memory focus disable <personality> - Re-enable LTM retrieval
@@ -15,6 +16,7 @@ import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'disco
 import { createLogger } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
+import { handleList } from './list.js';
 import { handleSearch } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
@@ -36,6 +38,18 @@ export const data = new SlashCommandBuilder()
           .setName('personality')
           .setDescription('The personality to view stats for')
           .setRequired(true)
+          .setAutocomplete(true)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('list')
+      .setDescription('Browse your memories with pagination')
+      .addStringOption(option =>
+        option
+          .setName('personality')
+          .setDescription('Filter by personality (optional)')
+          .setRequired(false)
           .setAutocomplete(true)
       )
   )
@@ -130,6 +144,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await focusRouter(interaction);
   } else if (subcommand === 'stats') {
     await handleStats(interaction);
+  } else if (subcommand === 'list') {
+    await handleList(interaction);
   } else if (subcommand === 'search') {
     await handleSearch(interaction);
   } else {
