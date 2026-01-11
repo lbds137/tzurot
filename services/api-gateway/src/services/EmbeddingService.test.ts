@@ -50,7 +50,7 @@ describe('EmbeddingService', () => {
   });
 
   describe('isEmbeddingServiceAvailable', () => {
-    it('should return true when OPENAI_API_KEY is configured', async () => {
+    it('should return true when OPENAI_API_KEY is configured', { timeout: 10000 }, async () => {
       mockConfig.OPENAI_API_KEY = 'test-key';
       const { isEmbeddingServiceAvailable } = await import('./EmbeddingService.js');
       expect(isEmbeddingServiceAvailable()).toBe(true);

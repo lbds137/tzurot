@@ -41,6 +41,7 @@ interface SearchResultRow {
   content: string;
   distance: number;
   created_at: Date;
+  updated_at: Date;
   personality_name: string;
   personality_id: string;
   is_locked: boolean;
@@ -50,6 +51,7 @@ interface TextSearchResultRow {
   id: string;
   content: string;
   created_at: Date;
+  updated_at: Date;
   personality_name: string;
   personality_id: string;
   is_locked: boolean;
@@ -67,6 +69,7 @@ interface SearchResponseResult {
   content: string;
   similarity: number | null;
   createdAt: string;
+  updatedAt: string;
   personalityId: string;
   personalityName: string;
   isLocked: boolean;
@@ -106,7 +109,7 @@ function buildTextSearchQuery(
   conditions.push(Prisma.sql`m.content ILIKE ${`%${searchTerm}%`}`);
   const whereClause = Prisma.join(conditions, ' AND ');
   return Prisma.sql`
-    SELECT m.id, m.content, m.created_at, m.is_locked, m.personality_id,
+    SELECT m.id, m.content, m.created_at, m.updated_at, m.is_locked, m.personality_id,
       COALESCE(personality.display_name, personality.name) as personality_name
     FROM memories m JOIN personalities personality ON m.personality_id = personality.id
     WHERE ${whereClause} ORDER BY m.created_at DESC LIMIT ${limit + 1} OFFSET ${offset}`;
@@ -125,7 +128,7 @@ function buildSemanticSearchQuery(
     [
       Prisma.sql`SELECT m.id, m.content, m.embedding <=> `,
       Prisma.raw(`'${embeddingVector}'::vector`),
-      Prisma.sql` AS distance, m.created_at, m.is_locked, m.personality_id,
+      Prisma.sql` AS distance, m.created_at, m.updated_at, m.is_locked, m.personality_id,
         COALESCE(personality.display_name, personality.name) as personality_name
         FROM memories m JOIN personalities personality ON m.personality_id = personality.id WHERE `,
       whereClause,
@@ -149,6 +152,7 @@ function transformResults(
     content: row.content,
     similarity: isSemantic ? Math.round((1 - (row as SearchResultRow).distance) * 100) / 100 : null,
     createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
     personalityId: row.personality_id,
     personalityName: row.personality_name,
     isLocked: row.is_locked,

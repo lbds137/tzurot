@@ -74,6 +74,9 @@ importers:
       eslint:
         specifier: ^9.39.2
         version: 9.39.2(jiti@2.6.1)
+      eslint-formatter-pretty:
+        specifier: ^7.0.0
+        version: 7.0.0
       express:
         specifier: ^5.2.1
         version: 5.2.1
@@ -3237,6 +3240,19 @@ packages:
       }
     engines: { node: '>=10' }
 
+  eslint-formatter-pretty@7.0.0:
+    resolution:
+      {
+        integrity: sha512-1CaE7Pnce8Csy+tlTEbFC2q5qgT5cJo2a0UkEOds+Y5+mI1nX3DApIhcBP8EPwV8TgTpLlzOfw8mcBJBAs3Y9Q==,
+      }
+    engines: { node: '>=18' }
+
+  eslint-rule-docs@1.1.235:
+    resolution:
+      {
+        integrity: sha512-+TQ+x4JdTnDoFEXXb3fDvfGOwnyNV7duH8fXWTPD1ieaBmB8omj7Gw/pMBBu4uI2uJCCU8APDaQJzWuXnTsH4A==,
+      }
+
   eslint-scope@8.4.0:
     resolution:
       {
@@ -3701,6 +3717,13 @@ packages:
       }
     engines: { node: '>=8' }
 
+  has-flag@5.0.1:
+    resolution:
+      {
+        integrity: sha512-CsNUt5x9LUdx6hnk/E2SZLsDyvfqANZSUq4+D3D8RzDJ2M+HDTIkF60ibS1vHaK55vzgiZw1bEPFG9yH7l33wA==,
+      }
+    engines: { node: '>=12' }
+
   has-symbols@1.1.0:
     resolution:
       {
@@ -3867,6 +3890,13 @@ packages:
         integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==,
       }
     engines: { node: '>= 0.10' }
+
+  irregular-plurals@3.5.0:
+    resolution:
+      {
+        integrity: sha512-1ANGLZ+Nkv1ptFb2pa8oG8Lem4krflKuX/gINiHJHjJUKaJHk/SXk5x6K3J+39/p0h1RQ2saROclJJ+QLvETCQ==,
+      }
+    engines: { node: '>=8' }
 
   is-arrayish@0.2.1:
     resolution:
@@ -4281,6 +4311,13 @@ packages:
     resolution:
       {
         integrity: sha512-i24m8rpwhmPIS4zscNzK6MSEhk0DUWa/8iYQWxhffV8jkI4Phvs3F+quL5xvS0gdQR0FyTCMMH33Y78dDTzzIw==,
+      }
+    engines: { node: '>=18' }
+
+  log-symbols@7.0.1:
+    resolution:
+      {
+        integrity: sha512-ja1E3yCr9i/0hmBVaM0bfwDjnGy8I/s6PP4DFp+yP+a+mrHO4Rm7DtmnqROTUkHIkqffC84YY7AeqX6oFk0WFg==,
       }
     engines: { node: '>=18' }
 
@@ -5005,6 +5042,13 @@ packages:
         integrity: sha512-SIqCzDRg0s9npO5XQ3tNZioRY1uK06lA41ynBC1YmFTmnY6FjUjVt6s4LoADmwoig1qqD0oK8h1p/8mlMx8Oig==,
       }
 
+  plur@5.1.0:
+    resolution:
+      {
+        integrity: sha512-VP/72JeXqak2KiOzjgKtQen5y3IZHn+9GOuLDafPv0eXa47xq0At93XahYBs26MsifCQ4enGKwbjBTKgb9QJXg==,
+      }
+    engines: { node: ^12.20.0 || ^14.13.1 || >=16.0.0 }
+
   pluralize@2.0.0:
     resolution:
       {
@@ -5726,6 +5770,13 @@ packages:
       }
     engines: { node: '>=14.18.0' }
 
+  supports-color@10.2.2:
+    resolution:
+      {
+        integrity: sha512-SS+jx45GF1QjgEXQx4NJZV9ImqmO2NPz5FNsIHrsDjh2YsHnawpan7SNQ1o8NuhrbHZy9AZhIoCUiCeaW/C80g==,
+      }
+    engines: { node: '>=18' }
+
   supports-color@7.2.0:
     resolution:
       {
@@ -5739,6 +5790,13 @@ packages:
         integrity: sha512-zFObLMyZeEwzAoKCyu1B91U79K2t7ApXuQfo8OuxwXLDgcKxuwM+YvcbIhm6QWqz7mHUH1TVytR1PwVVjEuMig==,
       }
     engines: { node: '>=14.18' }
+
+  supports-hyperlinks@4.4.0:
+    resolution:
+      {
+        integrity: sha512-UKbpT93hN5Nr9go5UY7bopIB9YQlMz9nm/ct4IXt/irb5YRkn9WaqrOBJGZ5Pwvsd5FQzSVeYlGdXoCAPQZrPg==,
+      }
+    engines: { node: '>=20' }
 
   table@6.9.0:
     resolution:
@@ -6281,6 +6339,13 @@ packages:
         integrity: sha512-4LCcse/U2MHZ63HAJVE+v71o7yOdIe4cZ70Wpf8D/IyjDKYQLV5GD46B+hSTjJsvV5PztjvHoU580EftxjDZFQ==,
       }
     engines: { node: '>=12.20' }
+
+  yoctocolors@2.1.2:
+    resolution:
+      {
+        integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==,
+      }
+    engines: { node: '>=18' }
 
   zeptomatch@2.0.2:
     resolution:
@@ -8054,6 +8119,19 @@ snapshots:
 
   escape-string-regexp@4.0.0: {}
 
+  eslint-formatter-pretty@7.0.0:
+    dependencies:
+      '@types/eslint': 9.6.1
+      ansi-escapes: 7.2.0
+      chalk: 5.6.2
+      eslint-rule-docs: 1.1.235
+      log-symbols: 7.0.1
+      plur: 5.1.0
+      string-width: 8.1.0
+      supports-hyperlinks: 4.4.0
+
+  eslint-rule-docs@1.1.235: {}
+
   eslint-scope@8.4.0:
     dependencies:
       esrecurse: 4.3.0
@@ -8386,6 +8464,8 @@ snapshots:
 
   has-flag@4.0.0: {}
 
+  has-flag@5.0.1: {}
+
   has-symbols@1.1.0: {}
 
   has-tostringtag@1.0.2:
@@ -8482,6 +8562,8 @@ snapshots:
       - supports-color
 
   ipaddr.js@1.9.1: {}
+
+  irregular-plurals@3.5.0: {}
 
   is-arrayish@0.2.1: {}
 
@@ -8691,6 +8773,11 @@ snapshots:
     dependencies:
       chalk: 5.6.2
       is-unicode-supported: 1.3.0
+
+  log-symbols@7.0.1:
+    dependencies:
+      is-unicode-supported: 2.1.0
+      yoctocolors: 2.1.2
 
   log-update@6.1.0:
     dependencies:
@@ -9092,6 +9179,10 @@ snapshots:
       confbox: 0.2.2
       exsolve: 1.0.8
       pathe: 2.0.3
+
+  plur@5.1.0:
+    dependencies:
+      irregular-plurals: 3.5.0
 
   pluralize@2.0.0: {}
 
@@ -9553,6 +9644,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
+  supports-color@10.2.2: {}
+
   supports-color@7.2.0:
     dependencies:
       has-flag: 4.0.0
@@ -9561,6 +9654,11 @@ snapshots:
     dependencies:
       has-flag: 4.0.0
       supports-color: 7.2.0
+
+  supports-hyperlinks@4.4.0:
+    dependencies:
+      has-flag: 5.0.1
+      supports-color: 10.2.2
 
   table@6.9.0:
     dependencies:
@@ -9825,6 +9923,8 @@ snapshots:
   yocto-queue@0.1.0: {}
 
   yocto-queue@1.2.2: {}
+
+  yoctocolors@2.1.2: {}
 
   zeptomatch@2.0.2:
     dependencies:

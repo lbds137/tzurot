@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import { EmbedBuilder, escapeMarkdown, ComponentType } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError } from '../../utils/commandHelpers.js';
@@ -15,6 +15,17 @@ import {
   calculatePagination,
   type PaginationConfig,
 } from '../../utils/paginationBuilder.js';
+import {
+  buildMemorySelectMenu,
+  handleMemorySelect,
+  parseMemoryActionId,
+  handleEditButton,
+  handleLockButton,
+  handleDeleteButton,
+  handleDeleteConfirm,
+  type MemoryItem,
+  type ListContext,
+} from './detail.js';
 
 const logger = createLogger('memory-list');
 
@@ -33,18 +44,8 @@ const COLLECTOR_TIMEOUT_MS = 5 * 60 * 1000;
 /** Maximum content length before truncation */
 const MAX_CONTENT_DISPLAY = 150;
 
-interface MemoryListItem {
-  id: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  personalityId: string;
-  personalityName: string;
-  isLocked: boolean;
-}
-
 interface ListResponse {
-  memories: MemoryListItem[];
+  memories: MemoryItem[];
   total: number;
   limit: number;
   offset: number;
@@ -76,7 +77,7 @@ function truncateContent(content: string, maxLength: number = MAX_CONTENT_DISPLA
 }
 
 interface BuildListEmbedOptions {
-  memories: MemoryListItem[];
+  memories: MemoryItem[];
   total: number;
   page: number;
   totalPages: number;
@@ -155,6 +156,193 @@ async function fetchMemories(
   return result.data;
 }
 
+interface ListCollectorContext {
+  userId: string;
+  personalityId: string | undefined;
+  listContext: ListContext;
+}
+
+/**
+ * Handle button interactions for pagination
+ */
+async function handleListButton(
+  buttonInteraction: ButtonInteraction,
+  context: ListCollectorContext
+): Promise<{ newPage: number; memories: MemoryItem[] } | null> {
+  const { userId, personalityId } = context;
+
+  const parsed = parsePaginationId(buttonInteraction.customId, LIST_PAGINATION_CONFIG.prefix);
+  if (parsed === null) {
+    return null;
+  }
+
+  await buttonInteraction.deferUpdate();
+
+  const newPage = parsed.page ?? 0;
+  const newData = await fetchMemories(
+    userId,
+    personalityId,
+    newPage * MEMORIES_PER_PAGE,
+    MEMORIES_PER_PAGE
+  );
+
+  if (newData === null) {
+    await buttonInteraction.followUp({
+      content: '❌ Failed to load page. Please try again.',
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  const { totalPages: newTotalPages } = calculatePagination(
+    newData.total,
+    MEMORIES_PER_PAGE,
+    newPage
+  );
+
+  const newEmbed = buildListEmbed({
+    memories: newData.memories,
+    total: newData.total,
+    page: newPage,
+    totalPages: newTotalPages,
+    personalityFilter: personalityId,
+  });
+
+  const newComponents = [
+    buildMemorySelectMenu(newData.memories, newPage, MEMORIES_PER_PAGE),
+    buildPaginationButtons(LIST_PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
+  ];
+
+  await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
+
+  return { newPage, memories: newData.memories };
+}
+
+/**
+ * Handle detail action buttons within the collector
+ */
+async function handleDetailAction(
+  buttonInteraction: ButtonInteraction,
+  _context: ListCollectorContext,
+  refreshList: () => Promise<void>
+): Promise<boolean> {
+  const parsed = parseMemoryActionId(buttonInteraction.customId);
+  if (parsed === null) {
+    return false;
+  }
+
+  const { action, memoryId } = parsed;
+
+  switch (action) {
+    case 'edit':
+      if (memoryId !== undefined) {
+        await handleEditButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'lock':
+      if (memoryId !== undefined) {
+        await handleLockButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'delete':
+      if (memoryId !== undefined) {
+        await handleDeleteButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'confirm-delete':
+      if (memoryId !== undefined) {
+        const success = await handleDeleteConfirm(buttonInteraction, memoryId);
+        if (success) {
+          // Refresh the list after deletion
+          await refreshList();
+        }
+      }
+      return true;
+    case 'back':
+      // Return to list view
+      await buttonInteraction.deferUpdate();
+      await refreshList();
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Set up collector for pagination and select menu interactions
+ */
+function setupListCollector(
+  interaction: ChatInputCommandInteraction,
+  response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
+  context: ListCollectorContext
+): void {
+  const { userId, personalityId, listContext } = context;
+  let currentContext = { ...listContext };
+
+  // Function to refresh the list view at the current page
+  const refreshList = async (): Promise<void> => {
+    const data = await fetchMemories(
+      userId,
+      personalityId,
+      currentContext.page * MEMORIES_PER_PAGE,
+      MEMORIES_PER_PAGE
+    );
+
+    if (data === null) {
+      return;
+    }
+
+    const { totalPages } = calculatePagination(data.total, MEMORIES_PER_PAGE, currentContext.page);
+    const embed = buildListEmbed({
+      memories: data.memories,
+      total: data.total,
+      page: currentContext.page,
+      totalPages,
+      personalityFilter: personalityId,
+    });
+
+    const components =
+      data.memories.length > 0
+        ? [
+            buildMemorySelectMenu(data.memories, currentContext.page, MEMORIES_PER_PAGE),
+            buildPaginationButtons(LIST_PAGINATION_CONFIG, currentContext.page, totalPages, 'date'),
+          ]
+        : [];
+
+    await interaction.editReply({ embeds: [embed], components });
+  };
+
+  // Collect both Button and StringSelectMenu interactions
+  const collector = response.createMessageComponentCollector({
+    time: COLLECTOR_TIMEOUT_MS,
+    filter: i => i.user.id === userId,
+  });
+
+  collector.on('collect', i => {
+    void (async () => {
+      if (i.isButton()) {
+        // First check if it's a detail action
+        const handled = await handleDetailAction(i, context, refreshList);
+        if (!handled) {
+          // Otherwise handle as pagination
+          const result = await handleListButton(i, context);
+          if (result !== null) {
+            currentContext = { ...currentContext, page: result.newPage };
+          }
+        }
+      } else if (i.isStringSelectMenu()) {
+        await handleMemorySelect(i, currentContext);
+      }
+    })();
+  });
+
+  collector.on('end', () => {
+    interaction.editReply({ components: [] }).catch(() => {
+      // Ignore errors if message was deleted
+    });
+  });
+}
+
 /**
  * Handle /memory list command
  */
@@ -201,79 +389,29 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     // Build components (only if there are memories)
     const components =
       memories.length > 0
-        ? [buildPaginationButtons(LIST_PAGINATION_CONFIG, 0, totalPages, 'date')]
+        ? [
+            buildMemorySelectMenu(memories, 0, MEMORIES_PER_PAGE),
+            buildPaginationButtons(LIST_PAGINATION_CONFIG, 0, totalPages, 'date'),
+          ]
         : [];
+
+    // Context for returning to list from detail view
+    const listContext: ListContext = {
+      source: 'list',
+      page: 0,
+      personalityId,
+    };
 
     const response = await interaction.editReply({ embeds: [embed], components });
 
     logger.info({ userId, total, personalityId, hasMore: data.hasMore }, '[Memory] List displayed');
 
-    // Set up collector for pagination
+    // Set up collector for pagination and select menu
     if (components.length > 0) {
-      const collector = response.createMessageComponentCollector({
-        componentType: ComponentType.Button,
-        time: COLLECTOR_TIMEOUT_MS,
-        filter: i => i.user.id === userId,
-      });
-
-      collector.on('collect', (buttonInteraction: ButtonInteraction) => {
-        void (async () => {
-          const parsed = parsePaginationId(
-            buttonInteraction.customId,
-            LIST_PAGINATION_CONFIG.prefix
-          );
-          if (parsed === null) {
-            return;
-          }
-
-          await buttonInteraction.deferUpdate();
-
-          const newPage = parsed.page ?? 0;
-
-          // Fetch the requested page
-          const newData = await fetchMemories(
-            userId,
-            personalityId,
-            newPage * MEMORIES_PER_PAGE,
-            MEMORIES_PER_PAGE
-          );
-
-          if (newData === null) {
-            // Provide user feedback on error
-            await buttonInteraction.followUp({
-              content: '❌ Failed to load page. Please try again.',
-              ephemeral: true,
-            });
-            return;
-          }
-
-          const { totalPages: newTotalPages } = calculatePagination(
-            newData.total,
-            MEMORIES_PER_PAGE,
-            newPage
-          );
-
-          const newEmbed = buildListEmbed({
-            memories: newData.memories,
-            total: newData.total,
-            page: newPage,
-            totalPages: newTotalPages,
-            personalityFilter: personalityId,
-          });
-
-          const newComponents = [
-            buildPaginationButtons(LIST_PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
-          ];
-
-          await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
-        })();
-      });
-
-      collector.on('end', () => {
-        // Remove buttons when collector expires
-        interaction.editReply({ components: [] }).catch(() => {
-          // Ignore errors if message was deleted
-        });
+      setupListCollector(interaction, response, {
+        userId,
+        personalityId,
+        listContext,
       });
     }
   } catch (error) {

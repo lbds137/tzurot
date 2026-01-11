@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import { escapeMarkdown, EmbedBuilder, ComponentType } from 'discord.js';
+import { escapeMarkdown, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
@@ -14,6 +14,17 @@ import {
   parsePaginationId,
   type PaginationConfig,
 } from '../../utils/paginationBuilder.js';
+import {
+  buildMemorySelectMenu,
+  handleMemorySelect,
+  parseMemoryActionId,
+  handleEditButton,
+  handleLockButton,
+  handleDeleteButton,
+  handleDeleteConfirm,
+  type MemoryItem,
+  type ListContext,
+} from './detail.js';
 
 const logger = createLogger('memory-search');
 
@@ -29,14 +40,8 @@ const RESULTS_PER_PAGE = 5;
 /** Collector timeout in milliseconds (5 minutes) */
 const COLLECTOR_TIMEOUT_MS = 5 * 60 * 1000;
 
-interface SearchResult {
-  id: string;
-  content: string;
+interface SearchResult extends MemoryItem {
   similarity: number | null; // null for text search results
-  createdAt: string;
-  personalityId: string;
-  personalityName: string;
-  isLocked: boolean;
 }
 
 interface SearchResponse {
@@ -152,7 +157,121 @@ interface SearchCollectorContext {
 }
 
 /**
- * Set up pagination collector for search results
+ * Handle button interactions for search pagination
+ */
+async function handleSearchButton(
+  buttonInteraction: ButtonInteraction,
+  context: SearchCollectorContext & { currentSearchType?: 'semantic' | 'text' }
+): Promise<{ newPage: number; results: SearchResult[]; searchType?: 'semantic' | 'text' } | null> {
+  const { userId, query, personalityId, currentSearchType } = context;
+
+  const parsed = parsePaginationId(buttonInteraction.customId, SEARCH_PAGINATION_CONFIG.prefix);
+  if (parsed === null) {
+    return null;
+  }
+
+  await buttonInteraction.deferUpdate();
+
+  const newPage = parsed.page ?? 0;
+  const newData = await fetchSearchResults({
+    userId,
+    query,
+    personalityId,
+    offset: newPage * RESULTS_PER_PAGE,
+    limit: RESULTS_PER_PAGE,
+    preferTextSearch: currentSearchType === 'text',
+  });
+
+  if (newData === null) {
+    await buttonInteraction.followUp({
+      content: '❌ Failed to load results. Please try again.',
+      ephemeral: true,
+    });
+    return null;
+  }
+
+  const updatedSearchType = newData.searchType ?? currentSearchType;
+  const newTotalPages = newData.hasMore
+    ? newPage + 2
+    : Math.max(1, newPage + (newData.results.length > 0 ? 1 : 0));
+
+  const newEmbed = buildSearchEmbed({
+    results: newData.results,
+    query,
+    page: newPage,
+    totalPages: newTotalPages,
+    hasMore: newData.hasMore,
+    searchType: updatedSearchType,
+    personalityFilter: personalityId,
+  });
+
+  const newComponents = [
+    buildMemorySelectMenu(newData.results, newPage, RESULTS_PER_PAGE),
+    buildPaginationButtons(
+      SEARCH_PAGINATION_CONFIG,
+      newPage,
+      newTotalPages,
+      'date',
+      newData.hasMore
+    ),
+  ];
+
+  await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
+
+  return { newPage, results: newData.results, searchType: updatedSearchType };
+}
+
+/**
+ * Handle detail action buttons within the search collector
+ */
+async function handleSearchDetailAction(
+  buttonInteraction: ButtonInteraction,
+  refreshSearch: () => Promise<void>
+): Promise<boolean> {
+  const parsed = parseMemoryActionId(buttonInteraction.customId);
+  if (parsed === null) {
+    return false;
+  }
+
+  const { action, memoryId } = parsed;
+
+  switch (action) {
+    case 'edit':
+      if (memoryId !== undefined) {
+        await handleEditButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'lock':
+      if (memoryId !== undefined) {
+        await handleLockButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'delete':
+      if (memoryId !== undefined) {
+        await handleDeleteButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'confirm-delete':
+      if (memoryId !== undefined) {
+        const success = await handleDeleteConfirm(buttonInteraction, memoryId);
+        if (success) {
+          // Refresh the search results after deletion
+          await refreshSearch();
+        }
+      }
+      return true;
+    case 'back':
+      // Return to search results
+      await buttonInteraction.deferUpdate();
+      await refreshSearch();
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Set up collector for search pagination and select menu
  */
 function setupSearchCollector(
   interaction: ChatInputCommandInteraction,
@@ -162,73 +281,90 @@ function setupSearchCollector(
   const { userId, query, personalityId, initialSearchType } = context;
 
   const collector = response.createMessageComponentCollector({
-    componentType: ComponentType.Button,
     time: COLLECTOR_TIMEOUT_MS,
     filter: i => i.user.id === userId,
   });
 
   let currentSearchType = initialSearchType;
+  let currentPage = 0;
+  let listContext: ListContext = {
+    source: 'search',
+    page: 0,
+    personalityId,
+    query,
+    preferTextSearch: initialSearchType === 'text',
+  };
 
-  collector.on('collect', (buttonInteraction: ButtonInteraction) => {
+  // Function to refresh the search results at the current page
+  const refreshSearch = async (): Promise<void> => {
+    const data = await fetchSearchResults({
+      userId,
+      query,
+      personalityId,
+      offset: currentPage * RESULTS_PER_PAGE,
+      limit: RESULTS_PER_PAGE,
+      preferTextSearch: currentSearchType === 'text',
+    });
+
+    if (data === null) {
+      return;
+    }
+
+    const totalPages = data.hasMore
+      ? currentPage + 2
+      : Math.max(1, currentPage + (data.results.length > 0 ? 1 : 0));
+
+    const embed = buildSearchEmbed({
+      results: data.results,
+      query,
+      page: currentPage,
+      totalPages,
+      hasMore: data.hasMore,
+      searchType: data.searchType ?? currentSearchType,
+      personalityFilter: personalityId,
+    });
+
+    const components =
+      data.results.length > 0
+        ? [
+            buildMemorySelectMenu(data.results, currentPage, RESULTS_PER_PAGE),
+            buildPaginationButtons(
+              SEARCH_PAGINATION_CONFIG,
+              currentPage,
+              totalPages,
+              'date',
+              data.hasMore
+            ),
+          ]
+        : [];
+
+    await interaction.editReply({ embeds: [embed], components });
+  };
+
+  collector.on('collect', i => {
     void (async () => {
-      const parsed = parsePaginationId(buttonInteraction.customId, SEARCH_PAGINATION_CONFIG.prefix);
-      if (parsed === null) {
-        return;
+      if (i.isButton()) {
+        // First check if it's a detail action
+        const handled = await handleSearchDetailAction(i, refreshSearch);
+        if (!handled) {
+          // Otherwise handle as pagination
+          const result = await handleSearchButton(i, {
+            ...context,
+            currentSearchType,
+          });
+          if (result !== null) {
+            currentPage = result.newPage;
+            currentSearchType = result.searchType;
+            listContext = {
+              ...listContext,
+              page: currentPage,
+              preferTextSearch: currentSearchType === 'text',
+            };
+          }
+        }
+      } else if (i.isStringSelectMenu()) {
+        await handleMemorySelect(i, listContext);
       }
-
-      await buttonInteraction.deferUpdate();
-
-      const newPage = parsed.page ?? 0;
-
-      // Pass preferTextSearch if we know the initial search fell back to text
-      const newData = await fetchSearchResults({
-        userId,
-        query,
-        personalityId,
-        offset: newPage * RESULTS_PER_PAGE,
-        limit: RESULTS_PER_PAGE,
-        preferTextSearch: currentSearchType === 'text',
-      });
-
-      if (newData === null) {
-        // Provide user feedback on error
-        await buttonInteraction.followUp({
-          content: '❌ Failed to load results. Please try again.',
-          ephemeral: true,
-        });
-        return;
-      }
-
-      if (newData.searchType !== undefined) {
-        currentSearchType = newData.searchType;
-      }
-
-      // Calculate pages consistently: when hasMore is true, we know there's at least one more page
-      const newTotalPages = newData.hasMore
-        ? newPage + 2
-        : Math.max(1, newPage + (newData.results.length > 0 ? 1 : 0));
-
-      const newEmbed = buildSearchEmbed({
-        results: newData.results,
-        query,
-        page: newPage,
-        totalPages: newTotalPages,
-        hasMore: newData.hasMore,
-        searchType: currentSearchType,
-        personalityFilter: personalityId,
-      });
-
-      const newComponents = [
-        buildPaginationButtons(
-          SEARCH_PAGINATION_CONFIG,
-          newPage,
-          newTotalPages,
-          'date',
-          newData.hasMore
-        ),
-      ];
-
-      await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
     })();
   });
 
@@ -341,10 +477,13 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
       personalityFilter: personalityId,
     });
 
-    // Build components (only if there are results and possibly more)
+    // Build components (only if there are results)
     const components =
       results.length > 0
-        ? [buildPaginationButtons(SEARCH_PAGINATION_CONFIG, 0, totalPages, 'date', hasMore)]
+        ? [
+            buildMemorySelectMenu(results, 0, RESULTS_PER_PAGE),
+            buildPaginationButtons(SEARCH_PAGINATION_CONFIG, 0, totalPages, 'date', hasMore),
+          ]
         : [];
 
     const response = await interaction.editReply({ embeds: [embed], components });
