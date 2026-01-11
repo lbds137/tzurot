@@ -3,8 +3,22 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { data, execute, autocomplete, category } from './index.js';
-import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import { MessageFlags } from 'discord.js';
+import {
+  data,
+  execute,
+  autocomplete,
+  category,
+  handleButton,
+  handleModalSubmit,
+  componentPrefixes,
+} from './index.js';
+import type {
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -52,6 +66,38 @@ vi.mock('../../utils/subcommandRouter.js', () => ({
       }
     };
   },
+}));
+
+// Mock detail.js handlers
+const mockHandleEditButton = vi.fn();
+const mockHandleEditModalSubmit = vi.fn();
+const mockHandleLockButton = vi.fn();
+const mockHandleDeleteButton = vi.fn();
+const mockHandleDeleteConfirm = vi.fn();
+vi.mock('./detail.js', () => ({
+  MEMORY_DETAIL_PREFIX: 'mem-detail',
+  parseMemoryActionId: (customId: string) => {
+    if (!customId.startsWith('mem-detail:')) return null;
+    const parts = customId.split(':');
+    const memoryId = parts[2];
+    return { action: parts[1], memoryId: memoryId.length > 0 ? memoryId : undefined };
+  },
+  handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
+  handleEditModalSubmit: (...args: unknown[]) => mockHandleEditModalSubmit(...args),
+  handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
+  handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
+  handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
+}));
+
+// Mock list and search pagination configs
+vi.mock('./list.js', () => ({
+  handleList: vi.fn(),
+  LIST_PAGINATION_CONFIG: { prefix: 'memory-list' },
+}));
+
+vi.mock('./search.js', () => ({
+  handleSearch: vi.fn(),
+  SEARCH_PAGINATION_CONFIG: { prefix: 'memory-search' },
 }));
 
 describe('Memory Command', () => {
@@ -181,6 +227,159 @@ describe('Memory Command', () => {
   describe('category', () => {
     it('should be Memory', () => {
       expect(category).toBe('Memory');
+    });
+  });
+
+  describe('componentPrefixes', () => {
+    it('should include list and search pagination prefixes', () => {
+      expect(componentPrefixes).toContain('memory-list');
+      expect(componentPrefixes).toContain('memory-search');
+      expect(componentPrefixes).toContain('mem-detail');
+    });
+  });
+
+  describe('handleButton', () => {
+    function createMockButtonInteraction(customId: string): ButtonInteraction {
+      const mockReply = vi.fn();
+      const mockEditReply = vi.fn();
+      return {
+        customId,
+        reply: mockReply,
+        editReply: mockEditReply,
+      } as unknown as ButtonInteraction;
+    }
+
+    it('should handle expired pagination (non-memory-detail prefix)', async () => {
+      const interaction = createMockButtonInteraction('memory-list:page:0:date');
+
+      await handleButton(interaction);
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('expired'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should route edit action to handleEditButton', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:edit:memory-123');
+
+      await handleButton(interaction);
+
+      expect(mockHandleEditButton).toHaveBeenCalledWith(interaction, 'memory-123');
+    });
+
+    it('should route lock action to handleLockButton', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:lock:memory-456');
+
+      await handleButton(interaction);
+
+      expect(mockHandleLockButton).toHaveBeenCalledWith(interaction, 'memory-456');
+    });
+
+    it('should route delete action to handleDeleteButton', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:delete:memory-789');
+
+      await handleButton(interaction);
+
+      expect(mockHandleDeleteButton).toHaveBeenCalledWith(interaction, 'memory-789');
+    });
+
+    it('should route confirm-delete action and show success on true', async () => {
+      mockHandleDeleteConfirm.mockResolvedValue(true);
+      const interaction = createMockButtonInteraction('mem-detail:confirm-delete:memory-abc');
+
+      await handleButton(interaction);
+
+      expect(mockHandleDeleteConfirm).toHaveBeenCalledWith(interaction, 'memory-abc');
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        embeds: [],
+        components: [],
+        content: expect.stringContaining('deleted successfully'),
+      });
+    });
+
+    it('should route confirm-delete action and not show success on false', async () => {
+      mockHandleDeleteConfirm.mockResolvedValue(false);
+      const interaction = createMockButtonInteraction('mem-detail:confirm-delete:memory-abc');
+
+      await handleButton(interaction);
+
+      expect(mockHandleDeleteConfirm).toHaveBeenCalledWith(interaction, 'memory-abc');
+      expect(interaction.editReply).not.toHaveBeenCalled();
+    });
+
+    it('should show expired message for back action', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:back:memory-xyz');
+
+      await handleButton(interaction);
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('expired'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should show error for unknown action', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:unknown:memory-xyz');
+
+      await handleButton(interaction);
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Unknown action'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should not call handler when memoryId is undefined for edit', async () => {
+      // Create interaction with action but no memoryId
+      const interaction = {
+        customId: 'mem-detail:edit:',
+        reply: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      await handleButton(interaction);
+
+      expect(mockHandleEditButton).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleModalSubmit', () => {
+    function createMockModalSubmitInteraction(customId: string): ModalSubmitInteraction {
+      return {
+        customId,
+      } as unknown as ModalSubmitInteraction;
+    }
+
+    it('should route edit modal to handleEditModalSubmit', async () => {
+      const interaction = createMockModalSubmitInteraction('mem-detail:edit:memory-123');
+
+      await handleModalSubmit(interaction);
+
+      expect(mockHandleEditModalSubmit).toHaveBeenCalledWith(interaction, 'memory-123');
+    });
+
+    it('should ignore non-edit modal actions', async () => {
+      const interaction = createMockModalSubmitInteraction('mem-detail:other:memory-123');
+
+      await handleModalSubmit(interaction);
+
+      expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+    });
+
+    it('should ignore modals with unrecognized prefix', async () => {
+      const interaction = createMockModalSubmitInteraction('unknown:edit:memory-123');
+
+      await handleModalSubmit(interaction);
+
+      expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+    });
+
+    it('should not call handler when memoryId is undefined', async () => {
+      const interaction = createMockModalSubmitInteraction('mem-detail:edit:');
+
+      await handleModalSubmit(interaction);
+
+      expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
     });
   });
 });

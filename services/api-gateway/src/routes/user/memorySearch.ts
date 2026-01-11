@@ -183,7 +183,7 @@ async function executeTextSearch(
 
 /**
  * Execute semantic search with text fallback
- * @returns SearchOutput or null if embedding generation failed (caller should handle error response)
+ * @returns SearchOutput on success, or error object if embedding generation failed
  */
 async function executeSemanticSearchWithFallback(
   prisma: PrismaClient,
