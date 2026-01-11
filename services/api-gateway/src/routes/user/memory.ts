@@ -4,6 +4,10 @@
  *
  * GET /user/memory/stats - Get memory statistics for a personality
  * GET /user/memory/list - Paginated list of memories for browsing
+ * GET /user/memory/:id - Get a single memory
+ * PATCH /user/memory/:id - Update memory content
+ * DELETE /user/memory/:id - Delete a memory
+ * POST /user/memory/:id/lock - Toggle memory lock status
  * GET /user/memory/focus - Get focus mode status
  * POST /user/memory/focus - Enable/disable focus mode
  * POST /user/memory/search - Semantic search of memories
@@ -23,6 +27,12 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { handleSearch } from './memorySearch.js';
 import { handleList } from './memoryList.js';
+import {
+  handleGetMemory,
+  handleUpdateMemory,
+  handleToggleLock,
+  handleDeleteMemory,
+} from './memorySingle.js';
 
 const logger = createLogger('user-memory');
 
@@ -309,6 +319,63 @@ export function createMemoryRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     asyncHandler((req: AuthenticatedRequest, res: Response) =>
       handleSearch(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  // Single memory operations - must come after specific routes like /stats, /list, /search
+  router.get(
+    '/:id',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleGetMemory(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  router.patch(
+    '/:id',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleUpdateMemory(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  router.delete(
+    '/:id',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleDeleteMemory(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  router.post(
+    '/:id/lock',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleToggleLock(
         prisma,
         (id, r) => getUserByDiscordId(prisma, id, r),
         getDefaultPersonaId,

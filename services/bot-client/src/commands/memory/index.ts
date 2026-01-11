@@ -16,6 +16,7 @@ import type {
   ChatInputCommandInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
+  ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
@@ -24,6 +25,15 @@ import { handleList, LIST_PAGINATION_CONFIG } from './list.js';
 import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
+import {
+  MEMORY_DETAIL_PREFIX,
+  parseMemoryActionId,
+  handleEditButton,
+  handleEditModalSubmit,
+  handleLockButton,
+  handleDeleteButton,
+  handleDeleteConfirm,
+} from './detail.js';
 
 const logger = createLogger('memory-command');
 
@@ -179,16 +189,89 @@ export const category = 'Memory';
  * Component prefixes for button routing
  * Aggregated from subcommand pagination configs for standardization
  */
-export const componentPrefixes = [LIST_PAGINATION_CONFIG.prefix, SEARCH_PAGINATION_CONFIG.prefix];
+export const componentPrefixes = [
+  LIST_PAGINATION_CONFIG.prefix,
+  SEARCH_PAGINATION_CONFIG.prefix,
+  MEMORY_DETAIL_PREFIX,
+];
 
 /**
- * Handle button interactions that weren't caught by collectors
- * This typically happens when the collector times out (5 min) but buttons are still visible
+ * Handle button interactions for memory detail actions
+ * Routes edit, lock, delete, and back actions to appropriate handlers
  */
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
-  logger.debug({ customId: interaction.customId }, '[Memory] Handling expired button interaction');
-  await interaction.reply({
-    content: '⏰ This interaction has expired. Please run the command again.',
-    flags: MessageFlags.Ephemeral,
-  });
+  const parsed = parseMemoryActionId(interaction.customId);
+
+  // Not a memory detail action - handle as expired pagination
+  if (parsed === null) {
+    logger.debug({ customId: interaction.customId }, '[Memory] Handling expired pagination button');
+    await interaction.reply({
+      content: '⏰ This interaction has expired. Please run the command again.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const { action, memoryId } = parsed;
+
+  switch (action) {
+    case 'edit':
+      if (memoryId !== undefined) {
+        await handleEditButton(interaction, memoryId);
+      }
+      break;
+    case 'lock':
+      if (memoryId !== undefined) {
+        await handleLockButton(interaction, memoryId);
+      }
+      break;
+    case 'delete':
+      if (memoryId !== undefined) {
+        await handleDeleteButton(interaction, memoryId);
+      }
+      break;
+    case 'confirm-delete':
+      if (memoryId !== undefined) {
+        const success = await handleDeleteConfirm(interaction, memoryId);
+        if (success) {
+          await interaction.editReply({
+            embeds: [],
+            components: [],
+            content: '✅ Memory deleted successfully.',
+          });
+        }
+      }
+      break;
+    case 'back':
+      // Back button needs to return to list/search - but without collector context,
+      // we can only show an expired message
+      await interaction.reply({
+        content:
+          '⏰ This interaction has expired. Please run the command again to return to the list.',
+        flags: MessageFlags.Ephemeral,
+      });
+      break;
+    default:
+      logger.warn({ action, customId: interaction.customId }, '[Memory] Unknown detail action');
+      await interaction.reply({
+        content: '❌ Unknown action.',
+        flags: MessageFlags.Ephemeral,
+      });
+  }
+}
+
+/**
+ * Handle modal submit interactions for memory editing
+ */
+export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+  const parsed = parseMemoryActionId(interaction.customId);
+
+  if (parsed?.action !== 'edit') {
+    logger.warn({ customId: interaction.customId }, '[Memory] Unknown modal');
+    return;
+  }
+
+  if (parsed.memoryId !== undefined) {
+    await handleEditModalSubmit(interaction, parsed.memoryId);
+  }
 }

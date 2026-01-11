@@ -20,6 +20,7 @@ import { registerDbCommands } from './commands/db.js';
 import { registerDataCommands } from './commands/data.js';
 import { registerDeployCommands } from './commands/deploy.js';
 import { registerCacheCommands } from './commands/cache.js';
+import { registerDevCommands } from './commands/dev.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,6 +34,7 @@ registerDbCommands(cli);
 registerDataCommands(cli);
 registerDeployCommands(cli);
 registerCacheCommands(cli);
+registerDevCommands(cli);
 
 // Global options
 cli.help();
