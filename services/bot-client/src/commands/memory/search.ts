@@ -12,15 +12,14 @@ import { resolvePersonalityId } from './autocomplete.js';
 import {
   buildPaginationButtons,
   parsePaginationId,
-  calculatePagination,
   type PaginationConfig,
 } from '../../utils/paginationBuilder.js';
 
 const logger = createLogger('memory-search');
 
-/** Pagination configuration for search */
-const PAGINATION_CONFIG: PaginationConfig = {
-  prefix: 'msearch',
+/** Pagination configuration for search - exported for componentPrefixes aggregation */
+export const SEARCH_PAGINATION_CONFIG: PaginationConfig = {
+  prefix: 'memory-search',
   hideSortToggle: true, // Search results are sorted by relevance, not name/date
 };
 
@@ -172,7 +171,7 @@ function setupSearchCollector(
 
   collector.on('collect', (buttonInteraction: ButtonInteraction) => {
     void (async () => {
-      const parsed = parsePaginationId(buttonInteraction.customId, 'msearch');
+      const parsed = parsePaginationId(buttonInteraction.customId, SEARCH_PAGINATION_CONFIG.prefix);
       if (parsed === null) {
         return;
       }
@@ -181,13 +180,15 @@ function setupSearchCollector(
 
       const newPage = parsed.page ?? 0;
 
-      const newData = await fetchSearchResults(
+      // Pass preferTextSearch if we know the initial search fell back to text
+      const newData = await fetchSearchResults({
         userId,
         query,
         personalityId,
-        newPage * RESULTS_PER_PAGE,
-        RESULTS_PER_PAGE
-      );
+        offset: newPage * RESULTS_PER_PAGE,
+        limit: RESULTS_PER_PAGE,
+        preferTextSearch: currentSearchType === 'text',
+      });
 
       if (newData === null) {
         // Provide user feedback on error
@@ -202,14 +203,10 @@ function setupSearchCollector(
         currentSearchType = newData.searchType;
       }
 
-      const newEstimatedTotal = newData.hasMore
-        ? (newPage + 2) * RESULTS_PER_PAGE
-        : newPage * RESULTS_PER_PAGE + newData.results.length;
-      const { totalPages: newTotalPages } = calculatePagination(
-        newEstimatedTotal,
-        RESULTS_PER_PAGE,
-        newPage
-      );
+      // Calculate pages consistently: when hasMore is true, we know there's at least one more page
+      const newTotalPages = newData.hasMore
+        ? newPage + 2
+        : Math.max(1, newPage + (newData.results.length > 0 ? 1 : 0));
 
       const newEmbed = buildSearchEmbed({
         results: newData.results,
@@ -222,7 +219,13 @@ function setupSearchCollector(
       });
 
       const newComponents = [
-        buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, 'date', newData.hasMore),
+        buildPaginationButtons(
+          SEARCH_PAGINATION_CONFIG,
+          newPage,
+          newTotalPages,
+          'date',
+          newData.hasMore
+        ),
       ];
 
       await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
@@ -236,16 +239,22 @@ function setupSearchCollector(
   });
 }
 
+interface FetchSearchOptions {
+  userId: string;
+  query: string;
+  personalityId?: string;
+  offset: number;
+  limit: number;
+  /** Skip semantic search attempt (e.g., when first page fell back to text) */
+  preferTextSearch?: boolean;
+}
+
 /**
  * Fetch search results from API
  */
-async function fetchSearchResults(
-  userId: string,
-  query: string,
-  personalityId: string | undefined,
-  offset: number,
-  limit: number
-): Promise<SearchResponse | null> {
+async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchResponse | null> {
+  const { userId, query, personalityId, offset, limit, preferTextSearch } = options;
+
   const requestBody: Record<string, unknown> = {
     query,
     limit,
@@ -254,6 +263,11 @@ async function fetchSearchResults(
 
   if (personalityId !== undefined) {
     requestBody.personalityId = personalityId;
+  }
+
+  // Optimization: skip semantic search attempt if we know first page fell back to text
+  if (preferTextSearch === true) {
+    requestBody.preferTextSearch = true;
   }
 
   const result = await callGatewayApi<SearchResponse>('/user/memory/search', {
@@ -293,7 +307,13 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
     }
 
     // Fetch first page
-    const data = await fetchSearchResults(userId, query, personalityId, 0, RESULTS_PER_PAGE);
+    const data = await fetchSearchResults({
+      userId,
+      query,
+      personalityId,
+      offset: 0,
+      limit: RESULTS_PER_PAGE,
+    });
 
     if (data === null) {
       logger.warn({ userId, query: query.substring(0, 50) }, '[Memory] Search failed');
@@ -303,10 +323,12 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
 
     const { results, hasMore, searchType } = data;
 
-    // For search, we estimate total pages based on hasMore
-    // Since we don't have exact total, we use a practical approach
-    const estimatedTotal = hasMore ? results.length * 10 : results.length; // Rough estimate
-    const { totalPages } = calculatePagination(estimatedTotal, RESULTS_PER_PAGE, 0);
+    // Calculate pages: when hasMore is true, we know there's at least one more page
+    // Use currentPage + 2 consistently so UX remains stable as user navigates
+    const currentPage = 0;
+    const totalPages = hasMore
+      ? currentPage + 2
+      : Math.max(1, Math.ceil(results.length / RESULTS_PER_PAGE));
 
     // Build initial embed
     const embed = buildSearchEmbed({
@@ -322,7 +344,7 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
     // Build components (only if there are results and possibly more)
     const components =
       results.length > 0
-        ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, 'date', hasMore)]
+        ? [buildPaginationButtons(SEARCH_PAGINATION_CONFIG, 0, totalPages, 'date', hasMore)]
         : [];
 
     const response = await interaction.editReply({ embeds: [embed], components });

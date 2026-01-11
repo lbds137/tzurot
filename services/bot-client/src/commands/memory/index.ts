@@ -11,13 +11,17 @@
  * - /memory focus status <personality> - Check focus mode status
  */
 
-import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import { SlashCommandBuilder, MessageFlags } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  ButtonInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
-import { handleList } from './list.js';
-import { handleSearch } from './search.js';
+import { handleList, LIST_PAGINATION_CONFIG } from './list.js';
+import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
 
@@ -170,3 +174,21 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
  * Category for this command
  */
 export const category = 'Memory';
+
+/**
+ * Component prefixes for button routing
+ * Aggregated from subcommand pagination configs for standardization
+ */
+export const componentPrefixes = [LIST_PAGINATION_CONFIG.prefix, SEARCH_PAGINATION_CONFIG.prefix];
+
+/**
+ * Handle button interactions that weren't caught by collectors
+ * This typically happens when the collector times out (5 min) but buttons are still visible
+ */
+export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  logger.debug({ customId: interaction.customId }, '[Memory] Handling expired button interaction');
+  await interaction.reply({
+    content: '⏰ This interaction has expired. Please run the command again.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
