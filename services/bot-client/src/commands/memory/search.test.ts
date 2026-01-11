@@ -496,9 +496,9 @@ describe('handleSearch collector behavior', () => {
     endCallback = () => {};
 
     const mockCollector = {
-      on: vi.fn((event: string, callback: (i: unknown) => void) => {
+      on: vi.fn((event: string, callback: (...args: unknown[]) => void) => {
         if (event === 'collect') collectCallback = callback;
-        if (event === 'end') endCallback = callback;
+        if (event === 'end') endCallback = callback as () => void;
         return mockCollector;
       }),
     };
@@ -823,5 +823,163 @@ describe('handleSearch collector behavior', () => {
         body: expect.objectContaining({ preferTextSearch: true }),
       })
     );
+  });
+
+  it('should handle edit button action', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        results: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            similarity: 0.9,
+            createdAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        count: 1,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleSearch(interaction);
+
+    const buttonInteraction = createMockButtonInteraction('memory-detail::edit::memory-1');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockHandleEditButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
+  });
+
+  it('should handle lock button action', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        results: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            similarity: 0.9,
+            createdAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        count: 1,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleSearch(interaction);
+
+    const buttonInteraction = createMockButtonInteraction('memory-detail::lock::memory-1');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockHandleLockButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
+  });
+
+  it('should handle delete button action', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        results: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            similarity: 0.9,
+            createdAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        count: 1,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleSearch(interaction);
+
+    const buttonInteraction = createMockButtonInteraction('memory-detail::delete::memory-1');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockHandleDeleteButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
+  });
+
+  it('should handle confirm-delete button action', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        results: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            similarity: 0.9,
+            createdAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        count: 1,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleSearch(interaction);
+
+    const buttonInteraction = createMockButtonInteraction(
+      'memory-detail::confirm-delete::memory-1'
+    );
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockHandleDeleteConfirm).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
+  });
+
+  it('should handle back button action', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        results: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            similarity: 0.9,
+            createdAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        count: 1,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleSearch(interaction);
+
+    const buttonInteraction = createMockButtonInteraction('memory-detail::back::memory-1');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    // Back button defers update before refreshing
+    expect(mockDeferUpdate).toHaveBeenCalled();
   });
 });
