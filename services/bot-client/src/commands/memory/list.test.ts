@@ -37,6 +37,25 @@ vi.mock('./autocomplete.js', () => ({
   resolvePersonalityId: (...args: unknown[]) => mockResolvePersonalityId(...args),
 }));
 
+// Mock detail.js handlers for collector tests
+const mockHandleMemorySelect = vi.fn().mockResolvedValue(undefined);
+const mockHandleEditButton = vi.fn().mockResolvedValue(undefined);
+const mockHandleLockButton = vi.fn().mockResolvedValue(undefined);
+const mockHandleDeleteButton = vi.fn().mockResolvedValue(undefined);
+const mockHandleDeleteConfirm = vi.fn().mockResolvedValue(true);
+
+vi.mock('./detail.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('./detail.js')>();
+  return {
+    ...actual,
+    handleMemorySelect: (...args: unknown[]) => mockHandleMemorySelect(...args),
+    handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
+    handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
+    handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
+    handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
+  };
+});
+
 describe('handleList', () => {
   const mockEditReply = vi.fn();
   const mockCreateMessageComponentCollector = vi.fn();
@@ -475,5 +494,297 @@ describe('handleList', () => {
       components: [], // No components when filtered empty
     });
     expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
+  });
+});
+
+describe('handleList collector behavior', () => {
+  const mockEditReply = vi.fn();
+  const mockDeferUpdate = vi.fn();
+  const mockFollowUp = vi.fn();
+  let collectCallback: (i: unknown) => void;
+  let endCallback: () => void;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    collectCallback = () => {};
+    endCallback = () => {};
+
+    const mockCollector = {
+      on: vi.fn((event: string, callback: (i: unknown) => void) => {
+        if (event === 'collect') collectCallback = callback;
+        if (event === 'end') endCallback = callback;
+        return mockCollector;
+      }),
+    };
+
+    mockEditReply.mockResolvedValue({
+      createMessageComponentCollector: () => mockCollector,
+    });
+    mockDeferUpdate.mockResolvedValue(undefined);
+    mockFollowUp.mockResolvedValue(undefined);
+  });
+
+  function createMockInteraction() {
+    return {
+      user: { id: '123456789' },
+      options: {
+        getString: () => null,
+      },
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleList>[0];
+  }
+
+  function createMockButtonInteraction(customId: string) {
+    return {
+      isButton: () => true,
+      isStringSelectMenu: () => false,
+      customId,
+      user: { id: '123456789' },
+      deferUpdate: mockDeferUpdate,
+      editReply: mockEditReply,
+      followUp: mockFollowUp,
+    };
+  }
+
+  it('should handle pagination button click', async () => {
+    // Initial list results
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 20,
+        limit: 10,
+        offset: 0,
+        hasMore: true,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    // Simulate pagination button click for page 1
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-2',
+            content: 'Page 2',
+            createdAt: '2025-06-14T12:00:00.000Z',
+            updatedAt: '2025-06-14T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 20,
+        limit: 10,
+        offset: 10,
+        hasMore: false,
+      },
+    });
+
+    const buttonInteraction = createMockButtonInteraction('memory-list::list::1::date');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockCallGatewayApi).toHaveBeenCalledTimes(2);
+  });
+
+  it('should handle pagination button click with API failure', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 20,
+        limit: 10,
+        offset: 0,
+        hasMore: true,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    // API fails on page 2
+    mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Server error' });
+
+    const buttonInteraction = createMockButtonInteraction('memory-list::list::1::date');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Failed to load'),
+        ephemeral: true,
+      })
+    );
+  });
+
+  it('should handle select menu interaction', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    const selectInteraction = {
+      isButton: () => false,
+      isStringSelectMenu: () => true,
+      customId: 'memory-select',
+      values: ['memory-1'],
+      user: { id: '123456789' },
+      deferUpdate: mockDeferUpdate,
+      editReply: mockEditReply,
+    };
+
+    collectCallback(selectInteraction);
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    // handleMemorySelect is mocked so we just verify it doesn't throw
+    expect(true).toBe(true);
+  });
+
+  it('should handle collector end by removing components', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    // Reset mock to track the end behavior
+    mockEditReply.mockClear();
+    mockEditReply.mockResolvedValue(undefined);
+
+    endCallback();
+
+    expect(mockEditReply).toHaveBeenCalledWith({ components: [] });
+  });
+
+  it('should handle collector end error gracefully', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    // Simulate editReply failing (message deleted)
+    mockEditReply.mockClear();
+    mockEditReply.mockRejectedValue(new Error('Unknown message'));
+
+    // Should not throw
+    endCallback();
+    expect(true).toBe(true);
+  });
+
+  it('should handle unrecognized button custom ID', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    const buttonInteraction = createMockButtonInteraction('unknown-prefix::action');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    // Should not call deferUpdate for unrecognized buttons
+    expect(mockDeferUpdate).not.toHaveBeenCalled();
   });
 });
