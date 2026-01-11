@@ -156,6 +156,15 @@ function createMockRedis() {
 | New utility/helper  | ✅   | No           | No                             |
 | Bug fix             | ✅   | If contract  | If multi-component interaction |
 | New dashboard/modal | ✅   | If API types | No (UI logic, mock sessions)   |
+| **New tooling**     | ✅   | No           | No                             |
+
+### Tooling Package Tests
+
+**All tooling code requires unit tests.** See `tzurot-tooling` skill for details. Key points:
+
+- Implementation modules in `packages/tooling/src/*/` need `*.test.ts` files
+- Command registration files (`commands/*.ts`) are thin wrappers - no tests needed
+- Mock `child_process` functions like `execSync` and `spawnSync` for shell commands
 
 ### Integration Test Guidance
 
