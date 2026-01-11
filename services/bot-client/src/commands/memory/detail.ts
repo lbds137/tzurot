@@ -37,7 +37,11 @@ const MAX_SELECT_LABEL_LENGTH = 100;
 /** Overhead for select label (number prefix "1. " to "99. " + optional lock icon "🔒 ") */
 const SELECT_LABEL_OVERHEAD = 10;
 
-/** Maximum content length for modal text input */
+/**
+ * Maximum content length for modal text input.
+ * Discord modals support 4000 chars, but we limit to 2000 for consistency
+ * with API validation (memorySingle.ts MAX_CONTENT_LENGTH).
+ */
 const MAX_MODAL_CONTENT_LENGTH = 2000;
 
 /**
@@ -339,6 +343,10 @@ export async function deleteMemory(userId: string, memoryId: string): Promise<bo
 
 /**
  * Handle memory select menu interaction
+ *
+ * Note: _context is passed by the collector but not used here because the "back" navigation
+ * is handled by the collector's closure which maintains its own context state. This parameter
+ * is kept for API consistency and potential future use (e.g., embedding context in button IDs).
  */
 export async function handleMemorySelect(
   interaction: StringSelectMenuInteraction,
