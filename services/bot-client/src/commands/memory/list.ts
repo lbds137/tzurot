@@ -281,10 +281,12 @@ function setupListCollector(
 
   // Function to refresh the list view at the current page
   const refreshList = async (): Promise<void> => {
+    let pageToFetch = currentContext.page;
+
     const data = await fetchMemories(
       userId,
       personalityId,
-      currentContext.page * MEMORIES_PER_PAGE,
+      pageToFetch * MEMORIES_PER_PAGE,
       MEMORIES_PER_PAGE
     );
 
@@ -292,11 +294,26 @@ function setupListCollector(
       return;
     }
 
-    const { totalPages } = calculatePagination(data.total, MEMORIES_PER_PAGE, currentContext.page);
+    // Handle empty page after delete: go back one page if current page is now empty
+    if (data.memories.length === 0 && pageToFetch > 0) {
+      pageToFetch--;
+      currentContext = { ...currentContext, page: pageToFetch };
+      const retryData = await fetchMemories(
+        userId,
+        personalityId,
+        pageToFetch * MEMORIES_PER_PAGE,
+        MEMORIES_PER_PAGE
+      );
+      if (retryData !== null) {
+        Object.assign(data, retryData);
+      }
+    }
+
+    const { totalPages } = calculatePagination(data.total, MEMORIES_PER_PAGE, pageToFetch);
     const embed = buildListEmbed({
       memories: data.memories,
       total: data.total,
-      page: currentContext.page,
+      page: pageToFetch,
       totalPages,
       personalityFilter: personalityId,
     });
@@ -304,8 +321,8 @@ function setupListCollector(
     const components =
       data.memories.length > 0
         ? [
-            buildMemorySelectMenu(data.memories, currentContext.page, MEMORIES_PER_PAGE),
-            buildPaginationButtons(LIST_PAGINATION_CONFIG, currentContext.page, totalPages, 'date'),
+            buildMemorySelectMenu(data.memories, pageToFetch, MEMORIES_PER_PAGE),
+            buildPaginationButtons(LIST_PAGINATION_CONFIG, pageToFetch, totalPages, 'date'),
           ]
         : [];
 

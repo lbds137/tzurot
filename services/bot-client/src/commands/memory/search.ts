@@ -295,29 +295,44 @@ function setupSearchCollector(
     preferTextSearch: initialSearchType === 'text',
   };
 
-  // Function to refresh the search results at the current page
-  const refreshSearch = async (): Promise<void> => {
-    const data = await fetchSearchResults({
+  // Fetch helper for refresh operations
+  const fetchPage = (page: number): Promise<SearchResponse | null> =>
+    fetchSearchResults({
       userId,
       query,
       personalityId,
-      offset: currentPage * RESULTS_PER_PAGE,
+      offset: page * RESULTS_PER_PAGE,
       limit: RESULTS_PER_PAGE,
       preferTextSearch: currentSearchType === 'text',
     });
 
+  // Function to refresh the search results at the current page
+  const refreshSearch = async (): Promise<void> => {
+    let pageToFetch = currentPage;
+    let data = await fetchPage(pageToFetch);
     if (data === null) {
       return;
     }
 
+    // Handle empty page after delete: go back one page if current page is now empty
+    if (data.results.length === 0 && pageToFetch > 0) {
+      pageToFetch--;
+      currentPage = pageToFetch;
+      listContext = { ...listContext, page: pageToFetch };
+      const retryData = await fetchPage(pageToFetch);
+      if (retryData !== null) {
+        data = retryData;
+      }
+    }
+
     const totalPages = data.hasMore
-      ? currentPage + 2
-      : Math.max(1, currentPage + (data.results.length > 0 ? 1 : 0));
+      ? pageToFetch + 2
+      : Math.max(1, pageToFetch + (data.results.length > 0 ? 1 : 0));
 
     const embed = buildSearchEmbed({
       results: data.results,
       query,
-      page: currentPage,
+      page: pageToFetch,
       totalPages,
       hasMore: data.hasMore,
       searchType: data.searchType ?? currentSearchType,
@@ -327,10 +342,10 @@ function setupSearchCollector(
     const components =
       data.results.length > 0
         ? [
-            buildMemorySelectMenu(data.results, currentPage, RESULTS_PER_PAGE),
+            buildMemorySelectMenu(data.results, pageToFetch, RESULTS_PER_PAGE),
             buildPaginationButtons(
               SEARCH_PAGINATION_CONFIG,
-              currentPage,
+              pageToFetch,
               totalPages,
               'date',
               data.hasMore

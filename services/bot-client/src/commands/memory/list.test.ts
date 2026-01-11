@@ -299,4 +299,181 @@ describe('handleList', () => {
       })
     );
   });
+
+  it('should skip personality resolution when personality option is empty string', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        memories: [],
+        total: 0,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    // Create interaction with empty string personality
+    const interaction = {
+      user: { id: '123456789' },
+      options: {
+        getString: (name: string) => {
+          if (name === 'personality') return '';
+          return null;
+        },
+      },
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleList>[0];
+
+    await handleList(interaction);
+
+    // Should NOT call resolvePersonalityId when personality is empty
+    expect(mockResolvePersonalityId).not.toHaveBeenCalled();
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      expect.not.stringContaining('personalityId='),
+      expect.any(Object)
+    );
+  });
+
+  it('should handle multiple memories with different personalities', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'First memory',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'personality-123',
+            personalityName: 'Lilith',
+            isLocked: false,
+          },
+          {
+            id: 'memory-2',
+            content: 'Second memory',
+            createdAt: '2025-06-14T12:00:00.000Z',
+            updatedAt: '2025-06-14T12:00:00.000Z',
+            personalityId: 'personality-456',
+            personalityName: 'Other',
+            isLocked: true,
+          },
+          {
+            id: 'memory-3',
+            content: 'Third memory',
+            createdAt: '2025-06-13T12:00:00.000Z',
+            updatedAt: '2025-06-13T12:00:00.000Z',
+            personalityId: 'personality-123',
+            personalityName: 'Lilith',
+            isLocked: false,
+          },
+        ],
+        total: 3,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+        components: expect.any(Array),
+      })
+    );
+    expect(mockCreateMessageComponentCollector).toHaveBeenCalled();
+  });
+
+  it('should handle very long content with newlines', async () => {
+    const longContentWithNewlines = 'Line 1\nLine 2\nLine 3\n' + 'A'.repeat(200);
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: longContentWithNewlines,
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'personality-123',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    // Should succeed - content is truncated and newlines removed
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+      })
+    );
+  });
+
+  it('should handle hasMore indicating more pages available', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'First page memory',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'personality-123',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 50, // Many pages worth
+        limit: 10,
+        offset: 0,
+        hasMore: true,
+      },
+    });
+
+    const interaction = createMockInteraction();
+    await handleList(interaction);
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: expect.any(Array),
+        components: expect.any(Array),
+      })
+    );
+    expect(mockCreateMessageComponentCollector).toHaveBeenCalled();
+  });
+
+  it('should show filtered empty state for personality with no memories', async () => {
+    mockResolvePersonalityId.mockResolvedValue('personality-uuid-123');
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        memories: [],
+        total: 0,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const interaction = createMockInteraction('lilith');
+    await handleList(interaction);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: expect.any(Array),
+      components: [], // No components when filtered empty
+    });
+    expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
+  });
 });
