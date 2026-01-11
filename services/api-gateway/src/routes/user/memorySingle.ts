@@ -193,6 +193,12 @@ export async function handleUpdateMemory(
     return;
   }
 
+  // Prevent editing locked memories
+  if (existing.isLocked) {
+    sendError(res, ErrorResponses.forbidden('Cannot modify a locked memory'));
+    return;
+  }
+
   const memory = await prisma.memory.update({
     where: { id: memoryId },
     data: {
@@ -279,6 +285,12 @@ export async function handleDeleteMemory(
     res,
   });
   if (existing === null) {
+    return;
+  }
+
+  // Prevent deleting locked memories
+  if (existing.isLocked) {
+    sendError(res, ErrorResponses.forbidden('Cannot delete a locked memory'));
     return;
   }
 

@@ -443,6 +443,27 @@ describe('memorySingle handlers', () => {
       const updatedAtDate = updateCall.data.updatedAt as Date;
       expect(updatedAtDate.getTime()).toBeGreaterThanOrEqual(beforeUpdate);
     });
+
+    it('should reject editing a locked memory', async () => {
+      mockPrisma.memory.findFirst.mockResolvedValue({ ...defaultMemory, isLocked: true });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID }, { content: 'new content' });
+
+      await handleUpdateMemory(
+        mockPrisma as unknown as PrismaClient,
+        mockGetUserByDiscordId,
+        mockGetDefaultPersonaId,
+        req,
+        res
+      );
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('locked'),
+        })
+      );
+      expect(mockPrisma.memory.update).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleToggleLock', () => {
@@ -732,6 +753,27 @@ describe('memorySingle handlers', () => {
           visibility: 'normal',
         },
       });
+    });
+
+    it('should reject deleting a locked memory', async () => {
+      mockPrisma.memory.findFirst.mockResolvedValue({ ...defaultMemory, isLocked: true });
+      const { req, res } = createMockReqRes({ id: TEST_MEMORY_ID });
+
+      await handleDeleteMemory(
+        mockPrisma as unknown as PrismaClient,
+        mockGetUserByDiscordId,
+        mockGetDefaultPersonaId,
+        req,
+        res
+      );
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('locked'),
+        })
+      );
+      expect(mockPrisma.memory.update).not.toHaveBeenCalled();
     });
   });
 });

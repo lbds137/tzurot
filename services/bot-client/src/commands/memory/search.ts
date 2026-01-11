@@ -320,9 +320,10 @@ function setupSearchCollector(
       currentPage = pageToFetch;
       listContext = { ...listContext, page: pageToFetch };
       const retryData = await fetchPage(pageToFetch);
-      if (retryData !== null) {
-        data = retryData;
+      if (retryData === null) {
+        return; // Both fetches failed, don't update the UI
       }
+      data = retryData;
     }
 
     const totalPages = data.hasMore
