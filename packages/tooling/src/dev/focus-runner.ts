@@ -5,7 +5,7 @@
  * Automatically detects the git comparison base (develop, main, or HEAD^1).
  */
 
-import { execSync, spawnSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 
 export interface FocusRunnerOptions {
   /** Turbo task to run (lint, test, build, typecheck) */
@@ -21,7 +21,7 @@ export interface FocusRunnerOptions {
  */
 function detectGitBase(): string | null {
   try {
-    const branch = execSync('git branch --show-current', {
+    const branch = execFileSync('git', ['branch', '--show-current'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
@@ -32,7 +32,7 @@ function detectGitBase(): string | null {
 
     // Check if origin/develop exists
     try {
-      execSync('git rev-parse --verify origin/develop', {
+      execFileSync('git', ['rev-parse', '--verify', 'origin/develop'], {
         encoding: 'utf-8',
         stdio: ['pipe', 'pipe', 'pipe'],
       });
@@ -40,7 +40,7 @@ function detectGitBase(): string | null {
     } catch {
       // Fall back to origin/main
       try {
-        execSync('git rev-parse --verify origin/main', {
+        execFileSync('git', ['rev-parse', '--verify', 'origin/main'], {
           encoding: 'utf-8',
           stdio: ['pipe', 'pipe', 'pipe'],
         });
@@ -59,7 +59,7 @@ function detectGitBase(): string | null {
  */
 function hasUncommittedChanges(): boolean {
   try {
-    const status = execSync('git status --porcelain', {
+    const status = execFileSync('git', ['status', '--porcelain'], {
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim();
