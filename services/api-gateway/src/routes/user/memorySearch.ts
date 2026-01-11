@@ -32,6 +32,8 @@ interface SearchRequest {
   offset?: number;
   dateFrom?: string;
   dateTo?: string;
+  /** Hint to skip semantic search attempt (e.g., when previous page fell back to text) */
+  preferTextSearch?: boolean;
 }
 
 interface SearchResultRow {
@@ -154,6 +156,75 @@ function transformResults(
   return { responseResults, hasMore };
 }
 
+/**
+ * Execute text-based search
+ */
+async function executeTextSearch(
+  prisma: PrismaClient,
+  query: string,
+  filters: SearchFilters,
+  limit: number,
+  offset: number
+): Promise<SearchOutput> {
+  const textQuery = buildTextSearchQuery(query.trim(), filters, limit, offset);
+  const textResults = await prisma.$queryRaw<TextSearchResultRow[]>(textQuery);
+  const { responseResults, hasMore } = transformResults(textResults, limit, false);
+  return {
+    results: responseResults,
+    count: responseResults.length,
+    hasMore,
+    searchType: 'text',
+  };
+}
+
+/**
+ * Execute semantic search with text fallback
+ * @returns SearchOutput or null if embedding generation failed (caller should handle error response)
+ */
+async function executeSemanticSearchWithFallback(
+  prisma: PrismaClient,
+  query: string,
+  filters: SearchFilters,
+  limit: number,
+  offset: number
+): Promise<SearchOutput | { error: 'embedding_failed' | 'embedding_unavailable' }> {
+  let embedding: number[] | null;
+  try {
+    embedding = await generateEmbedding(query);
+    if (embedding === null) {
+      return { error: 'embedding_unavailable' };
+    }
+  } catch (error) {
+    logger.error(
+      { err: error, query: query.substring(0, 50) },
+      '[Memory] Embedding generation failed'
+    );
+    return { error: 'embedding_failed' };
+  }
+
+  const semanticQuery = buildSemanticSearchQuery(
+    formatAsVector(embedding),
+    filters,
+    1 - SEARCH_DEFAULTS.minSimilarity,
+    limit,
+    offset
+  );
+  const semanticResults = await prisma.$queryRaw<SearchResultRow[]>(semanticQuery);
+
+  if (semanticResults.length > 0) {
+    const { responseResults, hasMore } = transformResults(semanticResults, limit, true);
+    return {
+      results: responseResults,
+      count: responseResults.length,
+      hasMore,
+      searchType: 'semantic',
+    };
+  }
+
+  // Fall back to text search
+  return executeTextSearch(prisma, query, filters, limit, offset);
+}
+
 /** Handler for POST /user/memory/search */
 export async function handleSearch(
   prisma: PrismaClient,
@@ -168,7 +239,8 @@ export async function handleSearch(
   }
 
   const discordUserId = req.userId;
-  const { query, personalityId, limit, offset, dateFrom, dateTo } = req.body as SearchRequest;
+  const { query, personalityId, limit, offset, dateFrom, dateTo, preferTextSearch } =
+    req.body as SearchRequest;
 
   if (query === undefined || query.trim().length === 0) {
     sendError(res, ErrorResponses.validationError('query is required'));
@@ -191,7 +263,9 @@ export async function handleSearch(
   const effectiveOffset = Math.max(0, offset ?? 0);
 
   const user = await getUserByDiscordId(discordUserId, res);
-  if (!user) {return;}
+  if (!user) {
+    return;
+  }
 
   const personaId = await getDefaultPersonaId(prisma, user.id);
   if (personaId === null) {
@@ -201,50 +275,30 @@ export async function handleSearch(
 
   const filters: SearchFilters = { personaId, personalityId, dateFrom, dateTo };
 
-  let embedding: number[] | null;
-  try {
-    embedding = await generateEmbedding(query);
-    if (embedding === null) {
-      sendError(res, ErrorResponses.serviceUnavailable('Failed to generate search embedding'));
+  let output: SearchOutput;
+
+  // Skip semantic search if client hints that text search is preferred (e.g., pagination after fallback)
+  if (preferTextSearch === true) {
+    output = await executeTextSearch(prisma, query, filters, effectiveLimit, effectiveOffset);
+  } else {
+    const result = await executeSemanticSearchWithFallback(
+      prisma,
+      query,
+      filters,
+      effectiveLimit,
+      effectiveOffset
+    );
+
+    if ('error' in result) {
+      if (result.error === 'embedding_unavailable') {
+        sendError(res, ErrorResponses.serviceUnavailable('Failed to generate search embedding'));
+      } else {
+        sendError(res, ErrorResponses.internalError('Search embedding generation failed'));
+      }
       return;
     }
-  } catch (error) {
-    logger.error(
-      { err: error, query: query.substring(0, 50) },
-      '[Memory] Embedding generation failed'
-    );
-    sendError(res, ErrorResponses.internalError('Search embedding generation failed'));
-    return;
-  }
 
-  const semanticQuery = buildSemanticSearchQuery(
-    formatAsVector(embedding),
-    filters,
-    1 - SEARCH_DEFAULTS.minSimilarity,
-    effectiveLimit,
-    effectiveOffset
-  );
-  const semanticResults = await prisma.$queryRaw<SearchResultRow[]>(semanticQuery);
-
-  let output: SearchOutput;
-  if (semanticResults.length > 0) {
-    const { responseResults, hasMore } = transformResults(semanticResults, effectiveLimit, true);
-    output = {
-      results: responseResults,
-      count: responseResults.length,
-      hasMore,
-      searchType: 'semantic',
-    };
-  } else {
-    const textQuery = buildTextSearchQuery(query.trim(), filters, effectiveLimit, effectiveOffset);
-    const textResults = await prisma.$queryRaw<TextSearchResultRow[]>(textQuery);
-    const { responseResults, hasMore } = transformResults(textResults, effectiveLimit, false);
-    output = {
-      results: responseResults,
-      count: responseResults.length,
-      hasMore,
-      searchType: 'text',
-    };
+    output = result;
   }
 
   logger.debug(
