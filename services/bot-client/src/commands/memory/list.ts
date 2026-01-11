@@ -283,7 +283,7 @@ function setupListCollector(
   const refreshList = async (): Promise<void> => {
     let pageToFetch = currentContext.page;
 
-    const data = await fetchMemories(
+    let data = await fetchMemories(
       userId,
       personalityId,
       pageToFetch * MEMORIES_PER_PAGE,
@@ -305,7 +305,7 @@ function setupListCollector(
         MEMORIES_PER_PAGE
       );
       if (retryData !== null) {
-        Object.assign(data, retryData);
+        data = retryData;
       }
     }
 

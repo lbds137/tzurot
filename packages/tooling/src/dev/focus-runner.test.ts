@@ -5,12 +5,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Track mock state
-const mockExecSync = vi.fn();
+const mockExecFileSync = vi.fn();
 const mockSpawnSync = vi.fn();
 
 // Mock child_process
 vi.mock('node:child_process', () => ({
-  execSync: mockExecSync,
+  execFileSync: mockExecFileSync,
   spawnSync: mockSpawnSync,
 }));
 
@@ -65,7 +65,7 @@ describe('focus-runner', () => {
 
     it('should include filter when detecting git base', async () => {
       // Setup git commands to return feature branch with develop
-      mockExecSync
+      mockExecFileSync
         .mockReturnValueOnce('feature-branch\n') // git branch --show-current
         .mockReturnValueOnce('abc123\n') // git rev-parse origin/develop
         .mockReturnValueOnce(''); // git status --porcelain
@@ -83,7 +83,7 @@ describe('focus-runner', () => {
 
     it('should use HEAD^1 when on main branch', async () => {
       // Setup git commands for main branch
-      mockExecSync
+      mockExecFileSync
         .mockReturnValueOnce('main\n') // git branch --show-current
         .mockReturnValueOnce(''); // git status --porcelain
 
@@ -99,7 +99,7 @@ describe('focus-runner', () => {
     });
 
     it('should fallback to origin/main when origin/develop does not exist', async () => {
-      mockExecSync
+      mockExecFileSync
         .mockReturnValueOnce('feature-branch\n') // git branch --show-current
         .mockImplementationOnce(() => {
           throw new Error('Not found');
@@ -119,7 +119,7 @@ describe('focus-runner', () => {
     });
 
     it('should run on all packages when git base cannot be determined', async () => {
-      mockExecSync.mockImplementation(() => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('Git error');
       });
 
@@ -135,7 +135,7 @@ describe('focus-runner', () => {
     });
 
     it('should pass extra args after --', async () => {
-      mockExecSync.mockImplementation(() => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('Git error');
       });
 
@@ -151,7 +151,7 @@ describe('focus-runner', () => {
     });
 
     it('should detect and log uncommitted changes', async () => {
-      mockExecSync
+      mockExecFileSync
         .mockReturnValueOnce('feature-branch\n') // git branch --show-current
         .mockReturnValueOnce('abc123\n') // git rev-parse origin/develop
         .mockReturnValueOnce(' M src/file.ts\n'); // git status --porcelain (has changes)
@@ -165,7 +165,7 @@ describe('focus-runner', () => {
     });
 
     it('should exit with non-zero status on turbo failure', async () => {
-      mockExecSync.mockImplementation(() => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('Git error');
       });
 
@@ -186,7 +186,7 @@ describe('focus-runner', () => {
     });
 
     it('should handle spawn error gracefully', async () => {
-      mockExecSync.mockImplementation(() => {
+      mockExecFileSync.mockImplementation(() => {
         throw new Error('Git error');
       });
 

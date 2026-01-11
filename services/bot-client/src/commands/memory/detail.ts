@@ -34,6 +34,9 @@ export const MEMORY_DETAIL_PREFIX = 'memory-detail';
 /** Maximum label length for select menu options */
 const MAX_SELECT_LABEL_LENGTH = 100;
 
+/** Overhead for select label (number prefix "1. " to "99. " + optional lock icon "🔒 ") */
+const SELECT_LABEL_OVERHEAD = 10;
+
 /** Maximum content length for modal text input */
 const MAX_MODAL_CONTENT_LENGTH = 2000;
 
@@ -150,7 +153,7 @@ export function buildMemorySelectMenu(
   memories.forEach((memory, index) => {
     const num = page * itemsPerPage + index + 1;
     const lockIcon = memory.isLocked ? '🔒 ' : '';
-    const label = `${num}. ${lockIcon}${truncateForSelect(memory.content, MAX_SELECT_LABEL_LENGTH - 10)}`;
+    const label = `${num}. ${lockIcon}${truncateForSelect(memory.content, MAX_SELECT_LABEL_LENGTH - SELECT_LABEL_OVERHEAD)}`;
 
     selectMenu.addOptions(
       new StringSelectMenuOptionBuilder()
