@@ -18,9 +18,9 @@ import {
 
 const logger = createLogger('memory-list');
 
-/** Pagination configuration for memory list */
-const PAGINATION_CONFIG: PaginationConfig = {
-  prefix: 'memory',
+/** Pagination configuration for memory list - exported for componentPrefixes aggregation */
+export const LIST_PAGINATION_CONFIG: PaginationConfig = {
+  prefix: 'memory-list',
   hideSortToggle: true, // Memories don't have a "name" to sort by
 };
 
@@ -200,7 +200,9 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
     // Build components (only if there are memories)
     const components =
-      memories.length > 0 ? [buildPaginationButtons(PAGINATION_CONFIG, 0, totalPages, 'date')] : [];
+      memories.length > 0
+        ? [buildPaginationButtons(LIST_PAGINATION_CONFIG, 0, totalPages, 'date')]
+        : [];
 
     const response = await interaction.editReply({ embeds: [embed], components });
 
@@ -216,7 +218,10 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
       collector.on('collect', (buttonInteraction: ButtonInteraction) => {
         void (async () => {
-          const parsed = parsePaginationId(buttonInteraction.customId, 'memory');
+          const parsed = parsePaginationId(
+            buttonInteraction.customId,
+            LIST_PAGINATION_CONFIG.prefix
+          );
           if (parsed === null) {
             return;
           }
@@ -257,7 +262,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
           });
 
           const newComponents = [
-            buildPaginationButtons(PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
+            buildPaginationButtons(LIST_PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
           ];
 
           await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
