@@ -15,6 +15,58 @@ const logger = createLogger('user-memory-single');
 /** Maximum content length for memory updates */
 const MAX_CONTENT_LENGTH = 2000;
 
+/** Include clause for personality in memory queries */
+const PERSONALITY_INCLUDE = {
+  personality: {
+    select: { name: true, displayName: true },
+  },
+} as const;
+
+interface OwnershipContext {
+  prisma: PrismaClient;
+  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>;
+  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>;
+  discordUserId: string;
+  memoryId: string;
+  res: Response;
+}
+
+/**
+ * Verify memory ownership and return the memory if found
+ * Sends appropriate error responses and returns null if verification fails
+ */
+async function verifyMemoryOwnership(
+  context: OwnershipContext
+): Promise<{ id: string; isLocked: boolean } | null> {
+  const { prisma, getUserByDiscordId, getDefaultPersonaId, discordUserId, memoryId, res } = context;
+
+  const user = await getUserByDiscordId(discordUserId, res);
+  if (!user) {
+    return null;
+  }
+
+  const personaId = await getDefaultPersonaId(prisma, user.id);
+  if (personaId === null) {
+    sendError(res, ErrorResponses.notFound('Memory not found'));
+    return null;
+  }
+
+  const memory = await prisma.memory.findFirst({
+    where: {
+      id: memoryId,
+      personaId,
+      visibility: 'normal',
+    },
+  });
+
+  if (memory === null) {
+    sendError(res, ErrorResponses.notFound('Memory not found'));
+    return null;
+  }
+
+  return memory;
+}
+
 interface MemoryResponse {
   id: string;
   content: string;
@@ -84,11 +136,7 @@ export async function handleGetMemory(
       personaId,
       visibility: 'normal',
     },
-    include: {
-      personality: {
-        select: { name: true, displayName: true },
-      },
-    },
+    include: PERSONALITY_INCLUDE,
   });
 
   if (memory === null) {
@@ -133,28 +181,15 @@ export async function handleUpdateMemory(
     return;
   }
 
-  const user = await getUserByDiscordId(discordUserId, res);
-  if (!user) {
-    return;
-  }
-
-  const personaId = await getDefaultPersonaId(prisma, user.id);
-  if (personaId === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
-    return;
-  }
-
-  // Verify ownership before update
-  const existing = await prisma.memory.findFirst({
-    where: {
-      id: memoryId,
-      personaId,
-      visibility: 'normal',
-    },
+  const existing = await verifyMemoryOwnership({
+    prisma,
+    getUserByDiscordId,
+    getDefaultPersonaId,
+    discordUserId,
+    memoryId,
+    res,
   });
-
   if (existing === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
     return;
   }
 
@@ -164,11 +199,7 @@ export async function handleUpdateMemory(
       content: content.trim(),
       updatedAt: new Date(),
     },
-    include: {
-      personality: {
-        select: { name: true, displayName: true },
-      },
-    },
+    include: PERSONALITY_INCLUDE,
   });
 
   logger.info({ discordUserId, memoryId }, '[Memory] Memory updated');
@@ -194,28 +225,15 @@ export async function handleToggleLock(
     return;
   }
 
-  const user = await getUserByDiscordId(discordUserId, res);
-  if (!user) {
-    return;
-  }
-
-  const personaId = await getDefaultPersonaId(prisma, user.id);
-  if (personaId === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
-    return;
-  }
-
-  // Verify ownership before update
-  const existing = await prisma.memory.findFirst({
-    where: {
-      id: memoryId,
-      personaId,
-      visibility: 'normal',
-    },
+  const existing = await verifyMemoryOwnership({
+    prisma,
+    getUserByDiscordId,
+    getDefaultPersonaId,
+    discordUserId,
+    memoryId,
+    res,
   });
-
   if (existing === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
     return;
   }
 
@@ -225,11 +243,7 @@ export async function handleToggleLock(
       isLocked: !existing.isLocked,
       updatedAt: new Date(),
     },
-    include: {
-      personality: {
-        select: { name: true, displayName: true },
-      },
-    },
+    include: PERSONALITY_INCLUDE,
   });
 
   const action = memory.isLocked ? 'locked' : 'unlocked';
@@ -256,28 +270,15 @@ export async function handleDeleteMemory(
     return;
   }
 
-  const user = await getUserByDiscordId(discordUserId, res);
-  if (!user) {
-    return;
-  }
-
-  const personaId = await getDefaultPersonaId(prisma, user.id);
-  if (personaId === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
-    return;
-  }
-
-  // Verify ownership before delete
-  const existing = await prisma.memory.findFirst({
-    where: {
-      id: memoryId,
-      personaId,
-      visibility: 'normal',
-    },
+  const existing = await verifyMemoryOwnership({
+    prisma,
+    getUserByDiscordId,
+    getDefaultPersonaId,
+    discordUserId,
+    memoryId,
+    res,
   });
-
   if (existing === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
     return;
   }
 
