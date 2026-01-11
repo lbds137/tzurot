@@ -109,6 +109,9 @@ export const ErrorResponses = {
     requestId?: string
   ) => createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
 
+  forbidden: (message: string, requestId?: string) =>
+    createErrorResponse(ErrorCode.UNAUTHORIZED, message, requestId),
+
   paymentRequired: (message = 'Insufficient credits or quota', requestId?: string) =>
     createErrorResponse(ErrorCode.PAYMENT_REQUIRED, message, requestId),
 

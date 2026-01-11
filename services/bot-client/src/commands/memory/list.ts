@@ -304,9 +304,10 @@ function setupListCollector(
         pageToFetch * MEMORIES_PER_PAGE,
         MEMORIES_PER_PAGE
       );
-      if (retryData !== null) {
-        data = retryData;
+      if (retryData === null) {
+        return; // Both fetches failed, don't update the UI
       }
+      data = retryData;
     }
 
     const { totalPages } = calculatePagination(data.total, MEMORIES_PER_PAGE, pageToFetch);
