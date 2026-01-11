@@ -1,5 +1,16 @@
 #!/bin/sh
 
+# Clean up stale git lock files
+# These can be left behind when pre-commit hooks are interrupted (Ctrl+C, IDE crashes, etc.)
+LOCK_FILE=".git/index.lock"
+if [ -f "$LOCK_FILE" ]; then
+    # Check if lock is older than 5 minutes (300 seconds)
+    if [ "$(find "$LOCK_FILE" -mmin +5 2>/dev/null)" ]; then
+        echo "⚠️  Removing stale git lock file (older than 5 minutes)"
+        rm -f "$LOCK_FILE"
+    fi
+fi
+
 # Run lint-staged (prettier, eslint, secretlint on staged files only)
 npx lint-staged
 
