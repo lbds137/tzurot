@@ -8,7 +8,7 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, Prisma } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
@@ -120,8 +120,7 @@ export async function handleBatchDelete(
   }
 
   // Build where clause for batch delete
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: Record<string, any> = {
+  const where: Prisma.MemoryWhereInput = {
     personaId,
     personalityId,
     visibility: 'normal', // Only delete normal (visible) memories
@@ -177,7 +176,7 @@ export async function handleBatchDelete(
     },
   });
 
-  logger.info(
+  logger.warn(
     {
       discordUserId,
       personalityId,
@@ -389,8 +388,7 @@ export async function handleBatchDeletePreview(
   }
 
   // Build where clause
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const where: Record<string, any> = {
+  const where: Prisma.MemoryWhereInput = {
     personaId,
     personalityId,
     visibility: 'normal',
