@@ -9,6 +9,7 @@ import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
+import { formatDateTime } from './formatters.js';
 
 const logger = createLogger('memory-stats');
 
@@ -23,21 +24,9 @@ interface StatsResponse {
   focusModeEnabled: boolean;
 }
 
-/**
- * Format a date string for display
- */
-function formatDate(dateStr: string | null): string {
-  if (dateStr === null) {
-    return 'N/A';
-  }
-  const date = new Date(dateStr);
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+/** Format date or return 'N/A' for null */
+function formatDateOrNA(dateStr: string | null): string {
+  return dateStr !== null ? formatDateTime(dateStr) : 'N/A';
 }
 
 /**
@@ -116,7 +105,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
     if (data.totalCount > 0) {
       embed.addFields({
         name: 'Date Range',
-        value: `${formatDate(data.oldestMemory)} - ${formatDate(data.newestMemory)}`,
+        value: `${formatDateOrNA(data.oldestMemory)} - ${formatDateOrNA(data.newestMemory)}`,
         inline: false,
       });
     }

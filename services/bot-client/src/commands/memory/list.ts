@@ -26,6 +26,7 @@ import {
   type MemoryItem,
   type ListContext,
 } from './detail.js';
+import { formatDateShort, truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
 
 const logger = createLogger('memory-list');
 
@@ -38,42 +39,12 @@ export const LIST_PAGINATION_CONFIG: PaginationConfig = {
 /** Items per page */
 const MEMORIES_PER_PAGE = 10;
 
-/** Collector timeout in milliseconds (5 minutes) */
-const COLLECTOR_TIMEOUT_MS = 5 * 60 * 1000;
-
-/** Maximum content length before truncation */
-const MAX_CONTENT_DISPLAY = 150;
-
 interface ListResponse {
   memories: MemoryItem[];
   total: number;
   limit: number;
   offset: number;
   hasMore: boolean;
-}
-
-/**
- * Format a date string for compact display
- */
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: '2-digit',
-  });
-}
-
-/**
- * Truncate content for display
- */
-function truncateContent(content: string, maxLength: number = MAX_CONTENT_DISPLAY): string {
-  // Remove newlines for compact display
-  const singleLine = content.replace(/\n+/g, ' ').trim();
-  if (singleLine.length <= maxLength) {
-    return singleLine;
-  }
-  return singleLine.substring(0, maxLength - 3) + '...';
 }
 
 interface BuildListEmbedOptions {
@@ -106,7 +77,7 @@ function buildListEmbed(options: BuildListEmbedOptions): EmbedBuilder {
     const lockIcon = memory.isLocked ? ' 🔒' : '';
     const num = page * MEMORIES_PER_PAGE + index + 1;
     const content = truncateContent(escapeMarkdown(memory.content));
-    const date = formatDate(memory.createdAt);
+    const date = formatDateShort(memory.createdAt);
     const personality = escapeMarkdown(memory.personalityName);
 
     lines.push(`**${num}.** ${content}${lockIcon}`);
