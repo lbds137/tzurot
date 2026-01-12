@@ -169,7 +169,10 @@ describe('ConversationalRAGService', () => {
         { pageContent: 'Memory 1', metadata: { id: 'm1' } },
         { pageContent: 'Memory 2', metadata: { id: 'm2' } },
       ];
-      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue(memories);
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
+        memories,
+        focusModeEnabled: false,
+      });
 
       const personality = createMockPersonality();
       const context = createMockContext();
@@ -209,7 +212,10 @@ describe('ConversationalRAGService', () => {
     });
 
     it('should handle empty memory results gracefully', async () => {
-      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue([]);
+      getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({
+        memories: [],
+        focusModeEnabled: false,
+      });
 
       const personality = createMockPersonality();
       const context = createMockContext();

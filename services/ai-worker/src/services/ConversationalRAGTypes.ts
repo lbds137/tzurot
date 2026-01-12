@@ -118,6 +118,8 @@ export interface RAGResponse {
   referencedMessagesDescriptions?: string;
   modelUsed?: string;
   userMessageContent?: string;
+  /** Whether focus mode was active (LTM retrieval was skipped) */
+  focusModeEnabled?: boolean;
 }
 
 /** Result of processing input attachments and messages */

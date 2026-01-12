@@ -6,6 +6,8 @@
  * - /memory stats <personality> - View memory statistics
  * - /memory list [personality] - Browse memories with pagination
  * - /memory search <query> [personality] [limit] - Semantic search of memories
+ * - /memory delete <personality> [timeframe] - Batch delete memories (skips locked)
+ * - /memory purge <personality> - Delete ALL memories for personality (typed confirmation)
  * - /memory focus enable <personality> - Disable LTM retrieval
  * - /memory focus disable <personality> - Re-enable LTM retrieval
  * - /memory focus status <personality> - Check focus mode status
@@ -24,6 +26,8 @@ import { handleStats } from './stats.js';
 import { handleList, LIST_PAGINATION_CONFIG } from './list.js';
 import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
+import { handleBatchDelete } from './batchDelete.js';
+import { handlePurge } from './purge.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
 import {
   MEMORY_DETAIL_PREFIX,
@@ -91,6 +95,43 @@ export const data = new SlashCommandBuilder()
           .setRequired(false)
           .setMinValue(1)
           .setMaxValue(10)
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('delete')
+      .setDescription('Batch delete memories with filters (skips locked)')
+      .addStringOption(option =>
+        option
+          .setName('personality')
+          .setDescription('The personality to delete memories for')
+          .setRequired(true)
+          .setAutocomplete(true)
+      )
+      .addStringOption(option =>
+        option
+          .setName('timeframe')
+          .setDescription('Only delete memories from this time period (e.g., 7d, 30d, 1y)')
+          .setRequired(false)
+          .addChoices(
+            { name: 'Last 24 hours', value: '24h' },
+            { name: 'Last 7 days', value: '7d' },
+            { name: 'Last 30 days', value: '30d' },
+            { name: 'Last year', value: '1y' },
+            { name: 'All time', value: 'all' }
+          )
+      )
+  )
+  .addSubcommand(subcommand =>
+    subcommand
+      .setName('purge')
+      .setDescription('Delete ALL memories for a personality (requires typed confirmation)')
+      .addStringOption(option =>
+        option
+          .setName('personality')
+          .setDescription('The personality to purge all memories for')
+          .setRequired(true)
+          .setAutocomplete(true)
       )
   )
   .addSubcommandGroup(group =>
@@ -162,6 +203,10 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     await handleList(interaction);
   } else if (subcommand === 'search') {
     await handleSearch(interaction);
+  } else if (subcommand === 'delete') {
+    await handleBatchDelete(interaction);
+  } else if (subcommand === 'purge') {
+    await handlePurge(interaction);
   } else {
     logger.warn({ subcommandGroup, subcommand }, '[Memory] Unknown subcommand');
   }

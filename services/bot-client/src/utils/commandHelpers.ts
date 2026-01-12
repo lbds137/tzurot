@@ -109,6 +109,18 @@ export function createWarningEmbed(title: string, description: string): EmbedBui
 }
 
 /**
+ * Create a danger embed for destructive action confirmations
+ * Uses ERROR color (red) to clearly indicate high-risk operations
+ */
+export function createDangerEmbed(title: string, description: string): EmbedBuilder {
+  return new EmbedBuilder()
+    .setTitle(title)
+    .setColor(DISCORD_COLORS.ERROR)
+    .setDescription(description)
+    .setTimestamp();
+}
+
+/**
  * Handler function type for safe wrapper
  */
 export type CommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = (
