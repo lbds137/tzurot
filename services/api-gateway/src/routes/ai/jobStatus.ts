@@ -8,6 +8,7 @@ import type { Queue } from 'bullmq';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { getParam } from '../../utils/requestParams.js';
 
 export function createJobStatusRoute(aiQueue: Queue): Router {
   const router = Router();
@@ -20,7 +21,10 @@ export function createJobStatusRoute(aiQueue: Queue): Router {
   router.get(
     '/job/:jobId',
     asyncHandler(async (req: Request, res: Response) => {
-      const { jobId } = req.params;
+      const jobId = getParam(req.params.jobId);
+      if (jobId === undefined) {
+        return sendError(res, ErrorResponses.validationError('jobId is required'));
+      }
 
       const job = await aiQueue.getJob(jobId);
 

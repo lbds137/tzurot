@@ -8,6 +8,7 @@ import { StatusCodes } from 'http-status-codes';
 import { createLogger, type PrismaClient } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-memory-single');
@@ -112,7 +113,7 @@ export async function handleGetMemory(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const memoryId = req.params.id;
+  const memoryId = getParam(req.params.id);
 
   if (memoryId === undefined || memoryId.length === 0) {
     sendError(res, ErrorResponses.validationError('Memory ID is required'));
@@ -160,7 +161,7 @@ export async function handleUpdateMemory(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const memoryId = req.params.id;
+  const memoryId = getParam(req.params.id);
   const { content } = req.body as { content?: string };
 
   if (memoryId === undefined || memoryId.length === 0) {
@@ -224,7 +225,7 @@ export async function handleToggleLock(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const memoryId = req.params.id;
+  const memoryId = getParam(req.params.id);
 
   if (memoryId === undefined || memoryId.length === 0) {
     sendError(res, ErrorResponses.validationError('Memory ID is required'));
@@ -269,7 +270,7 @@ export async function handleDeleteMemory(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const memoryId = req.params.id;
+  const memoryId = getParam(req.params.id);
 
   if (memoryId === undefined || memoryId.length === 0) {
     sendError(res, ErrorResponses.validationError('Memory ID is required'));

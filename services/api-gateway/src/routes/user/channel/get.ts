@@ -14,6 +14,7 @@ import { requireServiceAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('channel-get');
@@ -24,7 +25,7 @@ const logger = createLogger('channel-get');
  */
 export function createGetHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-    const { channelId } = req.params;
+    const channelId = getParam(req.params.channelId);
 
     // Validate channelId
     if (channelId === undefined || channelId.length === 0) {
