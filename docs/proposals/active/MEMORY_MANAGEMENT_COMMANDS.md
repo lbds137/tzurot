@@ -1,8 +1,8 @@
 # Memory Management Commands Implementation Plan
 
-> **Status**: Phase 1 Complete, Phase 2 In Progress (2B, 2D done; 2A active)
+> **Status**: Phase 1 Complete, Phase 2 In Progress (2A, 2B done; 2C, 2D partial remaining)
 > **Created**: 2025-12-13
-> **Last Updated**: 2026-01-10
+> **Last Updated**: 2026-01-11
 > **Priority**: High (User-requested feature)
 > **Estimated Sessions**: 6-8
 
@@ -418,47 +418,49 @@ No Postgres migration needed - incognito state is ephemeral in Redis:
 
 **Goal**: Users can search, browse, edit, and delete long-term memories
 
-**2A: Memory Browser Dashboard** ← ACTIVE
+**2A: Memory Browser Dashboard** ✅ COMPLETE (PR #462)
 
 _Prerequisite: Shared pagination utility for consistent UX across list commands_
 
-- [ ] Create shared pagination utility (`paginationBuilder.ts`)
-  - [ ] Generic button builder (◀ Previous | Page X of Y | Next ▶ | Sort toggle)
-  - [ ] Configurable custom ID prefixes
-  - [ ] Optional per-item action buttons
-- [ ] Refactor `/character list` and `/channel list` to use shared utility
-- [ ] Add source tracking fields to memory schema (`sourceServerId`, `sourceChannelId`, `isLocked`)
-- [ ] Implement `/memory list` command with pagination
-- [ ] Create `MemoryBrowserSession` type (extends dashboard session pattern)
-- [ ] Build memory card embed component with metadata display
-- [ ] Add [Edit] button → modal for editing memory content
-- [ ] Add [Delete] button → confirmation for single memory deletion
-- [ ] Add [Lock/Unlock] button → toggle core memory protection
-- [ ] Regenerate embeddings on edit (call ai-worker)
-- [ ] Build autocomplete for server/channel name resolution
-- [ ] Enhance `/memory search` with pagination (same shared utility)
+- [x] Create shared pagination utility (`paginationBuilder.ts`)
+  - [x] Generic button builder (◀ Previous | Page X of Y | Next ▶ | Sort toggle)
+  - [x] Configurable custom ID prefixes
+  - [x] Optional per-item action buttons
+- [x] Refactor `/character list` and `/channel list` to use shared utility
+- [x] Add `isLocked` field to memory schema
+- [x] Implement `/memory list` command with pagination
+- [x] Create `ListContext` type for navigation state
+- [x] Build memory card embed component with metadata display (`buildDetailEmbed`)
+- [x] Add [Edit] button → modal for editing memory content
+- [x] Add [Delete] button → confirmation for single memory deletion
+- [x] Add [Lock/Unlock] button → toggle core memory protection
+- [x] Regenerate embeddings on edit (via EmbeddingService)
+- [x] Enhance `/memory search` with pagination (same shared utility)
+- [ ] Build autocomplete for server/channel name resolution (deferred - optional enhancement)
+- [ ] Add source tracking fields (`sourceServerId`, `sourceChannelId`) (deferred - optional enhancement)
 
-**2B: Memory Search** ✅ COMPLETE (beta.42)
+**2B: Memory Search** ✅ COMPLETE (PR #462)
 
 - [x] Implement `/memory search` with semantic search via pgvector
 - [x] Add text search fallback when semantic returns no results
 - [x] Show `searchType` indicator (semantic vs text match)
-- [ ] Search results show numbered list with [View] buttons ← moved to 2A
-- [ ] Clicking [View] opens browser at that memory ← moved to 2A
+- [x] Search results show numbered list with select menu
+- [x] Selecting memory opens detail view with edit/delete/lock actions
 
 **2C: Batch Operations**
 
 - [ ] Implement `/memory delete` for batch deletion with filters
 - [ ] Implement `/memory purge` with typed confirmation modal
 - [ ] Add isLocked check to batch operations (skip locked memories)
-- [x] Implement `/memory stats` for memory statistics ✅ COMPLETE (beta.42)
+- [x] Implement `/memory stats` for memory statistics ✅ COMPLETE (beta.41)
 
-**2D: Memory Read Toggle ("Focus Mode")** ✅ COMPLETE (beta.42)
+**2D: Memory Read Toggle ("Focus Mode")** ⚠️ PARTIAL
 
 - [x] Add `focusModeEnabled` boolean to UserPersonalityConfig
 - [x] Implement `/memory focus` toggle (enable/disable via POST body)
 - [x] Implement `/memory focus` GET - check current state
-- [ ] Add focus mode check to RAG retrieval pipeline
+- [x] Show focus mode status in `/memory stats` output
+- [ ] Add focus mode check to RAG retrieval pipeline (ai-worker)
 - [ ] Visual indicator in responses when focus mode is active
 
 **UX Distinction**:
