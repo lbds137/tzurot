@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2026-01-11
+> Last updated: 2026-01-12
 
 ## Status: Public Beta Live
 
@@ -32,9 +32,7 @@ Fast cleanup before building new features:
 - [x] `/history clear`, `/history undo`, `/history hard-delete`, `/history view`
 - [x] Per-persona epoch tracking
 
-**Phase 2 (LTM) - IN PROGRESS:**
-
-_Completed (PR #462):_
+**Phase 2 (LTM) - COMPLETE** (PR #462, #471):
 
 - [x] `/memory list` - Paginated memory browser with detail view
 - [x] `/memory search` - Semantic search with text fallback, pagination
@@ -42,18 +40,17 @@ _Completed (PR #462):_
 - [x] Memory detail view with edit, delete, lock/unlock actions
 - [x] Shared pagination utility (`paginationBuilder.ts`)
 - [x] Focus Mode toggle (`/memory focus`) - API complete
+- [x] `/memory delete` - Batch deletion with filters (PR #471)
+- [x] `/memory purge` - Bulk deletion with typed confirmation (PR #471)
+- [x] Focus Mode RAG integration (ai-worker skips retrieval when enabled)
+- [x] Focus Mode visual indicator in responses (`🔒 Focus Mode • LTM retrieval disabled`)
 
-_Remaining:_
-
-- [ ] `/memory delete` - Batch deletion with filters
-- [ ] `/memory purge` - Bulk deletion with typed confirmation
-- [ ] Focus Mode RAG integration (ai-worker must skip retrieval when enabled)
-- [ ] Focus Mode visual indicator in responses
-
-**Phase 3 (Incognito) - NOT STARTED:**
+**Phase 3 (Incognito + Recovery) - NOT STARTED:**
 
 - [ ] `/memory incognito enable/disable/status/forget`
-- [ ] Visual indicator in responses when active
+- [ ] Visual indicator in responses when incognito active
+- [ ] `/memory recover` - Recovery UI for soft-deleted memories
+- [ ] User-facing guide for memory management commands
 
 **Note**: Incognito moved under `/memory` for consistency - all LTM controls in one place.
 
@@ -90,14 +87,14 @@ Key areas remaining:
 
 ## Next Up
 
-| #   | Feature                          | Why                                                     |
-| --- | -------------------------------- | ------------------------------------------------------- |
-| 1   | ~~Quick Wins~~ ✅                | Drop BotSettings, rename `/me model` → `/me preset`     |
-| 2   | **Memory Management Phase 2** ⬅️ | LTM commands + Read Toggle ("Focus Mode")               |
-| 3   | **Channel Allowlist/Denylist**   | User-requested - prevents unwanted channel responses    |
-| 4   | **Dashboard + User Prompts**     | Session manager, preset editing, sidecar system prompts |
-| 5   | **DM Personality Chat**          | User-requested - chat with personalities in DMs         |
-| 6   | **v2 Parity** (deprioritized)    | NSFW verification, Shapes import                        |
+| #   | Feature                           | Why                                                     |
+| --- | --------------------------------- | ------------------------------------------------------- |
+| 1   | ~~Quick Wins~~ ✅                 | Drop BotSettings, rename `/me model` → `/me preset`     |
+| 2   | ~~Memory Management Phase 2~~ ✅  | LTM commands + Read Toggle ("Focus Mode")               |
+| 3   | **Channel Allowlist/Denylist** ⬅️ | User-requested - prevents unwanted channel responses    |
+| 4   | **Dashboard + User Prompts**      | Session manager, preset editing, sidecar system prompts |
+| 5   | **DM Personality Chat**           | User-requested - chat with personalities in DMs         |
+| 6   | **v2 Parity** (deprioritized)     | NSFW verification, Shapes import                        |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
@@ -105,7 +102,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **beta.41**: Memory management Phase 2 - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, shared pagination utility, Focus Mode API
+- **beta.41**: Memory management Phase 2 complete - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, `/memory delete` (batch), `/memory purge` (typed confirmation), Focus Mode with visual indicator
 - **beta.40**: Enhanced duplicate detection diagnostics (near-miss logging, similarity metrics, hash tracking), integration test for full duplicate detection data flow, Persona resolver improvements
 - **beta.39**: SafeInteraction wrapper to prevent InteractionAlreadyReplied errors, discord: format personaIds to UUIDs, stale job cleanup fixes
 - **beta.38**: Ordered response delivery (responses appear in message order), hallucinated turn prevention via prioritized stop sequences, finish_reason diagnostic logging
