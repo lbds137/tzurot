@@ -282,12 +282,15 @@ it('should handle mixed UUID and discord: format participants', async () => {
 
 **Target**: No production files >400 lines
 
-| File                       | Current | Target | Approach                                          |
-| -------------------------- | ------- | ------ | ------------------------------------------------- |
-| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic                      |
-| `DiscordChannelFetcher.ts` | ~550    | <400   | Extract message conversion/mapping logic          |
-| `conversationUtils.ts`     | ~530    | <400   | Extract formatting helpers (XML, time gap, etc.)  |
-| `MessageContextBuilder.ts` | ~520    | <400   | Extract attachment processing to separate helpers |
+| File                       | Current | Target | Approach                                               |
+| -------------------------- | ------- | ------ | ------------------------------------------------------ |
+| `PgvectorMemoryAdapter.ts` | 529     | <400   | Extract batch fetching logic                           |
+| `DiscordChannelFetcher.ts` | ~550    | <400   | Extract message conversion/mapping logic               |
+| `conversationUtils.ts`     | ~530    | <400   | Extract formatting helpers (XML, time gap, etc.)       |
+| `MessageContextBuilder.ts` | ~520    | <400   | Extract attachment processing to separate helpers      |
+| `user/history.ts`          | 516     | <400   | Apply handler factory pattern (see PR #469 for model)  |
+| `user/model-override.ts`   | 417     | <400   | Apply handler factory pattern                          |
+| `admin/llm-config.ts`      | 418     | <400   | Already refactored in PR #469, may need further splits |
 
 **Why low priority**: Large files slow AI assistants but don't directly cause bugs.
 
@@ -369,14 +372,16 @@ it('should handle mixed UUID and discord: format participants', async () => {
 
 These items are optimizations for problems we don't have at current scale:
 
-| Item                              | Why Deferred                                                 |
-| --------------------------------- | ------------------------------------------------------------ |
-| Schema versioning for BullMQ jobs | No breaking changes yet, add when needed                     |
-| Contract tests for HTTP API       | Single consumer (bot-client), integration tests catch breaks |
-| Redis pipelining (2 calls → 1)    | Redis is fast enough at current traffic                      |
-| Lua script pre-compilation        | Negligible perf gain                                         |
-| BYOK `lastUsedAt` on actual usage | Nice-to-have, not breaking anything                          |
-| Dependency Cruiser                | ESLint already catches most issues                           |
+| Item                              | Why Deferred                                                                      |
+| --------------------------------- | --------------------------------------------------------------------------------- |
+| Schema versioning for BullMQ jobs | No breaking changes yet, add when needed                                          |
+| Contract tests for HTTP API       | Single consumer (bot-client), integration tests catch breaks                      |
+| Redis pipelining (2 calls → 1)    | Redis is fast enough at current traffic                                           |
+| Lua script pre-compilation        | Negligible perf gain                                                              |
+| BYOK `lastUsedAt` on actual usage | Nice-to-have, not breaking anything                                               |
+| Dependency Cruiser                | ESLint already catches most issues                                                |
+| Validator library expansion       | Add when needed: `validateEmail()`, `validateDiscordSnowflake()`, `validateUrl()` |
+| Handler factory generator         | `pnpm generate:route user/feature` template - add when creating many new routes   |
 
 ---
 
