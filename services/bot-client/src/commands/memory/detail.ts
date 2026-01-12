@@ -11,20 +11,25 @@ import {
   ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
-  ModalBuilder,
-  TextInputBuilder,
-  TextInputStyle,
   MessageFlags,
   escapeMarkdown,
 } from 'discord.js';
-import type {
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
+
+// Re-export API functions for backward compatibility
+export { fetchMemory, updateMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
+import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
+
+// Re-export modal functions for backward compatibility
+export {
+  buildEditModal,
+  handleEditButton,
+  handleEditModalSubmit,
+  MAX_MODAL_CONTENT_LENGTH,
+} from './detailModals.js';
+import { formatDateShort, formatDateTime } from './formatters.js';
 
 const logger = createLogger('memory-detail');
 
@@ -36,13 +41,6 @@ const MAX_SELECT_LABEL_LENGTH = 100;
 
 /** Overhead for select label (number prefix "1. " to "99. " + optional lock icon "🔒 ") */
 const SELECT_LABEL_OVERHEAD = 10;
-
-/**
- * Maximum content length for modal text input.
- * Discord modals support 4000 chars, but we limit to 2000 for consistency
- * with API validation (memorySingle.ts MAX_CONTENT_LENGTH).
- */
-const MAX_MODAL_CONTENT_LENGTH = 2000;
 
 /**
  * Memory item structure from API
@@ -127,20 +125,6 @@ function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LE
 }
 
 /**
- * Format date for display
- */
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-/**
  * Build select menu for choosing a memory from the list
  */
 export function buildMemorySelectMenu(
@@ -163,7 +147,7 @@ export function buildMemorySelectMenu(
       new StringSelectMenuOptionBuilder()
         .setLabel(label)
         .setValue(memory.id)
-        .setDescription(`${memory.personalityName} • ${formatDate(memory.createdAt).split(',')[0]}`)
+        .setDescription(`${memory.personalityName} • ${formatDateShort(memory.createdAt)}`)
     );
   });
 
@@ -182,11 +166,11 @@ export function buildDetailEmbed(memory: MemoryItem): EmbedBuilder {
   embed.addFields(
     { name: 'Personality', value: escapeMarkdown(memory.personalityName), inline: true },
     { name: 'Status', value: memory.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
-    { name: 'Created', value: formatDate(memory.createdAt), inline: true }
+    { name: 'Created', value: formatDateTime(memory.createdAt), inline: true }
   );
 
   if (memory.updatedAt !== memory.createdAt) {
-    embed.addFields({ name: 'Updated', value: formatDate(memory.updatedAt), inline: true });
+    embed.addFields({ name: 'Updated', value: formatDateTime(memory.updatedAt), inline: true });
   }
 
   embed.setFooter({ text: `Memory ID: ${memory.id.substring(0, 8)}...` });
@@ -238,110 +222,6 @@ export function buildDeleteConfirmButtons(memoryId: string): ActionRowBuilder<Bu
 }
 
 /**
- * Build the edit modal for memory content
- */
-export function buildEditModal(memory: MemoryItem): ModalBuilder {
-  const modal = new ModalBuilder()
-    .setCustomId(buildMemoryActionId('edit', memory.id, 'modal'))
-    .setTitle('Edit Memory');
-
-  const contentInput = new TextInputBuilder()
-    .setCustomId('content')
-    .setLabel('Memory Content')
-    .setStyle(TextInputStyle.Paragraph)
-    .setValue(memory.content)
-    .setMaxLength(MAX_MODAL_CONTENT_LENGTH)
-    .setRequired(true);
-
-  modal.addComponents(new ActionRowBuilder<TextInputBuilder>().addComponents(contentInput));
-
-  return modal;
-}
-
-/**
- * API response for single memory
- */
-interface SingleMemoryResponse {
-  memory: MemoryItem;
-}
-
-/**
- * Fetch a single memory by ID
- */
-export async function fetchMemory(userId: string, memoryId: string): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}`, {
-    userId,
-    method: 'GET',
-  });
-
-  if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to fetch memory');
-    return null;
-  }
-
-  return result.data.memory;
-}
-
-/**
- * Update memory content
- */
-export async function updateMemory(
-  userId: string,
-  memoryId: string,
-  content: string
-): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}`, {
-    userId,
-    method: 'PATCH',
-    body: { content },
-  });
-
-  if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to update memory');
-    return null;
-  }
-
-  return result.data.memory;
-}
-
-/**
- * Toggle memory lock status
- */
-export async function toggleMemoryLock(
-  userId: string,
-  memoryId: string
-): Promise<MemoryItem | null> {
-  const result = await callGatewayApi<SingleMemoryResponse>(`/user/memory/${memoryId}/lock`, {
-    userId,
-    method: 'POST',
-  });
-
-  if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to toggle lock');
-    return null;
-  }
-
-  return result.data.memory;
-}
-
-/**
- * Delete a memory
- */
-export async function deleteMemory(userId: string, memoryId: string): Promise<boolean> {
-  const result = await callGatewayApi<{ success: boolean }>(`/user/memory/${memoryId}`, {
-    userId,
-    method: 'DELETE',
-  });
-
-  if (!result.ok) {
-    logger.warn({ userId, memoryId, error: result.error }, '[Memory] Failed to delete memory');
-    return false;
-  }
-
-  return result.data.success;
-}
-
-/**
  * Handle memory select menu interaction
  *
  * Note: _context is passed by the collector but not used here because the "back" navigation
@@ -373,60 +253,6 @@ export async function handleMemorySelect(
     embeds: [embed],
     components: [buttons],
   });
-}
-
-/**
- * Handle edit button click - show modal
- */
-export async function handleEditButton(
-  interaction: ButtonInteraction,
-  memoryId: string
-): Promise<void> {
-  const userId = interaction.user.id;
-
-  const memory = await fetchMemory(userId, memoryId);
-  if (memory === null) {
-    await interaction.reply({
-      content: '❌ Failed to load memory. It may have been deleted.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const modal = buildEditModal(memory);
-  await interaction.showModal(modal);
-}
-
-/**
- * Handle edit modal submission
- */
-export async function handleEditModalSubmit(
-  interaction: ModalSubmitInteraction,
-  memoryId: string
-): Promise<void> {
-  const userId = interaction.user.id;
-  const newContent = interaction.fields.getTextInputValue('content');
-
-  await interaction.deferUpdate();
-
-  const updatedMemory = await updateMemory(userId, memoryId, newContent);
-  if (updatedMemory === null) {
-    await interaction.followUp({
-      content: '❌ Failed to update memory. Please try again.',
-      flags: MessageFlags.Ephemeral,
-    });
-    return;
-  }
-
-  const embed = buildDetailEmbed(updatedMemory);
-  const buttons = buildDetailButtons(updatedMemory);
-
-  await interaction.editReply({
-    embeds: [embed],
-    components: [buttons],
-  });
-
-  logger.info({ userId, memoryId }, '[Memory] Memory updated');
 }
 
 /**

@@ -25,6 +25,12 @@ import {
   type MemoryItem,
   type ListContext,
 } from './detail.js';
+import {
+  formatDateShort,
+  formatSimilarity,
+  truncateContent,
+  COLLECTOR_TIMEOUT_MS,
+} from './formatters.js';
 
 const logger = createLogger('memory-search');
 
@@ -36,9 +42,6 @@ export const SEARCH_PAGINATION_CONFIG: PaginationConfig = {
 
 /** Items per page */
 const RESULTS_PER_PAGE = 5;
-
-/** Collector timeout in milliseconds (5 minutes) */
-const COLLECTOR_TIMEOUT_MS = 5 * 60 * 1000;
 
 interface SearchResult extends MemoryItem {
   similarity: number | null; // null for text search results
@@ -60,42 +63,6 @@ interface BuildSearchEmbedOptions {
   hasMore: boolean;
   searchType?: 'semantic' | 'text';
   personalityFilter?: string;
-}
-
-/** Maximum content length before truncation */
-const MAX_CONTENT_DISPLAY = 200;
-
-/**
- * Format a date string for compact display
- */
-function formatDate(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: '2-digit',
-  });
-}
-
-/**
- * Truncate content for display
- */
-function truncateContent(content: string, maxLength: number = MAX_CONTENT_DISPLAY): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-  return content.substring(0, maxLength - 3) + '...';
-}
-
-/**
- * Format similarity score for display (or 'text match' for fallback)
- */
-function formatSimilarity(similarity: number | null): string {
-  if (similarity === null) {
-    return 'text match';
-  }
-  const percentage = Math.round(similarity * 100);
-  return `${percentage}%`;
 }
 
 /**
@@ -122,7 +89,7 @@ function buildSearchEmbed(options: BuildSearchEmbedOptions): EmbedBuilder {
     const lockIcon = memory.isLocked ? ' 🔒' : '';
     const similarity = formatSimilarity(memory.similarity);
     const content = truncateContent(escapeMarkdown(memory.content));
-    const date = formatDate(memory.createdAt);
+    const date = formatDateShort(memory.createdAt);
     const personality = escapeMarkdown(memory.personalityName);
 
     lines.push(`**${num}.** ${content}${lockIcon}`);

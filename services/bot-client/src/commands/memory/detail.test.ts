@@ -10,14 +10,7 @@ import {
   buildDetailEmbed,
   buildDetailButtons,
   buildDeleteConfirmButtons,
-  buildEditModal,
-  fetchMemory,
-  updateMemory,
-  toggleMemoryLock,
-  deleteMemory,
   handleMemorySelect,
-  handleEditButton,
-  handleEditModalSubmit,
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
@@ -25,11 +18,7 @@ import {
   type MemoryItem,
   type ListContext,
 } from './detail.js';
-import type {
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -232,133 +221,6 @@ describe('Memory Detail', () => {
     });
   });
 
-  describe('buildEditModal', () => {
-    it('should build edit modal with memory content', () => {
-      const memory = createMockMemory({ content: 'Original content' });
-      const modal = buildEditModal(memory);
-
-      expect(modal.data.title).toBe('Edit Memory');
-      expect(modal.data.custom_id).toContain('edit');
-      expect(modal.data.custom_id).toContain(memory.id);
-    });
-  });
-
-  describe('fetchMemory', () => {
-    it('should fetch memory successfully', async () => {
-      const memory = createMockMemory();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
-
-      const result = await fetchMemory('user-123', 'memory-123');
-
-      expect(result).toEqual(memory);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        userId: 'user-123',
-        method: 'GET',
-      });
-    });
-
-    it('should return null on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
-
-      const result = await fetchMemory('user-123', 'memory-123');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('updateMemory', () => {
-    it('should update memory successfully', async () => {
-      const memory = createMockMemory({ content: 'Updated content' });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
-
-      const result = await updateMemory('user-123', 'memory-123', 'Updated content');
-
-      expect(result).toEqual(memory);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        userId: 'user-123',
-        method: 'PATCH',
-        body: { content: 'Updated content' },
-      });
-    });
-
-    it('should return null on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Update failed',
-      });
-
-      const result = await updateMemory('user-123', 'memory-123', 'New content');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('toggleMemoryLock', () => {
-    it('should toggle lock successfully', async () => {
-      const memory = createMockMemory({ isLocked: true });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
-
-      const result = await toggleMemoryLock('user-123', 'memory-123');
-
-      expect(result).toEqual(memory);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123/lock', {
-        userId: 'user-123',
-        method: 'POST',
-      });
-    });
-
-    it('should return null on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Lock failed',
-      });
-
-      const result = await toggleMemoryLock('user-123', 'memory-123');
-
-      expect(result).toBeNull();
-    });
-  });
-
-  describe('deleteMemory', () => {
-    it('should delete memory successfully', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { success: true },
-      });
-
-      const result = await deleteMemory('user-123', 'memory-123');
-
-      expect(result).toBe(true);
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/memory-123', {
-        userId: 'user-123',
-        method: 'DELETE',
-      });
-    });
-
-    it('should return false on API error', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Delete failed',
-      });
-
-      const result = await deleteMemory('user-123', 'memory-123');
-
-      expect(result).toBe(false);
-    });
-  });
-
   describe('handleMemorySelect', () => {
     it('should show detail view on select', async () => {
       const memory = createMockMemory();
@@ -411,108 +273,6 @@ describe('Memory Detail', () => {
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Failed to load'),
-        })
-      );
-    });
-  });
-
-  describe('handleEditButton', () => {
-    it('should show modal on edit click', async () => {
-      const memory = createMockMemory();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
-
-      const mockShowModal = vi.fn();
-      const mockReply = vi.fn();
-
-      const interaction = {
-        user: { id: 'user-123' },
-        showModal: mockShowModal,
-        reply: mockReply,
-      } as unknown as ButtonInteraction;
-
-      await handleEditButton(interaction, 'memory-123');
-
-      expect(mockShowModal).toHaveBeenCalled();
-    });
-
-    it('should show error if memory not found', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Not found',
-      });
-
-      const mockShowModal = vi.fn();
-      const mockReply = vi.fn();
-
-      const interaction = {
-        user: { id: 'user-123' },
-        showModal: mockShowModal,
-        reply: mockReply,
-      } as unknown as ButtonInteraction;
-
-      await handleEditButton(interaction, 'memory-123');
-
-      expect(mockShowModal).not.toHaveBeenCalled();
-      expect(mockReply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Failed to load'),
-        })
-      );
-    });
-  });
-
-  describe('handleEditModalSubmit', () => {
-    it('should update memory and show detail view', async () => {
-      const memory = createMockMemory({ content: 'Updated content' });
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { memory },
-      });
-
-      const mockDeferUpdate = vi.fn();
-      const mockFollowUp = vi.fn();
-      const mockEditReply = vi.fn();
-      const mockGetTextInputValue = vi.fn().mockReturnValue('Updated content');
-
-      const interaction = {
-        user: { id: 'user-123' },
-        fields: { getTextInputValue: mockGetTextInputValue },
-        deferUpdate: mockDeferUpdate,
-        followUp: mockFollowUp,
-        editReply: mockEditReply,
-      } as unknown as ModalSubmitInteraction;
-
-      await handleEditModalSubmit(interaction, 'memory-123');
-
-      expect(mockDeferUpdate).toHaveBeenCalled();
-      expect(mockEditReply).toHaveBeenCalled();
-    });
-
-    it('should show error on update failure', async () => {
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Update failed',
-      });
-
-      const mockDeferUpdate = vi.fn();
-      const mockFollowUp = vi.fn();
-      const mockGetTextInputValue = vi.fn().mockReturnValue('Updated content');
-
-      const interaction = {
-        user: { id: 'user-123' },
-        fields: { getTextInputValue: mockGetTextInputValue },
-        deferUpdate: mockDeferUpdate,
-        followUp: mockFollowUp,
-      } as unknown as ModalSubmitInteraction;
-
-      await handleEditModalSubmit(interaction, 'memory-123');
-
-      expect(mockFollowUp).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Failed to update'),
         })
       );
     });

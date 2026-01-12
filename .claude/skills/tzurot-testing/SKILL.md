@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Use when writing tests, debugging test failures, mocking dependencies, or using fake timers. Covers Vitest patterns, mock factories, and promise rejection handling.
-lastUpdated: '2026-01-02'
+lastUpdated: '2026-01-11'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -347,6 +347,18 @@ pnpm test:coverage
 # Specific service
 pnpm --filter @tzurot/api-gateway test:coverage
 ```
+
+### Reading Coverage Data (json-summary)
+
+Coverage runs generate `coverage/coverage-summary.json` with structured data:
+
+```bash
+# Read total or file-specific coverage (no grep chains!)
+cat services/bot-client/coverage/coverage-summary.json | \
+  python3 -c "import json,sys; d=json.load(sys.stdin); print(d['total']['lines']['pct'])"
+```
+
+Structure: `{"total": {"lines": {"pct": 84.78}}, "/path/file.ts": {"lines": {...}}}`
 
 | Target   | Threshold | Enforcement                                              |
 | -------- | --------- | -------------------------------------------------------- |
