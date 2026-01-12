@@ -100,6 +100,7 @@ export class MessageHandler {
    * Handle async job result when it arrives from ResultsListener
    * This is called from index.ts result handler
    */
+  // eslint-disable-next-line max-lines-per-function -- Result handler with multiple error paths and response forwarding
   async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<void> {
     // Get pending job context from JobTracker
     const jobContext = this.jobTracker.getContext(jobId);
@@ -218,6 +219,7 @@ export class MessageHandler {
         modelUsed: result.metadata?.modelUsed,
         isGuestMode: result.metadata?.isGuestMode,
         isAutoResponse,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
       });
 
       // Save assistant message to conversation history
