@@ -20,19 +20,19 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.8",
-    "@langchain/openai": "^1.2.0",
+    "@langchain/core": "^1.1.12",
+    "@langchain/openai": "^1.2.1",
     "@tzurot/common-types": "workspace:*",
-    "bullmq": "^5.66.4",
-    "ioredis": "^5.9.0",
-    "langchain": "^1.2.3",
-    "openai": "^6.15.0",
-    "pino": "^10.1.0",
+    "bullmq": "^5.66.5",
+    "ioredis": "^5.9.1",
+    "langchain": "^1.2.7",
+    "openai": "^6.16.0",
+    "pino": "^10.1.1",
     "redis": "^5.10.0",
     "sharp": "^0.34.5",
     "zod": "^4.3.5"
   },
   "devDependencies": {
-    "@types/node": "^25.0.3"
+    "@types/node": "^25.0.6"
   }
 }
