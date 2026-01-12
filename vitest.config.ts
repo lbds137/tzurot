@@ -23,7 +23,8 @@ export default defineConfig({
     ],
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'json', 'html', 'lcov'],
+      // json-summary provides machine-readable coverage data for tooling
+      reporter: ['text', 'json', 'json-summary', 'html', 'lcov'],
       all: true,
       include: ['src/**/*.ts'],
       exclude: [
