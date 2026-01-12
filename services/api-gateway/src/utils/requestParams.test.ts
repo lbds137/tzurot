@@ -19,6 +19,10 @@ describe('requestParams', () => {
       expect(getParam(['first', 'second'])).toBe('first');
     });
 
+    it('should return single element from single-element array', () => {
+      expect(getParam(['only-one'])).toBe('only-one');
+    });
+
     it('should return undefined for empty array', () => {
       expect(getParam([])).toBeUndefined();
     });

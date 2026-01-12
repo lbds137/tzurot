@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-07
+> Last updated: 2026-01-12
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -122,6 +122,40 @@ fi
 - [ ] `extractEmbedContent(embeds)` - embed image/content extraction
 
 **Why low priority**: Function is well-tested with snapshot tests. Complexity is "inherent" due to IR pattern (single entry point orchestrating multiple paths). Refactoring is for readability, not bug prevention.
+
+---
+
+### Shared Authorization Helpers Extraction
+
+**Problem**: The `checkUserAccess` helper appears in multiple personality route files with similar logic.
+
+**Locations**:
+
+- `services/api-gateway/src/routes/user/personality/get.ts:94-120`
+- Similar patterns in `update.ts`, `persona/crud.ts`
+
+**Current code pattern**:
+
+```typescript
+async function checkUserAccess(
+  prisma: PrismaClient,
+  userId: string,
+  personalityId: string,
+  discordUserId: string
+): Promise<boolean> {
+  if (isBotOwner(discordUserId)) return true;
+  // ... additional checks
+}
+```
+
+**Solution**: Extract common authorization helpers to `services/api-gateway/src/utils/authHelpers.ts`:
+
+- [ ] `checkUserAccess()` - common pattern for personality/persona access checks
+- [ ] `requireOwnership()` - throws if user doesn't own resource
+
+**Why low priority**: Each implementation is <30 lines, well-tested via route tests. Duplication is manageable. Extract when adding more routes that need similar patterns.
+
+**Source**: PR #469 code review (2026-01-12)
 
 ---
 
