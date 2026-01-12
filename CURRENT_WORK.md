@@ -49,10 +49,10 @@ Fast cleanup before building new features:
 
 - [ ] `/memory incognito enable/disable/status/forget`
 - [ ] Visual indicator in responses when incognito active
-- [ ] `/memory recover` - Recovery UI for soft-deleted memories
+- [ ] `/memory undo` - restore soft-deleted memories (naming mirrors `/history undo`)
 - [ ] User-facing guide for memory management commands
 
-**Note**: Incognito moved under `/memory` for consistency - all LTM controls in one place.
+**Note**: Incognito and recovery moved under `/memory` for consistency. Naming should mirror STM commands (`/history undo` → `/memory undo`) for user familiarity.
 
 ---
 
