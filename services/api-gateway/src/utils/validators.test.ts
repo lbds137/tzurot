@@ -46,6 +46,14 @@ describe('validators', () => {
       expect(result.valid).toBe(false);
     });
 
+    it('should reject undefined', () => {
+      const result = validateUuid(undefined);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('is required');
+      }
+    });
+
     it('should reject random string', () => {
       const result = validateUuid('not-a-uuid-at-all');
       expect(result.valid).toBe(false);
@@ -84,6 +92,14 @@ describe('validators', () => {
     it('should accept slug at max length (64 chars)', () => {
       const result = validateSlug('a'.repeat(64));
       expect(result.valid).toBe(true);
+    });
+
+    it('should reject undefined slug', () => {
+      const result = validateSlug(undefined);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.error.message).toContain('is required');
+      }
     });
 
     it('should reject empty slug', () => {

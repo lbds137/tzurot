@@ -25,6 +25,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-model-override');
@@ -367,7 +368,7 @@ export function createModelOverrideRoutes(
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const personalityId = req.params.personalityId;
+      const personalityId = getParam(req.params.personalityId);
 
       // Get user ID
       const user = await prisma.user.findFirst({

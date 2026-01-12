@@ -12,8 +12,100 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { validateSlug, validateCustomFields } from '../../utils/validators.js';
+import { getParam } from '../../utils/requestParams.js';
 
 const logger = createLogger('admin-update-personality');
+
+interface UpdatePersonalityBody {
+  name?: string;
+  characterInfo?: string;
+  personalityTraits?: string;
+  displayName?: string | null;
+  personalityTone?: string | null;
+  personalityAge?: string | null;
+  personalityAppearance?: string | null;
+  personalityLikes?: string | null;
+  personalityDislikes?: string | null;
+  conversationalGoals?: string | null;
+  conversationalExamples?: string | null;
+  customFields?: Record<string, unknown> | null;
+  avatarData?: string;
+}
+
+// --- Helper Functions ---
+
+async function processAvatarIfProvided(
+  avatarData: string | undefined,
+  slug: string
+): Promise<
+  { buffer: Buffer } | { error: ReturnType<typeof ErrorResponses.processingError> } | null
+> {
+  if (avatarData === undefined || avatarData.length === 0) {
+    return null;
+  }
+
+  try {
+    logger.info(`[Admin] Processing avatar update for personality: ${slug}`);
+    const result = await optimizeAvatar(avatarData);
+
+    logger.info(
+      `[Admin] Avatar optimized: ${result.originalSizeKB} KB → ${result.processedSizeKB} KB (quality: ${result.quality})`
+    );
+
+    if (result.exceedsTarget) {
+      logger.warn(
+        {},
+        `[Admin] Avatar still exceeds ${AVATAR_LIMITS.TARGET_SIZE_KB}KB after optimization: ${result.processedSizeKB} KB`
+      );
+    }
+
+    return { buffer: result.buffer };
+  } catch (error) {
+    logger.error({ err: error }, '[Admin] Failed to process avatar');
+    return {
+      error: ErrorResponses.processingError(
+        'Failed to process avatar image. Ensure it is a valid image file.'
+      ),
+    };
+  }
+}
+
+function buildUpdateData(
+  body: UpdatePersonalityBody,
+  processedAvatarData?: Buffer
+): Record<string, unknown> {
+  const updateData: Record<string, unknown> = {};
+  const fields: (keyof Omit<UpdatePersonalityBody, 'avatarData' | 'customFields'>)[] = [
+    'name',
+    'characterInfo',
+    'personalityTraits',
+    'displayName',
+    'personalityTone',
+    'personalityAge',
+    'personalityAppearance',
+    'personalityLikes',
+    'personalityDislikes',
+    'conversationalGoals',
+    'conversationalExamples',
+  ];
+
+  for (const field of fields) {
+    if (body[field] !== undefined) {
+      updateData[field] = body[field];
+    }
+  }
+
+  if (body.customFields !== undefined) {
+    updateData.customFields = body.customFields as Prisma.InputJsonValue;
+  }
+  if (processedAvatarData !== undefined) {
+    updateData.avatarData = new Uint8Array(processedAvatarData);
+  }
+
+  return updateData;
+}
+
+// --- Route Handler ---
 
 export function createUpdatePersonalityRoute(prisma: PrismaClient): Router {
   const router = Router();
@@ -22,36 +114,12 @@ export function createUpdatePersonalityRoute(prisma: PrismaClient): Router {
     '/:slug',
     requireOwnerAuth(),
     asyncHandler(async (req: Request, res: Response) => {
-      const { slug } = req.params;
-      const {
-        name,
-        characterInfo,
-        personalityTraits,
-        displayName,
-        personalityTone,
-        personalityAge,
-        personalityAppearance,
-        personalityLikes,
-        personalityDislikes,
-        conversationalGoals,
-        conversationalExamples,
-        customFields,
-        avatarData,
-      } = req.body as {
-        name?: string;
-        characterInfo?: string;
-        personalityTraits?: string;
-        displayName?: string | null;
-        personalityTone?: string | null;
-        personalityAge?: string | null;
-        personalityAppearance?: string | null;
-        personalityLikes?: string | null;
-        personalityDislikes?: string | null;
-        conversationalGoals?: string | null;
-        conversationalExamples?: string | null;
-        customFields?: Record<string, unknown> | null;
-        avatarData?: string;
-      };
+      const slug = getParam(req.params.slug);
+      if (slug === undefined) {
+        return sendError(res, ErrorResponses.validationError('slug is required'));
+      }
+
+      const body = req.body as UpdatePersonalityBody;
 
       // Validate slug format
       const slugValidation = validateSlug(slug);
@@ -60,94 +128,25 @@ export function createUpdatePersonalityRoute(prisma: PrismaClient): Router {
       }
 
       // Check if personality exists
-      const existing = await prisma.personality.findUnique({
-        where: { slug },
-      });
-
+      const existing = await prisma.personality.findUnique({ where: { slug } });
       if (existing === null) {
         return sendError(res, ErrorResponses.notFound(`Personality with slug '${slug}'`));
       }
 
       // Validate customFields if provided
-      const customFieldsValidation = validateCustomFields(customFields);
+      const customFieldsValidation = validateCustomFields(body.customFields);
       if (!customFieldsValidation.valid) {
         return sendError(res, customFieldsValidation.error);
       }
 
       // Process avatar if provided
-      let processedAvatarData: Buffer | undefined;
-      if (avatarData !== undefined && avatarData.length > 0) {
-        try {
-          logger.info(`[Admin] Processing avatar update for personality: ${slug}`);
-
-          const result = await optimizeAvatar(avatarData);
-
-          logger.info(
-            `[Admin] Avatar optimized: ${result.originalSizeKB} KB → ${result.processedSizeKB} KB (quality: ${result.quality})`
-          );
-
-          if (result.exceedsTarget) {
-            logger.warn(
-              {},
-              `[Admin] Avatar still exceeds ${AVATAR_LIMITS.TARGET_SIZE_KB}KB after optimization: ${result.processedSizeKB} KB`
-            );
-          }
-
-          processedAvatarData = result.buffer;
-        } catch (error) {
-          logger.error({ err: error }, '[Admin] Failed to process avatar');
-          return sendError(
-            res,
-            ErrorResponses.processingError(
-              'Failed to process avatar image. Ensure it is a valid image file.'
-            )
-          );
-        }
+      const avatarResult = await processAvatarIfProvided(body.avatarData, slug);
+      if (avatarResult !== null && 'error' in avatarResult) {
+        return sendError(res, avatarResult.error);
       }
 
-      // Build update data object with only provided fields
-      const updateData: Record<string, unknown> = {};
-      if (name !== undefined) {
-        updateData.name = name;
-      }
-      if (characterInfo !== undefined) {
-        updateData.characterInfo = characterInfo;
-      }
-      if (personalityTraits !== undefined) {
-        updateData.personalityTraits = personalityTraits;
-      }
-      if (displayName !== undefined) {
-        updateData.displayName = displayName;
-      }
-      if (personalityTone !== undefined) {
-        updateData.personalityTone = personalityTone;
-      }
-      if (personalityAge !== undefined) {
-        updateData.personalityAge = personalityAge;
-      }
-      if (personalityAppearance !== undefined) {
-        updateData.personalityAppearance = personalityAppearance;
-      }
-      if (personalityLikes !== undefined) {
-        updateData.personalityLikes = personalityLikes;
-      }
-      if (personalityDislikes !== undefined) {
-        updateData.personalityDislikes = personalityDislikes;
-      }
-      if (conversationalGoals !== undefined) {
-        updateData.conversationalGoals = conversationalGoals;
-      }
-      if (conversationalExamples !== undefined) {
-        updateData.conversationalExamples = conversationalExamples;
-      }
-      if (customFields !== undefined) {
-        updateData.customFields = customFields as Prisma.InputJsonValue;
-      }
-      if (processedAvatarData !== undefined) {
-        updateData.avatarData = new Uint8Array(processedAvatarData);
-      }
-
-      // Update personality in database
+      // Build and execute update
+      const updateData = buildUpdateData(body, avatarResult?.buffer);
       const personality = await prisma.personality.update({
         where: { slug },
         data: updateData,

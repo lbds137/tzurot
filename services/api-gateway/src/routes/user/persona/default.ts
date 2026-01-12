@@ -10,6 +10,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
+import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
@@ -25,7 +26,7 @@ export function addDefaultRoutes(router: Router, prisma: PrismaClient): void {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const { id } = req.params;
+      const id = getParam(req.params.id);
 
       const idValidation = validateUuid(id, 'persona ID');
       if (!idValidation.valid) {
