@@ -97,7 +97,7 @@ await prisma.userPersonalityConfig.upsert({
 
 **When hitting limits**: Extract helpers, use options objects, split files.
 
-**📚 See**: `tzurot-code-quality` skill for refactoring patterns
+**📚 See**: `tzurot-code-quality` skill for refactoring patterns, `docs/reference/standards/HANDLER_FACTORY_PATTERN.md` for route handler structure
 
 ### Type Safety (TypeScript Strict Mode)
 

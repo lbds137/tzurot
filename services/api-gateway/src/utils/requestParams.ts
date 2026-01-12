@@ -24,14 +24,18 @@ export class ParameterError extends Error {
  * Express params can be string | string[] | undefined.
  * This returns the first value if array, or the string itself.
  *
+ * Note: Empty arrays return undefined (semantically "parameter not provided").
+ * Use getRequiredParam() if the parameter must be present.
+ *
  * @param param - The route param value (string | string[] | undefined)
- * @returns The string value, or undefined if not present
+ * @returns The string value, or undefined if not present or empty array
  */
 export function getParam(param: string | string[] | undefined): string | undefined {
   if (param === undefined) {
     return undefined;
   }
   if (Array.isArray(param)) {
+    // Empty arrays treated as "not provided" - caught by getRequiredParam if mandatory
     return param[0];
   }
   return param;
