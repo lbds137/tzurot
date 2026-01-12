@@ -1,10 +1,10 @@
 # Current Work
 
-> Last updated: 2026-01-08
+> Last updated: 2026-01-11
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.40
+**Version**: v3.0.0-beta.41
 **Deployment**: Railway (stable)
 **Current Goal**: User-Requested Features (v2 parity deprioritized)
 
@@ -32,17 +32,23 @@ Fast cleanup before building new features:
 - [x] `/history clear`, `/history undo`, `/history hard-delete`, `/history view`
 - [x] Per-persona epoch tracking
 
-**Phase 2 (LTM) - NOT STARTED:**
+**Phase 2 (LTM) - IN PROGRESS:**
 
-- [ ] `/memory search` - Semantic search with filtering
-- [ ] `/memory browse` - Paginated memory deck UI
-- [ ] `/memory edit` - Edit memory content (regenerate embedding)
-- [ ] `/memory delete` - Single memory deletion
+_Completed (PR #462):_
+
+- [x] `/memory list` - Paginated memory browser with detail view
+- [x] `/memory search` - Semantic search with text fallback, pagination
+- [x] `/memory stats` - View memory statistics per personality
+- [x] Memory detail view with edit, delete, lock/unlock actions
+- [x] Shared pagination utility (`paginationBuilder.ts`)
+- [x] Focus Mode toggle (`/memory focus`) - API complete
+
+_Remaining:_
+
+- [ ] `/memory delete` - Batch deletion with filters
 - [ ] `/memory purge` - Bulk deletion with typed confirmation
-- [ ] `/memory lock/unlock` - Core memory protection
-- [ ] **Memory Read Toggle** ("Focus Mode") - disable LTM retrieval per-user/personality
-  - Different from Incognito (write) - this controls read
-  - UX: 🛑 "Stop Recording" (Incognito) vs 🔒 "Focus Mode" (Read Toggle)
+- [ ] Focus Mode RAG integration (ai-worker must skip retrieval when enabled)
+- [ ] Focus Mode visual indicator in responses
 
 **Phase 3 (Incognito) - NOT STARTED:**
 
@@ -99,6 +105,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.41**: Memory management Phase 2 - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, shared pagination utility, Focus Mode API
 - **beta.40**: Enhanced duplicate detection diagnostics (near-miss logging, similarity metrics, hash tracking), integration test for full duplicate detection data flow, Persona resolver improvements
 - **beta.39**: SafeInteraction wrapper to prevent InteractionAlreadyReplied errors, discord: format personaIds to UUIDs, stale job cleanup fixes
 - **beta.38**: Ordered response delivery (responses appear in message order), hallucinated turn prevention via prioritized stop sequences, finish_reason diagnostic logging
