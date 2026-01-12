@@ -201,6 +201,21 @@ describe('persona CRUD routes', () => {
         })
       );
     });
+
+    it('should return 400 for invalid UUID format', async () => {
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/:id');
+
+      const { req, res } = createMockReqRes({}, { id: 'invalid-uuid-format' });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+        })
+      );
+    });
   });
 
   describe('POST /user/persona', () => {
@@ -274,6 +289,38 @@ describe('persona CRUD routes', () => {
         })
       );
     });
+
+    it('should set first persona as default', async () => {
+      // User has no default persona
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: MOCK_USER_ID,
+        defaultPersonaId: null,
+      });
+      mockPrisma.persona.create.mockResolvedValue({
+        ...mockPersona,
+        id: 'new-persona-id',
+      });
+      mockPrisma.user.update.mockResolvedValue({});
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+
+      const { req, res } = createMockReqRes({
+        name: 'First Persona',
+        content: 'My first persona',
+      });
+      await handler(req, res);
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: MOCK_USER_ID },
+        data: { defaultPersonaId: 'new-persona-id' },
+      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          setAsDefault: true,
+        })
+      );
+    });
   });
 
   describe('PUT /user/persona/:id', () => {
@@ -319,6 +366,88 @@ describe('persona CRUD routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should return 400 for invalid UUID format', async () => {
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+
+      const { req, res } = createMockReqRes({ name: 'Updated' }, { id: 'invalid-uuid' });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+        })
+      );
+    });
+
+    it('should reject empty content update', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+
+      const { req, res } = createMockReqRes({ content: '' }, { id: MOCK_PERSONA_ID });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Content cannot be empty'),
+        })
+      );
+    });
+
+    it('should reject content update exceeding max length', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+
+      const { req, res } = createMockReqRes({ content: 'x'.repeat(5000) }, { id: MOCK_PERSONA_ID });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('4000'),
+        })
+      );
+    });
+
+    it('should update optional fields', async () => {
+      mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+      mockPrisma.persona.update.mockResolvedValue({
+        ...mockPersona,
+        preferredName: 'New Preferred',
+        description: 'New description',
+        pronouns: 'they/them',
+      });
+
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:id');
+
+      const { req, res } = createMockReqRes(
+        {
+          preferredName: 'New Preferred',
+          description: 'New description',
+          pronouns: 'they/them',
+        },
+        { id: MOCK_PERSONA_ID }
+      );
+      await handler(req, res);
+
+      expect(mockPrisma.persona.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            preferredName: 'New Preferred',
+            description: 'New description',
+            pronouns: 'they/them',
+          }),
+        })
+      );
     });
   });
 
@@ -366,6 +495,21 @@ describe('persona CRUD routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return 400 for invalid UUID format', async () => {
+      const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:id');
+
+      const { req, res } = createMockReqRes({}, { id: 'not-a-valid-uuid' });
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+        })
+      );
     });
   });
 });
