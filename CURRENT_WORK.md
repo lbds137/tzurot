@@ -45,14 +45,39 @@ Fast cleanup before building new features:
 - [x] Focus Mode RAG integration (ai-worker skips retrieval when enabled)
 - [x] Focus Mode visual indicator in responses (`🔒 Focus Mode • LTM retrieval disabled`)
 
-**Phase 3 (Incognito + Recovery) - NOT STARTED:**
+**Phase 3 (Incognito + Recovery + UX Polish) - NOT STARTED:**
+
+Core Features:
 
 - [ ] `/memory incognito enable/disable/status/forget`
 - [ ] Visual indicator in responses when incognito active
-- [ ] `/memory undo` - restore soft-deleted memories (naming mirrors `/history undo`)
+- [ ] `/memory restore` - restore soft-deleted memories
+- [ ] `/memory add` - manually add a memory for a personality
 - [ ] User-facing guide for memory management commands
 
-**Note**: Incognito and recovery moved under `/memory` for consistency. Naming should mirror STM commands (`/history undo` → `/memory undo`) for user familiarity.
+UX Naming Review (MCP Council Recommendations):
+
+| Current                | Proposed          | Rationale                                                                           |
+| ---------------------- | ----------------- | ----------------------------------------------------------------------------------- |
+| `/memory undo`         | `/memory restore` | "Restore" implies archive recovery; "undo" implies immediate reversal (Ctrl+Z)      |
+| `/memory focus`        | `/memory pause`   | "Focus" is ambiguous (focus ON memories? or IGNORE them?); "pause" clearly suspends |
+| `/memory purge`        | `/memory reset`   | "Reset" feels more final than "purge" which overlaps with "delete"                  |
+| `/history hard-delete` | `/history wipe`   | User-facing term vs technical DB term; shorter to type                              |
+
+Additional Considerations:
+
+- **Merge list+search?** Consider `/memory view [query]` - empty shows list, filled does semantic search
+- **Verb consistency**: `/history view` vs `/memory list` - pick one pattern
+- **Confirmation UX**: `/memory reset` should require typing personality name (already implemented in purge)
+
+STM Command Polish (Optional - bundle with Phase 3):
+
+| Current                | Proposed           | Rationale                                        |
+| ---------------------- | ------------------ | ------------------------------------------------ |
+| `/history hard-delete` | `/history wipe`    | User-facing term; "hard-delete" is DB jargon     |
+| `/history clear`       | `/history archive` | Clarifies soft-delete behavior (can be restored) |
+
+_Beta = breaking changes expected. Consider bundling STM renames with Phase 3 for a single "UX consistency pass" across all memory/history commands._
 
 ---
 
