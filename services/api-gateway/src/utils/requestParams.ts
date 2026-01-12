@@ -6,6 +6,20 @@
  */
 
 /**
+ * Custom error class for missing or invalid route parameters.
+ * Allows error handlers to distinguish parameter errors from other errors.
+ */
+export class ParameterError extends Error {
+  public readonly paramName: string;
+
+  constructor(paramName: string) {
+    super(`Missing required parameter: ${paramName}`);
+    this.name = 'ParameterError';
+    this.paramName = paramName;
+  }
+}
+
+/**
  * Extract a single string value from a route param.
  * Express params can be string | string[] | undefined.
  * This returns the first value if array, or the string itself.
@@ -30,12 +44,12 @@ export function getParam(param: string | string[] | undefined): string | undefin
  * @param param - The route param value
  * @param paramName - Name of the param for error message
  * @returns The string value
- * @throws Error if param is missing
+ * @throws ParameterError if param is missing
  */
 export function getRequiredParam(param: string | string[] | undefined, paramName: string): string {
   const value = getParam(param);
   if (value === undefined || value === '') {
-    throw new Error(`Missing required parameter: ${paramName}`);
+    throw new ParameterError(paramName);
   }
   return value;
 }
