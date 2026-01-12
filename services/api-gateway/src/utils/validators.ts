@@ -12,13 +12,14 @@ import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 export type ValidationResult = { valid: true } | { valid: false; error: ErrorResponse };
 
 /**
- * UUID v4 regex pattern
+ * UUID regex pattern (validates format, not version)
  * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ * Accepts any UUID version (v1-v5) - this project uses deterministic v5 UUIDs
  */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Validates a UUID v4 format
+ * Validates UUID format (any version)
  *
  * @param id - The ID to validate (accepts undefined for route params)
  * @param fieldName - Name of the field for error message (default: 'ID')
