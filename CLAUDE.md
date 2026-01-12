@@ -175,7 +175,7 @@ Before approving any PR:
 
 ## Tech Stack
 
-- **Language**: TypeScript (Node.js 20+, pnpm workspaces)
+- **Language**: TypeScript (Node.js 25+, pnpm workspaces)
 - **Discord**: Discord.js 14.x
 - **Services**: bot-client, api-gateway, ai-worker
 - **Database**: PostgreSQL + pgvector, Redis + BullMQ
@@ -213,7 +213,7 @@ pnpm --filter @tzurot/bot-client dev
 pnpm --filter @tzurot/ai-worker test
 
 # Test summary (always run after tests)
-pnpm test 2>&1 | grep -E "(Test Files|Tests)" | sed 's/\x1b\[[0-9;]*m//g'
+pnpm test:summary
 
 # Release management
 pnpm bump-version 3.0.0-beta.31  # Bump version in all package.json files
@@ -289,25 +289,26 @@ execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
 
 ## Skills Reference
 
-14 project-specific skills in `.claude/skills/`:
+16 project-specific skills in `.claude/skills/`:
 
 | Skill                   | Use When                       | Enforces                 |
 | ----------------------- | ------------------------------ | ------------------------ |
-| tzurot-code-quality     | Lint errors, refactoring       | ESLint rules, SOLID      |
-| tzurot-testing          | Writing tests, mocking         | Coverage, test behavior  |
-| tzurot-types            | Types, constants, Zod schemas  | Type safety, DRY         |
-| tzurot-git-workflow     | Commits, PRs, rebasing         | Git safety, hooks        |
-| tzurot-security         | Secrets, user input            | Least privilege          |
-| tzurot-observability    | Logging, debugging, operations | Structured logging       |
 | tzurot-architecture     | Service design, error patterns | SRP, service boundaries  |
-| tzurot-docs             | Documentation, session handoff | Knowledge continuity     |
+| tzurot-async-flow       | BullMQ, Discord deferrals      | Async patterns           |
+| tzurot-caching          | Cache patterns                 | Cache invalidation       |
+| tzurot-code-quality     | Lint errors, refactoring       | ESLint rules, SOLID      |
 | tzurot-council-mcp      | Consulting external AI         | Second opinions          |
 | tzurot-db-vector        | PostgreSQL, pgvector           | Query patterns           |
-| tzurot-async-flow       | BullMQ, Discord deferrals      | Async patterns           |
 | tzurot-deployment       | Railway, troubleshooting       | Deploy safety            |
-| tzurot-caching          | Cache patterns                 | Cache invalidation       |
-| tzurot-slash-command-ux | Slash commands, pagination     | Standard naming, buttons |
+| tzurot-docs             | Documentation, session handoff | Knowledge continuity     |
+| tzurot-git-workflow     | Commits, PRs, rebasing         | Git safety, hooks        |
+| tzurot-observability    | Logging, debugging, operations | Structured logging       |
+| tzurot-security         | Secrets, user input            | Least privilege          |
 | tzurot-skills-guide     | Creating/updating skills       | Skill quality            |
+| tzurot-slash-command-ux | Slash commands, pagination     | Standard naming, buttons |
+| tzurot-testing          | Writing tests, mocking         | Coverage, test behavior  |
+| tzurot-tooling          | CLI commands, dev scripts      | Ops CLI, standardization |
+| tzurot-types            | Types, constants, Zod schemas  | Type safety, DRY         |
 
 ## Post-Mortems
 
