@@ -35,6 +35,9 @@ const CONFIRMATION_TIMEOUT = 60_000;
 /** Modal timeout (5 minutes for typing) */
 const MODAL_TIMEOUT = 300_000;
 
+/** Buffer for confirmation phrase input to allow minor whitespace */
+const CONFIRMATION_PHRASE_LENGTH_BUFFER = 5;
+
 interface StatsResponse {
   personalityId: string;
   personalityName: string;
@@ -183,7 +186,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
       .setStyle(TextInputStyle.Short)
       .setRequired(true)
       .setMinLength(confirmPhrase.length)
-      .setMaxLength(confirmPhrase.length + 5); // Small buffer for typos
+      .setMaxLength(confirmPhrase.length + CONFIRMATION_PHRASE_LENGTH_BUFFER);
 
     const modalRow = new ActionRowBuilder<TextInputBuilder>().addComponents(confirmInput);
     modal.addComponents(modalRow);
