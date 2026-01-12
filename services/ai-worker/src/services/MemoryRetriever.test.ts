@@ -429,7 +429,7 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ memories: [], focusModeEnabled: false });
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
@@ -446,7 +446,7 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ memories: [], focusModeEnabled: true });
       // Should NOT query memories when focus mode is on
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
@@ -467,7 +467,7 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual(mockMemories);
+      expect(result).toEqual({ memories: mockMemories, focusModeEnabled: false });
       // Should query memories when focus mode is off
       expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
     });
@@ -490,7 +490,7 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual([]);
+      expect(result).toEqual({ memories: [], focusModeEnabled: false });
     });
 
     it('should query memories with correct parameters', async () => {
@@ -527,7 +527,7 @@ describe('MemoryRetriever', () => {
         context
       );
 
-      expect(result).toEqual(mockMemories);
+      expect(result).toEqual({ memories: mockMemories, focusModeEnabled: false });
       expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith('What food do I like?', {
         personaId: 'persona-123',
         personalityId: 'personality-123',

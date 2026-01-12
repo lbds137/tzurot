@@ -173,6 +173,7 @@ export class GenerationStep implements IPipelineStep {
     throw new Error('[GenerationStep] Unexpected: no response generated');
   }
 
+  // eslint-disable-next-line max-lines-per-function -- Pipeline step with diagnostic logging and error handling
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, startTime, preprocessing } = context;
     const { requestId, personality, message, context: jobContext } = job.data;
@@ -287,6 +288,7 @@ export class GenerationStep implements IPipelineStep {
             configSource,
             isGuestMode,
             crossTurnDuplicateDetected: duplicateRetries > 0,
+            focusModeEnabled: response.focusModeEnabled,
           },
         },
       };

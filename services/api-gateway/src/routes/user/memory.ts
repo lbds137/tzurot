@@ -4,13 +4,16 @@
  *
  * GET /user/memory/stats - Get memory statistics for a personality
  * GET /user/memory/list - Paginated list of memories for browsing
- * GET /user/memory/:id - Get a single memory
- * PATCH /user/memory/:id - Update memory content
- * DELETE /user/memory/:id - Delete a memory
- * POST /user/memory/:id/lock - Toggle memory lock status
  * GET /user/memory/focus - Get focus mode status
  * POST /user/memory/focus - Enable/disable focus mode
  * POST /user/memory/search - Semantic search of memories
+ * GET /user/memory/delete/preview - Preview batch delete without executing
+ * POST /user/memory/delete - Batch delete memories with filters
+ * POST /user/memory/purge - Purge all memories for a personality (typed confirmation required)
+ * GET /user/memory/:id - Get a single memory
+ * PATCH /user/memory/:id - Update memory content
+ * DELETE /user/memory/:id - Delete a single memory
+ * POST /user/memory/:id/lock - Toggle memory lock status
  */
 
 import { Router, type Response } from 'express';
@@ -33,6 +36,7 @@ import {
   handleToggleLock,
   handleDeleteMemory,
 } from './memorySingle.js';
+import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
 
 const logger = createLogger('user-memory');
 
@@ -279,6 +283,7 @@ async function handleSetFocus(
   );
 }
 
+// eslint-disable-next-line max-lines-per-function -- Route factory with many endpoint definitions
 export function createMemoryRoutes(prisma: PrismaClient): Router {
   const router = Router();
 
@@ -328,7 +333,50 @@ export function createMemoryRoutes(prisma: PrismaClient): Router {
     )
   );
 
-  // Single memory operations - must come after specific routes like /stats, /list, /search
+  // Batch operations - must come before /:id routes
+  router.get(
+    '/delete/preview',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleBatchDeletePreview(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  router.post(
+    '/delete',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handleBatchDelete(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  router.post(
+    '/purge',
+    requireUserAuth(),
+    asyncHandler((req: AuthenticatedRequest, res: Response) =>
+      handlePurge(
+        prisma,
+        (id, r) => getUserByDiscordId(prisma, id, r),
+        getDefaultPersonaId,
+        req,
+        res
+      )
+    )
+  );
+
+  // Single memory operations - must come after specific routes like /stats, /list, /search, /delete, /purge
   router.get(
     '/:id',
     requireUserAuth(),

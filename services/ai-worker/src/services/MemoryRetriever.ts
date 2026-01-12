@@ -25,6 +25,14 @@ import { PersonaResolver } from './resolvers/index.js';
 
 const logger = createLogger('MemoryRetriever');
 
+/**
+ * Result of memory retrieval including metadata
+ */
+export interface MemoryRetrievalResult {
+  memories: MemoryDocument[];
+  focusModeEnabled: boolean;
+}
+
 export class MemoryRetriever {
   private memoryManager?: PgvectorMemoryAdapter;
   private personaResolver: PersonaResolver;
@@ -106,7 +114,7 @@ export class MemoryRetriever {
     personality: LoadedPersonality,
     userMessage: string,
     context: ConversationContext
-  ): Promise<MemoryDocument[]> {
+  ): Promise<MemoryRetrievalResult> {
     const excludeNewerThan = this.calculateDeduplicationCutoff(context);
 
     // Resolve user's personaId for this personality using PersonaResolver
@@ -120,7 +128,7 @@ export class MemoryRetriever {
         {},
         `[MemoryRetriever] No persona found for user ${context.userId} with personality ${personality.name}, skipping memory retrieval`
       );
-      return [];
+      return { memories: [], focusModeEnabled: false };
     }
 
     const { personaId, shareLtmAcrossPersonalities, focusModeEnabled } = personaResult;
@@ -135,7 +143,7 @@ export class MemoryRetriever {
         },
         '[MemoryRetriever] Focus mode enabled - skipping LTM retrieval (memories still being saved)'
       );
-      return [];
+      return { memories: [], focusModeEnabled: true };
     }
 
     const memoryQueryOptions: MemoryQueryOptions = {
@@ -178,7 +186,7 @@ export class MemoryRetriever {
 
     this.logRetrievedMemories(relevantMemories, personality.name);
 
-    return relevantMemories;
+    return { memories: relevantMemories, focusModeEnabled: false };
   }
 
   /**

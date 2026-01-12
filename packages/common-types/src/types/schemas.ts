@@ -349,6 +349,8 @@ export const generationPayloadSchema = z.object({
       isGuestMode: z.boolean().optional(),
       /** Whether cross-turn duplication was detected (same response as previous turn) */
       crossTurnDuplicateDetected: z.boolean().optional(),
+      /** Whether focus mode was active (LTM retrieval skipped) */
+      focusModeEnabled: z.boolean().optional(),
       /** Pipeline step that failed (only set on error) */
       failedStep: z.string().optional(),
       /** Last successfully completed pipeline step (only set on error) */

@@ -393,11 +393,12 @@ export class ConversationalRAGService {
       logger.info(
         `[RAG] Memory search query: "${inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
       );
-      const retrievedMemories = await this.memoryRetriever.retrieveRelevantMemories(
-        personality,
-        inputs.searchQuery,
-        context
-      );
+      const { memories: retrievedMemories, focusModeEnabled } =
+        await this.memoryRetriever.retrieveRelevantMemories(
+          personality,
+          inputs.searchQuery,
+          context
+        );
 
       // Step 4: Allocate token budgets and select content
       // Note: Image descriptions are now injected inline into history entries
@@ -453,6 +454,7 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         modelUsed: modelResult.modelName,
         userMessageContent: budgetResult.contentForStorage,
+        focusModeEnabled,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);

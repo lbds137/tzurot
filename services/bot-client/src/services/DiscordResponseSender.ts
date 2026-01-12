@@ -46,6 +46,8 @@ export interface SendResponseOptions {
   isGuestMode?: boolean;
   /** Whether this is an auto-response from channel activation (not @mention) */
   isAutoResponse?: boolean;
+  /** Whether focus mode was active (LTM retrieval skipped) */
+  focusModeEnabled?: boolean;
 }
 
 /**
@@ -69,7 +71,15 @@ export class DiscordResponseSender {
    * - Redis webhook storage
    */
   async sendResponse(options: SendResponseOptions): Promise<DiscordSendResult> {
-    const { content, personality, message, modelUsed, isGuestMode, isAutoResponse } = options;
+    const {
+      content,
+      personality,
+      message,
+      modelUsed,
+      isGuestMode,
+      isAutoResponse,
+      focusModeEnabled,
+    } = options;
 
     // Build footer to append AFTER chunking (to preserve newline formatting)
     // The chunker's word-level splitting replaces \n with spaces, so we add footer post-chunk
@@ -89,6 +99,9 @@ export class DiscordResponseSender {
     }
     if (isGuestMode === true) {
       footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
+    }
+    if (focusModeEnabled === true) {
+      footer += '\n-# 🔒 Focus Mode • LTM retrieval disabled';
     }
 
     // Determine if this is a webhook-capable channel
