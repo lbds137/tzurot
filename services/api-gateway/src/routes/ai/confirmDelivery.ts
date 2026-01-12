@@ -9,6 +9,7 @@ import type { PrismaClient } from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { getParam } from '../../utils/requestParams.js';
 
 const logger = createLogger('AIRouter');
 
@@ -24,7 +25,10 @@ export function createConfirmDeliveryRoute(prisma: PrismaClient): Router {
   router.post(
     '/job/:jobId/confirm-delivery',
     asyncHandler(async (req: Request, res: Response) => {
-      const { jobId } = req.params;
+      const jobId = getParam(req.params.jobId);
+      if (jobId === undefined) {
+        return sendError(res, ErrorResponses.validationError('jobId is required'));
+      }
 
       // Update job result status to DELIVERED
       const updated = await prisma.jobResult.updateMany({

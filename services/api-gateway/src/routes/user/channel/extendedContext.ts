@@ -19,6 +19,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from '../personality/helpers.js';
 
@@ -31,9 +32,9 @@ const logger = createLogger('channel-extended-context');
 export function createExtendedContextHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { channelId } = req.params;
+    const channelId = getParam(req.params.channelId);
 
-    if (!channelId) {
+    if (channelId === undefined || channelId === '') {
       sendError(res, ErrorResponses.validationError('channelId is required'));
       return;
     }

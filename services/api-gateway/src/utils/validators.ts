@@ -20,11 +20,17 @@ const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 /**
  * Validates a UUID v4 format
  *
- * @param id - The ID to validate
+ * @param id - The ID to validate (accepts undefined for route params)
  * @param fieldName - Name of the field for error message (default: 'ID')
- * @returns Validation result with error if invalid
+ * @returns Validation result with error if invalid or missing
  */
-export function validateUuid(id: string, fieldName = 'ID'): ValidationResult {
+export function validateUuid(id: string | undefined, fieldName = 'ID'): ValidationResult {
+  if (id === undefined) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError(`${fieldName} is required`),
+    };
+  }
   if (!UUID_REGEX.test(id)) {
     return {
       valid: false,
@@ -58,10 +64,18 @@ const RESERVED_SLUGS = new Set([
  * - Not be a reserved keyword
  * - Maximum length is 64 characters to prevent DoS attacks
  *
- * @param slug - The slug to validate
- * @returns Validation result with error if invalid
+ * @param slug - The slug to validate (accepts undefined for route params)
+ * @returns Validation result with error if invalid or missing
  */
-export function validateSlug(slug: string): ValidationResult {
+export function validateSlug(slug: string | undefined): ValidationResult {
+  // Check for undefined/missing
+  if (slug === undefined) {
+    return {
+      valid: false,
+      error: ErrorResponses.validationError('Slug is required'),
+    };
+  }
+
   // Check length (prevent DoS via extremely long slugs)
   if (slug.length === 0 || slug.length > 64) {
     return {

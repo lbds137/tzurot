@@ -20,6 +20,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
+import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import type {
   PersonaSummary,
@@ -31,354 +32,285 @@ import { extractString, getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-crud');
 
-export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
-  /**
-   * GET /user/persona
-   * List all personas owned by the user
-   */
-  router.get(
-    '/',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const user = await getOrCreateInternalUser(prisma, discordUserId);
+const PERSONA_SELECT = {
+  id: true,
+  name: true,
+  preferredName: true,
+  description: true,
+  content: true,
+  pronouns: true,
+  shareLtmAcrossPersonalities: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
-      const personas = await prisma.persona.findMany({
-        where: { ownerId: user.id },
-        select: {
-          id: true,
-          name: true,
-          preferredName: true,
-          description: true,
-          pronouns: true,
-          content: true,
-          shareLtmAcrossPersonalities: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        orderBy: { name: 'asc' },
-      });
+interface PersonaFromDb {
+  id: string;
+  name: string;
+  preferredName: string | null;
+  description: string | null;
+  content: string;
+  pronouns: string | null;
+  shareLtmAcrossPersonalities: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
-      const response: PersonaSummary[] = personas.map(p => ({
-        id: p.id,
-        name: p.name,
-        preferredName: p.preferredName,
-        description: p.description,
-        pronouns: p.pronouns,
-        content: p.content,
-        isDefault: p.id === user.defaultPersonaId,
-        shareLtmAcrossPersonalities: p.shareLtmAcrossPersonalities,
-        createdAt: p.createdAt.toISOString(),
-        updatedAt: p.updatedAt.toISOString(),
-      }));
+function toPersonaDetails(p: PersonaFromDb, isDefault: boolean): PersonaDetails {
+  return {
+    id: p.id,
+    name: p.name,
+    preferredName: p.preferredName,
+    description: p.description,
+    content: p.content,
+    pronouns: p.pronouns,
+    isDefault,
+    shareLtmAcrossPersonalities: p.shareLtmAcrossPersonalities,
+    createdAt: p.createdAt.toISOString(),
+    updatedAt: p.updatedAt.toISOString(),
+  };
+}
 
-      sendCustomSuccess(res, { personas: response });
-    })
-  );
+// --- Handler Factories ---
 
-  /**
-   * GET /user/persona/:id
-   * Get a specific persona by ID
-   */
-  router.get(
-    '/:id',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const { id } = req.params;
+function createListHandler(prisma: PrismaClient) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const user = await getOrCreateInternalUser(prisma, discordUserId);
 
-      const idValidation = validateUuid(id, 'persona ID');
-      if (!idValidation.valid) {
-        sendError(res, idValidation.error);
-        return;
-      }
+    const personas = await prisma.persona.findMany({
+      where: { ownerId: user.id },
+      select: PERSONA_SELECT,
+      orderBy: { name: 'asc' },
+    });
 
-      const user = await getOrCreateInternalUser(prisma, discordUserId);
+    const response: PersonaSummary[] = personas.map(p => ({
+      ...toPersonaDetails(p, p.id === user.defaultPersonaId),
+    }));
 
-      const persona = await prisma.persona.findFirst({
-        where: { id, ownerId: user.id },
-        select: {
-          id: true,
-          name: true,
-          preferredName: true,
-          description: true,
-          content: true,
-          pronouns: true,
-          shareLtmAcrossPersonalities: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+    sendCustomSuccess(res, { personas: response });
+  };
+}
 
-      if (persona === null) {
-        sendError(res, ErrorResponses.notFound('Persona'));
-        return;
-      }
+function createGetHandler(prisma: PrismaClient) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const id = getParam(req.params.id);
 
-      const response: PersonaDetails = {
-        id: persona.id,
-        name: persona.name,
-        preferredName: persona.preferredName,
-        description: persona.description,
-        content: persona.content,
-        pronouns: persona.pronouns,
-        isDefault: persona.id === user.defaultPersonaId,
-        shareLtmAcrossPersonalities: persona.shareLtmAcrossPersonalities,
-        createdAt: persona.createdAt.toISOString(),
-        updatedAt: persona.updatedAt.toISOString(),
-      };
+    const idValidation = validateUuid(id, 'persona ID');
+    if (!idValidation.valid) {
+      return sendError(res, idValidation.error);
+    }
 
-      sendCustomSuccess(res, { persona: response });
-    })
-  );
+    const user = await getOrCreateInternalUser(prisma, discordUserId);
 
-  /**
-   * POST /user/persona
-   * Create a new persona
-   */
-  router.post(
-    '/',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const body = req.body as Partial<CreatePersonaBody>;
+    const persona = await prisma.persona.findFirst({
+      where: { id, ownerId: user.id },
+      select: PERSONA_SELECT,
+    });
 
-      const nameValue = extractString(body.name);
-      if (nameValue === null) {
-        sendError(res, ErrorResponses.validationError('Name is required'));
-        return;
-      }
+    if (persona === null) {
+      return sendError(res, ErrorResponses.notFound('Persona'));
+    }
 
-      const contentValue = extractString(body.content);
-      if (contentValue === null) {
-        sendError(res, ErrorResponses.validationError('Content is required'));
-        return;
-      }
+    sendCustomSuccess(res, {
+      persona: toPersonaDetails(persona, persona.id === user.defaultPersonaId),
+    });
+  };
+}
 
-      if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
-        sendError(
-          res,
-          ErrorResponses.validationError(
-            `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-          )
-        );
-        return;
-      }
+function createCreateHandler(prisma: PrismaClient) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const body = req.body as Partial<CreatePersonaBody>;
 
-      const preferredNameValue = extractString(body.preferredName);
-      const descriptionValue = extractString(body.description);
-      const pronounsValue = extractString(body.pronouns);
+    const nameValue = extractString(body.name);
+    if (nameValue === null) {
+      return sendError(res, ErrorResponses.validationError('Name is required'));
+    }
 
-      const user = await getOrCreateInternalUser(prisma, discordUserId);
+    const contentValue = extractString(body.content);
+    if (contentValue === null) {
+      return sendError(res, ErrorResponses.validationError('Content is required'));
+    }
 
-      const persona = await prisma.persona.create({
-        data: {
-          id: generatePersonaUuid(nameValue, user.id),
-          name: nameValue,
-          preferredName: preferredNameValue,
-          description: descriptionValue,
-          content: contentValue,
-          pronouns: pronounsValue,
-          ownerId: user.id,
-        },
-        select: {
-          id: true,
-          name: true,
-          preferredName: true,
-          description: true,
-          content: true,
-          pronouns: true,
-          shareLtmAcrossPersonalities: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-
-      const isFirstPersona = user.defaultPersonaId === null;
-      if (isFirstPersona) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { defaultPersonaId: persona.id },
-        });
-      }
-
-      logger.info({ userId: user.id, personaId: persona.id }, '[Persona] Created new persona');
-
-      const response: PersonaDetails = {
-        id: persona.id,
-        name: persona.name,
-        preferredName: persona.preferredName,
-        description: persona.description,
-        content: persona.content,
-        pronouns: persona.pronouns,
-        isDefault: isFirstPersona,
-        shareLtmAcrossPersonalities: persona.shareLtmAcrossPersonalities,
-        createdAt: persona.createdAt.toISOString(),
-        updatedAt: persona.updatedAt.toISOString(),
-      };
-
-      sendCustomSuccess(
+    if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
+      return sendError(
         res,
-        { success: true, persona: response, setAsDefault: isFirstPersona },
-        StatusCodes.CREATED
+        ErrorResponses.validationError(
+          `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
+        )
       );
-    })
-  );
+    }
 
-  /**
-   * PUT /user/persona/:id
-   * Update an existing persona
-   */
-  router.put(
-    '/:id',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const { id } = req.params;
-      const body = req.body as Partial<UpdatePersonaBody>;
+    const user = await getOrCreateInternalUser(prisma, discordUserId);
 
-      const idValidation = validateUuid(id, 'persona ID');
-      if (!idValidation.valid) {
-        sendError(res, idValidation.error);
-        return;
-      }
+    const persona = await prisma.persona.create({
+      data: {
+        id: generatePersonaUuid(nameValue, user.id),
+        name: nameValue,
+        preferredName: extractString(body.preferredName),
+        description: extractString(body.description),
+        content: contentValue,
+        pronouns: extractString(body.pronouns),
+        ownerId: user.id,
+      },
+      select: PERSONA_SELECT,
+    });
 
-      const user = await getOrCreateInternalUser(prisma, discordUserId);
-
-      const existing = await prisma.persona.findFirst({
-        where: { id, ownerId: user.id },
-        select: { id: true },
+    const isFirstPersona = user.defaultPersonaId === null;
+    if (isFirstPersona) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { defaultPersonaId: persona.id },
       });
+    }
 
-      if (existing === null) {
-        sendError(res, ErrorResponses.notFound('Persona'));
-        return;
-      }
+    logger.info({ userId: user.id, personaId: persona.id }, '[Persona] Created new persona');
 
-      const updateData: {
-        name?: string;
-        preferredName?: string | null;
-        description?: string | null;
-        content?: string;
-        pronouns?: string | null;
-      } = {};
+    sendCustomSuccess(
+      res,
+      {
+        success: true,
+        persona: toPersonaDetails(persona, isFirstPersona),
+        setAsDefault: isFirstPersona,
+      },
+      StatusCodes.CREATED
+    );
+  };
+}
 
-      if (body.name !== undefined) {
-        const nameValue = extractString(body.name);
-        if (nameValue === null) {
-          sendError(res, ErrorResponses.validationError('Name cannot be empty'));
-          return;
-        }
-        updateData.name = nameValue;
-      }
+function createUpdateHandler(prisma: PrismaClient) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const id = getParam(req.params.id);
+    const body = req.body as Partial<UpdatePersonaBody>;
 
-      if (body.content !== undefined) {
-        const contentValue = extractString(body.content);
-        if (contentValue === null) {
-          sendError(res, ErrorResponses.validationError('Content cannot be empty'));
-          return;
-        }
-        if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
-          sendError(
-            res,
-            ErrorResponses.validationError(
-              `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-            )
-          );
-          return;
-        }
-        updateData.content = contentValue;
-      }
+    const idValidation = validateUuid(id, 'persona ID');
+    if (!idValidation.valid) {
+      return sendError(res, idValidation.error);
+    }
 
-      if (body.preferredName !== undefined) {
-        updateData.preferredName = extractString(body.preferredName);
-      }
-      if (body.description !== undefined) {
-        updateData.description = extractString(body.description);
-      }
-      if (body.pronouns !== undefined) {
-        updateData.pronouns = extractString(body.pronouns);
-      }
+    const user = await getOrCreateInternalUser(prisma, discordUserId);
 
-      const persona = await prisma.persona.update({
-        where: { id },
-        data: updateData,
-        select: {
-          id: true,
-          name: true,
-          preferredName: true,
-          description: true,
-          content: true,
-          pronouns: true,
-          shareLtmAcrossPersonalities: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
+    const existing = await prisma.persona.findFirst({
+      where: { id, ownerId: user.id },
+      select: { id: true },
+    });
 
-      logger.info({ userId: user.id, personaId: id }, '[Persona] Updated persona');
+    if (existing === null) {
+      return sendError(res, ErrorResponses.notFound('Persona'));
+    }
 
-      const response: PersonaDetails = {
-        id: persona.id,
-        name: persona.name,
-        preferredName: persona.preferredName,
-        description: persona.description,
-        content: persona.content,
-        pronouns: persona.pronouns,
-        isDefault: persona.id === user.defaultPersonaId,
-        shareLtmAcrossPersonalities: persona.shareLtmAcrossPersonalities,
-        createdAt: persona.createdAt.toISOString(),
-        updatedAt: persona.updatedAt.toISOString(),
+    const updateResult = buildUpdateData(body);
+    if ('error' in updateResult) {
+      return sendError(res, updateResult.error);
+    }
+
+    const persona = await prisma.persona.update({
+      where: { id },
+      data: updateResult,
+      select: PERSONA_SELECT,
+    });
+
+    logger.info({ userId: user.id, personaId: id }, '[Persona] Updated persona');
+
+    sendCustomSuccess(res, {
+      success: true,
+      persona: toPersonaDetails(persona, persona.id === user.defaultPersonaId),
+    });
+  };
+}
+
+function createDeleteHandler(prisma: PrismaClient) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const id = getParam(req.params.id);
+
+    const idValidation = validateUuid(id, 'persona ID');
+    if (!idValidation.valid) {
+      return sendError(res, idValidation.error);
+    }
+
+    const user = await getOrCreateInternalUser(prisma, discordUserId);
+
+    const existing = await prisma.persona.findFirst({
+      where: { id, ownerId: user.id },
+      select: { id: true },
+    });
+
+    if (existing === null) {
+      return sendError(res, ErrorResponses.notFound('Persona'));
+    }
+
+    if (user.defaultPersonaId === id) {
+      return sendError(
+        res,
+        ErrorResponses.validationError(
+          'Cannot delete your default persona. Set a different default first.'
+        )
+      );
+    }
+
+    await prisma.persona.delete({ where: { id } });
+    logger.info({ userId: user.id, personaId: id }, '[Persona] Deleted persona');
+
+    sendCustomSuccess(res, { message: 'Persona deleted' });
+  };
+}
+
+// --- Helper Functions ---
+
+interface PersonaUpdateData {
+  name?: string;
+  preferredName?: string | null;
+  description?: string | null;
+  content?: string;
+  pronouns?: string | null;
+}
+
+function buildUpdateData(
+  body: Partial<UpdatePersonaBody>
+): PersonaUpdateData | { error: ReturnType<typeof ErrorResponses.validationError> } {
+  const updateData: PersonaUpdateData = {};
+
+  if (body.name !== undefined) {
+    const nameValue = extractString(body.name);
+    if (nameValue === null) {
+      return { error: ErrorResponses.validationError('Name cannot be empty') };
+    }
+    updateData.name = nameValue;
+  }
+
+  if (body.content !== undefined) {
+    const contentValue = extractString(body.content);
+    if (contentValue === null) {
+      return { error: ErrorResponses.validationError('Content cannot be empty') };
+    }
+    if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
+      return {
+        error: ErrorResponses.validationError(
+          `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
+        ),
       };
+    }
+    updateData.content = contentValue;
+  }
 
-      sendCustomSuccess(res, { success: true, persona: response });
-    })
-  );
+  if (body.preferredName !== undefined)
+    {updateData.preferredName = extractString(body.preferredName);}
+  if (body.description !== undefined) {updateData.description = extractString(body.description);}
+  if (body.pronouns !== undefined) {updateData.pronouns = extractString(body.pronouns);}
 
-  /**
-   * DELETE /user/persona/:id
-   * Delete a persona
-   */
-  router.delete(
-    '/:id',
-    requireUserAuth(),
-    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const discordUserId = req.userId;
-      const { id } = req.params;
+  return updateData;
+}
 
-      const idValidation = validateUuid(id, 'persona ID');
-      if (!idValidation.valid) {
-        sendError(res, idValidation.error);
-        return;
-      }
+// --- Main Route Setup ---
 
-      const user = await getOrCreateInternalUser(prisma, discordUserId);
-
-      const existing = await prisma.persona.findFirst({
-        where: { id, ownerId: user.id },
-        select: { id: true },
-      });
-
-      if (existing === null) {
-        sendError(res, ErrorResponses.notFound('Persona'));
-        return;
-      }
-
-      if (user.defaultPersonaId === id) {
-        sendError(
-          res,
-          ErrorResponses.validationError(
-            'Cannot delete your default persona. Set a different default first.'
-          )
-        );
-        return;
-      }
-
-      await prisma.persona.delete({ where: { id } });
-
-      logger.info({ userId: user.id, personaId: id }, '[Persona] Deleted persona');
-
-      sendCustomSuccess(res, { message: 'Persona deleted' });
-    })
-  );
+export function addCrudRoutes(router: Router, prisma: PrismaClient): void {
+  router.get('/', requireUserAuth(), asyncHandler(createListHandler(prisma)));
+  router.get('/:id', requireUserAuth(), asyncHandler(createGetHandler(prisma)));
+  router.post('/', requireUserAuth(), asyncHandler(createCreateHandler(prisma)));
+  router.put('/:id', requireUserAuth(), asyncHandler(createUpdateHandler(prisma)));
+  router.delete('/:id', requireUserAuth(), asyncHandler(createDeleteHandler(prisma)));
 }

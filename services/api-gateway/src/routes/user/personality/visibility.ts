@@ -11,6 +11,7 @@ import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../../types.js';
+import { getParam } from '../../../utils/requestParams.js';
 import { canUserEditPersonality } from './helpers.js';
 
 const logger = createLogger('user-personality-visibility');
@@ -22,7 +23,7 @@ const logger = createLogger('user-personality-visibility');
 export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { slug } = req.params;
+    const slug = getParam(req.params.slug);
     const { isPublic } = req.body as { isPublic?: boolean };
 
     if (isPublic === undefined) {
