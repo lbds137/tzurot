@@ -93,6 +93,7 @@ export function createModelOverrideRoutes(
           llmConfigId: true,
           llmConfig: { select: { name: true } },
         },
+        take: 100,
       });
 
       const result: ModelOverrideSummary[] = overrides.map(o => ({
