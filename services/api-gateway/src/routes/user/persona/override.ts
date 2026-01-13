@@ -39,10 +39,13 @@ function createListHandler(prisma: PrismaClient) {
         personality: { select: { slug: true, name: true, displayName: true } },
         persona: { select: { name: true } },
       },
+      take: 100,
     });
 
     const response: PersonaOverrideSummary[] = overrides.flatMap(o => {
-      if (o.persona === null || o.personaId === null) {return [];}
+      if (o.persona === null || o.personaId === null) {
+        return [];
+      }
       return [
         {
           personalityId: o.personalityId,
