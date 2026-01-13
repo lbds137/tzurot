@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import { escapeMarkdown, EmbedBuilder } from 'discord.js';
+import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
@@ -350,27 +350,45 @@ function setupSearchCollector(
 
   collector.on('collect', i => {
     void (async () => {
-      if (i.isButton()) {
-        // First check if it's a detail action
-        const handled = await handleSearchDetailAction(i, refreshSearch);
-        if (!handled) {
-          // Otherwise handle as pagination
-          const result = await handleSearchButton(i, {
-            ...context,
-            currentSearchType,
-          });
-          if (result !== null) {
-            currentPage = result.newPage;
-            currentSearchType = result.searchType;
-            listContext = {
-              ...listContext,
-              page: currentPage,
-              preferTextSearch: currentSearchType === 'text',
-            };
+      try {
+        if (i.isButton()) {
+          // First check if it's a detail action
+          const handled = await handleSearchDetailAction(i, refreshSearch);
+          if (!handled) {
+            // Otherwise handle as pagination
+            const result = await handleSearchButton(i, {
+              ...context,
+              currentSearchType,
+            });
+            if (result !== null) {
+              currentPage = result.newPage;
+              currentSearchType = result.searchType;
+              listContext = {
+                ...listContext,
+                page: currentPage,
+                preferTextSearch: currentSearchType === 'text',
+              };
+            }
           }
+        } else if (i.isStringSelectMenu()) {
+          await handleMemorySelect(i, listContext);
         }
-      } else if (i.isStringSelectMenu()) {
-        await handleMemorySelect(i, listContext);
+      } catch (error) {
+        logger.error(
+          { err: error, customId: i.customId },
+          '[Memory] Search collector interaction failed'
+        );
+        // Try to notify user if possible
+        try {
+          if (!i.replied && !i.deferred) {
+            await i.reply({
+              content: '❌ Something went wrong. Please try again.',
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+        } catch {
+          // Interaction may be invalid, nothing we can do
+        }
       }
     })();
   });
