@@ -4,7 +4,7 @@
  */
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import { EmbedBuilder, escapeMarkdown } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { replyWithError } from '../../utils/commandHelpers.js';
@@ -327,18 +327,33 @@ function setupListCollector(
 
   collector.on('collect', i => {
     void (async () => {
-      if (i.isButton()) {
-        // First check if it's a detail action
-        const handled = await handleDetailAction(i, context, refreshList);
-        if (!handled) {
-          // Otherwise handle as pagination
-          const result = await handleListButton(i, context);
-          if (result !== null) {
-            currentContext = { ...currentContext, page: result.newPage };
+      try {
+        if (i.isButton()) {
+          // First check if it's a detail action
+          const handled = await handleDetailAction(i, context, refreshList);
+          if (!handled) {
+            // Otherwise handle as pagination
+            const result = await handleListButton(i, context);
+            if (result !== null) {
+              currentContext = { ...currentContext, page: result.newPage };
+            }
           }
+        } else if (i.isStringSelectMenu()) {
+          await handleMemorySelect(i, currentContext);
         }
-      } else if (i.isStringSelectMenu()) {
-        await handleMemorySelect(i, currentContext);
+      } catch (error) {
+        logger.error({ err: error, customId: i.customId }, '[Memory] Collector interaction failed');
+        // Try to notify user if possible
+        try {
+          if (!i.replied && !i.deferred) {
+            await i.reply({
+              content: '❌ Something went wrong. Please try again.',
+              flags: MessageFlags.Ephemeral,
+            });
+          }
+        } catch {
+          // Interaction may be invalid, nothing we can do
+        }
       }
     })();
   });
