@@ -53,6 +53,7 @@ Core Features:
 - [ ] Visual indicator in responses when incognito active
 - [ ] `/memory restore` - restore soft-deleted memories
 - [ ] `/memory add` - manually add a memory for a personality
+- [ ] Batch operations respect locked memories (`/memory delete`, `/memory purge` skip locked)
 - [ ] User-facing guide for memory management commands
 
 UX Naming Review (MCP Council Recommendations):
