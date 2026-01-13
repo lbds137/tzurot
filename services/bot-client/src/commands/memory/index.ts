@@ -240,6 +240,9 @@ export const componentPrefixes = [
   MEMORY_DETAIL_PREFIX,
 ];
 
+/** Small delay to let collectors handle pagination buttons first (ms) */
+const COLLECTOR_RACE_DELAY_MS = 100;
+
 /**
  * Handle button interactions for memory detail actions
  * Routes edit, lock, delete, and back actions to appropriate handlers
@@ -247,8 +250,22 @@ export const componentPrefixes = [
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const parsed = parseMemoryActionId(interaction.customId);
 
-  // Not a memory detail action - handle as expired pagination
+  // Not a memory detail action - likely a pagination button
+  // Give collectors a chance to handle it first to avoid race conditions
   if (parsed === null) {
+    // Wait briefly for collector to handle this interaction
+    await new Promise(resolve => setTimeout(resolve, COLLECTOR_RACE_DELAY_MS));
+
+    // Check if collector already handled this interaction
+    if (interaction.replied || interaction.deferred) {
+      logger.debug(
+        { customId: interaction.customId },
+        '[Memory] Pagination button already handled by collector'
+      );
+      return;
+    }
+
+    // Collector didn't handle it (probably timed out) - show expired message
     logger.debug({ customId: interaction.customId }, '[Memory] Handling expired pagination button');
     await interaction.reply({
       content: '⏰ This interaction has expired. Please run the command again.',
