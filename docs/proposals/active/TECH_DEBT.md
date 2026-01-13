@@ -24,6 +24,55 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 
 ## Priority 2: MEDIUM
 
+### Incomplete XML Prompt Migration
+
+**Problem**: Some prompt construction paths still use markdown formatting instead of the new XML format. This is visible when memory content is displayed - referenced messages appear with markdown `**bold**` formatting instead of proper XML tags.
+
+**Example from production logs**:
+
+```
+[Referenced content: <quote number="1">
+<author display_name="Ashley Graves | שבת" .../>
+```
+
+The outer structure is XML, but some inner content may still have markdown artifacts.
+
+**Affected Areas**:
+
+- Memory content storage (persists prompts with mixed formatting)
+- Referenced message formatting in some code paths
+
+**Solution**: Audit and update all prompt construction to use consistent XML formatting:
+
+- [ ] Review `PromptBuilder.ts` for any remaining markdown patterns
+- [ ] Check `MessageContextBuilder.ts` reference extraction
+- [ ] Ensure memories are stored with clean XML formatting
+
+**Source**: Production observation (2026-01-13)
+
+---
+
+### Referenced Messages Stored Redundantly in Memories
+
+**Problem**: When a user replies to a message that's already in the conversation context (either main or extended), the referenced message content is included twice in the stored memory - once in the context and once in the `[Referenced content:]` section.
+
+**Impact**:
+
+- Wastes memory storage space
+- Causes visual duplication when viewing/editing memories
+- May confuse the AI with redundant information
+
+**Solution**: Before including referenced content in memories:
+
+- [ ] Check if the referenced message ID exists in the current conversation context window
+- [ ] If present, omit from `[Referenced content:]` section or replace with a brief reference
+
+**Current Location**: Likely in `services/ai-worker/src/services/PromptBuilder.ts` or memory storage logic
+
+**Source**: Production observation (2026-01-13)
+
+---
+
 ### Unbounded History Scanning in Duplicate Detection
 
 **Problem**: `getRecentAssistantMessages()` scans the entire conversation history looking for 5 assistant messages. In edge cases (1000+ messages with no assistant messages in the last 500), this scans all messages.
