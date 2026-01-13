@@ -239,17 +239,9 @@ describe('Memory Command', () => {
   });
 
   describe('handleButton', () => {
-    beforeEach(() => {
-      vi.useFakeTimers();
-    });
-
-    afterEach(() => {
-      vi.useRealTimers();
-    });
-
     function createMockButtonInteraction(
       customId: string,
-      options: { replied?: boolean; deferred?: boolean } = {}
+      messageId = 'test-message-id'
     ): ButtonInteraction {
       const mockReply = vi.fn();
       const mockEditReply = vi.fn();
@@ -257,17 +249,17 @@ describe('Memory Command', () => {
         customId,
         reply: mockReply,
         editReply: mockEditReply,
-        replied: options.replied ?? false,
-        deferred: options.deferred ?? false,
+        message: { id: messageId },
       } as unknown as ButtonInteraction;
     }
 
-    it('should handle expired pagination (non-memory-detail prefix) when collector did not handle', async () => {
-      const interaction = createMockButtonInteraction('memory-list:page:0:date');
+    it('should handle expired pagination (non-memory-detail prefix) when no collector active', async () => {
+      const interaction = createMockButtonInteraction(
+        'memory-list:page:0:date',
+        'no-collector-msg'
+      );
 
-      const buttonPromise = handleButton(interaction);
-      await vi.advanceTimersByTimeAsync(100);
-      await buttonPromise;
+      await handleButton(interaction);
 
       expect(interaction.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('expired'),
@@ -275,30 +267,28 @@ describe('Memory Command', () => {
       });
     });
 
-    it('should NOT show expired message when collector already handled (replied)', async () => {
-      const interaction = createMockButtonInteraction('memory-list:page:0:date', { replied: true });
+    it('should ignore interaction when active collector exists for message', async () => {
+      // Import and use the registry to simulate an active collector
+      const { registerActiveCollector, deregisterActiveCollector } =
+        await import('../../utils/activeCollectorRegistry.js');
 
-      const buttonPromise = handleButton(interaction);
-      await vi.advanceTimersByTimeAsync(100);
-      await buttonPromise;
+      const messageId = 'active-collector-msg';
+      registerActiveCollector(messageId);
 
-      expect(interaction.reply).not.toHaveBeenCalled();
+      try {
+        const interaction = createMockButtonInteraction('memory-list:page:0:date', messageId);
+        await handleButton(interaction);
+
+        // Should NOT call reply - collector handles it
+        expect(interaction.reply).not.toHaveBeenCalled();
+      } finally {
+        // Clean up
+        deregisterActiveCollector(messageId);
+      }
     });
 
-    it('should NOT show expired message when collector already handled (deferred)', async () => {
-      const interaction = createMockButtonInteraction('memory-list:page:0:date', {
-        deferred: true,
-      });
-
-      const buttonPromise = handleButton(interaction);
-      await vi.advanceTimersByTimeAsync(100);
-      await buttonPromise;
-
-      expect(interaction.reply).not.toHaveBeenCalled();
-    });
-
-    it('should route edit action to handleEditButton', async () => {
-      const interaction = createMockButtonInteraction('mem-detail:edit:memory-123');
+    it('should route edit action to handleEditButton when no collector active', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:edit:memory-123', 'no-collector');
 
       await handleButton(interaction);
 
@@ -372,6 +362,7 @@ describe('Memory Command', () => {
       const interaction = {
         customId: 'mem-detail:edit:',
         reply: vi.fn(),
+        message: { id: 'no-collector-test' },
       } as unknown as ButtonInteraction;
 
       await handleButton(interaction);

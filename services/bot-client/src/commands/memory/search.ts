@@ -31,6 +31,10 @@ import {
   truncateContent,
   COLLECTOR_TIMEOUT_MS,
 } from './formatters.js';
+import {
+  registerActiveCollector,
+  deregisterActiveCollector,
+} from '../../utils/activeCollectorRegistry.js';
 
 const logger = createLogger('memory-search');
 
@@ -123,6 +127,49 @@ interface SearchCollectorContext {
   initialSearchType?: 'semantic' | 'text';
 }
 
+interface BuildSearchViewOptions {
+  data: SearchResponse;
+  query: string;
+  page: number;
+  personalityId: string | undefined;
+  currentSearchType: 'semantic' | 'text' | undefined;
+}
+
+/**
+ * Build the embed and components for a search results view
+ * Extracted to reduce setupSearchCollector line count
+ */
+function buildSearchView(options: BuildSearchViewOptions): {
+  embed: EmbedBuilder;
+  components: ReturnType<typeof buildMemorySelectMenu | typeof buildPaginationButtons>[];
+} {
+  const { data, query, page, personalityId, currentSearchType } = options;
+
+  const totalPages = data.hasMore
+    ? page + 2
+    : Math.max(1, page + (data.results.length > 0 ? 1 : 0));
+
+  const embed = buildSearchEmbed({
+    results: data.results,
+    query,
+    page,
+    totalPages,
+    hasMore: data.hasMore,
+    searchType: data.searchType ?? currentSearchType,
+    personalityFilter: personalityId,
+  });
+
+  const components =
+    data.results.length > 0
+      ? [
+          buildMemorySelectMenu(data.results, page, RESULTS_PER_PAGE),
+          buildPaginationButtons(SEARCH_PAGINATION_CONFIG, page, totalPages, 'date', data.hasMore),
+        ]
+      : [];
+
+  return { embed, components };
+}
+
 /**
  * Handle button interactions for search pagination
  */
@@ -158,32 +205,15 @@ async function handleSearchButton(
   }
 
   const updatedSearchType = newData.searchType ?? currentSearchType;
-  const newTotalPages = newData.hasMore
-    ? newPage + 2
-    : Math.max(1, newPage + (newData.results.length > 0 ? 1 : 0));
-
-  const newEmbed = buildSearchEmbed({
-    results: newData.results,
+  const { embed, components } = buildSearchView({
+    data: newData,
     query,
     page: newPage,
-    totalPages: newTotalPages,
-    hasMore: newData.hasMore,
-    searchType: updatedSearchType,
-    personalityFilter: personalityId,
+    personalityId,
+    currentSearchType: updatedSearchType,
   });
 
-  const newComponents = [
-    buildMemorySelectMenu(newData.results, newPage, RESULTS_PER_PAGE),
-    buildPaginationButtons(
-      SEARCH_PAGINATION_CONFIG,
-      newPage,
-      newTotalPages,
-      'date',
-      newData.hasMore
-    ),
-  ];
-
-  await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
+  await buttonInteraction.editReply({ embeds: [embed], components });
 
   return { newPage, results: newData.results, searchType: updatedSearchType };
 }
@@ -247,6 +277,10 @@ function setupSearchCollector(
 ): void {
   const { userId, query, personalityId, initialSearchType } = context;
 
+  // Register this message as having an active collector
+  // This prevents the global handler from racing with us
+  registerActiveCollector(response.id);
+
   const collector = response.createMessageComponentCollector({
     time: COLLECTOR_TIMEOUT_MS,
     filter: i => i.user.id === userId,
@@ -293,33 +327,13 @@ function setupSearchCollector(
       data = retryData;
     }
 
-    const totalPages = data.hasMore
-      ? pageToFetch + 2
-      : Math.max(1, pageToFetch + (data.results.length > 0 ? 1 : 0));
-
-    const embed = buildSearchEmbed({
-      results: data.results,
+    const { embed, components } = buildSearchView({
+      data,
       query,
       page: pageToFetch,
-      totalPages,
-      hasMore: data.hasMore,
-      searchType: data.searchType ?? currentSearchType,
-      personalityFilter: personalityId,
+      personalityId,
+      currentSearchType,
     });
-
-    const components =
-      data.results.length > 0
-        ? [
-            buildMemorySelectMenu(data.results, pageToFetch, RESULTS_PER_PAGE),
-            buildPaginationButtons(
-              SEARCH_PAGINATION_CONFIG,
-              pageToFetch,
-              totalPages,
-              'date',
-              data.hasMore
-            ),
-          ]
-        : [];
 
     await interaction.editReply({ embeds: [embed], components });
   };
@@ -352,6 +366,9 @@ function setupSearchCollector(
   });
 
   collector.on('end', () => {
+    // Deregister so global handler knows this collector is no longer active
+    deregisterActiveCollector(response.id);
+
     interaction.editReply({ components: [] }).catch(() => {
       // Ignore errors if message was deleted
     });
