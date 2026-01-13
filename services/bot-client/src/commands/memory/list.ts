@@ -27,6 +27,10 @@ import {
   type ListContext,
 } from './detail.js';
 import { formatDateShort, truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
+import {
+  registerActiveCollector,
+  deregisterActiveCollector,
+} from '../../utils/activeCollectorRegistry.js';
 
 const logger = createLogger('memory-list');
 
@@ -250,6 +254,10 @@ function setupListCollector(
   const { userId, personalityId, listContext } = context;
   let currentContext = { ...listContext };
 
+  // Register this message as having an active collector
+  // This prevents the global handler from racing with us
+  registerActiveCollector(response.id);
+
   // Function to refresh the list view at the current page
   const refreshList = async (): Promise<void> => {
     let pageToFetch = currentContext.page;
@@ -326,6 +334,9 @@ function setupListCollector(
   });
 
   collector.on('end', () => {
+    // Deregister so global handler knows this collector is no longer active
+    deregisterActiveCollector(response.id);
+
     interaction.editReply({ components: [] }).catch(() => {
       // Ignore errors if message was deleted
     });

@@ -38,6 +38,7 @@ import {
   handleDeleteButton,
   handleDeleteConfirm,
 } from './detail.js';
+import { hasActiveCollector } from '../../utils/activeCollectorRegistry.js';
 
 const logger = createLogger('memory-command');
 
@@ -240,32 +241,32 @@ export const componentPrefixes = [
   MEMORY_DETAIL_PREFIX,
 ];
 
-/** Small delay to let collectors handle pagination buttons first (ms) */
-const COLLECTOR_RACE_DELAY_MS = 100;
-
 /**
  * Handle button interactions for memory detail actions
  * Routes edit, lock, delete, and back actions to appropriate handlers
+ *
+ * Uses the active collector registry to avoid race conditions:
+ * - If a collector is active for this message, ignore the interaction (collector handles it)
+ * - If no collector active, this is an expired interaction - show message
  */
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const messageId = interaction.message?.id;
+
+  // Check if an active collector is handling this message
+  // If so, ignore - the collector will handle this interaction
+  if (messageId !== undefined && hasActiveCollector(messageId)) {
+    logger.debug(
+      { customId: interaction.customId, messageId },
+      '[Memory] Ignoring button - active collector will handle'
+    );
+    return;
+  }
+
+  // No active collector - this interaction is from an expired/orphaned message
   const parsed = parseMemoryActionId(interaction.customId);
 
-  // Not a memory detail action - likely a pagination button
-  // Give collectors a chance to handle it first to avoid race conditions
+  // Pagination button without active collector = expired
   if (parsed === null) {
-    // Wait briefly for collector to handle this interaction
-    await new Promise(resolve => setTimeout(resolve, COLLECTOR_RACE_DELAY_MS));
-
-    // Check if collector already handled this interaction
-    if (interaction.replied || interaction.deferred) {
-      logger.debug(
-        { customId: interaction.customId },
-        '[Memory] Pagination button already handled by collector'
-      );
-      return;
-    }
-
-    // Collector didn't handle it (probably timed out) - show expired message
     logger.debug({ customId: interaction.customId }, '[Memory] Handling expired pagination button');
     await interaction.reply({
       content: '⏰ This interaction has expired. Please run the command again.',
