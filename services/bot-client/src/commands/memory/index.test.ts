@@ -239,25 +239,62 @@ describe('Memory Command', () => {
   });
 
   describe('handleButton', () => {
-    function createMockButtonInteraction(customId: string): ButtonInteraction {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    function createMockButtonInteraction(
+      customId: string,
+      options: { replied?: boolean; deferred?: boolean } = {}
+    ): ButtonInteraction {
       const mockReply = vi.fn();
       const mockEditReply = vi.fn();
       return {
         customId,
         reply: mockReply,
         editReply: mockEditReply,
+        replied: options.replied ?? false,
+        deferred: options.deferred ?? false,
       } as unknown as ButtonInteraction;
     }
 
-    it('should handle expired pagination (non-memory-detail prefix)', async () => {
+    it('should handle expired pagination (non-memory-detail prefix) when collector did not handle', async () => {
       const interaction = createMockButtonInteraction('memory-list:page:0:date');
 
-      await handleButton(interaction);
+      const buttonPromise = handleButton(interaction);
+      await vi.advanceTimersByTimeAsync(100);
+      await buttonPromise;
 
       expect(interaction.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('expired'),
         flags: MessageFlags.Ephemeral,
       });
+    });
+
+    it('should NOT show expired message when collector already handled (replied)', async () => {
+      const interaction = createMockButtonInteraction('memory-list:page:0:date', { replied: true });
+
+      const buttonPromise = handleButton(interaction);
+      await vi.advanceTimersByTimeAsync(100);
+      await buttonPromise;
+
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should NOT show expired message when collector already handled (deferred)', async () => {
+      const interaction = createMockButtonInteraction('memory-list:page:0:date', {
+        deferred: true,
+      });
+
+      const buttonPromise = handleButton(interaction);
+      await vi.advanceTimersByTimeAsync(100);
+      await buttonPromise;
+
+      expect(interaction.reply).not.toHaveBeenCalled();
     });
 
     it('should route edit action to handleEditButton', async () => {
