@@ -19,6 +19,8 @@ import {
   handleMemorySelect,
   parseMemoryActionId,
   handleEditButton,
+  handleEditTruncatedButton,
+  handleCancelEditButton,
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
@@ -237,6 +239,14 @@ async function handleSearchDetailAction(
       if (memoryId !== undefined) {
         await handleEditButton(buttonInteraction, memoryId);
       }
+      return true;
+    case 'edit-truncated':
+      if (memoryId !== undefined) {
+        await handleEditTruncatedButton(buttonInteraction, memoryId);
+      }
+      return true;
+    case 'cancel-edit':
+      await handleCancelEditButton(buttonInteraction);
       return true;
     case 'lock':
       if (memoryId !== undefined) {

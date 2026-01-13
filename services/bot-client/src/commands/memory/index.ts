@@ -33,6 +33,8 @@ import {
   MEMORY_DETAIL_PREFIX,
   parseMemoryActionId,
   handleEditButton,
+  handleEditTruncatedButton,
+  handleCancelEditButton,
   handleEditModalSubmit,
   handleLockButton,
   handleDeleteButton,
@@ -282,6 +284,14 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       if (memoryId !== undefined) {
         await handleEditButton(interaction, memoryId);
       }
+      break;
+    case 'edit-truncated':
+      if (memoryId !== undefined) {
+        await handleEditTruncatedButton(interaction, memoryId);
+      }
+      break;
+    case 'cancel-edit':
+      await handleCancelEditButton(interaction);
       break;
     case 'lock':
       if (memoryId !== undefined) {

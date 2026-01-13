@@ -26,8 +26,11 @@ import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
 export {
   buildEditModal,
   handleEditButton,
+  handleEditTruncatedButton,
+  handleCancelEditButton,
   handleEditModalSubmit,
   MAX_MODAL_CONTENT_LENGTH,
+  DISCORD_MODAL_MAX_LENGTH,
 } from './detailModals.js';
 import { formatDateShort, formatDateTime } from './formatters.js';
 
