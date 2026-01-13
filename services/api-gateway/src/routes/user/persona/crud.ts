@@ -82,6 +82,7 @@ function createListHandler(prisma: PrismaClient) {
       where: { ownerId: user.id },
       select: PERSONA_SELECT,
       orderBy: { name: 'asc' },
+      take: 50,
     });
 
     const response: PersonaSummary[] = personas.map(p => ({
@@ -297,10 +298,15 @@ function buildUpdateData(
     updateData.content = contentValue;
   }
 
-  if (body.preferredName !== undefined)
-    {updateData.preferredName = extractString(body.preferredName);}
-  if (body.description !== undefined) {updateData.description = extractString(body.description);}
-  if (body.pronouns !== undefined) {updateData.pronouns = extractString(body.pronouns);}
+  if (body.preferredName !== undefined) {
+    updateData.preferredName = extractString(body.preferredName);
+  }
+  if (body.description !== undefined) {
+    updateData.description = extractString(body.description);
+  }
+  if (body.pronouns !== undefined) {
+    updateData.pronouns = extractString(body.pronouns);
+  }
 
   return updateData;
 }

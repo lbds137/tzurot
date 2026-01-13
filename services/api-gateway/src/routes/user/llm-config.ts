@@ -62,6 +62,7 @@ function createListHandler(prisma: PrismaClient) {
       where: { isGlobal: true },
       select: CONFIG_SELECT,
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
+      take: 100,
     });
 
     const userConfigs =
@@ -70,6 +71,7 @@ function createListHandler(prisma: PrismaClient) {
             where: { ownerId: user.id, isGlobal: false },
             select: CONFIG_SELECT,
             orderBy: { name: 'asc' },
+            take: 100,
           })
         : [];
 
