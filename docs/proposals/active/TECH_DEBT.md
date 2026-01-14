@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-12
+> Last updated: 2026-01-13
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -49,6 +49,67 @@ The outer structure is XML, but some inner content may still have markdown artif
 - [ ] Ensure memories are stored with clean XML formatting
 
 **Source**: Production observation (2026-01-13)
+
+---
+
+### Timeframe Parsing Duplication
+
+**Problem**: Three separate implementations of timeframe parsing (`1h`, `7d`, `1y` format):
+
+| Location                                       | Purpose             |
+| ---------------------------------------------- | ------------------- |
+| `api-gateway/routes/user/memoryBatch.ts:36-61` | Memory batch delete |
+| `bot-client/commands/memory/batchDelete.ts:53` | Discord command     |
+| `api-gateway/routes/admin/usage.ts:18`         | Usage stats         |
+
+**Risk**: Inconsistent behavior if one gets updated and others don't.
+
+**Solution**: Extract to `@tzurot/common-types`:
+
+```typescript
+// packages/common-types/src/utils/timeframe.ts
+export function parseTimeframe(timeframe: string): number | null;
+export const MS_PER_HOUR, MS_PER_DAY, MS_PER_YEAR;
+```
+
+**Source**: PR #472 code review (2026-01-13)
+
+---
+
+### Date String Validation for Memory Search
+
+**Problem**: `memorySearch.ts:93-97` accepts `dateFrom`/`dateTo` as strings without validation. Invalid date strings (e.g., `"invalid-date"`) cause PostgreSQL errors instead of clean 400 validation errors.
+
+**Current Location**: `services/api-gateway/src/routes/user/memorySearch.ts`
+
+**Solution**: Add date validation in request params:
+
+```typescript
+const dateFrom = req.query.dateFrom as string | undefined;
+if (dateFrom && isNaN(Date.parse(dateFrom))) {
+  sendError(res, ErrorResponses.validationError('Invalid dateFrom format'));
+  return;
+}
+```
+
+**Source**: PR #472 code review (2026-01-13)
+
+---
+
+### Per-User Memory Quotas
+
+**Problem**: No limits on how many memories a user can create per persona. At scale, a single user could create 100k+ memories, impacting database performance.
+
+**Solution**: Add memory limits:
+
+- [ ] Add `maxMemoriesPerPersona` to user or system config (default: 10,000)
+- [ ] Check count before memory creation
+- [ ] Return clear error when limit exceeded
+- [ ] Consider auto-pruning oldest non-locked memories when limit reached
+
+**Why MEDIUM**: Not urgent at current user count, but should be addressed before public launch.
+
+**Source**: PR #472 code review (2026-01-13)
 
 ---
 
@@ -388,6 +449,50 @@ it('should handle mixed UUID and discord: format participants', async () => {
 - [ ] Accept the edge case (rare in practice)
 
 **Why low priority**: Forwarding usually happens after reading/listening, giving transcription time to complete. No user reports of this issue yet.
+
+---
+
+### Audit Log for Destructive Memory Operations
+
+**Problem**: No audit trail when users purge all memories or batch delete. If a user accidentally deletes important memories, there's no record of what was deleted or when.
+
+**Solution**: Log destructive operations to a separate table or structured log:
+
+```typescript
+// Log before soft-deleting
+logger.info({
+  event: 'memory_batch_delete',
+  userId,
+  personalityId,
+  count: deletedCount,
+  filters: { olderThan, ... }
+}, 'User performed batch delete');
+```
+
+**Considerations**:
+
+- [ ] Structured logging vs. dedicated audit table
+- [ ] Retention period for audit logs
+- [ ] Whether to store deleted content (storage vs. recoverability tradeoff)
+
+**Source**: PR #472 code review (2026-01-13)
+
+---
+
+### Integration Tests for Semantic Memory Search
+
+**Problem**: Memory search tests mock the embedding service. No tests verify the full flow with actual embeddings and pgvector distance calculations.
+
+**Solution**: Add integration tests that:
+
+- [ ] Generate real embeddings (or use deterministic test embeddings)
+- [ ] Insert test memories with known embeddings
+- [ ] Verify semantic search returns results in correct similarity order
+- [ ] Test edge cases: no results, exact match, similar but distinct content
+
+**Current Location**: `services/api-gateway/src/routes/user/memorySearch.test.ts`
+
+**Source**: PR #472 code review (2026-01-13)
 
 ---
 
