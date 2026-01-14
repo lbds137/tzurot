@@ -15,9 +15,23 @@ import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('memory-batch');
 
+/** Time conversion constants (milliseconds) */
+const MS_PER_SECOND = 1000;
+const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+const MS_PER_DAY = 24 * MS_PER_HOUR;
+const MS_PER_YEAR = 365 * MS_PER_DAY;
+
+/** Maximum values to prevent overflow (10 years = ~315 billion ms, safe for Number) */
+const MAX_TIMEFRAME_VALUES: Record<string, number> = {
+  h: 87600, // 10 years in hours
+  d: 3650, // 10 years in days
+  y: 10, // 10 years
+};
+
 /**
  * Parse timeframe string to milliseconds
- * Supports: 1h, 24h, 7d, 30d, 1y
+ * Supports: 1h, 24h, 7d, 30d, 1y (up to 10 years max)
  */
 function parseTimeframe(timeframe: string): number | null {
   const match = /^(\d+)(h|d|y)$/.exec(timeframe);
@@ -28,13 +42,19 @@ function parseTimeframe(timeframe: string): number | null {
   const value = parseInt(match[1], 10);
   const unit = match[2];
 
+  // Prevent overflow with unreasonably large values
+  const maxValue = MAX_TIMEFRAME_VALUES[unit];
+  if (maxValue !== undefined && value > maxValue) {
+    return null;
+  }
+
   switch (unit) {
     case 'h':
-      return value * 60 * 60 * 1000;
+      return value * MS_PER_HOUR;
     case 'd':
-      return value * 24 * 60 * 60 * 1000;
+      return value * MS_PER_DAY;
     case 'y':
-      return value * 365 * 24 * 60 * 60 * 1000;
+      return value * MS_PER_YEAR;
     default:
       return null;
   }
@@ -246,11 +266,11 @@ export async function handlePurge(
   // Generate expected confirmation phrase
   const expectedPhrase = `DELETE ${personality.name.toUpperCase()} MEMORIES`;
 
-  // Validate confirmation phrase
-  if (confirmationPhrase === undefined || confirmationPhrase !== expectedPhrase) {
+  // Validate confirmation phrase (case-insensitive for better UX)
+  if (confirmationPhrase?.toUpperCase() !== expectedPhrase.toUpperCase()) {
     sendError(
       res,
-      ErrorResponses.validationError(`Confirmation required. Type exactly: "${expectedPhrase}"`)
+      ErrorResponses.validationError(`Confirmation required. Type: "${expectedPhrase}"`)
     );
     return;
   }
