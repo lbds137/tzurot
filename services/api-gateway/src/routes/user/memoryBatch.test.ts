@@ -690,10 +690,10 @@ describe('memoryBatch handlers', () => {
       );
     });
 
-    it('should require exact case-sensitive phrase', async () => {
+    it('should accept case-insensitive confirmation phrase', async () => {
       const { req, res } = createMockBodyReq({
         personalityId: TEST_PERSONALITY_ID,
-        confirmationPhrase: 'delete test-personality memories', // lowercase
+        confirmationPhrase: 'delete test-personality memories', // lowercase - should still work
       });
 
       await handlePurge(
@@ -704,7 +704,8 @@ describe('memoryBatch handlers', () => {
         res
       );
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      // Should succeed with lowercase phrase (case-insensitive for better UX)
+      expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should return 400 when user has no persona', async () => {

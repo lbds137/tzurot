@@ -124,6 +124,12 @@ function buildSemanticSearchQuery(
 ): Prisma.Sql {
   const conditions = buildSearchConditions(filters);
   const whereClause = Prisma.join(conditions, ' AND ');
+  // SECURITY: Prisma.raw() is used here for the embedding vector because Prisma.sql``
+  // does not support pgvector's ::vector type casting. This is safe because:
+  // 1. embeddingVector comes from formatAsVector() which outputs "[n1,n2,...]" format
+  // 2. formatAsVector() uses only numeric values from the embedding service
+  // 3. The embedding service returns Float32Array from the AI provider, not user input
+  // User-provided query text is processed through the embedding model, never interpolated.
   return Prisma.join(
     [
       Prisma.sql`SELECT m.id, m.content, m.embedding <=> `,

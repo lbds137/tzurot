@@ -276,8 +276,8 @@ async function handleSetFocus(
       personalityName: personality.name,
       focusModeEnabled: enabled,
       message: enabled
-        ? 'Focus mode enabled. Long-term memories will not be retrieved during conversations.'
-        : 'Focus mode disabled. Long-term memories will be retrieved during conversations.',
+        ? `Focus mode enabled for ${personality.name}. Memory retrieval is now paused — the AI will only use the current conversation context.`
+        : `Focus mode disabled for ${personality.name}. Memory retrieval is active — the AI will use past memories during conversations.`,
     },
     StatusCodes.OK
   );
