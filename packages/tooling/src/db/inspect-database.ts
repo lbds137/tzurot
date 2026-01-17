@@ -14,6 +14,7 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
+  getRailwayDatabaseUrl,
 } from '../utils/env-runner.js';
 
 /**
@@ -242,18 +243,14 @@ export interface InspectOptions {
 export async function inspectDatabase(options: InspectOptions = {}): Promise<void> {
   const env = options.env ?? 'local';
 
-  // This command requires direct database access via Prisma client
-  // For Railway environments, use db:status instead
-  if (env !== 'local') {
-    console.log(chalk.yellow(`\n⚠️  db:inspect currently only supports local environment.`));
-    console.log(chalk.dim(`\nFor Railway environments, use:`));
-    console.log(chalk.cyan(`  pnpm ops db:status --env ${env}`));
-    console.log(chalk.dim(`\nOr connect directly via Railway dashboard → PostgreSQL → Connect\n`));
-    process.exit(0);
-  }
-
   validateEnvironment(env);
   showEnvironmentBanner(env);
+
+  // For Railway environments, inject the DATABASE_URL
+  if (env !== 'local') {
+    const databaseUrl = getRailwayDatabaseUrl(env);
+    process.env.DATABASE_URL = databaseUrl;
+  }
 
   const prisma = getPrismaClient();
 
