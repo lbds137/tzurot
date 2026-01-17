@@ -127,14 +127,14 @@ describe('PgvectorQueryBuilder', () => {
       expect(sqlString).toContain('FROM memories');
     });
 
-    it('includes embedding vector comparison', () => {
+    it('includes embedding_local vector comparison', () => {
       const whereConditions = [Prisma.sql`m.persona_id = ${'persona-123'}::uuid`];
       const embeddingVector = '[0.1,0.2,0.3]';
 
       const result = buildSimilaritySearchQuery(embeddingVector, whereConditions, 0.15, 10);
 
       const sqlString = result.strings.join('');
-      expect(sqlString).toContain('m.embedding <=>');
+      expect(sqlString).toContain('m.embedding_local <=>');
       expect(sqlString).toContain('::vector');
     });
 

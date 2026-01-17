@@ -1,15 +1,14 @@
 {
-  "name": "@tzurot/ai-worker",
+  "name": "@tzurot/embeddings",
   "version": "3.0.0-beta.41",
   "private": true,
   "type": "module",
-  "description": "AI processing worker service for Tzurot bot",
+  "description": "Local embedding service using bge-small-en-v1.5 for semantic similarity",
   "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "clean": "find src -name '*.js' -type f -delete && find src -name '*.js.map' -type f -delete",
-    "dev": "tsx watch src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js",
     "pretest": "npm run clean",
     "test": "vitest",
     "test:watch": "vitest --watch",
@@ -20,19 +19,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@langchain/core": "^1.1.12",
-    "@langchain/openai": "^1.2.1",
+    "@huggingface/transformers": "^3.8.1",
     "@tzurot/common-types": "workspace:*",
-    "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.66.5",
-    "ioredis": "^5.9.1",
-    "langchain": "^1.2.7",
-    "onnxruntime-node": "^1.23.2",
-    "openai": "^6.16.0",
-    "pino": "^10.1.1",
-    "redis": "^5.10.0",
-    "sharp": "^0.34.5",
-    "zod": "^4.3.5"
+    "onnxruntime-node": "^1.23.2"
   },
   "devDependencies": {
     "@types/node": "^25.0.6"

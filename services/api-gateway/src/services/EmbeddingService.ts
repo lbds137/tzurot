@@ -1,59 +1,82 @@
 /**
  * Embedding Service
  *
- * Generates embeddings using OpenAI's text-embedding-3-small model.
- * Used for memory search functionality.
+ * Generates embeddings using local BGE-small-en-v1.5 model (384 dimensions).
+ * Runs in a Worker Thread to avoid blocking the event loop.
+ *
+ * Previously used OpenAI's text-embedding-3-small (1536 dimensions).
+ * Migration: OpenAI embeddings → Local BGE embeddings
  */
 
-import { OpenAI } from 'openai';
-import { createLogger, getConfig, MODEL_DEFAULTS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
+import { LocalEmbeddingService, LOCAL_EMBEDDING_DIMENSIONS } from '@tzurot/embeddings';
 
 const logger = createLogger('embedding-service');
-const config = getConfig();
 
-/** Expected embedding dimension for text-embedding-3-small */
-const EMBEDDING_DIMENSION = 1536;
+/** Expected embedding dimension for BGE-small-en-v1.5 */
+export const EMBEDDING_DIMENSION = LOCAL_EMBEDDING_DIMENSIONS;
 
-/** Singleton OpenAI client instance */
-let openaiClient: OpenAI | null = null;
+/** Singleton embedding service instance */
+let embeddingService: LocalEmbeddingService | null = null;
+let initializationPromise: Promise<boolean> | null = null;
 
 /**
- * Get or create the OpenAI client
- * Returns null if OPENAI_API_KEY is not configured
+ * Initialize the embedding service
+ * Should be called during service startup
+ * @returns true if initialization succeeded, false otherwise
  */
-function getOpenAIClient(): OpenAI | null {
-  if (openaiClient !== null) {
-    return openaiClient;
+export async function initializeEmbeddingService(): Promise<boolean> {
+  if (embeddingService?.isServiceReady() === true) {
+    return true;
   }
 
-  const apiKey = config.OPENAI_API_KEY;
-  if (apiKey === undefined || apiKey.length === 0) {
-    logger.warn({}, '[EmbeddingService] OPENAI_API_KEY not configured - embedding search disabled');
-    return null;
+  // Prevent multiple concurrent initialization attempts
+  if (initializationPromise !== null) {
+    return initializationPromise;
   }
 
-  openaiClient = new OpenAI({ apiKey });
-  logger.info('[EmbeddingService] OpenAI client initialized for embeddings');
-  return openaiClient;
+  initializationPromise = (async () => {
+    try {
+      logger.info('[EmbeddingService] Initializing local embedding service...');
+      embeddingService = new LocalEmbeddingService();
+      const success = await embeddingService.initialize();
+
+      if (success) {
+        logger.info('[EmbeddingService] Local embedding service initialized successfully');
+      } else {
+        logger.warn({}, '[EmbeddingService] Local embedding service failed to initialize');
+        embeddingService = null;
+      }
+
+      return success;
+    } catch (error) {
+      logger.error({ err: error }, '[EmbeddingService] Failed to initialize embedding service');
+      embeddingService = null;
+      return false;
+    } finally {
+      initializationPromise = null;
+    }
+  })();
+
+  return initializationPromise;
 }
 
 /**
  * Check if embedding service is available
  */
 export function isEmbeddingServiceAvailable(): boolean {
-  return getOpenAIClient() !== null;
+  return embeddingService?.isServiceReady() === true;
 }
 
 /**
  * Generate an embedding vector for the given text
  *
  * @param text - The text to generate an embedding for
- * @returns The embedding vector (1536 dimensions) or null if service unavailable
- * @throws Error if API call fails
+ * @returns The embedding vector (384 dimensions) or null if service unavailable
  */
 export async function generateEmbedding(text: string): Promise<number[] | null> {
-  const client = getOpenAIClient();
-  if (client === null) {
+  if (embeddingService === null || embeddingService.isServiceReady() === false) {
+    logger.warn({}, '[EmbeddingService] Service not ready - call initializeEmbeddingService first');
     return null;
   }
 
@@ -62,30 +85,27 @@ export async function generateEmbedding(text: string): Promise<number[] | null> 
     return null;
   }
 
-  const model = config.EMBEDDING_MODEL ?? MODEL_DEFAULTS.EMBEDDING;
+  logger.debug({ textLength: text.length }, '[EmbeddingService] Generating embedding');
 
-  logger.debug({ textLength: text.length, model }, '[EmbeddingService] Generating embedding');
+  const embedding = await embeddingService.getEmbedding(text);
 
-  const response = await client.embeddings.create({
-    model,
-    input: text,
-  });
-
-  if (response.data.length === 0) {
-    throw new Error('OpenAI embeddings API returned empty data array');
+  if (embedding === undefined) {
+    logger.warn({}, '[EmbeddingService] Failed to generate embedding');
+    return null;
   }
 
-  const embedding = response.data[0].embedding;
-
   if (embedding.length !== EMBEDDING_DIMENSION) {
-    throw new Error(
-      `Invalid embedding dimension: expected ${EMBEDDING_DIMENSION}, got ${embedding.length}`
+    logger.error(
+      { expected: EMBEDDING_DIMENSION, got: embedding.length },
+      '[EmbeddingService] Invalid embedding dimension'
     );
+    return null;
   }
 
   logger.debug({ dimension: embedding.length }, '[EmbeddingService] Embedding generated');
 
-  return embedding;
+  // Convert Float32Array to number[] for API compatibility
+  return Array.from(embedding);
 }
 
 /**
@@ -100,4 +120,17 @@ export function formatAsVector(embedding: number[]): string {
     }
   }
   return `[${embedding.join(',')}]`;
+}
+
+/**
+ * Shutdown the embedding service gracefully
+ * Should be called during service shutdown
+ */
+export async function shutdownEmbeddingService(): Promise<void> {
+  if (embeddingService !== null) {
+    logger.info('[EmbeddingService] Shutting down embedding service...');
+    await embeddingService.shutdown();
+    embeddingService = null;
+    logger.info('[EmbeddingService] Embedding service shut down');
+  }
 }

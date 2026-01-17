@@ -14,10 +14,11 @@ import type {
 import { replacePromptPlaceholders } from './promptPlaceholders.js';
 
 /**
- * Embedding dimension for text-embedding-3-small model
- * text-embedding-3-small produces 1536-dimensional vectors
+ * Embedding dimension for BGE-small-en-v1.5 model (local embeddings)
+ * BGE-small-en-v1.5 produces 384-dimensional vectors
+ * Previously: text-embedding-3-small produced 1536-dimensional vectors (OpenAI)
  */
-export const EMBEDDING_DIMENSION = 1536;
+export { LOCAL_EMBEDDING_DIMENSIONS as EMBEDDING_DIMENSION } from '@tzurot/embeddings';
 
 // Namespace UUID for memories (DNS namespace -> tzurot-v3-memory namespace)
 const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';

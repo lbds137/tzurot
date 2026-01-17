@@ -6,10 +6,19 @@
       "name": "idx_memories_embedding",
       "table": "memories",
       "type": "ivfflat",
-      "description": "IVFFlat vector index for similarity search - Prisma can't represent Unsupported type indexes",
+      "description": "IVFFlat vector index for OpenAI embeddings (1536 dims) - DEPRECATED, being replaced by embedding_local",
       "recreateSQL": "CREATE INDEX \"idx_memories_embedding\" ON \"memories\" USING ivfflat (\"embedding\" vector_cosine_ops) WITH (lists = 50);",
       "dropPattern": "DROP INDEX.*idx_memories_embedding",
       "createPattern": "CREATE INDEX.*idx_memories_embedding"
+    },
+    {
+      "name": "idx_memories_embedding_local",
+      "table": "memories",
+      "type": "ivfflat",
+      "description": "IVFFlat vector index for local BGE embeddings (384 dims) - Prisma can't represent Unsupported type indexes",
+      "recreateSQL": "CREATE INDEX \"idx_memories_embedding_local\" ON \"memories\" USING ivfflat (\"embedding_local\" vector_cosine_ops) WITH (lists = 50);",
+      "dropPattern": "DROP INDEX.*idx_memories_embedding_local",
+      "createPattern": "CREATE INDEX.*idx_memories_embedding_local"
     },
     {
       "name": "memories_chunk_group_id_idx",
@@ -23,8 +32,13 @@
   ],
   "ignorePatterns": [
     {
-      "pattern": "DROP INDEX.*idx_memories_embedding",
-      "reason": "HNSW index cannot be represented in Prisma schema",
+      "pattern": "DROP INDEX.*idx_memories_embedding(?!_local)",
+      "reason": "IVFFlat vector index cannot be represented in Prisma schema",
+      "action": "remove"
+    },
+    {
+      "pattern": "DROP INDEX.*idx_memories_embedding_local",
+      "reason": "IVFFlat vector index cannot be represented in Prisma schema",
       "action": "remove"
     },
     {

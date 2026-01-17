@@ -3,30 +3,45 @@
  *
  * Tests the PgvectorMemoryAdapter that was refactored to use dependency injection.
  * Validates that it correctly:
- * - Accepts injected PrismaClient and OpenAI API key
+ * - Accepts injected PrismaClient and IEmbeddingService
  * - Connects to the database
  * - Performs health checks
  * - Can query existing memories (if any exist in dev database)
  *
- * Note: This test doesn't create new memories to avoid polluting the dev database
- * and to avoid requiring OpenAI API key in tests (embeddings are expensive).
+ * Note: This test doesn't create new memories to avoid polluting the dev database.
+ * Uses a mock embedding service since we don't want to load the actual model in tests.
  */
 
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { PgvectorMemoryAdapter } from '../../services/ai-worker/src/services/PgvectorMemoryAdapter';
 import { setupTestEnvironment, type TestEnvironment } from './setup';
+import type { IEmbeddingService } from '@tzurot/embeddings';
+
+/**
+ * Create a mock embedding service for integration tests
+ */
+function createMockEmbeddingService(): IEmbeddingService {
+  return {
+    initialize: vi.fn().mockResolvedValue(true),
+    getEmbedding: vi.fn().mockResolvedValue(new Float32Array(384).fill(0.1)),
+    getDimensions: vi.fn().mockReturnValue(384),
+    isServiceReady: vi.fn().mockReturnValue(true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  };
+}
 
 describe('PgvectorMemoryAdapter Integration', () => {
   let testEnv: TestEnvironment;
   let memoryAdapter: PgvectorMemoryAdapter;
+  let mockEmbeddingService: IEmbeddingService;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
 
     // Test the dependency injection refactor
-    // PgvectorMemoryAdapter should accept injected Prisma client and API key
-    const apiKey = process.env.OPENAI_API_KEY || 'test-api-key';
-    memoryAdapter = new PgvectorMemoryAdapter(testEnv.prisma, apiKey);
+    // PgvectorMemoryAdapter should accept injected Prisma client and embedding service
+    mockEmbeddingService = createMockEmbeddingService();
+    memoryAdapter = new PgvectorMemoryAdapter(testEnv.prisma, mockEmbeddingService);
   });
 
   afterAll(async () => {
@@ -34,16 +49,16 @@ describe('PgvectorMemoryAdapter Integration', () => {
   });
 
   describe('dependency injection', () => {
-    it('should accept and use injected PrismaClient', () => {
+    it('should accept and use injected PrismaClient and embedding service', () => {
       // Verify that the adapter was created successfully with injected dependencies
       expect(memoryAdapter).toBeDefined();
       expect(memoryAdapter).toBeInstanceOf(PgvectorMemoryAdapter);
     });
 
-    it('should accept OpenAI API key via constructor', () => {
+    it('should accept IEmbeddingService via constructor', () => {
       // Create another instance to test constructor
-      const customApiKey = 'custom-test-key';
-      const adapter = new PgvectorMemoryAdapter(testEnv.prisma, customApiKey);
+      const anotherService = createMockEmbeddingService();
+      const adapter = new PgvectorMemoryAdapter(testEnv.prisma, anotherService);
 
       expect(adapter).toBeDefined();
       expect(adapter).toBeInstanceOf(PgvectorMemoryAdapter);
@@ -109,25 +124,32 @@ describe('PgvectorMemoryAdapter Integration', () => {
       console.log('pgvector extension is installed and available');
     });
 
-    it('should verify memories table has embedding column', async () => {
-      // Query to check if memories table has the embedding vector column
+    it('should verify memories table has embedding column(s)', async () => {
+      // Query to check if memories table has embedding vector column(s)
+      // During migration: may have 'embedding' (1536-dim OpenAI) and/or 'embedding_local' (384-dim BGE)
+      // After migration: will have 'embedding_local' (or renamed to 'embedding')
       const result = await testEnv.prisma.$queryRaw<
         Array<{ column_name: string; data_type: string }>
       >`
         SELECT column_name, data_type
         FROM information_schema.columns
-        WHERE table_name = 'memories' AND column_name = 'embedding'
+        WHERE table_name = 'memories' AND column_name IN ('embedding', 'embedding_local')
       `;
 
       expect(result).toBeDefined();
       expect(result.length).toBeGreaterThan(0);
-      expect(result[0].column_name).toBe('embedding');
-      console.log(`Embedding column type: ${result[0].data_type}`);
+
+      // At least one embedding column should exist
+      const columnNames = result.map(r => r.column_name);
+      const hasEmbeddingColumn =
+        columnNames.includes('embedding') || columnNames.includes('embedding_local');
+      expect(hasEmbeddingColumn).toBe(true);
+      console.log(`Embedding columns found: ${columnNames.join(', ')}`);
     });
   });
 
   describe('query memories (read-only)', () => {
-    it('should handle queryMemories with valid persona but no API key gracefully', async () => {
+    it('should handle queryMemories with valid persona using mock embedding service', async () => {
       // Get a persona from the database
       const personas = await testEnv.prisma.persona.findMany({ take: 1 });
 
@@ -138,21 +160,20 @@ describe('PgvectorMemoryAdapter Integration', () => {
 
       const personaId = personas[0].id;
 
-      // Without a real OpenAI API key, this will fail on embedding generation
-      // but we can verify it attempts to run without throwing immediately
+      // With mock embedding service, we should be able to attempt a query
+      // The query may return empty results if no memories exist with embedding_local
       try {
         const memories = await memoryAdapter.queryMemories('test query', {
           personaId,
           limit: 5,
         });
 
-        // If we somehow succeed (maybe OPENAI_API_KEY is set), verify response format
+        // Verify response format
         expect(Array.isArray(memories)).toBe(true);
         console.log(`Successfully queried memories (found ${memories.length})`);
       } catch (error) {
-        // Expected if no real API key - verify it's an API error, not a structural error
-        expect(error).toBeDefined();
-        console.log('Memory query failed as expected without real API key');
+        // Log the error but don't fail - the database might not have any memories
+        console.log(`Memory query error: ${error}`);
       }
     });
   });
@@ -160,8 +181,8 @@ describe('PgvectorMemoryAdapter Integration', () => {
   describe('adapter lifecycle', () => {
     it('should create multiple adapter instances without conflicts', () => {
       // Test that we can create multiple instances (dependency injection benefit)
-      const adapter1 = new PgvectorMemoryAdapter(testEnv.prisma, 'key1');
-      const adapter2 = new PgvectorMemoryAdapter(testEnv.prisma, 'key2');
+      const adapter1 = new PgvectorMemoryAdapter(testEnv.prisma, createMockEmbeddingService());
+      const adapter2 = new PgvectorMemoryAdapter(testEnv.prisma, createMockEmbeddingService());
 
       expect(adapter1).toBeDefined();
       expect(adapter2).toBeDefined();

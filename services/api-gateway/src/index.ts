@@ -12,7 +12,7 @@
  * 5. AI worker service processes job asynchronously
  */
 
-import express from 'express';
+import express, { type Express } from 'express';
 import { Redis } from 'ioredis';
 import { createRequire } from 'module';
 import {
@@ -24,6 +24,7 @@ import {
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
   ConversationRetentionService,
+  type PrismaClient,
 } from '@tzurot/common-types';
 
 // Routes
@@ -46,6 +47,10 @@ import { DatabaseNotificationListener } from './services/DatabaseNotificationLis
 import { OpenRouterModelCache } from './services/OpenRouterModelCache.js';
 import { requireServiceAuth } from './services/AuthMiddleware.js';
 import { AttachmentStorageService } from './services/AttachmentStorageService.js';
+import {
+  initializeEmbeddingService,
+  shutdownEmbeddingService,
+} from './services/EmbeddingService.js';
 
 // Bootstrap
 import {
@@ -75,49 +80,31 @@ const envConfig = getConfig();
 // Track startup time for uptime calculation
 const startTime = Date.now();
 
+// ============================================================================
+// TYPES
+// ============================================================================
+
+/** Result of services initialization */
+interface ServicesContext {
+  cacheRedis: Redis;
+  personalityService: PersonalityService;
+  retentionService: ConversationRetentionService;
+  cacheInvalidationService: CacheInvalidationService;
+  apiKeyCacheInvalidation: ApiKeyCacheInvalidationService;
+  llmConfigCacheInvalidation: LlmConfigCacheInvalidationService;
+  attachmentStorage: AttachmentStorageService;
+  modelCache: OpenRouterModelCache;
+  dbNotificationListener: DatabaseNotificationListener;
+}
+
+// ============================================================================
+// HELPER FUNCTIONS
+// ============================================================================
+
 /**
- * Start the server
+ * Initialize all services required by the gateway
  */
-async function main(): Promise<void> {
-  const config = {
-    port: envConfig.API_GATEWAY_PORT,
-    env: envConfig.NODE_ENV,
-    corsOrigins: envConfig.CORS_ORIGINS,
-  };
-
-  logger.info('[Gateway] Starting API Gateway service...');
-  logger.info(
-    { port: config.port, env: config.env, corsOrigins: config.corsOrigins },
-    '[Gateway] Configuration:'
-  );
-
-  // ============================================================================
-  // STARTUP VALIDATION
-  // ============================================================================
-
-  validateByokConfiguration();
-  validateRequiredEnvVars();
-  await ensureAvatarDirectory();
-  await ensureTempAttachmentDirectory();
-  await syncAvatars();
-
-  // ============================================================================
-  // CREATE EXPRESS APP
-  // ============================================================================
-
-  const app = express();
-  const prisma = getPrismaClient();
-
-  // Base middleware
-  app.use(express.json({ limit: '10mb' }));
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-  app.use(pinoHttp({ logger }));
-  app.use(createCorsMiddleware({ origins: config.corsOrigins }));
-
-  // ============================================================================
-  // INITIALIZE SERVICES
-  // ============================================================================
-
+async function initializeServices(prisma: PrismaClient): Promise<ServicesContext> {
   // REDIS_URL is validated in startup.ts, but TypeScript doesn't know that
   if (envConfig.REDIS_URL === undefined) {
     throw new Error('REDIS_URL is required but was not provided');
@@ -150,6 +137,17 @@ async function main(): Promise<void> {
 
   const modelCache = new OpenRouterModelCache(cacheRedis);
 
+  // Initialize local embedding service for memory search
+  const embeddingReady = await initializeEmbeddingService();
+  if (embeddingReady) {
+    logger.info('[Gateway] Local embedding service initialized');
+  } else {
+    logger.warn(
+      {},
+      '[Gateway] Local embedding service unavailable - memory search will use text fallback'
+    );
+  }
+
   // DATABASE_URL is validated in startup.ts, but TypeScript doesn't know that
   if (envConfig.DATABASE_URL === undefined) {
     throw new Error('DATABASE_URL is required but was not provided');
@@ -161,10 +159,34 @@ async function main(): Promise<void> {
   await dbNotificationListener.start();
   logger.info('[Gateway] Listening for database change notifications');
 
-  // ============================================================================
-  // PUBLIC ROUTES (no authentication required)
-  // ============================================================================
+  return {
+    cacheRedis,
+    personalityService,
+    retentionService,
+    cacheInvalidationService,
+    apiKeyCacheInvalidation,
+    llmConfigCacheInvalidation,
+    attachmentStorage,
+    modelCache,
+    dbNotificationListener,
+  };
+}
 
+/**
+ * Register all routes on the Express app
+ */
+function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesContext): void {
+  const {
+    cacheRedis,
+    retentionService,
+    cacheInvalidationService,
+    apiKeyCacheInvalidation,
+    llmConfigCacheInvalidation,
+    attachmentStorage,
+    modelCache,
+  } = services;
+
+  // PUBLIC ROUTES (no authentication required)
   app.use('/health', createHealthRouter(startTime));
   app.use('/metrics', createMetricsRouter(aiQueue, startTime));
   app.use('/avatars', createAvatarRouter(prisma));
@@ -180,10 +202,7 @@ async function main(): Promise<void> {
     })
   );
 
-  // ============================================================================
   // PROTECTED ROUTES (require service authentication)
-  // ============================================================================
-
   validateServiceAuthConfig();
   app.use(requireServiceAuth());
   logger.info('[Gateway] Service authentication middleware applied globally');
@@ -211,36 +230,20 @@ async function main(): Promise<void> {
   );
   logger.info('[Gateway] Admin routes registered');
 
-  // ============================================================================
   // ERROR HANDLERS (must be last)
-  // ============================================================================
-
   app.use(notFoundHandler);
-  app.use(globalErrorHandler(config.env === 'production'));
+}
 
-  // ============================================================================
-  // START SERVER
-  // ============================================================================
+/**
+ * Create graceful shutdown handler
+ */
+function createShutdownHandler(
+  server: ReturnType<Express['listen']>,
+  services: ServicesContext
+): () => Promise<void> {
+  const { cacheRedis, cacheInvalidationService, dbNotificationListener } = services;
 
-  const server = app.listen(config.port, (err?: Error) => {
-    if (err) {
-      logger.error({ err }, '[Gateway] Failed to start server');
-      process.exit(1);
-    }
-    logger.info(`[Gateway] Server listening on port ${config.port}`);
-    logger.info(`[Gateway] Health check: http://localhost:${config.port}/health`);
-    logger.info(`[Gateway] Metrics: http://localhost:${config.port}/metrics`);
-  });
-
-  server.on('error', (err: Error) => {
-    logger.error({ err }, '[Gateway] Server error');
-  });
-
-  // ============================================================================
-  // GRACEFUL SHUTDOWN
-  // ============================================================================
-
-  const shutdown = async (): Promise<void> => {
+  return async (): Promise<void> => {
     logger.info('[Gateway] Shutting down gracefully...');
 
     server.close(() => {
@@ -257,20 +260,78 @@ async function main(): Promise<void> {
     cacheRedis.disconnect();
     logger.info('[Gateway] Cache invalidation service closed');
 
+    await shutdownEmbeddingService();
+    logger.info('[Gateway] Embedding service shut down');
+
     await closeQueue();
 
     logger.info('[Gateway] Shutdown complete');
     process.exit(0);
   };
+}
 
+// ============================================================================
+// MAIN
+// ============================================================================
+
+/**
+ * Start the server
+ */
+async function main(): Promise<void> {
+  const config = {
+    port: envConfig.API_GATEWAY_PORT,
+    env: envConfig.NODE_ENV,
+    corsOrigins: envConfig.CORS_ORIGINS,
+  };
+
+  logger.info('[Gateway] Starting API Gateway service...');
+  logger.info(
+    { port: config.port, env: config.env, corsOrigins: config.corsOrigins },
+    '[Gateway] Configuration:'
+  );
+
+  // Startup validation
+  validateByokConfiguration();
+  validateRequiredEnvVars();
+  await ensureAvatarDirectory();
+  await ensureTempAttachmentDirectory();
+  await syncAvatars();
+
+  // Create Express app with base middleware
+  const app = express();
+  const prisma = getPrismaClient();
+  app.use(express.json({ limit: '10mb' }));
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+  app.use(pinoHttp({ logger }));
+  app.use(createCorsMiddleware({ origins: config.corsOrigins }));
+
+  // Initialize services and register routes
+  const services = await initializeServices(prisma);
+  registerRoutes(app, prisma, services);
+  app.use(globalErrorHandler(config.env === 'production'));
+
+  // Start server
+  const server = app.listen(config.port, (err?: Error) => {
+    if (err) {
+      logger.error({ err }, '[Gateway] Failed to start server');
+      process.exit(1);
+    }
+    logger.info(`[Gateway] Server listening on port ${config.port}`);
+    logger.info(`[Gateway] Health check: http://localhost:${config.port}/health`);
+  });
+
+  server.on('error', (err: Error) => {
+    logger.error({ err }, '[Gateway] Server error');
+  });
+
+  // Setup graceful shutdown
+  const shutdown = createShutdownHandler(server, services);
   process.on('SIGTERM', () => void shutdown());
   process.on('SIGINT', () => void shutdown());
-
   process.on('uncaughtException', error => {
     logger.fatal({ err: error }, '[Gateway] Uncaught exception:');
     void shutdown();
   });
-
   process.on('unhandledRejection', reason => {
     logger.fatal({ reason }, '[Gateway] Unhandled rejection:');
     void shutdown();

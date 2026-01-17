@@ -4,16 +4,15 @@
  */
 
 import { type PrismaClient } from '@tzurot/common-types';
-import { OpenAI } from 'openai';
 import {
   createLogger,
-  MODEL_DEFAULTS,
   AI_DEFAULTS,
   filterValidDiscordIds,
   splitTextByTokens,
   generateMemoryChunkGroupUuid,
   countTextTokens,
 } from '@tzurot/common-types';
+import type { IEmbeddingService } from '@tzurot/embeddings';
 import {
   EMBEDDING_DIMENSION,
   isValidId,
@@ -52,18 +51,15 @@ const logger = createLogger('PgvectorMemoryAdapter');
  */
 export class PgvectorMemoryAdapter {
   private prisma: PrismaClient;
-  private openai: OpenAI;
-  private embeddingModel: string;
+  private embeddingService: IEmbeddingService;
 
-  constructor(prisma: PrismaClient, openaiApiKey: string) {
+  constructor(prisma: PrismaClient, embeddingService: IEmbeddingService) {
     this.prisma = prisma;
-    this.openai = new OpenAI({
-      apiKey: openaiApiKey,
-    });
-    this.embeddingModel = isValidId(process.env.EMBEDDING_MODEL)
-      ? process.env.EMBEDDING_MODEL
-      : MODEL_DEFAULTS.EMBEDDING;
-    logger.info({ embeddingModel: this.embeddingModel }, 'Pgvector Memory Adapter initialized');
+    this.embeddingService = embeddingService;
+    logger.info(
+      { embeddingDimension: embeddingService.getDimensions() },
+      'Pgvector Memory Adapter initialized with local embedding service'
+    );
   }
 
   /**
@@ -235,7 +231,7 @@ export class PgvectorMemoryAdapter {
 
       await this.prisma.$executeRaw`
         INSERT INTO memories (
-          id, persona_id, personality_id, source_system, content, embedding,
+          id, persona_id, personality_id, source_system, content, embedding_local,
           session_id, canon_scope, summary_type, channel_id, guild_id,
           message_ids, senders, is_summarized, created_at,
           chunk_group_id, chunk_index, total_chunks
@@ -245,8 +241,8 @@ export class PgvectorMemoryAdapter {
           ${data.metadata.personalityId}::uuid,
           'tzurot-v3',
           ${data.text},
-          -- embedding: vector dimension must match EMBEDDING_DIMENSION (1536)
-          ${`[${embedding.join(',')}]`}::vector(1536),
+          -- embedding_local: BGE-small-en-v1.5 (384 dimensions)
+          ${`[${embedding.join(',')}]`}::vector(384),
           ${normalized.sessionId},
           ${normalized.canonScope},
           ${normalized.summaryType},
@@ -285,24 +281,18 @@ export class PgvectorMemoryAdapter {
   }
 
   private async generateEmbedding(text: string): Promise<number[]> {
-    const response = await this.openai.embeddings.create({
-      model: this.embeddingModel,
-      input: text,
-    });
-
-    // Validate response structure
-    if (response.data.length === 0) {
-      throw new Error(
-        `OpenAI embeddings API returned invalid response structure: data array is empty`
-      );
+    if (!this.embeddingService.isServiceReady()) {
+      throw new Error('Embedding service is not ready');
     }
 
-    const firstResult = response.data[0];
-    const embedding = firstResult.embedding;
+    const embedding = await this.embeddingService.getEmbedding(text);
 
-    // Validate embedding has content
+    if (embedding === undefined) {
+      throw new Error('Embedding service returned undefined result');
+    }
+
     if (embedding.length === 0) {
-      throw new Error(`OpenAI embeddings API returned empty embedding array`);
+      throw new Error('Embedding service returned empty embedding array');
     }
 
     if (embedding.length !== EMBEDDING_DIMENSION) {
@@ -310,7 +300,9 @@ export class PgvectorMemoryAdapter {
         `Invalid embedding dimensions: expected ${EMBEDDING_DIMENSION}, got ${embedding.length}`
       );
     }
-    return embedding;
+
+    // Convert Float32Array to number[]
+    return Array.from(embedding);
   }
 
   /**
