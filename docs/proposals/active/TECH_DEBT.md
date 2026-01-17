@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-13
+> Last updated: 2026-01-17
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -493,6 +493,30 @@ logger.info({
 **Current Location**: `services/api-gateway/src/routes/user/memorySearch.test.ts`
 
 **Source**: PR #472 code review (2026-01-13)
+
+---
+
+### Monorepo Script Inheritance for Sub-Packages
+
+**Problem**: When running `pnpm --filter @scope/package lint`, it fails with "no script" if the package doesn't define its own `lint` or `typecheck` script. This forces either:
+
+- Duplicating identical scripts across all package.json files (maintenance burden)
+- Remembering to run from root instead of filtering
+
+**Current Impact**: Minor annoyance when testing individual packages.
+
+**Potential Solutions** (from MCP council research):
+
+1. **`pnpm exec` approach**: Bypass scripts entirely with `pnpm --filter pkg exec eslint .`
+2. **Root helper scripts**: Add `"x:lint": "pnpm exec eslint"` to root
+3. **Sync script**: Auto-copy standard scripts to all packages that don't have custom ones
+4. **Switch to Nx**: Has native "inferred tasks" that auto-detect from config files
+
+**Recommended approach**: Option 3 (sync script) - maintains Turbo caching while minimizing maintenance.
+
+**Why low priority**: Workaround exists (run from root), only affects developer convenience.
+
+**Source**: PR #474 discussion (2026-01-17)
 
 ---
 
