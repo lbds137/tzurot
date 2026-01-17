@@ -35,6 +35,7 @@
     "@types/estree": "^1.0.8",
     "@types/node": "^25.0.6",
     "@vitest/coverage-v8": "^4.0.17",
+    "memfs": "^4.53.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.17"
   },
