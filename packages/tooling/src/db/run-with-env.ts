@@ -2,12 +2,12 @@
  * Generic Environment Runner
  *
  * Runs arbitrary commands with Railway database credentials injected.
- * This is the implementation for `pnpm ops run --env <env> -- <command>`.
+ * This is the implementation for `pnpm ops run --env <env> <command>`.
  *
  * Usage:
- *   pnpm ops run --env dev -- pnpm --filter @tzurot/scripts run db:backfill-local-embeddings
- *   pnpm ops run --env prod -- npx prisma studio
- *   pnpm ops run --env dev -- tsx scripts/src/db/some-script.ts
+ *   pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts
+ *   pnpm ops run --env prod npx prisma studio
+ *   pnpm with-env prod npx prisma studio  (shortcut)
  */
 
 import chalk from 'chalk';
@@ -71,7 +71,12 @@ export async function runWithEnv(
       });
 
       proc.on('close', code => resolve(code ?? 0));
-      proc.on('error', reject);
+      proc.on('error', error => {
+        // Enhance error with command context for better debugging
+        const enhancedError = new Error(`Failed to spawn '${command}': ${error.message}`);
+        enhancedError.cause = error;
+        reject(enhancedError);
+      });
     });
 
     process.exit(result);
