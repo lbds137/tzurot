@@ -6,7 +6,6 @@
   "description": "Utility scripts for Tzurot development and operations",
   "scripts": {
     "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts",
-    "db:backfill-local-embeddings": "tsx src/db/backfill-local-embeddings.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
