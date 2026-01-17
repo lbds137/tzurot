@@ -528,17 +528,34 @@ logger.info({
 
 **Current Workaround**: Manual sync with TODO comment reminding to keep in sync.
 
-**Solution**: Generate scopes dynamically from workspace structure:
+**Solution**: Generate scopes dynamically from `pnpm-workspace.yaml`:
 
 ```javascript
 // commitlint.config.cjs
-const { readdirSync } = require('fs');
-const { join } = require('path');
+const { readFileSync, readdirSync, existsSync } = require('fs');
+const { join, basename } = require('path');
+const { parse } = require('yaml');
 
 function getWorkspaceScopes() {
-  const services = readdirSync(join(__dirname, 'services'));
-  const packages = readdirSync(join(__dirname, 'packages'));
-  return [...services, ...packages, 'scripts', 'hooks', 'docs', 'deps', 'tests', 'ci'];
+  const workspaceFile = join(__dirname, 'pnpm-workspace.yaml');
+  const workspace = parse(readFileSync(workspaceFile, 'utf8'));
+
+  const scopes = new Set(['hooks', 'docs', 'deps', 'tests', 'ci']); // Non-package scopes
+
+  for (const pattern of workspace.packages) {
+    if (pattern.endsWith('/*')) {
+      // Glob pattern like 'packages/*' - expand directory
+      const dir = join(__dirname, pattern.slice(0, -2));
+      if (existsSync(dir)) {
+        readdirSync(dir).forEach(name => scopes.add(name));
+      }
+    } else {
+      // Direct path like 'scripts' - use as-is
+      scopes.add(basename(pattern));
+    }
+  }
+
+  return [...scopes].sort();
 }
 
 module.exports = {
@@ -550,7 +567,7 @@ module.exports = {
 };
 ```
 
-**Alternative**: Read from `pnpm-workspace.yaml` for more accurate mapping.
+This reads from `pnpm-workspace.yaml` (the single source of truth) and expands glob patterns to discover actual package names.
 
 **Why low priority**: Easy workaround (add manually), only affects developers on rare occasions.
 
