@@ -603,7 +603,7 @@ describe('PgvectorMemoryAdapter', () => {
           .fn()
           .mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
             // chunkGroupId is at index 15 in the VALUES (0-indexed)
-            // Based on SQL: id, persona_id, personality_id, source_system, content, embedding_local,
+            // Based on SQL: id, persona_id, personality_id, source_system, content, embedding,
             //               session_id, canon_scope, summary_type, channel_id, guild_id,
             //               message_ids, senders, is_summarized, created_at, chunk_group_id, ...
             chunkGroupIds.push(values[15]);

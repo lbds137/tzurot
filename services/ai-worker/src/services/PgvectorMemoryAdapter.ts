@@ -231,7 +231,7 @@ export class PgvectorMemoryAdapter {
 
       await this.prisma.$executeRaw`
         INSERT INTO memories (
-          id, persona_id, personality_id, source_system, content, embedding_local,
+          id, persona_id, personality_id, source_system, content, embedding,
           session_id, canon_scope, summary_type, channel_id, guild_id,
           message_ids, senders, is_summarized, created_at,
           chunk_group_id, chunk_index, total_chunks
@@ -241,7 +241,7 @@ export class PgvectorMemoryAdapter {
           ${data.metadata.personalityId}::uuid,
           'tzurot-v3',
           ${data.text},
-          -- embedding_local: BGE-small-en-v1.5 (384 dimensions)
+          -- BGE-small-en-v1.5 local embedding (384 dimensions)
           ${`[${embedding.join(',')}]`}::vector(384),
           ${normalized.sessionId},
           ${normalized.canonScope},

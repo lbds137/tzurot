@@ -81,21 +81,6 @@ describe('checkMigrationSafety', () => {
     expect(output).toContain('idx_memories_embedding');
   });
 
-  it('should detect dropped idx_memories_embedding_local without recreate', async () => {
-    vol.fromJSON({
-      '/migrations/20240102_bad_migration/migration.sql': `
-        DROP INDEX idx_memories_embedding_local;
-      `,
-    });
-
-    const { checkMigrationSafety } = await import('./check-migration-safety.js');
-    await checkMigrationSafety({ migrationsPath: '/migrations' });
-
-    expect(processExitSpy).toHaveBeenCalledWith(1);
-    const output = consoleLogSpy.mock.calls.flat().join(' ');
-    expect(output).toContain('idx_memories_embedding_local');
-  });
-
   it('should pass when index is dropped and recreated in same file', async () => {
     vol.fromJSON({
       '/migrations/20240103_safe_migration/migration.sql': `
