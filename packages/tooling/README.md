@@ -8,10 +8,19 @@ Internal tooling package for Tzurot v3 monorepo operations.
 # See all available commands
 pnpm ops --help
 
+# Run ANY script with Railway DATABASE_URL
+pnpm ops run --env dev <command>          # Inject dev DATABASE_URL
+pnpm ops run --env prod --force <command> # Inject prod DATABASE_URL
+
+# Shortcut (from root)
+pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
+
 # Database operations
 pnpm ops db:check-drift      # Check for migration drift
 pnpm ops db:fix-drift <name> # Fix drifted migrations
 pnpm ops db:inspect          # Inspect database state
+pnpm ops db:status --env dev # Migration status on Railway dev
+pnpm ops db:migrate --env dev # Run migrations on Railway dev
 
 # Data operations
 pnpm ops data:import <name>  # Import a personality
@@ -26,6 +35,47 @@ pnpm ops cache:inspect       # Show cache size and stats
 pnpm ops cache:clear         # Clear Turborepo cache
 pnpm ops cache:clear --dry-run  # Preview without deleting
 ```
+
+## Running Scripts Against Railway Databases
+
+The `ops run` command provides a **generic way to run any script** with Railway database credentials injected. This avoids needing to add specific ops commands for every one-off script.
+
+### How It Works
+
+1. Fetches `DATABASE_PUBLIC_URL` from Railway via the CLI
+2. Injects it as `DATABASE_URL` into the spawned process
+3. Runs your command with stdio inherited (interactive scripts work)
+
+### Examples
+
+```bash
+# Run a one-off script directly (no npm script needed)
+pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts
+
+# Run Prisma Studio against Railway dev
+pnpm ops run --env dev npx prisma studio
+
+# Run a reusable npm script (for scripts that may be run multiple times)
+pnpm ops run --env dev pnpm --filter @tzurot/scripts run db:fix-phantom
+
+# Production operations (requires confirmation or --force)
+pnpm ops run --env prod --force npx prisma migrate deploy
+```
+
+### Shortcut
+
+For convenience, use the `with-env` shortcut from the root:
+
+```bash
+pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
+```
+
+### When to Use npm Scripts vs Direct Execution
+
+| Pattern                        | Use When                                     |
+| ------------------------------ | -------------------------------------------- |
+| `tsx scripts/src/db/script.ts` | One-off scripts (migrations, backfills)      |
+| `pnpm --filter pkg run script` | Reusable scripts that may run multiple times |
 
 ## Architecture
 
