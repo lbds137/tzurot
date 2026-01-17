@@ -28,6 +28,7 @@ COPY services/ai-worker/ ./services/ai-worker/
 
 # Build shared packages and service
 RUN pnpm --filter @tzurot/common-types build
+RUN pnpm --filter @tzurot/embeddings build
 RUN pnpm --filter ai-worker build
 
 # Production stage
@@ -45,6 +46,7 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-types/package.json ./packages/common-types/
+COPY packages/embeddings/package.json ./packages/embeddings/
 COPY services/ai-worker/package.json ./services/ai-worker/
 COPY prisma ./prisma
 
@@ -56,6 +58,7 @@ COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
 # Copy built artifacts
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
+COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist
 COPY --from=builder /app/services/ai-worker/dist ./services/ai-worker/dist
 
 CMD ["node", "services/ai-worker/dist/index.js"]
