@@ -1,3 +1,5 @@
+// NOTE: Keep scopes in sync with packages/ and services/ directories
+// TODO: Consider generating dynamically from pnpm-workspace.yaml
 module.exports = {
   extends: ['@commitlint/config-conventional'],
   rules: {
@@ -6,11 +8,16 @@ module.exports = {
       2,
       'always',
       [
+        // Services
         'api-gateway',
         'ai-worker',
         'bot-client',
+        // Packages
         'common-types',
+        'embeddings',
         'tooling',
+        // Other
+        'scripts',
         'hooks',
         'docs',
         'deps',
