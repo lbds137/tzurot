@@ -147,7 +147,7 @@ export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.AUTHENTICATION,
   ApiErrorCategory.QUOTA_EXCEEDED,
   ApiErrorCategory.CONTENT_POLICY,
-  // BAD_REQUEST moved to TRANSIENT - some providers (Z.AI, etc.) return 400 intermittently
+  ApiErrorCategory.BAD_REQUEST,
   ApiErrorCategory.MODEL_NOT_FOUND,
 ]);
 
@@ -156,7 +156,6 @@ export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set
 export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
-  ApiErrorCategory.BAD_REQUEST, // Some providers return 400 intermittently (Z.AI, etc.)
   ApiErrorCategory.RATE_LIMIT,
   ApiErrorCategory.SERVER_ERROR,
   ApiErrorCategory.TIMEOUT,

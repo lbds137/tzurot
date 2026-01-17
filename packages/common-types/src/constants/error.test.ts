@@ -49,9 +49,9 @@ describe('generateErrorReferenceId', () => {
 });
 
 describe('classifyHttpStatus', () => {
-  it('should classify 400 as bad request (transient - providers return intermittently)', () => {
+  it('should classify 400 as bad request (permanent)', () => {
     const result = classifyHttpStatus(400);
-    expect(result.type).toBe(ApiErrorType.TRANSIENT);
+    expect(result.type).toBe(ApiErrorType.PERMANENT);
     expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
   });
 
@@ -121,12 +121,11 @@ describe('isPermanentError', () => {
     expect(isPermanentError(ApiErrorCategory.AUTHENTICATION)).toBe(true);
     expect(isPermanentError(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(true);
     expect(isPermanentError(ApiErrorCategory.CONTENT_POLICY)).toBe(true);
-    // BAD_REQUEST moved to transient - some providers return 400 intermittently
+    expect(isPermanentError(ApiErrorCategory.BAD_REQUEST)).toBe(true);
     expect(isPermanentError(ApiErrorCategory.MODEL_NOT_FOUND)).toBe(true);
   });
 
   it('should return false for transient categories', () => {
-    expect(isPermanentError(ApiErrorCategory.BAD_REQUEST)).toBe(false);
     expect(isPermanentError(ApiErrorCategory.RATE_LIMIT)).toBe(false);
     expect(isPermanentError(ApiErrorCategory.SERVER_ERROR)).toBe(false);
     expect(isPermanentError(ApiErrorCategory.TIMEOUT)).toBe(false);
@@ -142,7 +141,6 @@ describe('isPermanentError', () => {
 
 describe('isTransientError', () => {
   it('should return true for transient categories', () => {
-    expect(isTransientError(ApiErrorCategory.BAD_REQUEST)).toBe(true); // Some providers return 400 intermittently
     expect(isTransientError(ApiErrorCategory.RATE_LIMIT)).toBe(true);
     expect(isTransientError(ApiErrorCategory.SERVER_ERROR)).toBe(true);
     expect(isTransientError(ApiErrorCategory.TIMEOUT)).toBe(true);
@@ -155,6 +153,7 @@ describe('isTransientError', () => {
     expect(isTransientError(ApiErrorCategory.AUTHENTICATION)).toBe(false);
     expect(isTransientError(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(false);
     expect(isTransientError(ApiErrorCategory.CONTENT_POLICY)).toBe(false);
+    expect(isTransientError(ApiErrorCategory.BAD_REQUEST)).toBe(false);
     expect(isTransientError(ApiErrorCategory.MODEL_NOT_FOUND)).toBe(false);
   });
 
@@ -237,7 +236,7 @@ describe('PERMANENT_ERROR_CATEGORIES', () => {
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.AUTHENTICATION)).toBe(true);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(true);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.CONTENT_POLICY)).toBe(true);
-    // BAD_REQUEST moved to TRANSIENT - some providers return 400 intermittently
+    expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.BAD_REQUEST)).toBe(true);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.MODEL_NOT_FOUND)).toBe(true);
   });
 
@@ -245,13 +244,11 @@ describe('PERMANENT_ERROR_CATEGORIES', () => {
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.RATE_LIMIT)).toBe(false);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.SERVER_ERROR)).toBe(false);
     expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.TIMEOUT)).toBe(false);
-    expect(PERMANENT_ERROR_CATEGORIES.has(ApiErrorCategory.BAD_REQUEST)).toBe(false);
   });
 });
 
 describe('TRANSIENT_ERROR_CATEGORIES', () => {
   it('should contain expected transient categories', () => {
-    expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.BAD_REQUEST)).toBe(true); // Some providers return 400 intermittently
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.RATE_LIMIT)).toBe(true);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.SERVER_ERROR)).toBe(true);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.TIMEOUT)).toBe(true);
@@ -264,6 +261,7 @@ describe('TRANSIENT_ERROR_CATEGORIES', () => {
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.AUTHENTICATION)).toBe(false);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(false);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.CONTENT_POLICY)).toBe(false);
+    expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.BAD_REQUEST)).toBe(false);
   });
 });
 

@@ -127,6 +127,25 @@ if (dateFrom && isNaN(Date.parse(dateFrom))) {
 
 ---
 
+### Duplicate Detection Temperature Strategy
+
+**Problem**: The duplicate detection "ladder of desperation" uses temperature increase to break API caching. Originally set to 1.1, but some providers (Z.AI, etc.) reject temperature > 1.0 with "Invalid API parameter" errors.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:107`
+
+**Current Fix**: Capped at 1.0, but this reduces effectiveness of cache-busting.
+
+**Potential Improvements**:
+
+- [ ] Add small random jitter to temperature (e.g., 0.95-1.0) instead of fixed value
+- [ ] Use different cache-busting strategies per provider
+- [ ] Investigate if frequency_penalty alone is sufficient
+- [ ] Consider adding a random token/prefix to break caching
+
+**Source**: Production incident 2026-01-17 (Z.AI returning 400 on temp 1.1)
+
+---
+
 ### Per-User Memory Quotas
 
 **Problem**: No limits on how many memories a user can create per persona. At scale, a single user could create 100k+ memories, impacting database performance.
