@@ -58,7 +58,7 @@ export function buildSimilaritySearchQuery(
   // 1. pgvector requires exact '[n,n,n,...]' format which can't be parameterized
   // 2. embeddingVector is validated and constructed from numeric array only (safe)
   // 3. Prisma.raw() cannot be nested in Prisma.sql, so we use Prisma.join() instead
-  // Uses embedding_local (384-dim BGE) instead of embedding (1536-dim OpenAI)
+  // Uses local BGE embeddings (384 dimensions) for similarity search
   return Prisma.join(
     [
       Prisma.sql`
@@ -67,7 +67,7 @@ export function buildSimilaritySearchQuery(
           m.persona_id,
           m.personality_id,
           m.content,
-          m.embedding_local <=> `,
+          m.embedding <=> `,
       Prisma.raw(`'${embeddingVector}'::vector`),
       Prisma.sql` AS distance,
           m.session_id,
@@ -91,8 +91,8 @@ export function buildSimilaritySearchQuery(
         WHERE `,
       whereClause,
       Prisma.sql`
-          AND m.embedding_local IS NOT NULL
-          AND m.embedding_local <=> `,
+          AND m.embedding IS NOT NULL
+          AND m.embedding <=> `,
       Prisma.raw(`'${embeddingVector}'::vector`),
       Prisma.sql` < ${maxDistance}
         ORDER BY distance ASC

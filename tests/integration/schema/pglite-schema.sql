@@ -290,7 +290,6 @@ CREATE TABLE "memories" (
     "personality_id" UUID NOT NULL,
     "content" TEXT NOT NULL,
     "embedding" vector,
-    "embedding_local" vector,
     "is_summarized" BOOLEAN NOT NULL DEFAULT false,
     "original_message_count" INTEGER,
     "summarized_at" TIMESTAMP(3),
