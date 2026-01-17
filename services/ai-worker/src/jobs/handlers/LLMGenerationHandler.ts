@@ -26,6 +26,7 @@ import {
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
 import { LlmConfigResolver } from '../../services/LlmConfigResolver.js';
+import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import {
   type IPipelineStep,
   type GenerationContext,
@@ -79,7 +80,8 @@ export class LLMGenerationHandler {
   constructor(
     ragService: ConversationalRAGService,
     apiKeyResolver?: ApiKeyResolver,
-    configResolver?: LlmConfigResolver
+    configResolver?: LlmConfigResolver,
+    embeddingService?: EmbeddingServiceInterface
   ) {
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
@@ -101,7 +103,7 @@ export class LLMGenerationHandler {
       new AuthStep(apiKeyResolver, configResolver),
       new DependencyStep(),
       new ContextStep(),
-      new GenerationStep(ragService),
+      new GenerationStep(ragService, embeddingService),
     ];
   }
 

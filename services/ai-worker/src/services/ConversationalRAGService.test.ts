@@ -691,7 +691,7 @@ describe('ConversationalRAGService', () => {
       const context = createMockContext();
       const userApiKey = 'user-api-key-123';
 
-      await service.generateResponse(personality, 'Test', context, userApiKey);
+      await service.generateResponse(personality, 'Test', context, { userApiKey });
 
       expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
         expect.objectContaining({

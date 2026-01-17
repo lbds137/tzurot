@@ -9,12 +9,34 @@
  *
  * Cross-turn: API-level caching on free-tier models can return the same
  * response to different user inputs.
+ *
+ * This file contains:
+ * - Intra-turn detection (removeDuplicateResponse)
+ * - Similarity functions (stringSimilarity, wordJaccardSimilarity)
+ * - Retry configuration (buildRetryConfig)
+ * - Re-exports from crossTurnDetection.ts for backward compatibility
  */
 
 import { createHash } from 'node:crypto';
-import { createLogger, stripBotFooters } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('DuplicateDetection');
+
+// ============================================================================
+// Re-exports from crossTurnDetection.ts (for backward compatibility)
+// ============================================================================
+
+// Re-export types from dedicated types file
+export type { EmbeddingServiceInterface, DuplicateCheckResult } from './duplicateDetectionTypes.js';
+
+// Re-export cross-turn detection functions and history helpers
+export {
+  isCrossTurnDuplicate,
+  isRecentDuplicate,
+  isRecentDuplicateAsync,
+  getLastAssistantMessage,
+  getRecentAssistantMessages,
+} from './crossTurnDetection.js';
 
 // ============================================================================
 // Configuration Constants
@@ -37,17 +59,13 @@ const ANCHOR_LENGTH = 30;
  *
  * Set at 0.8 (80%) because intra-turn duplicates from stop-token failures
  * may have slight variations (trailing punctuation, whitespace differences).
- * We want to catch "almost exact" duplicates without false positives on
- * genuinely similar but distinct content.
  */
 const INTRA_TURN_SIMILARITY_THRESHOLD = 0.8;
 
 /**
  * Default threshold for considering responses "too similar" (cross-turn).
  *
- * Set at 0.85 (85%) to balance catching genuine duplicates vs. false positives:
- * - Higher than intra-turn (0.8) because cross-turn duplicates should be more exact
- * - Below 0.9 to catch paraphrased duplicates where the model rewrites the same idea
+ * Set at 0.85 (85%) to balance catching genuine duplicates vs. false positives.
  */
 export const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
 
@@ -55,50 +73,90 @@ export const DEFAULT_SIMILARITY_THRESHOLD = 0.85;
  * Near-miss threshold for diagnostic logging.
  *
  * When similarity is between NEAR_MISS_THRESHOLD and DEFAULT_SIMILARITY_THRESHOLD,
- * we log at INFO level as a potential false negative. This helps diagnose cases
- * where duplicates slip through because they're just under the threshold.
- *
- * Set at 0.70 (70%) based on council feedback that bigram Dice coefficient
- * is sensitive to minor wording changes, so duplicates may score lower than expected.
+ * we log at INFO level as a potential false negative.
  */
 export const NEAR_MISS_THRESHOLD = 0.7;
 
 /**
- * Minimum response length to check for cross-turn similarity.
- * Short responses like "Thank you!" may legitimately repeat.
+ * Threshold for word-level Jaccard similarity detection.
+ *
+ * Set at 0.75 (75%) to catch duplicates where the same words appear
+ * but with different punctuation, formatting, or minor variations.
  */
-const MIN_LENGTH_FOR_SIMILARITY_CHECK = 30;
+export const WORD_JACCARD_THRESHOLD = 0.75;
 
 /**
- * Number of recent assistant messages to check for cross-turn duplicates.
+ * Threshold for semantic embedding similarity detection.
  *
- * Set to 5 based on production observations (January 2026) showing API-level
- * caching can return responses from 3-4 turns back, not just the most recent.
- * The window is about recency - we don't filter out short messages during
- * collection because that would scan arbitrarily far back in history.
+ * Set at 0.88 (cosine similarity) to catch semantically identical content
+ * that uses different words. This is Layer 4 in the Swiss Cheese model.
  */
-const MAX_RECENT_ASSISTANT_MESSAGES = 5;
+export const SEMANTIC_SIMILARITY_THRESHOLD = 0.88;
 
 // ============================================================================
-// String Similarity (shared by intra-turn and cross-turn detection)
+// Escalating Retry Constants ("Ladder of Desperation")
+// ============================================================================
+
+/**
+ * Temperature to use on Attempt 2 when normal generation produced a duplicate.
+ * Higher temperature increases randomness, helping to break API-level caching.
+ */
+export const RETRY_ATTEMPT_2_TEMPERATURE = 1.1;
+
+/**
+ * Frequency penalty to use on Attempt 2.
+ * Penalizes repeated tokens, encouraging more varied word choice.
+ */
+export const RETRY_ATTEMPT_2_FREQUENCY_PENALTY = 0.5;
+
+/**
+ * Percent of oldest conversation history to remove on Attempt 3.
+ * This changes the input significantly, breaking cache keys.
+ */
+export const RETRY_ATTEMPT_3_HISTORY_REDUCTION = 0.3;
+
+/**
+ * Build retry configuration for escalating duplicate detection.
+ *
+ * @param attempt Current attempt number (1-based)
+ * @returns Retry configuration with appropriate overrides for the attempt
+ */
+export function buildRetryConfig(attempt: number): {
+  temperatureOverride?: number;
+  frequencyPenaltyOverride?: number;
+  historyReductionPercent?: number;
+} {
+  if (attempt === 1) {
+    // Attempt 1: Normal generation, no overrides
+    return {};
+  }
+
+  if (attempt === 2) {
+    // Attempt 2: Increase temperature and frequency penalty
+    return {
+      temperatureOverride: RETRY_ATTEMPT_2_TEMPERATURE,
+      frequencyPenaltyOverride: RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
+    };
+  }
+
+  // Attempt 3+: Also reduce history to break cache
+  return {
+    temperatureOverride: RETRY_ATTEMPT_2_TEMPERATURE,
+    frequencyPenaltyOverride: RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
+    historyReductionPercent: RETRY_ATTEMPT_3_HISTORY_REDUCTION,
+  };
+}
+
+// ============================================================================
+// String Similarity Functions
 // ============================================================================
 
 /**
  * Calculate similarity ratio between two strings using Dice coefficient on bigrams.
  *
- * Uses bigram-based comparison which is O(n) and effective for near-duplicate detection.
- * This is similar to Python's difflib.SequenceMatcher but optimized for our use case.
- *
  * @param a First string to compare
  * @param b Second string to compare
  * @returns Similarity ratio between 0 (completely different) and 1 (identical)
- *
- * @example
- * ```typescript
- * stringSimilarity("hello world", "hello world") // 1.0
- * stringSimilarity("hello world", "hello there") // ~0.5
- * stringSimilarity("abc", "xyz") // 0
- * ```
  */
 export function stringSimilarity(a: string, b: string): number {
   // Exact match
@@ -148,36 +206,76 @@ export function stringSimilarity(a: string, b: string): number {
   return (2 * matches) / totalBigrams;
 }
 
-// ============================================================================
-// Diagnostic Helpers
-// ============================================================================
+/**
+ * Normalize text for word-level comparison.
+ *
+ * Performs aggressive normalization to focus on semantic content:
+ * - Lowercase
+ * - Strip markdown formatting
+ * - Remove punctuation
+ * - Collapse whitespace
+ */
+export function normalizeForComparison(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      // Remove markdown: *text*, **text**, _text_, __text__, ~~text~~
+      .replace(/[*_~]{1,2}([^*_~]+)[*_~]{1,2}/g, '$1')
+      // Remove punctuation except apostrophes in contractions
+      .replace(/[^\w\s']/g, ' ')
+      // Collapse multiple spaces
+      .replace(/\s+/g, ' ')
+      .trim()
+  );
+}
+
+/**
+ * Calculate word-level Jaccard similarity between two strings.
+ *
+ * This is "Layer 2" in the Swiss Cheese detection model.
+ * Jaccard index = |intersection| / |union|
+ */
+export function wordJaccardSimilarity(a: string, b: string): number {
+  const normalized1 = normalizeForComparison(a);
+  const normalized2 = normalizeForComparison(b);
+
+  // Handle edge cases
+  if (normalized1 === normalized2) {
+    return 1;
+  }
+  if (normalized1.length === 0 || normalized2.length === 0) {
+    return 0;
+  }
+
+  // Tokenize into word sets
+  const words1 = new Set(normalized1.split(' ').filter(w => w.length > 0));
+  const words2 = new Set(normalized2.split(' ').filter(w => w.length > 0));
+
+  if (words1.size === 0 || words2.size === 0) {
+    return 0;
+  }
+
+  // Calculate intersection
+  let intersectionSize = 0;
+  for (const word of words1) {
+    if (words2.has(word)) {
+      intersectionSize++;
+    }
+  }
+
+  // Calculate union: |A| + |B| - |A ∩ B|
+  const unionSize = words1.size + words2.size - intersectionSize;
+
+  // Jaccard index
+  return intersectionSize / unionSize;
+}
 
 /**
  * Create a SHA-256 hash of normalized content for exact-match detection.
- *
- * This catches byte-for-byte identical responses from API-level caching,
- * which is O(1) and catches the most egregious caching errors immediately.
- *
- * @param content The content to hash
- * @returns SHA-256 hash of normalized (lowercased, trimmed) content
  */
 export function contentHash(content: string): string {
   const normalized = content.toLowerCase().trim();
   return createHash('sha256').update(normalized).digest('hex').substring(0, 16);
-}
-
-/**
- * Create a snippet for logging (first N characters with ellipsis).
- *
- * @param content The content to snippet
- * @param maxLength Maximum length before truncation (default 60)
- * @returns Truncated content with ellipsis if needed
- */
-function snippet(content: string, maxLength = 60): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-  return content.substring(0, maxLength) + '...';
 }
 
 // ============================================================================
@@ -188,28 +286,18 @@ function snippet(content: string, maxLength = 60): string {
  * Remove duplicate content caused by LLM stop-token failure
  *
  * Some models occasionally fail to stop generation properly, causing the model
- * to "forget" what it wrote and regenerate the same response again, resulting
- * in concatenated duplicates.
+ * to "forget" what it wrote and regenerate the same response again.
  *
  * Algorithm:
  * 1. Take an "anchor" (first N characters) from the start of the response
  * 2. Search for that anchor appearing later in the text
- * 3. If found at index k, verify using stringSimilarity
- * 4. If similarity >= threshold, return only the first occurrence (text[:k])
- *
- * @param content - The AI-generated response content
- * @returns Deduplicated content (or original if no duplication detected)
- *
- * @example
- * ```typescript
- * removeDuplicateResponse('Hello world! Hello world!')
- * // Returns: 'Hello world!'
- * ```
+ * 3. If found, verify using stringSimilarity
+ * 4. If similarity >= threshold, return only the first occurrence
  */
 export function removeDuplicateResponse(content: string): string {
   const len = content.length;
 
-  // Skip short responses - unlikely to have the bug and higher false-positive risk
+  // Skip short responses
   if (len < MIN_LENGTH_FOR_DUPLICATION_CHECK) {
     return content;
   }
@@ -218,7 +306,7 @@ export function removeDuplicateResponse(content: string): string {
   const anchorLength = Math.min(ANCHOR_LENGTH, Math.floor(len / 3));
   const anchor = content.substring(0, anchorLength);
 
-  // Start searching AFTER the anchor itself to avoid self-overlapping matches
+  // Start searching AFTER the anchor itself
   let candidateIdx = content.indexOf(anchor, anchorLength);
 
   while (candidateIdx !== -1) {
@@ -226,11 +314,11 @@ export function removeDuplicateResponse(content: string): string {
     const firstPartRaw = content.substring(0, candidateIdx);
     const secondPartRaw = content.substring(candidateIdx);
 
-    // Trim for comparison only (preserve original whitespace in return value)
+    // Trim for comparison only
     const firstPart = firstPartRaw.trim();
     const secondPart = secondPartRaw.trim();
 
-    // Skip if second part is empty (we're at the end)
+    // Skip if second part is empty
     if (secondPart.length === 0) {
       break;
     }
@@ -288,352 +376,4 @@ export function removeDuplicateResponse(content: string): string {
 
   // No duplication detected
   return content;
-}
-
-// ============================================================================
-// Cross-Turn Duplicate Detection
-// ============================================================================
-
-/**
- * Check if a new response is too similar to a previous response.
- *
- * This detects cross-turn duplication where the LLM gives the same response
- * to different user inputs (typically caused by API-level caching).
- *
- * @param newResponse The newly generated response
- * @param previousResponse The previous bot response from conversation history
- * @param threshold Similarity threshold (default 0.85 = 85% similar)
- * @returns true if the responses are too similar (likely a cache hit)
- */
-export function isCrossTurnDuplicate(
-  newResponse: string,
-  previousResponse: string,
-  threshold = DEFAULT_SIMILARITY_THRESHOLD
-): boolean {
-  // Short responses may legitimately repeat (e.g., "Thank you!", "Got it!")
-  if (
-    newResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK ||
-    previousResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK
-  ) {
-    return false;
-  }
-
-  const similarity = stringSimilarity(newResponse, previousResponse);
-  const isDuplicate = similarity >= threshold;
-
-  if (isDuplicate) {
-    logger.warn(
-      {
-        similarity: similarity.toFixed(3),
-        threshold,
-        newResponseLength: newResponse.length,
-        previousResponseLength: previousResponse.length,
-      },
-      '[DuplicateDetection] Cross-turn duplication detected. ' +
-        'Response is too similar to previous turn. Possible API-level caching.'
-    );
-  }
-
-  return isDuplicate;
-}
-
-/**
- * Result of duplicate detection check with enhanced diagnostics.
- */
-export interface DuplicateCheckResult {
-  isDuplicate: boolean;
-  matchIndex: number;
-  /** How the duplicate was detected: 'exact_hash', 'similarity', or 'none' */
-  detectionMethod: 'exact_hash' | 'similarity' | 'none';
-  /** Highest similarity score found (for diagnostics) */
-  maxSimilarity: number;
-  /** Index of message with highest similarity */
-  maxSimilarityIndex: number;
-}
-
-/**
- * Log diagnostic info about duplicate detection outcome.
- * Extracted to keep isRecentDuplicate under complexity/line limits.
- */
-function logDuplicateCheckResult(params: {
-  outcome: 'NEAR_MISS' | 'PASSED';
-  maxSimilarity: number;
-  threshold: number;
-  maxSimilarityIndex: number;
-  recentMessagesCount: number;
-  newResponseLength: number;
-  newResponseSnippet: string;
-  closestMatchSnippet: string;
-  newResponseHash: string;
-}): void {
-  const {
-    outcome,
-    maxSimilarity,
-    threshold,
-    maxSimilarityIndex,
-    recentMessagesCount,
-    newResponseLength,
-    newResponseSnippet,
-    closestMatchSnippet,
-    newResponseHash,
-  } = params;
-
-  if (outcome === 'NEAR_MISS') {
-    // NEAR-MISS: High similarity but below threshold - potential false negative
-    logger.info(
-      {
-        outcome,
-        maxSimilarity: maxSimilarity.toFixed(3),
-        threshold,
-        nearMissThreshold: NEAR_MISS_THRESHOLD,
-        maxSimilarityIndex,
-        turnsBack: maxSimilarityIndex + 1,
-        recentMessagesCount,
-        newResponseLength,
-        newResponseSnippet,
-        closestMatchSnippet,
-        newResponseHash,
-      },
-      `[DuplicateDetection] NEAR-MISS: Similarity ${(maxSimilarity * 100).toFixed(1)}% ` +
-        `is high but below ${(threshold * 100).toFixed(0)}% threshold. Review if this should be a duplicate.`
-    );
-  } else {
-    // Normal case: log summary for every check
-    logger.info(
-      {
-        outcome,
-        maxSimilarity: maxSimilarity.toFixed(3),
-        threshold,
-        maxSimilarityIndex,
-        recentMessagesCount,
-        newResponseLength,
-        newResponseSnippet: snippet(newResponseSnippet, 40),
-        closestMatchSnippet: snippet(closestMatchSnippet, 40),
-      },
-      '[DuplicateDetection] Check complete - no duplicate detected'
-    );
-  }
-}
-
-/**
- * Check if a new response is too similar to ANY of the recent assistant messages.
- *
- * This catches cross-turn duplicates that may match older messages, not just the
- * immediate previous one. API-level caching on free models can return cached
- * responses from several turns back when the input is similar.
- *
- * Enhanced with:
- * - Exact hash check (catches byte-for-byte API cache duplicates in O(1))
- * - Near-miss logging (0.70-0.85 range logged at INFO for diagnostics)
- * - Max similarity logged for EVERY response to diagnose threshold issues
- *
- * @param newResponse The newly generated response
- * @param recentMessages Array of recent assistant messages (most recent first)
- * @param threshold Similarity threshold (default 0.85 = 85% similar)
- * @returns Object with isDuplicate flag, matchIndex, and diagnostic info
- */
-export function isRecentDuplicate(
-  newResponse: string,
-  recentMessages: string[],
-  threshold = DEFAULT_SIMILARITY_THRESHOLD
-): { isDuplicate: boolean; matchIndex: number } {
-  // Strip footers from the new response for clean comparison
-  const cleanNewResponse = stripBotFooters(newResponse);
-  const newResponseHash = contentHash(cleanNewResponse);
-
-  // Short responses may legitimately repeat
-  if (cleanNewResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
-    logger.debug(
-      { newResponseLength: cleanNewResponse.length, minLength: MIN_LENGTH_FOR_SIMILARITY_CHECK },
-      '[DuplicateDetection] Skipping - response too short'
-    );
-    return { isDuplicate: false, matchIndex: -1 };
-  }
-
-  // Track diagnostics
-  let highestSimilarity = 0;
-  let highestSimilarityIndex = -1;
-  let closestMatchSnippet = '';
-
-  // Build hash set for O(1) exact-match detection
-  const messageHashes = new Map<string, number>();
-
-  for (let i = 0; i < recentMessages.length; i++) {
-    const cleanPreviousResponse = stripBotFooters(recentMessages[i]);
-
-    // Skip short previous messages
-    if (cleanPreviousResponse.length < MIN_LENGTH_FOR_SIMILARITY_CHECK) {
-      continue;
-    }
-
-    const previousHash = contentHash(cleanPreviousResponse);
-    messageHashes.set(previousHash, i);
-
-    // SAFETY NET: Exact hash match (catches byte-for-byte API cache duplicates)
-    if (previousHash === newResponseHash) {
-      logger.warn(
-        {
-          detectionMethod: 'exact_hash',
-          matchIndex: i,
-          turnsBack: i + 1,
-          newResponseLength: cleanNewResponse.length,
-          newResponseSnippet: snippet(cleanNewResponse),
-          hash: newResponseHash,
-        },
-        `[DuplicateDetection] EXACT MATCH detected via hash. ` +
-          `Response is byte-for-byte identical to message from ${i + 1} turn(s) ago.`
-      );
-      return { isDuplicate: true, matchIndex: i };
-    }
-
-    // Similarity check
-    const similarity = stringSimilarity(cleanNewResponse, cleanPreviousResponse);
-
-    // Track highest similarity for diagnostics
-    if (similarity > highestSimilarity) {
-      highestSimilarity = similarity;
-      highestSimilarityIndex = i;
-      closestMatchSnippet = snippet(cleanPreviousResponse);
-    }
-
-    // Similarity threshold match
-    if (similarity >= threshold) {
-      logger.warn(
-        {
-          detectionMethod: 'similarity',
-          similarity: similarity.toFixed(3),
-          threshold,
-          matchIndex: i,
-          turnsBack: i + 1,
-          newResponseLength: cleanNewResponse.length,
-          previousResponseLength: cleanPreviousResponse.length,
-          newResponseSnippet: snippet(cleanNewResponse),
-          matchedSnippet: snippet(cleanPreviousResponse),
-        },
-        `[DuplicateDetection] Cross-turn duplication detected (similarity). ` +
-          `Response matches assistant message from ${i + 1} turn(s) ago.`
-      );
-      return { isDuplicate: true, matchIndex: i };
-    }
-  }
-
-  // ALWAYS log the result at INFO level for diagnostics (per council recommendation)
-  // This is crucial for debugging why duplicates slip through
-  if (recentMessages.length > 0) {
-    const isNearMiss = highestSimilarity >= NEAR_MISS_THRESHOLD && highestSimilarity < threshold;
-    logDuplicateCheckResult({
-      outcome: isNearMiss ? 'NEAR_MISS' : 'PASSED',
-      maxSimilarity: highestSimilarity,
-      threshold,
-      maxSimilarityIndex: highestSimilarityIndex,
-      recentMessagesCount: recentMessages.length,
-      newResponseLength: cleanNewResponse.length,
-      newResponseSnippet: snippet(cleanNewResponse),
-      closestMatchSnippet,
-      newResponseHash,
-    });
-  }
-
-  return { isDuplicate: false, matchIndex: -1 };
-}
-
-// ============================================================================
-// Conversation History Helpers
-// ============================================================================
-
-/**
- * Get the last assistant message from raw conversation history.
- *
- * @param history Raw conversation history entries
- * @returns The last assistant message content, or undefined if none found
- */
-export function getLastAssistantMessage(
-  history: { role: string; content: string }[] | undefined
-): string | undefined {
-  if (!history || history.length === 0) {
-    return undefined;
-  }
-
-  // Find the last assistant message (iterate from end)
-  for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === 'assistant') {
-      return history[i].content;
-    }
-  }
-
-  return undefined;
-}
-
-/**
- * Get recent assistant messages from raw conversation history.
- *
- * Returns up to MAX_RECENT_ASSISTANT_MESSAGES (5) messages to check for
- * cross-turn duplicates. This catches cases where API-level caching returns
- * an older cached response, not just the immediate previous one.
- *
- * @param history Raw conversation history entries
- * @param maxMessages Maximum number of messages to return (default 5)
- * @returns Array of recent assistant message contents (most recent first)
- */
-export function getRecentAssistantMessages(
-  history: { role: string; content: string }[] | undefined,
-  maxMessages = MAX_RECENT_ASSISTANT_MESSAGES
-): string[] {
-  if (!history || history.length === 0) {
-    logger.debug('[DuplicateDetection] No history provided for assistant message extraction');
-    return [];
-  }
-
-  const messages: string[] = [];
-
-  // Find assistant messages from end (most recent first)
-  for (let i = history.length - 1; i >= 0 && messages.length < maxMessages; i--) {
-    if (history[i].role === 'assistant') {
-      messages.push(history[i].content);
-    }
-  }
-
-  // Compute role distribution for diagnostics
-  const roleDistribution = history.reduce(
-    (acc, msg) => {
-      acc[msg.role] = (acc[msg.role] || 0) + 1;
-      return acc;
-    },
-    {} as Record<string, number>
-  );
-
-  // DIAGNOSTIC: Log at INFO level when we have history but find no assistant messages
-  // This is the anomaly we're trying to diagnose - duplicate detection failing
-  // because no assistant messages are being found despite history being present
-  if (messages.length === 0 && history.length > 0) {
-    // Sample a few role values to see what they actually are
-    const sampleRoles = history.slice(-5).map(msg => ({
-      role: msg.role,
-      roleType: typeof msg.role,
-      contentLength: msg.content.length,
-    }));
-
-    logger.info(
-      {
-        historyLength: history.length,
-        roleDistribution,
-        sampleRoles,
-        expectedRole: 'assistant',
-      },
-      '[DuplicateDetection] ANOMALY: No assistant messages found in non-empty history. ' +
-        'This may cause duplicate responses to go undetected.'
-    );
-  } else {
-    logger.debug(
-      {
-        historyLength: history.length,
-        assistantMessagesFound: messages.length,
-        roleDistribution,
-        maxMessages,
-      },
-      '[DuplicateDetection] Extracted recent assistant messages from history'
-    );
-  }
-
-  return messages;
 }

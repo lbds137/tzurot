@@ -14,8 +14,15 @@ import {
   getLastAssistantMessage,
   getRecentAssistantMessages,
   contentHash,
+  normalizeForComparison,
+  wordJaccardSimilarity,
+  buildRetryConfig,
   DEFAULT_SIMILARITY_THRESHOLD,
   NEAR_MISS_THRESHOLD,
+  WORD_JACCARD_THRESHOLD,
+  RETRY_ATTEMPT_2_TEMPERATURE,
+  RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
+  RETRY_ATTEMPT_3_HISTORY_REDUCTION,
 } from './duplicateDetection.js';
 
 describe('removeDuplicateResponse', () => {
@@ -215,6 +222,162 @@ describe('contentHash', () => {
   it('should return 16-character hex string', () => {
     const hash = contentHash('test content');
     expect(hash).toMatch(/^[a-f0-9]{16}$/);
+  });
+});
+
+// ============================================================================
+// Word-Level Jaccard Similarity Tests (Layer 2)
+// ============================================================================
+
+describe('normalizeForComparison', () => {
+  it('should lowercase text', () => {
+    expect(normalizeForComparison('Hello WORLD')).toBe('hello world');
+  });
+
+  it('should remove markdown formatting', () => {
+    expect(normalizeForComparison('*bold* and _italic_')).toBe('bold and italic');
+    expect(normalizeForComparison('**strong** and __underline__')).toBe('strong and underline');
+    expect(normalizeForComparison('~~strikethrough~~')).toBe('strikethrough');
+  });
+
+  it('should remove punctuation except apostrophes', () => {
+    expect(normalizeForComparison("Hello, world! How's it going?")).toBe(
+      "hello world how's it going"
+    );
+    expect(normalizeForComparison('Test... with... ellipsis!!!')).toBe('test with ellipsis');
+  });
+
+  it('should collapse multiple spaces', () => {
+    expect(normalizeForComparison('hello    world')).toBe('hello world');
+    expect(normalizeForComparison('  leading and trailing  ')).toBe('leading and trailing');
+  });
+
+  it('should handle roleplay formatting', () => {
+    expect(normalizeForComparison('*sighs* Hello there')).toBe('sighs hello there');
+    expect(normalizeForComparison('*I lean forward thoughtfully* This is important.')).toBe(
+      'i lean forward thoughtfully this is important'
+    );
+  });
+
+  it('should handle empty string', () => {
+    expect(normalizeForComparison('')).toBe('');
+  });
+});
+
+describe('wordJaccardSimilarity', () => {
+  it('should return 1 for identical strings', () => {
+    expect(wordJaccardSimilarity('hello world', 'hello world')).toBe(1);
+  });
+
+  it('should return 1 for strings that normalize to the same words', () => {
+    expect(wordJaccardSimilarity('Hello World!', 'hello, world')).toBe(1);
+    expect(wordJaccardSimilarity('*sighs* Hello', '*sighs* hello!')).toBe(1); // Same words, different formatting
+  });
+
+  it('should return 0 for completely different word sets', () => {
+    expect(wordJaccardSimilarity('cat dog bird', 'fish snake lizard')).toBe(0);
+  });
+
+  it('should return 0 for empty strings', () => {
+    expect(wordJaccardSimilarity('', 'hello')).toBe(0);
+    expect(wordJaccardSimilarity('hello', '')).toBe(0);
+    expect(wordJaccardSimilarity('', '')).toBe(1); // Both empty = identical
+  });
+
+  it('should calculate correct Jaccard index', () => {
+    // "hello world" vs "hello there" -> intersection={hello}, union={hello,world,there}
+    // Jaccard = 1/3 ≈ 0.333
+    const similarity = wordJaccardSimilarity('hello world', 'hello there');
+    expect(similarity).toBeCloseTo(0.333, 2);
+  });
+
+  it('should handle roleplay duplicates with different emotes', () => {
+    // Same words, different roleplay emotes
+    const r1 = '*I lean forward thoughtfully* This topic deserves careful consideration.';
+    const r2 = '*I nod slowly* This topic deserves careful consideration.';
+    const similarity = wordJaccardSimilarity(r1, r2);
+    // 6 shared words out of 11 unique = ~0.55 Jaccard
+    // Below 0.75 threshold, but bigram will catch it
+    expect(similarity).toBeGreaterThan(0.5);
+    expect(similarity).toBeLessThan(WORD_JACCARD_THRESHOLD);
+  });
+
+  it('should show moderate similarity for roleplay duplicates with different flourishes', () => {
+    // Same core content, different roleplay flourishes
+    // This tests that Jaccard captures SOME similarity, even if below threshold
+    const r1 = '*slow smile* I accept that victory graciously. Well played, my dear.';
+    const r2 = '*knowing smirk* I accept that victory graciously. Well done, darling.';
+    const similarity = wordJaccardSimilarity(r1, r2);
+    // These share ~40% of words (6/15), which is below the 0.75 threshold
+    // but shows meaningful overlap that bigram detection will catch
+    expect(similarity).toBeCloseTo(0.4, 1);
+  });
+
+  it('should catch responses with 75%+ word overlap', () => {
+    // Same words, just minor punctuation/formatting differences
+    // This is the sweet spot for Jaccard detection
+    const r1 =
+      'The ancient wisdom teaches us that patience and understanding are the keys to true enlightenment.';
+    const r2 =
+      'The ancient wisdom teaches us that patience and understanding are the keys to true enlightenment!';
+    const similarity = wordJaccardSimilarity(r1, r2);
+    // Identical words after normalization = 100% Jaccard
+    expect(similarity).toBe(1);
+  });
+
+  it('should not false-positive on genuinely different responses', () => {
+    const r1 = 'The ancient scrolls speak of wisdom and patience.';
+    const r2 = 'Technology advances rapidly in the modern world.';
+    const similarity = wordJaccardSimilarity(r1, r2);
+    expect(similarity).toBeLessThan(0.3);
+  });
+});
+
+describe('WORD_JACCARD_THRESHOLD', () => {
+  it('should be 0.75 (75%)', () => {
+    expect(WORD_JACCARD_THRESHOLD).toBe(0.75);
+  });
+
+  it('should be lower than DEFAULT_SIMILARITY_THRESHOLD', () => {
+    expect(WORD_JACCARD_THRESHOLD).toBeLessThan(DEFAULT_SIMILARITY_THRESHOLD);
+  });
+});
+
+describe('isRecentDuplicate with word_jaccard detection', () => {
+  it('should detect duplicates where words are identical but punctuation differs', () => {
+    // Same words, only punctuation/formatting differences
+    // This is the prime use case for Jaccard - catches cache hits with minor formatting changes
+    const original =
+      'The moonlight illuminates the ancient temple, casting long shadows across the marble floor.';
+    const duplicate =
+      'The moonlight illuminates the ancient temple, casting long shadows across the marble floor!';
+
+    const result = isRecentDuplicate(duplicate, [original]);
+    expect(result.isDuplicate).toBe(true);
+  });
+
+  it('should detect duplicates with capitalization differences', () => {
+    // Same words, different capitalization (which might affect bigram)
+    const original =
+      'Sometimes we must look within ourselves to find the answers we seek in this world.';
+    const duplicate =
+      'SOMETIMES we must look within ourselves to find the answers we seek in this world.';
+
+    const result = isRecentDuplicate(duplicate, [original]);
+    expect(result.isDuplicate).toBe(true);
+  });
+
+  it('should let roleplay variants with different emotes fall through to bigram detection', () => {
+    // Different roleplay emotes = lower Jaccard (<0.75), but high bigram (>0.85)
+    // These should still be caught, just by the bigram layer instead
+    const original =
+      '*smiles warmly* The answer you seek lies within your own heart and soul, dear one.';
+    const duplicate =
+      '*grins softly* The answer you seek lies within your own heart and soul, dear one!';
+
+    const result = isRecentDuplicate(duplicate, [original]);
+    // Should be caught by bigram layer since core content is very similar
+    expect(result.isDuplicate).toBe(true);
   });
 });
 
@@ -572,6 +735,86 @@ Now sit there, be quiet, and try to learn something about how a real professiona
 
       const messages = getRecentAssistantMessages(historyWithWhitespace);
       expect(messages.length).toBe(0); // Would NOT find it - indicates data bug
+    });
+  });
+});
+
+// ============================================================================
+// Escalating Retry Configuration Tests
+// ============================================================================
+
+describe('buildRetryConfig', () => {
+  describe('attempt 1 (normal generation)', () => {
+    it('should return empty config for attempt 1', () => {
+      const config = buildRetryConfig(1);
+      expect(config).toEqual({});
+    });
+
+    it('should not have any overrides for attempt 1', () => {
+      const config = buildRetryConfig(1);
+      expect(config.temperatureOverride).toBeUndefined();
+      expect(config.frequencyPenaltyOverride).toBeUndefined();
+      expect(config.historyReductionPercent).toBeUndefined();
+    });
+  });
+
+  describe('attempt 2 (increased randomness)', () => {
+    it('should return temperature and frequency penalty overrides', () => {
+      const config = buildRetryConfig(2);
+      expect(config.temperatureOverride).toBe(RETRY_ATTEMPT_2_TEMPERATURE);
+      expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
+    });
+
+    it('should NOT include history reduction on attempt 2', () => {
+      const config = buildRetryConfig(2);
+      expect(config.historyReductionPercent).toBeUndefined();
+    });
+
+    it('should use temperature 1.1 to break cache', () => {
+      expect(RETRY_ATTEMPT_2_TEMPERATURE).toBe(1.1);
+    });
+
+    it('should use frequency penalty 0.5 for variety', () => {
+      expect(RETRY_ATTEMPT_2_FREQUENCY_PENALTY).toBe(0.5);
+    });
+  });
+
+  describe('attempt 3+ (aggressive cache breaking)', () => {
+    it('should include all overrides including history reduction', () => {
+      const config = buildRetryConfig(3);
+      expect(config.temperatureOverride).toBe(RETRY_ATTEMPT_2_TEMPERATURE);
+      expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
+      expect(config.historyReductionPercent).toBe(RETRY_ATTEMPT_3_HISTORY_REDUCTION);
+    });
+
+    it('should use 30% history reduction on attempt 3', () => {
+      expect(RETRY_ATTEMPT_3_HISTORY_REDUCTION).toBe(0.3);
+    });
+
+    it('should return same config for attempt 4+', () => {
+      const config3 = buildRetryConfig(3);
+      const config4 = buildRetryConfig(4);
+      const config5 = buildRetryConfig(5);
+
+      expect(config4).toEqual(config3);
+      expect(config5).toEqual(config3);
+    });
+  });
+
+  describe('escalation strategy', () => {
+    it('should escalate progressively', () => {
+      const attempt1 = buildRetryConfig(1);
+      const attempt2 = buildRetryConfig(2);
+      const attempt3 = buildRetryConfig(3);
+
+      // Attempt 1: No overrides
+      expect(Object.keys(attempt1).length).toBe(0);
+
+      // Attempt 2: Temperature + frequency penalty
+      expect(Object.keys(attempt2).length).toBe(2);
+
+      // Attempt 3: All three overrides
+      expect(Object.keys(attempt3).length).toBe(3);
     });
   });
 });

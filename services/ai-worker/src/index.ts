@@ -12,6 +12,7 @@
 import { Worker, Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
+import { LocalEmbeddingService } from './services/LocalEmbeddingService.js';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import {
@@ -212,6 +213,38 @@ async function initializeVectorMemory(
 }
 
 /**
+ * Initialize local embedding service for semantic duplicate detection
+ * This runs the bge-small-en-v1.5 model in a Worker Thread to avoid blocking
+ */
+async function initializeLocalEmbedding(): Promise<LocalEmbeddingService | undefined> {
+  logger.info('[AIWorker] Initializing local embedding service...');
+
+  try {
+    const embeddingService = new LocalEmbeddingService();
+    const initialized = await embeddingService.initialize();
+
+    if (initialized) {
+      logger.info('[AIWorker] Local embedding service initialized successfully');
+      return embeddingService;
+    } else {
+      logger.warn({}, '[AIWorker] Local embedding service failed to initialize');
+      logger.warn(
+        {},
+        '[AIWorker] Continuing without local embeddings - semantic duplicate detection disabled'
+      );
+      return undefined;
+    }
+  } catch (error) {
+    logger.error({ err: error }, '[AIWorker] Failed to initialize local embedding service');
+    logger.warn(
+      {},
+      '[AIWorker] Continuing without local embeddings - semantic duplicate detection disabled'
+    );
+    return undefined;
+  }
+}
+
+/**
  * Create the main BullMQ worker with event handlers
  */
 function createMainWorker(jobProcessor: AIJobProcessor): Worker<AnyJobData, AnyJobResult> {
@@ -335,6 +368,9 @@ async function main(): Promise<void> {
   // Initialize vector memory
   const memoryManager = await initializeVectorMemory(prisma);
 
+  // Initialize local embedding service for semantic duplicate detection
+  const localEmbeddingService = await initializeLocalEmbedding();
+
   // Create job processor and main worker
   const jobProcessor = new AIJobProcessor({
     prisma,
@@ -342,6 +378,7 @@ async function main(): Promise<void> {
     apiKeyResolver,
     configResolver: llmConfigResolver,
     personaResolver,
+    embeddingService: localEmbeddingService,
   });
   const worker = createMainWorker(jobProcessor);
 
@@ -374,6 +411,9 @@ async function main(): Promise<void> {
     await scheduledWorker.close();
     await scheduledQueue.close();
     await pendingMemoryProcessor.disconnect();
+    if (localEmbeddingService !== undefined) {
+      await localEmbeddingService.shutdown();
+    }
     await Promise.all(cleanupFns.map(fn => fn()));
     cacheRedis.disconnect();
     logger.info('[AIWorker] All connections closed');

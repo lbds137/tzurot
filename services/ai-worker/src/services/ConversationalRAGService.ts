@@ -46,6 +46,7 @@ import type {
   ModelInvocationResult,
   ModelInvocationOptions,
   RAGResponse,
+  GenerateResponseOptions,
 } from './ConversationalRAGTypes.js';
 
 // Re-export public types for external consumers
@@ -240,6 +241,7 @@ export class ConversationalRAGService {
       participantPersonas,
       referencedMessagesDescriptions,
       userApiKey,
+      retryConfig,
     } = opts;
     // Build current message
     const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
@@ -253,13 +255,14 @@ export class ConversationalRAGService {
     const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
     // Get model with all LLM sampling parameters
+    // Apply retry config overrides if present (for duplicate detection retries)
     const { model, modelName } = this.llmInvoker.getModel({
       modelName: personality.model,
       apiKey: userApiKey,
-      temperature: personality.temperature,
+      temperature: retryConfig?.temperatureOverride ?? personality.temperature,
       topP: personality.topP,
       topK: personality.topK,
-      frequencyPenalty: personality.frequencyPenalty,
+      frequencyPenalty: retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
       presencePenalty: personality.presencePenalty,
       repetitionPenalty: personality.repetitionPenalty,
       maxTokens: personality.maxTokens,
@@ -357,16 +360,16 @@ export class ConversationalRAGService {
    * @param personality - Personality configuration
    * @param message - User's message content
    * @param context - Conversation context (history, environment, etc.)
-   * @param userApiKey - Optional BYOK API key
-   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
+   * @param options - Optional configuration (userApiKey, isGuestMode, retryConfig)
    */
   async generateResponse(
     personality: LoadedPersonality,
     message: MessageContent,
     context: ConversationContext,
-    userApiKey?: string,
-    isGuestMode = false
+    options: GenerateResponseOptions = {}
   ): Promise<RAGResponse> {
+    const { userApiKey, isGuestMode = false, retryConfig } = options;
+
     try {
       // Step 1: Process inputs (attachments, messages, search query)
       // Pass userApiKey for BYOK support in fallback vision processing
@@ -412,6 +415,7 @@ export class ConversationalRAGService {
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
+        historyReductionPercent: retryConfig?.historyReductionPercent,
       });
 
       // Step 5: Invoke model and clean response
@@ -424,6 +428,7 @@ export class ConversationalRAGService {
         participantPersonas,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         userApiKey,
+        retryConfig,
       });
 
       // Step 5.5: Resolve user references in AI output (shapes.inc format -> readable names)
