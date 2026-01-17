@@ -101,12 +101,37 @@ pnpm ops db:status --env prod
 pnpm ops db:migrate --env dev
 pnpm ops db:migrate --env prod --force  # Prod requires --force
 
-# Inspect database tables/indexes (local only)
-pnpm ops db:inspect
+# Inspect database tables/indexes
+pnpm ops db:inspect --env dev
 
-# Open Prisma Studio (local)
-npx prisma studio
+# Open Prisma Studio against Railway dev
+pnpm ops run --env dev npx prisma studio
 ```
+
+### Running Scripts Against Railway
+
+Use `ops run` to execute **any script** with Railway database credentials:
+
+```bash
+# Generic pattern
+pnpm ops run --env dev <command>
+
+# Run a one-off script directly (no npm script needed)
+pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts
+
+# Run Prisma Studio against Railway
+pnpm ops run --env dev npx prisma studio
+
+# Shortcut from root
+pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
+```
+
+**How it works**: Fetches `DATABASE_PUBLIC_URL` from Railway and injects it as `DATABASE_URL`.
+
+**When to use npm scripts vs direct execution:**
+
+- One-off scripts → `tsx scripts/src/db/script.ts` (direct execution)
+- Reusable scripts → `pnpm --filter pkg run script` (npm script)
 
 ### Service Restart
 

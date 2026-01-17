@@ -36,12 +36,13 @@
     "bulk-import:dry-run": "tsx scripts/data/import-personality/bulk-import.ts --dry-run",
     "bulk-import:skip-memories": "tsx scripts/data/import-personality/bulk-import.ts --skip-memories",
     "migrate-legacy-persona": "tsx scripts/data/import-personality/migrate-legacy-persona.ts",
-    "check:migrations": "bash -c 'for f in prisma/migrations/**/*.sql; do if grep -q \"DROP INDEX.*idx_memories_embedding\" \"$f\" && ! grep -q \"CREATE INDEX.*idx_memories_embedding\" \"$f\"; then echo \"⚠️  DANGER: $f drops vector index without recreating!\"; exit 1; fi; done; echo \"✅ Migrations safe\"'",
+    "check:migrations": "pnpm ops db:check-safety",
     "bump-version": "bash scripts/utils/bump-version.sh",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:status": "changeset status",
-    "ops": "tsx packages/tooling/src/cli.ts"
+    "ops": "tsx packages/tooling/src/cli.ts",
+    "with-env": "pnpm ops run --env"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.5.2",

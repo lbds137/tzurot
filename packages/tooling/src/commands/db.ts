@@ -79,4 +79,16 @@ export function registerDbCommands(cli: CAC): void {
     const { createSafeMigration } = await import('../db/create-safe-migration.js');
     await createSafeMigration();
   });
+
+  // Check migration safety - detect dangerous patterns like dropped indexes
+  cli
+    .command('db:check-safety', 'Check migrations for dangerous patterns (dropped indexes, etc.)')
+    .option('--migrations-path <path>', 'Path to migrations directory', {
+      default: 'prisma/migrations',
+    })
+    .option('--verbose', 'Show detailed output')
+    .action(async (options: { migrationsPath?: string; verbose?: boolean }) => {
+      const { checkMigrationSafety } = await import('../db/check-migration-safety.js');
+      await checkMigrationSafety(options);
+    });
 }

@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: '2026-01-08'
+lastUpdated: '2026-01-17'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -317,10 +317,36 @@ const messages = await prisma.conversationHistory.findMany({
 
 ## Railway-Specific Notes
 
-- `.env` contains `DATABASE_URL` for Railway dev database
-- No local PostgreSQL needed - work directly against Railway
-- Migrations run on api-gateway startup
+### Running Scripts Against Railway Databases
+
+Use `ops run` to execute any script with Railway credentials injected:
+
+```bash
+# Generic pattern
+pnpm ops run --env dev <command>
+
+# Run a one-off script directly (no npm script needed)
+pnpm ops run --env dev tsx scripts/src/db/backfill-local-embeddings.ts
+
+# Run Prisma Studio against Railway
+pnpm ops run --env dev npx prisma studio
+
+# Shortcut from root
+pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
+```
+
+**How it works**: Fetches `DATABASE_PUBLIC_URL` from Railway via CLI and injects it as `DATABASE_URL`.
+
+**When to use npm scripts vs direct execution:**
+
+- One-off scripts → `tsx scripts/src/db/script.ts` (direct execution)
+- Reusable scripts → `pnpm --filter pkg run script` (npm script)
+
+### Migration Deployment
+
+- Migrations run on api-gateway startup (via `prisma migrate deploy`)
 - Push migration files to git → Railway auto-deploys
+- For manual migrations: `pnpm ops db:migrate --env dev`
 
 ## Related Skills
 
