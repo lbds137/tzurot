@@ -166,6 +166,8 @@ RUN pnpm turbo run build --filter=@tzurot/service-name...
 - No need to manually update Dockerfiles when adding new packages
 - Better Docker layer caching (package.json files copied separately)
 
+**Important**: turbo prune doesn't copy root config files. The builder stage must explicitly `COPY tsconfig.json ./` since packages extend it.
+
 ### Adding New Workspace Packages
 
 When creating a new package in `packages/`:
