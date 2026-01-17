@@ -783,6 +783,55 @@ describe('/user/memory routes', () => {
       expect(responseCall.results.length).toBeLessThanOrEqual(5);
       expect(responseCall.hasMore).toBe(true);
     });
+
+    it('should skip semantic search when preferTextSearch is true', async () => {
+      const textResults = [
+        {
+          id: 'memory-text-1',
+          content: 'Memory from text search',
+          created_at: new Date('2025-01-01'),
+          updated_at: new Date('2025-01-01'),
+          personality_id: TEST_PERSONALITY_ID,
+          personality_name: 'Test Personality',
+          is_locked: false,
+        },
+      ];
+      mockPrisma.$queryRaw.mockResolvedValue(textResults);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search', preferTextSearch: true }, {});
+
+      await handler(req, res);
+
+      // Should NOT call generateEmbedding when preferTextSearch is true
+      expect(mockGenerateEmbedding).not.toHaveBeenCalled();
+      // Should only make one query (text search), not two (semantic + fallback)
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          searchType: 'text',
+        })
+      );
+    });
+
+    it('should return 503 when embedding service returns null', async () => {
+      mockGenerateEmbedding.mockResolvedValue(null);
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/search');
+      const { req, res } = createMockReqRes({ query: 'test search' }, {});
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(503);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'SERVICE_UNAVAILABLE',
+        })
+      );
+    });
   });
 
   describe('GET /user/memory/list', () => {

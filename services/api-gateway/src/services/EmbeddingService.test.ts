@@ -1,25 +1,28 @@
 /**
  * Tests for EmbeddingService
+ *
+ * Tests the local embedding service wrapper that uses BGE-small-en-v1.5
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// Hoisted mocks
-const { mockCreate, mockConfig } = vi.hoisted(() => ({
-  mockCreate: vi.fn(),
-  mockConfig: {
-    OPENAI_API_KEY: 'test-api-key' as string | undefined,
-    EMBEDDING_MODEL: 'text-embedding-3-small',
-  },
+// Hoisted mock state
+const { mockIsReady, mockGetEmbedding, mockInitialize, mockShutdown } = vi.hoisted(() => ({
+  mockIsReady: vi.fn().mockReturnValue(false),
+  mockGetEmbedding: vi.fn(),
+  mockInitialize: vi.fn().mockResolvedValue(true),
+  mockShutdown: vi.fn().mockResolvedValue(undefined),
 }));
 
-// Mock OpenAI with class constructor
-vi.mock('openai', () => ({
-  OpenAI: class MockOpenAI {
-    embeddings = {
-      create: mockCreate,
-    };
+// Mock the embeddings package
+vi.mock('@tzurot/embeddings', () => ({
+  LocalEmbeddingService: class MockLocalEmbeddingService {
+    isServiceReady = mockIsReady;
+    getEmbedding = mockGetEmbedding;
+    initialize = mockInitialize;
+    shutdown = mockShutdown;
   },
+  LOCAL_EMBEDDING_DIMENSIONS: 384,
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -32,10 +35,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    getConfig: () => mockConfig,
-    MODEL_DEFAULTS: {
-      EMBEDDING: 'text-embedding-3-small',
-    },
   };
 });
 
@@ -43,80 +42,131 @@ describe('EmbeddingService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.resetModules();
+    mockIsReady.mockReturnValue(false);
   });
 
   afterEach(() => {
     vi.resetModules();
   });
 
-  describe('isEmbeddingServiceAvailable', () => {
-    it('should return true when OPENAI_API_KEY is configured', { timeout: 10000 }, async () => {
-      mockConfig.OPENAI_API_KEY = 'test-key';
-      const { isEmbeddingServiceAvailable } = await import('./EmbeddingService.js');
-      expect(isEmbeddingServiceAvailable()).toBe(true);
+  describe('initializeEmbeddingService', () => {
+    it('should initialize the service successfully', async () => {
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
+
+      const { initializeEmbeddingService } = await import('./EmbeddingService.js');
+      const result = await initializeEmbeddingService();
+
+      expect(result).toBe(true);
+      expect(mockInitialize).toHaveBeenCalled();
     });
 
-    it('should return false when OPENAI_API_KEY is not configured', async () => {
-      mockConfig.OPENAI_API_KEY = undefined;
+    it('should return false when initialization fails', async () => {
+      mockInitialize.mockResolvedValue(false);
+
+      const { initializeEmbeddingService } = await import('./EmbeddingService.js');
+      const result = await initializeEmbeddingService();
+
+      expect(result).toBe(false);
+    });
+
+    it('should return false when initialization throws', async () => {
+      mockInitialize.mockRejectedValue(new Error('Initialization error'));
+
+      const { initializeEmbeddingService } = await import('./EmbeddingService.js');
+      const result = await initializeEmbeddingService();
+
+      expect(result).toBe(false);
+    });
+  });
+
+  describe('isEmbeddingServiceAvailable', () => {
+    it('should return false before initialization', async () => {
       const { isEmbeddingServiceAvailable } = await import('./EmbeddingService.js');
       expect(isEmbeddingServiceAvailable()).toBe(false);
+    });
+
+    it('should return true after successful initialization', async () => {
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
+
+      const { initializeEmbeddingService, isEmbeddingServiceAvailable } =
+        await import('./EmbeddingService.js');
+
+      await initializeEmbeddingService();
+
+      expect(isEmbeddingServiceAvailable()).toBe(true);
     });
   });
 
   describe('generateEmbedding', () => {
-    const TEST_EMBEDDING = new Array(1536).fill(0.1);
+    const TEST_EMBEDDING = new Float32Array(384).fill(0.1);
 
-    beforeEach(() => {
-      mockConfig.OPENAI_API_KEY = 'test-key';
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: TEST_EMBEDDING }],
-      });
+    it('should return null when service is not ready', async () => {
+      mockIsReady.mockReturnValue(false);
+
+      const { generateEmbedding } = await import('./EmbeddingService.js');
+      const result = await generateEmbedding('test text');
+
+      expect(result).toBeNull();
+      expect(mockGetEmbedding).not.toHaveBeenCalled();
     });
 
     it('should generate embedding for text', async () => {
-      const { generateEmbedding } = await import('./EmbeddingService.js');
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
+      mockGetEmbedding.mockResolvedValue(TEST_EMBEDDING);
 
+      const { initializeEmbeddingService, generateEmbedding } =
+        await import('./EmbeddingService.js');
+
+      await initializeEmbeddingService();
       const result = await generateEmbedding('test text');
 
-      expect(result).toEqual(TEST_EMBEDDING);
-      expect(mockCreate).toHaveBeenCalledWith({
-        model: 'text-embedding-3-small',
-        input: 'test text',
-      });
+      expect(result).toEqual(Array.from(TEST_EMBEDDING));
+      expect(mockGetEmbedding).toHaveBeenCalledWith('test text');
     });
 
     it('should return null for empty text', async () => {
-      const { generateEmbedding } = await import('./EmbeddingService.js');
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
 
+      const { initializeEmbeddingService, generateEmbedding } =
+        await import('./EmbeddingService.js');
+
+      await initializeEmbeddingService();
       const result = await generateEmbedding('   ');
 
       expect(result).toBeNull();
-      expect(mockCreate).not.toHaveBeenCalled();
+      expect(mockGetEmbedding).not.toHaveBeenCalled();
     });
 
-    it('should return null when service is not available', async () => {
-      mockConfig.OPENAI_API_KEY = undefined;
-      const { generateEmbedding } = await import('./EmbeddingService.js');
+    it('should return null when getEmbedding returns undefined', async () => {
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
+      mockGetEmbedding.mockResolvedValue(undefined);
 
-      const result = await generateEmbedding('test text');
+      const { initializeEmbeddingService, generateEmbedding } =
+        await import('./EmbeddingService.js');
+
+      await initializeEmbeddingService();
+      const result = await generateEmbedding('test');
 
       expect(result).toBeNull();
     });
 
-    it('should throw on invalid embedding dimension', async () => {
-      mockCreate.mockResolvedValue({
-        data: [{ embedding: [0.1, 0.2, 0.3] }], // Wrong dimension
-      });
-      const { generateEmbedding } = await import('./EmbeddingService.js');
+    it('should return null on wrong dimension', async () => {
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
+      mockGetEmbedding.mockResolvedValue(new Float32Array([0.1, 0.2, 0.3])); // Wrong dimension
 
-      await expect(generateEmbedding('test')).rejects.toThrow('Invalid embedding dimension');
-    });
+      const { initializeEmbeddingService, generateEmbedding } =
+        await import('./EmbeddingService.js');
 
-    it('should throw on empty API response', async () => {
-      mockCreate.mockResolvedValue({ data: [] });
-      const { generateEmbedding } = await import('./EmbeddingService.js');
+      await initializeEmbeddingService();
+      const result = await generateEmbedding('test');
 
-      await expect(generateEmbedding('test')).rejects.toThrow('empty data array');
+      expect(result).toBeNull();
     });
   });
 
@@ -151,6 +201,35 @@ describe('EmbeddingService', () => {
       expect(() => formatAsVector([0.1, Infinity, 0.3])).toThrow(
         'Invalid embedding: all elements must be finite numbers'
       );
+    });
+  });
+
+  describe('shutdownEmbeddingService', () => {
+    it('should shut down the service', async () => {
+      mockInitialize.mockResolvedValue(true);
+      mockIsReady.mockReturnValue(true);
+
+      const { initializeEmbeddingService, shutdownEmbeddingService } =
+        await import('./EmbeddingService.js');
+
+      await initializeEmbeddingService();
+      await shutdownEmbeddingService();
+
+      expect(mockShutdown).toHaveBeenCalled();
+    });
+
+    it('should be safe to call when not initialized', async () => {
+      const { shutdownEmbeddingService } = await import('./EmbeddingService.js');
+
+      // Should not throw
+      await expect(shutdownEmbeddingService()).resolves.not.toThrow();
+    });
+  });
+
+  describe('EMBEDDING_DIMENSION', () => {
+    it('should export 384 dimensions for BGE model', async () => {
+      const { EMBEDDING_DIMENSION } = await import('./EmbeddingService.js');
+      expect(EMBEDDING_DIMENSION).toBe(384);
     });
   });
 });

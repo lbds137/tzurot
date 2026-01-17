@@ -6,11 +6,13 @@
   "description": "Utility scripts for Tzurot development and operations",
   "scripts": {
     "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts",
+    "db:backfill-local-embeddings": "tsx src/db/backfill-local-embeddings.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
+    "@tzurot/embeddings": "workspace:*",
     "dotenv": "^17.2.3",
     "tsx": "^4.21.0",
     "zod": "^4.3.5"

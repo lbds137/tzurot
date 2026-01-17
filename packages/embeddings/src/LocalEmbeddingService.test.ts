@@ -6,13 +6,13 @@
  * not suitable for unit tests.
  */
 
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   LocalEmbeddingService,
   LOCAL_EMBEDDING_DIMENSIONS,
   SEMANTIC_SIMILARITY_THRESHOLD,
   EMBEDDING_SLIDING_WINDOW_SIZE,
-} from './LocalEmbeddingService.js';
+} from './index.js';
 
 // Mock worker_threads module
 vi.mock('node:worker_threads', () => ({
@@ -201,6 +201,13 @@ describe('LocalEmbeddingService', () => {
       const service = new LocalEmbeddingService();
       const result = await service.getEmbedding('test text');
       expect(result).toBeUndefined();
+    });
+  });
+
+  describe('getDimensions', () => {
+    it('should return 384 dimensions', () => {
+      const service = new LocalEmbeddingService();
+      expect(service.getDimensions()).toBe(384);
     });
   });
 });

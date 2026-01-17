@@ -13,36 +13,16 @@
 import { parentPort } from 'node:worker_threads';
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
 
+import { LOCAL_EMBEDDING_DIMENSIONS, EMBEDDING_MODEL_NAME } from './constants.js';
+import type { WorkerMessage, WorkerResponse } from './types.js';
+
 // Configure transformers.js for server-side use
 env.allowLocalModels = false; // Download from HuggingFace Hub
 env.useBrowserCache = false; // We're in Node.js, not browser
 
 // ============================================================================
-// TYPES
-// ============================================================================
-
-/** Message types the worker can receive */
-interface WorkerMessage {
-  type: 'embed' | 'health';
-  text?: string;
-  id: number; // Request ID for correlating responses
-}
-
-/** Response types the worker can send */
-interface WorkerResponse {
-  id: number;
-  status: 'success' | 'error' | 'ready';
-  vector?: number[];
-  error?: string;
-  modelLoaded?: boolean;
-}
-
-// ============================================================================
 // SINGLETON PIPELINE
 // ============================================================================
-
-const MODEL_NAME = 'Xenova/bge-small-en-v1.5';
-const EMBEDDING_DIMENSIONS = 384;
 
 let extractor: FeatureExtractionPipeline | null = null;
 let modelLoading = false;
@@ -77,7 +57,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
   try {
     // Load the model with quantization for faster inference
     // bge-small-en-v1.5 is optimized for retrieval/semantic similarity
-    extractor = await pipeline('feature-extraction', MODEL_NAME, {
+    extractor = await pipeline('feature-extraction', EMBEDDING_MODEL_NAME, {
       dtype: 'q8', // 8-bit quantization for ~4x smaller model
     });
 
@@ -95,12 +75,12 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
  * Returns normalized vector suitable for cosine similarity
  */
 async function generateEmbedding(text: string): Promise<number[]> {
-  const pipeline = await getExtractor();
+  const embeddingPipeline = await getExtractor();
 
   // Generate embedding with mean pooling and normalization
   // pooling: 'mean' averages all token embeddings
   // normalize: true L2-normalizes the output (required for cosine similarity)
-  const output = await pipeline(text, {
+  const output = await embeddingPipeline(text, {
     pooling: 'mean',
     normalize: true,
   });
@@ -110,9 +90,9 @@ async function generateEmbedding(text: string): Promise<number[]> {
   const vector = Array.from(output.data as Float32Array);
 
   // Validate dimensions
-  if (vector.length !== EMBEDDING_DIMENSIONS) {
+  if (vector.length !== LOCAL_EMBEDDING_DIMENSIONS) {
     throw new Error(
-      `Unexpected embedding dimensions: expected ${EMBEDDING_DIMENSIONS}, got ${vector.length}`
+      `Unexpected embedding dimensions: expected ${LOCAL_EMBEDDING_DIMENSIONS}, got ${vector.length}`
     );
   }
 

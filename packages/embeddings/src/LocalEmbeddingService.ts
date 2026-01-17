@@ -2,8 +2,7 @@
  * Local Embedding Service
  *
  * Manages a Worker Thread that runs the bge-small-en-v1.5 embedding model locally.
- * Provides semantic similarity checking for duplicate detection and will eventually
- * replace OpenAI embeddings for LTM storage.
+ * Provides semantic similarity checking for duplicate detection and LTM storage.
  *
  * Architecture:
  * - Main thread: Handles requests, maintains embedding cache
@@ -24,61 +23,26 @@ import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 import { createLogger } from '@tzurot/common-types';
 
+import type {
+  IEmbeddingService,
+  WorkerMessage,
+  WorkerResponse,
+  PendingRequest,
+  CachedEmbedding,
+} from './types.js';
+import {
+  LOCAL_EMBEDDING_DIMENSIONS,
+  EMBEDDING_SLIDING_WINDOW_SIZE,
+  WORKER_TIMEOUT_MS,
+  WORKER_INIT_TIMEOUT_MS,
+} from './constants.js';
+
 const logger = createLogger('LocalEmbeddingService');
-
-// ============================================================================
-// CONSTANTS
-// ============================================================================
-
-export const LOCAL_EMBEDDING_DIMENSIONS = 384;
-export const SEMANTIC_SIMILARITY_THRESHOLD = 0.88;
-export const EMBEDDING_SLIDING_WINDOW_SIZE = 10;
-
-const WORKER_TIMEOUT_MS = 30_000; // 30s timeout for embedding requests
-const WORKER_INIT_TIMEOUT_MS = 60_000; // 60s for initial model load
-
-// ============================================================================
-// TYPES
-// ============================================================================
-
-/** Message sent to the worker */
-interface WorkerMessage {
-  type: 'embed' | 'health';
-  text?: string;
-  id: number;
-}
-
-/** Response from the worker */
-interface WorkerResponse {
-  id: number;
-  status: 'success' | 'error' | 'ready';
-  vector?: number[];
-  error?: string;
-  modelLoaded?: boolean;
-}
-
-/** Pending request waiting for worker response */
-interface PendingRequest {
-  resolve: (value: WorkerResponse) => void;
-  reject: (error: Error) => void;
-  timeout: NodeJS.Timeout;
-}
-
-/** Cached embedding with metadata */
-interface CachedEmbedding {
-  hash: string;
-  vector: Float32Array;
-  timestamp: number;
-}
-
-// ============================================================================
-// SERVICE
-// ============================================================================
 
 /**
  * Service for generating embeddings locally using a Worker Thread
  */
-export class LocalEmbeddingService {
+export class LocalEmbeddingService implements IEmbeddingService {
   private worker: Worker | null = null;
   private isReady = false;
   private nextRequestId = 1;
@@ -101,7 +65,7 @@ export class LocalEmbeddingService {
       // Get the worker script path
       const __filename = fileURLToPath(import.meta.url);
       const __dirname = dirname(__filename);
-      const workerPath = join(__dirname, '..', 'workers', 'embeddingWorker.js');
+      const workerPath = join(__dirname, 'embeddingWorker.js');
 
       // Spawn the worker
       this.worker = new Worker(workerPath);
@@ -246,6 +210,13 @@ export class LocalEmbeddingService {
       logger.error({ err: error }, '[LocalEmbeddingService] Failed to get embedding');
       return undefined;
     }
+  }
+
+  /**
+   * Get the number of dimensions in embeddings produced by this service
+   */
+  getDimensions(): number {
+    return LOCAL_EMBEDDING_DIMENSIONS;
   }
 
   /**
