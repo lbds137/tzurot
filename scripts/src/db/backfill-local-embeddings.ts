@@ -49,6 +49,34 @@ function formatAsVector(embedding: Float32Array): string {
 }
 
 /**
+ * Detect which embedding column to use based on current schema state.
+ * Pre-cleanup migration: 'embedding_local' column exists
+ * Post-cleanup migration: column renamed to 'embedding'
+ */
+async function detectEmbeddingColumn(
+  prisma: ReturnType<typeof getPrismaClient>
+): Promise<'embedding_local' | 'embedding'> {
+  const result = await prisma.$queryRaw<{ column_name: string }[]>`
+    SELECT column_name FROM information_schema.columns
+    WHERE table_name = 'memories' AND column_name IN ('embedding_local', 'embedding')
+  `;
+
+  const columns = result.map(r => r.column_name);
+
+  // If embedding_local exists, we're pre-cleanup (use that column)
+  if (columns.includes('embedding_local')) {
+    return 'embedding_local';
+  }
+
+  // Otherwise, we're post-cleanup (use embedding column)
+  if (columns.includes('embedding')) {
+    return 'embedding';
+  }
+
+  throw new Error('No embedding column found in memories table');
+}
+
+/**
  * Log progress with ETA
  */
 function logProgress(stats: BackfillStats): void {
@@ -87,6 +115,11 @@ async function main(): Promise<void> {
   }
 
   const prisma = getPrismaClient();
+
+  // Detect schema state (pre or post cleanup migration)
+  const embeddingColumn = await detectEmbeddingColumn(prisma);
+  logger.info({ embeddingColumn }, '[Backfill] Detected embedding column');
+
   const embeddingService = new LocalEmbeddingService();
 
   // Initialize embedding service
@@ -98,10 +131,10 @@ async function main(): Promise<void> {
   }
   logger.info('[Backfill] Embedding service ready');
 
-  // Get count of memories needing backfill
-  const countResult = await prisma.$queryRaw<{ count: bigint }[]>`
-    SELECT COUNT(*) as count FROM memories WHERE embedding_local IS NULL
-  `;
+  // Get count of memories needing backfill (dynamic column name)
+  const countResult = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+    `SELECT COUNT(*) as count FROM memories WHERE ${embeddingColumn} IS NULL`
+  );
   const totalToBackfill = Number(countResult[0].count);
 
   const totalResult = await prisma.$queryRaw<{ count: bigint }[]>`
@@ -147,13 +180,13 @@ async function main(): Promise<void> {
 
   // Process in batches
   while (!interrupted) {
-    // Fetch batch of memories without local embeddings
-    const memories = await prisma.$queryRaw<{ id: string; content: string }[]>`
-      SELECT id, content FROM memories
-      WHERE embedding_local IS NULL
-      ORDER BY created_at ASC
-      LIMIT ${BATCH_SIZE}
-    `;
+    // Fetch batch of memories without embeddings (dynamic column name)
+    const memories = await prisma.$queryRawUnsafe<{ id: string; content: string }[]>(
+      `SELECT id, content FROM memories
+       WHERE ${embeddingColumn} IS NULL
+       ORDER BY created_at ASC
+       LIMIT ${BATCH_SIZE}`
+    );
 
     if (memories.length === 0) {
       logger.info('[Backfill] No more memories to process');
@@ -187,13 +220,13 @@ async function main(): Promise<void> {
           continue;
         }
 
-        // Update memory with local embedding
+        // Update memory with local embedding (dynamic column name)
         const vectorStr = formatAsVector(embedding);
-        await prisma.$executeRaw`
-          UPDATE memories
-          SET embedding_local = ${vectorStr}::vector(384)
-          WHERE id = ${memory.id}::uuid
-        `;
+        await prisma.$executeRawUnsafe(
+          `UPDATE memories
+           SET ${embeddingColumn} = '${vectorStr}'::vector(384)
+           WHERE id = '${memory.id}'::uuid`
+        );
 
         stats.processed++;
 
@@ -210,6 +243,36 @@ async function main(): Promise<void> {
 
   // Final progress log
   logProgress(stats);
+
+  // Post-backfill operations (only if not interrupted)
+  if (!interrupted && stats.processed > 0) {
+    // Create index CONCURRENTLY (doesn't block reads/writes)
+    const indexName =
+      embeddingColumn === 'embedding_local'
+        ? 'idx_memories_embedding_local'
+        : 'idx_memories_embedding';
+
+    logger.info({ indexName }, '[Backfill] Creating IVFFlat index CONCURRENTLY...');
+    try {
+      await prisma.$executeRawUnsafe(
+        `CREATE INDEX CONCURRENTLY IF NOT EXISTS ${indexName}
+         ON memories USING ivfflat (${embeddingColumn} vector_cosine_ops)
+         WITH (lists = 50)`
+      );
+      logger.info({ indexName }, '[Backfill] Index created successfully');
+    } catch (error) {
+      logger.error({ err: error }, '[Backfill] Failed to create index - create manually');
+    }
+
+    // Update table statistics for query planner
+    logger.info('[Backfill] Running VACUUM ANALYZE...');
+    try {
+      await prisma.$executeRaw`VACUUM ANALYZE memories`;
+      logger.info('[Backfill] VACUUM ANALYZE complete');
+    } catch (error) {
+      logger.error({ err: error }, '[Backfill] VACUUM ANALYZE failed - run manually');
+    }
+  }
 
   // Shutdown
   await embeddingService.shutdown();

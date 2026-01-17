@@ -1,6 +1,6 @@
 # Current Work
 
-> Last updated: 2026-01-16
+> Last updated: 2026-01-17
 
 ## Status: Public Beta Live
 
@@ -29,12 +29,22 @@
   - Attempt 3: Also reduce history by 30%
 - [x] **Phase 5**: Comprehensive tests (31 new tests for retry config and embedding service)
 
-**Phase 6 (PENDING)**: LTM Embedding Migration (OpenAI Eviction)
+**Phase 6 (DEV COMPLETE - PENDING PROD DEPLOY)**: LTM Embedding Migration (OpenAI Eviction)
 
-- [ ] Migration script to re-embed all memories with local bge-small-en-v1.5
-- [ ] Update pgvector column dimension from 1536 to 384
-- [ ] Replace OpenAI EmbeddingService with local model
-- [ ] Remove OpenAI API dependency for embeddings
+- [x] Created `@tzurot/embeddings` package (shared between ai-worker and api-gateway)
+- [x] Database migration: added `embedding_local` column (384-dim BGE)
+- [x] Backfill script with column detection, auto-index creation, VACUUM ANALYZE
+- [x] Updated PgvectorMemoryAdapter, PgvectorQueryBuilder, memorySearch.ts
+- [x] Cleanup migration: renamed `embedding_local` → `embedding`, dropped OpenAI column
+- [x] Development environment fully migrated and tested
+
+**Production Deployment** (staggered release required):
+
+1. **Deploy commit `c633ded2`** (pre-cleanup) → Adds `embedding_local`, code switches to it
+   - LTM storage works, LTM retrieval broken (~1 hour)
+2. **Run backfill**: `pnpm ops run --env prod pnpm --filter @tzurot/scripts run db:backfill-local-embeddings`
+   - Script auto-creates index CONCURRENTLY and runs VACUUM ANALYZE
+3. **Deploy current develop** (cleanup migration) → Renames column, everything works
 
 **Result**: 50% OpenAI eviction (embeddings). Voice transcription (Whisper) remains a future epic.
 
