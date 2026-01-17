@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/tooling",
-  "version": "3.0.0-beta.42",
+  "version": "3.0.0-beta.43",
   "private": true,
   "description": "Internal tooling and CLI for Tzurot monorepo operations",
   "type": "module",
