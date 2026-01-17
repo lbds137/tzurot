@@ -520,6 +520,44 @@ logger.info({
 
 ---
 
+### Commitlint Scope Auto-Discovery
+
+**Problem**: Commitlint scopes are hardcoded in `commitlint.config.cjs`. When new packages are added (e.g., `@tzurot/embeddings`), the scope list must be manually updated or commits will fail validation.
+
+**Current Location**: `commitlint.config.cjs:10-26`
+
+**Current Workaround**: Manual sync with TODO comment reminding to keep in sync.
+
+**Solution**: Generate scopes dynamically from workspace structure:
+
+```javascript
+// commitlint.config.cjs
+const { readdirSync } = require('fs');
+const { join } = require('path');
+
+function getWorkspaceScopes() {
+  const services = readdirSync(join(__dirname, 'services'));
+  const packages = readdirSync(join(__dirname, 'packages'));
+  return [...services, ...packages, 'scripts', 'hooks', 'docs', 'deps', 'tests', 'ci'];
+}
+
+module.exports = {
+  extends: ['@commitlint/config-conventional'],
+  rules: {
+    'scope-enum': [2, 'always', getWorkspaceScopes()],
+    // ...
+  },
+};
+```
+
+**Alternative**: Read from `pnpm-workspace.yaml` for more accurate mapping.
+
+**Why low priority**: Easy workaround (add manually), only affects developers on rare occasions.
+
+**Source**: Commit `9cb9720f` (2026-01-17)
+
+---
+
 ### Singleton Export Pattern Cleanup
 
 **Problem**: 18 module-level singletons detected by `@tzurot/no-singleton-export` ESLint rule. These make testing harder because instances are created at import time.
