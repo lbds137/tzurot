@@ -1,12 +1,42 @@
 # Current Work
 
-> Last updated: 2026-01-12
+> Last updated: 2026-01-16
 
 ## Status: Public Beta Live
 
 **Version**: v3.0.0-beta.41
 **Deployment**: Railway (stable)
 **Current Goal**: User-Requested Features (v2 parity deprioritized)
+
+---
+
+## Active: Duplicate Detection & OpenAI Eviction Epic
+
+**Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
+
+**Problem**: Users experience repetitive AI responses despite existing detection. Root cause: bigram Dice coefficient measures _spelling_ similarity, but free models have _semantic_ caching that returns identical content with minor variations.
+
+**Solution**: Multi-layer "Swiss Cheese" detection + escalating retry strategy.
+
+**Phases 1-5 (COMPLETE)**:
+
+- [x] **Phase 1**: Word Jaccard similarity (Layer 2) - Catches same words with different formatting
+- [x] **Phase 2**: Local embedding service (bge-small-en-v1.5 via Worker Thread)
+- [x] **Phase 3**: Semantic embedding layer (Layer 4) - Catches meaning equivalence at 0.88 cosine threshold
+- [x] **Phase 4**: Escalating retry strategy ("Ladder of Desperation"):
+  - Attempt 1: Normal generation
+  - Attempt 2: Temperature 1.1, frequency penalty 0.5
+  - Attempt 3: Also reduce history by 30%
+- [x] **Phase 5**: Comprehensive tests (31 new tests for retry config and embedding service)
+
+**Phase 6 (PENDING)**: LTM Embedding Migration (OpenAI Eviction)
+
+- [ ] Migration script to re-embed all memories with local bge-small-en-v1.5
+- [ ] Update pgvector column dimension from 1536 to 384
+- [ ] Replace OpenAI EmbeddingService with local model
+- [ ] Remove OpenAI API dependency for embeddings
+
+**Result**: 50% OpenAI eviction (embeddings). Voice transcription (Whisper) remains a future epic.
 
 ---
 
@@ -128,6 +158,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **Upcoming**: Swiss Cheese duplicate detection (4 layers: hash → Jaccard → bigram → semantic embedding), escalating retry strategy (temp 1.1, freq penalty, history reduction), local embedding service (bge-small-en-v1.5 via Worker Thread)
 - **beta.41**: Memory management Phase 2 complete - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, `/memory delete` (batch), `/memory purge` (typed confirmation), Focus Mode with visual indicator
 - **beta.40**: Enhanced duplicate detection diagnostics (near-miss logging, similarity metrics, hash tracking), integration test for full duplicate detection data flow, Persona resolver improvements
 - **beta.39**: SafeInteraction wrapper to prevent InteractionAlreadyReplied errors, discord: format personaIds to UUIDs, stale job cleanup fixes

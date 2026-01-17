@@ -188,6 +188,12 @@ export interface BudgetAllocationOptions {
   referencedMessagesDescriptions: string | undefined;
   // Note: extendedContextDescriptions removed - image descriptions are now
   // injected inline into conversation history entries for better context colocation
+  /**
+   * Optional percentage (0-1) to reduce history budget by.
+   * Used during duplicate detection retries (attempt 3) to break API-level caching
+   * by changing the context window.
+   */
+  historyReductionPercent?: number;
 }
 
 /** Options for model invocation */
@@ -200,4 +206,41 @@ export interface ModelInvocationOptions {
   participantPersonas: Map<string, ParticipantInfo>;
   referencedMessagesDescriptions: string | undefined;
   userApiKey?: string;
+  /** Retry configuration for escalating duplicate detection retries */
+  retryConfig?: DuplicateRetryConfig;
+}
+
+/**
+ * Configuration for escalating retry strategy when duplicate responses are detected.
+ *
+ * The "Ladder of Desperation" progressively increases randomness and changes
+ * context to break API-level caching on free models:
+ * - Attempt 1: Normal generation
+ * - Attempt 2: Increase temperature and frequency_penalty
+ * - Attempt 3: Reduce context by removing oldest messages
+ */
+export interface DuplicateRetryConfig {
+  /** Current attempt number (1-based) */
+  attempt: number;
+  /** Temperature override for this attempt */
+  temperatureOverride?: number;
+  /** Frequency penalty override for this attempt */
+  frequencyPenaltyOverride?: number;
+  /** Percent of oldest history to remove (0-1) */
+  historyReductionPercent?: number;
+}
+
+/**
+ * Options for generateResponse method
+ *
+ * Consolidated options object to reduce parameter count and improve
+ * maintainability. All optional fields have sensible defaults.
+ */
+export interface GenerateResponseOptions {
+  /** User's BYOK API key (for BYOK users) */
+  userApiKey?: string;
+  /** Whether user is in guest mode (uses free models). Default: false */
+  isGuestMode?: boolean;
+  /** Retry configuration for duplicate detection retries */
+  retryConfig?: DuplicateRetryConfig;
 }

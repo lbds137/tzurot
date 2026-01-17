@@ -284,8 +284,10 @@ describe('GenerationStep', () => {
             expect.objectContaining({ description: 'A sunset' }),
           ]),
         }),
-        expect.anything(),
-        expect.anything()
+        expect.objectContaining({
+          userApiKey: 'sk-test-key',
+          isGuestMode: false,
+        })
       );
       expect(result.result?.attachmentDescriptions).toBe('Image: A sunset');
     });

@@ -631,8 +631,10 @@ describe('LLMGenerationHandler', () => {
             serverId: 'server-012',
             sessionId: 'session-xyz',
           }),
-          undefined, // userApiKey
-          false // isGuestMode (no ApiKeyResolver provided, defaults to false)
+          expect.objectContaining({
+            userApiKey: undefined,
+            isGuestMode: false, // no ApiKeyResolver provided, defaults to false
+          })
         );
       });
 
@@ -669,8 +671,10 @@ describe('LLMGenerationHandler', () => {
           expect.any(Object),
           expect.any(String),
           expect.any(Object),
-          'user-resolved-key-from-db',
-          false // isGuestMode (BYOK user has their own key)
+          expect.objectContaining({
+            userApiKey: 'user-resolved-key-from-db',
+            isGuestMode: false, // BYOK user has their own key
+          })
         );
       });
 
@@ -697,8 +701,10 @@ describe('LLMGenerationHandler', () => {
           expect.any(Object),
           expect.any(String),
           expect.any(Object),
-          undefined, // no resolved key
-          true // isGuestMode (fallback to guest mode when resolution fails)
+          expect.objectContaining({
+            userApiKey: undefined, // no resolved key
+            isGuestMode: true, // fallback to guest mode when resolution fails
+          })
         );
       });
     });
@@ -838,8 +844,10 @@ describe('LLMGenerationHandler', () => {
           expect.objectContaining({
             oldestHistoryTimestamp: new Date('2025-01-01T10:00:00Z').getTime(),
           }),
-          undefined,
-          false // isGuestMode
+          expect.objectContaining({
+            userApiKey: undefined,
+            isGuestMode: false,
+          })
         );
       });
 
@@ -878,8 +886,10 @@ describe('LLMGenerationHandler', () => {
               { personaId: 'mentioned-persona-2', personaName: 'MentionedUser2', isActive: false },
             ]),
           }),
-          undefined,
-          false // isGuestMode
+          expect.objectContaining({
+            userApiKey: undefined,
+            isGuestMode: false,
+          })
         );
       });
 

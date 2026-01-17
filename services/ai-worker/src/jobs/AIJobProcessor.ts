@@ -9,6 +9,7 @@
 import { Job } from 'bullmq';
 import { ConversationalRAGService } from '../services/ConversationalRAGService.js';
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
+import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 import { LlmConfigResolver } from '../services/LlmConfigResolver.js';
 import { PersonaResolver } from '../services/resolvers/index.js';
@@ -156,6 +157,8 @@ export interface AIJobProcessorOptions {
   configResolver?: LlmConfigResolver;
   /** Optional: Persona resolver for persona-based memory retrieval (for DI in tests) */
   personaResolver?: PersonaResolver;
+  /** Optional: Local embedding service for semantic duplicate detection */
+  embeddingService?: EmbeddingServiceInterface;
 }
 
 export class AIJobProcessor {
@@ -166,8 +169,15 @@ export class AIJobProcessor {
   private configResolver: LlmConfigResolver;
 
   constructor(options: AIJobProcessorOptions) {
-    const { prisma, memoryManager, ragService, apiKeyResolver, configResolver, personaResolver } =
-      options;
+    const {
+      prisma,
+      memoryManager,
+      ragService,
+      apiKeyResolver,
+      configResolver,
+      personaResolver,
+      embeddingService,
+    } = options;
 
     this.prisma = prisma;
 
@@ -186,7 +196,8 @@ export class AIJobProcessor {
     this.llmGenerationHandler = new LLMGenerationHandler(
       this.ragService,
       this.apiKeyResolver,
-      this.configResolver
+      this.configResolver,
+      embeddingService
     );
   }
 

@@ -19,8 +19,10 @@ import type {
 import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
-  isRecentDuplicate,
+  isRecentDuplicateAsync,
   getRecentAssistantMessages,
+  buildRetryConfig,
+  type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';
 
@@ -79,7 +81,10 @@ function buildConversationContext(
 export class GenerationStep implements IPipelineStep {
   readonly name = 'Generation';
 
-  constructor(private readonly ragService: ConversationalRAGService) {}
+  constructor(
+    private readonly ragService: ConversationalRAGService,
+    private readonly embeddingService?: EmbeddingServiceInterface
+  ) {}
 
   /**
    * Generate response with cross-turn duplication retry.
@@ -112,19 +117,42 @@ export class GenerationStep implements IPipelineStep {
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Build escalating retry config based on attempt number
+      const retryConfig = buildRetryConfig(attempt);
+
+      // Log escalation on retries
+      if (attempt > 1) {
+        logger.info(
+          {
+            jobId,
+            attempt,
+            temperatureOverride: retryConfig.temperatureOverride,
+            frequencyPenaltyOverride: retryConfig.frequencyPenaltyOverride,
+            historyReductionPercent: retryConfig.historyReductionPercent,
+          },
+          '[GenerationStep] Escalating retry parameters for duplicate avoidance'
+        );
+      }
+
       // Generate response - each call gets new request_id via entropy injection
+      // Pass retry config for escalating parameters on duplicate retries
       const response = await this.ragService.generateResponse(
         personality,
         message,
         conversationContext,
-        apiKey,
-        isGuestMode
+        {
+          userApiKey: apiKey,
+          isGuestMode,
+          retryConfig: { attempt, ...retryConfig },
+        }
       );
 
       // If no previous messages to compare, or response is unique, we're done
-      const { isDuplicate, matchIndex } = isRecentDuplicate(
+      // Use async version with optional embedding service for semantic layer (Layer 4)
+      const { isDuplicate, matchIndex } = await isRecentDuplicateAsync(
         response.content,
-        recentAssistantMessages
+        recentAssistantMessages,
+        this.embeddingService
       );
 
       if (!isDuplicate) {
