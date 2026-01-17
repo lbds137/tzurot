@@ -40,9 +40,6 @@ COPY prisma ./prisma
 # Install all dependencies (dev deps needed for build)
 RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client
-RUN npx prisma generate
-
 # -----------------------------------------------------------------------------
 # Stage 3: Build the application
 # -----------------------------------------------------------------------------
@@ -53,6 +50,9 @@ COPY --from=pruner /app/out/full/ .
 
 # Copy root tsconfig.json (not included in turbo prune output but needed for builds)
 COPY tsconfig.json ./
+
+# Generate Prisma client AFTER copying source (so it's not overwritten by COPY)
+RUN npx prisma generate
 
 # Build all packages in dependency order (turbo handles this automatically)
 RUN pnpm turbo run build --filter=@tzurot/api-gateway...
