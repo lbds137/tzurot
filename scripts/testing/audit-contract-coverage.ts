@@ -26,13 +26,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const projectRoot = join(__dirname, '../..');
 
-interface ContractCoverage {
-  schemas: string[];
-  testedSchemas: string[];
-  untestedSchemas: string[];
-  coverage: number;
-  timestamp: string;
-}
+// ContractCoverage interface reserved for future JSON output feature
+// interface ContractCoverage {
+//   schemas: string[];
+//   testedSchemas: string[];
+//   untestedSchemas: string[];
+//   coverage: number;
+//   timestamp: string;
+// }
 
 interface BaselineFile {
   knownGaps: string[];
