@@ -142,18 +142,21 @@ export const HTTP_STATUS_TO_CATEGORY: Record<number, ApiErrorCategory> = {
 /**
  * Categories that should NOT trigger retries (permanent errors)
  */
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set
 export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   ApiErrorCategory.AUTHENTICATION,
   ApiErrorCategory.QUOTA_EXCEEDED,
   ApiErrorCategory.CONTENT_POLICY,
-  ApiErrorCategory.BAD_REQUEST,
+  // BAD_REQUEST moved to TRANSIENT - some providers (Z.AI, etc.) return 400 intermittently
   ApiErrorCategory.MODEL_NOT_FOUND,
 ]);
 
 /**
  * Categories that SHOULD trigger retries (transient errors)
  */
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set
 export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
+  ApiErrorCategory.BAD_REQUEST, // Some providers return 400 intermittently (Z.AI, etc.)
   ApiErrorCategory.RATE_LIMIT,
   ApiErrorCategory.SERVER_ERROR,
   ApiErrorCategory.TIMEOUT,
