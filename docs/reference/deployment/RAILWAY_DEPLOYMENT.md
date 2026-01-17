@@ -102,8 +102,10 @@ If not auto-detected:
 
 1. Click "+ New Service" → "Empty Service"
 2. Set root directory (e.g., `services/bot-client`)
-3. Set build command: `cd ../.. && pnpm install --frozen-lockfile && pnpm --filter @tzurot/bot-client build`
-4. Set start command: `pnpm start`
+3. Use Dockerfile deployment (recommended):
+   - Railway auto-detects the Dockerfile in each service directory
+   - Dockerfiles use `turbo prune` for automatic dependency handling
+   - No manual build command configuration needed
 
 ### 4. Configure Environment Variables
 
@@ -171,9 +173,10 @@ Each service should log on startup:
 
 ### "Module not found" errors
 
-- Ensure build command includes `pnpm install --frozen-lockfile`
-- Check that workspace dependencies are building correctly
-- Try adding `pnpm run build` in root before service-specific build
+- Dockerfiles use `turbo prune` which automatically handles workspace dependencies
+- If a new package was added, verify its `dist/` folder is copied in the Dockerfile's runner stage
+- Check Railway build logs for `turbo prune` output - it should list included packages
+- For runtime dependencies, ensure `COPY --from=builder /app/packages/package-name/dist` exists
 
 ### Services not communicating
 

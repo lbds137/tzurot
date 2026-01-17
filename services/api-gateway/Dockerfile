@@ -1,55 +1,80 @@
-# Build stage
-FROM node:25-slim AS builder
+# =============================================================================
+# API Gateway Dockerfile - Using turbo prune for automatic dependency handling
+# =============================================================================
+# When adding new workspace packages as dependencies, turbo prune automatically
+# includes them - no manual Dockerfile updates needed.
+# =============================================================================
 
-# Install pnpm
-RUN npm install -g pnpm
+# -----------------------------------------------------------------------------
+# Stage 1: Prune the monorepo to only include what api-gateway needs
+# -----------------------------------------------------------------------------
+FROM node:25-slim AS pruner
 
-# Set working directory to monorepo root
+RUN npm install -g turbo pnpm
+
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.json ./
-COPY packages/ ./packages/
-COPY services/api-gateway/package.json ./services/api-gateway/
+# Copy entire monorepo for turbo to analyze dependencies
+COPY . .
+
+# Prune to only packages needed by api-gateway
+# This creates out/json (package.jsons only) and out/full (with source)
+RUN turbo prune @tzurot/api-gateway --docker
+
+# -----------------------------------------------------------------------------
+# Stage 2: Install dependencies using pruned package.json files
+# -----------------------------------------------------------------------------
+FROM node:25-slim AS installer
+
+RUN npm install -g pnpm
+
+WORKDIR /app
+
+# Copy pruned package.json files (enables better Docker layer caching)
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
+
+# Copy prisma schema (needed for generate)
 COPY prisma ./prisma
 
-# Install dependencies
+# Install all dependencies (dev deps needed for build)
 RUN pnpm install --frozen-lockfile
 
 # Generate Prisma client
 RUN npx prisma generate
 
-# Copy source code
-COPY packages/ ./packages/
-COPY services/api-gateway/ ./services/api-gateway/
+# -----------------------------------------------------------------------------
+# Stage 3: Build the application
+# -----------------------------------------------------------------------------
+FROM installer AS builder
 
-# Build shared packages and service
-RUN pnpm --filter @tzurot/common-types build
-RUN pnpm --filter @tzurot/embeddings build
-RUN pnpm --filter api-gateway build
+# Copy pruned source code
+COPY --from=pruner /app/out/full/ .
 
-# Production stage
-FROM node:25-slim
+# Build all packages in dependency order (turbo handles this automatically)
+RUN pnpm turbo run build --filter=@tzurot/api-gateway...
 
-# Install pnpm
+# -----------------------------------------------------------------------------
+# Stage 4: Production runtime
+# -----------------------------------------------------------------------------
+FROM node:25-slim AS runner
+
 RUN npm install -g pnpm
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY packages/common-types/package.json ./packages/common-types/
-COPY packages/embeddings/package.json ./packages/embeddings/
-COPY services/api-gateway/package.json ./services/api-gateway/
+# Copy pruned package.json files for production install
+COPY --from=pruner /app/out/json/ .
+COPY --from=pruner /app/out/pnpm-lock.yaml ./pnpm-lock.yaml
 COPY prisma ./prisma
 
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile
 
-# Copy entire pnpm store to preserve generated Prisma client
+# Copy Prisma client from builder (generated in node_modules/.pnpm)
 COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
-# Copy built artifacts
+# Copy built artifacts from all workspace packages
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
 COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
