@@ -32,6 +32,39 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 - **ALWAYS** leave the codebase better than you found it
 - Previous session broke it? Fix it now.
 
+### Completeness Over Speed
+
+**NEVER sacrifice thoroughness for speed. NEVER take shortcuts.**
+
+- Do not assume a pattern exists in only one location
+- Do not assume APIs work a certain way without checking definitions
+- When solving a problem, implement the proper solution—not documentation describing the limitation
+- This is a monorepo: changes often ripple across packages. Check impact in `services/`, `packages/`, and infrastructure files
+
+### Mandatory Global Discovery ("Grep Rule")
+
+**Before modifying ANY configuration, infrastructure, or shared pattern:**
+
+1. Search for ALL instances: `grep -r "pattern" --include="*.ext"`
+2. List every file that will be affected
+3. If you find N instances but only plan to edit N-1, justify why the last one is excluded
+
+Examples:
+
+- Updating Node version? Search `Dockerfile*`, `.nvmrc`, `package.json`, CI workflows
+- Adding a workspace package? Check ALL Dockerfiles, not just the one you're focused on
+- Changing an interface? Find ALL consumers across services
+
+### Impact Analysis Plan
+
+**Before applying edits, list the specific files you intend to modify.**
+
+When making changes that affect multiple files:
+
+1. State which files will be changed
+2. Verify no files are missed using global search
+3. If you find additional files mid-implementation, update the plan
+
 ### Deterministic UUIDs Required
 
 **NEVER use random UUIDs (v4). ALWAYS use deterministic UUIDs (v5).**
@@ -314,6 +347,7 @@ execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
 
 | Date       | Incident                      | Rule                              |
 | ---------- | ----------------------------- | --------------------------------- |
+| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files |
 | 2026-01-07 | PR merged without approval    | Never merge PRs without user okay |
 | 2025-07-25 | Untested push broke develop   | Always run tests before pushing   |
 | 2025-07-21 | Git restore destroyed work    | Confirm before destructive git    |

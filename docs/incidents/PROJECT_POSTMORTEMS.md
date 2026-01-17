@@ -6,6 +6,7 @@
 
 | Date       | Incident                      | Rule Established                            |
 | ---------- | ----------------------------- | ------------------------------------------- |
+| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infrastructure files  |
 | 2025-07-25 | Untested push broke develop   | Always run tests before pushing             |
 | 2025-07-21 | Git restore destroyed work    | Confirm before destructive git commands     |
 | 2025-10-31 | DB URL committed              | Never commit database URLs                  |
@@ -13,6 +14,60 @@
 | 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch       |
 | 2025-12-06 | API contract mismatch         | Use shared Zod schemas for contracts        |
 | 2025-12-14 | Random UUIDs broke db-sync    | Use deterministic v5 UUIDs for all entities |
+
+---
+
+## 2026-01-17 - Dockerfile Missed New Package During Epic Merge
+
+**What Happened**: After merging PR #473 (Duplicate Detection Epic), Railway deployment failed because the new `@tzurot/embeddings` package wasn't included in the Dockerfiles.
+
+**Error**:
+
+```
+Error: Cannot find package '@tzurot/embeddings' imported from /app/services/api-gateway/dist/index.js
+```
+
+**Impact**:
+
+- Both api-gateway and ai-worker deployments failed
+- Required emergency hotfix directly to develop branch
+- Delayed deployment of duplicate detection feature
+
+**Root Cause**:
+
+- Created new `@tzurot/embeddings` package in `packages/`
+- Updated only 2 of 3 Dockerfiles initially (api-gateway and ai-worker)
+- Forgot to add the package build step and dist copy to the Dockerfiles
+- When hotfixing, only fixed 2 Dockerfiles, not all 3
+
+**Why It Wasn't Caught**:
+
+- CI runs tests and builds in the normal monorepo structure (pnpm workspaces)
+- Railway builds use Dockerfiles which have separate, manual package lists
+- No automated check verifies Dockerfiles include all workspace dependencies
+- Manual process = easy to forget when adding packages
+
+**Prevention Measures**:
+
+1. **Implemented turbo prune**: All Dockerfiles now use `turbo prune @tzurot/service-name --docker` which automatically includes workspace dependencies
+2. **Added "Grep Rule" to CLAUDE.md**: Before modifying infrastructure, search for ALL instances
+3. **Documented in deployment skill**: New "Docker Build Architecture" section explains the pattern
+4. **Post-mortem added**: This incident documented for future reference
+
+**The Fix - Turbo Prune**:
+
+```dockerfile
+# OLD: Manual package lists (error-prone)
+COPY packages/common-types/package.json ./packages/common-types/
+RUN pnpm --filter @tzurot/common-types build
+
+# NEW: Automatic dependency handling
+RUN turbo prune @tzurot/service-name --docker
+COPY --from=pruner /app/out/json/ .
+RUN pnpm turbo run build --filter=@tzurot/service-name...
+```
+
+**Universal Lesson**: When modifying infrastructure files (Dockerfiles, CI, configs), always search for ALL instances and verify complete coverage. Better yet, use tooling (like turbo prune) that handles dependencies automatically.
 
 ---
 

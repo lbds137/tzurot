@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: Railway deployment operations for Tzurot v3 - Service management, log analysis, environment variables, health checks, and troubleshooting. Use when deploying, debugging production issues, or managing Railway infrastructure.
-lastUpdated: '2025-12-20'
+lastUpdated: '2026-01-17'
 ---
 
 # Deployment Skill - Tzurot v3
@@ -135,6 +135,50 @@ railway restart --service bot-client
 2. Verify health endpoint
 3. Verify DISCORD_TOKEN is set
 4. Check bot permissions in Discord server
+
+## Docker Build Architecture
+
+### Turbo Prune Pattern
+
+All service Dockerfiles use `turbo prune` for automatic dependency handling:
+
+```dockerfile
+# Stage 1: Prune monorepo to only needed packages
+FROM node:25-slim AS pruner
+RUN npm install -g turbo pnpm
+COPY . .
+RUN turbo prune @tzurot/service-name --docker
+
+# Stage 2: Install dependencies from pruned workspace
+FROM node:25-slim AS installer
+COPY --from=pruner /app/out/json/ .
+RUN pnpm install --frozen-lockfile
+
+# Stage 3: Build with pruned source
+FROM installer AS builder
+COPY --from=pruner /app/out/full/ .
+RUN pnpm turbo run build --filter=@tzurot/service-name...
+```
+
+**Why turbo prune?**
+
+- Automatically includes transitive workspace dependencies
+- No need to manually update Dockerfiles when adding new packages
+- Better Docker layer caching (package.json files copied separately)
+
+### Adding New Workspace Packages
+
+When creating a new package in `packages/`:
+
+1. **Build step**: Automatically included via `turbo prune`
+2. **Runtime copy**: Still requires manual `COPY --from=builder` for `dist/` folder
+
+```dockerfile
+# If the new package is used at runtime, add to runner stage:
+COPY --from=builder /app/packages/new-package/dist ./packages/new-package/dist
+```
+
+**Note**: The build will succeed automatically (turbo prune includes dependencies), but if the package's compiled output is needed at runtime, you must add the COPY line.
 
 ## Railway Patterns
 
