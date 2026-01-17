@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-08
-> **Current Version**: v3.0.0-beta.40
+> **Last Updated**: 2026-01-17
+> **Current Version**: v3.0.0-beta.42
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -25,9 +25,9 @@
   - Renamed `set-default` → `default` for consistency
   - Updated help text and documentation
 
-### 2. Memory Management Commands (Phase 2 + Read Toggle) ⬅️ CURRENT
+### 2. Memory Management Commands (Phase 3 - Incognito) ⬅️ CURRENT
 
-**Why**: User-requested, high retention value. Bundle LTM commands with memory read toggle.
+**Why**: User-requested, high retention value. Incognito Mode = disable LTM **writing** (memories not saved).
 
 **Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
@@ -36,24 +36,37 @@
 - [x] `/history clear`, `/history undo`, `/history hard-delete`, `/history view`
 - [x] Per-persona epoch tracking
 
-**Phase 2 - LTM (NOT STARTED):**
+**Phase 2 - LTM (COMPLETE - PR #462, #471):**
 
-- [ ] `/memory search` - semantic search with filtering
-- [ ] `/memory browse` - paginated memory deck UI
-- [ ] `/memory edit` - edit memory content (regenerate embedding)
-- [ ] `/memory delete` - single memory deletion
-- [ ] `/memory purge` - bulk deletion with typed confirmation
-- [ ] `/memory lock/unlock` - core memory protection
-- [ ] **Memory Read Toggle** ("Focus Mode") - disable LTM retrieval per-user/personality
-  - Different from Incognito (write) - this controls read
-  - UX: 🛑 "Stop Recording" (Incognito) vs 🔒 "Focus Mode" (Read Toggle)
+- [x] `/memory list` - paginated memory browser with detail view
+- [x] `/memory search` - semantic search with text fallback
+- [x] `/memory stats` - memory statistics per personality
+- [x] Memory detail view with edit/delete/lock buttons
+- [x] `/memory delete` - batch deletion with filters
+- [x] `/memory purge` - bulk deletion with typed confirmation
+- [x] `/memory focus` - Focus Mode (disable LTM **reading**)
+- [x] Focus Mode RAG skip and visual indicator (`🔒 Focus Mode`)
 
-**Phase 3 - Incognito Mode (NOT STARTED):**
+**Phase 3 - Incognito Mode (NEXT):**
 
-- [ ] `/memory incognito enable/disable/status/forget`
-- [ ] Visual indicator in responses when active
+Two bugs to fix first (see TECH_DEBT.md):
 
-**Note**: Incognito consolidated under `/memory` - all LTM controls in one place.
+- [ ] Missing select menu handler for `memory-detail::select`
+- [ ] Embed character limit exceeded for long memories
+
+Then Incognito Mode:
+
+- [ ] Redis-based incognito session manager
+- [ ] `/memory incognito enable` with duration options (30m/1h/4h/until disable)
+- [ ] `/memory incognito disable/status`
+- [ ] `/memory incognito forget` - retroactive delete
+- [ ] Storage bypass in ai-worker (skip memory creation when incognito)
+- [ ] Visual indicator in responses (`👻 Incognito Mode`)
+
+**Phase 4 - Polish (LATER):**
+
+- [ ] Date range filtering for `/memory search` and `/memory delete`
+- [ ] Batch operations respect locked memories
 
 ### 3. Channel Allowlist/Denylist
 
@@ -157,6 +170,7 @@ Not needed until post-beta when we care about semantic versioning again.
 - **Phase 0**: Foundation (contract tests, PGlite component tests, message reference handling)
 - **Phase 1**: Gatekeeper / Public Beta Launch (BYOK, `/wallet`, `/preset`, `/me model`, `/me profile`, guest mode, reasoning models)
 - **Memory Management Phase 1**: STM commands (`/history clear/undo/hard-delete/view`)
+- **Memory Management Phase 2**: LTM commands (`/memory list/search/stats/delete/purge/focus`), Focus Mode
 
 ---
 

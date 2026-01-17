@@ -1,7 +1,8 @@
 # API Contract Enforcement Plan
 
-> **Status**: ✅ Phase 1 Complete (Schemas & Factories)
-> **Priority**: High (prevents production bugs)
+> **Status**: ✅ Phase 1 Complete (Schemas & Factories) — Phase 2 Optional
+> **Updated**: 2026-01-17
+> **Priority**: Low (Phase 1 achieved the goal)
 > **Triggered by**: Post-mortem from v3.0.0-beta.9 bugs (profile override-set, character creation)
 
 ## Problem Statement

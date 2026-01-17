@@ -4,9 +4,9 @@
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.41
+**Version**: v3.0.0-beta.42
 **Deployment**: Railway (stable)
-**Current Goal**: User-Requested Features (v2 parity deprioritized)
+**Current Goal**: Memory Management Phase 3 (Incognito Mode)
 
 ---
 
@@ -63,7 +63,7 @@ Fast cleanup before building new features:
 
 ---
 
-## Active: Memory Management Commands (Phase 2 + Read Toggle)
+## Active: Memory Management Commands (Phase 3 - Incognito Mode)
 
 **Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
@@ -85,40 +85,63 @@ Fast cleanup before building new features:
 - [x] Focus Mode RAG integration (ai-worker skips retrieval when enabled)
 - [x] Focus Mode visual indicator in responses (`🔒 Focus Mode • LTM retrieval disabled`)
 
-**Phase 3 (Incognito + Recovery + UX Polish) - NOT STARTED:**
+**Tech Debt Bugs - Fix Before Phase 3:**
 
-Core Features:
+Two bugs discovered during embedding migration testing:
 
-- [ ] `/memory incognito enable/disable/status/forget`
-- [ ] Visual indicator in responses when incognito active
+- [ ] **Missing Select Menu Handler**: `memory-detail::select` interaction fails - handler not registered
+- [ ] **Embed Character Limit**: Memory detail view exceeds Discord's 4096 char limit for long memories
+
+See [TECH_DEBT.md](docs/proposals/active/TECH_DEBT.md) for details.
+
+**Phase 3 (Incognito Mode) - NEXT:**
+
+Incognito Mode temporarily disables LTM **writing** (new memories not saved). Distinct from Focus Mode which disables **reading**.
+
+| Subcommand                  | Description                                       | Status      |
+| --------------------------- | ------------------------------------------------- | ----------- |
+| `/memory incognito enable`  | Start incognito session (30m/1h/4h/until disable) | Not started |
+| `/memory incognito disable` | End incognito session                             | Not started |
+| `/memory incognito status`  | Check current state and time remaining            | Not started |
+| `/memory incognito forget`  | Retroactively delete memories from timeframe      | Not started |
+| Visual indicator            | 👻 in responses when active                       | Not started |
+| Storage bypass              | Skip memory creation when incognito               | Not started |
+
+**Architecture**:
+
+- **Session storage**: Redis with TTL (ephemeral by design)
+- **Key pattern**: `incognito:${userId}:${personalityId}` or `incognito:${userId}:all`
+- **Duration options**: 30m, 1h, 4h, or until manual disable
+
+**Files to Create**:
+
+- `api-gateway/services/IncognitoSessionManager.ts` - Redis session management
+- `api-gateway/routes/user/memoryIncognito.ts` - API routes
+- `common-types/types/incognito.ts` - Shared types
+- `bot-client/commands/memory/incognito.ts` - Discord commands
+
+**Files to Modify**:
+
+- `ai-worker/services/MemoryStorageService.ts` - Check incognito before storing
+- `bot-client/services/DiscordResponseSender.ts` - Add 👻 indicator
+
+**Phase 4 (Polish) - LATER:**
+
+- [ ] Date range filtering for `/memory search` and `/memory delete`
+- [ ] Audit logging for destructive operations
 - [ ] `/memory restore` - restore soft-deleted memories
 - [ ] `/memory add` - manually add a memory for a personality
-- [ ] Batch operations respect locked memories (`/memory delete`, `/memory purge` skip locked)
 - [ ] User-facing guide for memory management commands
 
-UX Naming Review (MCP Council Recommendations):
+**UX Naming Review (MCP Council Recommendations) - DEFERRED:**
 
-| Current                | Proposed          | Rationale                                                                           |
-| ---------------------- | ----------------- | ----------------------------------------------------------------------------------- |
-| `/memory undo`         | `/memory restore` | "Restore" implies archive recovery; "undo" implies immediate reversal (Ctrl+Z)      |
-| `/memory focus`        | `/memory pause`   | "Focus" is ambiguous (focus ON memories? or IGNORE them?); "pause" clearly suspends |
-| `/memory purge`        | `/memory reset`   | "Reset" feels more final than "purge" which overlaps with "delete"                  |
-| `/history hard-delete` | `/history wipe`   | User-facing term vs technical DB term; shorter to type                              |
+| Current                | Proposed        | Rationale                                                                           |
+| ---------------------- | --------------- | ----------------------------------------------------------------------------------- |
+| `/memory focus`        | `/memory pause` | "Focus" is ambiguous (focus ON memories? or IGNORE them?); "pause" clearly suspends |
+| `/memory purge`        | `/memory reset` | "Reset" feels more final than "purge" which overlaps with "delete"                  |
+| `/history hard-delete` | `/history wipe` | User-facing term vs technical DB term; shorter to type                              |
 
-Additional Considerations:
-
-- **Merge list+search?** Consider `/memory view [query]` - empty shows list, filled does semantic search
-- **Verb consistency**: `/history view` vs `/memory list` - pick one pattern
-- **Confirmation UX**: `/memory reset` should require typing personality name (already implemented in purge)
-
-STM Command Polish (Optional - bundle with Phase 3):
-
-| Current                | Proposed           | Rationale                                        |
-| ---------------------- | ------------------ | ------------------------------------------------ |
-| `/history hard-delete` | `/history wipe`    | User-facing term; "hard-delete" is DB jargon     |
-| `/history clear`       | `/history archive` | Clarifies soft-delete behavior (can be restored) |
-
-_Beta = breaking changes expected. Consider bundling STM renames with Phase 3 for a single "UX consistency pass" across all memory/history commands._
+_Naming changes deferred - do as part of a "UX consistency pass" after Phase 3._
 
 ---
 
