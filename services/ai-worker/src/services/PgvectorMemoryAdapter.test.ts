@@ -14,6 +14,7 @@ import {
   type MemoryQueryOptions,
   type MemoryMetadata,
 } from './PgvectorMemoryAdapter.js';
+import type { IEmbeddingService } from '@tzurot/embeddings';
 
 // Valid Discord snowflake IDs for testing (17-19 digit numeric strings)
 const VALID_CHANNEL_ID_1 = '123456789012345678';
@@ -21,6 +22,20 @@ const VALID_CHANNEL_ID_2 = '234567890123456789';
 
 // Mock splitTextByTokens to control chunking behavior in tests
 const mockSplitTextByTokens = vi.fn();
+
+/**
+ * Create a mock embedding service for testing
+ * Returns 384-dimensional embeddings (same as BGE-small-en-v1.5)
+ */
+function createMockEmbeddingService(): IEmbeddingService {
+  return {
+    initialize: vi.fn().mockResolvedValue(true),
+    getEmbedding: vi.fn().mockResolvedValue(new Float32Array(384).fill(0.1)),
+    getDimensions: vi.fn().mockReturnValue(384),
+    isServiceReady: vi.fn().mockReturnValue(true),
+    shutdown: vi.fn().mockResolvedValue(undefined),
+  };
+}
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -58,6 +73,7 @@ describe('PgvectorMemoryAdapter', () => {
   let adapter: PgvectorMemoryAdapter;
   let mockQueryMemories: ReturnType<typeof vi.fn>;
   let mockPrisma: any;
+  let mockEmbeddingService: IEmbeddingService;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -68,8 +84,11 @@ describe('PgvectorMemoryAdapter', () => {
       $executeRaw: vi.fn(),
     };
 
-    // Create adapter instance
-    adapter = new PgvectorMemoryAdapter(mockPrisma, 'test-api-key');
+    // Create mock embedding service
+    mockEmbeddingService = createMockEmbeddingService();
+
+    // Create adapter instance with mock embedding service
+    adapter = new PgvectorMemoryAdapter(mockPrisma, mockEmbeddingService);
 
     // Spy on queryMemories to control its return values
     mockQueryMemories = vi.fn();
@@ -492,21 +511,15 @@ describe('PgvectorMemoryAdapter', () => {
         wasChunked: false,
       });
 
-      // Mock Prisma and OpenAI
+      // Mock Prisma - embedding service is injected via constructor
       const mockPrisma = {
         $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
-      const mockOpenAI = {
-        embeddings: {
-          create: vi.fn().mockResolvedValue({
-            data: [{ embedding: new Array(1536).fill(0.1) }],
-          }),
-        },
-      };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
-      // @ts-expect-error - accessing private property for testing
-      testAdapter.openai = mockOpenAI;
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       await testAdapter.addMemory({ text: shortText, metadata: baseMetadata });
 
@@ -526,31 +539,19 @@ describe('PgvectorMemoryAdapter', () => {
         wasChunked: true,
       });
 
-      // Mock Prisma and OpenAI
-      const executedQueries: any[] = [];
+      // Mock Prisma - embedding service is injected via constructor
       const mockPrisma = {
-        $executeRaw: vi.fn().mockImplementation((...args) => {
-          executedQueries.push(args);
-          return Promise.resolve(undefined);
-        }),
+        $executeRaw: vi.fn().mockResolvedValue(undefined),
       };
-      const mockOpenAI = {
-        embeddings: {
-          create: vi.fn().mockResolvedValue({
-            data: [{ embedding: new Array(1536).fill(0.1) }],
-          }),
-        },
-      };
+      const mockService = createMockEmbeddingService();
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
-      // @ts-expect-error - accessing private property for testing
-      testAdapter.openai = mockOpenAI;
+      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, mockService);
 
       await testAdapter.addMemory({ text: longText, metadata: baseMetadata });
 
       // Should store exactly 3 chunks
       expect(mockPrisma.$executeRaw).toHaveBeenCalledTimes(3);
-      expect(mockOpenAI.embeddings.create).toHaveBeenCalledTimes(3);
+      expect(mockService.getEmbedding).toHaveBeenCalledTimes(3);
     });
 
     it('should generate unique deterministic UUIDs for each chunk', async () => {
@@ -572,17 +573,11 @@ describe('PgvectorMemoryAdapter', () => {
             return Promise.resolve(undefined);
           }),
       };
-      const mockOpenAI = {
-        embeddings: {
-          create: vi.fn().mockResolvedValue({
-            data: [{ embedding: new Array(1536).fill(0.1) }],
-          }),
-        },
-      };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
-      // @ts-expect-error - accessing private property for testing
-      testAdapter.openai = mockOpenAI;
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       await testAdapter.addMemory({ text: chunks.join('\n\n'), metadata: baseMetadata });
 
@@ -608,24 +603,18 @@ describe('PgvectorMemoryAdapter', () => {
           .fn()
           .mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
             // chunkGroupId is at index 15 in the VALUES (0-indexed)
-            // Based on SQL: id, persona_id, personality_id, source_system, content, embedding,
+            // Based on SQL: id, persona_id, personality_id, source_system, content, embedding_local,
             //               session_id, canon_scope, summary_type, channel_id, guild_id,
             //               message_ids, senders, is_summarized, created_at, chunk_group_id, ...
             chunkGroupIds.push(values[15]);
             return Promise.resolve(undefined);
           }),
       };
-      const mockOpenAI = {
-        embeddings: {
-          create: vi.fn().mockResolvedValue({
-            data: [{ embedding: new Array(1536).fill(0.1) }],
-          }),
-        },
-      };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
-      // @ts-expect-error - accessing private property for testing
-      testAdapter.openai = mockOpenAI;
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Call addMemory twice with same input (simulating retry)
       await testAdapter.addMemory({ text: longText, metadata: baseMetadata });
@@ -652,7 +641,10 @@ describe('PgvectorMemoryAdapter', () => {
         $queryRaw: vi.fn(),
       };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Mock the initial query result (chunk 1 of 3)
       const initialResult: MemoryDocument[] = [
@@ -756,7 +748,10 @@ describe('PgvectorMemoryAdapter', () => {
         $queryRaw: vi.fn(),
       };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Initial results include 2 chunks from same group
       const initialResults: MemoryDocument[] = [
@@ -864,7 +859,10 @@ describe('PgvectorMemoryAdapter', () => {
         $queryRaw: vi.fn(),
       };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Documents without chunk metadata
       const documents: MemoryDocument[] = [
@@ -888,7 +886,10 @@ describe('PgvectorMemoryAdapter', () => {
         $queryRaw: vi.fn(),
       };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Documents with explicit null chunkGroupId (as PostgreSQL would return)
       const documents: MemoryDocument[] = [
@@ -924,7 +925,10 @@ describe('PgvectorMemoryAdapter', () => {
         $queryRaw: vi.fn(),
       };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Documents with null id (edge case from database)
       const documents: MemoryDocument[] = [
@@ -997,7 +1001,10 @@ describe('PgvectorMemoryAdapter', () => {
         $queryRaw: vi.fn(),
       };
 
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
 
       // Document with empty string chunkGroupId
       const documents: MemoryDocument[] = [
@@ -1044,7 +1051,10 @@ describe('PgvectorMemoryAdapter', () => {
       mockQueryMemories.mockResolvedValueOnce(channelResults).mockResolvedValueOnce(globalResults);
 
       const mockPrisma = { $queryRaw: vi.fn(), $executeRaw: vi.fn() };
-      const testAdapter = new PgvectorMemoryAdapter(mockPrisma as any, 'test-api-key');
+      const testAdapter = new PgvectorMemoryAdapter(
+        mockPrisma as any,
+        createMockEmbeddingService()
+      );
       testAdapter.queryMemories = mockQueryMemories;
 
       const options = {

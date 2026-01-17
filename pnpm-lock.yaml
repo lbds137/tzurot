@@ -190,6 +190,22 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0(@types/react@19.2.7)(magicast@0.3.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
 
+  packages/embeddings:
+    dependencies:
+      '@huggingface/transformers':
+        specifier: ^3.8.1
+        version: 3.8.1
+      '@tzurot/common-types':
+        specifier: workspace:*
+        version: link:../common-types
+      onnxruntime-node:
+        specifier: ^1.23.2
+        version: 1.23.2
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.6
+        version: 25.0.6
+
   packages/tooling:
     dependencies:
       '@tzurot/common-types':
@@ -229,6 +245,9 @@ importers:
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../packages/common-types
+      '@tzurot/embeddings':
+        specifier: workspace:*
+        version: link:../packages/embeddings
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
@@ -248,9 +267,6 @@ importers:
 
   services/ai-worker:
     dependencies:
-      '@huggingface/transformers':
-        specifier: ^3.8.1
-        version: 3.8.1
       '@langchain/core':
         specifier: ^1.1.12
         version: 1.1.12(openai@6.16.0(ws@8.19.0)(zod@4.3.5))
@@ -260,6 +276,9 @@ importers:
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
+      '@tzurot/embeddings':
+        specifier: workspace:*
+        version: link:../../packages/embeddings
       bullmq:
         specifier: ^5.66.5
         version: 5.66.5
@@ -300,6 +319,9 @@ importers:
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../../packages/common-types
+      '@tzurot/embeddings':
+        specifier: workspace:*
+        version: link:../../packages/embeddings
       bullmq:
         specifier: ^5.66.5
         version: 5.66.5

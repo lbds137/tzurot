@@ -18,8 +18,8 @@ vi.mock('./promptPlaceholders.js', () => ({
 
 describe('memoryUtils', () => {
   describe('EMBEDDING_DIMENSION', () => {
-    it('should be 1536 (text-embedding-3-small dimension)', () => {
-      expect(EMBEDDING_DIMENSION).toBe(1536);
+    it('should be 384 (BGE-small-en-v1.5 dimension)', () => {
+      expect(EMBEDDING_DIMENSION).toBe(384);
     });
   });
 

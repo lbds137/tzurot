@@ -12,7 +12,7 @@
 import { Worker, Job, Queue } from 'bullmq';
 import { Redis } from 'ioredis';
 import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
-import { LocalEmbeddingService } from './services/LocalEmbeddingService.js';
+import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import {
@@ -85,9 +85,6 @@ const redisConfig = createBullMQRedisConfig({
 // Configuration from environment
 const config = {
   redis: redisConfig,
-  openai: {
-    apiKey: envConfig.OPENAI_API_KEY, // For embeddings
-  },
   worker: {
     concurrency: envConfig.WORKER_CONCURRENCY,
     queueName: envConfig.QUEUE_NAME,
@@ -180,15 +177,17 @@ async function setupCacheInvalidation(
 
 /**
  * Initialize vector memory manager with health check
+ * @param prisma - Database client
+ * @param embeddingService - Local embedding service for generating vectors
  */
 async function initializeVectorMemory(
-  prisma: PrismaClient
+  prisma: PrismaClient,
+  embeddingService: LocalEmbeddingService
 ): Promise<PgvectorMemoryAdapter | undefined> {
   logger.info('[AIWorker] Initializing pgvector memory connection...');
 
   try {
-    // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-    const memoryManager = new PgvectorMemoryAdapter(prisma, envConfig.OPENAI_API_KEY!);
+    const memoryManager = new PgvectorMemoryAdapter(prisma, embeddingService);
     const healthy = await memoryManager.healthCheck();
 
     if (healthy) {
@@ -365,11 +364,19 @@ async function main(): Promise<void> {
   const cacheResult = await setupCacheInvalidation({ cacheRedis, prisma });
   const { apiKeyResolver, llmConfigResolver, personaResolver, cleanupFns } = cacheResult;
 
-  // Initialize vector memory
-  const memoryManager = await initializeVectorMemory(prisma);
-
-  // Initialize local embedding service for semantic duplicate detection
+  // Initialize local embedding service (required for both vector memory and duplicate detection)
   const localEmbeddingService = await initializeLocalEmbedding();
+
+  // Initialize vector memory (depends on embedding service)
+  // If embedding service failed, vector memory also cannot work
+  const memoryManager =
+    localEmbeddingService !== undefined
+      ? await initializeVectorMemory(prisma, localEmbeddingService)
+      : undefined;
+
+  if (localEmbeddingService !== undefined && memoryManager === undefined) {
+    logger.warn({}, '[AIWorker] Embedding service ready but vector memory failed');
+  }
 
   // Create job processor and main worker
   const jobProcessor = new AIJobProcessor({

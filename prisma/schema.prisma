@@ -442,9 +442,13 @@ model Memory {
   personaId            String?                @map("persona_id") @db.Uuid
   personalityId        String                 @map("personality_id") @db.Uuid
   content              String
-  /// Vector embedding for similarity search - managed outside Prisma
+  /// Vector embedding for similarity search (OpenAI text-embedding-3-small: 1536 dimensions)
   /// Index: idx_memories_embedding USING ivfflat (embedding vector_cosine_ops) WITH (lists = 50)
+  /// DEPRECATED: Being replaced by embeddingLocal (384 dimensions)
   embedding            Unsupported("vector")?
+  /// Local embedding for similarity search (BGE-small-en-v1.5: 384 dimensions)
+  /// Index: idx_memories_embedding_local USING ivfflat (embedding_local vector_cosine_ops) WITH (lists = 50)
+  embeddingLocal       Unsupported("vector")? @map("embedding_local")
   isSummarized         Boolean                @default(false) @map("is_summarized")
   originalMessageCount Int?                   @map("original_message_count")
   summarizedAt         DateTime?              @map("summarized_at")
