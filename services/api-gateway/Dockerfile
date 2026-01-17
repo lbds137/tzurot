@@ -25,6 +25,7 @@ COPY services/api-gateway/ ./services/api-gateway/
 
 # Build shared packages and service
 RUN pnpm --filter @tzurot/common-types build
+RUN pnpm --filter @tzurot/embeddings build
 RUN pnpm --filter api-gateway build
 
 # Production stage
@@ -38,6 +39,7 @@ WORKDIR /app
 # Copy package files
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/common-types/package.json ./packages/common-types/
+COPY packages/embeddings/package.json ./packages/embeddings/
 COPY services/api-gateway/package.json ./services/api-gateway/
 COPY prisma ./prisma
 
@@ -49,6 +51,7 @@ COPY --from=builder /app/node_modules/.pnpm ./node_modules/.pnpm
 
 # Copy built artifacts
 COPY --from=builder /app/packages/common-types/dist ./packages/common-types/dist
+COPY --from=builder /app/packages/embeddings/dist ./packages/embeddings/dist
 COPY --from=builder /app/services/api-gateway/dist ./services/api-gateway/dist
 
 EXPOSE 3000
