@@ -20,12 +20,14 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@huggingface/transformers": "^3.8.1",
     "@langchain/core": "^1.1.12",
     "@langchain/openai": "^1.2.1",
     "@tzurot/common-types": "workspace:*",
     "bullmq": "^5.66.5",
     "ioredis": "^5.9.1",
     "langchain": "^1.2.7",
+    "onnxruntime-node": "^1.23.2",
     "openai": "^6.16.0",
     "pino": "^10.1.1",
     "redis": "^5.10.0",

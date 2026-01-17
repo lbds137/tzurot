@@ -185,6 +185,7 @@ export class ContentBudgetManager {
       participantPersonas,
       context,
       referencedMessagesDescriptions,
+      historyReductionPercent,
     } = opts;
 
     const systemPromptWithMemories = this.promptBuilder.buildFullSystemPrompt({
@@ -199,12 +200,22 @@ export class ContentBudgetManager {
       systemPromptWithMemories.content as string
     );
 
-    const historyBudget = this.contextWindowManager.calculateHistoryBudget(
+    let historyBudget = this.contextWindowManager.calculateHistoryBudget(
       contextWindowTokens,
       systemPromptWithMemoriesTokens,
       currentMessageTokens,
       0
     );
+
+    // Apply history reduction for duplicate detection retries
+    // This changes the context window to help break API-level caching on free models
+    if (historyReductionPercent !== undefined && historyReductionPercent > 0) {
+      const reducedBudget = Math.floor(historyBudget * (1 - historyReductionPercent));
+      logger.info(
+        `[Budget] Reducing history budget by ${Math.round(historyReductionPercent * 100)}% for duplicate retry: ${historyBudget} → ${reducedBudget} tokens`
+      );
+      historyBudget = reducedBudget;
+    }
 
     const { serializedHistory, historyTokensUsed, messagesDropped } =
       this.contextWindowManager.selectAndSerializeHistory(
