@@ -1,7 +1,8 @@
 # Git Hook Infrastructure Improvements
 
 > Created: 2026-01-07
-> Status: PLANNED
+> Updated: 2026-01-17
+> Status: PARTIAL (Phase 2 complete, Phase 3 remaining)
 > Source: MCP Council brainstorm session
 
 ## Overview
@@ -38,7 +39,7 @@ git config core.hooksPath hooks
 
 ### Phase 2: Performance & Developer Experience
 
-#### 2.1 Install Husky
+#### 2.1 Install Husky ✅ COMPLETE
 
 **Why**: Standard tool for managing git hooks in npm projects. Auto-installs hooks on `pnpm install`.
 
@@ -48,10 +49,10 @@ pnpm add -D husky
 
 **Changes**:
 
-- [ ] Install husky
-- [ ] Add `prepare` script: `"prepare": "husky"`
-- [ ] Migrate existing hooks to `.husky/` format
-- [ ] Remove old `hooks/` directory
+- [x] Install husky
+- [x] Add `prepare` script: `"prepare": "husky"`
+- [x] Migrate existing hooks to `.husky/` format
+- [x] Remove old `hooks/` directory
 
 **Note**: Husky uses `core.hooksPath` internally, so Phase 1 becomes part of this.
 
@@ -134,7 +135,7 @@ brew install gitleaks
 
 ---
 
-#### 3.2 Add Commitlint
+#### 3.2 Add Commitlint ✅ COMPLETE
 
 **Why**: Enforce conventional commit format (`feat:`, `fix:`, etc.) for clean history.
 
@@ -142,7 +143,7 @@ brew install gitleaks
 pnpm add -D @commitlint/cli @commitlint/config-conventional
 ```
 
-**Configuration** (`commitlint.config.js`):
+**Configuration** (`commitlint.config.cjs`):
 
 ```javascript
 module.exports = {
@@ -151,7 +152,17 @@ module.exports = {
     'scope-enum': [
       2,
       'always',
-      ['api-gateway', 'ai-worker', 'bot-client', 'common-types', 'hooks', 'docs', 'deps'],
+      [
+        'api-gateway',
+        'ai-worker',
+        'bot-client',
+        'common-types',
+        'hooks',
+        'docs',
+        'deps',
+        'scripts',
+        'embeddings',
+      ],
     ],
     'body-max-line-length': [0], // Allow long bodies (changelogs, etc.)
   },
@@ -160,9 +171,9 @@ module.exports = {
 
 **Changes**:
 
-- [ ] Install commitlint
-- [ ] Create `commitlint.config.js`
-- [ ] Add commit-msg hook: `npx --no -- commitlint --edit ${1}`
+- [x] Install commitlint
+- [x] Create `commitlint.config.cjs`
+- [x] Add commit-msg hook: `npx --no -- commitlint --edit ${1}`
 
 **Effort**: 30 minutes
 
