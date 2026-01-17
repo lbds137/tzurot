@@ -54,6 +54,9 @@ FROM installer AS builder
 # Copy pruned source code
 COPY --from=pruner /app/out/full/ .
 
+# Copy root tsconfig.json (not included in turbo prune output but needed for builds)
+COPY tsconfig.json ./
+
 # Build all packages in dependency order (turbo handles this automatically)
 RUN pnpm turbo run build --filter=@tzurot/ai-worker...
 
