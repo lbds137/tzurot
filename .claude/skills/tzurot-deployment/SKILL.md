@@ -152,11 +152,14 @@ RUN turbo prune @tzurot/service-name --docker
 # Stage 2: Install dependencies from pruned workspace
 FROM node:25-slim AS installer
 COPY --from=pruner /app/out/json/ .
+COPY prisma ./prisma
 RUN pnpm install --frozen-lockfile
 
 # Stage 3: Build with pruned source
 FROM installer AS builder
 COPY --from=pruner /app/out/full/ .
+COPY tsconfig.json ./
+RUN npx prisma generate  # MUST be after COPY, not in installer!
 RUN pnpm turbo run build --filter=@tzurot/service-name...
 ```
 
@@ -166,7 +169,10 @@ RUN pnpm turbo run build --filter=@tzurot/service-name...
 - No need to manually update Dockerfiles when adding new packages
 - Better Docker layer caching (package.json files copied separately)
 
-**Important**: turbo prune doesn't copy root config files. The builder stage must explicitly `COPY tsconfig.json ./` since packages extend it.
+**Critical ordering requirements:**
+
+1. **tsconfig.json**: Must be copied in builder stage (turbo prune doesn't include root configs)
+2. **prisma generate**: Must run in builder stage AFTER `COPY --from=pruner`. If run in installer stage, the subsequent COPY overwrites the generated client!
 
 ### Adding New Workspace Packages
 
