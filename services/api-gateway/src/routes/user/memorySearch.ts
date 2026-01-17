@@ -123,8 +123,8 @@ function buildSemanticSearchQuery(
   offset: number
 ): Prisma.Sql {
   const conditions = buildSearchConditions(filters);
-  // Also filter out memories without local embeddings (not yet backfilled)
-  conditions.push(Prisma.sql`m.embedding_local IS NOT NULL`);
+  // Filter out memories without embeddings
+  conditions.push(Prisma.sql`m.embedding IS NOT NULL`);
   const whereClause = Prisma.join(conditions, ' AND ');
   // SECURITY: Prisma.raw() is used here for the embedding vector because Prisma.sql``
   // does not support pgvector's ::vector type casting. This is safe because:
@@ -133,16 +133,16 @@ function buildSemanticSearchQuery(
   // 3. The embedding service returns Float32Array from the AI provider, not user input
   // User-provided query text is processed through the embedding model, never interpolated.
   //
-  // NOTE: Uses embedding_local (384-dim BGE) instead of embedding (1536-dim OpenAI)
+  // Uses local BGE embeddings (384 dimensions) for similarity search
   return Prisma.join(
     [
-      Prisma.sql`SELECT m.id, m.content, m.embedding_local <=> `,
+      Prisma.sql`SELECT m.id, m.content, m.embedding <=> `,
       Prisma.raw(`'${embeddingVector}'::vector`),
       Prisma.sql` AS distance, m.created_at, m.updated_at, m.is_locked, m.personality_id,
         COALESCE(personality.display_name, personality.name) as personality_name
         FROM memories m JOIN personalities personality ON m.personality_id = personality.id WHERE `,
       whereClause,
-      Prisma.sql` AND m.embedding_local <=> `,
+      Prisma.sql` AND m.embedding <=> `,
       Prisma.raw(`'${embeddingVector}'::vector`),
       Prisma.sql` < ${maxDistance} ORDER BY distance ASC LIMIT ${limit + 1} OFFSET ${offset}`,
     ],

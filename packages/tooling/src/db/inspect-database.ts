@@ -42,7 +42,7 @@ const PROTECTED_INDEXES = [
   {
     name: 'idx_memories_embedding',
     table: 'memories',
-    description: 'IVFFlat vector index for similarity search (pgvector)',
+    description: 'IVFFlat vector index for BGE similarity search (384 dims, pgvector)',
     recreateSQL:
       'CREATE INDEX "idx_memories_embedding" ON "memories" USING ivfflat ("embedding" vector_cosine_ops) WITH (lists = 50);',
   },

@@ -25,13 +25,7 @@ const PROTECTED_INDEXES: ProtectedIndex[] = [
     name: 'idx_memories_embedding',
     dropPattern: /DROP\s+INDEX.*idx_memories_embedding/i,
     createPattern: /CREATE\s+INDEX.*idx_memories_embedding/i,
-    description: 'IVFFlat vector index for similarity search',
-  },
-  {
-    name: 'idx_memories_embedding_local',
-    dropPattern: /DROP\s+INDEX.*idx_memories_embedding_local/i,
-    createPattern: /CREATE\s+INDEX.*idx_memories_embedding_local/i,
-    description: 'IVFFlat vector index for local embeddings',
+    description: 'IVFFlat vector index for BGE similarity search (384 dims)',
   },
 ];
 

@@ -124,27 +124,21 @@ describe('PgvectorMemoryAdapter Integration', () => {
       console.log('pgvector extension is installed and available');
     });
 
-    it('should verify memories table has embedding column(s)', async () => {
-      // Query to check if memories table has embedding vector column(s)
-      // During migration: may have 'embedding' (1536-dim OpenAI) and/or 'embedding_local' (384-dim BGE)
-      // After migration: will have 'embedding_local' (or renamed to 'embedding')
+    it('should verify memories table has embedding column', async () => {
+      // Query to check if memories table has embedding vector column
+      // Post-migration: single 'embedding' column (384-dim BGE)
       const result = await testEnv.prisma.$queryRaw<
         Array<{ column_name: string; data_type: string }>
       >`
         SELECT column_name, data_type
         FROM information_schema.columns
-        WHERE table_name = 'memories' AND column_name IN ('embedding', 'embedding_local')
+        WHERE table_name = 'memories' AND column_name = 'embedding'
       `;
 
       expect(result).toBeDefined();
-      expect(result.length).toBeGreaterThan(0);
-
-      // At least one embedding column should exist
-      const columnNames = result.map(r => r.column_name);
-      const hasEmbeddingColumn =
-        columnNames.includes('embedding') || columnNames.includes('embedding_local');
-      expect(hasEmbeddingColumn).toBe(true);
-      console.log(`Embedding columns found: ${columnNames.join(', ')}`);
+      expect(result.length).toBe(1);
+      expect(result[0].column_name).toBe('embedding');
+      console.log(`Embedding column found: ${result[0].column_name}`);
     });
   });
 
@@ -161,7 +155,7 @@ describe('PgvectorMemoryAdapter Integration', () => {
       const personaId = personas[0].id;
 
       // With mock embedding service, we should be able to attempt a query
-      // The query may return empty results if no memories exist with embedding_local
+      // The query may return empty results if no memories exist with embeddings
       try {
         const memories = await memoryAdapter.queryMemories('test query', {
           personaId,
