@@ -48,6 +48,8 @@ export interface SendResponseOptions {
   isAutoResponse?: boolean;
   /** Whether focus mode was active (LTM retrieval skipped) */
   focusModeEnabled?: boolean;
+  /** Whether incognito mode was active (LTM storage skipped) */
+  incognitoModeActive?: boolean;
 }
 
 /**
@@ -79,6 +81,7 @@ export class DiscordResponseSender {
       isGuestMode,
       isAutoResponse,
       focusModeEnabled,
+      incognitoModeActive,
     } = options;
 
     // Build footer to append AFTER chunking (to preserve newline formatting)
@@ -102,6 +105,9 @@ export class DiscordResponseSender {
     }
     if (focusModeEnabled === true) {
       footer += '\n-# 🔒 Focus Mode • LTM retrieval disabled';
+    }
+    if (incognitoModeActive === true) {
+      footer += '\n-# 👻 Incognito Mode • Memories not being saved';
     }
 
     // Determine if this is a webhook-capable channel

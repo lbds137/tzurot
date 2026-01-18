@@ -34,6 +34,7 @@ describe('RedisService', () => {
     xtrim: ReturnType<typeof vi.fn>;
     setex: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
+    del: ReturnType<typeof vi.fn>;
     quit: ReturnType<typeof vi.fn>;
   };
 
@@ -45,6 +46,7 @@ describe('RedisService', () => {
       xtrim: vi.fn(),
       setex: vi.fn(),
       get: vi.fn(),
+      del: vi.fn(),
       quit: vi.fn(),
     };
 
@@ -234,6 +236,95 @@ describe('RedisService', () => {
       expect(result).toEqual(storedResult);
       expect(result?.status).toBe('success');
       expect(result?.tokens).toBe(150);
+    });
+  });
+
+  describe('isIncognitoActive', () => {
+    const validSession = JSON.stringify({
+      userId: 'user-123',
+      personalityId: 'personality-456',
+      enabledAt: '2026-01-15T12:00:00.000Z',
+      expiresAt: '2026-01-15T13:00:00.000Z',
+      duration: '1h',
+    });
+
+    const validGlobalSession = JSON.stringify({
+      userId: 'user-123',
+      personalityId: 'all',
+      enabledAt: '2026-01-15T12:00:00.000Z',
+      expiresAt: null,
+      duration: 'forever',
+    });
+
+    it('should return true when specific personality session exists', async () => {
+      mockRedis.get.mockImplementation(async (key: string) => {
+        if (key.endsWith(':personality-456')) return validSession;
+        return null;
+      });
+
+      const result = await redisService.isIncognitoActive('user-123', 'personality-456');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return true when global "all" session exists', async () => {
+      mockRedis.get.mockImplementation(async (key: string) => {
+        if (key.endsWith(':all')) return validGlobalSession;
+        return null;
+      });
+
+      const result = await redisService.isIncognitoActive('user-123', 'any-personality');
+
+      expect(result).toBe(true);
+    });
+
+    it('should return false when no sessions exist', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      const result = await redisService.isIncognitoActive('user-123', 'personality-456');
+
+      expect(result).toBe(false);
+    });
+
+    it('should clean up invalid session data and return false', async () => {
+      mockRedis.get.mockResolvedValue('invalid json');
+      mockRedis.del.mockResolvedValue(1);
+
+      const result = await redisService.isIncognitoActive('user-123', 'personality-456');
+
+      expect(result).toBe(false);
+      expect(mockRedis.del).toHaveBeenCalled();
+    });
+
+    it('should clean up session with wrong schema and return false', async () => {
+      mockRedis.get.mockResolvedValue(JSON.stringify({ foo: 'bar' }));
+      mockRedis.del.mockResolvedValue(1);
+
+      const result = await redisService.isIncognitoActive('user-123', 'personality-456');
+
+      expect(result).toBe(false);
+      expect(mockRedis.del).toHaveBeenCalled();
+    });
+
+    it('should check both specific and global keys in parallel', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      await redisService.isIncognitoActive('user-123', 'personality-456');
+
+      expect(mockRedis.get).toHaveBeenCalledTimes(2);
+      expect(mockRedis.get).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.INCOGNITO}user-123:personality-456`
+      );
+      expect(mockRedis.get).toHaveBeenCalledWith(`${REDIS_KEY_PREFIXES.INCOGNITO}user-123:all`);
+    });
+
+    it('should return false on Redis error (fail open)', async () => {
+      mockRedis.get.mockRejectedValue(new Error('Connection lost'));
+
+      const result = await redisService.isIncognitoActive('user-123', 'personality-456');
+
+      // Should not throw, should return false to allow normal operation
+      expect(result).toBe(false);
     });
   });
 

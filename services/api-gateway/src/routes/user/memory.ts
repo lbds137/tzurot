@@ -14,10 +14,17 @@
  * PATCH /user/memory/:id - Update memory content
  * DELETE /user/memory/:id - Delete a single memory
  * POST /user/memory/:id/lock - Toggle memory lock status
+ *
+ * Incognito mode (sub-routes mounted at /user/memory/incognito):
+ * GET /user/memory/incognito - Get incognito status
+ * POST /user/memory/incognito - Enable incognito mode
+ * DELETE /user/memory/incognito - Disable incognito mode
+ * POST /user/memory/incognito/forget - Retroactively delete recent memories
  */
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import type { Redis } from 'ioredis';
 import {
   createLogger,
   type PrismaClient,
@@ -37,6 +44,7 @@ import {
   handleDeleteMemory,
 } from './memorySingle.js';
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
+import { createIncognitoRoutes } from './memoryIncognito.js';
 
 const logger = createLogger('user-memory');
 
@@ -284,8 +292,13 @@ async function handleSetFocus(
 }
 
 // eslint-disable-next-line max-lines-per-function -- Route factory with many endpoint definitions
-export function createMemoryRoutes(prisma: PrismaClient): Router {
+export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router {
   const router = Router();
+
+  // Incognito mode routes (requires Redis)
+  if (redis !== undefined) {
+    router.use('/incognito', createIncognitoRoutes(prisma, redis));
+  }
 
   router.get(
     '/stats',

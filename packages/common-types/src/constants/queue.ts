@@ -61,6 +61,8 @@ export const REDIS_KEY_PREFIXES = {
   REQUEST_DEDUP: 'dedup:',
   /** Prefix for rate limiting counters */
   RATE_LIMIT: 'ratelimit:',
+  /** Prefix for incognito mode sessions (memory writing disabled) */
+  INCOGNITO: 'incognito:',
 } as const;
 
 /**

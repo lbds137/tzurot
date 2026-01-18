@@ -63,6 +63,11 @@ vi.mock('./UserReferenceResolver.js', async () => {
   const { mockUserReferenceResolver } = await import('../test/mocks/UserReferenceResolver.mock.js');
   return mockUserReferenceResolver;
 });
+vi.mock('../redis.js', () => ({
+  redisService: {
+    isIncognitoActive: vi.fn().mockResolvedValue(false),
+  },
+}));
 
 // Import mock accessors and fixtures (after vi.mock declarations)
 import {
@@ -286,6 +291,39 @@ describe('ConversationalRAGService', () => {
       const result = await service.generateResponse(personality, 'Test', context);
 
       expect(result.userMessageContent).toBe('content for storage');
+    });
+
+    it('should skip LTM storage when incognito mode is active', async () => {
+      // Import the mock to control it
+      const { redisService } = await import('../redis.js');
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(true);
+
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context);
+
+      // LTM storage should NOT have been called
+      expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
+      // Response should indicate incognito mode was active
+      expect(result.incognitoModeActive).toBe(true);
+
+      // Reset mock to default
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+    });
+
+    it('should return incognitoModeActive false when not in incognito', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context);
+
+      expect(result.incognitoModeActive).toBe(false);
     });
   });
 
