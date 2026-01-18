@@ -104,6 +104,23 @@ export const IncognitoForgetRequestSchema = z.object({
 });
 
 /**
+ * Duration label for human-readable display
+ * Centralized utility to ensure consistent messaging across services
+ */
+export function getDurationLabel(duration: IncognitoDuration): string {
+  switch (duration) {
+    case '30m':
+      return '30 minutes';
+    case '1h':
+      return '1 hour';
+    case '4h':
+      return '4 hours';
+    case 'forever':
+      return 'until manually disabled';
+  }
+}
+
+/**
  * Response for retroactive forget
  */
 export interface IncognitoForgetResponse {
