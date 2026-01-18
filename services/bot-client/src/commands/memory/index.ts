@@ -11,6 +11,10 @@
  * - /memory focus enable <personality> - Disable LTM retrieval
  * - /memory focus disable <personality> - Re-enable LTM retrieval
  * - /memory focus status <personality> - Check focus mode status
+ * - /memory incognito enable <personality> <duration> - Disable LTM writing (memories not saved)
+ * - /memory incognito disable <personality> - Re-enable LTM writing
+ * - /memory incognito status - Check incognito mode status
+ * - /memory incognito forget <personality> <timeframe> - Retroactively delete recent memories
  */
 
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
@@ -27,6 +31,12 @@ import { handleStats } from './stats.js';
 import { handleList, LIST_PAGINATION_CONFIG } from './list.js';
 import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
+import {
+  handleIncognitoEnable,
+  handleIncognitoDisable,
+  handleIncognitoStatus,
+  handleIncognitoForget,
+} from './incognito.js';
 import { handleBatchDelete } from './batchDelete.js';
 import { handlePurge } from './purge.js';
 import { handlePersonalityAutocomplete } from './autocomplete.js';
@@ -179,6 +189,73 @@ export const data = new SlashCommandBuilder()
               .setAutocomplete(true)
           )
       )
+  )
+  .addSubcommandGroup(group =>
+    group
+      .setName('incognito')
+      .setDescription('Manage incognito mode (disable memory saving)')
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('enable')
+          .setDescription('Enable incognito mode - new memories will NOT be saved')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('Personality or "all" for global incognito')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(option =>
+            option
+              .setName('duration')
+              .setDescription('How long to stay in incognito mode')
+              .setRequired(true)
+              .addChoices(
+                { name: '30 minutes', value: '30m' },
+                { name: '1 hour', value: '1h' },
+                { name: '4 hours', value: '4h' },
+                { name: 'Until manually disabled', value: 'forever' }
+              )
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('disable')
+          .setDescription('Disable incognito mode - resume saving memories')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('Personality or "all" to disable global incognito')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+      )
+      .addSubcommand(subcommand =>
+        subcommand.setName('status').setDescription('Check current incognito mode status')
+      )
+      .addSubcommand(subcommand =>
+        subcommand
+          .setName('forget')
+          .setDescription('Retroactively delete recent memories')
+          .addStringOption(option =>
+            option
+              .setName('personality')
+              .setDescription('Personality or "all" for all personalities')
+              .setRequired(true)
+              .setAutocomplete(true)
+          )
+          .addStringOption(option =>
+            option
+              .setName('timeframe')
+              .setDescription('How far back to delete memories')
+              .setRequired(true)
+              .addChoices(
+                { name: 'Last 5 minutes', value: '5m' },
+                { name: 'Last 15 minutes', value: '15m' },
+                { name: 'Last hour', value: '1h' }
+              )
+          )
+      )
   );
 
 /**
@@ -194,6 +271,19 @@ const focusRouter = createSubcommandRouter(
 );
 
 /**
+ * Incognito subcommand router
+ */
+const incognitoRouter = createSubcommandRouter(
+  {
+    enable: handleIncognitoEnable,
+    disable: handleIncognitoDisable,
+    status: handleIncognitoStatus,
+    forget: handleIncognitoForget,
+  },
+  { logger, logPrefix: '[Memory/Incognito]' }
+);
+
+/**
  * Command execution router
  */
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
@@ -202,6 +292,8 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 
   if (subcommandGroup === 'focus') {
     await focusRouter(interaction);
+  } else if (subcommandGroup === 'incognito') {
+    await incognitoRouter(interaction);
   } else if (subcommand === 'stats') {
     await handleStats(interaction);
   } else if (subcommand === 'list') {

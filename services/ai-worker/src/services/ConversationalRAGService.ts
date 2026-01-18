@@ -38,6 +38,7 @@ import { PersonaResolver } from './resolvers/index.js';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
 import { buildAttachmentDescriptions, generateStopSequences } from './RAGUtils.js';
+import { redisService } from '../redis.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 import type {
   ConversationContext,
@@ -440,14 +441,25 @@ export class ConversationalRAGService {
           personality.id
         );
 
-      // Step 6: Store to long-term memory (use resolved content)
-      await this.storeToLongTermMemory(
-        personality,
-        context,
-        budgetResult.contentForStorage,
-        finalContent,
-        inputs.referencedMessagesTextForSearch
+      // Step 6: Check incognito mode and store to long-term memory
+      const incognitoModeActive = await redisService.isIncognitoActive(
+        context.userId,
+        personality.id
       );
+      if (!incognitoModeActive) {
+        await this.storeToLongTermMemory(
+          personality,
+          context,
+          budgetResult.contentForStorage,
+          finalContent,
+          inputs.referencedMessagesTextForSearch
+        );
+      } else {
+        logger.info(
+          { userId: context.userId, personalityId: personality.id },
+          '[RAG] Incognito mode active - skipping LTM storage'
+        );
+      }
 
       // Step 7: Build and return response
       return {
@@ -460,6 +472,7 @@ export class ConversationalRAGService {
         modelUsed: modelResult.modelName,
         userMessageContent: budgetResult.contentForStorage,
         focusModeEnabled,
+        incognitoModeActive,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
@@ -468,6 +481,7 @@ export class ConversationalRAGService {
 
   /**
    * Store interaction to long-term memory
+   * Note: Caller should check incognito mode before calling this method
    */
   private async storeToLongTermMemory(
     personality: LoadedPersonality,
