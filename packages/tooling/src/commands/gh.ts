@@ -38,14 +38,34 @@ function registerPrInfoCommands(cli: CAC): void {
     });
 
   cli
-    .command('gh:pr-comments <number>', 'Get all line-level review comments on a PR')
+    .command(
+      'gh:pr-comments <number>',
+      'Get all comments on a PR (both line-level and conversation)'
+    )
     .example('ops gh:pr-comments 478')
     .action(async (number: string) => {
-      const { getPrComments, formatComments } = await import('../gh/github-api.js');
+      const { getPrAllComments, formatComments } = await import('../gh/github-api.js');
       const prNumber = parseInt(number, 10);
-      const comments = getPrComments(prNumber);
-      console.log(`# Line Comments for PR #${prNumber}\n`);
-      console.log(formatComments(comments));
+      const comments = getPrAllComments(prNumber);
+
+      console.log(`# Comments for PR #${prNumber}\n`);
+
+      if (comments.conversation.length > 0) {
+        console.log('## Conversation Comments\n');
+        console.log(formatComments(comments.conversation));
+      }
+
+      if (comments.line.length > 0) {
+        if (comments.conversation.length > 0) {
+          console.log('\n---\n');
+        }
+        console.log('## Line Comments\n');
+        console.log(formatComments(comments.line));
+      }
+
+      if (comments.conversation.length === 0 && comments.line.length === 0) {
+        console.log('No comments found.');
+      }
     });
 
   cli
@@ -104,7 +124,7 @@ function registerPrAllCommand(cli: CAC): void {
       const {
         getPrInfo,
         getPrReviews,
-        getPrComments,
+        getPrLineComments,
         getPrIssueComments,
         formatReviews,
         formatComments,
@@ -113,7 +133,7 @@ function registerPrAllCommand(cli: CAC): void {
 
       const pr = getPrInfo(prNumber);
       const reviews = getPrReviews(prNumber);
-      const lineComments = getPrComments(prNumber);
+      const lineComments = getPrLineComments(prNumber);
       const conversation = getPrIssueComments(prNumber);
 
       console.log(`# PR #${pr.number}: ${pr.title}\n`);
