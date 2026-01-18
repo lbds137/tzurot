@@ -332,12 +332,21 @@ async function buildUpdateData(
     }
     updateData.name = body.name.trim();
   }
-  if (body.description !== undefined) {updateData.description = body.description;}
-  if (body.provider !== undefined) {updateData.provider = body.provider;}
-  if (body.model !== undefined && body.model.trim().length > 0)
-    {updateData.model = body.model.trim();}
-  if (body.visionModel !== undefined) {updateData.visionModel = body.visionModel;}
-  if (body.temperature !== undefined) {updateData.temperature = body.temperature;}
+  if (body.description !== undefined) {
+    updateData.description = body.description;
+  }
+  if (body.provider !== undefined) {
+    updateData.provider = body.provider;
+  }
+  if (body.model !== undefined && body.model.trim().length > 0) {
+    updateData.model = body.model.trim();
+  }
+  if (body.visionModel !== undefined) {
+    updateData.visionModel = body.visionModel;
+  }
+  if (body.temperature !== undefined) {
+    updateData.temperature = body.temperature;
+  }
   if (body.maxReferencedMessages !== undefined) {
     updateData.maxReferencedMessages = body.maxReferencedMessages;
   }
@@ -380,7 +389,9 @@ async function invalidateCacheSafely(
   configId: string | undefined,
   operation: string
 ): Promise<void> {
-  if (!llmConfigCacheInvalidation) {return;}
+  if (!llmConfigCacheInvalidation) {
+    return;
+  }
 
   try {
     await llmConfigCacheInvalidation.invalidateAll();

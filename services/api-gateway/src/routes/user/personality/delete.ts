@@ -39,7 +39,9 @@ async function invalidateCacheSafely(
   cacheInvalidationService: CacheInvalidationService | undefined,
   personalityId: string
 ): Promise<void> {
-  if (!cacheInvalidationService) {return;}
+  if (!cacheInvalidationService) {
+    return;
+  }
 
   try {
     await cacheInvalidationService.invalidatePersonality(personalityId);
