@@ -438,7 +438,7 @@ describe('memoryBatch handlers', () => {
     it('should reject invalid timeframe format', async () => {
       const { req, res } = createMockBodyReq({
         personalityId: TEST_PERSONALITY_ID,
-        timeframe: '1m', // minutes not supported
+        timeframe: 'invalid', // not a valid duration format
       });
 
       await handleBatchDelete(
