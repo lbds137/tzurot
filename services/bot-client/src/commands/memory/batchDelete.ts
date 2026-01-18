@@ -13,7 +13,7 @@ import {
   type ChatInputCommandInteraction,
   type ButtonInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, Duration, DurationParseError } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   replyWithError,
@@ -44,29 +44,21 @@ interface DeleteResponse {
   message: string;
 }
 
-/** Format timeframe for display */
+/** Format timeframe for display using shared Duration class */
 function formatTimeframe(timeframe: string | null): string {
   if (timeframe === null) {
     return 'all time';
   }
 
-  const match = /^(\d+)(h|d|y)$/.exec(timeframe);
-  if (!match) {
-    return timeframe;
-  }
-
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-
-  switch (unit) {
-    case 'h':
-      return value === 1 ? '1 hour' : `${value} hours`;
-    case 'd':
-      return value === 1 ? '1 day' : `${value} days`;
-    case 'y':
-      return value === 1 ? '1 year' : `${value} years`;
-    default:
+  try {
+    const duration = Duration.parse(timeframe);
+    return duration.toHuman();
+  } catch (error) {
+    if (error instanceof DurationParseError) {
+      // Fallback to raw string if parsing fails
       return timeframe;
+    }
+    throw error;
   }
 }
 
