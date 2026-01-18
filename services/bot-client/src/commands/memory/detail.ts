@@ -13,6 +13,7 @@ import {
   StringSelectMenuOptionBuilder,
   MessageFlags,
   escapeMarkdown,
+  AttachmentBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
@@ -32,7 +33,7 @@ export {
   MAX_MODAL_CONTENT_LENGTH,
   DISCORD_MODAL_MAX_LENGTH,
 } from './detailModals.js';
-import { formatDateShort, formatDateTime } from './formatters.js';
+import { formatDateShort, formatDateTime, EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 
 const logger = createLogger('memory-detail');
 
@@ -78,7 +79,7 @@ export interface ListContext {
  * Build custom ID for memory actions
  */
 export function buildMemoryActionId(
-  action: 'select' | 'view' | 'edit' | 'lock' | 'delete' | 'back' | 'confirm-delete',
+  action: 'select' | 'view' | 'edit' | 'lock' | 'delete' | 'back' | 'confirm-delete' | 'view-full',
   memoryId?: string,
   extra?: string
 ): string {
@@ -159,12 +160,25 @@ export function buildMemorySelectMenu(
 
 /**
  * Build the detail view embed for a single memory
+ * Returns the embed and whether content was truncated
  */
-export function buildDetailEmbed(memory: MemoryItem): EmbedBuilder {
+export function buildDetailEmbed(memory: MemoryItem): {
+  embed: EmbedBuilder;
+  isTruncated: boolean;
+} {
+  const escapedContent = escapeMarkdown(memory.content);
+  const isTruncated = escapedContent.length > EMBED_DESCRIPTION_SAFE_LIMIT;
+
+  // Truncate if needed, indicating there's more content
+  const displayContent = isTruncated
+    ? escapedContent.substring(0, EMBED_DESCRIPTION_SAFE_LIMIT - 50) +
+      '\n\n*... Content truncated. Click "📄 View Full" to see complete memory.*'
+    : escapedContent;
+
   const embed = new EmbedBuilder()
     .setTitle(`${memory.isLocked ? '🔒 ' : ''}Memory Details`)
     .setColor(memory.isLocked ? DISCORD_COLORS.WARNING : DISCORD_COLORS.BLURPLE)
-    .setDescription(escapeMarkdown(memory.content));
+    .setDescription(displayContent);
 
   embed.addFields(
     { name: 'Personality', value: escapeMarkdown(memory.personalityName), inline: true },
@@ -178,17 +192,22 @@ export function buildDetailEmbed(memory: MemoryItem): EmbedBuilder {
 
   embed.setFooter({ text: `Memory ID: ${memory.id.substring(0, 8)}...` });
 
-  return embed;
+  return { embed, isTruncated };
 }
 
 /**
  * Build action buttons for the detail view
+ * @param memory - The memory item to build buttons for
+ * @param isTruncated - Whether the content was truncated (shows "View Full" button)
  */
-export function buildDetailButtons(memory: MemoryItem): ActionRowBuilder<ButtonBuilder> {
+export function buildDetailButtons(
+  memory: MemoryItem,
+  isTruncated = false
+): ActionRowBuilder<ButtonBuilder> {
   const lockLabel = memory.isLocked ? '🔓 Unlock' : '🔒 Lock';
   const lockStyle = memory.isLocked ? ButtonStyle.Secondary : ButtonStyle.Primary;
 
-  return new ActionRowBuilder<ButtonBuilder>().addComponents(
+  const buttons: ButtonBuilder[] = [
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('edit', memory.id))
       .setLabel('✏️ Edit')
@@ -201,11 +220,26 @@ export function buildDetailButtons(memory: MemoryItem): ActionRowBuilder<ButtonB
       .setCustomId(buildMemoryActionId('delete', memory.id))
       .setLabel('🗑️ Delete')
       .setStyle(ButtonStyle.Danger),
+  ];
+
+  // Add "View Full" button if content was truncated
+  if (isTruncated) {
+    buttons.push(
+      new ButtonBuilder()
+        .setCustomId(buildMemoryActionId('view-full', memory.id))
+        .setLabel('📄 View Full')
+        .setStyle(ButtonStyle.Secondary)
+    );
+  }
+
+  buttons.push(
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('back'))
       .setLabel('↩️ Back to List')
       .setStyle(ButtonStyle.Secondary)
   );
+
+  return new ActionRowBuilder<ButtonBuilder>().addComponents(buttons);
 }
 
 /**
@@ -249,8 +283,8 @@ export async function handleMemorySelect(
     return;
   }
 
-  const embed = buildDetailEmbed(memory);
-  const buttons = buildDetailButtons(memory);
+  const { embed, isTruncated } = buildDetailEmbed(memory);
+  const buttons = buildDetailButtons(memory, isTruncated);
 
   await interaction.editReply({
     embeds: [embed],
@@ -278,8 +312,8 @@ export async function handleLockButton(
     return;
   }
 
-  const embed = buildDetailEmbed(updatedMemory);
-  const buttons = buildDetailButtons(updatedMemory);
+  const { embed, isTruncated } = buildDetailEmbed(updatedMemory);
+  const buttons = buildDetailButtons(updatedMemory, isTruncated);
 
   await interaction.editReply({
     embeds: [embed],
@@ -349,4 +383,41 @@ export async function handleDeleteConfirm(
 
   logger.info({ userId, memoryId }, '[Memory] Memory deleted');
   return true;
+}
+
+/**
+ * Handle "View Full" button click - sends full memory content as a text file
+ */
+export async function handleViewFullButton(
+  interaction: ButtonInteraction,
+  memoryId: string
+): Promise<void> {
+  const userId = interaction.user.id;
+
+  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+
+  const memory = await fetchMemory(userId, memoryId);
+  if (memory === null) {
+    await interaction.editReply({
+      content: '❌ Failed to load memory. It may have been deleted.',
+    });
+    return;
+  }
+
+  // Create a text file attachment with the full content
+  const buffer = Buffer.from(memory.content, 'utf-8');
+  const attachment = new AttachmentBuilder(buffer, {
+    name: `memory-${memoryId.substring(0, 8)}.txt`,
+    description: `Full memory content for ${memory.personalityName}`,
+  });
+
+  await interaction.editReply({
+    content: `📄 **Full Memory Content** (${memory.personalityName})\nCreated: ${formatDateTime(memory.createdAt)}`,
+    files: [attachment],
+  });
+
+  logger.info(
+    { userId, memoryId, contentLength: memory.content.length },
+    '[Memory] Full content sent'
+  );
 }

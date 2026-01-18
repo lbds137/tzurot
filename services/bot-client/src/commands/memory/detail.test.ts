@@ -14,6 +14,7 @@ import {
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
+  handleViewFullButton,
   MEMORY_DETAIL_PREFIX,
   type MemoryItem,
   type ListContext,
@@ -150,18 +151,19 @@ describe('Memory Detail', () => {
   describe('buildDetailEmbed', () => {
     it('should build embed for unlocked memory', () => {
       const memory = createMockMemory();
-      const embed = buildDetailEmbed(memory);
+      const { embed, isTruncated } = buildDetailEmbed(memory);
       const json = embed.toJSON();
 
       expect(json.title).toBe('Memory Details');
       expect(json.description).toBe('Test memory content');
       expect(json.fields).toBeDefined();
       expect(json.fields?.find(f => f.name === 'Status')?.value).toBe('🔓 Unlocked');
+      expect(isTruncated).toBe(false);
     });
 
     it('should build embed for locked memory', () => {
       const memory = createMockMemory({ isLocked: true });
-      const embed = buildDetailEmbed(memory);
+      const { embed } = buildDetailEmbed(memory);
       const json = embed.toJSON();
 
       expect(json.title).toBe('🔒 Memory Details');
@@ -173,7 +175,7 @@ describe('Memory Detail', () => {
         createdAt: '2025-06-15T12:00:00.000Z',
         updatedAt: '2025-06-16T14:00:00.000Z',
       });
-      const embed = buildDetailEmbed(memory);
+      const { embed } = buildDetailEmbed(memory);
       const json = embed.toJSON();
 
       expect(json.fields?.find(f => f.name === 'Updated')).toBeDefined();
@@ -181,10 +183,21 @@ describe('Memory Detail', () => {
 
     it('should not show updated date if same as created', () => {
       const memory = createMockMemory();
-      const embed = buildDetailEmbed(memory);
+      const { embed } = buildDetailEmbed(memory);
       const json = embed.toJSON();
 
       expect(json.fields?.find(f => f.name === 'Updated')).toBeUndefined();
+    });
+
+    it('should truncate long content and set isTruncated flag', () => {
+      const longContent = 'x'.repeat(4000);
+      const memory = createMockMemory({ content: longContent });
+      const { embed, isTruncated } = buildDetailEmbed(memory);
+      const json = embed.toJSON();
+
+      expect(isTruncated).toBe(true);
+      expect(json.description?.length).toBeLessThan(4000);
+      expect(json.description).toContain('Content truncated');
     });
   });
 
@@ -207,6 +220,24 @@ describe('Memory Detail', () => {
 
       const labels = row.components.map(b => b.data.label);
       expect(labels).toContain('🔓 Unlock');
+    });
+
+    it('should include View Full button when content is truncated', () => {
+      const memory = createMockMemory();
+      const row = buildDetailButtons(memory, true);
+
+      expect(row.components).toHaveLength(5);
+      const labels = row.components.map(b => b.data.label);
+      expect(labels).toContain('📄 View Full');
+    });
+
+    it('should not include View Full button when content is not truncated', () => {
+      const memory = createMockMemory();
+      const row = buildDetailButtons(memory, false);
+
+      expect(row.components).toHaveLength(4);
+      const labels = row.components.map(b => b.data.label);
+      expect(labels).not.toContain('📄 View Full');
     });
   });
 
@@ -431,6 +462,66 @@ describe('Memory Detail', () => {
       expect(mockFollowUp).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Failed to delete'),
+        })
+      );
+    });
+  });
+
+  describe('handleViewFullButton', () => {
+    it('should send full memory content as file attachment', async () => {
+      const longContent = 'x'.repeat(5000);
+      const memory = createMockMemory({ content: longContent });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { memory },
+      });
+
+      const mockDeferReply = vi.fn();
+      const mockEditReply = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123' },
+        deferReply: mockDeferReply,
+        editReply: mockEditReply,
+      } as unknown as ButtonInteraction;
+
+      await handleViewFullButton(interaction, 'memory-123');
+
+      expect(mockDeferReply).toHaveBeenCalledWith(
+        expect.objectContaining({ flags: expect.anything() })
+      );
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Full Memory Content'),
+          files: expect.arrayContaining([
+            expect.objectContaining({
+              name: expect.stringContaining('memory-'),
+            }),
+          ]),
+        })
+      );
+    });
+
+    it('should show error if memory not found', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        error: 'Not found',
+      });
+
+      const mockDeferReply = vi.fn();
+      const mockEditReply = vi.fn();
+
+      const interaction = {
+        user: { id: 'user-123' },
+        deferReply: mockDeferReply,
+        editReply: mockEditReply,
+      } as unknown as ButtonInteraction;
+
+      await handleViewFullButton(interaction, 'memory-123');
+
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Failed to load memory'),
         })
       );
     });

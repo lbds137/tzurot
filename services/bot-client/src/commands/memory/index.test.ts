@@ -11,6 +11,7 @@ import {
   category,
   handleButton,
   handleModalSubmit,
+  handleSelectMenu,
   componentPrefixes,
 } from './index.js';
 import type {
@@ -18,6 +19,7 @@ import type {
   AutocompleteInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 
 // Mock common-types
@@ -74,6 +76,7 @@ const mockHandleEditModalSubmit = vi.fn();
 const mockHandleLockButton = vi.fn();
 const mockHandleDeleteButton = vi.fn();
 const mockHandleDeleteConfirm = vi.fn();
+const mockHandleViewFullButton = vi.fn();
 vi.mock('./detail.js', () => ({
   MEMORY_DETAIL_PREFIX: 'mem-detail',
   parseMemoryActionId: (customId: string) => {
@@ -87,6 +90,7 @@ vi.mock('./detail.js', () => ({
   handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
   handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
   handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
+  handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
 }));
 
 // Mock list and search pagination configs
@@ -335,6 +339,14 @@ describe('Memory Command', () => {
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
 
+    it('should route view-full action to handleViewFullButton', async () => {
+      const interaction = createMockButtonInteraction('mem-detail:view-full:memory-full');
+
+      await handleButton(interaction);
+
+      expect(mockHandleViewFullButton).toHaveBeenCalledWith(interaction, 'memory-full');
+    });
+
     it('should show expired message for back action', async () => {
       const interaction = createMockButtonInteraction('mem-detail:back:memory-xyz');
 
@@ -408,6 +420,50 @@ describe('Memory Command', () => {
       await handleModalSubmit(interaction);
 
       expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleSelectMenu', () => {
+    function createMockSelectMenuInteraction(
+      customId: string,
+      messageId = 'test-message-id'
+    ): StringSelectMenuInteraction {
+      const mockReply = vi.fn();
+      return {
+        customId,
+        reply: mockReply,
+        values: ['test-memory-id'],
+        message: { id: messageId },
+      } as unknown as StringSelectMenuInteraction;
+    }
+
+    it('should show expired message when no active collector', async () => {
+      const interaction = createMockSelectMenuInteraction('mem-detail:select', 'no-collector-msg');
+
+      await handleSelectMenu(interaction);
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('expired'),
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+
+    it('should ignore interaction when active collector exists for message', async () => {
+      const { registerActiveCollector, deregisterActiveCollector } =
+        await import('../../utils/activeCollectorRegistry.js');
+
+      const messageId = 'active-collector-select-msg';
+      registerActiveCollector(messageId);
+
+      try {
+        const interaction = createMockSelectMenuInteraction('mem-detail:select', messageId);
+        await handleSelectMenu(interaction);
+
+        // Should NOT call reply - collector handles it
+        expect(interaction.reply).not.toHaveBeenCalled();
+      } finally {
+        deregisterActiveCollector(messageId);
+      }
     });
   });
 });

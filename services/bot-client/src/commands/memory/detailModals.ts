@@ -189,8 +189,8 @@ export async function handleEditModalSubmit(
     return;
   }
 
-  const embed = buildDetailEmbed(updatedMemory);
-  const buttons = buildDetailButtons(updatedMemory);
+  const { embed, isTruncated } = buildDetailEmbed(updatedMemory);
+  const buttons = buildDetailButtons(updatedMemory, isTruncated);
 
   await interaction.editReply({
     embeds: [embed],
