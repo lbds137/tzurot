@@ -78,10 +78,22 @@ export function getPrReviews(prNumber: number): PrReview[] {
 }
 
 /**
- * Get all comments on a PR (line-level review comments)
+ * Get line-level review comments on a PR
  */
-export function getPrComments(prNumber: number): PrComment[] {
+export function getPrLineComments(prNumber: number): PrComment[] {
   return ghApi<PrComment[]>(`repos/${REPO}/pulls/${prNumber}/comments`);
+}
+
+/**
+ * Get all comments on a PR (both line-level and conversation-level)
+ */
+export function getPrAllComments(prNumber: number): {
+  line: PrComment[];
+  conversation: PrComment[];
+} {
+  const line = ghApi<PrComment[]>(`repos/${REPO}/pulls/${prNumber}/comments`);
+  const conversation = ghApi<PrComment[]>(`repos/${REPO}/issues/${prNumber}/comments`);
+  return { line, conversation };
 }
 
 /**
