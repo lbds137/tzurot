@@ -51,6 +51,17 @@ vi.mock('./focus.js', () => ({
   handleFocusStatus: (...args: unknown[]) => mockHandleFocusStatus(...args),
 }));
 
+const mockHandleIncognitoEnable = vi.fn();
+const mockHandleIncognitoDisable = vi.fn();
+const mockHandleIncognitoStatus = vi.fn();
+const mockHandleIncognitoForget = vi.fn();
+vi.mock('./incognito.js', () => ({
+  handleIncognitoEnable: (...args: unknown[]) => mockHandleIncognitoEnable(...args),
+  handleIncognitoDisable: (...args: unknown[]) => mockHandleIncognitoDisable(...args),
+  handleIncognitoStatus: (...args: unknown[]) => mockHandleIncognitoStatus(...args),
+  handleIncognitoForget: (...args: unknown[]) => mockHandleIncognitoForget(...args),
+}));
+
 // Mock autocomplete
 const mockHandlePersonalityAutocomplete = vi.fn();
 vi.mock('./autocomplete.js', () => ({
@@ -137,6 +148,22 @@ describe('Memory Command', () => {
       expect(subcommandNames).toContain('disable');
       expect(subcommandNames).toContain('status');
     });
+
+    it('should have incognito subcommand group with enable/disable/status/forget', () => {
+      const json = data.toJSON();
+      const incognitoGroup = json.options?.find(
+        (opt: { name: string }) => opt.name === 'incognito'
+      );
+      expect(incognitoGroup).toBeDefined();
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const incognitoOptions = (incognitoGroup as any)?.options ?? [];
+      const subcommandNames = incognitoOptions.map((s: { name: string }) => s.name);
+      expect(subcommandNames).toContain('enable');
+      expect(subcommandNames).toContain('disable');
+      expect(subcommandNames).toContain('status');
+      expect(subcommandNames).toContain('forget');
+    });
   });
 
   describe('execute', () => {
@@ -182,6 +209,38 @@ describe('Memory Command', () => {
       await execute(interaction);
 
       expect(mockHandleFocusStatus).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route /memory incognito enable to handleIncognitoEnable', async () => {
+      const interaction = createMockInteraction('incognito', 'enable');
+
+      await execute(interaction);
+
+      expect(mockHandleIncognitoEnable).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route /memory incognito disable to handleIncognitoDisable', async () => {
+      const interaction = createMockInteraction('incognito', 'disable');
+
+      await execute(interaction);
+
+      expect(mockHandleIncognitoDisable).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route /memory incognito status to handleIncognitoStatus', async () => {
+      const interaction = createMockInteraction('incognito', 'status');
+
+      await execute(interaction);
+
+      expect(mockHandleIncognitoStatus).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route /memory incognito forget to handleIncognitoForget', async () => {
+      const interaction = createMockInteraction('incognito', 'forget');
+
+      await execute(interaction);
+
+      expect(mockHandleIncognitoForget).toHaveBeenCalledWith(interaction);
     });
 
     it('should handle unknown subcommand gracefully', async () => {

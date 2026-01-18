@@ -13,11 +13,11 @@ import { StatusCodes } from 'http-status-codes';
 import type { Redis } from 'ioredis';
 import {
   createLogger,
+  getDurationLabel,
   type PrismaClient,
   EnableIncognitoRequestSchema,
   DisableIncognitoRequestSchema,
   IncognitoForgetRequestSchema,
-  type IncognitoDuration,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -27,22 +27,6 @@ import type { AuthenticatedRequest } from '../../types.js';
 import { IncognitoSessionManager } from '../../services/IncognitoSessionManager.js';
 
 const logger = createLogger('user-memory-incognito');
-
-/**
- * Duration label for human-readable display
- */
-function getDurationLabel(duration: IncognitoDuration): string {
-  switch (duration) {
-    case '30m':
-      return '30 minutes';
-    case '1h':
-      return '1 hour';
-    case '4h':
-      return '4 hours';
-    case 'forever':
-      return 'until manually disabled';
-  }
-}
 
 /**
  * Get user's default persona ID

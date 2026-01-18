@@ -12,7 +12,12 @@
 
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { escapeMarkdown } from 'discord.js';
-import { createLogger, type IncognitoSession, type IncognitoDuration } from '@tzurot/common-types';
+import {
+  createLogger,
+  getDurationLabel,
+  type IncognitoSession,
+  type IncognitoDuration,
+} from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   replyWithError,
@@ -49,22 +54,6 @@ interface IncognitoForgetResponse {
   deletedCount: number;
   personalities: string[];
   message: string;
-}
-
-/**
- * Duration label for human-readable display
- */
-function getDurationLabel(duration: IncognitoDuration): string {
-  switch (duration) {
-    case '30m':
-      return '30 minutes';
-    case '1h':
-      return '1 hour';
-    case '4h':
-      return '4 hours';
-    case 'forever':
-      return 'until manually disabled';
-  }
 }
 
 /**
