@@ -3,7 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { data, execute, autocomplete } from './index.js';
+import adminCommand from './index.js';
+
+// Destructure from default export
+const { data, execute, autocomplete } = adminCommand;
 import type {
   ChatInputCommandInteraction,
   AutocompleteInteraction,

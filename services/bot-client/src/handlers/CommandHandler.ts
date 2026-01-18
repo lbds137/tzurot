@@ -19,6 +19,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
 import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../types.js';
+import { VALID_COMMAND_KEYS, type CommandDefinition } from '../utils/defineCommand.js';
 import { getCommandFromCustomId } from '../utils/customIds.js';
 
 const logger = createLogger('CommandHandler');
@@ -72,20 +73,35 @@ export class CommandHandler {
       try {
         // Convert file path to file URL for ESM imports
         const fileUrl = pathToFileURL(filePath).href;
-        const importedModule = (await import(fileUrl)) as Partial<Command>;
+        const importedModule = (await import(fileUrl)) as Record<string, unknown>;
+
+        // Support both default export (new pattern) and named exports (legacy)
+        // Default export is preferred - it enables TypeScript excess property checking
+        const cmdDef = (importedModule.default ?? importedModule) as Partial<Command>;
 
         // Validate command structure
         if (
-          importedModule.data === undefined ||
-          importedModule.data === null ||
-          importedModule.execute === undefined ||
-          importedModule.execute === null
+          cmdDef.data === undefined ||
+          cmdDef.data === null ||
+          cmdDef.execute === undefined ||
+          cmdDef.execute === null
         ) {
           logger.warn({}, `[CommandHandler] Invalid command file: ${filePath}`);
           continue;
         }
 
-        // Determine category based on directory structure
+        // Runtime validation: fail fast on unknown properties (catches typos like handleModalSubmit)
+        for (const key of Object.keys(cmdDef)) {
+          if (!VALID_COMMAND_KEYS.includes(key as keyof CommandDefinition)) {
+            throw new Error(
+              `Command "${cmdDef.data.name}" exports unknown property "${key}". ` +
+                `Valid properties: ${VALID_COMMAND_KEYS.join(', ')}. ` +
+                `Did you typo a handler name?`
+            );
+          }
+        }
+
+        // Determine category based on directory structure (DRY - no manual declaration needed)
         const relativePath = filePath.replace(commandsPath, '');
         const pathParts = relativePath.split('/').filter(Boolean);
         const category =
@@ -95,17 +111,17 @@ export class CommandHandler {
 
         // Create command object with category (don't mutate the imported module)
         const commandWithCategory: Command = {
-          data: importedModule.data,
-          execute: importedModule.execute,
-          autocomplete: importedModule.autocomplete,
-          handleSelectMenu: importedModule.handleSelectMenu,
-          handleButton: importedModule.handleButton,
-          handleModal: importedModule.handleModal,
-          componentPrefixes: importedModule.componentPrefixes,
+          data: cmdDef.data,
+          execute: cmdDef.execute,
+          autocomplete: cmdDef.autocomplete,
+          handleSelectMenu: cmdDef.handleSelectMenu,
+          handleButton: cmdDef.handleButton,
+          handleModal: cmdDef.handleModal,
+          componentPrefixes: cmdDef.componentPrefixes,
           category,
         };
 
-        const commandName = importedModule.data.name;
+        const commandName = cmdDef.data.name;
         this.commands.set(commandName, commandWithCategory);
 
         // Register command name as a prefix for component routing
@@ -179,13 +195,7 @@ export class CommandHandler {
 
     try {
       logger.info(`[CommandHandler] Executing command: ${commandName}`);
-
-      // Pass commands collection to help command
-      if (commandName === 'help') {
-        await command.execute(interaction, this.commands);
-      } else {
-        await command.execute(interaction);
-      }
+      await command.execute(interaction);
     } catch (error) {
       logger.error({ err: error }, `[CommandHandler] Error executing command: ${commandName}`);
 
@@ -222,13 +232,20 @@ export class CommandHandler {
     const commandName = command.data.name;
 
     try {
-      // Use handleModal if available, otherwise fall back to execute
+      // Commands must export handleModal to handle modal submissions
       if (command.handleModal !== undefined) {
         logger.info(`[CommandHandler] Executing modal handler: ${commandName}`);
         await command.handleModal(interaction);
       } else {
-        logger.info(`[CommandHandler] Executing modal via execute: ${commandName}`);
-        await command.execute(interaction);
+        logger.warn(
+          { commandName, customId },
+          `[CommandHandler] Command "${commandName}" received modal but doesn't export handleModal`
+        );
+        await interaction.reply({
+          content: 'This command does not support modal interactions.',
+          flags: MessageFlags.Ephemeral,
+        });
+        return;
       }
     } catch (error) {
       logger.error({ err: error, customId }, `[CommandHandler] Error in modal: ${commandName}`);

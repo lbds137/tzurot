@@ -11,6 +11,8 @@ import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
   SlashCommandBuilder,
+  SlashCommandSubcommandsOnlyBuilder,
+  SlashCommandOptionsOnlyBuilder,
 } from 'discord.js';
 import type {
   AttachmentMetadata,
@@ -54,21 +56,21 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
 }
 
 /**
- * Slash command definition
+ * Slash command definition (loaded command with category)
+ *
+ * This extends CommandDefinition with the category field that is
+ * injected by CommandHandler based on directory structure.
+ *
+ * @see CommandDefinition in utils/defineCommand.ts for the base definition
  */
 export interface Command {
-  data: SlashCommandBuilder;
+  data: SlashCommandBuilder | SlashCommandSubcommandsOnlyBuilder | SlashCommandOptionsOnlyBuilder;
+
+  /** Category derived from folder structure (e.g., 'Memory', 'Character') */
   category?: string;
 
-  /**
-   * Execute slash command
-   * Note: ModalSubmitInteraction support is for backwards compatibility.
-   * New commands should use handleModal instead.
-   */
-  execute: (
-    interaction: ChatInputCommandInteraction | ModalSubmitInteraction,
-    ...args: unknown[]
-  ) => Promise<void>;
+  /** Main command execution handler */
+  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
 
   /** Optional autocomplete handler for commands with autocomplete options */
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;

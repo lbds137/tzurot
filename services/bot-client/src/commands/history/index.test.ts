@@ -4,7 +4,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { data, execute, autocomplete, handleButton, category } from './index.js';
+import historyCommand from './index.js';
+
+// Destructure from default export (category is now injected by CommandHandler)
+const { data, execute, autocomplete, handleButton, handleModal } = historyCommand;
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -56,19 +59,19 @@ vi.mock('../../utils/subcommandRouter.js', () => ({
   createSubcommandRouter: () => mockRouter,
 }));
 
-// Mock customIds
+// Mock customIds - matches real format: {source}::destructive::{action}::{operation}::{entityId}
 vi.mock('../../utils/customIds.js', () => ({
   DestructiveCustomIds: {
-    isDestructive: (id: string) => id.startsWith('destructive:'),
+    isDestructive: (id: string) => id.includes('::destructive::'),
     parse: (id: string) => {
-      // Parse format: destructive:{operation}:{action}:{entityId}:{nonce}
-      const parts = id.split(':');
-      if (parts.length < 4) return null;
+      // Real format: {source}::destructive::{action}::{operation}::{entityId}
+      const parts = id.split('::');
+      if (parts.length < 4 || parts[1] !== 'destructive') return null;
       return {
-        operation: parts[1],
+        source: parts[0],
         action: parts[2],
-        entityId: parts[3],
-        nonce: parts[4],
+        operation: parts[3],
+        entityId: parts[4],
       };
     },
   },
@@ -145,9 +148,8 @@ describe('History Command Definition', () => {
     expect(hardDeleteSubcommand?.options?.[0]?.name).toBe('personality');
   });
 
-  it('should export category as History', () => {
-    expect(category).toBe('History');
-  });
+  // Note: category is now injected by CommandHandler based on folder structure
+  // It's no longer exported from the command module itself
 });
 
 describe('execute', () => {
@@ -156,13 +158,17 @@ describe('execute', () => {
   });
 
   it('should route to subcommand router for chat input', async () => {
-    const mockInteraction = {
-      isModalSubmit: () => false,
-    };
+    const mockInteraction = {};
 
     await execute(mockInteraction as never);
 
     expect(mockRouter).toHaveBeenCalledWith(mockInteraction);
+  });
+});
+
+describe('handleModal', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
   it('should handle modal submit for hard-delete', async () => {
@@ -176,13 +182,12 @@ describe('execute', () => {
     });
 
     const mockInteraction = {
-      isModalSubmit: () => true,
-      customId: 'destructive:hard-delete:modal_submit:lilith_channel-123:abc123',
+      customId: 'history::destructive::modal_submit::hard-delete::lilith_channel-123',
       user: { id: '123456789' },
       reply: vi.fn(),
     };
 
-    await execute(mockInteraction as never);
+    await handleModal(mockInteraction as never);
 
     expect(mockHandleDestructiveModalSubmit).toHaveBeenCalled();
   });
@@ -192,13 +197,12 @@ describe('execute', () => {
 
     const mockReply = vi.fn();
     const mockInteraction = {
-      isModalSubmit: () => true,
-      customId: 'destructive:hard-delete:modal_submit:invalid:abc123',
+      customId: 'history::destructive::modal_submit::hard-delete::invalid',
       user: { id: '123456789' },
       reply: mockReply,
     };
 
-    await execute(mockInteraction as never);
+    await handleModal(mockInteraction as never);
 
     expect(mockReply).toHaveBeenCalledWith({
       content: 'Error: Invalid entity ID format.',
@@ -258,7 +262,7 @@ describe('handleButton', () => {
 
   it('should handle cancel button', async () => {
     const mockInteraction = {
-      customId: 'destructive:hard-delete:cancel_button:lilith_channel-123:abc123',
+      customId: 'history::destructive::cancel_button::hard-delete::lilith_channel-123',
     };
 
     await handleButton(mockInteraction as never);
@@ -276,7 +280,7 @@ describe('handleButton', () => {
     });
 
     const mockInteraction = {
-      customId: 'destructive:hard-delete:confirm_button:lilith_channel-123:abc123',
+      customId: 'history::destructive::confirm_button::hard-delete::lilith_channel-123',
     };
 
     await handleButton(mockInteraction as never);
@@ -297,7 +301,7 @@ describe('handleButton', () => {
 
     const mockUpdate = vi.fn();
     const mockInteraction = {
-      customId: 'destructive:hard-delete:confirm_button:invalid:abc123',
+      customId: 'history::destructive::confirm_button::hard-delete::invalid',
       update: mockUpdate,
     };
 
@@ -323,7 +327,7 @@ describe('handleButton', () => {
 
   it('should ignore destructive buttons with invalid customId parse', async () => {
     const mockInteraction = {
-      customId: 'destructive:invalid',
+      customId: 'history::destructive::invalid', // Too few parts
     };
 
     await handleButton(mockInteraction as never);

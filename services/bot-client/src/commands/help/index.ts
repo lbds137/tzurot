@@ -11,22 +11,11 @@
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, getConfig } from '@tzurot/common-types';
+import { defineCommand } from '../../utils/defineCommand.js';
 import type { Command } from '../../types.js';
+// Note: Type augmentation for client.commands is in types/discord.d.ts
 
 const logger = createLogger('help-command');
-
-/**
- * Slash command definition
- */
-export const data = new SlashCommandBuilder()
-  .setName('help')
-  .setDescription('Show all available commands')
-  .addStringOption(option =>
-    option
-      .setName('command')
-      .setDescription('Get detailed help for a specific command')
-      .setRequired(false)
-  );
 
 /**
  * Command category display order and emoji
@@ -45,12 +34,12 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
 /**
  * Command execution
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction,
-  commands?: Map<string, Command>
-): Promise<void> {
-  if (!commands) {
-    logger.error({}, 'Commands map not provided to help command');
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  // Access commands via the client - attached during bot startup
+  const commands = interaction.client.commands;
+
+  if (commands === undefined || commands.size === 0) {
+    logger.error({}, 'Commands collection not available on client');
     await interaction.editReply({
       content: '❌ Unable to load commands list. Please try again later.',
     });
@@ -193,7 +182,22 @@ async function showAllCommands(
   await interaction.editReply({ embeds: [embed] });
 }
 
+// Build command data outside defineCommand to get proper type inference
+const commandData = new SlashCommandBuilder()
+  .setName('help')
+  .setDescription('Show all available commands')
+  .addStringOption(option =>
+    option
+      .setName('command')
+      .setDescription('Get detailed help for a specific command')
+      .setRequired(false)
+  );
+
 /**
- * Category for this command
+ * Export command definition using defineCommand for type safety
+ * Category is injected by CommandHandler based on folder structure
  */
-export const category = 'Help';
+export default defineCommand({
+  data: commandData,
+  execute,
+});

@@ -10,8 +10,15 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  ModalSubmitInteraction,
+  AutocompleteInteraction,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
+} from 'discord.js';
 import { createLogger, getConfig, type EnvConfig } from '@tzurot/common-types';
+import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 
 // Import handlers from split modules
@@ -37,172 +44,9 @@ import {
   handleModalSubmit,
   handleSelectMenu as handleDashboardSelectMenu,
   handleButton as handleDashboardButton,
-  isCharacterDashboardInteraction,
 } from './dashboard.js';
 
 const logger = createLogger('character-command');
-
-/**
- * Additional prefixes this command handles
- * Used by CommandHandler to route component interactions
- */
-export const componentPrefixes = ['character-settings'];
-
-// Create combined handlers that route to appropriate sub-handler
-export async function handleSelectMenu(
-  interaction: import('discord.js').StringSelectMenuInteraction
-): Promise<void> {
-  // Check if it's a settings dashboard interaction
-  if (isCharacterSettingsInteraction(interaction.customId)) {
-    await handleCharacterSettingsSelectMenu(interaction);
-    return;
-  }
-  // Otherwise route to character edit dashboard
-  await handleDashboardSelectMenu(interaction);
-}
-
-export async function handleButton(
-  interaction: import('discord.js').ButtonInteraction
-): Promise<void> {
-  // Check if it's a settings dashboard interaction
-  if (isCharacterSettingsInteraction(interaction.customId)) {
-    await handleCharacterSettingsButton(interaction);
-    return;
-  }
-  // Otherwise route to character edit dashboard
-  await handleDashboardButton(interaction);
-}
-
-// Re-export for external use
-export { isCharacterDashboardInteraction };
-
-/**
- * Slash command definition
- */
-export const data = new SlashCommandBuilder()
-  .setName('character')
-  .setDescription('Manage AI characters')
-  .addSubcommand(subcommand =>
-    subcommand.setName('create').setDescription('Create a new AI character')
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('edit')
-      .setDescription('Edit an existing AI character')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to edit')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('delete')
-      .setDescription('Permanently delete a character and all its data')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to delete')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('view')
-      .setDescription('View character details')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to view')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand => subcommand.setName('list').setDescription('List your characters'))
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('avatar')
-      .setDescription('Upload or change a character avatar')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to update')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-      .addAttachmentOption(option =>
-        option
-          .setName('image')
-          .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
-          .setRequired(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('import')
-      .setDescription('Import a character from JSON file')
-      .addAttachmentOption(option =>
-        option
-          .setName('file')
-          .setDescription('JSON file containing character data')
-          .setRequired(true)
-      )
-      .addAttachmentOption(option =>
-        option
-          .setName('avatar')
-          .setDescription('Optional avatar image (PNG, JPG, GIF, WebP)')
-          .setRequired(false)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('export')
-      .setDescription('Export a character as JSON file')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to export')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand.setName('template').setDescription('Show the JSON template for character import')
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('chat')
-      .setDescription('Send a message to a character using a slash command')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to chat with')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('message')
-          .setDescription('Message to send')
-          .setRequired(true)
-          .setMaxLength(2000)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('settings')
-      .setDescription('Open character settings dashboard (owner only)')
-      .addStringOption(option =>
-        option
-          .setName('character')
-          .setDescription('Character to manage')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  );
 
 /**
  * Create character router with config dependency
@@ -231,17 +75,52 @@ function createCharacterRouter(
 /**
  * Command execution router
  */
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const config = getConfig();
   const router = createCharacterRouter(config);
   await router(interaction);
 }
 
 /**
+ * Autocomplete handler
+ */
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+  await handleAutocomplete(interaction);
+}
+
+/**
+ * Handle select menu interactions for character commands
+ * Routes to settings dashboard or edit dashboard based on customId prefix
+ */
+async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  // Check if it's a settings dashboard interaction
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsSelectMenu(interaction);
+    return;
+  }
+  // Otherwise route to character edit dashboard
+  await handleDashboardSelectMenu(interaction);
+}
+
+/**
+ * Handle button interactions for character commands
+ * Routes to settings dashboard or edit dashboard based on customId prefix
+ */
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  // Check if it's a settings dashboard interaction
+  if (isCharacterSettingsInteraction(interaction.customId)) {
+    await handleCharacterSettingsButton(interaction);
+    return;
+  }
+  // Otherwise route to character edit dashboard
+  await handleDashboardButton(interaction);
+}
+
+/**
  * Handle modal interactions for character commands
  * Routes to settings dashboard or edit dashboard based on customId prefix
  */
-export async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const config = getConfig();
 
   // Check if it's a settings dashboard modal
@@ -255,10 +134,138 @@ export async function handleModal(interaction: ModalSubmitInteraction): Promise<
 }
 
 /**
- * Autocomplete handler
+ * Export command definition using defineCommand for type safety
+ * Category is injected by CommandHandler based on folder structure
  */
-export async function autocomplete(
-  interaction: import('discord.js').AutocompleteInteraction
-): Promise<void> {
-  await handleAutocomplete(interaction);
-}
+export default defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('character')
+    .setDescription('Manage AI characters')
+    .addSubcommand(subcommand =>
+      subcommand.setName('create').setDescription('Create a new AI character')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('edit')
+        .setDescription('Edit an existing AI character')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to edit')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('delete')
+        .setDescription('Permanently delete a character and all its data')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to delete')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('view')
+        .setDescription('View character details')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to view')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand => subcommand.setName('list').setDescription('List your characters'))
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('avatar')
+        .setDescription('Upload or change a character avatar')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to update')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addAttachmentOption(option =>
+          option
+            .setName('image')
+            .setDescription('Avatar image (PNG, JPG, GIF, WebP)')
+            .setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('import')
+        .setDescription('Import a character from JSON file')
+        .addAttachmentOption(option =>
+          option
+            .setName('file')
+            .setDescription('JSON file containing character data')
+            .setRequired(true)
+        )
+        .addAttachmentOption(option =>
+          option
+            .setName('avatar')
+            .setDescription('Optional avatar image (PNG, JPG, GIF, WebP)')
+            .setRequired(false)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('export')
+        .setDescription('Export a character as JSON file')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to export')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('template').setDescription('Show the JSON template for character import')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('chat')
+        .setDescription('Send a message to a character using a slash command')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to chat with')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('message')
+            .setDescription('Message to send')
+            .setRequired(true)
+            .setMaxLength(2000)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('settings')
+        .setDescription('Open character settings dashboard (owner only)')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to manage')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    ),
+  execute,
+  autocomplete,
+  handleSelectMenu,
+  handleButton,
+  handleModal,
+  componentPrefixes: ['character-settings'],
+});
