@@ -117,7 +117,8 @@ describe('CommandHandler', () => {
       expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
     });
 
-    it('should execute modal submit interaction (fallback to execute when no handleModal)', async () => {
+    it('should ignore modal submit when command has no handleModal', async () => {
+      // Commands without handleModal export do not handle modals (no fallback to execute)
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
@@ -131,7 +132,8 @@ describe('CommandHandler', () => {
       await handler.handleInteraction(mockInteraction);
 
       const command = handler.getCommands().get('test');
-      expect(command?.execute).toHaveBeenCalledWith(mockInteraction);
+      // execute should NOT be called - modals require handleModal
+      expect(command?.execute).not.toHaveBeenCalled();
     });
 
     it('should call handleModal when defined on command', async () => {
@@ -165,6 +167,20 @@ describe('CommandHandler', () => {
     });
 
     it('should extract command name from modal customId using :: delimiter', async () => {
+      // Set up a command with handleModal to test the extraction
+      const mockHandleModal = vi.fn().mockResolvedValue(undefined);
+      const mockCommand: Command = {
+        data: {
+          name: 'test',
+          description: 'Test command',
+        },
+        execute: vi.fn().mockResolvedValue(undefined),
+        handleModal: mockHandleModal,
+      };
+
+      handler.getCommands().set('test', mockCommand);
+      (handler as any).prefixToCommand.set('test', mockCommand);
+
       const mockInteraction = {
         isChatInputCommand: () => false,
         isModalSubmit: () => true,
@@ -177,9 +193,9 @@ describe('CommandHandler', () => {
 
       await handler.handleInteraction(mockInteraction);
 
-      // Should extract 'test' from 'test::edit::entity-123'
-      const command = handler.getCommands().get('test');
-      expect(command?.execute).toHaveBeenCalled();
+      // Should extract 'test' from 'test::edit::entity-123' and call handleModal
+      expect(mockHandleModal).toHaveBeenCalledWith(mockInteraction);
+      expect(mockCommand.execute).not.toHaveBeenCalled();
     });
 
     it('should route to command via componentPrefixes', async () => {
@@ -233,7 +249,9 @@ describe('CommandHandler', () => {
       });
     });
 
-    it('should pass commands collection to help command', async () => {
+    it('should execute help command like any other command', async () => {
+      // Note: Help command accesses commands via interaction.client.commands,
+      // not as a second argument. This is handled by the help command itself.
       const mockHelpCommand: Command = {
         data: {
           name: 'help',
@@ -256,8 +274,8 @@ describe('CommandHandler', () => {
 
       await handler.handleInteraction(mockInteraction);
 
-      // Should pass commands collection as second argument
-      expect(mockHelpCommand.execute).toHaveBeenCalledWith(mockInteraction, handler.getCommands());
+      // Help is executed like any other command (no special handling)
+      expect(mockHelpCommand.execute).toHaveBeenCalledWith(mockInteraction);
     });
 
     it('should handle command execution error with reply', async () => {

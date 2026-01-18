@@ -15,6 +15,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
 import { createLogger, DISCORD_PROVIDER_CHOICES, requireBotOwner } from '@tzurot/common-types';
+import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
@@ -26,150 +27,6 @@ import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
 
 const logger = createLogger('preset-command');
-
-/**
- * Slash command definition
- */
-export const data = new SlashCommandBuilder()
-  .setName('preset')
-  .setDescription('Manage your model presets')
-  .addSubcommand(subcommand =>
-    subcommand.setName('list').setDescription('Show all available model presets')
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('create')
-      .setDescription('Create a new model preset')
-      .addStringOption(option =>
-        option.setName('name').setDescription('Preset name (unique to you)').setRequired(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('model')
-          .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('provider')
-          .setDescription('AI provider')
-          .setRequired(false)
-          .addChoices(...DISCORD_PROVIDER_CHOICES)
-      )
-      .addStringOption(option =>
-        option.setName('description').setDescription('Optional description').setRequired(false)
-      )
-      .addStringOption(option =>
-        option
-          .setName('vision-model')
-          .setDescription('Vision model for image analysis (optional)')
-          .setRequired(false)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('delete')
-      .setDescription('Delete one of your model presets')
-      .addStringOption(option =>
-        option
-          .setName('preset')
-          .setDescription('Preset to delete')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommandGroup(group =>
-    group
-      .setName('global')
-      .setDescription('Manage global presets (Owner only)')
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('create')
-          .setDescription('Create a new global preset (Owner only)')
-          .addStringOption(option =>
-            option.setName('name').setDescription('Preset name').setRequired(true)
-          )
-          .addStringOption(option =>
-            option
-              .setName('model')
-              .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
-              .setRequired(true)
-          )
-          .addStringOption(option =>
-            option
-              .setName('provider')
-              .setDescription('AI provider')
-              .setRequired(false)
-              .addChoices(...DISCORD_PROVIDER_CHOICES)
-          )
-          .addStringOption(option =>
-            option.setName('description').setDescription('Optional description').setRequired(false)
-          )
-          .addStringOption(option =>
-            option
-              .setName('vision-model')
-              .setDescription('Vision model (optional)')
-              .setRequired(false)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('edit')
-          .setDescription('Edit a global preset (Owner only)')
-          .addStringOption(option =>
-            option
-              .setName('config')
-              .setDescription('Global preset to edit')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-          .addStringOption(option =>
-            option.setName('name').setDescription('New preset name').setRequired(false)
-          )
-          .addStringOption(option =>
-            option.setName('model').setDescription('New model ID').setRequired(false)
-          )
-          .addStringOption(option =>
-            option
-              .setName('provider')
-              .setDescription('New AI provider')
-              .setRequired(false)
-              .addChoices(...DISCORD_PROVIDER_CHOICES)
-          )
-          .addStringOption(option =>
-            option.setName('description').setDescription('New description').setRequired(false)
-          )
-          .addStringOption(option =>
-            option.setName('vision-model').setDescription('New vision model').setRequired(false)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('set-default')
-          .setDescription('Set a global preset as the system default (Owner only)')
-          .addStringOption(option =>
-            option
-              .setName('config')
-              .setDescription('Global preset to set as default')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('set-free-default')
-          .setDescription('Set a global preset as the free tier default (Owner only)')
-          .addStringOption(option =>
-            option
-              .setName('config')
-              .setDescription('Global preset to set as free tier default')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-  );
 
 /**
  * Create user preset router
@@ -199,7 +56,7 @@ const globalRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const group = interaction.options.getSubcommandGroup(false);
 
   if (group === 'global') {
@@ -217,11 +74,158 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
 /**
  * Autocomplete handler for preset options
  */
-export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   await handleAutocomplete(interaction);
 }
 
 /**
- * Category for this command
+ * Export command definition using defineCommand for type safety
+ * Category is injected by CommandHandler based on folder structure
  */
-export const category = 'Preset';
+export default defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('preset')
+    .setDescription('Manage your model presets')
+    .addSubcommand(subcommand =>
+      subcommand.setName('list').setDescription('Show all available model presets')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('create')
+        .setDescription('Create a new model preset')
+        .addStringOption(option =>
+          option.setName('name').setDescription('Preset name (unique to you)').setRequired(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('model')
+            .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('provider')
+            .setDescription('AI provider')
+            .setRequired(false)
+            .addChoices(...DISCORD_PROVIDER_CHOICES)
+        )
+        .addStringOption(option =>
+          option.setName('description').setDescription('Optional description').setRequired(false)
+        )
+        .addStringOption(option =>
+          option
+            .setName('vision-model')
+            .setDescription('Vision model for image analysis (optional)')
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('delete')
+        .setDescription('Delete one of your model presets')
+        .addStringOption(option =>
+          option
+            .setName('preset')
+            .setDescription('Preset to delete')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommandGroup(group =>
+      group
+        .setName('global')
+        .setDescription('Manage global presets (Owner only)')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('create')
+            .setDescription('Create a new global preset (Owner only)')
+            .addStringOption(option =>
+              option.setName('name').setDescription('Preset name').setRequired(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('model')
+                .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
+                .setRequired(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('provider')
+                .setDescription('AI provider')
+                .setRequired(false)
+                .addChoices(...DISCORD_PROVIDER_CHOICES)
+            )
+            .addStringOption(option =>
+              option
+                .setName('description')
+                .setDescription('Optional description')
+                .setRequired(false)
+            )
+            .addStringOption(option =>
+              option
+                .setName('vision-model')
+                .setDescription('Vision model (optional)')
+                .setRequired(false)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('edit')
+            .setDescription('Edit a global preset (Owner only)')
+            .addStringOption(option =>
+              option
+                .setName('config')
+                .setDescription('Global preset to edit')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option.setName('name').setDescription('New preset name').setRequired(false)
+            )
+            .addStringOption(option =>
+              option.setName('model').setDescription('New model ID').setRequired(false)
+            )
+            .addStringOption(option =>
+              option
+                .setName('provider')
+                .setDescription('New AI provider')
+                .setRequired(false)
+                .addChoices(...DISCORD_PROVIDER_CHOICES)
+            )
+            .addStringOption(option =>
+              option.setName('description').setDescription('New description').setRequired(false)
+            )
+            .addStringOption(option =>
+              option.setName('vision-model').setDescription('New vision model').setRequired(false)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set-default')
+            .setDescription('Set a global preset as the system default (Owner only)')
+            .addStringOption(option =>
+              option
+                .setName('config')
+                .setDescription('Global preset to set as default')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set-free-default')
+            .setDescription('Set a global preset as the free tier default (Owner only)')
+            .addStringOption(option =>
+              option
+                .setName('config')
+                .setDescription('Global preset to set as free tier default')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+    ),
+  execute,
+  autocomplete,
+});

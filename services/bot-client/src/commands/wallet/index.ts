@@ -12,6 +12,7 @@
 import { SlashCommandBuilder } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
+import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleSetKey } from './set.js';
 import { handleListKeys } from './list.js';
@@ -20,52 +21,6 @@ import { handleTestKey } from './test.js';
 import { handleWalletModalSubmit } from './modal.js';
 
 const logger = createLogger('wallet-command');
-
-/**
- * Slash command definition
- */
-export const data = new SlashCommandBuilder()
-  .setName('wallet')
-  .setDescription('Manage your API keys (BYOK - Bring Your Own Key)')
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('set')
-      .setDescription('Set your API key for a provider')
-      .addStringOption(option =>
-        option
-          .setName('provider')
-          .setDescription('AI provider to configure')
-          .setRequired(true)
-          .addChoices(...DISCORD_PROVIDER_CHOICES)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand.setName('list').setDescription('List your configured API key providers')
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('remove')
-      .setDescription('Remove your API key for a provider')
-      .addStringOption(option =>
-        option
-          .setName('provider')
-          .setDescription('AI provider to remove')
-          .setRequired(true)
-          .addChoices(...DISCORD_PROVIDER_CHOICES)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('test')
-      .setDescription('Test your API key validity')
-      .addStringOption(option =>
-        option
-          .setName('provider')
-          .setDescription('AI provider to test')
-          .setRequired(true)
-          .addChoices(...DISCORD_PROVIDER_CHOICES)
-      )
-  );
 
 /**
  * Subcommand router for wallet commands
@@ -82,16 +37,65 @@ const walletRouter = createSubcommandRouter(
 
 /**
  * Command execution router
- * Routes to the appropriate subcommand handler or modal handler
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-): Promise<void> {
-  // Handle modal submissions separately
-  if (interaction.isModalSubmit()) {
-    await handleWalletModalSubmit(interaction);
-    return;
-  }
-
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await walletRouter(interaction);
 }
+
+/**
+ * Modal submit handler for wallet key input
+ */
+async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+  await handleWalletModalSubmit(interaction);
+}
+
+/**
+ * Export command definition using defineCommand for type safety
+ * Category is injected by CommandHandler based on folder structure
+ */
+export default defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('wallet')
+    .setDescription('Manage your API keys (BYOK - Bring Your Own Key)')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('set')
+        .setDescription('Set your API key for a provider')
+        .addStringOption(option =>
+          option
+            .setName('provider')
+            .setDescription('AI provider to configure')
+            .setRequired(true)
+            .addChoices(...DISCORD_PROVIDER_CHOICES)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('list').setDescription('List your configured API key providers')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('remove')
+        .setDescription('Remove your API key for a provider')
+        .addStringOption(option =>
+          option
+            .setName('provider')
+            .setDescription('AI provider to remove')
+            .setRequired(true)
+            .addChoices(...DISCORD_PROVIDER_CHOICES)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('test')
+        .setDescription('Test your API key validity')
+        .addStringOption(option =>
+          option
+            .setName('provider')
+            .setDescription('AI provider to test')
+            .setRequired(true)
+            .addChoices(...DISCORD_PROVIDER_CHOICES)
+        )
+    ),
+  execute,
+  handleModal,
+});

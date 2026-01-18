@@ -4,7 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
-import { data, execute, autocomplete } from './index.js';
+import channelCommand from './index.js';
+
+// Destructure from default export
+const { data, execute, autocomplete } = channelCommand;
 
 // Mock handlers
 vi.mock('./activate.js', () => ({

@@ -442,6 +442,9 @@ async function start(): Promise<void> {
     logger.info('[Bot] Loading slash commands...');
     commandHandler = new CommandHandler();
     await commandHandler.loadCommands();
+
+    // Attach commands to client for access by commands like /help
+    client.commands = commandHandler.getCommands();
     logger.info('[Bot] Command handler initialized');
 
     // Create all services with full dependency injection

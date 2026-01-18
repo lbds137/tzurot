@@ -4,7 +4,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { data, execute, autocomplete } from './index.js';
+import meCommand from './index.js';
+
+// Destructure from default export
+const { data, execute, autocomplete, handleModal } = meCommand;
 
 // Mock all handler modules
 vi.mock('./profile/view.js', () => ({
@@ -287,16 +290,15 @@ describe('Me Command Index', () => {
     });
   });
 
-  describe('execute - modal routing', () => {
+  describe('handleModal - modal routing', () => {
     it('should route me::profile::create modal to create handler', async () => {
       const { handleCreateModalSubmit } = await import('./profile/create.js');
 
       const interaction = {
-        isModalSubmit: () => true,
         customId: 'me::profile::create',
       } as any;
 
-      await execute(interaction);
+      await handleModal(interaction);
 
       expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
     });
@@ -305,11 +307,10 @@ describe('Me Command Index', () => {
       const { handleEditModalSubmit } = await import('./profile/edit.js');
 
       const interaction = {
-        isModalSubmit: () => true,
         customId: 'me::profile::edit::new',
       } as any;
 
-      await execute(interaction);
+      await handleModal(interaction);
 
       expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
     });
@@ -319,11 +320,10 @@ describe('Me Command Index', () => {
 
       // UUID can contain hyphens - the :: delimiter allows proper parsing
       const interaction = {
-        isModalSubmit: () => true,
         customId: 'me::profile::edit::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       } as any;
 
-      await execute(interaction);
+      await handleModal(interaction);
 
       expect(handleEditModalSubmit).toHaveBeenCalledWith(
         interaction,
@@ -336,11 +336,10 @@ describe('Me Command Index', () => {
 
       // UUID can contain hyphens - the :: delimiter allows proper parsing
       const interaction = {
-        isModalSubmit: () => true,
         customId: 'me::override::create::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
       } as any;
 
-      await execute(interaction);
+      await handleModal(interaction);
 
       expect(handleOverrideCreateModalSubmit).toHaveBeenCalledWith(
         interaction,

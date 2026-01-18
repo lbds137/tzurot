@@ -17,6 +17,7 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
@@ -37,82 +38,6 @@ import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 const logger = createLogger('history-command');
 
 /**
- * Slash command definition
- */
-export const data = new SlashCommandBuilder()
-  .setName('history')
-  .setDescription('Manage your conversation history')
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('clear')
-      .setDescription('Clear conversation context (soft reset)')
-      .addStringOption(option =>
-        option
-          .setName('personality')
-          .setDescription('The personality to clear history for')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('profile')
-          .setDescription('The profile/persona to use (defaults to your active profile)')
-          .setRequired(false)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('undo')
-      .setDescription('Restore previously cleared context')
-      .addStringOption(option =>
-        option
-          .setName('personality')
-          .setDescription('The personality to restore history for')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('profile')
-          .setDescription('The profile/persona to use (defaults to your active profile)')
-          .setRequired(false)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('stats')
-      .setDescription('View conversation statistics')
-      .addStringOption(option =>
-        option
-          .setName('personality')
-          .setDescription('The personality to view stats for')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-      .addStringOption(option =>
-        option
-          .setName('profile')
-          .setDescription('The profile/persona to use (defaults to your active profile)')
-          .setRequired(false)
-          .setAutocomplete(true)
-      )
-  )
-  .addSubcommand(subcommand =>
-    subcommand
-      .setName('hard-delete')
-      .setDescription('PERMANENTLY delete conversation history (cannot be undone!)')
-      .addStringOption(option =>
-        option
-          .setName('personality')
-          .setDescription('The personality to delete history for')
-          .setRequired(true)
-          .setAutocomplete(true)
-      )
-  );
-
-/**
  * Subcommand router
  */
 const router = createSubcommandRouter(
@@ -127,17 +52,8 @@ const router = createSubcommandRouter(
 
 /**
  * Command execution router
- * Routes to the appropriate subcommand handler or modal handler
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-): Promise<void> {
-  // Handle modal submissions separately
-  if (interaction.isModalSubmit()) {
-    await handleModalSubmit(interaction);
-    return;
-  }
-
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   await router(interaction);
 }
 
@@ -145,7 +61,7 @@ export async function execute(
  * Handle modal submissions for history command
  * Routes destructive confirmation modals
  */
-async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const customId = interaction.customId;
 
   // Check if this is a destructive confirmation modal
@@ -228,7 +144,7 @@ async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<v
 /**
  * Autocomplete handler for personality and profile options
  */
-export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
 
   if (focusedOption.name === 'personality') {
@@ -241,15 +157,10 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 }
 
 /**
- * Category for this command
- */
-export const category = 'History';
-
-/**
  * Handle button interactions for history command
  * Routes destructive confirmation buttons
  */
-export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
 
   // Check if this is a destructive confirmation button
@@ -300,3 +211,86 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
   logger.warn({ customId }, '[History] Unknown button customId');
 }
+
+/**
+ * Export command definition using defineCommand for type safety
+ * Category is injected by CommandHandler based on folder structure
+ */
+export default defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('history')
+    .setDescription('Manage your conversation history')
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('clear')
+        .setDescription('Clear conversation context (soft reset)')
+        .addStringOption(option =>
+          option
+            .setName('personality')
+            .setDescription('The personality to clear history for')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('profile')
+            .setDescription('The profile/persona to use (defaults to your active profile)')
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('undo')
+        .setDescription('Restore previously cleared context')
+        .addStringOption(option =>
+          option
+            .setName('personality')
+            .setDescription('The personality to restore history for')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('profile')
+            .setDescription('The profile/persona to use (defaults to your active profile)')
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('stats')
+        .setDescription('View conversation statistics')
+        .addStringOption(option =>
+          option
+            .setName('personality')
+            .setDescription('The personality to view stats for')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('profile')
+            .setDescription('The profile/persona to use (defaults to your active profile)')
+            .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('hard-delete')
+        .setDescription('PERMANENTLY delete conversation history (cannot be undone!)')
+        .addStringOption(option =>
+          option
+            .setName('personality')
+            .setDescription('The personality to delete history for')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    ),
+  execute,
+  autocomplete,
+  handleModal,
+  handleButton,
+});

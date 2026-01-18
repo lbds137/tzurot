@@ -178,7 +178,25 @@ export async function handleEditModalSubmit(
   const userId = interaction.user.id;
   const newContent = interaction.fields.getTextInputValue('content');
 
-  await interaction.deferUpdate();
+  try {
+    await interaction.deferUpdate();
+  } catch (deferError) {
+    // Interaction may have expired or already been responded to
+    logger.warn(
+      { err: deferError, userId, memoryId },
+      '[Memory] Failed to defer modal update - interaction may have expired'
+    );
+    // Try to reply instead
+    try {
+      await interaction.reply({
+        content: '⏰ This interaction has expired. Your changes were not saved.',
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch {
+      // Ignore - interaction is completely dead
+    }
+    return;
+  }
 
   const updatedMemory = await updateMemory(userId, memoryId, newContent);
   if (updatedMemory === null) {
@@ -192,10 +210,27 @@ export async function handleEditModalSubmit(
   const { embed, isTruncated } = buildDetailEmbed(updatedMemory);
   const buttons = buildDetailButtons(updatedMemory, isTruncated);
 
-  await interaction.editReply({
-    embeds: [embed],
-    components: [buttons],
-  });
+  try {
+    await interaction.editReply({
+      embeds: [embed],
+      components: [buttons],
+    });
+  } catch (editError) {
+    logger.warn(
+      { err: editError, userId, memoryId },
+      '[Memory] Failed to edit reply after modal submit'
+    );
+    // Try followUp as fallback
+    try {
+      await interaction.followUp({
+        content: '✅ Memory updated successfully, but the display could not be refreshed.',
+        flags: MessageFlags.Ephemeral,
+      });
+    } catch {
+      // Ignore - best effort
+    }
+    return;
+  }
 
   logger.info({ userId, memoryId }, '[Memory] Memory updated');
 }
