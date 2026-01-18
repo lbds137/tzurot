@@ -52,27 +52,58 @@ The outer structure is XML, but some inner content may still have markdown artif
 
 ---
 
-### Timeframe Parsing Duplication
+### Timeframe/Duration Parsing Duplication
 
-**Problem**: Three separate implementations of timeframe parsing (`1h`, `7d`, `1y` format):
+**Problem**: Four separate implementations of duration/timeframe parsing (`1h`, `7d`, `30m` format):
 
 | Location                                       | Purpose             |
 | ---------------------------------------------- | ------------------- |
 | `api-gateway/routes/user/memoryBatch.ts:36-61` | Memory batch delete |
 | `bot-client/commands/memory/batchDelete.ts:53` | Discord command     |
 | `api-gateway/routes/admin/usage.ts:18`         | Usage stats         |
+| `commands/memory/incognito.ts` (planned)       | Incognito duration  |
 
 **Risk**: Inconsistent behavior if one gets updated and others don't.
 
-**Solution**: Extract to `@tzurot/common-types`:
+**Solution**: See [docs/proposals/backlog/DURATION_UTILITY.md](../backlog/DURATION_UTILITY.md) for full design:
 
 ```typescript
-// packages/common-types/src/utils/timeframe.ts
-export function parseTimeframe(timeframe: string): number | null;
-export const MS_PER_HOUR, MS_PER_DAY, MS_PER_YEAR;
+// packages/common-types/src/utils/duration.ts
+export function parseDuration(input: string): number | null;
+export function formatDuration(ms: number): string;
+export function formatTimeRemaining(expiresAt: Date): string;
+export const DURATION_CHOICES; // Slash command choice builder
 ```
 
-**Source**: PR #472 code review (2026-01-13)
+**Source**: PR #472 code review (2026-01-13), updated 2026-01-17
+
+---
+
+### Missing Select Menu Handler for Memory Detail
+
+**Problem**: When using memory detail view, a select menu interaction fails with `[CommandHandler] No select menu handler for command` with customId `memory-detail::select`.
+
+**Current Location**: `services/bot-client/src/commands/memory/` - handler not registered for select menu interactions.
+
+**Solution**: Register the select menu handler in the memory command index or detail module.
+
+**Source**: Discovered 2026-01-17 during embedding migration testing
+
+---
+
+### Memory Content Exceeds Discord Embed Limit
+
+**Problem**: Memory detail view tries to display full content in embed, but memories with long referenced quotes exceed Discord's 4096 character limit, causing `s.string().lengthLessThanOrEqual()` validation error.
+
+**Current Location**: Memory detail/search result display code
+
+**Solution Options**:
+
+1. Truncate content with "..." and "[View Full]" button
+2. Use pagination for long content
+3. Send as file attachment for very long memories
+
+**Source**: Discovered 2026-01-17 during embedding migration testing
 
 ---
 
@@ -93,6 +124,25 @@ if (dateFrom && isNaN(Date.parse(dateFrom))) {
 ```
 
 **Source**: PR #472 code review (2026-01-13)
+
+---
+
+### Duplicate Detection Temperature Strategy
+
+**Problem**: The duplicate detection "ladder of desperation" uses temperature increase to break API caching. Originally set to 1.1, but some providers (Z.AI, etc.) reject temperature > 1.0 with "Invalid API parameter" errors.
+
+**Current Location**: `services/ai-worker/src/utils/duplicateDetection.ts:107`
+
+**Current Fix**: Capped at 1.0, but this reduces effectiveness of cache-busting.
+
+**Potential Improvements**:
+
+- [ ] Add small random jitter to temperature (e.g., 0.95-1.0) instead of fixed value
+- [ ] Use different cache-busting strategies per provider
+- [ ] Investigate if frequency_penalty alone is sufficient
+- [ ] Consider adding a random token/prefix to break caching
+
+**Source**: Production incident 2026-01-17 (Z.AI returning 400 on temp 1.1)
 
 ---
 

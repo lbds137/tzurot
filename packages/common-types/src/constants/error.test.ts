@@ -261,6 +261,7 @@ describe('TRANSIENT_ERROR_CATEGORIES', () => {
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.AUTHENTICATION)).toBe(false);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.QUOTA_EXCEEDED)).toBe(false);
     expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.CONTENT_POLICY)).toBe(false);
+    expect(TRANSIENT_ERROR_CATEGORIES.has(ApiErrorCategory.BAD_REQUEST)).toBe(false);
   });
 });
 

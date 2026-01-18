@@ -92,6 +92,20 @@ railway variables --unset OLD_VAR_NAME --service ai-worker --environment develop
 
 ### Database Operations
 
+> ⚠️ **CRITICAL: Prisma migrations use LOCAL folder, not remote state!**
+>
+> `prisma migrate deploy` applies migrations from your LOCAL `prisma/migrations/` folder.
+> If you're on `develop` but production runs `main`, you may apply migrations that
+> production code doesn't support yet!
+>
+> **Before running migrations:**
+>
+> 1. Checkout the branch that matches deployed code (`git checkout main`)
+> 2. Verify migrations: `ls prisma/migrations/`
+> 3. Ask: "Does production code support ALL these schema changes?"
+>
+> **See postmortem**: 2026-01-17 Wrong Branch Migration Deployment
+
 ```bash
 # Check migration status (uses Railway CLI for auth)
 pnpm ops db:status --env dev

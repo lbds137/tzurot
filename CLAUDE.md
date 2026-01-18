@@ -345,15 +345,16 @@ execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
 
 ## Post-Mortems
 
-| Date       | Incident                      | Rule                              |
-| ---------- | ----------------------------- | --------------------------------- |
-| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files |
-| 2026-01-07 | PR merged without approval    | Never merge PRs without user okay |
-| 2025-07-25 | Untested push broke develop   | Always run tests before pushing   |
-| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git    |
-| 2025-10-31 | DB URL committed              | Never commit database URLs        |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients               |
-| 2025-12-06 | API contract mismatch         | Use shared Zod schemas            |
+| Date       | Incident                      | Rule                               |
+| ---------- | ----------------------------- | ---------------------------------- |
+| 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch |
+| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files  |
+| 2026-01-07 | PR merged without approval    | Never merge PRs without user okay  |
+| 2025-07-25 | Untested push broke develop   | Always run tests before pushing    |
+| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git     |
+| 2025-10-31 | DB URL committed              | Never commit database URLs         |
+| 2025-12-05 | Direct fetch broke /character | Use gateway clients                |
+| 2025-12-06 | API contract mismatch         | Use shared Zod schemas             |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 

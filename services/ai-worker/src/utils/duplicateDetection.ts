@@ -100,8 +100,11 @@ export const SEMANTIC_SIMILARITY_THRESHOLD = 0.88;
 /**
  * Temperature to use on Attempt 2 when normal generation produced a duplicate.
  * Higher temperature increases randomness, helping to break API-level caching.
+ *
+ * Capped at 1.0 - some providers (Z.AI, etc.) reject temperature > 1.0
+ * TODO: Investigate better cache-busting strategies that work across all providers
  */
-export const RETRY_ATTEMPT_2_TEMPERATURE = 1.1;
+export const RETRY_ATTEMPT_2_TEMPERATURE = 1.0;
 
 /**
  * Frequency penalty to use on Attempt 2.

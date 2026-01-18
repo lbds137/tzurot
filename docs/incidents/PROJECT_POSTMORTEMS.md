@@ -6,6 +6,7 @@
 
 | Date       | Incident                      | Rule Established                            |
 | ---------- | ----------------------------- | ------------------------------------------- |
+| 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch checkout |
 | 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infrastructure files  |
 | 2025-07-25 | Untested push broke develop   | Always run tests before pushing             |
 | 2025-07-21 | Git restore destroyed work    | Confirm before destructive git commands     |
@@ -14,6 +15,90 @@
 | 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch       |
 | 2025-12-06 | API contract mismatch         | Use shared Zod schemas for contracts        |
 | 2025-12-14 | Random UUIDs broke db-sync    | Use deterministic v5 UUIDs for all entities |
+
+---
+
+## 2026-01-17 - Wrong Branch Migration Deployment Broke Production LTM
+
+**What Happened**: During a 2-phase database migration (OpenAI → local BGE embeddings), ran `prisma migrate deploy` from the wrong branch, applying BOTH Phase 1 and Phase 2 migrations at once. Production code was still expecting the Phase 1 schema, causing ~30 minutes of LTM storage failures.
+
+**The Plan Was**:
+
+1. Phase 1: Add `embedding_local` column, deploy code that writes to it
+2. Run backfill script to populate `embedding_local`
+3. Phase 2: Rename `embedding_local` → `embedding`, deploy code using new name
+
+**What Actually Happened**:
+
+1. Phase 1 PR merged to main, Railway deployed
+2. Needed to run migrations manually (Railway doesn't auto-run them)
+3. **MISTAKE**: Ran `prisma migrate deploy` from `develop` branch which had BOTH migrations
+4. Both migrations applied: column added, then immediately renamed
+5. Production code still referenced `embedding_local` which no longer existed
+6. All LTM storage failed with: `column "embedding_local" of relation "memories" does not exist`
+
+**Impact**:
+
+- ~30 minutes of broken LTM storage in production
+- Memory queries failed silently (returned empty results)
+- New memories queued in `pending_memories` table (not lost, just delayed)
+- Required emergency PR, rebase, and deployment to fix
+
+**Root Cause**:
+
+- **Misunderstanding**: `prisma migrate deploy` applies migrations from the LOCAL `prisma/migrations/` folder, NOT based on target database state or git branch
+- Running from `develop` checkout meant it saw BOTH migrations as "pending"
+- The careful 2-phase plan was undermined by running from wrong checkout
+
+**Why It Wasn't Caught**:
+
+- No explicit documentation that migrations come from LOCAL folder
+- Easy to assume "deploy to prod" means "deploy what prod needs"
+- Previous migration deployments happened to be from correct checkout
+- No CI/CD pipeline for migrations (manual process)
+
+**Mitigating Factors (What Saved Us)**:
+
+1. **pending_memories table**: Failed storage attempts were queued for retry, not lost
+2. **Column-agnostic backfill script**: Auto-detected schema state, worked regardless
+3. **Swiss Cheese retry mechanism**: 10-minute scheduled job retried pending memories
+4. **Quick diagnosis**: Error message clearly showed the column name mismatch
+
+**Prevention Measures**:
+
+1. **New Rule**: Before running `prisma migrate deploy`:
+   - Verify you're on the correct branch/commit for the target deployment
+   - Check `ls prisma/migrations/` to see what will be applied
+   - Consider: "Does production code support ALL these schema changes?"
+
+2. **Documentation Update**: Add to `tzurot-deployment` skill:
+
+   ```
+   ⚠️ CRITICAL: prisma migrate deploy uses LOCAL migrations folder
+   - Checkout the branch that matches deployed code
+   - Or checkout the specific commit/tag for that release
+   - NEVER run from develop if main is deployed
+   ```
+
+3. **Workflow Improvement**: For multi-phase migrations:
+   - Create separate PRs for each phase
+   - Only checkout/run migrations from the merged PR's commit
+   - Verify schema matches code expectations before proceeding
+
+**Commands That Would Have Prevented This**:
+
+```bash
+# WRONG - develop has both migrations
+git checkout develop
+pnpm ops run --env prod prisma migrate deploy
+
+# RIGHT - checkout the deployed code first
+git checkout main
+git pull origin main
+pnpm ops run --env prod prisma migrate deploy
+```
+
+**Universal Lesson**: Prisma migrations are LOCAL-folder-driven, not database-state-driven. Always verify your checkout matches the deployment target before running `migrate deploy`.
 
 ---
 

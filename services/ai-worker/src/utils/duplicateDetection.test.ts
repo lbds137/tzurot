@@ -770,8 +770,8 @@ describe('buildRetryConfig', () => {
       expect(config.historyReductionPercent).toBeUndefined();
     });
 
-    it('should use temperature 1.1 to break cache', () => {
-      expect(RETRY_ATTEMPT_2_TEMPERATURE).toBe(1.1);
+    it('should use temperature 1.0 to break cache (capped for provider compatibility)', () => {
+      expect(RETRY_ATTEMPT_2_TEMPERATURE).toBe(1.0);
     });
 
     it('should use frequency penalty 0.5 for variety', () => {

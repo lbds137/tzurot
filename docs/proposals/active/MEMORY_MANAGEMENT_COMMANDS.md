@@ -1,8 +1,8 @@
 # Memory Management Commands Implementation Plan
 
-> **Status**: Phase 1 Complete, Phase 2 In Progress (2A, 2B done; 2C, 2D partial remaining)
+> **Status**: Phase 1-2 COMPLETE ✅ — Phase 3 (Incognito) NEXT
 > **Created**: 2025-12-13
-> **Last Updated**: 2026-01-11
+> **Last Updated**: 2026-01-17
 > **Priority**: High (User-requested feature)
 > **Estimated Sessions**: 6-8
 
@@ -447,21 +447,21 @@ _Prerequisite: Shared pagination utility for consistent UX across list commands_
 - [x] Search results show numbered list with select menu
 - [x] Selecting memory opens detail view with edit/delete/lock actions
 
-**2C: Batch Operations**
+**2C: Batch Operations** ✅ COMPLETE (PR #471)
 
-- [ ] Implement `/memory delete` for batch deletion with filters
-- [ ] Implement `/memory purge` with typed confirmation modal
-- [ ] Add isLocked check to batch operations (skip locked memories)
+- [x] Implement `/memory delete` for batch deletion with filters
+- [x] Implement `/memory purge` with typed confirmation modal
+- [ ] Add isLocked check to batch operations (skip locked memories) — deferred to Phase 4
 - [x] Implement `/memory stats` for memory statistics ✅ COMPLETE (beta.41)
 
-**2D: Memory Read Toggle ("Focus Mode")** ⚠️ PARTIAL
+**2D: Memory Read Toggle ("Focus Mode")** ✅ COMPLETE
 
 - [x] Add `focusModeEnabled` boolean to UserPersonalityConfig
 - [x] Implement `/memory focus` toggle (enable/disable via POST body)
 - [x] Implement `/memory focus` GET - check current state
 - [x] Show focus mode status in `/memory stats` output
-- [ ] Add focus mode check to RAG retrieval pipeline (ai-worker)
-- [ ] Visual indicator in responses when focus mode is active
+- [x] Add focus mode check to RAG retrieval pipeline (ai-worker) — `MemoryRetriever.ts:137`
+- [x] Visual indicator in responses when focus mode is active — `🔒 Focus Mode • LTM retrieval disabled`
 
 **UX Distinction**:
 
