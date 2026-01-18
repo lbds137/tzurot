@@ -4,9 +4,9 @@
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.42
+**Version**: v3.0.0-beta.43
 **Deployment**: Railway (stable)
-**Current Goal**: Memory Management Phase 3 (Incognito Mode)
+**Current Goal**: Channel Allowlist/Denylist
 
 ---
 
@@ -63,7 +63,7 @@ Fast cleanup before building new features:
 
 ---
 
-## Active: Memory Management Commands (Phase 3 - Incognito Mode)
+## Completed: Memory Management Commands (Phase 3 - Incognito Mode) ✅
 
 **Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
 
@@ -85,45 +85,25 @@ Fast cleanup before building new features:
 - [x] Focus Mode RAG integration (ai-worker skips retrieval when enabled)
 - [x] Focus Mode visual indicator in responses (`🔒 Focus Mode • LTM retrieval disabled`)
 
-**Tech Debt Bugs - Fix Before Phase 3:**
-
-Two bugs discovered during embedding migration testing:
-
-- [ ] **Missing Select Menu Handler**: `memory-detail::select` interaction fails - handler not registered
-- [ ] **Embed Character Limit**: Memory detail view exceeds Discord's 4096 char limit for long memories
-
-See [TECH_DEBT.md](docs/proposals/active/TECH_DEBT.md) for details.
-
-**Phase 3 (Incognito Mode) - NEXT:**
+**Phase 3 (Incognito Mode) - COMPLETE** (PR #479):
 
 Incognito Mode temporarily disables LTM **writing** (new memories not saved). Distinct from Focus Mode which disables **reading**.
 
-| Subcommand                  | Description                                       | Status      |
-| --------------------------- | ------------------------------------------------- | ----------- |
-| `/memory incognito enable`  | Start incognito session (30m/1h/4h/until disable) | Not started |
-| `/memory incognito disable` | End incognito session                             | Not started |
-| `/memory incognito status`  | Check current state and time remaining            | Not started |
-| `/memory incognito forget`  | Retroactively delete memories from timeframe      | Not started |
-| Visual indicator            | 👻 in responses when active                       | Not started |
-| Storage bypass              | Skip memory creation when incognito               | Not started |
+- [x] `/memory incognito enable` - Start incognito session (30m/1h/4h/until disable)
+- [x] `/memory incognito disable` - End incognito session
+- [x] `/memory incognito status` - Check current state and time remaining
+- [x] `/memory incognito forget` - Retroactively delete memories from timeframe
+- [x] Visual indicator - 👻 in responses when active
+- [x] Storage bypass - Skip memory creation when incognito
+- [x] Fail-open design - Redis errors don't block normal memory storage
+- [x] Dual-key pattern - Per-personality or global "all" sessions
+- [x] Comprehensive test coverage (54+ new tests)
 
 **Architecture**:
 
 - **Session storage**: Redis with TTL (ephemeral by design)
 - **Key pattern**: `incognito:${userId}:${personalityId}` or `incognito:${userId}:all`
 - **Duration options**: 30m, 1h, 4h, or until manual disable
-
-**Files to Create**:
-
-- `api-gateway/services/IncognitoSessionManager.ts` - Redis session management
-- `api-gateway/routes/user/memoryIncognito.ts` - API routes
-- `common-types/types/incognito.ts` - Shared types
-- `bot-client/commands/memory/incognito.ts` - Discord commands
-
-**Files to Modify**:
-
-- `ai-worker/services/MemoryStorageService.ts` - Check incognito before storing
-- `bot-client/services/DiscordResponseSender.ts` - Add 👻 indicator
 
 **Phase 4 (Polish) - LATER:**
 
@@ -180,10 +160,11 @@ Key areas remaining:
 | --- | --------------------------------- | ------------------------------------------------------- |
 | 1   | ~~Quick Wins~~ ✅                 | Drop BotSettings, rename `/me model` → `/me preset`     |
 | 2   | ~~Memory Management Phase 2~~ ✅  | LTM commands + Read Toggle ("Focus Mode")               |
-| 3   | **Channel Allowlist/Denylist** ⬅️ | User-requested - prevents unwanted channel responses    |
-| 4   | **Dashboard + User Prompts**      | Session manager, preset editing, sidecar system prompts |
-| 5   | **DM Personality Chat**           | User-requested - chat with personalities in DMs         |
-| 6   | **v2 Parity** (deprioritized)     | NSFW verification, Shapes import                        |
+| 3   | ~~Memory Management Phase 3~~ ✅  | Incognito Mode (disable LTM writing)                    |
+| 4   | **Channel Allowlist/Denylist** ⬅️ | User-requested - prevents unwanted channel responses    |
+| 5   | **Dashboard + User Prompts**      | Session manager, preset editing, sidecar system prompts |
+| 6   | **DM Personality Chat**           | User-requested - chat with personalities in DMs         |
+| 7   | **v2 Parity** (deprioritized)     | NSFW verification, Shapes import                        |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
@@ -191,6 +172,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.43**: Memory Phase 3 (Incognito Mode) complete - `/memory incognito enable/disable/status/forget`, 👻 visual indicator, fail-open Redis design, dual-key pattern (per-personality or global), retroactive forget with locked memory protection
 - **Upcoming**: Swiss Cheese duplicate detection (4 layers: hash → Jaccard → bigram → semantic embedding), escalating retry strategy (temp 1.1, freq penalty, history reduction), local embedding service (bge-small-en-v1.5 via Worker Thread)
 - **beta.41**: Memory management Phase 2 complete - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, `/memory delete` (batch), `/memory purge` (typed confirmation), Focus Mode with visual indicator
 - **beta.40**: Enhanced duplicate detection diagnostics (near-miss logging, similarity metrics, hash tracking), integration test for full duplicate detection data flow, Persona resolver improvements
