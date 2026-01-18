@@ -28,6 +28,7 @@ import type {
   ButtonInteraction,
 } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
+import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 // Profile subcommand handlers
 import { handleViewPersona, handleExpandContent } from './profile/view.js';
@@ -53,171 +54,6 @@ import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocom
 import { MeCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('me-command');
-
-/**
- * Slash command definition
- */
-export const data = new SlashCommandBuilder()
-  .setName('me')
-  .setDescription('Manage your personal settings and profile')
-  .addSubcommandGroup(group =>
-    group
-      .setName('profile')
-      .setDescription('Manage your profiles')
-      .addSubcommand(subcommand =>
-        subcommand.setName('view').setDescription('View your current profile')
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('edit')
-          .setDescription('Edit a profile (default: your default profile)')
-          .addStringOption(option =>
-            option
-              .setName('profile')
-              .setDescription('Which profile to edit (optional, defaults to your default)')
-              .setRequired(false)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand.setName('create').setDescription('Create a new profile')
-      )
-      .addSubcommand(subcommand =>
-        subcommand.setName('list').setDescription('List all your profiles')
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('default')
-          .setDescription('Set a profile as your default')
-          .addStringOption(option =>
-            option
-              .setName('profile')
-              .setDescription('The profile to set as default')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('share-ltm')
-          .setDescription('Enable/disable sharing memories across all personalities')
-          .addStringOption(option =>
-            option
-              .setName('enabled')
-              .setDescription('Enable or disable LTM sharing')
-              .setRequired(true)
-              .addChoices(
-                { name: 'Enable - Share memories with all personalities', value: 'enable' },
-                { name: 'Disable - Keep memories per personality (default)', value: 'disable' }
-              )
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('override-set')
-          .setDescription('Set a different profile for a specific personality')
-          .addStringOption(option =>
-            option
-              .setName('personality')
-              .setDescription('The personality to override')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-          .addStringOption(option =>
-            option
-              .setName('profile')
-              .setDescription('The profile to use (or create new)')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('override-clear')
-          .setDescription('Clear profile override for a specific personality')
-          .addStringOption(option =>
-            option
-              .setName('personality')
-              .setDescription('The personality to clear override for')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-  )
-  .addSubcommandGroup(group =>
-    group
-      .setName('timezone')
-      .setDescription('Manage your timezone')
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('set')
-          .setDescription('Set your timezone')
-          .addStringOption(option =>
-            option
-              .setName('timezone')
-              .setDescription('Your timezone (e.g., America/New_York)')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand.setName('get').setDescription('Show your current timezone')
-      )
-  )
-  .addSubcommandGroup(group =>
-    group
-      .setName('preset')
-      .setDescription('Choose which preset a personality uses for you')
-      .addSubcommand(subcommand =>
-        subcommand.setName('list').setDescription('Show your preset overrides')
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('set')
-          .setDescription('Override preset for a personality')
-          .addStringOption(option =>
-            option
-              .setName('personality')
-              .setDescription('The personality to override')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-          .addStringOption(option =>
-            option
-              .setName('preset')
-              .setDescription('The preset to use')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('reset')
-          .setDescription('Remove preset override for a personality')
-          .addStringOption(option =>
-            option
-              .setName('personality')
-              .setDescription('The personality to reset')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand
-          .setName('default')
-          .setDescription('Set your global default preset')
-          .addStringOption(option =>
-            option
-              .setName('preset')
-              .setDescription('The preset to use as default')
-              .setRequired(true)
-              .setAutocomplete(true)
-          )
-      )
-      .addSubcommand(subcommand =>
-        subcommand.setName('clear-default').setDescription('Clear your global default preset')
-      )
-  );
 
 /**
  * Profile subcommand router
@@ -264,42 +100,7 @@ const presetRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-export async function execute(
-  interaction: ChatInputCommandInteraction | ModalSubmitInteraction
-): Promise<void> {
-  // Handle modal submissions
-  if (interaction.isModalSubmit()) {
-    const customId = interaction.customId;
-
-    // Parse using centralized customId utilities
-    const parsed = MeCustomIds.parse(customId);
-    if (parsed === null) {
-      logger.warn({ customId }, '[Me] Unknown modal customId');
-      return;
-    }
-
-    if (parsed.group === 'profile') {
-      if (parsed.action === 'create') {
-        // Create new profile modal
-        await handleCreateModalSubmit(interaction);
-      } else if (parsed.action === 'edit') {
-        // Edit profile modal - entityId is personaId or 'new'
-        const personaId = parsed.entityId ?? 'new';
-        await handleEditModalSubmit(interaction, personaId);
-      } else {
-        logger.warn({ customId, parsed }, '[Me] Unknown profile action');
-      }
-    } else if (parsed.group === 'override') {
-      if (parsed.action === 'create' && parsed.entityId !== undefined) {
-        // Create profile for override - entityId is personalityId
-        await handleOverrideCreateModalSubmit(interaction, parsed.entityId);
-      } else {
-        logger.warn({ customId, parsed }, '[Me] Unknown override action');
-      }
-    }
-    return;
-  }
-
+async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const group = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
 
@@ -326,9 +127,43 @@ export async function execute(
 }
 
 /**
+ * Handle modal submissions for me command
+ */
+async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+  const customId = interaction.customId;
+
+  // Parse using centralized customId utilities
+  const parsed = MeCustomIds.parse(customId);
+  if (parsed === null) {
+    logger.warn({ customId }, '[Me] Unknown modal customId');
+    return;
+  }
+
+  if (parsed.group === 'profile') {
+    if (parsed.action === 'create') {
+      // Create new profile modal
+      await handleCreateModalSubmit(interaction);
+    } else if (parsed.action === 'edit') {
+      // Edit profile modal - entityId is personaId or 'new'
+      const personaId = parsed.entityId ?? 'new';
+      await handleEditModalSubmit(interaction, personaId);
+    } else {
+      logger.warn({ customId, parsed }, '[Me] Unknown profile action');
+    }
+  } else if (parsed.group === 'override') {
+    if (parsed.action === 'create' && parsed.entityId !== undefined) {
+      // Create profile for override - entityId is personalityId
+      await handleOverrideCreateModalSubmit(interaction, parsed.entityId);
+    } else {
+      logger.warn({ customId, parsed }, '[Me] Unknown override action');
+    }
+  }
+}
+
+/**
  * Autocomplete handler for personality, persona, and timezone options
  */
-export async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
+async function autocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);
   const subcommandGroup = interaction.options.getSubcommandGroup();
   const subcommand = interaction.options.getSubcommand();
@@ -375,7 +210,7 @@ export async function autocomplete(interaction: AutocompleteInteraction): Promis
 /**
  * Handle button interactions for the me command
  */
-export async function handleButton(interaction: ButtonInteraction): Promise<void> {
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
   const parsed = MeCustomIds.parse(customId);
 
@@ -396,6 +231,173 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 }
 
 /**
- * Category for this command
+ * Export command definition using defineCommand for type safety
+ * Category is injected by CommandHandler based on folder structure
  */
-export const category = 'Me';
+export default defineCommand({
+  data: new SlashCommandBuilder()
+    .setName('me')
+    .setDescription('Manage your personal settings and profile')
+    .addSubcommandGroup(group =>
+      group
+        .setName('profile')
+        .setDescription('Manage your profiles')
+        .addSubcommand(subcommand =>
+          subcommand.setName('view').setDescription('View your current profile')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('edit')
+            .setDescription('Edit a profile (default: your default profile)')
+            .addStringOption(option =>
+              option
+                .setName('profile')
+                .setDescription('Which profile to edit (optional, defaults to your default)')
+                .setRequired(false)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand.setName('create').setDescription('Create a new profile')
+        )
+        .addSubcommand(subcommand =>
+          subcommand.setName('list').setDescription('List all your profiles')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('default')
+            .setDescription('Set a profile as your default')
+            .addStringOption(option =>
+              option
+                .setName('profile')
+                .setDescription('The profile to set as default')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('share-ltm')
+            .setDescription('Enable/disable sharing memories across all personalities')
+            .addStringOption(option =>
+              option
+                .setName('enabled')
+                .setDescription('Enable or disable LTM sharing')
+                .setRequired(true)
+                .addChoices(
+                  { name: 'Enable - Share memories with all personalities', value: 'enable' },
+                  { name: 'Disable - Keep memories per personality (default)', value: 'disable' }
+                )
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('override-set')
+            .setDescription('Set a different profile for a specific personality')
+            .addStringOption(option =>
+              option
+                .setName('personality')
+                .setDescription('The personality to override')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('profile')
+                .setDescription('The profile to use (or create new)')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('override-clear')
+            .setDescription('Clear profile override for a specific personality')
+            .addStringOption(option =>
+              option
+                .setName('personality')
+                .setDescription('The personality to clear override for')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+    )
+    .addSubcommandGroup(group =>
+      group
+        .setName('timezone')
+        .setDescription('Manage your timezone')
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription('Set your timezone')
+            .addStringOption(option =>
+              option
+                .setName('timezone')
+                .setDescription('Your timezone (e.g., America/New_York)')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand.setName('get').setDescription('Show your current timezone')
+        )
+    )
+    .addSubcommandGroup(group =>
+      group
+        .setName('preset')
+        .setDescription('Choose which preset a personality uses for you')
+        .addSubcommand(subcommand =>
+          subcommand.setName('list').setDescription('Show your preset overrides')
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('set')
+            .setDescription('Override preset for a personality')
+            .addStringOption(option =>
+              option
+                .setName('personality')
+                .setDescription('The personality to override')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+            .addStringOption(option =>
+              option
+                .setName('preset')
+                .setDescription('The preset to use')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('reset')
+            .setDescription('Remove preset override for a personality')
+            .addStringOption(option =>
+              option
+                .setName('personality')
+                .setDescription('The personality to reset')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand
+            .setName('default')
+            .setDescription('Set your global default preset')
+            .addStringOption(option =>
+              option
+                .setName('preset')
+                .setDescription('The preset to use as default')
+                .setRequired(true)
+                .setAutocomplete(true)
+            )
+        )
+        .addSubcommand(subcommand =>
+          subcommand.setName('clear-default').setDescription('Clear your global default preset')
+        )
+    ),
+  execute,
+  autocomplete,
+  handleModal,
+  handleButton,
+});

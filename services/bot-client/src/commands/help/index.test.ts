@@ -7,7 +7,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { EmbedBuilder } from 'discord.js';
-import { execute, data } from './index.js';
+import helpCommand from './index.js';
+
+// Destructure from default export
+const { execute, data } = helpCommand;
 import type { Command } from '../../types.js';
 
 // Mock common-types
@@ -54,15 +57,6 @@ describe('Help Command', () => {
   });
 
   describe('execute', () => {
-    function createMockInteraction(commandOption: string | null = null) {
-      return {
-        options: {
-          getString: vi.fn(() => commandOption),
-        },
-        editReply: mockEditReply,
-      } as unknown as Parameters<typeof execute>[0];
-    }
-
     function createMockCommands(): Map<string, Command> {
       const commands = new Map<string, Command>();
 
@@ -101,10 +95,25 @@ describe('Help Command', () => {
       return commands;
     }
 
-    it('should show error when commands not provided', async () => {
-      const interaction = createMockInteraction();
+    function createMockInteraction(
+      commandOption: string | null = null,
+      commands?: Map<string, Command>
+    ) {
+      return {
+        options: {
+          getString: vi.fn(() => commandOption),
+        },
+        editReply: mockEditReply,
+        client: {
+          commands: commands,
+        },
+      } as unknown as Parameters<typeof execute>[0];
+    }
 
-      await execute(interaction, undefined);
+    it('should show error when commands not provided', async () => {
+      const interaction = createMockInteraction(null, undefined);
+
+      await execute(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Unable to load commands'),
@@ -112,10 +121,10 @@ describe('Help Command', () => {
     });
 
     it('should show all commands when no specific command requested', async () => {
-      const interaction = createMockInteraction(null);
       const commands = createMockCommands();
+      const interaction = createMockInteraction(null, commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -131,10 +140,10 @@ describe('Help Command', () => {
     });
 
     it('should show command details when specific command requested', async () => {
-      const interaction = createMockInteraction('character');
       const commands = createMockCommands();
+      const interaction = createMockInteraction('character', commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -149,10 +158,10 @@ describe('Help Command', () => {
     });
 
     it('should show error for unknown command', async () => {
-      const interaction = createMockInteraction('nonexistent');
       const commands = createMockCommands();
+      const interaction = createMockInteraction('nonexistent', commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Unknown command'),
@@ -160,10 +169,10 @@ describe('Help Command', () => {
     });
 
     it('should include subcommand count hints', async () => {
-      const interaction = createMockInteraction(null);
       const commands = createMockCommands();
+      const interaction = createMockInteraction(null, commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
@@ -176,10 +185,10 @@ describe('Help Command', () => {
     });
 
     it('should include personality interaction info with configured mention char', async () => {
-      const interaction = createMockInteraction(null);
       const commands = createMockCommands();
+      const interaction = createMockInteraction(null, commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
@@ -192,10 +201,10 @@ describe('Help Command', () => {
     });
 
     it('should include /character chat reference in personality interactions', async () => {
-      const interaction = createMockInteraction(null);
       const commands = createMockCommands();
+      const interaction = createMockInteraction(null, commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
@@ -210,10 +219,10 @@ describe('Help Command', () => {
       // Change mention char to dev mode
       mockConfig.BOT_MENTION_CHAR = '&';
 
-      const interaction = createMockInteraction(null);
       const commands = createMockCommands();
+      const interaction = createMockInteraction(null, commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();
@@ -228,10 +237,10 @@ describe('Help Command', () => {
     });
 
     it('should sort categories by configured order', async () => {
-      const interaction = createMockInteraction(null);
       const commands = createMockCommands();
+      const interaction = createMockInteraction(null, commands);
 
-      await execute(interaction, commands);
+      await execute(interaction);
 
       const embed = mockEditReply.mock.calls[0][0].embeds[0];
       const json = embed.toJSON();

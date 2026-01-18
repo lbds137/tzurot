@@ -4,7 +4,10 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import { data, execute } from './index.js';
+import presetCommand from './index.js';
+
+// Destructure from default export
+const { data, execute } = presetCommand;
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {

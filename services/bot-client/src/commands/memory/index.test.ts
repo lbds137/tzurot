@@ -4,16 +4,18 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
-import {
+import memoryCommand from './index.js';
+
+// Destructure from default export
+const {
   data,
   execute,
   autocomplete,
-  category,
   handleButton,
-  handleModalSubmit,
+  handleModal,
   handleSelectMenu,
   componentPrefixes,
-} from './index.js';
+} = memoryCommand;
 import type {
   ChatInputCommandInteraction,
   AutocompleteInteraction,
@@ -287,11 +289,8 @@ describe('Memory Command', () => {
     });
   });
 
-  describe('category', () => {
-    it('should be Memory', () => {
-      expect(category).toBe('Memory');
-    });
-  });
+  // Note: category is now injected by CommandHandler based on folder structure
+  // It's no longer exported from the command module itself
 
   describe('componentPrefixes', () => {
     it('should include list and search pagination prefixes', () => {
@@ -442,7 +441,7 @@ describe('Memory Command', () => {
     });
   });
 
-  describe('handleModalSubmit', () => {
+  describe('handleModal', () => {
     function createMockModalSubmitInteraction(customId: string): ModalSubmitInteraction {
       return {
         customId,
@@ -452,7 +451,7 @@ describe('Memory Command', () => {
     it('should route edit modal to handleEditModalSubmit', async () => {
       const interaction = createMockModalSubmitInteraction('mem-detail:edit:memory-123');
 
-      await handleModalSubmit(interaction);
+      await handleModal(interaction);
 
       expect(mockHandleEditModalSubmit).toHaveBeenCalledWith(interaction, 'memory-123');
     });
@@ -460,7 +459,7 @@ describe('Memory Command', () => {
     it('should ignore non-edit modal actions', async () => {
       const interaction = createMockModalSubmitInteraction('mem-detail:other:memory-123');
 
-      await handleModalSubmit(interaction);
+      await handleModal(interaction);
 
       expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
     });
@@ -468,7 +467,7 @@ describe('Memory Command', () => {
     it('should ignore modals with unrecognized prefix', async () => {
       const interaction = createMockModalSubmitInteraction('unknown:edit:memory-123');
 
-      await handleModalSubmit(interaction);
+      await handleModal(interaction);
 
       expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
     });
@@ -476,7 +475,7 @@ describe('Memory Command', () => {
     it('should not call handler when memoryId is undefined', async () => {
       const interaction = createMockModalSubmitInteraction('mem-detail:edit:');
 
-      await handleModalSubmit(interaction);
+      await handleModal(interaction);
 
       expect(mockHandleEditModalSubmit).not.toHaveBeenCalled();
     });

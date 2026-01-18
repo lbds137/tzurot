@@ -45,7 +45,10 @@ vi.mock('./modal.js', () => ({
   handleWalletModalSubmit: vi.fn(),
 }));
 
-import { data, execute } from './index.js';
+import walletCommand from './index.js';
+
+// Destructure from default export
+const { data, execute, handleModal } = walletCommand;
 import { handleSetKey } from './set.js';
 import { handleListKeys } from './list.js';
 import { handleRemoveKey } from './remove.js';
@@ -106,21 +109,21 @@ describe('Wallet Command', () => {
     });
   });
 
-  describe('execute', () => {
+  describe('handleModal', () => {
     it('should route modal submissions to handleWalletModalSubmit', async () => {
       const mockModalInteraction = {
-        isModalSubmit: () => true,
         customId: 'wallet::set::openrouter',
       } as unknown as ModalSubmitInteraction;
 
-      await execute(mockModalInteraction);
+      await handleModal(mockModalInteraction);
 
       expect(handleWalletModalSubmit).toHaveBeenCalledWith(mockModalInteraction);
     });
+  });
 
+  describe('execute', () => {
     it('should route set subcommand to handleSetKey', async () => {
       const mockInteraction = {
-        isModalSubmit: () => false,
         options: {
           getSubcommand: () => 'set',
         },
@@ -134,7 +137,6 @@ describe('Wallet Command', () => {
 
     it('should route list subcommand to handleListKeys', async () => {
       const mockInteraction = {
-        isModalSubmit: () => false,
         options: {
           getSubcommand: () => 'list',
         },
@@ -148,7 +150,6 @@ describe('Wallet Command', () => {
 
     it('should route remove subcommand to handleRemoveKey', async () => {
       const mockInteraction = {
-        isModalSubmit: () => false,
         options: {
           getSubcommand: () => 'remove',
         },
@@ -162,7 +163,6 @@ describe('Wallet Command', () => {
 
     it('should route test subcommand to handleTestKey', async () => {
       const mockInteraction = {
-        isModalSubmit: () => false,
         options: {
           getSubcommand: () => 'test',
         },
@@ -177,7 +177,6 @@ describe('Wallet Command', () => {
     it('should reply with error for unknown subcommand', async () => {
       const mockReply = vi.fn();
       const mockInteraction = {
-        isModalSubmit: () => false,
         options: {
           getSubcommand: () => 'unknown',
         },
