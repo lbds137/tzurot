@@ -51,6 +51,29 @@ export class IncognitoSessionManager {
   constructor(private redis: Redis) {}
 
   /**
+   * Scan for keys matching a pattern without blocking Redis
+   *
+   * Unlike KEYS which blocks the server, SCAN uses a cursor to iterate
+   * incrementally. Each iteration only blocks for a few milliseconds.
+   *
+   * @param pattern - Redis key pattern (e.g., "incognito:123:*")
+   * @returns Array of matching keys
+   */
+  private async scanKeys(pattern: string): Promise<string[]> {
+    const keys: string[] = [];
+    let cursor = '0';
+
+    do {
+      // SCAN returns [nextCursor, keys[]]
+      const [nextCursor, batch] = await this.redis.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+      keys.push(...batch);
+    } while (cursor !== '0');
+
+    return keys;
+  }
+
+  /**
    * Enable incognito mode for a user/personality combination
    *
    * @param userId - Discord user ID (or internal user ID)
@@ -139,6 +162,21 @@ export class IncognitoSessionManager {
     try {
       const parsed = JSON.parse(data) as unknown;
       const validated = IncognitoSessionSchema.parse(parsed);
+
+      // Check if session has expired (provides strict correctness beyond Redis TTL)
+      // This handles the rare case where a read happens right after expiry but before TTL cleanup
+      if (validated.expiresAt !== null) {
+        const expiresAt = new Date(validated.expiresAt);
+        if (expiresAt.getTime() <= Date.now()) {
+          logger.debug(
+            { key, expiresAt: validated.expiresAt },
+            '[Incognito] Session expired - cleaning up'
+          );
+          await this.redis.del(key);
+          return null;
+        }
+      }
+
       return validated;
     } catch (error) {
       logger.warn({ error, key }, '[Incognito] Failed to parse session data');
@@ -192,7 +230,7 @@ export class IncognitoSessionManager {
    */
   async getStatus(userId: string): Promise<IncognitoStatusResponse> {
     const pattern = `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:*`;
-    const keys = await this.redis.keys(pattern);
+    const keys = await this.scanKeys(pattern);
 
     if (keys.length === 0) {
       return { active: false, sessions: [] };
@@ -229,7 +267,7 @@ export class IncognitoSessionManager {
    */
   async disableAll(userId: string): Promise<number> {
     const pattern = `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:*`;
-    const keys = await this.redis.keys(pattern);
+    const keys = await this.scanKeys(pattern);
 
     if (keys.length === 0) {
       return 0;

@@ -307,7 +307,7 @@ async function handleForget(
     whereClause.personalityId = personalityId;
   }
 
-  // Get affected personality names before deleting
+  // Get affected personality names before deleting (bounded to avoid memory issues)
   const affectedMemories = await prisma.memory.findMany({
     where: whereClause,
     select: {
@@ -315,6 +315,7 @@ async function handleForget(
       personality: { select: { name: true } },
     },
     distinct: ['personalityId'],
+    take: 50, // A user won't have memories for more than 50 personalities in a short window
   });
 
   const personalityNames = affectedMemories.map(m => m.personality.name);
