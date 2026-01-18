@@ -120,6 +120,8 @@ export interface RAGResponse {
   userMessageContent?: string;
   /** Whether focus mode was active (LTM retrieval was skipped) */
   focusModeEnabled?: boolean;
+  /** Whether incognito mode was active (LTM storage was skipped) */
+  incognitoModeActive?: boolean;
 }
 
 /** Result of processing input attachments and messages */

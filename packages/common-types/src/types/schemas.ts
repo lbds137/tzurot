@@ -351,6 +351,8 @@ export const generationPayloadSchema = z.object({
       crossTurnDuplicateDetected: z.boolean().optional(),
       /** Whether focus mode was active (LTM retrieval skipped) */
       focusModeEnabled: z.boolean().optional(),
+      /** Whether incognito mode was active (LTM storage skipped) */
+      incognitoModeActive: z.boolean().optional(),
       /** Pipeline step that failed (only set on error) */
       failedStep: z.string().optional(),
       /** Last successfully completed pipeline step (only set on error) */

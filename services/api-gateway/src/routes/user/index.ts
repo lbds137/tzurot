@@ -44,6 +44,7 @@
  */
 
 import { Router } from 'express';
+import type { Redis } from 'ioredis';
 import type {
   PrismaClient,
   LlmConfigCacheInvalidationService,
@@ -64,11 +65,13 @@ import { createMemoryRoutes } from './memory.js';
  * @param prisma - Prisma client instance
  * @param llmConfigCacheInvalidation - Optional cache invalidation service for LLM configs
  * @param cacheInvalidationService - Optional cache invalidation service for personality changes
+ * @param redis - Optional Redis client for incognito mode session management
  */
 export function createUserRouter(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  cacheInvalidationService?: CacheInvalidationService
+  cacheInvalidationService?: CacheInvalidationService,
+  redis?: Redis
 ): Router {
   const router = Router();
 
@@ -96,8 +99,8 @@ export function createUserRouter(
   // Channel activation routes (auto-respond to all messages in a channel)
   router.use('/channel', createChannelRoutes(prisma));
 
-  // Memory routes (LTM management - stats, focus mode, search, browse)
-  router.use('/memory', createMemoryRoutes(prisma));
+  // Memory routes (LTM management - stats, focus mode, search, browse, incognito)
+  router.use('/memory', createMemoryRoutes(prisma, redis));
 
   return router;
 }
