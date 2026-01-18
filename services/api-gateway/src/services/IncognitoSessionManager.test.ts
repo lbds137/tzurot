@@ -16,7 +16,8 @@ function createMockRedis(): Redis {
     set: vi.fn().mockResolvedValue('OK'),
     get: vi.fn().mockResolvedValue(null),
     del: vi.fn().mockResolvedValue(1),
-    keys: vi.fn().mockResolvedValue([]),
+    // SCAN returns [cursor, keys[]] - cursor '0' means done
+    scan: vi.fn().mockResolvedValue(['0', []]),
     mget: vi.fn().mockResolvedValue([]),
   } as unknown as Redis;
 }
@@ -105,12 +106,12 @@ describe('IncognitoSessionManager', () => {
   });
 
   describe('getSession', () => {
-    it('returns parsed session if exists', async () => {
+    it('returns parsed session if exists and not expired', async () => {
       const storedSession: IncognitoSession = {
         userId: 'user123',
         personalityId: 'personality456',
         enabledAt: '2026-01-15T11:00:00.000Z',
-        expiresAt: '2026-01-15T12:00:00.000Z',
+        expiresAt: '2026-01-15T13:00:00.000Z', // 1 hour after current time (12:00)
         duration: '1h',
       };
       vi.mocked(redis.get).mockResolvedValue(JSON.stringify(storedSession));
@@ -144,6 +145,40 @@ describe('IncognitoSessionManager', () => {
 
       expect(session).toBeNull();
       expect(redis.del).toHaveBeenCalled();
+    });
+
+    it('deletes and returns null for expired session', async () => {
+      // Session that has already expired (expiresAt is in the past)
+      const expiredSession: IncognitoSession = {
+        userId: 'user123',
+        personalityId: 'personality456',
+        enabledAt: '2026-01-15T10:00:00.000Z',
+        expiresAt: '2026-01-15T11:00:00.000Z', // 1 hour before current time (12:00)
+        duration: '1h',
+      };
+      vi.mocked(redis.get).mockResolvedValue(JSON.stringify(expiredSession));
+
+      const session = await manager.getSession('user123', 'personality456');
+
+      expect(session).toBeNull();
+      expect(redis.del).toHaveBeenCalled();
+    });
+
+    it('returns session if not yet expired', async () => {
+      // Session that expires in the future
+      const validSession: IncognitoSession = {
+        userId: 'user123',
+        personalityId: 'personality456',
+        enabledAt: '2026-01-15T11:00:00.000Z',
+        expiresAt: '2026-01-15T13:00:00.000Z', // 1 hour after current time (12:00)
+        duration: '1h',
+      };
+      vi.mocked(redis.get).mockResolvedValue(JSON.stringify(validSession));
+
+      const session = await manager.getSession('user123', 'personality456');
+
+      expect(session).toEqual(validSession);
+      expect(redis.del).not.toHaveBeenCalled();
     });
   });
 
@@ -277,9 +312,10 @@ describe('IncognitoSessionManager', () => {
         duration: '4h',
       };
 
-      vi.mocked(redis.keys).mockResolvedValue([
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`,
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`,
+      // SCAN returns [cursor, keys[]] - cursor '0' means done
+      vi.mocked(redis.scan).mockResolvedValue([
+        '0',
+        [`${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`, `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`],
       ]);
 
       vi.mocked(redis.mget).mockResolvedValue([JSON.stringify(session1), JSON.stringify(session2)]);
@@ -293,7 +329,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns inactive status when no sessions exist', async () => {
-      vi.mocked(redis.keys).mockResolvedValue([]);
+      vi.mocked(redis.scan).mockResolvedValue(['0', []]);
 
       const status = await manager.getStatus('user123');
 
@@ -302,9 +338,9 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('skips invalid session data', async () => {
-      vi.mocked(redis.keys).mockResolvedValue([
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`,
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`,
+      vi.mocked(redis.scan).mockResolvedValue([
+        '0',
+        [`${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`, `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`],
       ]);
 
       vi.mocked(redis.mget).mockResolvedValue([
@@ -323,14 +359,48 @@ describe('IncognitoSessionManager', () => {
       expect(status.sessions).toHaveLength(1);
       expect(status.sessions[0].personalityId).toBe('p2');
     });
+
+    it('iterates through multiple SCAN batches', async () => {
+      const session1: IncognitoSession = {
+        userId: 'user123',
+        personalityId: 'p1',
+        enabledAt: '2026-01-15T11:00:00.000Z',
+        expiresAt: '2026-01-15T12:00:00.000Z',
+        duration: '1h',
+      };
+
+      const session2: IncognitoSession = {
+        userId: 'user123',
+        personalityId: 'p2',
+        enabledAt: '2026-01-15T11:30:00.000Z',
+        expiresAt: null,
+        duration: 'forever',
+      };
+
+      // Simulate SCAN returning results across multiple iterations
+      vi.mocked(redis.scan)
+        .mockResolvedValueOnce(['42', [`${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`]])
+        .mockResolvedValueOnce(['0', [`${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`]]);
+
+      vi.mocked(redis.mget).mockResolvedValue([JSON.stringify(session1), JSON.stringify(session2)]);
+
+      const status = await manager.getStatus('user123');
+
+      expect(redis.scan).toHaveBeenCalledTimes(2);
+      expect(status.active).toBe(true);
+      expect(status.sessions).toHaveLength(2);
+    });
   });
 
   describe('disableAll', () => {
     it('deletes all sessions for a user', async () => {
-      vi.mocked(redis.keys).mockResolvedValue([
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`,
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`,
-        `${REDIS_KEY_PREFIXES.INCOGNITO}user123:all`,
+      vi.mocked(redis.scan).mockResolvedValue([
+        '0',
+        [
+          `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p1`,
+          `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p2`,
+          `${REDIS_KEY_PREFIXES.INCOGNITO}user123:all`,
+        ],
       ]);
       vi.mocked(redis.del).mockResolvedValue(3);
 
@@ -345,7 +415,7 @@ describe('IncognitoSessionManager', () => {
     });
 
     it('returns 0 when no sessions exist', async () => {
-      vi.mocked(redis.keys).mockResolvedValue([]);
+      vi.mocked(redis.scan).mockResolvedValue(['0', []]);
 
       const count = await manager.disableAll('user123');
 
