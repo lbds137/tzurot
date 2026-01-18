@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
 > **Last Updated**: 2026-01-17
-> **Current Version**: v3.0.0-beta.42
+> **Current Version**: v3.0.0-beta.43
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -25,7 +25,7 @@
   - Renamed `set-default` → `default` for consistency
   - Updated help text and documentation
 
-### 2. Memory Management Commands (Phase 3 - Incognito) ⬅️ CURRENT
+### ~~2. Memory Management Commands (Phase 3 - Incognito)~~ ✅ COMPLETE (PR #479)
 
 **Why**: User-requested, high retention value. Incognito Mode = disable LTM **writing** (memories not saved).
 
@@ -47,28 +47,23 @@
 - [x] `/memory focus` - Focus Mode (disable LTM **reading**)
 - [x] Focus Mode RAG skip and visual indicator (`🔒 Focus Mode`)
 
-**Phase 3 - Incognito Mode (NEXT):**
+**Phase 3 - Incognito Mode (COMPLETE - PR #479):**
 
-Two bugs to fix first (see TECH_DEBT.md):
-
-- [ ] Missing select menu handler for `memory-detail::select`
-- [ ] Embed character limit exceeded for long memories
-
-Then Incognito Mode:
-
-- [ ] Redis-based incognito session manager
-- [ ] `/memory incognito enable` with duration options (30m/1h/4h/until disable)
-- [ ] `/memory incognito disable/status`
-- [ ] `/memory incognito forget` - retroactive delete
-- [ ] Storage bypass in ai-worker (skip memory creation when incognito)
-- [ ] Visual indicator in responses (`👻 Incognito Mode`)
+- [x] Redis-based incognito session manager with TTL
+- [x] `/memory incognito enable` with duration options (30m/1h/4h/until disable)
+- [x] `/memory incognito disable/status`
+- [x] `/memory incognito forget` - retroactive delete with locked memory protection
+- [x] Storage bypass in ai-worker (skip memory creation when incognito)
+- [x] Visual indicator in responses (`👻 Incognito Mode`)
+- [x] Fail-open design (Redis errors don't block memory storage)
+- [x] Dual-key pattern (per-personality or global "all" sessions)
 
 **Phase 4 - Polish (LATER):**
 
 - [ ] Date range filtering for `/memory search` and `/memory delete`
 - [ ] Batch operations respect locked memories
 
-### 3. Channel Allowlist/Denylist
+### 3. Channel Allowlist/Denylist ⬅️ CURRENT
 
 **Why**: User-requested. Prevents bot from spamming unwanted channels, reduces server kicks.
 
@@ -171,6 +166,7 @@ Not needed until post-beta when we care about semantic versioning again.
 - **Phase 1**: Gatekeeper / Public Beta Launch (BYOK, `/wallet`, `/preset`, `/me model`, `/me profile`, guest mode, reasoning models)
 - **Memory Management Phase 1**: STM commands (`/history clear/undo/hard-delete/view`)
 - **Memory Management Phase 2**: LTM commands (`/memory list/search/stats/delete/purge/focus`), Focus Mode
+- **Memory Management Phase 3**: Incognito Mode (`/memory incognito enable/disable/status/forget`), 👻 indicator, fail-open design
 
 ---
 
