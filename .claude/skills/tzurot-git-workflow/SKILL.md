@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
-lastUpdated: '2026-01-07'
+lastUpdated: '2026-01-17'
 ---
 
 # Tzurot v3 Git Workflow
@@ -213,38 +213,34 @@ gh pr create --base main --head develop \
 - **tzurot-testing** - Run tests before committing
 - **tzurot-security** - Pre-commit security checks
 
-## GitHub CLI Quirks
+## GitHub CLI Commands
 
-**⚠️ ALWAYS check `docs/reference/GITHUB_CLI_REFERENCE.md` before running `gh` commands!**
+### 🚨 Use `ops gh:*` Commands (Not `gh pr edit`)
 
-### Known Broken Commands
+The `gh pr edit` command is **BROKEN** due to GitHub's "Projects (classic) deprecation" GraphQL error. **ALWAYS use the `ops gh:*` commands instead:**
 
 ```bash
-# ❌ BROKEN - "Projects (classic) deprecation" error
-gh pr edit 123 --body "new body"
-gh pr edit 123 --title "new title"
+# ✅ PREFERRED - Use ops commands
+pnpm ops gh:pr-info 478        # Get PR title, body, state
+pnpm ops gh:pr-reviews 478     # Get all reviews
+pnpm ops gh:pr-comments 478    # Get line-level review comments
+pnpm ops gh:pr-conversation 478 # Get conversation comments
+pnpm ops gh:pr-edit 478 --title "New title"  # Edit PR
+pnpm ops gh:pr-edit 478 --body "New body"
+pnpm ops gh:pr-edit 478 --body-file pr.md    # Body from file
+pnpm ops gh:pr-all 478         # Get everything
 
-# ✅ WORKAROUND - Use REST API directly
-gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="new body"
-gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f title="new title"
-
-# ✅ Multiline body with HEREDOC
-gh api -X PATCH repos/{owner}/{repo}/pulls/123 -f body="$(cat <<'EOF'
-## Summary
-- Changes here
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-EOF
-)"
+# ❌ BROKEN - Do NOT use
+gh pr edit 478 --title "..."   # GraphQL error!
 ```
 
 ### Comment Types
 
 PRs have THREE different comment types with different endpoints:
 
-- **Issue comments** (general): `gh pr view --json comments` or `/issues/{pr}/comments`
-- **Review comments** (line-specific): `/pulls/{pr}/comments`
-- **Reviews** (APPROVE, etc.): `gh pr view --json reviews`
+- **Issue comments** (general): `ops gh:pr-conversation` or `/issues/{pr}/comments`
+- **Review comments** (line-specific): `ops gh:pr-comments` or `/pulls/{pr}/comments`
+- **Reviews** (APPROVE, etc.): `ops gh:pr-reviews`
 
 ## References
 

@@ -1,7 +1,7 @@
 ---
 name: tzurot-tooling
 description: Use when adding CLI commands, dev scripts, or tooling utilities. Covers the ops CLI structure, where scripts belong, and standardized commands for linting/testing.
-lastUpdated: '2026-01-11'
+lastUpdated: '2026-01-17'
 ---
 
 # Tooling & CLI Commands
@@ -44,13 +44,15 @@ packages/tooling/src/
 │   ├── data.ts
 │   ├── db.ts
 │   ├── deploy.ts
-│   └── dev.ts             # Dev workflow commands
+│   ├── dev.ts             # Dev workflow commands
+│   └── gh.ts              # GitHub API commands
 ├── cache/                 # Cache utilities
 ├── data/                  # Data import/export
 ├── db/                    # Database operations
 ├── deployment/            # Railway deployment
 ├── dev/                   # Dev workflow (focus-runner)
 ├── eslint/                # Custom ESLint rules
+├── gh/                    # GitHub API utilities
 └── utils/                 # Shared utilities
 ```
 
@@ -181,6 +183,23 @@ Test examples exist at:
 - `packages/tooling/src/dev/focus-runner.test.ts`
 - `packages/tooling/src/eslint/*.test.ts`
 
+## GitHub Commands Reference
+
+**🚨 Use these instead of `gh pr edit` (which is broken):**
+
+| Command                                    | Description                    |
+| ------------------------------------------ | ------------------------------ |
+| `pnpm ops gh:pr-info <n>`                  | Get PR title, body, state      |
+| `pnpm ops gh:pr-reviews <n>`               | Get all reviews on a PR        |
+| `pnpm ops gh:pr-comments <n>`              | Get line-level review comments |
+| `pnpm ops gh:pr-conversation <n>`          | Get conversation comments      |
+| `pnpm ops gh:pr-edit <n> --title "..."`    | Edit PR title                  |
+| `pnpm ops gh:pr-edit <n> --body "..."`     | Edit PR body                   |
+| `pnpm ops gh:pr-edit <n> --body-file f.md` | Edit PR body from file         |
+| `pnpm ops gh:pr-all <n>`                   | Get all PR info at once        |
+
+These use `gh api` directly, bypassing the broken GraphQL calls.
+
 ## Why This Structure?
 
 1. **Caching** - Turbo caches results; ad-hoc scripts don't
@@ -195,6 +214,7 @@ Test examples exist at:
 - **tzurot-testing** - Test patterns, coverage
 - **tzurot-deployment** - Railway deployment commands
 - **tzurot-db-vector** - Database migration commands
+- **tzurot-git-workflow** - Git operations, PR workflow
 
 ## References
 
