@@ -355,7 +355,8 @@ describe('SettingsModalFactory', () => {
         const result = parseDurationInput('0h');
         expect(result.type).toBe('error');
         if (result.type === 'error') {
-          expect(result.message).toContain('at least 1 minute');
+          // Duration.parse('0h') throws because 0 seconds is invalid
+          expect(result.message).toContain('Invalid duration');
         }
       });
     });
