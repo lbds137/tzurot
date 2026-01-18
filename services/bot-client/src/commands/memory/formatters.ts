@@ -10,6 +10,13 @@ export const COLLECTOR_TIMEOUT_MS = 5 * 60 * 1000;
 export const DEFAULT_MAX_CONTENT_LENGTH = 200;
 
 /**
+ * Discord embed description character limit.
+ * We use 3800 (vs 4096 max) to leave buffer for escapeMarkdown expansion
+ * and to avoid edge cases with multi-byte characters.
+ */
+export const EMBED_DESCRIPTION_SAFE_LIMIT = 3800;
+
+/**
  * Format date for compact list display (short year, no time)
  * Example: "Jan 15, '25"
  */

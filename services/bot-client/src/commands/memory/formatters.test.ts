@@ -10,6 +10,7 @@ import {
   truncateContent,
   COLLECTOR_TIMEOUT_MS,
   DEFAULT_MAX_CONTENT_LENGTH,
+  EMBED_DESCRIPTION_SAFE_LIMIT,
 } from './formatters.js';
 
 describe('Memory Formatters', () => {
@@ -20,6 +21,11 @@ describe('Memory Formatters', () => {
 
     it('should have 200 char default max content length', () => {
       expect(DEFAULT_MAX_CONTENT_LENGTH).toBe(200);
+    });
+
+    it('should have safe embed description limit below Discord max (4096)', () => {
+      expect(EMBED_DESCRIPTION_SAFE_LIMIT).toBe(3800);
+      expect(EMBED_DESCRIPTION_SAFE_LIMIT).toBeLessThan(4096);
     });
   });
 
