@@ -19,6 +19,7 @@ import type {
   AutocompleteInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
@@ -39,6 +40,7 @@ import {
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
+  handleViewFullButton,
 } from './detail.js';
 import { hasActiveCollector } from '../../utils/activeCollectorRegistry.js';
 
@@ -315,6 +317,11 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
         }
       }
       break;
+    case 'view-full':
+      if (memoryId !== undefined) {
+        await handleViewFullButton(interaction, memoryId);
+      }
+      break;
     case 'back':
       // Back button needs to return to list/search - but without collector context,
       // we can only show an expired message
@@ -347,4 +354,36 @@ export async function handleModalSubmit(interaction: ModalSubmitInteraction): Pr
   if (parsed.memoryId !== undefined) {
     await handleEditModalSubmit(interaction, parsed.memoryId);
   }
+}
+
+/**
+ * Handle select menu interactions for memory detail
+ *
+ * Select menus are primarily handled by collectors in list.ts and search.ts.
+ * This handler catches orphaned interactions when:
+ * - The collector has timed out
+ * - The original message no longer has an active collector
+ *
+ * In those cases, we show an "expired" message since we don't have the
+ * necessary context (page, personality filter, search query) to proceed.
+ */
+export async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  const messageId = interaction.message?.id;
+
+  // Check if an active collector is handling this message
+  // If so, ignore - the collector will handle this interaction
+  if (messageId !== undefined && hasActiveCollector(messageId)) {
+    logger.debug(
+      { customId: interaction.customId, messageId },
+      '[Memory] Ignoring select menu - active collector will handle'
+    );
+    return;
+  }
+
+  // No active collector - this interaction is from an expired/orphaned message
+  logger.debug({ customId: interaction.customId }, '[Memory] Handling expired select menu');
+  await interaction.reply({
+    content: '⏰ This interaction has expired. Please run the command again.',
+    flags: MessageFlags.Ephemeral,
+  });
 }

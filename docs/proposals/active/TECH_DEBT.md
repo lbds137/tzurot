@@ -79,34 +79,6 @@ export const DURATION_CHOICES; // Slash command choice builder
 
 ---
 
-### Missing Select Menu Handler for Memory Detail
-
-**Problem**: When using memory detail view, a select menu interaction fails with `[CommandHandler] No select menu handler for command` with customId `memory-detail::select`.
-
-**Current Location**: `services/bot-client/src/commands/memory/` - handler not registered for select menu interactions.
-
-**Solution**: Register the select menu handler in the memory command index or detail module.
-
-**Source**: Discovered 2026-01-17 during embedding migration testing
-
----
-
-### Memory Content Exceeds Discord Embed Limit
-
-**Problem**: Memory detail view tries to display full content in embed, but memories with long referenced quotes exceed Discord's 4096 character limit, causing `s.string().lengthLessThanOrEqual()` validation error.
-
-**Current Location**: Memory detail/search result display code
-
-**Solution Options**:
-
-1. Truncate content with "..." and "[View Full]" button
-2. Use pagination for long content
-3. Send as file attachment for very long memories
-
-**Source**: Discovered 2026-01-17 during embedding migration testing
-
----
-
 ### Date String Validation for Memory Search
 
 **Problem**: `memorySearch.ts:93-97` accepts `dateFrom`/`dateTo` as strings without validation. Invalid date strings (e.g., `"invalid-date"`) cause PostgreSQL errors instead of clean 400 validation errors.
@@ -553,6 +525,16 @@ logger.info({
 - Duplicating identical scripts across all package.json files (maintenance burden)
 - Remembering to run from root instead of filtering
 
+**Related Issue - `lint:errors` Not Available at Package Level**:
+
+Root has `lint:errors` (runs eslint with `--quiet` to show only errors), but individual packages don't. The workaround of passing `-- --quiet` doesn't work:
+
+```bash
+# This fails - "--quiet" interpreted as file pattern
+pnpm --filter @tzurot/bot-client lint -- --quiet
+# Error: No files matching the pattern "--quiet" were found
+```
+
 **Current Impact**: Minor annoyance when testing individual packages.
 
 **Potential Solutions** (from MCP council research):
@@ -566,7 +548,7 @@ logger.info({
 
 **Why low priority**: Workaround exists (run from root), only affects developer convenience.
 
-**Source**: PR #474 discussion (2026-01-17)
+**Source**: PR #474 discussion (2026-01-17), updated 2026-01-17
 
 ---
 
