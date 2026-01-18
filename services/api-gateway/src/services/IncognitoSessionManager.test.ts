@@ -147,37 +147,22 @@ describe('IncognitoSessionManager', () => {
       expect(redis.del).toHaveBeenCalled();
     });
 
-    it('deletes and returns null for expired session', async () => {
-      // Session that has already expired (expiresAt is in the past)
-      const expiredSession: IncognitoSession = {
+    it('trusts Redis TTL for expiration - returns session if key exists', async () => {
+      // Even if expiresAt is in the past, if Redis still has the key, return it
+      // This trusts Redis TTL to handle actual expiration atomically
+      const session: IncognitoSession = {
         userId: 'user123',
         personalityId: 'personality456',
         enabledAt: '2026-01-15T10:00:00.000Z',
-        expiresAt: '2026-01-15T11:00:00.000Z', // 1 hour before current time (12:00)
+        expiresAt: '2026-01-15T11:00:00.000Z', // In the past, but key still exists
         duration: '1h',
       };
-      vi.mocked(redis.get).mockResolvedValue(JSON.stringify(expiredSession));
+      vi.mocked(redis.get).mockResolvedValue(JSON.stringify(session));
 
-      const session = await manager.getSession('user123', 'personality456');
+      const result = await manager.getSession('user123', 'personality456');
 
-      expect(session).toBeNull();
-      expect(redis.del).toHaveBeenCalled();
-    });
-
-    it('returns session if not yet expired', async () => {
-      // Session that expires in the future
-      const validSession: IncognitoSession = {
-        userId: 'user123',
-        personalityId: 'personality456',
-        enabledAt: '2026-01-15T11:00:00.000Z',
-        expiresAt: '2026-01-15T13:00:00.000Z', // 1 hour after current time (12:00)
-        duration: '1h',
-      };
-      vi.mocked(redis.get).mockResolvedValue(JSON.stringify(validSession));
-
-      const session = await manager.getSession('user123', 'personality456');
-
-      expect(session).toEqual(validSession);
+      // We trust Redis TTL - if the key exists, the session is valid
+      expect(result).toEqual(session);
       expect(redis.del).not.toHaveBeenCalled();
     });
   });
@@ -390,6 +375,33 @@ describe('IncognitoSessionManager', () => {
       expect(status.active).toBe(true);
       expect(status.sessions).toHaveLength(2);
     });
+
+    it('limits keys to MAX_SESSIONS_PER_USER to prevent memory issues', async () => {
+      // Create 150 fake keys (exceeds the 100 limit)
+      const manyKeys = Array.from(
+        { length: 150 },
+        (_, i) => `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p${i}`
+      );
+      vi.mocked(redis.scan).mockResolvedValue(['0', manyKeys]);
+
+      // Create matching session data for first 100
+      const sessions = Array.from({ length: 100 }, (_, i) =>
+        JSON.stringify({
+          userId: 'user123',
+          personalityId: `p${i}`,
+          enabledAt: '2026-01-15T11:00:00.000Z',
+          expiresAt: null,
+          duration: 'forever',
+        })
+      );
+      vi.mocked(redis.mget).mockResolvedValue(sessions);
+
+      const status = await manager.getStatus('user123');
+
+      // Should only fetch first 100 keys
+      expect(redis.mget).toHaveBeenCalledWith(manyKeys.slice(0, 100));
+      expect(status.sessions).toHaveLength(100);
+    });
   });
 
   describe('disableAll', () => {
@@ -421,6 +433,22 @@ describe('IncognitoSessionManager', () => {
 
       expect(count).toBe(0);
       expect(redis.del).not.toHaveBeenCalled();
+    });
+
+    it('limits deletion to MAX_SESSIONS_PER_USER to prevent issues', async () => {
+      // Create 150 fake keys (exceeds the 100 limit)
+      const manyKeys = Array.from(
+        { length: 150 },
+        (_, i) => `${REDIS_KEY_PREFIXES.INCOGNITO}user123:p${i}`
+      );
+      vi.mocked(redis.scan).mockResolvedValue(['0', manyKeys]);
+      vi.mocked(redis.del).mockResolvedValue(100);
+
+      const count = await manager.disableAll('user123');
+
+      // Should only delete first 100 keys
+      expect(redis.del).toHaveBeenCalledWith(...manyKeys.slice(0, 100));
+      expect(count).toBe(100);
     });
   });
 

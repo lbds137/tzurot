@@ -161,23 +161,8 @@ export class IncognitoSessionManager {
 
     try {
       const parsed = JSON.parse(data) as unknown;
-      const validated = IncognitoSessionSchema.parse(parsed);
-
-      // Check if session has expired (provides strict correctness beyond Redis TTL)
-      // This handles the rare case where a read happens right after expiry but before TTL cleanup
-      if (validated.expiresAt !== null) {
-        const expiresAt = new Date(validated.expiresAt);
-        if (expiresAt.getTime() <= Date.now()) {
-          logger.debug(
-            { key, expiresAt: validated.expiresAt },
-            '[Incognito] Session expired - cleaning up'
-          );
-          await this.redis.del(key);
-          return null;
-        }
-      }
-
-      return validated;
+      // Trust Redis TTL for expiration - if the key exists, the session is active
+      return IncognitoSessionSchema.parse(parsed);
     } catch (error) {
       logger.warn({ error, key }, '[Incognito] Failed to parse session data');
       // Invalid data - clean it up
@@ -223,6 +208,12 @@ export class IncognitoSessionManager {
   }
 
   /**
+   * Maximum number of sessions to fetch per user (bounded query)
+   * A user realistically has at most a few sessions (specific personalities + 'all')
+   */
+  private static readonly MAX_SESSIONS_PER_USER = 100;
+
+  /**
    * Get all active incognito sessions for a user
    *
    * @param userId - Discord user ID
@@ -230,15 +221,24 @@ export class IncognitoSessionManager {
    */
   async getStatus(userId: string): Promise<IncognitoStatusResponse> {
     const pattern = `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:*`;
-    const keys = await this.scanKeys(pattern);
+    const allKeys = await this.scanKeys(pattern);
 
-    if (keys.length === 0) {
+    if (allKeys.length === 0) {
       return { active: false, sessions: [] };
+    }
+
+    // Bound the query to prevent memory issues from malicious key creation
+    const keys = allKeys.slice(0, IncognitoSessionManager.MAX_SESSIONS_PER_USER);
+    if (allKeys.length > IncognitoSessionManager.MAX_SESSIONS_PER_USER) {
+      logger.warn(
+        { userId, total: allKeys.length, fetched: keys.length },
+        '[Incognito] User has excessive sessions - truncating'
+      );
     }
 
     const sessions: IncognitoSession[] = [];
 
-    // Fetch all sessions in parallel
+    // Fetch sessions in parallel (bounded)
     const values = await this.redis.mget(keys);
 
     for (const value of values) {
@@ -267,10 +267,19 @@ export class IncognitoSessionManager {
    */
   async disableAll(userId: string): Promise<number> {
     const pattern = `${REDIS_KEY_PREFIXES.INCOGNITO}${userId}:*`;
-    const keys = await this.scanKeys(pattern);
+    const allKeys = await this.scanKeys(pattern);
 
-    if (keys.length === 0) {
+    if (allKeys.length === 0) {
       return 0;
+    }
+
+    // Bound the deletion to prevent issues from malicious key creation
+    const keys = allKeys.slice(0, IncognitoSessionManager.MAX_SESSIONS_PER_USER);
+    if (allKeys.length > IncognitoSessionManager.MAX_SESSIONS_PER_USER) {
+      logger.warn(
+        { userId, total: allKeys.length, deleting: keys.length },
+        '[Incognito] User has excessive sessions - only deleting first batch'
+      );
     }
 
     const deleted = await this.redis.del(...keys);
