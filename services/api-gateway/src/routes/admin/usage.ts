@@ -5,7 +5,12 @@
 
 import { Router, type Response, type Request } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  Duration,
+  DurationParseError,
+} from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 
@@ -13,28 +18,20 @@ const logger = createLogger('admin-usage');
 
 /**
  * Parse timeframe string (e.g., '7d', '30d', '24h') to a Date
+ * Uses shared Duration class for parsing
  */
 function parseTimeframe(timeframe: string): Date | null {
-  const match = /^(\d+)([dhwm])$/.exec(timeframe);
-  if (match === null) {
-    return null;
-  }
-
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-  const now = new Date();
-
-  switch (unit) {
-    case 'h': // hours
-      return new Date(now.getTime() - value * 60 * 60 * 1000);
-    case 'd': // days
-      return new Date(now.getTime() - value * 24 * 60 * 60 * 1000);
-    case 'w': // weeks
-      return new Date(now.getTime() - value * 7 * 24 * 60 * 60 * 1000);
-    case 'm': // months (approximate as 30 days)
-      return new Date(now.getTime() - value * 30 * 24 * 60 * 60 * 1000);
-    default:
+  try {
+    const duration = Duration.parse(timeframe);
+    if (!duration.isEnabled) {
       return null;
+    }
+    return duration.getCutoffDate();
+  } catch (error) {
+    if (error instanceof DurationParseError) {
+      return null;
+    }
+    throw error;
   }
 }
 

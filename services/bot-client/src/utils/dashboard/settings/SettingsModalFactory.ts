@@ -12,6 +12,7 @@ import {
   ActionRowBuilder,
   type ModalActionRowComponentBuilder,
 } from 'discord.js';
+import { Duration, DurationParseError } from '@tzurot/common-types';
 import { type SettingDefinition, buildSettingsCustomId } from './types.js';
 
 /**
@@ -110,12 +111,18 @@ export function parseNumericInput(
   return { type: 'value', value: num };
 }
 
+/** Minimum duration: 1 minute (60 seconds) */
+const MIN_DURATION_SECONDS = 60;
+
 /**
  * Parse a duration value from modal input
  *
+ * Uses the shared Duration class from common-types for parsing, which supports
+ * flexible formats like "2h", "30m", "1d", "1 hour", "30 minutes", etc.
+ *
  * Returns:
- * - { type: 'auto' } if "auto"
- * - { type: 'off' } if "off" (disabled)
+ * - { type: 'auto' } if empty or "auto" (inherit from parent)
+ * - { type: 'off' } if "off"/"disabled"/"none" (explicitly disabled)
  * - { type: 'value', seconds: number } if valid duration
  * - { type: 'error', message: string } if invalid
  */
@@ -128,68 +135,39 @@ export function parseDurationInput(
   | { type: 'error'; message: string } {
   const trimmed = input.trim().toLowerCase();
 
-  // Empty or "auto" means inherit
+  // Empty or "auto" means inherit from parent - check this BEFORE Duration.parse
+  // because Duration treats empty as disabled, but we need it to mean "inherit"
   if (trimmed === '' || trimmed === 'auto') {
     return { type: 'auto' };
   }
 
-  // "off" means disabled (no limit)
-  if (trimmed === 'off' || trimmed === 'disabled' || trimmed === 'none') {
-    return { type: 'off' };
+  try {
+    const duration = Duration.parse(trimmed);
+
+    // If Duration parsed it as disabled (off/disabled/none/0), return 'off'
+    if (!duration.isEnabled) {
+      return { type: 'off' };
+    }
+
+    // Validate minimum duration
+    const validation = duration.validate({ min: MIN_DURATION_SECONDS });
+    if (!validation.valid) {
+      return { type: 'error', message: validation.error ?? 'Duration too short' };
+    }
+
+    const seconds = duration.toSeconds();
+    if (seconds === null) {
+      return { type: 'error', message: 'Failed to parse duration' };
+    }
+
+    return { type: 'value', seconds };
+  } catch (error) {
+    if (error instanceof DurationParseError) {
+      return {
+        type: 'error',
+        message: `Invalid duration: "${input}". Use formats like 2h, 30m, 1d, or "off".`,
+      };
+    }
+    throw error;
   }
-
-  // Try to parse as duration (e.g., "2h", "30m", "1d")
-  const durationMatch =
-    /^(\d+)\s*(s|sec|secs|second|seconds|m|min|mins|minute|minutes|h|hr|hrs|hour|hours|d|day|days)$/i.exec(
-      trimmed
-    );
-
-  if (durationMatch === null) {
-    return {
-      type: 'error',
-      message: `Invalid duration: "${input}". Use formats like 2h, 30m, 1d, or "off".`,
-    };
-  }
-
-  const value = parseInt(durationMatch[1], 10);
-  const unit = durationMatch[2].toLowerCase();
-
-  let seconds: number;
-  switch (unit) {
-    case 's':
-    case 'sec':
-    case 'secs':
-    case 'second':
-    case 'seconds':
-      seconds = value;
-      break;
-    case 'm':
-    case 'min':
-    case 'mins':
-    case 'minute':
-    case 'minutes':
-      seconds = value * 60;
-      break;
-    case 'h':
-    case 'hr':
-    case 'hrs':
-    case 'hour':
-    case 'hours':
-      seconds = value * 60 * 60;
-      break;
-    case 'd':
-    case 'day':
-    case 'days':
-      seconds = value * 60 * 60 * 24;
-      break;
-    default:
-      return { type: 'error', message: `Unknown time unit: ${unit}` };
-  }
-
-  // Validate minimum (1 minute)
-  if (seconds < 60) {
-    return { type: 'error', message: 'Duration must be at least 1 minute' };
-  }
-
-  return { type: 'value', seconds };
 }

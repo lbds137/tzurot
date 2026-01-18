@@ -8,57 +8,18 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, Prisma } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  Prisma,
+  Duration,
+  DurationParseError,
+} from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('memory-batch');
-
-/** Time conversion constants (milliseconds) */
-const MS_PER_SECOND = 1000;
-const MS_PER_MINUTE = 60 * MS_PER_SECOND;
-const MS_PER_HOUR = 60 * MS_PER_MINUTE;
-const MS_PER_DAY = 24 * MS_PER_HOUR;
-const MS_PER_YEAR = 365 * MS_PER_DAY;
-
-/** Maximum values to prevent overflow (10 years = ~315 billion ms, safe for Number) */
-const MAX_TIMEFRAME_VALUES: Record<string, number> = {
-  h: 87600, // 10 years in hours
-  d: 3650, // 10 years in days
-  y: 10, // 10 years
-};
-
-/**
- * Parse timeframe string to milliseconds
- * Supports: 1h, 24h, 7d, 30d, 1y (up to 10 years max)
- */
-function parseTimeframe(timeframe: string): number | null {
-  const match = /^(\d+)(h|d|y)$/.exec(timeframe);
-  if (!match) {
-    return null;
-  }
-
-  const value = parseInt(match[1], 10);
-  const unit = match[2];
-
-  // Prevent overflow with unreasonably large values
-  const maxValue = MAX_TIMEFRAME_VALUES[unit];
-  if (maxValue !== undefined && value > maxValue) {
-    return null;
-  }
-
-  switch (unit) {
-    case 'h':
-      return value * MS_PER_HOUR;
-    case 'd':
-      return value * MS_PER_DAY;
-    case 'y':
-      return value * MS_PER_YEAR;
-    default:
-      return null;
-  }
-}
 
 interface BatchDeleteRequest {
   personalityId: string;
@@ -149,17 +110,26 @@ export async function handleBatchDelete(
 
   // Add timeframe filter if provided
   if (timeframe !== undefined && timeframe !== '') {
-    const timeframeMs = parseTimeframe(timeframe);
-    if (timeframeMs === null) {
-      sendError(
-        res,
-        ErrorResponses.validationError('Invalid timeframe format. Use: 1h, 24h, 7d, 30d, 1y')
-      );
-      return;
+    try {
+      const duration = Duration.parse(timeframe);
+      if (!duration.isEnabled) {
+        sendError(res, ErrorResponses.validationError('Timeframe cannot be disabled'));
+        return;
+      }
+      const cutoffDate = duration.getCutoffDate();
+      if (cutoffDate !== null) {
+        where.createdAt = { gte: cutoffDate };
+      }
+    } catch (error) {
+      if (error instanceof DurationParseError) {
+        sendError(
+          res,
+          ErrorResponses.validationError('Invalid timeframe format. Use: 1h, 24h, 7d, 30d, etc.')
+        );
+        return;
+      }
+      throw error;
     }
-
-    const cutoffDate = new Date(Date.now() - timeframeMs);
-    where.createdAt = { gte: cutoffDate };
   }
 
   // Count memories that will be deleted
@@ -417,17 +387,26 @@ export async function handleBatchDeletePreview(
 
   // Add timeframe filter if provided
   if (timeframe !== undefined && timeframe !== '') {
-    const timeframeMs = parseTimeframe(timeframe);
-    if (timeframeMs === null) {
-      sendError(
-        res,
-        ErrorResponses.validationError('Invalid timeframe format. Use: 1h, 24h, 7d, 30d, 1y')
-      );
-      return;
+    try {
+      const duration = Duration.parse(timeframe);
+      if (!duration.isEnabled) {
+        sendError(res, ErrorResponses.validationError('Timeframe cannot be disabled'));
+        return;
+      }
+      const cutoffDate = duration.getCutoffDate();
+      if (cutoffDate !== null) {
+        where.createdAt = { gte: cutoffDate };
+      }
+    } catch (error) {
+      if (error instanceof DurationParseError) {
+        sendError(
+          res,
+          ErrorResponses.validationError('Invalid timeframe format. Use: 1h, 24h, 7d, 30d, etc.')
+        );
+        return;
+      }
+      throw error;
     }
-
-    const cutoffDate = new Date(Date.now() - timeframeMs);
-    where.createdAt = { gte: cutoffDate };
   }
 
   // Count memories that would be deleted

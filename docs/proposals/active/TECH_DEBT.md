@@ -52,30 +52,22 @@ The outer structure is XML, but some inner content may still have markdown artif
 
 ---
 
-### Timeframe/Duration Parsing Duplication
+### ~~Timeframe/Duration Parsing Duplication~~ ✅ RESOLVED
 
-**Problem**: Four separate implementations of duration/timeframe parsing (`1h`, `7d`, `30m` format):
+**Status**: Resolved in PR #481 (2026-01-18)
 
-| Location                                       | Purpose             |
-| ---------------------------------------------- | ------------------- |
-| `api-gateway/routes/user/memoryBatch.ts:36-61` | Memory batch delete |
-| `bot-client/commands/memory/batchDelete.ts:53` | Discord command     |
-| `api-gateway/routes/admin/usage.ts:18`         | Usage stats         |
-| `commands/memory/incognito.ts` (planned)       | Incognito duration  |
+**Solution Applied**: Consolidated all duration parsing to use the shared `Duration` class from `@tzurot/common-types`:
 
-**Risk**: Inconsistent behavior if one gets updated and others don't.
+| Location                                             | Status                             |
+| ---------------------------------------------------- | ---------------------------------- |
+| `api-gateway/routes/user/memoryBatch.ts`             | ✅ Uses `Duration.parse()`         |
+| `api-gateway/routes/admin/usage.ts`                  | ✅ Uses `Duration.parse()`         |
+| `bot-client/utils/dashboard/SettingsModalFactory.ts` | ✅ Uses `Duration.parse()`         |
+| Incognito mode                                       | ✅ Uses `INCOGNITO_DURATIONS` enum |
 
-**Solution**: See [docs/proposals/backlog/DURATION_UTILITY.md](../backlog/DURATION_UTILITY.md) for full design:
+**Benefit**: The `Duration` class (via `parse-duration` library) now supports more flexible formats like "2 hours", "30 minutes", "1 day" in addition to compact forms like "2h", "30m", "1d".
 
-```typescript
-// packages/common-types/src/utils/duration.ts
-export function parseDuration(input: string): number | null;
-export function formatDuration(ms: number): string;
-export function formatTimeRemaining(expiresAt: Date): string;
-export const DURATION_CHOICES; // Slash command choice builder
-```
-
-**Source**: PR #472 code review (2026-01-13), updated 2026-01-17
+**Original Source**: PR #472 code review (2026-01-13)
 
 ---
 
@@ -710,4 +702,4 @@ Fixed in beta.38:
 High-complexity functions (acceptable, inherent complexity):
 
 - `MessageContentBuilder.ts:buildMessageContent()` - complexity 37
-- `SettingsModalFactory.ts:parseDurationInput()` - complexity 26
+- ~~`SettingsModalFactory.ts:parseDurationInput()` - complexity 26~~ (simplified in PR #481, now uses Duration class)
