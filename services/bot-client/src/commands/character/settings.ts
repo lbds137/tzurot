@@ -32,6 +32,7 @@ import {
   handleSettingsButton,
   handleSettingsModal,
   isSettingsInteraction,
+  parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
 } from '../../utils/dashboard/settings/index.js';
 
@@ -221,14 +222,11 @@ export function isCharacterSettingsInteraction(customId: string): boolean {
 
 /**
  * Extract character slug from custom ID
- * Format: personality-settings::action::characterSlug::extra
+ * Uses centralized parseSettingsCustomId for consistent parsing
  */
 function extractCharacterSlug(customId: string): string | null {
-  const parts = customId.split('::');
-  if (parts.length >= 3) {
-    return parts[2];
-  }
-  return null;
+  const parsed = parseSettingsCustomId(customId);
+  return parsed?.entityId ?? null;
 }
 
 /**

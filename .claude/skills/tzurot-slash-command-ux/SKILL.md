@@ -1,7 +1,7 @@
 ---
 name: tzurot-slash-command-ux
 description: Use when implementing Discord slash commands, building list/browse UX, adding buttons or pagination, or creating dashboard patterns. Covers standard naming, shared utilities, and confirmation flows.
-lastUpdated: '2026-01-10'
+lastUpdated: '2026-01-18'
 ---
 
 # Slash Command UX Patterns
@@ -29,12 +29,14 @@ lastUpdated: '2026-01-10'
 
 ### Key Files
 
-| File                                           | Purpose                          |
-| ---------------------------------------------- | -------------------------------- |
-| `src/utils/listSorting.ts`                     | Shared sorting comparators       |
-| `src/utils/paginationBuilder.ts`               | Shared pagination buttons (TODO) |
-| `src/utils/customIds.ts`                       | Custom ID parsing/generation     |
-| `docs/reference/standards/SLASH_COMMAND_UX.md` | Full UX documentation            |
+| File                                               | Purpose                             |
+| -------------------------------------------------- | ----------------------------------- |
+| `src/utils/listSorting.ts`                         | Shared sorting comparators          |
+| `src/utils/paginationBuilder.ts`                   | Shared pagination buttons (TODO)    |
+| `src/utils/customIds.ts`                           | Custom ID parsing/generation        |
+| `src/utils/dashboard/settings/types.ts`            | Settings custom ID builders/parsers |
+| `docs/reference/standards/SLASH_COMMAND_UX.md`     | Full UX documentation               |
+| `docs/reference/standards/INTERACTION_PATTERNS.md` | State passing patterns guide        |
 
 ## Pagination Pattern
 
@@ -220,6 +222,7 @@ export async function autocomplete(interaction: AutocompleteInteraction) {
 ## References
 
 - Full UX documentation: `docs/reference/standards/SLASH_COMMAND_UX.md`
+- **State passing patterns**: `docs/reference/standards/INTERACTION_PATTERNS.md`
 - Features & implementation: `docs/reference/features/SLASH_COMMAND_UX_FEATURES.md`
 - Character list example: `services/bot-client/src/commands/character/list.ts`
 - Channel list example: `services/bot-client/src/commands/channel/list.ts`
