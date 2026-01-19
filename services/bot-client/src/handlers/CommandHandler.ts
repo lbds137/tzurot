@@ -148,9 +148,16 @@ export class CommandHandler {
   }
 
   /**
-   * Recursively get all .ts/.js files from commands directory
+   * Get command entry point files from commands directory
+   *
+   * Uses "Index or Root" pattern to reduce log noise:
+   * - Root-level files: commands/ping.ts (direct children)
+   * - Index files: commands/preset/index.ts (entry points in subdirectories)
+   *
+   * This skips helper files (api.ts, list.ts) and nested subcommands (global/edit.ts)
+   * without logging, since they're not meant to be loaded as top-level commands.
    */
-  private getCommandFiles(dir: string): string[] {
+  private getCommandFiles(dir: string, isRoot = true): string[] {
     const files: string[] = [];
 
     const items = readdirSync(dir);
@@ -159,9 +166,17 @@ export class CommandHandler {
       const stat = statSync(fullPath);
 
       if (stat.isDirectory()) {
-        files.push(...this.getCommandFiles(fullPath));
+        // Recurse into subdirectories, marking them as non-root
+        files.push(...this.getCommandFiles(fullPath, false));
       } else if ((item.endsWith('.ts') || item.endsWith('.js')) && !item.endsWith('.d.ts')) {
-        files.push(fullPath);
+        // Only include files that are command entry points:
+        // - Root level: any .ts/.js file (e.g., commands/ping.ts)
+        // - Subdirectory: only index.ts/index.js (e.g., commands/preset/index.ts)
+        const isIndexFile = item === 'index.ts' || item === 'index.js';
+        if (isRoot || isIndexFile) {
+          files.push(fullPath);
+        }
+        // Silently skip non-index files in subdirectories (helpers, subcommands)
       }
     }
 
