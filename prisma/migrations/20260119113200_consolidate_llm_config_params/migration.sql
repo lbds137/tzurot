@@ -3,10 +3,12 @@
 -- Legacy columns are NOT dropped - they will be removed in a future migration after stability is confirmed.
 
 -- Step 1: Merge legacy columns into advancedParameters for rows that have legacy data
--- but either no advancedParameters or empty advancedParameters
+-- IMPORTANT: Apply jsonb_strip_nulls BEFORE merging to prevent overwriting existing
+-- advancedParameters values with NULL from legacy columns that were never set
 UPDATE "llm_configs"
-SET "advanced_parameters" = jsonb_strip_nulls(
-  COALESCE("advanced_parameters", '{}'::jsonb) || jsonb_build_object(
+SET "advanced_parameters" =
+  COALESCE("advanced_parameters", '{}'::jsonb) ||
+  jsonb_strip_nulls(jsonb_build_object(
     'temperature', "temperature",
     'top_p', "top_p",
     'top_k', "top_k",
@@ -14,8 +16,7 @@ SET "advanced_parameters" = jsonb_strip_nulls(
     'presence_penalty', "presence_penalty",
     'repetition_penalty', "repetition_penalty",
     'max_tokens', "max_tokens"
-  )
-)
+  ))
 WHERE (
   "temperature" IS NOT NULL OR
   "top_p" IS NOT NULL OR
