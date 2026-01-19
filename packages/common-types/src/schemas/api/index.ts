@@ -5,6 +5,9 @@
  * These define the contract between api-gateway and bot-client.
  */
 
+// Shared schemas (permissions, etc.)
+export * from './shared.js';
+
 // Persona endpoints
 export * from './persona.js';
 

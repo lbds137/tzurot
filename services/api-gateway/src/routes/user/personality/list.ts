@@ -10,6 +10,7 @@ import {
   type PrismaClient,
   type PersonalitySummary,
   isBotOwner,
+  computePersonalityPermissions,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -42,8 +43,19 @@ interface RawPersonality {
 
 /**
  * Convert raw personality to PersonalitySummary
+ *
+ * @param p - Raw personality from database
+ * @param requestingUserId - Internal user ID of the requester (null if not in DB)
+ * @param discordUserId - Discord ID of the requester (for admin check)
  */
-function toSummary(p: RawPersonality, isOwned: boolean): PersonalitySummary {
+function toSummary(
+  p: RawPersonality,
+  requestingUserId: string | null,
+  discordUserId: string
+): PersonalitySummary {
+  // isOwned is truthful: did this user create the personality?
+  const isOwned = requestingUserId !== null && p.ownerId === requestingUserId;
+
   return {
     id: p.id,
     name: p.name,
@@ -53,19 +65,25 @@ function toSummary(p: RawPersonality, isOwned: boolean): PersonalitySummary {
     isPublic: p.isPublic,
     ownerId: p.ownerId,
     ownerDiscordId: p.owner?.discordId ?? null,
+    permissions: computePersonalityPermissions(p.ownerId, requestingUserId, discordUserId),
   };
 }
 
 /**
  * Fetch all personalities for admin user
+ * Admin sees all personalities with correct isOwned (truthful) but canEdit: true
  */
-async function fetchAdminPersonalities(prisma: PrismaClient): Promise<PersonalitySummary[]> {
+async function fetchAdminPersonalities(
+  prisma: PrismaClient,
+  requestingUserId: string | null,
+  discordUserId: string
+): Promise<PersonalitySummary[]> {
   const all = await prisma.personality.findMany({
     select: PERSONALITY_SELECT,
     orderBy: { name: 'asc' },
     take: 500, // Bounded query - Discord autocomplete shows max 25 anyway
   });
-  return all.map(p => toSummary(p, true)); // Admin "owns" all
+  return all.map(p => toSummary(p, requestingUserId, discordUserId));
 }
 
 /**
@@ -73,7 +91,8 @@ async function fetchAdminPersonalities(prisma: PrismaClient): Promise<Personalit
  */
 async function fetchUserPersonalities(
   prisma: PrismaClient,
-  userId: string | undefined
+  userId: string | undefined,
+  discordUserId: string
 ): Promise<PersonalitySummary[]> {
   // Get public personalities
   const publicPersonalities = await prisma.personality.findMany({
@@ -110,9 +129,11 @@ async function fetchUserPersonalities(
   const publicIds = new Set(publicPersonalities.map(p => p.id));
 
   return [
-    ...publicPersonalities.map(p => toSummary(p, p.ownerId === userId)),
+    ...publicPersonalities.map(p => toSummary(p, userId ?? null, discordUserId)),
     // Add user-owned private personalities that aren't already in the public list
-    ...userOwnedPersonalities.filter(p => !publicIds.has(p.id)).map(p => toSummary(p, true)),
+    ...userOwnedPersonalities
+      .filter(p => !publicIds.has(p.id))
+      .map(p => toSummary(p, userId ?? null, discordUserId)),
   ];
 }
 
@@ -134,7 +155,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
     });
 
     if (isAdmin) {
-      const personalities = await fetchAdminPersonalities(prisma);
+      const personalities = await fetchAdminPersonalities(prisma, user?.id ?? null, discordUserId);
       logger.info(
         { discordUserId, isAdmin: true, totalCount: personalities.length },
         '[Personality] Listed all personalities (admin)'
@@ -142,7 +163,7 @@ export function createListHandler(prisma: PrismaClient): RequestHandler[] {
       return sendCustomSuccess(res, { personalities }, StatusCodes.OK);
     }
 
-    const personalities = await fetchUserPersonalities(prisma, user?.id);
+    const personalities = await fetchUserPersonalities(prisma, user?.id, discordUserId);
     logger.info(
       { discordUserId, totalCount: personalities.length },
       '[Personality] Listed personalities'

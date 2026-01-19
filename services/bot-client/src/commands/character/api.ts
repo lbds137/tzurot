@@ -35,10 +35,13 @@ interface PersonalityListResponse {
     name: string;
     displayName: string | null;
     slug: string;
+    /** Truthful: did the requesting user create this? */
     isOwned: boolean;
     isPublic: boolean;
     ownerId: string | null;
     ownerDiscordId: string | null;
+    /** Server-computed permissions */
+    permissions: { canEdit: boolean; canDelete: boolean };
   }[];
 }
 
@@ -122,9 +125,9 @@ export async function fetchAllCharacters(
       updatedAt: '',
     } as CharacterData;
 
-    // Use ownerDiscordId for categorization (not isOwned which is true for bot owner on all)
-    // This ensures bot owner sees proper "Your Characters" vs "Others' Characters" separation
-    if (p.ownerDiscordId === userId) {
+    // Use truthful isOwned from API for categorization
+    // The API now correctly reports isOwned based on actual creation, not admin status
+    if (p.isOwned) {
       owned.push(charData);
     } else {
       publicOthers.push(charData);

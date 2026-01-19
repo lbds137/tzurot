@@ -5,6 +5,7 @@
  * Uses the Dashboard Framework pattern for consistent UX.
  */
 
+import type { EntityPermissions } from '@tzurot/common-types';
 import type { DashboardConfig, SectionDefinition } from '../../utils/dashboard/types.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
 
@@ -23,6 +24,8 @@ export interface PresetData {
   isDefault?: boolean;
   isFreeDefault?: boolean;
   isOwned: boolean;
+  /** Server-computed permissions for the requesting user */
+  permissions: EntityPermissions;
   maxReferencedMessages: number;
   params: {
     temperature?: number;
@@ -549,14 +552,7 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
     penaltiesSection,
     reasoningSection,
   ],
-  actions: [
-    {
-      id: 'refresh',
-      label: 'Refresh',
-      description: 'Reload preset data',
-      emoji: '🔄',
-    },
-  ],
+  actions: [{ id: 'refresh', label: 'Refresh', description: 'Reload preset data', emoji: '🔄' }],
   getFooter: () => 'Select a section to edit • Changes save automatically',
   color: 0x5865f2, // Discord blurple
 };

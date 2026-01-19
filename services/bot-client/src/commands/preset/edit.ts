@@ -9,7 +9,7 @@
 
 import { MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, isBotOwner } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -39,12 +39,9 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
       return;
     }
 
-    // Check if user can edit this preset:
-    // - User owns the preset, OR
-    // - User is bot owner (can edit any preset including global)
-    const canEdit = preset.isOwned || isBotOwner(userId);
-
-    if (!canEdit) {
+    // Use server-computed permissions for authorization
+    // This is computed on the API side and includes admin checks
+    if (!preset.permissions.canEdit) {
       // User doesn't own the preset and isn't the bot owner
       if (preset.isGlobal) {
         await interaction.editReply(

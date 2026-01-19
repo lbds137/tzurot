@@ -76,12 +76,25 @@ export function mockGetPersonalityResponse(
   });
 }
 
+/** Type for list personalities overrides */
+interface PersonalitySummaryOverrides {
+  id?: string;
+  name?: string;
+  slug?: string;
+  displayName?: string | null;
+  isPublic?: boolean;
+  isOwned?: boolean;
+  ownerId?: string | null;
+  ownerDiscordId?: string | null;
+  permissions?: { canEdit: boolean; canDelete: boolean };
+}
+
 /**
  * Create a validated mock for GET /user/personality (list)
  * @throws ZodError if the resulting mock doesn't match the schema
  */
 export function mockListPersonalitiesResponse(
-  personalities?: Partial<PersonalityFull>[]
+  personalities?: PersonalitySummaryOverrides[]
 ): ListPersonalitiesResponse {
   const defaultList = [
     {
@@ -90,7 +103,10 @@ export function mockListPersonalitiesResponse(
       slug: 'test-character',
       displayName: 'Test Character',
       isPublic: false,
-      hasAvatar: false,
+      isOwned: true,
+      ownerId: DEFAULT_OWNER_ID,
+      ownerDiscordId: '123456789012345678',
+      permissions: { canEdit: true, canDelete: true },
     },
   ];
 
@@ -102,7 +118,10 @@ export function mockListPersonalitiesResponse(
         slug: p.slug ?? 'test-character',
         displayName: p.displayName ?? 'Test Character',
         isPublic: p.isPublic ?? false,
-        hasAvatar: p.hasAvatar ?? false,
+        isOwned: p.isOwned ?? true,
+        ownerId: p.ownerId ?? DEFAULT_OWNER_ID,
+        ownerDiscordId: p.ownerDiscordId ?? '123456789012345678',
+        permissions: p.permissions ?? { canEdit: true, canDelete: true },
       })) ?? defaultList,
   });
 }

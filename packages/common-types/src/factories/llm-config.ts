@@ -49,6 +49,7 @@ const defaultLlmConfigSummary: LlmConfigSummary = {
   isGlobal: true,
   isDefault: true,
   isOwned: false,
+  permissions: { canEdit: false, canDelete: false },
 };
 
 /**
@@ -57,9 +58,16 @@ const defaultLlmConfigSummary: LlmConfigSummary = {
 export function mockLlmConfigSummary(
   overrides: DeepPartial<LlmConfigSummary> = {}
 ): LlmConfigSummary {
+  // Handle permissions merge specifically to avoid DeepPartial making fields optional
+  const permissions = {
+    ...defaultLlmConfigSummary.permissions,
+    ...(overrides.permissions ?? {}),
+  };
+
   const merged: LlmConfigSummary = {
     ...defaultLlmConfigSummary,
     ...overrides,
+    permissions,
   };
   return LlmConfigSummarySchema.parse(merged);
 }
@@ -106,6 +114,7 @@ export function mockCreateLlmConfigResponse(
       isGlobal: false,
       isDefault: false,
       isOwned: true,
+      permissions: { canEdit: true, canDelete: true }, // User owns their created config
       ...overrides,
     }),
   };
