@@ -33,6 +33,7 @@ import {
   handleSettingsButton,
   handleSettingsModal,
   isSettingsInteraction,
+  parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
 } from '../../utils/dashboard/settings/index.js';
 
@@ -191,14 +192,11 @@ export function isChannelContextInteraction(customId: string): boolean {
 
 /**
  * Extract channel ID from custom ID
- * Format: channel-context::action::channelId::extra
+ * Uses centralized parseSettingsCustomId for consistent parsing
  */
 function extractChannelId(customId: string): string | null {
-  const parts = customId.split('::');
-  if (parts.length >= 3) {
-    return parts[2];
-  }
-  return null;
+  const parsed = parseSettingsCustomId(customId);
+  return parsed?.entityId ?? null;
 }
 
 /**
