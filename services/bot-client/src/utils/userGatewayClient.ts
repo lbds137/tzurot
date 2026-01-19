@@ -102,10 +102,12 @@ export async function callGatewayApi<T>(
       headers['Content-Type'] = CONTENT_TYPES.JSON;
     }
 
+    // 2.5s timeout - leaves buffer for processing before Discord's 3s autocomplete limit
     const response = await fetch(`${gatewayUrl}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: AbortSignal.timeout(2500),
     });
 
     if (!response.ok) {
@@ -117,8 +119,18 @@ export async function callGatewayApi<T>(
     const data = (await response.json()) as T;
     return { ok: true, data };
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-    logger.error({ err: error, path, method, userId }, '[Gateway] Request error');
+    // Extract useful error info for logging
+    const isAbortError = error instanceof DOMException && error.name === 'TimeoutError';
+    const errorMessage = isAbortError
+      ? 'Request timeout (gateway slow or unavailable)'
+      : error instanceof Error
+        ? error.message
+        : 'Unknown error';
+
+    logger.warn(
+      { path, method, userId, errorMessage, isTimeout: isAbortError },
+      '[Gateway] Request error'
+    );
     return { ok: false, error: errorMessage, status: 0 };
   }
 }
