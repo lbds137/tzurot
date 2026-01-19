@@ -4,6 +4,7 @@
  *
  * Endpoints:
  * - GET /admin/llm-config - List all LLM configs
+ * - GET /admin/llm-config/:id - Get single config with full params
  * - POST /admin/llm-config - Create a global LLM config
  * - PUT /admin/llm-config/:id - Edit a global config
  * - PUT /admin/llm-config/:id/set-default - Set a config as system default
@@ -17,7 +18,9 @@ import {
   createLogger,
   type PrismaClient,
   type LlmConfigCacheInvalidationService,
+  type AdvancedParams,
   generateLlmConfigUuid,
+  safeValidateAdvancedParams,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -27,7 +30,8 @@ import { getParam } from '../../utils/requestParams.js';
 const logger = createLogger('admin-llm-config');
 
 /**
- * Request body for creating a global config
+ * Request body for creating/updating a global config
+ * All sampling params go into advancedParameters JSONB
  */
 interface CreateGlobalConfigBody {
   name: string;
@@ -35,9 +39,25 @@ interface CreateGlobalConfigBody {
   provider?: string;
   model: string;
   visionModel?: string;
-  temperature?: number;
   maxReferencedMessages?: number;
+  advancedParameters?: AdvancedParams;
 }
+
+/** Select fields for detail queries (includes advancedParameters) */
+const CONFIG_DETAIL_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  provider: true,
+  model: true,
+  visionModel: true,
+  isGlobal: true,
+  isDefault: true,
+  isFreeDefault: true,
+  advancedParameters: true,
+  maxReferencedMessages: true,
+  ownerId: true,
+} as const;
 
 // --- Handler Factories ---
 
@@ -78,6 +98,42 @@ function createListHandler(prisma: PrismaClient) {
   };
 }
 
+function createGetHandler(prisma: PrismaClient) {
+  return async (req: Request, res: Response) => {
+    const configId = getParam(req.params.id);
+
+    const config = await prisma.llmConfig.findUnique({
+      where: { id: configId },
+      select: CONFIG_DETAIL_SELECT,
+    });
+
+    if (config === null) {
+      return sendError(res, ErrorResponses.notFound('Config not found'));
+    }
+
+    // Parse advancedParameters with validation
+    const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
+
+    // Build response with parsed params
+    const response = {
+      id: config.id,
+      name: config.name,
+      description: config.description,
+      provider: config.provider,
+      model: config.model,
+      visionModel: config.visionModel,
+      isGlobal: config.isGlobal,
+      isDefault: config.isDefault,
+      isFreeDefault: config.isFreeDefault,
+      maxReferencedMessages: config.maxReferencedMessages,
+      params,
+    };
+
+    logger.debug({ configId }, '[AdminLlmConfig] Fetched config');
+    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
+  };
+}
+
 function createCreateConfigHandler(prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const body = req.body as CreateGlobalConfigBody;
@@ -91,6 +147,14 @@ function createCreateConfigHandler(prisma: PrismaClient) {
     }
     if (body.name.length > 100) {
       return sendError(res, ErrorResponses.validationError('name must be 100 characters or less'));
+    }
+
+    // Validate advancedParameters if provided
+    if (body.advancedParameters !== undefined) {
+      const validated = safeValidateAdvancedParams(body.advancedParameters);
+      if (validated === null) {
+        return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
+      }
     }
 
     // Check for duplicate name among global configs
@@ -116,8 +180,8 @@ function createCreateConfigHandler(prisma: PrismaClient) {
         provider: body.provider ?? 'openrouter',
         model: body.model.trim(),
         visionModel: body.visionModel ?? null,
-        temperature: body.temperature ?? null,
         maxReferencedMessages: body.maxReferencedMessages ?? 20,
+        advancedParameters: body.advancedParameters ?? undefined,
       },
       select: {
         id: true,
@@ -171,17 +235,25 @@ function createEditConfigHandler(
     const config = await prisma.llmConfig.update({
       where: { id: configId },
       data: updateResult.data,
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        provider: true,
-        model: true,
-        visionModel: true,
-        isGlobal: true,
-        isDefault: true,
-      },
+      select: CONFIG_DETAIL_SELECT,
     });
+
+    // Parse advancedParameters for response
+    const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
+
+    const response = {
+      id: config.id,
+      name: config.name,
+      description: config.description,
+      provider: config.provider,
+      model: config.model,
+      visionModel: config.visionModel,
+      isGlobal: config.isGlobal,
+      isDefault: config.isDefault,
+      isFreeDefault: config.isFreeDefault,
+      maxReferencedMessages: config.maxReferencedMessages,
+      params,
+    };
 
     logger.info(
       { configId, name: config.name, updates: Object.keys(updateResult.data) },
@@ -189,7 +261,7 @@ function createEditConfigHandler(
     );
 
     await invalidateCacheSafely(llmConfigCacheInvalidation, configId, 'Updated global config');
-    sendCustomSuccess(res, { config }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
   };
 }
 
@@ -344,11 +416,17 @@ async function buildUpdateData(
   if (body.visionModel !== undefined) {
     updateData.visionModel = body.visionModel;
   }
-  if (body.temperature !== undefined) {
-    updateData.temperature = body.temperature;
-  }
   if (body.maxReferencedMessages !== undefined) {
     updateData.maxReferencedMessages = body.maxReferencedMessages;
+  }
+
+  // Handle advancedParameters update
+  if (body.advancedParameters !== undefined) {
+    const validated = safeValidateAdvancedParams(body.advancedParameters);
+    if (validated === null) {
+      return { error: ErrorResponses.validationError('Invalid advancedParameters') };
+    }
+    updateData.advancedParameters = body.advancedParameters;
   }
 
   return { data: updateData };
@@ -413,6 +491,7 @@ export function createAdminLlmConfigRoutes(
   const router = Router();
 
   router.get('/', asyncHandler(createListHandler(prisma)));
+  router.get('/:id', asyncHandler(createGetHandler(prisma)));
   router.post('/', asyncHandler(createCreateConfigHandler(prisma)));
   router.put('/:id', asyncHandler(createEditConfigHandler(prisma, llmConfigCacheInvalidation)));
   router.put(
