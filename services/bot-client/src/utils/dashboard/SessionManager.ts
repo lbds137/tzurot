@@ -7,6 +7,17 @@
  * Key patterns:
  * - session:{userId}:{entityType}:{entityId} - Session data
  * - session-msg:{messageId} - Secondary index for O(1) messageId lookups
+ *
+ * Known limitations (accepted tradeoffs):
+ * - delete() has a theoretical race condition: if a session expires between
+ *   GET and DEL, the messageId index becomes orphaned. This is acceptable
+ *   because: (1) findByMessageId() self-heals by cleaning orphans on lookup,
+ *   (2) orphans expire via TTL anyway (15 min), (3) the window is tiny.
+ *   A Lua script could make this atomic but adds complexity for marginal benefit.
+ * - getSessionCount() and clear() are capped at 10,000 keys for safety.
+ *   These are monitoring/testing methods, not production-critical.
+ * - No tests for Redis failure scenarios. The fail-open strategy returns null
+ *   on errors, which is tested implicitly but not with injected Redis failures.
  */
 
 import type { Redis } from 'ioredis';

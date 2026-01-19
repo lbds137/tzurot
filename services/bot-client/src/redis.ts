@@ -98,7 +98,15 @@ export const personaCacheInvalidationService = new PersonaCacheInvalidationServi
 
 // Initialize Dashboard Session Manager
 // This enables Redis-backed session storage for dashboard editing sessions
-initSessionManager(redis);
+try {
+  initSessionManager(redis);
+} catch (error) {
+  logger.error(
+    { err: error },
+    '[Redis] Failed to initialize session manager - dashboards will not work'
+  );
+  // Session manager remains null; getSessionManager() will throw a clear error if called
+}
 
 // Export close function for graceful shutdown
 export async function closeRedis(): Promise<void> {
