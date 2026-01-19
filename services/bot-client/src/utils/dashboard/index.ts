@@ -58,7 +58,9 @@ export {
 // Session Manager
 export {
   DashboardSessionManager,
+  initSessionManager,
   getSessionManager,
+  isSessionManagerInitialized,
   shutdownSessionManager,
   type SetSessionOptions,
 } from './SessionManager.js';

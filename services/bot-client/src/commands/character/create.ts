@@ -115,7 +115,7 @@ export async function handleSeedModalSubmit(
 
     // Create session (keyed by slug)
     const sessionManager = getSessionManager();
-    sessionManager.set({
+    await sessionManager.set({
       userId: interaction.user.id,
       entityType: 'character',
       entityId: character.slug,
