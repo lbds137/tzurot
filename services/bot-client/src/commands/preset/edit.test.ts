@@ -53,6 +53,7 @@ const mockPresetData: PresetData = {
   visionModel: null,
   isGlobal: false,
   isOwned: true,
+  permissions: { canEdit: true, canDelete: true },
   maxReferencedMessages: 10,
   params: {
     temperature: 0.7,
@@ -127,6 +128,7 @@ describe('handleEdit', () => {
       ...mockPresetData,
       isOwned: false,
       isGlobal: false,
+      permissions: { canEdit: false, canDelete: false }, // No edit permission
     });
 
     await handleEdit(createMockInteraction());
@@ -144,8 +146,8 @@ describe('handleEdit', () => {
       ...mockPresetData,
       isOwned: false,
       isGlobal: true,
+      permissions: { canEdit: false, canDelete: false }, // No edit permission
     });
-    mockIsBotOwner.mockReturnValue(false);
 
     await handleEdit(createMockInteraction());
 
@@ -162,8 +164,8 @@ describe('handleEdit', () => {
       ...mockPresetData,
       isOwned: false,
       isGlobal: true,
+      permissions: { canEdit: true, canDelete: true }, // Bot owner has permission
     });
-    mockIsBotOwner.mockReturnValue(true);
 
     await handleEdit(createMockInteraction());
 
@@ -177,8 +179,8 @@ describe('handleEdit', () => {
       ...mockPresetData,
       isOwned: false,
       isGlobal: false,
+      permissions: { canEdit: true, canDelete: true }, // Bot owner has permission
     });
-    mockIsBotOwner.mockReturnValue(true);
 
     await handleEdit(createMockInteraction());
 

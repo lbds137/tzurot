@@ -53,6 +53,12 @@ export {
   type TimeGapConfig,
 } from './utils/timeGap.js';
 export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
+export {
+  computePersonalityPermissions,
+  computeLlmConfigPermissions,
+  computePersonaPermissions,
+  type EntityPermissions,
+} from './utils/permissions.js';
 export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
 export {

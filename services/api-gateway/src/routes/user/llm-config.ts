@@ -20,6 +20,7 @@ import {
   type LlmConfigCacheInvalidationService,
   generateLlmConfigUuid,
   safeValidateAdvancedParams,
+  computeLlmConfigPermissions,
   type AdvancedParams,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
@@ -105,8 +106,24 @@ function createListHandler(prisma: PrismaClient) {
         : [];
 
     const configs: LlmConfigSummary[] = [
-      ...globalConfigs.map(c => ({ ...c, isOwned: false })),
-      ...userConfigs.map(c => ({ ...c, isOwned: true })),
+      ...globalConfigs.map(c => ({
+        ...c,
+        isOwned: false,
+        permissions: computeLlmConfigPermissions(
+          { ownerId: null, isGlobal: true },
+          user?.id ?? null,
+          discordUserId
+        ),
+      })),
+      ...userConfigs.map(c => ({
+        ...c,
+        isOwned: true,
+        permissions: computeLlmConfigPermissions(
+          { ownerId: user?.id ?? null, isGlobal: false },
+          user?.id ?? null,
+          discordUserId
+        ),
+      })),
     ];
 
     logger.info(
@@ -143,6 +160,13 @@ function createGetHandler(prisma: PrismaClient) {
     // Parse advancedParameters with validation
     const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
 
+    // Compute permissions
+    const permissions = computeLlmConfigPermissions(
+      { ownerId: config.ownerId, isGlobal: config.isGlobal },
+      user?.id ?? null,
+      discordUserId
+    );
+
     // Build response with parsed params
     const response = {
       id: config.id,
@@ -154,6 +178,7 @@ function createGetHandler(prisma: PrismaClient) {
       isGlobal: config.isGlobal,
       isDefault: config.isDefault,
       isOwned,
+      permissions,
       maxReferencedMessages: config.maxReferencedMessages,
       params,
     };
@@ -221,11 +246,22 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
       select: CONFIG_SELECT,
     });
 
+    // User always owns their own created config
+    const permissions = computeLlmConfigPermissions(
+      { ownerId: userId, isGlobal: false },
+      userId,
+      discordUserId
+    );
+
     logger.info(
       { discordUserId, configId: config.id, name: config.name },
       '[LlmConfig] Created config'
     );
-    sendCustomSuccess(res, { config: { ...config, isOwned: true } }, StatusCodes.CREATED);
+    sendCustomSuccess(
+      res,
+      { config: { ...config, isOwned: true, permissions } },
+      StatusCodes.CREATED
+    );
   };
 }
 
@@ -234,7 +270,7 @@ function createUpdateHandler(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ) {
-  // eslint-disable-next-line complexity -- straightforward field validation, not nested logic
+  // eslint-disable-next-line complexity, max-lines-per-function -- straightforward field validation
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
@@ -324,6 +360,13 @@ function createUpdateHandler(
     // Parse advancedParameters for response
     const params = safeValidateAdvancedParams(updated.advancedParameters) ?? {};
 
+    // User always owns their own updated config (we already checked ownership above)
+    const permissions = computeLlmConfigPermissions(
+      { ownerId: user.id, isGlobal: false },
+      user.id,
+      discordUserId
+    );
+
     const response = {
       id: updated.id,
       name: updated.name,
@@ -334,6 +377,7 @@ function createUpdateHandler(
       isGlobal: updated.isGlobal,
       isDefault: updated.isDefault,
       isOwned: true,
+      permissions,
       maxReferencedMessages: updated.maxReferencedMessages,
       params,
     };

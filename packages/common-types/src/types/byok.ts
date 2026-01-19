@@ -5,6 +5,8 @@
  * LLM config management, and usage tracking.
  */
 
+import type { EntityPermissions } from '../utils/permissions.js';
+
 /**
  * Summary of a personality for autocomplete/listing
  * Used in responses for /user/personality
@@ -14,7 +16,7 @@ export interface PersonalitySummary {
   name: string;
   displayName: string | null;
   slug: string;
-  /** True if the requesting user owns this personality */
+  /** True if the requesting user created this personality (truthful attribution) */
   isOwned: boolean;
   /** True if the personality is publicly visible */
   isPublic: boolean;
@@ -22,6 +24,8 @@ export interface PersonalitySummary {
   ownerId: string | null;
   /** Owner's Discord user ID (for fetching display name) */
   ownerDiscordId: string | null;
+  /** Computed permissions for the requesting user */
+  permissions: EntityPermissions;
 }
 
 /**
@@ -37,8 +41,10 @@ export interface LlmConfigSummary {
   visionModel: string | null;
   isGlobal: boolean;
   isDefault: boolean;
-  /** True if the requesting user owns this config */
+  /** True if the requesting user created this config (truthful attribution) */
   isOwned: boolean;
+  /** Computed permissions for the requesting user */
+  permissions: EntityPermissions;
 }
 
 /**

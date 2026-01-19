@@ -6,10 +6,33 @@
  */
 
 import { z } from 'zod';
+import { EntityPermissionsSchema } from './shared.js';
 
 // ============================================================================
 // Shared Sub-schemas
 // ============================================================================
+
+/**
+ * Summary of a personality for list endpoints
+ * Matches PersonalitySummary type from types/byok.ts
+ */
+export const PersonalitySummarySchema = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  displayName: z.string().nullable(),
+  slug: z.string(),
+  /** True if the requesting user created this personality (truthful attribution) */
+  isOwned: z.boolean(),
+  /** True if the personality is publicly visible */
+  isPublic: z.boolean(),
+  /** Owner's internal user ID */
+  ownerId: z.string().nullable(),
+  /** Owner's Discord user ID (for fetching display name) */
+  ownerDiscordId: z.string().nullable(),
+  /** Computed permissions for the requesting user */
+  permissions: EntityPermissionsSchema,
+});
+export type PersonalitySummaryDto = z.infer<typeof PersonalitySummarySchema>;
 
 /** Full personality data for dashboard/editing */
 export const PersonalityFullSchema = z.object({
@@ -81,20 +104,11 @@ export type GetPersonalityResponse = z.infer<typeof GetPersonalityResponseSchema
 
 // ============================================================================
 // GET /user/personality
-// Lists all personalities owned by user
+// Lists all personalities visible to user (owned + public)
 // ============================================================================
 
 export const ListPersonalitiesResponseSchema = z.object({
-  personalities: z.array(
-    PersonalityFullSchema.pick({
-      id: true,
-      name: true,
-      slug: true,
-      displayName: true,
-      isPublic: true,
-      hasAvatar: true,
-    })
-  ),
+  personalities: z.array(PersonalitySummarySchema),
 });
 export type ListPersonalitiesResponse = z.infer<typeof ListPersonalitiesResponseSchema>;
 
