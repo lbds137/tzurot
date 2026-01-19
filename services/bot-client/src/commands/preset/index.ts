@@ -5,6 +5,7 @@
  * Commands:
  * - /preset list - Show available presets
  * - /preset create - Create a new preset
+ * - /preset edit - Edit your preset (opens dashboard)
  * - /preset delete - Delete your preset
  * - /preset global create - Create global preset (owner only)
  * - /preset global edit - Edit global preset (owner only)
@@ -13,18 +14,31 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import type {
+  ChatInputCommandInteraction,
+  AutocompleteInteraction,
+  StringSelectMenuInteraction,
+  ButtonInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
 import { createLogger, DISCORD_PROVIDER_CHOICES, requireBotOwner } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
+import { handleEdit } from './edit.js';
 import { handleDelete } from './delete.js';
 import { handleAutocomplete } from './autocomplete.js';
 import { handleGlobalCreate } from './global/create.js';
 import { handleGlobalEdit } from './global/edit.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
+import {
+  handleModalSubmit,
+  handleSelectMenu,
+  handleButton,
+  isPresetDashboardInteraction,
+} from './dashboard.js';
 
 const logger = createLogger('preset-command');
 
@@ -35,6 +49,7 @@ const userRouter = createSubcommandRouter(
   {
     list: handleList,
     create: handleCreate,
+    edit: handleEdit,
     delete: handleDelete,
   },
   { logger, logPrefix: '[Preset]' }
@@ -79,6 +94,39 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 }
 
 /**
+ * Select menu interaction handler for preset dashboard
+ */
+async function selectMenu(interaction: StringSelectMenuInteraction): Promise<boolean> {
+  if (!isPresetDashboardInteraction(interaction.customId)) {
+    return false;
+  }
+  await handleSelectMenu(interaction);
+  return true;
+}
+
+/**
+ * Button interaction handler for preset dashboard
+ */
+async function button(interaction: ButtonInteraction): Promise<boolean> {
+  if (!isPresetDashboardInteraction(interaction.customId)) {
+    return false;
+  }
+  await handleButton(interaction);
+  return true;
+}
+
+/**
+ * Modal interaction handler for preset dashboard
+ */
+async function modal(interaction: ModalSubmitInteraction): Promise<boolean> {
+  if (!isPresetDashboardInteraction(interaction.customId)) {
+    return false;
+  }
+  await handleModalSubmit(interaction);
+  return true;
+}
+
+/**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
  */
@@ -118,6 +166,18 @@ export default defineCommand({
             .setName('vision-model')
             .setDescription('Vision model for image analysis (optional)')
             .setRequired(false)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('edit')
+        .setDescription('Edit one of your model presets')
+        .addStringOption(option =>
+          option
+            .setName('preset')
+            .setDescription('Preset to edit')
+            .setRequired(true)
             .setAutocomplete(true)
         )
     )
@@ -228,4 +288,7 @@ export default defineCommand({
     ),
   execute,
   autocomplete,
+  selectMenu,
+  button,
+  modal,
 });

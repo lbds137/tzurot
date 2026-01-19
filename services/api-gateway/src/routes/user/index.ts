@@ -13,7 +13,9 @@
  * - PUT /user/personality/:slug - Update an owned personality
  * - PATCH /user/personality/:slug/visibility - Toggle visibility
  * - GET /user/llm-config - List LLM configs
+ * - GET /user/llm-config/:id - Get single LLM config with params
  * - POST /user/llm-config - Create user LLM config
+ * - PUT /user/llm-config/:id - Update user LLM config
  * - DELETE /user/llm-config/:id - Delete user LLM config
  * - GET /user/model-override - List per-personality overrides
  * - PUT /user/model-override - Set override for a personality
@@ -84,8 +86,8 @@ export function createUserRouter(
   // Personality routes (with cache invalidation for avatar changes)
   router.use('/personality', createPersonalityRoutes(prisma, cacheInvalidationService));
 
-  // LLM config routes
-  router.use('/llm-config', createLlmConfigRoutes(prisma));
+  // LLM config routes (with cache invalidation for user config changes)
+  router.use('/llm-config', createLlmConfigRoutes(prisma, llmConfigCacheInvalidation));
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));

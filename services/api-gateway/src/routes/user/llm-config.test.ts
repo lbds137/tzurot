@@ -43,7 +43,9 @@ const mockPrisma = {
   llmConfig: {
     findMany: vi.fn(),
     findFirst: vi.fn(),
+    findUnique: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
     delete: vi.fn(),
   },
   userPersonalityConfig: {
@@ -53,9 +55,9 @@ const mockPrisma = {
     const mockTx = {
       user: {
         create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-        update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }), // For new user creation
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
+        update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
       },
       persona: {
         create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
@@ -64,6 +66,12 @@ const mockPrisma = {
     await callback(mockTx);
   }),
 };
+
+// Mock cache invalidation service (partial mock)
+const mockCacheInvalidation = {
+  invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
+  invalidateAll: vi.fn().mockResolvedValue(undefined),
+} as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService;
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import type { PrismaClient } from '@tzurot/common-types';
@@ -87,7 +95,7 @@ function createMockReqRes(body: Record<string, unknown> = {}, params: Record<str
 // Helper to get handler from router
 function getHandler(
   router: ReturnType<typeof createLlmConfigRoutes>,
-  method: 'get' | 'post' | 'delete',
+  method: 'get' | 'post' | 'put' | 'delete',
   path: string
 ) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,7 +111,6 @@ describe('/user/llm-config routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
-    // UserService uses findUnique to look up users
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'user-uuid-123',
       username: 'test-user',
@@ -112,6 +119,7 @@ describe('/user/llm-config routes', () => {
     });
     mockPrisma.llmConfig.findMany.mockResolvedValue([]);
     mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+    mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
     mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
   });
 
@@ -123,7 +131,7 @@ describe('/user/llm-config routes', () => {
       expect(typeof router).toBe('function');
     });
 
-    it('should have GET route registered', () => {
+    it('should have GET / route registered', () => {
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
 
       expect(router.stack).toBeDefined();
@@ -132,6 +140,15 @@ describe('/user/llm-config routes', () => {
       const getRoute = (
         router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
       ).find(layer => layer.route?.path === '/' && layer.route?.methods?.get);
+      expect(getRoute).toBeDefined();
+    });
+
+    it('should have GET /:id route registered', () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+
+      const getRoute = (
+        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
+      ).find(layer => layer.route?.path === '/:id' && layer.route?.methods?.get);
       expect(getRoute).toBeDefined();
     });
 
@@ -144,6 +161,15 @@ describe('/user/llm-config routes', () => {
         }>
       ).find(layer => layer.route?.path === '/' && layer.route?.methods?.post);
       expect(postRoute).toBeDefined();
+    });
+
+    it('should have PUT /:id route registered', () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+
+      const putRoute = (
+        router.stack as unknown as Array<{ route?: { path?: string; methods?: { put?: boolean } } }>
+      ).find(layer => layer.route?.path === '/:id' && layer.route?.methods?.put);
+      expect(putRoute).toBeDefined();
     });
 
     it('should have DELETE route registered', () => {
@@ -226,6 +252,86 @@ describe('/user/llm-config routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           configs: [],
+        })
+      );
+    });
+  });
+
+  describe('GET /user/llm-config/:id', () => {
+    it('should return 404 when config not found', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return config with isOwned=true for user-owned config', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        name: 'My Config',
+        description: 'Custom',
+        provider: 'openrouter',
+        model: 'claude-3',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        ownerId: 'user-uuid-123',
+        maxReferencedMessages: 20,
+        advancedParameters: { temperature: 0.7 },
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            id: 'config-123',
+            isOwned: true,
+            params: { temperature: 0.7 },
+          }),
+        })
+      );
+    });
+
+    it('should return config with isOwned=false for global config', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        name: 'Global Config',
+        description: 'System default',
+        provider: 'openrouter',
+        model: 'gpt-4',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: true,
+        ownerId: null,
+        maxReferencedMessages: 20,
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            id: 'config-123',
+            isOwned: false,
+            params: {},
+          }),
         })
       );
     });
@@ -330,6 +436,38 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
+    it('should create config with advancedParameters', async () => {
+      mockPrisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config',
+        name: 'My Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'gpt-4',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'My Config',
+        model: 'gpt-4',
+        advancedParameters: { temperature: 0.8, top_p: 0.9 },
+      });
+
+      await handler(req, res);
+
+      expect(mockPrisma.llmConfig.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            advancedParameters: { temperature: 0.8, top_p: 0.9 },
+          }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
     it('should create user if not exists', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
@@ -350,9 +488,197 @@ describe('/user/llm-config routes', () => {
 
       await handler(req, res);
 
-      // UserService creates users via $transaction, not direct create
+      // UserService creates users via $transaction
       expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(201);
+    });
+  });
+
+  describe('PUT /user/llm-config/:id', () => {
+    it('should return 404 when user not found', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return 404 when config not found', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should reject editing global config', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: true,
+        name: 'Global Config',
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should reject editing other user config', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'other-user',
+        isGlobal: false,
+        name: 'Other User Config',
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should reject update with no fields', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('No fields'),
+        })
+      );
+    });
+
+    it('should update owned config', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'New Name',
+        description: 'Updated',
+        provider: 'openrouter',
+        model: 'claude-3',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        maxReferencedMessages: 20,
+        advancedParameters: { temperature: 0.9 },
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes(
+        { name: 'New Name', advancedParameters: { temperature: 0.9 } },
+        { id: 'config-123' }
+      );
+
+      await handler(req, res);
+
+      expect(mockPrisma.llmConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'config-123' },
+          data: expect.objectContaining({
+            name: 'New Name',
+            advancedParameters: { temperature: 0.9 },
+          }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            id: 'config-123',
+            name: 'New Name',
+            params: { temperature: 0.9 },
+          }),
+        })
+      );
+    });
+
+    it('should invalidate cache on update', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'New Name',
+        description: null,
+        provider: 'openrouter',
+        model: 'claude-3',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        maxReferencedMessages: 20,
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(mockCacheInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith(
+        'discord-user-123'
+      );
     });
   });
 
