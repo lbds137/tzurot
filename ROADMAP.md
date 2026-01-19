@@ -1,6 +1,6 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-17
+> **Last Updated**: 2026-01-18
 > **Current Version**: v3.0.0-beta.43
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
@@ -14,56 +14,17 @@
 
 ## Next Up (In Order)
 
-### ~~1. Quick Wins (Tech Debt & Naming)~~ ✅ COMPLETE (PR #456)
+### 1. Slash Command Dashboard Pattern + User System Prompts ⬅️ CURRENT
 
-**Why first**: Fast cleanup before building new features. Fix terminology before more UI work.
+**Why**: Fix UX before adding complex features. Bundle system prompts into preset editor.
 
-- [x] Drop deprecated `BotSettings` table (replaced by `AdminSettings`)
-- [x] Rename `/me model` → `/me preset` (fix confusing terminology)
-  - Renamed command group from `model` to `preset`
-  - Updated parameter names (`config` → `preset`)
-  - Renamed `set-default` → `default` for consistency
-  - Updated help text and documentation
+- [x] Standardize modal/button patterns across commands (PR #482)
+- [ ] Redis-backed session storage (for horizontal scaling)
+- [ ] `/preset edit` - dashboard with all LLM params (temperature, topP, etc.)
+- [ ] `/me profile` dashboard upgrade
+- [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
 
-### ~~2. Memory Management Commands (Phase 3 - Incognito)~~ ✅ COMPLETE (PR #479)
-
-**Why**: User-requested, high retention value. Incognito Mode = disable LTM **writing** (memories not saved).
-
-**Reference**: [docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md](docs/proposals/active/MEMORY_MANAGEMENT_COMMANDS.md)
-
-**Phase 1 - STM (COMPLETE - beta.19):**
-
-- [x] `/history clear`, `/history undo`, `/history hard-delete`, `/history view`
-- [x] Per-persona epoch tracking
-
-**Phase 2 - LTM (COMPLETE - PR #462, #471):**
-
-- [x] `/memory list` - paginated memory browser with detail view
-- [x] `/memory search` - semantic search with text fallback
-- [x] `/memory stats` - memory statistics per personality
-- [x] Memory detail view with edit/delete/lock buttons
-- [x] `/memory delete` - batch deletion with filters
-- [x] `/memory purge` - bulk deletion with typed confirmation
-- [x] `/memory focus` - Focus Mode (disable LTM **reading**)
-- [x] Focus Mode RAG skip and visual indicator (`🔒 Focus Mode`)
-
-**Phase 3 - Incognito Mode (COMPLETE - PR #479):**
-
-- [x] Redis-based incognito session manager with TTL
-- [x] `/memory incognito enable` with duration options (30m/1h/4h/until disable)
-- [x] `/memory incognito disable/status`
-- [x] `/memory incognito forget` - retroactive delete with locked memory protection
-- [x] Storage bypass in ai-worker (skip memory creation when incognito)
-- [x] Visual indicator in responses (`👻 Incognito Mode`)
-- [x] Fail-open design (Redis errors don't block memory storage)
-- [x] Dual-key pattern (per-personality or global "all" sessions)
-
-**Phase 4 - Polish (LATER):**
-
-- [ ] Date range filtering for `/memory search` and `/memory delete`
-- [ ] Batch operations respect locked memories
-
-### 3. Channel Allowlist/Denylist ⬅️ CURRENT
+### 2. Channel Allowlist/Denylist
 
 **Why**: User-requested. Prevents bot from spamming unwanted channels, reduces server kicks.
 
@@ -72,18 +33,7 @@
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### 4. Slash Command Dashboard Pattern + User System Prompts
-
-**Why**: Fix UX before adding complex features. Bundle system prompts into preset editor.
-
-- [ ] Session manager abstraction for multi-step flows
-- [ ] Redis-backed session storage
-- [ ] `/preset edit` - dashboard with all LLM params (temperature, topP, etc.)
-- [ ] `/me profile` dashboard upgrade
-- [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
-- [ ] Standardize modal/button patterns across commands
-
-### 5. DM Personality Chat
+### 3. DM Personality Chat
 
 **Why**: User-requested. Multiple requests for this feature.
 
@@ -164,9 +114,11 @@ Not needed until post-beta when we care about semantic versioning again.
 
 - **Phase 0**: Foundation (contract tests, PGlite component tests, message reference handling)
 - **Phase 1**: Gatekeeper / Public Beta Launch (BYOK, `/wallet`, `/preset`, `/me model`, `/me profile`, guest mode, reasoning models)
+- **Quick Wins**: Drop BotSettings table, rename `/me model` → `/me preset`
 - **Memory Management Phase 1**: STM commands (`/history clear/undo/hard-delete/view`)
 - **Memory Management Phase 2**: LTM commands (`/memory list/search/stats/delete/purge/focus`), Focus Mode
 - **Memory Management Phase 3**: Incognito Mode (`/memory incognito enable/disable/status/forget`), 👻 indicator, fail-open design
+- **Slash Command Patterns**: Standardize modal/button custom ID parsing, `INTERACTION_PATTERNS.md` documentation
 
 ---
 
