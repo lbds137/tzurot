@@ -91,13 +91,26 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 }
 
 /**
- * Handle preset autocomplete - only shows user-owned presets for delete
+ * Get visibility icon for a preset
+ * 🌐 = Global preset, 🔒 = User-owned preset
+ */
+function getPresetVisibilityIcon(isGlobal: boolean): string {
+  return isGlobal ? '🌐' : '🔒';
+}
+
+/**
+ * Handle preset autocomplete
+ *
+ * For 'edit': shows all presets (global + owned) with visibility icons
+ * For 'delete': shows only user-owned presets
  */
 async function handlePresetAutocomplete(
   interaction: AutocompleteInteraction,
   query: string,
   userId: string
 ): Promise<void> {
+  const subcommand = interaction.options.getSubcommand(false);
+
   const result = await callGatewayApi<{ configs: LlmConfigSummary[] }>('/user/llm-config', {
     userId,
   });
@@ -108,23 +121,43 @@ async function handlePresetAutocomplete(
     return;
   }
 
-  // For delete command, only show user-owned presets (not global)
+  // Determine if we should only show owned presets
+  // For delete: only show owned presets
+  // For edit/view: show all accessible presets (owned + global)
+  const ownedOnly = subcommand === 'delete';
+
   const queryLower = query.toLowerCase();
   const filtered = result.data.configs
-    .filter(
-      c =>
-        c.isOwned &&
-        (c.name.toLowerCase().includes(queryLower) ||
-          c.model.toLowerCase().includes(queryLower) ||
-          (c.description?.toLowerCase().includes(queryLower) ?? false))
-    )
+    .filter(c => {
+      // Filter by ownership if required
+      if (ownedOnly && !c.isOwned) {
+        return false;
+      }
+      // For non-delete commands, show owned + global presets
+      if (!ownedOnly && !c.isOwned && !c.isGlobal) {
+        return false;
+      }
+      // Match query
+      if (queryLower.length === 0) {
+        return true;
+      }
+      return (
+        c.name.toLowerCase().includes(queryLower) ||
+        c.model.toLowerCase().includes(queryLower) ||
+        (c.description?.toLowerCase().includes(queryLower) ?? false)
+      );
+    })
     .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
-  const choices = filtered.map(c => ({
-    // Show model info in the name for clarity
-    name: `${c.name} (${c.model.split('/').pop()})`,
-    value: c.id,
-  }));
+  const choices = filtered.map(c => {
+    // Add visibility icon for edit command
+    const icon = subcommand === 'edit' ? `${getPresetVisibilityIcon(c.isGlobal)} ` : '';
+    return {
+      // Show visibility icon and model info for clarity
+      name: `${icon}${c.name} (${c.model.split('/').pop()})`,
+      value: c.id,
+    };
+  });
 
   await interaction.respond(choices);
 }

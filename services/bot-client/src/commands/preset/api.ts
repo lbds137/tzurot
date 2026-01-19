@@ -36,6 +36,7 @@ export async function fetchPreset(presetId: string, userId: string): Promise<Pre
 
 /**
  * Fetch a global preset by ID (admin endpoint)
+ * Note: Adds isOwned: false since admin endpoint doesn't include this field
  */
 export async function fetchGlobalPreset(presetId: string): Promise<PresetData | null> {
   const response = await adminFetch(`/admin/llm-config/${presetId}`);
@@ -48,7 +49,8 @@ export async function fetchGlobalPreset(presetId: string): Promise<PresetData | 
   }
 
   const data = (await response.json()) as PresetResponse;
-  return data.config;
+  // Admin endpoint doesn't include isOwned, add it for dashboard compatibility
+  return { ...data.config, isOwned: false };
 }
 
 /**
