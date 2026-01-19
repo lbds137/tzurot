@@ -233,6 +233,32 @@ fi
 
 ---
 
+### Redis Health Check for Session Manager
+
+**Problem**: The session manager initialization in `redis.ts` happens at module load time. If Redis connection fails, dashboards won't work but the bot continues running. Currently there's no programmatic way to check if the session manager is healthy.
+
+**Current Location**: `services/bot-client/src/redis.ts:101-109`
+
+**Solution**: Add a health check function:
+
+```typescript
+export function isRedisHealthy(): boolean {
+  return redis.status === 'ready' && isSessionManagerInitialized();
+}
+```
+
+This could be exposed via a `/health` endpoint or used in admin commands.
+
+**Why low priority**:
+
+- Session manager failures are logged clearly
+- Dashboard operations fail gracefully (user just sees "expired" message)
+- Not blocking for current single-instance deployment
+
+**Source**: PR #483 code review (2026-01-19)
+
+---
+
 ### MessageContentBuilder Complexity Reduction
 
 **Problem**: `buildMessageContent()` has complexity 37 (threshold: 15). It orchestrates multiple extraction paths (text, voice, forwarded messages, attachments) in a single function.
