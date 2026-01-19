@@ -99,6 +99,46 @@ function getPresetVisibilityIcon(isGlobal: boolean): string {
 }
 
 /**
+ * Determine if a preset should appear in autocomplete results
+ *
+ * Visibility rules:
+ * - ownedOnly=true (delete): Only show presets the user created
+ * - ownedOnly=false (edit/view): Show owned presets AND global presets
+ * - Always filter by query match (name, model, or description)
+ *
+ * @param config - The preset configuration
+ * @param ownedOnly - If true, only show owned presets (for delete command)
+ * @param queryLower - Lowercase search query (empty string matches all)
+ */
+function shouldShowPresetInAutocomplete(
+  config: LlmConfigSummary,
+  ownedOnly: boolean,
+  queryLower: string
+): boolean {
+  // Filter by ownership if required (delete command)
+  if (ownedOnly && !config.isOwned) {
+    return false;
+  }
+
+  // For non-delete commands, show owned + global presets
+  // Filter out presets that are neither owned nor global
+  if (!ownedOnly && !config.isOwned && !config.isGlobal) {
+    return false;
+  }
+
+  // Match query against name, model, or description
+  if (queryLower.length === 0) {
+    return true;
+  }
+
+  return (
+    config.name.toLowerCase().includes(queryLower) ||
+    config.model.toLowerCase().includes(queryLower) ||
+    (config.description?.toLowerCase().includes(queryLower) ?? false)
+  );
+}
+
+/**
  * Handle preset autocomplete
  *
  * For 'edit': shows all presets (global + owned) with visibility icons
@@ -121,32 +161,13 @@ async function handlePresetAutocomplete(
     return;
   }
 
-  // Determine if we should only show owned presets
   // For delete: only show owned presets
   // For edit/view: show all accessible presets (owned + global)
   const ownedOnly = subcommand === 'delete';
-
   const queryLower = query.toLowerCase();
+
   const filtered = result.data.configs
-    .filter(c => {
-      // Filter by ownership if required
-      if (ownedOnly && !c.isOwned) {
-        return false;
-      }
-      // For non-delete commands, show owned + global presets
-      if (!ownedOnly && !c.isOwned && !c.isGlobal) {
-        return false;
-      }
-      // Match query
-      if (queryLower.length === 0) {
-        return true;
-      }
-      return (
-        c.name.toLowerCase().includes(queryLower) ||
-        c.model.toLowerCase().includes(queryLower) ||
-        (c.description?.toLowerCase().includes(queryLower) ?? false)
-      );
-    })
+    .filter(c => shouldShowPresetInAutocomplete(c, ownedOnly, queryLower))
     .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
   const choices = filtered.map(c => {
