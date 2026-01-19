@@ -36,8 +36,14 @@ export async function fetchPreset(presetId: string, userId: string): Promise<Pre
 
 /**
  * Fetch a global preset by ID (admin endpoint)
- * Note: Adds isOwned and permissions since admin endpoint doesn't include them
- * Admin can always edit global presets, so permissions are set accordingly
+ *
+ * IMPORTANT: This function is ONLY callable by bot owners because:
+ * 1. It uses adminFetch which requires admin credentials
+ * 2. The /preset global edit command is restricted to bot owners via isBotOwner check
+ *
+ * Therefore, we can safely hardcode full permissions - only admins reach this code path.
+ * The admin endpoint doesn't return permissions (it assumes admin access), so we add them
+ * for dashboard compatibility.
  */
 export async function fetchGlobalPreset(presetId: string): Promise<PresetData | null> {
   const response = await adminFetch(`/admin/llm-config/${presetId}`);
@@ -50,12 +56,12 @@ export async function fetchGlobalPreset(presetId: string): Promise<PresetData | 
   }
 
   const data = (await response.json()) as PresetResponse;
-  // Admin endpoint doesn't include isOwned/permissions, add for dashboard compatibility
-  // Admin always has full permissions on global presets
+  // Admin endpoint doesn't include isOwned/permissions - add for dashboard compatibility
+  // Safe to hardcode: this function is only reachable by bot owners (see JSDoc above)
   return {
     ...data.config,
-    isOwned: false,
-    permissions: { canEdit: true, canDelete: true },
+    isOwned: false, // Truthful: admin didn't create system presets
+    permissions: { canEdit: true, canDelete: true }, // Admin always has full permissions
   };
 }
 

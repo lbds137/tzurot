@@ -422,7 +422,10 @@ function createDeleteHandler(prisma: PrismaClient) {
     if (config === null) {
       return sendError(res, ErrorResponses.notFound('Config not found'));
     }
-    if (config.isGlobal || config.ownerId !== user.id) {
+
+    // Use centralized permission computation for consistency
+    const permissions = computeLlmConfigPermissions(config, user.id, discordUserId);
+    if (!permissions.canDelete) {
       return sendError(res, ErrorResponses.unauthorized('You can only delete your own configs'));
     }
 
