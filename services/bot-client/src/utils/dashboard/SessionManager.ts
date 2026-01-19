@@ -158,7 +158,16 @@ export class DashboardSessionManager {
       const pipeline = this.redis.pipeline();
       pipeline.setex(sessionKey, this.ttlSeconds, JSON.stringify(storable));
       pipeline.setex(msgIndexKey, this.ttlSeconds, sessionKey);
-      await pipeline.exec();
+      const results = await pipeline.exec();
+
+      // Check for partial failures (both operations should succeed)
+      const hasErrors = results?.some(([err]) => err !== null) === true;
+      if (hasErrors) {
+        logger.warn(
+          { userId, entityType, entityId, results },
+          '[Session] Partial pipeline failure during session creation'
+        );
+      }
 
       logger.debug(
         { userId, entityType, entityId, messageId, ttl: this.ttlSeconds },
@@ -274,7 +283,16 @@ export class DashboardSessionManager {
       const pipeline = this.redis.pipeline();
       pipeline.setex(sessionKey, this.ttlSeconds, JSON.stringify(updated));
       pipeline.expire(buildMessageIndexKey(validated.messageId), this.ttlSeconds);
-      await pipeline.exec();
+      const results = await pipeline.exec();
+
+      // Check for partial failures
+      const hasErrors = results?.some(([err]) => err !== null) === true;
+      if (hasErrors) {
+        logger.warn(
+          { userId, entityType, entityId },
+          '[Session] Partial pipeline failure during touch'
+        );
+      }
 
       logger.debug({ userId, entityType, entityId }, '[Session] Touched session');
       return true;
@@ -399,13 +417,16 @@ export class DashboardSessionManager {
   /**
    * Get approximate session count
    *
-   * Note: This requires scanning, which may not be perfectly accurate
-   * in a distributed environment, but is suitable for monitoring.
+   * Note: This is an approximation with the following limitations:
+   * - Capped at 10,000 sessions (returns 10000 if more exist)
+   * - May not be perfectly accurate in a distributed environment
+   * - Suitable for monitoring/debugging, not for precise accounting
    */
   async getSessionCount(): Promise<number> {
     try {
+      const maxSessions = 10000;
       const pattern = `${REDIS_KEY_PREFIXES.SESSION}*`;
-      const keys = await this.scanKeys(pattern, 10000); // Reasonable upper bound
+      const keys = await this.scanKeys(pattern, maxSessions);
       return keys.length;
     } catch (error) {
       logger.error({ error }, '[Session] Failed to get session count');
