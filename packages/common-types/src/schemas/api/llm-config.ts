@@ -10,6 +10,7 @@
  */
 
 import { z } from 'zod';
+import { EntityPermissionsSchema } from './shared.js';
 
 // ============================================================================
 // Shared Sub-schemas
@@ -29,6 +30,7 @@ export const LlmConfigSummarySchema = z.object({
   isGlobal: z.boolean(),
   isDefault: z.boolean(),
   isOwned: z.boolean(),
+  permissions: EntityPermissionsSchema,
 });
 
 // ============================================================================

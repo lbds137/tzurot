@@ -16,6 +16,24 @@ import {
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   const { mockIsBotOwner: mockFn } = await import('./test-utils.js');
+
+  // Create isBotOwner that uses the mockable function
+  const isBotOwner = (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args);
+
+  // Redefine computePersonalityPermissions to use the mocked isBotOwner
+  const computePersonalityPermissions = (
+    ownerId: string | null,
+    requestingUserId: string | null,
+    discordUserId: string
+  ) => {
+    const isCreator = requestingUserId !== null && ownerId !== null && ownerId === requestingUserId;
+    const isAdmin = isBotOwner(discordUserId);
+    return {
+      canEdit: isCreator || isAdmin,
+      canDelete: isCreator || isAdmin,
+    };
+  };
+
   return {
     ...actual,
     createLogger: () => ({
@@ -24,7 +42,8 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    isBotOwner: (...args: unknown[]) => (mockFn as (...args: unknown[]) => boolean)(...args),
+    isBotOwner,
+    computePersonalityPermissions,
   };
 });
 
@@ -74,6 +93,7 @@ describe('GET /user/personality (list)', () => {
             slug: 'public-character',
             isOwned: false,
             isPublic: true,
+            permissions: { canEdit: false, canDelete: false }, // User doesn't own
           }),
         ],
       })
@@ -107,6 +127,7 @@ describe('GET /user/personality (list)', () => {
             slug: 'my-character',
             isOwned: true,
             isPublic: false,
+            permissions: { canEdit: true, canDelete: true }, // User owns
           }),
         ],
       })
@@ -182,20 +203,23 @@ describe('GET /user/personality (list)', () => {
             expect.objectContaining({
               id: 'personality-1',
               slug: 'public-char',
-              isOwned: true, // Bot owner "owns" all
+              isOwned: false, // Truthful: not created by bot owner
               isPublic: true,
+              permissions: { canEdit: true, canDelete: true }, // But bot owner can edit
             }),
             expect.objectContaining({
               id: 'personality-2',
               slug: 'private-char',
-              isOwned: true, // Bot owner "owns" all
+              isOwned: false, // Truthful: not created by bot owner
               isPublic: false,
+              permissions: { canEdit: true, canDelete: true }, // But bot owner can edit
             }),
             expect.objectContaining({
               id: 'personality-3',
               slug: 'admin-char',
-              isOwned: true,
+              isOwned: true, // Truthful: created by bot owner
               isPublic: false,
+              permissions: { canEdit: true, canDelete: true },
             }),
           ]),
         })

@@ -29,6 +29,7 @@ const mockPresetData: PresetData = {
   visionModel: null,
   isGlobal: false,
   isOwned: true,
+  permissions: { canEdit: true, canDelete: true },
   maxReferencedMessages: 10,
   params: {
     temperature: 0.7,
@@ -84,16 +85,28 @@ describe('fetchGlobalPreset', () => {
   });
 
   it('should fetch global preset successfully', async () => {
+    // Admin endpoint returns config without isOwned/permissions
+    const adminResponseConfig = { ...mockPresetData };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (adminResponseConfig as any).isOwned;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (adminResponseConfig as any).permissions;
+
     mockAdminFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ config: mockPresetData }),
+      json: async () => ({ config: adminResponseConfig }),
     });
 
     const result = await fetchGlobalPreset('preset-123');
 
     expect(mockAdminFetch).toHaveBeenCalledWith('/admin/llm-config/preset-123');
-    // fetchGlobalPreset adds isOwned: false for dashboard compatibility
-    expect(result).toEqual({ ...mockPresetData, isOwned: false });
+    // fetchGlobalPreset adds isOwned: false and permissions for dashboard compatibility
+    // Admin always has full permissions on global presets
+    expect(result).toEqual({
+      ...mockPresetData,
+      isOwned: false,
+      permissions: { canEdit: true, canDelete: true },
+    });
   });
 
   it('should return null on 404', async () => {
