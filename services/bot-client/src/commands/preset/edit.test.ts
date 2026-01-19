@@ -7,6 +7,9 @@ import { MessageFlags } from 'discord.js';
 import { handleEdit } from './edit.js';
 import type { PresetData } from './config.js';
 
+// Mock isBotOwner for testing bot owner behavior
+const mockIsBotOwner = vi.fn().mockReturnValue(false);
+
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -18,6 +21,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    isBotOwner: (userId: string) => mockIsBotOwner(userId),
   };
 });
 
@@ -118,10 +122,11 @@ describe('handleEdit', () => {
     expect(mockSessionManagerSet).not.toHaveBeenCalled();
   });
 
-  it('should show error when preset is not owned', async () => {
+  it('should show error when preset is not owned (non-global)', async () => {
     mockFetchPreset.mockResolvedValue({
       ...mockPresetData,
       isOwned: false,
+      isGlobal: false,
     });
 
     await handleEdit(createMockInteraction());
@@ -132,6 +137,54 @@ describe('handleEdit', () => {
     );
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
     expect(mockSessionManagerSet).not.toHaveBeenCalled();
+  });
+
+  it('should show specific error for global preset when not bot owner', async () => {
+    mockFetchPreset.mockResolvedValue({
+      ...mockPresetData,
+      isOwned: false,
+      isGlobal: true,
+    });
+    mockIsBotOwner.mockReturnValue(false);
+
+    await handleEdit(createMockInteraction());
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      '❌ Global presets can only be edited by the bot owner.\n' +
+        'Use `/preset create` to create your own copy based on this preset.'
+    );
+    expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
+    expect(mockSessionManagerSet).not.toHaveBeenCalled();
+  });
+
+  it('should allow bot owner to edit global preset', async () => {
+    mockFetchPreset.mockResolvedValue({
+      ...mockPresetData,
+      isOwned: false,
+      isGlobal: true,
+    });
+    mockIsBotOwner.mockReturnValue(true);
+
+    await handleEdit(createMockInteraction());
+
+    expect(mockBuildDashboardEmbed).toHaveBeenCalled();
+    expect(mockBuildDashboardComponents).toHaveBeenCalled();
+    expect(mockSessionManagerSet).toHaveBeenCalled();
+  });
+
+  it('should allow bot owner to edit non-owned non-global preset', async () => {
+    mockFetchPreset.mockResolvedValue({
+      ...mockPresetData,
+      isOwned: false,
+      isGlobal: false,
+    });
+    mockIsBotOwner.mockReturnValue(true);
+
+    await handleEdit(createMockInteraction());
+
+    expect(mockBuildDashboardEmbed).toHaveBeenCalled();
+    expect(mockBuildDashboardComponents).toHaveBeenCalled();
+    expect(mockSessionManagerSet).toHaveBeenCalled();
   });
 
   it('should handle fetch errors gracefully', async () => {

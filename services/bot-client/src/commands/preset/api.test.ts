@@ -92,7 +92,8 @@ describe('fetchGlobalPreset', () => {
     const result = await fetchGlobalPreset('preset-123');
 
     expect(mockAdminFetch).toHaveBeenCalledWith('/admin/llm-config/preset-123');
-    expect(result).toEqual(mockPresetData);
+    // fetchGlobalPreset adds isOwned: false for dashboard compatibility
+    expect(result).toEqual({ ...mockPresetData, isOwned: false });
   });
 
   it('should return null on 404', async () => {

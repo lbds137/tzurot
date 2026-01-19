@@ -1,212 +1,164 @@
 /**
- * Tests for Preset Global Edit Handler
+ * Tests for Preset Global Edit Handler (Dashboard Pattern)
  *
  * Tests /preset global edit subcommand:
- * - Successful preset updates
- * - Partial field updates
- * - No fields provided error
- * - API error handling
+ * - Opens dashboard for global preset editing
+ * - Proper error handling for not found
+ * - Session management for dashboard
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import { handleGlobalEdit } from './edit.js';
-import * as adminApiClient from '../../../utils/adminApiClient.js';
-import * as commandHelpers from '../../../utils/commandHelpers.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { EmbedBuilder } from 'discord.js';
+import type { PresetData } from '../config.js';
 
-// Mock dependencies
-vi.mock('../../../utils/adminApiClient.js', () => ({
-  adminPutJson: vi.fn(),
-}));
-
-vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn(),
-  handleCommandError: vi.fn(),
-}));
-
+// Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
-    ...(actual as Record<string, unknown>),
+    ...actual,
     createLogger: () => ({
+      debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
-      debug: vi.fn(),
     }),
   };
 });
 
+// Mock api.ts
+const mockFetchGlobalPreset = vi.fn();
+vi.mock('../api.js', () => ({
+  fetchGlobalPreset: (...args: unknown[]) => mockFetchGlobalPreset(...args),
+}));
+
+// Mock dashboard utilities
+const mockBuildDashboardEmbed = vi.fn().mockReturnValue({ title: 'Test Embed' });
+const mockBuildDashboardComponents = vi.fn().mockReturnValue([]);
+const mockSessionManagerSet = vi.fn();
+const mockGetSessionManager = vi.fn().mockReturnValue({
+  set: mockSessionManagerSet,
+});
+vi.mock('../../../utils/dashboard/index.js', () => ({
+  buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
+  buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
+  getSessionManager: () => mockGetSessionManager(),
+}));
+
+const mockGlobalPresetData: PresetData = {
+  id: 'global-preset-123',
+  name: 'Global Test Preset',
+  description: 'A global test preset',
+  provider: 'openrouter',
+  model: 'anthropic/claude-sonnet-4',
+  visionModel: null,
+  isGlobal: true,
+  isOwned: false,
+  maxReferencedMessages: 20,
+  params: {
+    temperature: 0.8,
+    top_p: 0.95,
+  },
+};
+
 describe('Preset Global Edit Handler', () => {
-  const createMockInteraction = (options: Record<string, string | null>) =>
-    ({
+  const mockDeferReply = vi.fn();
+  const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-789' });
+
+  function createMockInteraction(configId = 'global-preset-123') {
+    return {
       user: { id: 'owner-123' },
+      channelId: 'channel-999',
       options: {
-        getString: vi.fn((name: string, _required?: boolean) => {
-          return options[name] ?? null;
-        }),
+        getString: (name: string, _required?: boolean) => {
+          if (name === 'config') {
+            return configId;
+          }
+          return null;
+        },
       },
-      editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+      deferReply: mockDeferReply,
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleGlobalEdit>[0];
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
   describe('handleGlobalEdit', () => {
-    it('should successfully update preset with all fields', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'New Name',
-        model: 'new-model',
-        provider: 'gemini',
-        description: 'New description',
-        'vision-model': 'vision-model-1',
-      });
+    it('should open dashboard for global preset', async () => {
+      mockFetchGlobalPreset.mockResolvedValue(mockGlobalPresetData);
 
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          config: { id: 'config-123', name: 'New Name', model: 'new-model' },
-        }),
-      } as unknown as Response);
+      await handleGlobalEdit(createMockInteraction());
 
-      await handleGlobalEdit(mockInteraction);
-
-      expect(adminApiClient.adminPutJson).toHaveBeenCalledWith('/admin/llm-config/config-123', {
-        name: 'New Name',
-        model: 'new-model',
-        provider: 'gemini',
-        description: 'New description',
-        visionModel: 'vision-model-1',
-      });
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
-      });
-    });
-
-    it('should update preset with single field', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'Only Name Updated',
-      });
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          config: { id: 'config-123', name: 'Only Name Updated', model: 'existing-model' },
-        }),
-      } as unknown as Response);
-
-      await handleGlobalEdit(mockInteraction);
-
-      expect(adminApiClient.adminPutJson).toHaveBeenCalledWith('/admin/llm-config/config-123', {
-        name: 'Only Name Updated',
-      });
-    });
-
-    it('should show error when no fields provided', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        // No other fields
-      });
-
-      await handleGlobalEdit(mockInteraction);
-
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
-        mockInteraction,
-        'No fields to update. Provide at least one option.'
+      expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+      expect(mockFetchGlobalPreset).toHaveBeenCalledWith('global-preset-123');
+      expect(mockBuildDashboardEmbed).toHaveBeenCalled();
+      expect(mockBuildDashboardComponents).toHaveBeenCalledWith(
+        expect.anything(),
+        'global-preset-123',
+        expect.objectContaining({ id: 'global-preset-123', name: 'Global Test Preset' }),
+        { showClose: true, showRefresh: true }
       );
-      expect(adminApiClient.adminPutJson).not.toHaveBeenCalled();
-    });
-
-    it('should handle API error response', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'New Name',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [{ title: 'Test Embed' }],
+        components: [],
       });
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: false,
-        status: 404,
-        json: vi.fn().mockResolvedValue({ error: 'Config not found' }),
-      } as unknown as Response);
-
-      await handleGlobalEdit(mockInteraction);
-
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
-        mockInteraction,
-        'Config not found'
-      );
-    });
-
-    it('should handle API error without message', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'New Name',
-      });
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: false,
-        status: 500,
-        json: vi.fn().mockResolvedValue({}),
-      } as unknown as Response);
-
-      await handleGlobalEdit(mockInteraction);
-
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(mockInteraction, 'HTTP 500');
-    });
-
-    it('should handle network errors with handleCommandError', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'New Name',
-      });
-
-      const networkError = new Error('Network error');
-      vi.mocked(adminApiClient.adminPutJson).mockRejectedValue(networkError);
-
-      await handleGlobalEdit(mockInteraction);
-
-      expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
-        mockInteraction,
-        networkError,
-        { userId: 'owner-123', command: 'Preset Global Edit' }
-      );
-    });
-
-    it('should show updated fields in success embed', async () => {
-      const mockInteraction = createMockInteraction({
-        config: 'config-123',
-        name: 'New Name',
-        model: 'new-model',
-      });
-
-      vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({
-          config: { id: 'config-123', name: 'New Name', model: 'new-model' },
+      expect(mockSessionManagerSet).toHaveBeenCalledWith({
+        userId: 'owner-123',
+        entityType: 'preset',
+        entityId: 'global-preset-123',
+        data: expect.objectContaining({
+          id: 'global-preset-123',
+          isGlobal: true,
         }),
-      } as unknown as Response);
+        messageId: 'message-789',
+        channelId: 'channel-999',
+      });
+    });
 
-      await handleGlobalEdit(mockInteraction);
+    it('should show error when global preset not found', async () => {
+      mockFetchGlobalPreset.mockResolvedValue(null);
 
-      const embedCall = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
-        embeds: EmbedBuilder[];
-      };
-      const embed = embedCall.embeds[0];
-      const embedData = embed.toJSON();
+      await handleGlobalEdit(createMockInteraction());
 
-      expect(embedData.title).toBe('Global Preset Updated');
-      const updatedFieldsField = embedData.fields?.find(f => f.name === 'Updated Fields');
-      expect(updatedFieldsField?.value).toContain('name');
-      expect(updatedFieldsField?.value).toContain('model');
+      expect(mockEditReply).toHaveBeenCalledWith('❌ Global preset not found.');
+      expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
+      expect(mockSessionManagerSet).not.toHaveBeenCalled();
+    });
+
+    it('should handle fetch errors gracefully', async () => {
+      mockFetchGlobalPreset.mockRejectedValue(new Error('Network error'));
+
+      await handleGlobalEdit(createMockInteraction());
+
+      expect(mockEditReply).toHaveBeenCalledWith(
+        '❌ Failed to load global preset. Please try again.'
+      );
+      expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
+      expect(mockSessionManagerSet).not.toHaveBeenCalled();
+    });
+
+    it('should flatten preset data correctly for dashboard', async () => {
+      mockFetchGlobalPreset.mockResolvedValue(mockGlobalPresetData);
+
+      await handleGlobalEdit(createMockInteraction());
+
+      // Verify the flattened data passed to dashboard embed includes expected fields
+      expect(mockBuildDashboardEmbed).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          id: 'global-preset-123',
+          name: 'Global Test Preset',
+          provider: 'openrouter',
+          model: 'anthropic/claude-sonnet-4',
+          isGlobal: true,
+          isOwned: false,
+          temperature: '0.8',
+          top_p: '0.95',
+        })
+      );
     });
   });
 });

@@ -233,32 +233,13 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand
             .setName('edit')
-            .setDescription('Edit a global preset (Owner only)')
+            .setDescription('Edit a global preset via dashboard (Owner only)')
             .addStringOption(option =>
               option
                 .setName('config')
                 .setDescription('Global preset to edit')
                 .setRequired(true)
                 .setAutocomplete(true)
-            )
-            .addStringOption(option =>
-              option.setName('name').setDescription('New preset name').setRequired(false)
-            )
-            .addStringOption(option =>
-              option.setName('model').setDescription('New model ID').setRequired(false)
-            )
-            .addStringOption(option =>
-              option
-                .setName('provider')
-                .setDescription('New AI provider')
-                .setRequired(false)
-                .addChoices(...DISCORD_PROVIDER_CHOICES)
-            )
-            .addStringOption(option =>
-              option.setName('description').setDescription('New description').setRequired(false)
-            )
-            .addStringOption(option =>
-              option.setName('vision-model').setDescription('New vision model').setRequired(false)
             )
         )
         .addSubcommand(subcommand =>
