@@ -16,8 +16,8 @@
     "@tzurot/common-types": "workspace:*"
   },
   "devDependencies": {
-    "@types/node": "^25.0.6",
-    "ioredis": "^5.9.1",
+    "@types/node": "^25.0.9",
+    "ioredis": "^5.9.2",
     "vitest": "^4.0.17"
   }
 }
