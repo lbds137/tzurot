@@ -250,11 +250,17 @@ pnpm test:summary
 
 # Release management
 pnpm bump-version 3.0.0-beta.31  # Bump version in all package.json files
+
+# Ops CLI (Railway/database operations)
+pnpm ops db:status --env dev     # Check migration status
+pnpm ops db:migrate --env dev    # Run pending migrations
+pnpm ops db:migrate --env prod --force  # Prod requires --force
+pnpm ops run --env dev <cmd>     # Run any command with Railway DB credentials
 ```
 
 **Note**: Use pnpm, NOT npm. ESLint uses flat config (`eslint.config.js`), NOT `.eslintrc.*`.
 
-**📚 See**: `tzurot-db-vector` for database commands, `tzurot-deployment` for Railway commands
+**📚 See**: `tzurot-deployment` skill for full ops CLI reference, `tzurot-db-vector` for database patterns
 
 ## Git Workflow
 
