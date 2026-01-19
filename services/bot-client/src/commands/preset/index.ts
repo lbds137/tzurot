@@ -96,34 +96,31 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 /**
  * Select menu interaction handler for preset dashboard
  */
-async function selectMenu(interaction: StringSelectMenuInteraction): Promise<boolean> {
+async function selectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
   if (!isPresetDashboardInteraction(interaction.customId)) {
-    return false;
+    return;
   }
   await handleSelectMenu(interaction);
-  return true;
 }
 
 /**
  * Button interaction handler for preset dashboard
  */
-async function button(interaction: ButtonInteraction): Promise<boolean> {
+async function button(interaction: ButtonInteraction): Promise<void> {
   if (!isPresetDashboardInteraction(interaction.customId)) {
-    return false;
+    return;
   }
   await handleButton(interaction);
-  return true;
 }
 
 /**
  * Modal interaction handler for preset dashboard
  */
-async function modal(interaction: ModalSubmitInteraction): Promise<boolean> {
+async function modal(interaction: ModalSubmitInteraction): Promise<void> {
   if (!isPresetDashboardInteraction(interaction.customId)) {
-    return false;
+    return;
   }
   await handleModalSubmit(interaction);
-  return true;
 }
 
 /**
@@ -269,7 +266,7 @@ export default defineCommand({
     ),
   execute,
   autocomplete,
-  selectMenu,
-  button,
-  modal,
+  handleSelectMenu: selectMenu,
+  handleButton: button,
+  handleModal: modal,
 });
