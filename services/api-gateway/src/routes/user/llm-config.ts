@@ -4,7 +4,9 @@
  *
  * Endpoints:
  * - GET /user/llm-config - List configs (global + user)
+ * - GET /user/llm-config/:id - Get single config with full params
  * - POST /user/llm-config - Create user config
+ * - PUT /user/llm-config/:id - Update user config (advancedParameters)
  * - DELETE /user/llm-config/:id - Delete user config
  */
 
@@ -15,7 +17,10 @@ import {
   UserService,
   type PrismaClient,
   type LlmConfigSummary,
+  type LlmConfigCacheInvalidationService,
   generateLlmConfigUuid,
+  safeValidateAdvancedParams,
+  type AdvancedParams,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -26,16 +31,32 @@ import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-llm-config');
 
+/**
+ * Request body for creating/updating a config
+ * All sampling params go into advancedParameters JSONB
+ */
 interface CreateConfigBody {
   name: string;
   description?: string;
   provider?: string;
   model: string;
   visionModel?: string;
-  temperature?: number;
   maxReferencedMessages?: number;
+  // All params stored in advancedParameters
+  advancedParameters?: AdvancedParams;
 }
 
+interface UpdateConfigBody {
+  name?: string;
+  description?: string;
+  provider?: string;
+  model?: string;
+  visionModel?: string;
+  maxReferencedMessages?: number;
+  advancedParameters?: AdvancedParams;
+}
+
+/** Select fields for list queries (summary data) */
 const CONFIG_SELECT = {
   id: true,
   name: true,
@@ -45,6 +66,14 @@ const CONFIG_SELECT = {
   visionModel: true,
   isGlobal: true,
   isDefault: true,
+} as const;
+
+/** Select fields for detail queries (includes advancedParameters) */
+const CONFIG_DETAIL_SELECT = {
+  ...CONFIG_SELECT,
+  advancedParameters: true,
+  maxReferencedMessages: true,
+  ownerId: true,
 } as const;
 
 // --- Handler Factories ---
@@ -89,6 +118,51 @@ function createListHandler(prisma: PrismaClient) {
   };
 }
 
+function createGetHandler(prisma: PrismaClient) {
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const configId = getParam(req.params.id);
+
+    const user = await prisma.user.findFirst({
+      where: { discordId: discordUserId },
+      select: { id: true },
+    });
+
+    const config = await prisma.llmConfig.findUnique({
+      where: { id: configId },
+      select: CONFIG_DETAIL_SELECT,
+    });
+
+    if (config === null) {
+      return sendError(res, ErrorResponses.notFound('Config not found'));
+    }
+
+    // Determine if user owns this config
+    const isOwned = config.ownerId !== null && user !== null && config.ownerId === user.id;
+
+    // Parse advancedParameters with validation
+    const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
+
+    // Build response with parsed params
+    const response = {
+      id: config.id,
+      name: config.name,
+      description: config.description,
+      provider: config.provider,
+      model: config.model,
+      visionModel: config.visionModel,
+      isGlobal: config.isGlobal,
+      isDefault: config.isDefault,
+      isOwned,
+      maxReferencedMessages: config.maxReferencedMessages,
+      params,
+    };
+
+    logger.debug({ discordUserId, configId }, '[LlmConfig] Fetched config');
+    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
+  };
+}
+
 function createCreateHandler(prisma: PrismaClient, userService: UserService) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -103,6 +177,14 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
     }
     if (body.name.length > 100) {
       return sendError(res, ErrorResponses.validationError('name must be 100 characters or less'));
+    }
+
+    // Validate advancedParameters if provided
+    if (body.advancedParameters !== undefined) {
+      const validated = safeValidateAdvancedParams(body.advancedParameters);
+      if (validated === null) {
+        return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
+      }
     }
 
     // Get or create user
@@ -133,8 +215,8 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
         provider: body.provider ?? 'openrouter',
         model: body.model.trim(),
         visionModel: body.visionModel ?? null,
-        temperature: body.temperature ?? null,
         maxReferencedMessages: body.maxReferencedMessages ?? 20,
+        advancedParameters: body.advancedParameters ?? undefined,
       },
       select: CONFIG_SELECT,
     });
@@ -144,6 +226,133 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
       '[LlmConfig] Created config'
     );
     sendCustomSuccess(res, { config: { ...config, isOwned: true } }, StatusCodes.CREATED);
+  };
+}
+
+// eslint-disable-next-line max-lines-per-function -- validating many optional fields in a PUT handler
+function createUpdateHandler(
+  prisma: PrismaClient,
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+) {
+  // eslint-disable-next-line complexity -- straightforward field validation, not nested logic
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+    const configId = getParam(req.params.id);
+    const body = req.body as UpdateConfigBody;
+
+    const user = await prisma.user.findFirst({
+      where: { discordId: discordUserId },
+      select: { id: true },
+    });
+
+    if (user === null) {
+      return sendError(res, ErrorResponses.notFound('User not found'));
+    }
+
+    const config = await prisma.llmConfig.findUnique({
+      where: { id: configId },
+      select: { id: true, ownerId: true, isGlobal: true, name: true },
+    });
+
+    if (config === null) {
+      return sendError(res, ErrorResponses.notFound('Config not found'));
+    }
+
+    // Users can only edit their own configs (not global ones)
+    if (config.isGlobal || config.ownerId !== user.id) {
+      return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
+    }
+
+    // Build update data
+    const updateData: Record<string, unknown> = {};
+
+    if (body.name !== undefined && body.name.trim().length > 0) {
+      if (body.name.length > 100) {
+        return sendError(
+          res,
+          ErrorResponses.validationError('name must be 100 characters or less')
+        );
+      }
+      // Check for duplicate name (excluding current config)
+      const duplicate = await prisma.llmConfig.findFirst({
+        where: { ownerId: user.id, name: body.name.trim(), id: { not: configId } },
+      });
+      if (duplicate !== null) {
+        return sendError(
+          res,
+          ErrorResponses.validationError(`You already have a config named "${body.name}"`)
+        );
+      }
+      updateData.name = body.name.trim();
+    }
+
+    if (body.description !== undefined) {
+      updateData.description = body.description;
+    }
+    if (body.provider !== undefined) {
+      updateData.provider = body.provider;
+    }
+    if (body.model !== undefined && body.model.trim().length > 0) {
+      updateData.model = body.model.trim();
+    }
+    if (body.visionModel !== undefined) {
+      updateData.visionModel = body.visionModel;
+    }
+    if (body.maxReferencedMessages !== undefined) {
+      updateData.maxReferencedMessages = body.maxReferencedMessages;
+    }
+
+    // Handle advancedParameters update
+    if (body.advancedParameters !== undefined) {
+      const validated = safeValidateAdvancedParams(body.advancedParameters);
+      if (validated === null) {
+        return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
+      }
+      updateData.advancedParameters = body.advancedParameters;
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return sendError(res, ErrorResponses.validationError('No fields to update'));
+    }
+
+    const updated = await prisma.llmConfig.update({
+      where: { id: configId },
+      data: updateData,
+      select: CONFIG_DETAIL_SELECT,
+    });
+
+    // Parse advancedParameters for response
+    const params = safeValidateAdvancedParams(updated.advancedParameters) ?? {};
+
+    const response = {
+      id: updated.id,
+      name: updated.name,
+      description: updated.description,
+      provider: updated.provider,
+      model: updated.model,
+      visionModel: updated.visionModel,
+      isGlobal: updated.isGlobal,
+      isDefault: updated.isDefault,
+      isOwned: true,
+      maxReferencedMessages: updated.maxReferencedMessages,
+      params,
+    };
+
+    logger.info(
+      { discordUserId, configId, name: updated.name, updates: Object.keys(updateData) },
+      '[LlmConfig] Updated config'
+    );
+
+    // Invalidate cache for the user who owns this config
+    if (llmConfigCacheInvalidation) {
+      try {
+        await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
+      } catch (err) {
+        logger.error({ err, configId }, '[LlmConfig] Failed to invalidate cache');
+      }
+    }
+
+    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
   };
 }
 
@@ -195,12 +404,21 @@ function createDeleteHandler(prisma: PrismaClient) {
 
 // --- Main Route Factory ---
 
-export function createLlmConfigRoutes(prisma: PrismaClient): Router {
+export function createLlmConfigRoutes(
+  prisma: PrismaClient,
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+): Router {
   const router = Router();
   const userService = new UserService(prisma);
 
   router.get('/', requireUserAuth(), asyncHandler(createListHandler(prisma)));
+  router.get('/:id', requireUserAuth(), asyncHandler(createGetHandler(prisma)));
   router.post('/', requireUserAuth(), asyncHandler(createCreateHandler(prisma, userService)));
+  router.put(
+    '/:id',
+    requireUserAuth(),
+    asyncHandler(createUpdateHandler(prisma, llmConfigCacheInvalidation))
+  );
   router.delete('/:id', requireUserAuth(), asyncHandler(createDeleteHandler(prisma)));
 
   return router;
