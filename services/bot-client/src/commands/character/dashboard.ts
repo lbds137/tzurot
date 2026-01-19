@@ -81,9 +81,13 @@ async function handleSectionModalSubmit(
   await interaction.deferUpdate();
 
   const sessionManager = getSessionManager();
-  const session = sessionManager.get<CharacterData>(interaction.user.id, 'character', entityId);
+  const session = await sessionManager.get<CharacterData>(
+    interaction.user.id,
+    'character',
+    entityId
+  );
 
-  if (!session) {
+  if (session === null) {
     // Session expired - try to refresh data and continue
     logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
   }
@@ -107,7 +111,12 @@ async function handleSectionModalSubmit(
 
     // Update session
     if (session) {
-      sessionManager.update<CharacterData>(interaction.user.id, 'character', entityId, updated);
+      await sessionManager.update<CharacterData>(
+        interaction.user.id,
+        'character',
+        entityId,
+        updated
+      );
     }
 
     // Refresh dashboard (use slug as entityId)
@@ -154,7 +163,11 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 
     // Get current data from session or fetch
     const sessionManager = getSessionManager();
-    const session = sessionManager.get<CharacterData>(interaction.user.id, 'character', entityId);
+    const session = await sessionManager.get<CharacterData>(
+      interaction.user.id,
+      'character',
+      entityId
+    );
     let characterData: CharacterData;
 
     if (session !== null) {
@@ -171,7 +184,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       }
       characterData = character;
       // Create new session
-      sessionManager.set({
+      await sessionManager.set({
         userId: interaction.user.id,
         entityType: 'character',
         entityId,
@@ -196,72 +209,91 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 }
 
 /**
+ * Handle character-specific button actions (list, view, expand, delete)
+ * Returns true if handled, false if not a character button
+ */
+async function handleCharacterButtonAction(
+  interaction: ButtonInteraction,
+  config: EnvConfig
+): Promise<boolean> {
+  const characterParsed = CharacterCustomIds.parse(interaction.customId);
+  if (!characterParsed) {
+    return false;
+  }
+
+  switch (characterParsed.action) {
+    case 'list':
+    case 'sort': {
+      if (characterParsed.page === undefined) {
+        return true; // Info button is disabled, shouldn't be clickable
+      }
+      const page = characterParsed.action === 'sort' ? 0 : characterParsed.page;
+      await handleListPagination(interaction, page, characterParsed.sort, config);
+      return true;
+    }
+
+    case 'view': {
+      if (characterParsed.viewPage === undefined || characterParsed.characterId === undefined) {
+        return true;
+      }
+      await handleViewPagination(
+        interaction,
+        characterParsed.characterId,
+        characterParsed.viewPage,
+        config
+      );
+      return true;
+    }
+
+    case 'expand': {
+      if (characterParsed.characterId === undefined || characterParsed.fieldName === undefined) {
+        return true;
+      }
+      await handleExpandField(
+        interaction,
+        characterParsed.characterId,
+        characterParsed.fieldName,
+        config
+      );
+      return true;
+    }
+
+    case 'delete_confirm': {
+      if (characterParsed.characterId === undefined) {
+        return true;
+      }
+      const { handleDeleteButton } = await import('./delete.js');
+      await handleDeleteButton(interaction, characterParsed.characterId, true);
+      return true;
+    }
+
+    case 'delete_cancel': {
+      if (characterParsed.characterId === undefined) {
+        return true;
+      }
+      const { handleDeleteButton } = await import('./delete.js');
+      await handleDeleteButton(interaction, characterParsed.characterId, false);
+      return true;
+    }
+
+    default:
+      return false;
+  }
+}
+
+/**
  * Handle button interactions for dashboard and list pagination
  */
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const config = getConfig();
-  const customId = interaction.customId;
 
-  // Handle list pagination and sort toggle buttons using centralized customId parser
-  const characterParsed = CharacterCustomIds.parse(customId);
-  if (characterParsed?.action === 'list' || characterParsed?.action === 'sort') {
-    // Info button is disabled, shouldn't be clickable
-    if (characterParsed.page === undefined) {
-      return;
-    }
-
-    // Reset to page 0 when changing sort
-    const page = characterParsed.action === 'sort' ? 0 : characterParsed.page;
-    await handleListPagination(interaction, page, characterParsed.sort, config);
-    return;
-  }
-
-  // Handle view pagination buttons
-  if (characterParsed?.action === 'view') {
-    // Info button is disabled, shouldn't be clickable
-    if (characterParsed.viewPage === undefined || characterParsed.characterId === undefined) {
-      return;
-    }
-
-    await handleViewPagination(
-      interaction,
-      characterParsed.characterId,
-      characterParsed.viewPage,
-      config
-    );
-    return;
-  }
-
-  // Handle expand field buttons
-  if (characterParsed?.action === 'expand') {
-    if (characterParsed.characterId === undefined || characterParsed.fieldName === undefined) {
-      return;
-    }
-
-    await handleExpandField(
-      interaction,
-      characterParsed.characterId,
-      characterParsed.fieldName,
-      config
-    );
-    return;
-  }
-
-  // Handle delete confirmation buttons
-  if (characterParsed?.action === 'delete_confirm' && characterParsed.characterId !== undefined) {
-    const { handleDeleteButton } = await import('./delete.js');
-    await handleDeleteButton(interaction, characterParsed.characterId, true);
-    return;
-  }
-
-  if (characterParsed?.action === 'delete_cancel' && characterParsed.characterId !== undefined) {
-    const { handleDeleteButton } = await import('./delete.js');
-    await handleDeleteButton(interaction, characterParsed.characterId, false);
+  // Handle character-specific buttons (list, view, expand, delete)
+  if (await handleCharacterButtonAction(interaction, config)) {
     return;
   }
 
   // Handle dashboard buttons
-  const parsed = parseDashboardCustomId(customId);
+  const parsed = parseDashboardCustomId(interaction.customId);
   if (parsed?.entityType !== 'character' || parsed.entityId === undefined) {
     return;
   }
@@ -272,7 +304,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   if (action === 'close') {
     // Delete the session and message
     const sessionManager = getSessionManager();
-    sessionManager.delete(interaction.user.id, 'character', entityId);
+    await sessionManager.delete(interaction.user.id, 'character', entityId);
 
     await interaction.update({
       content: '✅ Dashboard closed.',
@@ -298,7 +330,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
     // Update session
     const sessionManager = getSessionManager();
-    sessionManager.set({
+    await sessionManager.set({
       userId: interaction.user.id,
       entityType: 'character',
       entityId,
@@ -355,7 +387,7 @@ async function handleAction(
 
     // Update session
     const sessionManager = getSessionManager();
-    sessionManager.update<CharacterData>(interaction.user.id, 'character', entityId, {
+    await sessionManager.update<CharacterData>(interaction.user.id, 'character', entityId, {
       isPublic: result.isPublic,
     });
 
