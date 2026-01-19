@@ -104,6 +104,115 @@ describe('Admin LLM Config Routes', () => {
     });
   });
 
+  describe('GET /admin/llm-config/:id', () => {
+    it('should return a single global config', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        name: 'Default Config',
+        description: 'System default',
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: true,
+        isFreeDefault: false,
+        maxReferencedMessages: 10,
+        advancedParameters: { temperature: 0.7 },
+      });
+
+      const response = await request(app).get('/admin/llm-config/config-1');
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.id).toBe('config-1');
+      expect(response.body.config.name).toBe('Default Config');
+      expect(response.body.config.isGlobal).toBe(true);
+      expect(response.body.config.params).toEqual({ temperature: 0.7 });
+    });
+
+    it('should return 404 when config not found', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue(null);
+
+      const response = await request(app).get('/admin/llm-config/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toMatch(/not found/i);
+    });
+
+    it('should allow viewing non-global configs (admin access)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        name: 'User Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        maxReferencedMessages: 10,
+        advancedParameters: null,
+      });
+
+      const response = await request(app).get('/admin/llm-config/config-1');
+
+      // Admin endpoint allows viewing any config
+      expect(response.status).toBe(200);
+      expect(response.body.config.name).toBe('User Config');
+      expect(response.body.config.isGlobal).toBe(false);
+    });
+
+    it('should parse advancedParameters correctly', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        name: 'Config with params',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        maxReferencedMessages: 15,
+        advancedParameters: {
+          temperature: 0.8,
+          top_p: 0.95,
+          reasoning: { effort: 'high', max_tokens: 8000 },
+        },
+      });
+
+      const response = await request(app).get('/admin/llm-config/config-1');
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.params.temperature).toBe(0.8);
+      expect(response.body.config.params.top_p).toBe(0.95);
+      expect(response.body.config.params.reasoning).toEqual({
+        effort: 'high',
+        max_tokens: 8000,
+      });
+    });
+
+    it('should handle null advancedParameters', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        name: 'Config without params',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        maxReferencedMessages: 10,
+        advancedParameters: null,
+      });
+
+      const response = await request(app).get('/admin/llm-config/config-1');
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.params).toEqual({});
+    });
+  });
+
   describe('POST /admin/llm-config', () => {
     it('should create a global LLM config', async () => {
       prisma.llmConfig.findFirst.mockResolvedValue(null);
