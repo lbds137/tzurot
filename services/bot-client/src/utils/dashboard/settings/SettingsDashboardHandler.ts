@@ -88,7 +88,7 @@ export async function createSettingsDashboard(
 
   // Store session with message ID
   session.messageId = reply.id;
-  storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType, updateHandler);
 
   logger.debug(
     { entityType: config.entityType, entityId, userId },
@@ -111,7 +111,7 @@ export async function handleSettingsSelectMenu(
   }
 
   // Get session
-  const session = getSession(interaction.user.id, config.entityType, parsed.entityId);
+  const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
     await interaction.reply({
@@ -146,7 +146,7 @@ export async function handleSettingsSelectMenu(
   session.view = DashboardView.SETTING;
   session.activeSetting = settingId;
   session.lastActivityAt = new Date();
-  storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType, updateHandler);
 
   // Build and update message
   const message = buildSettingMessage(config, session, setting);
@@ -177,7 +177,7 @@ export async function handleSettingsButton(
   }
 
   // Get session
-  const session = getSession(interaction.user.id, config.entityType, parsed.entityId);
+  const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
     await interaction.reply({
@@ -227,7 +227,7 @@ async function handleBackButton(
   session.view = DashboardView.OVERVIEW;
   session.activeSetting = undefined;
   session.lastActivityAt = new Date();
-  storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType, updateHandler);
 
   const message = buildOverviewMessage(config, session);
 
@@ -246,7 +246,7 @@ async function handleCloseButton(
   session: SettingsDashboardSession
 ): Promise<void> {
   // Delete session
-  deleteSession(session.userId, config.entityType, session.entityId);
+  await deleteSession(session.userId, config.entityType, session.entityId);
 
   // Delete the message
   await interaction.update({
@@ -315,7 +315,7 @@ async function handleSetButton(
     session.data = result.newData;
   }
   session.lastActivityAt = new Date();
-  storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType, updateHandler);
 
   // Rebuild the current view
   if (session.view === DashboardView.SETTING && session.activeSetting !== undefined) {
@@ -399,7 +399,7 @@ export async function handleSettingsModal(
   }
 
   // Get session
-  const session = getSession(interaction.user.id, config.entityType, parsed.entityId);
+  const session = await getSession(interaction.user.id, config.entityType, parsed.entityId);
 
   if (session === null) {
     await interaction.reply({
@@ -467,7 +467,7 @@ export async function handleSettingsModal(
     session.data = result.newData;
   }
   session.lastActivityAt = new Date();
-  storeSession(session, config.entityType, updateHandler);
+  await storeSession(session, config.entityType, updateHandler);
 
   // Rebuild the setting view
   const message = buildSettingMessage(config, session, setting);
@@ -542,13 +542,13 @@ function getSessionKey(userId: string, entityType: string, entityId: string): st
   return `${userId}:${entityType}:${entityId}`;
 }
 
-function storeSession(
+async function storeSession(
   session: SettingsDashboardSession,
   entityType: string,
   updateHandler: SettingUpdateHandler
-): void {
+): Promise<void> {
   const manager = getSessionManager();
-  manager.set({
+  await manager.set({
     userId: session.userId,
     entityType,
     entityId: session.entityId,
@@ -562,19 +562,23 @@ function storeSession(
   sessionMetadata.set(key, { updateHandler });
 }
 
-function getSession(
+async function getSession(
   userId: string,
   entityType: string,
   entityId: string
-): SettingsDashboardSession | null {
+): Promise<SettingsDashboardSession | null> {
   const manager = getSessionManager();
-  const dashboardSession = manager.get<SettingsDashboardSession>(userId, entityType, entityId);
+  const dashboardSession = await manager.get<SettingsDashboardSession>(
+    userId,
+    entityType,
+    entityId
+  );
   return dashboardSession?.data ?? null;
 }
 
-function deleteSession(userId: string, entityType: string, entityId: string): void {
+async function deleteSession(userId: string, entityType: string, entityId: string): Promise<void> {
   const manager = getSessionManager();
-  manager.delete(userId, entityType, entityId);
+  await manager.delete(userId, entityType, entityId);
 
   const key = getSessionKey(userId, entityType, entityId);
   sessionMetadata.delete(key);

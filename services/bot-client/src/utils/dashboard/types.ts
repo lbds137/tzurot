@@ -10,6 +10,7 @@ import type {
   ModalSubmitInteraction,
   ButtonInteraction,
 } from 'discord.js';
+import { z } from 'zod';
 
 /**
  * Status indicator for dashboard sections
@@ -243,3 +244,25 @@ export function buildDashboardCustomId(
   }
   return parts.join(CUSTOM_ID_DELIMITER);
 }
+
+/**
+ * Schema for session data stored in Redis
+ *
+ * Dates are stored as ISO strings since Redis stores everything as strings.
+ * The data field is kept as unknown since different entity types have different data shapes.
+ */
+export const StoredSessionSchema = z.object({
+  entityType: z.string(),
+  entityId: z.string(),
+  userId: z.string(),
+  data: z.unknown(),
+  messageId: z.string(),
+  channelId: z.string(),
+  createdAt: z.string(), // ISO timestamp
+  lastActivityAt: z.string(), // ISO timestamp
+});
+
+/**
+ * Type for stored session data (before Date conversion)
+ */
+export type StoredSession = z.infer<typeof StoredSessionSchema>;
