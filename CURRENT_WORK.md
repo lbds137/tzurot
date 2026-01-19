@@ -1,12 +1,12 @@
 # Current Work
 
-> Last updated: 2026-01-17
+> Last updated: 2026-01-18
 
 ## Status: Public Beta Live
 
 **Version**: v3.0.0-beta.43
 **Deployment**: Railway (stable)
-**Current Goal**: Channel Allowlist/Denylist
+**Current Goal**: Slash Command Dashboard Pattern
 
 ---
 
@@ -156,15 +156,12 @@ Key areas remaining:
 
 ## Next Up
 
-| #   | Feature                           | Why                                                     |
-| --- | --------------------------------- | ------------------------------------------------------- |
-| 1   | ~~Quick Wins~~ ✅                 | Drop BotSettings, rename `/me model` → `/me preset`     |
-| 2   | ~~Memory Management Phase 2~~ ✅  | LTM commands + Read Toggle ("Focus Mode")               |
-| 3   | ~~Memory Management Phase 3~~ ✅  | Incognito Mode (disable LTM writing)                    |
-| 4   | **Channel Allowlist/Denylist** ⬅️ | User-requested - prevents unwanted channel responses    |
-| 5   | **Dashboard + User Prompts**      | Session manager, preset editing, sidecar system prompts |
-| 6   | **DM Personality Chat**           | User-requested - chat with personalities in DMs         |
-| 7   | **v2 Parity** (deprioritized)     | NSFW verification, Shapes import                        |
+| #   | Feature                         | Why                                                     |
+| --- | ------------------------------- | ------------------------------------------------------- |
+| 1   | **Dashboard + User Prompts** ⬅️ | Session manager, preset editing, sidecar system prompts |
+| 2   | **Channel Allowlist/Denylist**  | User-requested - prevents unwanted channel responses    |
+| 3   | **DM Personality Chat**         | User-requested - chat with personalities in DMs         |
+| 4   | **v2 Parity** (deprioritized)   | NSFW verification, Shapes import                        |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
