@@ -17,10 +17,10 @@ import {
 } from 'discord.js';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../types.js';
 import { VALID_COMMAND_KEYS, type CommandDefinition } from '../utils/defineCommand.js';
 import { getCommandFromCustomId } from '../utils/customIds.js';
+import { getCommandFiles } from '../utils/commandFileUtils.js';
 
 const logger = createLogger('CommandHandler');
 
@@ -65,7 +65,7 @@ export class CommandHandler {
    */
   async loadCommands(): Promise<void> {
     const commandsPath = join(__dirname, '../commands');
-    const commandFiles = this.getCommandFiles(commandsPath);
+    const commandFiles = getCommandFiles(commandsPath);
 
     logger.info(`[CommandHandler] Loading ${commandFiles.length} command files...`);
 
@@ -145,42 +145,6 @@ export class CommandHandler {
     }
 
     logger.info(`[CommandHandler] Loaded ${this.commands.size} commands`);
-  }
-
-  /**
-   * Get command entry point files from commands directory
-   *
-   * Uses "Index or Root" pattern to reduce log noise:
-   * - Root-level files: commands/ping.ts (direct children)
-   * - Index files: commands/preset/index.ts (entry points in subdirectories)
-   *
-   * This skips helper files (api.ts, list.ts) and nested subcommands (global/edit.ts)
-   * without logging, since they're not meant to be loaded as top-level commands.
-   */
-  private getCommandFiles(dir: string, isRoot = true): string[] {
-    const files: string[] = [];
-
-    const items = readdirSync(dir);
-    for (const item of items) {
-      const fullPath = join(dir, item);
-      const stat = statSync(fullPath);
-
-      if (stat.isDirectory()) {
-        // Recurse into subdirectories, marking them as non-root
-        files.push(...this.getCommandFiles(fullPath, false));
-      } else if ((item.endsWith('.ts') || item.endsWith('.js')) && !item.endsWith('.d.ts')) {
-        // Only include files that are command entry points:
-        // - Root level: any .ts/.js file (e.g., commands/ping.ts)
-        // - Subdirectory: only index.ts/index.js (e.g., commands/preset/index.ts)
-        const isIndexFile = item === 'index.ts' || item === 'index.js';
-        if (isRoot || isIndexFile) {
-          files.push(fullPath);
-        }
-        // Silently skip non-index files in subdirectories (helpers, subcommands)
-      }
-    }
-
-    return files;
   }
 
   /**
