@@ -10,7 +10,12 @@ import {
   extractModalValues,
   validateModalValues,
 } from './ModalFactory.js';
-import type { DashboardConfig, SectionDefinition, FieldDefinition } from './types.js';
+import type {
+  DashboardConfig,
+  SectionDefinition,
+  FieldDefinition,
+  DashboardContext,
+} from './types.js';
 
 // Helper to extract component data from modal JSON
 function getModalComponents(modal: ReturnType<typeof buildSectionModal>) {
@@ -220,6 +225,173 @@ describe('ModalFactory', () => {
 
       expect(numInput.value).toBeUndefined();
       expect(missingInput.value).toBeUndefined();
+    });
+
+    describe('with context-aware hidden fields', () => {
+      const adminContext: DashboardContext = { isAdmin: true, userId: 'admin-123' };
+      const userContext: DashboardContext = { isAdmin: false, userId: 'user-456' };
+
+      it('should show all fields when no context is provided (backward compatibility)', () => {
+        const config: DashboardConfig<Record<string, string>> = {
+          entityType: 'test',
+          title: 'Test',
+          sections: [],
+          fetchEntity: vi.fn(),
+          updateEntity: vi.fn(),
+        };
+
+        const section: SectionDefinition<Record<string, string>> = {
+          id: 'admin',
+          label: 'Admin Section',
+          fields: [
+            { id: 'visible', label: 'Visible', style: 'short' },
+            {
+              id: 'adminOnly',
+              label: 'Admin Only',
+              style: 'short',
+              hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+            },
+          ],
+        };
+
+        // No context provided - all fields visible
+        const modal = buildSectionModal(config, section, 'test-1', {});
+        expect(getModalComponents(modal)).toHaveLength(2);
+      });
+
+      it('should hide fields with static hidden: true', () => {
+        const config: DashboardConfig<Record<string, string>> = {
+          entityType: 'test',
+          title: 'Test',
+          sections: [],
+          fetchEntity: vi.fn(),
+          updateEntity: vi.fn(),
+        };
+
+        const section: SectionDefinition<Record<string, string>> = {
+          id: 'test',
+          label: 'Test Section',
+          fields: [
+            { id: 'visible', label: 'Visible', style: 'short' },
+            { id: 'hidden', label: 'Hidden', style: 'short', hidden: true },
+          ],
+        };
+
+        const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
+        const components = getModalComponents(modal);
+
+        expect(components).toHaveLength(1);
+        expect(getTextInput(modal, 0).custom_id).toBe('visible');
+      });
+
+      it('should show fields with static hidden: false', () => {
+        const config: DashboardConfig<Record<string, string>> = {
+          entityType: 'test',
+          title: 'Test',
+          sections: [],
+          fetchEntity: vi.fn(),
+          updateEntity: vi.fn(),
+        };
+
+        const section: SectionDefinition<Record<string, string>> = {
+          id: 'test',
+          label: 'Test Section',
+          fields: [{ id: 'visible', label: 'Visible', style: 'short', hidden: false }],
+        };
+
+        const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
+        expect(getModalComponents(modal)).toHaveLength(1);
+      });
+
+      it('should show admin-only field to admins', () => {
+        const config: DashboardConfig<Record<string, string>> = {
+          entityType: 'test',
+          title: 'Test',
+          sections: [],
+          fetchEntity: vi.fn(),
+          updateEntity: vi.fn(),
+        };
+
+        const section: SectionDefinition<Record<string, string>> = {
+          id: 'admin',
+          label: 'Admin Section',
+          fields: [
+            { id: 'public', label: 'Public Field', style: 'short' },
+            {
+              id: 'adminOnly',
+              label: 'Admin Only',
+              style: 'short',
+              hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+            },
+          ],
+        };
+
+        const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
+        const components = getModalComponents(modal);
+
+        expect(components).toHaveLength(2);
+        expect(getTextInput(modal, 0).custom_id).toBe('public');
+        expect(getTextInput(modal, 1).custom_id).toBe('adminOnly');
+      });
+
+      it('should hide admin-only field from non-admins', () => {
+        const config: DashboardConfig<Record<string, string>> = {
+          entityType: 'test',
+          title: 'Test',
+          sections: [],
+          fetchEntity: vi.fn(),
+          updateEntity: vi.fn(),
+        };
+
+        const section: SectionDefinition<Record<string, string>> = {
+          id: 'admin',
+          label: 'Admin Section',
+          fields: [
+            { id: 'public', label: 'Public Field', style: 'short' },
+            {
+              id: 'adminOnly',
+              label: 'Admin Only',
+              style: 'short',
+              hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+            },
+          ],
+        };
+
+        const modal = buildSectionModal(config, section, 'test-1', {}, userContext);
+        const components = getModalComponents(modal);
+
+        expect(components).toHaveLength(1);
+        expect(getTextInput(modal, 0).custom_id).toBe('public');
+      });
+
+      it('should respect Discord 5-field limit after filtering hidden fields', () => {
+        const config: DashboardConfig<Record<string, string>> = {
+          entityType: 'test',
+          title: 'Test',
+          sections: [],
+          fetchEntity: vi.fn(),
+          updateEntity: vi.fn(),
+        };
+
+        const section: SectionDefinition<Record<string, string>> = {
+          id: 'many',
+          label: 'Many Fields',
+          fields: [
+            { id: 'f1', label: 'Field 1', style: 'short' },
+            { id: 'f2', label: 'Field 2', style: 'short', hidden: true },
+            { id: 'f3', label: 'Field 3', style: 'short' },
+            { id: 'f4', label: 'Field 4', style: 'short', hidden: true },
+            { id: 'f5', label: 'Field 5', style: 'short' },
+            { id: 'f6', label: 'Field 6', style: 'short' },
+            { id: 'f7', label: 'Field 7', style: 'short' },
+            { id: 'f8', label: 'Field 8', style: 'short' },
+          ],
+        };
+
+        // After filtering, we have 6 visible fields, but should only show 5
+        const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
+        expect(getModalComponents(modal)).toHaveLength(5);
+      });
     });
   });
 

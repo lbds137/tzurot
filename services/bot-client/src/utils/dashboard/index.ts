@@ -23,6 +23,9 @@
 export {
   SectionStatus,
   STATUS_EMOJI,
+  type DashboardContext,
+  type ContextAware,
+  resolveContextAware,
   type FieldDefinition,
   type SectionDefinition,
   type ActionDefinition,

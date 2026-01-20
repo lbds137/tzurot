@@ -37,6 +37,8 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
       debug: vi.fn(),
     }),
+    // Mock isBotOwner - returns false by default for regular users
+    isBotOwner: vi.fn(() => false),
   };
 });
 
@@ -148,7 +150,8 @@ describe('Character Edit Handler', () => {
         userId: 'user-123',
         entityType: 'character',
         entityId: 'my-char',
-        data: mockCharacter,
+        // Session data now includes _isAdmin flag (false for non-admins)
+        data: { ...mockCharacter, _isAdmin: false },
         messageId: 'reply-123',
         channelId: 'channel-456',
       });
