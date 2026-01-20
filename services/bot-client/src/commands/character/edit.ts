@@ -5,16 +5,32 @@
  */
 
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { createLogger, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, isBotOwner, type EnvConfig } from '@tzurot/common-types';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { characterDashboardConfig } from './config.js';
+import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import { fetchCharacter } from './api.js';
 
 const logger = createLogger('character-edit');
+
+/**
+ * Extended character data with admin flag for session storage.
+ *
+ * Note: The underscore prefix (`_isAdmin`) indicates session-only metadata
+ * that is NOT persisted to the database. This flag is stored for debugging
+ * and audit purposes, but is NEVER trusted for authorization decisions.
+ * All sensitive operations must re-verify admin status via `isBotOwner()`.
+ */
+export interface CharacterSessionData extends CharacterData {
+  /**
+   * Whether the session was opened by a bot admin.
+   * Stored for audit/debugging only - always re-verify with isBotOwner() for authorization.
+   */
+  _isAdmin?: boolean;
+}
 
 /**
  * Handle the edit subcommand - show dashboard for selected character
@@ -43,34 +59,35 @@ export async function handleEdit(
       return;
     }
 
+    // Check if user is a bot admin (for admin-only sections)
+    const isAdmin = isBotOwner(interaction.user.id);
+    const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+
     // Build and send dashboard
     // Use slug as entityId (not UUID) because fetchCharacter expects slug
-    const embed = buildDashboardEmbed(characterDashboardConfig, character);
-    const components = buildDashboardComponents(
-      characterDashboardConfig,
-      character.slug,
-      character,
-      {
-        showClose: true,
-        showRefresh: true,
-      }
-    );
+    const embed = buildDashboardEmbed(dashboardConfig, character);
+    const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
+      showClose: true,
+      showRefresh: true,
+    });
 
     const reply = await interaction.editReply({ embeds: [embed], components });
 
     // Create session for tracking (keyed by slug)
+    // Store _isAdmin for later interactions (but always re-verify on sensitive operations)
     const sessionManager = getSessionManager();
+    const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
     await sessionManager.set({
       userId: interaction.user.id,
       entityType: 'character',
       entityId: character.slug,
-      data: character,
+      data: sessionData,
       messageId: reply.id,
       channelId: interaction.channelId,
     });
 
     logger.info(
-      { userId: interaction.user.id, slug: character.slug },
+      { userId: interaction.user.id, slug: character.slug, isAdmin },
       'Character dashboard opened'
     );
   } catch (error) {

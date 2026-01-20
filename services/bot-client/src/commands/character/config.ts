@@ -10,6 +10,7 @@ import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
 import {
   type DashboardConfig,
   type SectionDefinition,
+  type DashboardContext,
   SectionStatus,
 } from '../../utils/dashboard/index.js';
 
@@ -304,6 +305,38 @@ const conversationSection: SectionDefinition<CharacterData> = {
 };
 
 /**
+ * Admin Settings Section (admin-only)
+ * Fields: slug
+ * Only visible to bot owners for making corrections to system identifiers
+ *
+ * Note: The `hidden` property uses a context-aware function that evaluates
+ * at render time. The section itself is conditionally included via
+ * getCharacterDashboardConfig(isAdmin), and this field-level hidden property
+ * provides defense-in-depth.
+ */
+const adminSection: SectionDefinition<CharacterData> = {
+  id: 'admin',
+  label: '⚙️ Admin Settings',
+  description: 'Bot owner only - system identifiers',
+  fieldIds: ['slug'],
+  fields: [
+    {
+      id: 'slug',
+      label: 'Slug (URL Identifier)',
+      placeholder: 'lowercase-with-hyphens',
+      required: true,
+      style: 'short',
+      maxLength: 255,
+      // Only visible to admins (defense-in-depth - section is also conditionally included)
+      hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+    },
+  ],
+  // Admin section is always "configured" since slug is required
+  getStatus: () => SectionStatus.DEFAULT,
+  getPreview: (data: CharacterData) => `\`${data.slug}\``,
+};
+
+/**
  * Character Dashboard Configuration
  */
 export const characterDashboardConfig: DashboardConfig<CharacterData> = {
@@ -342,6 +375,28 @@ export const characterDashboardConfig: DashboardConfig<CharacterData> = {
   },
   color: DISCORD_COLORS.BLURPLE,
 };
+
+/**
+ * Get character dashboard config with optional admin sections
+ *
+ * Use this function instead of characterDashboardConfig directly when
+ * you need to conditionally include admin-only sections.
+ *
+ * @param isAdmin - Whether the current user is a bot admin
+ * @returns Dashboard config with appropriate sections
+ */
+export function getCharacterDashboardConfig(isAdmin: boolean): DashboardConfig<CharacterData> {
+  const sections = [identitySection, biographySection, preferencesSection, conversationSection];
+
+  if (isAdmin) {
+    sections.push(adminSection);
+  }
+
+  return {
+    ...characterDashboardConfig,
+    sections,
+  };
+}
 
 /**
  * Seed modal field definitions for creating a new character

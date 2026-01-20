@@ -16,7 +16,9 @@ import {
   type DashboardConfig,
   type SectionDefinition,
   type FieldDefinition,
+  type DashboardContext,
   buildDashboardCustomId,
+  resolveContextAware,
 } from './types.js';
 
 /**
@@ -35,19 +37,29 @@ const DEFAULT_CONSTRAINTS = {
  * @param section - Section being edited
  * @param entityId - Entity ID
  * @param currentData - Current entity data for pre-filling
+ * @param context - Optional dashboard context for resolving context-aware field properties
  */
 export function buildSectionModal<T extends Record<string, unknown>>(
   config: DashboardConfig<T>,
   section: SectionDefinition<T>,
   entityId: string,
-  currentData: T
+  currentData: T,
+  context?: DashboardContext
 ): ModalBuilder {
   const modal = new ModalBuilder()
     .setCustomId(buildDashboardCustomId(config.entityType, 'modal', entityId, section.id))
     .setTitle(`Edit ${section.label.replace(/^[^\w\s]+\s*/, '')}`); // Remove leading emoji
 
+  // Filter out hidden fields when context is provided
+  let visibleFields = section.fields;
+  if (context !== undefined) {
+    visibleFields = section.fields.filter(
+      field => !resolveContextAware(field.hidden, context, false)
+    );
+  }
+
   // Add fields (max 5 per Discord limit)
-  const fieldsToAdd = section.fields.slice(0, 5);
+  const fieldsToAdd = visibleFields.slice(0, 5);
 
   for (const field of fieldsToAdd) {
     const textInput = buildTextInput(field, currentData);
