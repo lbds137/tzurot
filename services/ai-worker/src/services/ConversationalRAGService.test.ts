@@ -325,6 +325,110 @@ describe('ConversationalRAGService', () => {
 
       expect(result.incognitoModeActive).toBe(false);
     });
+
+    it('should defer memory storage when skipMemoryStorage is true', async () => {
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context, {
+        skipMemoryStorage: true,
+      });
+
+      // Memory should NOT be stored immediately
+      expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
+
+      // But deferredMemoryData should be populated
+      expect(result.deferredMemoryData).toBeDefined();
+      expect(result.deferredMemoryData?.personaId).toBe('persona-123');
+      expect(result.deferredMemoryData?.responseContent).toBe('AI response');
+      expect(result.deferredMemoryData?.contentForEmbedding).toBe('content for storage');
+    });
+
+    it('should store memory immediately when skipMemoryStorage is false (default)', async () => {
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context, {
+        skipMemoryStorage: false,
+      });
+
+      // Memory should be stored immediately
+      expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledOnce();
+
+      // deferredMemoryData should NOT be populated
+      expect(result.deferredMemoryData).toBeUndefined();
+    });
+
+    it('should not return deferredMemoryData when incognito mode is active', async () => {
+      const { redisService } = await import('../redis.js');
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(true);
+
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context, {
+        skipMemoryStorage: true,
+      });
+
+      // Even with skipMemoryStorage: true, no deferredMemoryData when incognito
+      expect(result.deferredMemoryData).toBeUndefined();
+      expect(result.incognitoModeActive).toBe(true);
+
+      // Reset mock
+      vi.mocked(redisService.isIncognitoActive).mockResolvedValue(false);
+    });
+
+    it('should not return deferredMemoryData when no persona found', async () => {
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue(null);
+
+      const personality = createMockPersonality();
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test', context, {
+        skipMemoryStorage: true,
+      });
+
+      // No persona = no memory data
+      expect(result.deferredMemoryData).toBeUndefined();
+      expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('storeDeferredMemory', () => {
+    it('should store memory using deferred data', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext();
+      const deferredData = {
+        contentForEmbedding: 'user message content',
+        responseContent: 'AI response content',
+        personaId: 'persona-456',
+      };
+
+      await service.storeDeferredMemory(personality, context, deferredData);
+
+      expect(getLongTermMemoryServiceMock().storeInteraction).toHaveBeenCalledWith(
+        personality,
+        'user message content',
+        'AI response content',
+        context,
+        'persona-456'
+      );
+    });
   });
 
   describe('referenced messages included in LTM search query', () => {
