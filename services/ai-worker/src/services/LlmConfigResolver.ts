@@ -15,11 +15,27 @@
 import {
   createLogger,
   INTERVALS,
+  safeValidateAdvancedParams,
+  advancedParamsToConfigFormat,
   type PrismaClient,
   type LoadedPersonality,
 } from '@tzurot/common-types';
 
 const logger = createLogger('LlmConfigResolver');
+
+/**
+ * Prisma select for LlmConfig fields needed for resolution.
+ * Shared between user.defaultLlmConfig and userPersonalityConfig.llmConfig queries.
+ */
+const LLM_CONFIG_SELECT = {
+  name: true,
+  model: true,
+  visionModel: true,
+  advancedParameters: true, // JSONB with sampling params (snake_case)
+  memoryScoreThreshold: true, // Not in JSONB - memory-specific
+  memoryLimit: true, // Not in JSONB - memory-specific
+  contextWindowTokens: true, // Not in JSONB - context-specific
+} as const;
 
 /**
  * Resolved LLM config values that can override personality defaults
@@ -159,23 +175,7 @@ export class LlmConfigResolver {
         select: {
           id: true,
           defaultLlmConfigId: true,
-          defaultLlmConfig: {
-            select: {
-              name: true,
-              model: true,
-              visionModel: true,
-              temperature: true,
-              topP: true,
-              topK: true,
-              frequencyPenalty: true,
-              presencePenalty: true,
-              repetitionPenalty: true,
-              maxTokens: true,
-              memoryScoreThreshold: true,
-              memoryLimit: true,
-              contextWindowTokens: true,
-            },
-          },
+          defaultLlmConfig: { select: LLM_CONFIG_SELECT },
         },
       });
 
@@ -191,30 +191,8 @@ export class LlmConfigResolver {
 
       // Priority 1: Check for per-personality override
       const personalityOverride = await this.prisma.userPersonalityConfig.findFirst({
-        where: {
-          userId: user.id,
-          personalityId,
-          llmConfigId: { not: null },
-        },
-        select: {
-          llmConfig: {
-            select: {
-              name: true,
-              model: true,
-              visionModel: true,
-              temperature: true,
-              topP: true,
-              topK: true,
-              frequencyPenalty: true,
-              presencePenalty: true,
-              repetitionPenalty: true,
-              maxTokens: true,
-              memoryScoreThreshold: true,
-              memoryLimit: true,
-              contextWindowTokens: true,
-            },
-          },
-        },
+        where: { userId: user.id, personalityId, llmConfigId: { not: null } },
+        select: { llmConfig: { select: LLM_CONFIG_SELECT } },
       });
 
       if (personalityOverride?.llmConfig) {
@@ -287,39 +265,39 @@ export class LlmConfigResolver {
   }
 
   /**
-   * Merge override config into personality defaults
-   * Only non-null values from override replace personality values
+   * Merge override config into personality defaults.
+   * Parses advancedParameters JSONB and converts snake_case to camelCase.
+   * Only non-null values from override replace personality values.
    */
   private mergeConfig(
     personality: LoadedPersonality,
     override: {
       model: string;
       visionModel?: string | null;
-      temperature?: unknown;
-      topP?: unknown;
-      topK?: number | null;
-      frequencyPenalty?: unknown;
-      presencePenalty?: unknown;
-      repetitionPenalty?: unknown;
-      maxTokens?: number | null;
-      memoryScoreThreshold?: unknown;
-      memoryLimit?: number | null;
-      contextWindowTokens?: number;
+      advancedParameters?: unknown; // JSONB from Prisma (snake_case)
+      memoryScoreThreshold?: unknown; // Prisma Decimal - not in JSONB
+      memoryLimit?: number | null; // Not in JSONB
+      contextWindowTokens?: number; // Not in JSONB
     }
   ): ResolvedLlmConfig {
+    // Parse and convert advancedParameters from snake_case JSONB to camelCase
+    const params = safeValidateAdvancedParams(override.advancedParameters);
+    const converted = params !== null ? advancedParamsToConfigFormat(params) : {};
+
     return {
       // Model is always overridden (it's required)
       model: override.model,
       // Vision model: use override if provided, else personality default
       visionModel: override.visionModel ?? personality.visionModel,
-      // Numeric values: use override if not null, else personality default
-      temperature: this.toNumber(override.temperature) ?? personality.temperature,
-      topP: this.toNumber(override.topP) ?? personality.topP,
-      topK: override.topK ?? personality.topK,
-      frequencyPenalty: this.toNumber(override.frequencyPenalty) ?? personality.frequencyPenalty,
-      presencePenalty: this.toNumber(override.presencePenalty) ?? personality.presencePenalty,
-      repetitionPenalty: this.toNumber(override.repetitionPenalty) ?? personality.repetitionPenalty,
-      maxTokens: override.maxTokens ?? personality.maxTokens,
+      // Sampling params: use converted JSONB values, fall back to personality defaults
+      temperature: converted.temperature ?? personality.temperature,
+      topP: converted.topP ?? personality.topP,
+      topK: converted.topK ?? personality.topK,
+      frequencyPenalty: converted.frequencyPenalty ?? personality.frequencyPenalty,
+      presencePenalty: converted.presencePenalty ?? personality.presencePenalty,
+      repetitionPenalty: converted.repetitionPenalty ?? personality.repetitionPenalty,
+      maxTokens: converted.maxTokens ?? personality.maxTokens,
+      // Non-JSONB fields (still use individual columns)
       memoryScoreThreshold:
         this.toNumber(override.memoryScoreThreshold) ?? personality.memoryScoreThreshold,
       memoryLimit: override.memoryLimit ?? personality.memoryLimit,
@@ -410,21 +388,7 @@ export class LlmConfigResolver {
     try {
       const freeConfig = await this.prisma.llmConfig.findFirst({
         where: { isFreeDefault: true },
-        select: {
-          name: true,
-          model: true,
-          visionModel: true,
-          temperature: true,
-          topP: true,
-          topK: true,
-          frequencyPenalty: true,
-          presencePenalty: true,
-          repetitionPenalty: true,
-          maxTokens: true,
-          memoryScoreThreshold: true,
-          memoryLimit: true,
-          contextWindowTokens: true,
-        },
+        select: LLM_CONFIG_SELECT,
       });
 
       if (freeConfig === null) {
@@ -432,16 +396,20 @@ export class LlmConfigResolver {
         return null;
       }
 
+      // Parse and convert advancedParameters from snake_case JSONB to camelCase
+      const params = safeValidateAdvancedParams(freeConfig.advancedParameters);
+      const converted = params !== null ? advancedParamsToConfigFormat(params) : {};
+
       const config: ResolvedLlmConfig = {
         model: freeConfig.model,
         visionModel: freeConfig.visionModel,
-        temperature: this.toNumber(freeConfig.temperature),
-        topP: this.toNumber(freeConfig.topP),
-        topK: freeConfig.topK,
-        frequencyPenalty: this.toNumber(freeConfig.frequencyPenalty),
-        presencePenalty: this.toNumber(freeConfig.presencePenalty),
-        repetitionPenalty: this.toNumber(freeConfig.repetitionPenalty),
-        maxTokens: freeConfig.maxTokens,
+        temperature: converted.temperature ?? null,
+        topP: converted.topP ?? null,
+        topK: converted.topK ?? null,
+        frequencyPenalty: converted.frequencyPenalty ?? null,
+        presencePenalty: converted.presencePenalty ?? null,
+        repetitionPenalty: converted.repetitionPenalty ?? null,
+        maxTokens: converted.maxTokens ?? null,
         memoryScoreThreshold: this.toNumber(freeConfig.memoryScoreThreshold),
         memoryLimit: freeConfig.memoryLimit,
         contextWindowTokens: freeConfig.contextWindowTokens,

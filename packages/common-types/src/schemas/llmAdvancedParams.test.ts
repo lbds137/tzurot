@@ -10,6 +10,7 @@ import {
   safeValidateAdvancedParams,
   hasReasoningEnabled,
   validateReasoningConstraints,
+  advancedParamsToConfigFormat,
   type AdvancedParams,
 } from './llmAdvancedParams.js';
 
@@ -421,6 +422,82 @@ describe('LLM Advanced Params Schema', () => {
       };
       expect(AdvancedParamsSchema.parse(params)).toEqual(params);
       expect(hasReasoningEnabled(params)).toBe(false);
+    });
+  });
+
+  describe('advancedParamsToConfigFormat', () => {
+    it('should convert snake_case to camelCase', () => {
+      const input: AdvancedParams = {
+        temperature: 0.7,
+        top_p: 0.9,
+        top_k: 50,
+        frequency_penalty: 0.5,
+        presence_penalty: 0.3,
+        repetition_penalty: 1.1,
+        max_tokens: 4096,
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result).toEqual({
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 50,
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        repetitionPenalty: 1.1,
+        maxTokens: 4096,
+      });
+    });
+
+    it('should handle empty object', () => {
+      const result = advancedParamsToConfigFormat({});
+      expect(result).toEqual({
+        temperature: undefined,
+        topP: undefined,
+        topK: undefined,
+        frequencyPenalty: undefined,
+        presencePenalty: undefined,
+        repetitionPenalty: undefined,
+        maxTokens: undefined,
+      });
+    });
+
+    it('should handle partial params', () => {
+      const input: AdvancedParams = {
+        temperature: 0.7,
+        top_p: 0.9,
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.temperature).toBe(0.7);
+      expect(result.topP).toBe(0.9);
+      expect(result.topK).toBeUndefined();
+      expect(result.frequencyPenalty).toBeUndefined();
+    });
+
+    it('should preserve zero values (not treat as undefined)', () => {
+      const input: AdvancedParams = {
+        temperature: 0,
+        top_k: 0,
+        frequency_penalty: 0,
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.temperature).toBe(0);
+      expect(result.topK).toBe(0);
+      expect(result.frequencyPenalty).toBe(0);
+    });
+
+    it('should ignore non-sampling params like reasoning', () => {
+      const input: AdvancedParams = {
+        temperature: 0.7,
+        reasoning: { effort: 'high' },
+        stop: ['END'],
+        transforms: ['middle-out'],
+      };
+      const result = advancedParamsToConfigFormat(input);
+      // Only sampling params are converted
+      expect(result.temperature).toBe(0.7);
+      expect(result).not.toHaveProperty('reasoning');
+      expect(result).not.toHaveProperty('stop');
+      expect(result).not.toHaveProperty('transforms');
     });
   });
 });

@@ -125,12 +125,10 @@ describe('LlmConfigResolver', () => {
           name: 'User Override Config',
           model: 'google/gemini-2.0-flash',
           visionModel: null,
-          temperature: 0.5,
-          topP: null,
-          topK: null,
-          frequencyPenalty: null,
-          presencePenalty: null,
-          maxTokens: 2048,
+          advancedParameters: {
+            temperature: 0.5,
+            max_tokens: 2048,
+          },
           memoryScoreThreshold: null,
           memoryLimit: null,
           contextWindowTokens: 100000,
@@ -157,12 +155,9 @@ describe('LlmConfigResolver', () => {
           name: 'User Global Config',
           model: 'openai/gpt-4o',
           visionModel: 'openai/gpt-4o',
-          temperature: 0.3,
-          topP: null,
-          topK: null,
-          frequencyPenalty: null,
-          presencePenalty: null,
-          maxTokens: null,
+          advancedParameters: {
+            temperature: 0.3,
+          },
           memoryScoreThreshold: null,
           memoryLimit: null,
           contextWindowTokens: null,
@@ -196,25 +191,24 @@ describe('LlmConfigResolver', () => {
       expect(result.config.model).toBe('anthropic/claude-sonnet-4');
     });
 
-    it('should handle Prisma Decimal objects in temperature', async () => {
-      const mockDecimal = {
-        toNumber: () => 0.42,
-      };
-
+    it('should handle advancedParameters JSONB with snake_case keys', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'internal-user-id',
         defaultLlmConfigId: 'config-id',
         defaultLlmConfig: {
-          name: 'Decimal Config',
+          name: 'JSONB Config',
           model: 'anthropic/claude-sonnet-4',
           visionModel: null,
-          temperature: mockDecimal, // Prisma Decimal
-          topP: mockDecimal,
-          topK: null,
-          frequencyPenalty: mockDecimal,
-          presencePenalty: mockDecimal,
-          maxTokens: null,
-          memoryScoreThreshold: mockDecimal,
+          advancedParameters: {
+            temperature: 0.42,
+            top_p: 0.85,
+            top_k: 50,
+            frequency_penalty: 0.3,
+            presence_penalty: 0.2,
+            repetition_penalty: 1.1,
+            max_tokens: 8000,
+          },
+          memoryScoreThreshold: { toNumber: () => 0.75 }, // Prisma Decimal for non-JSONB field
           memoryLimit: null,
           contextWindowTokens: null,
         },
@@ -224,11 +218,16 @@ describe('LlmConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
 
+      // JSONB values converted from snake_case to camelCase
       expect(result.config.temperature).toBe(0.42);
-      expect(result.config.topP).toBe(0.42);
-      expect(result.config.frequencyPenalty).toBe(0.42);
-      expect(result.config.presencePenalty).toBe(0.42);
-      expect(result.config.memoryScoreThreshold).toBe(0.42);
+      expect(result.config.topP).toBe(0.85);
+      expect(result.config.topK).toBe(50);
+      expect(result.config.frequencyPenalty).toBe(0.3);
+      expect(result.config.presencePenalty).toBe(0.2);
+      expect(result.config.repetitionPenalty).toBe(1.1);
+      expect(result.config.maxTokens).toBe(8000);
+      // Non-JSONB field still uses Prisma Decimal conversion
+      expect(result.config.memoryScoreThreshold).toBe(0.75);
     });
 
     it('should fall back to personality default on database error', async () => {
@@ -379,12 +378,11 @@ describe('LlmConfigResolver', () => {
           name: 'Partial Override',
           model: 'google/gemini-2.0-flash',
           visionModel: null, // null - should use personality default
-          temperature: 0.5,
-          topP: null, // null - should use personality default
-          topK: 50,
-          frequencyPenalty: null,
-          presencePenalty: null,
-          maxTokens: null, // null - should use personality default
+          advancedParameters: {
+            temperature: 0.5,
+            top_k: 50,
+            // top_p, max_tokens not set - should use personality defaults
+          },
           memoryScoreThreshold: null,
           memoryLimit: 5,
           contextWindowTokens: null,
@@ -400,11 +398,38 @@ describe('LlmConfigResolver', () => {
       expect(result.config.topK).toBe(50);
       expect(result.config.memoryLimit).toBe(5);
 
-      // Personality defaults for null values
+      // Personality defaults for null/undefined values
       expect(result.config.visionModel).toBe('anthropic/claude-sonnet-4');
       expect(result.config.topP).toBe(0.9);
       expect(result.config.maxTokens).toBe(4096);
       expect(result.config.contextWindowTokens).toBe(128000);
+    });
+
+    it('should handle null advancedParameters gracefully', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: 'config-id',
+        defaultLlmConfig: {
+          name: 'No Params Config',
+          model: 'google/gemini-2.0-flash',
+          visionModel: null,
+          advancedParameters: null, // No JSONB params set
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: null,
+        },
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig('user-123', 'personality-id', mockPersonality);
+
+      // Model overridden
+      expect(result.config.model).toBe('google/gemini-2.0-flash');
+      // All sampling params fall back to personality defaults
+      expect(result.config.temperature).toBe(0.7);
+      expect(result.config.topP).toBe(0.9);
+      expect(result.config.topK).toBe(40);
+      expect(result.config.maxTokens).toBe(4096);
     });
   });
 
@@ -469,8 +494,8 @@ describe('LlmConfigResolver', () => {
   });
 
   describe('toNumber edge cases', () => {
-    it('should handle Prisma Decimal objects', async () => {
-      // Create a mock Decimal object (like Prisma's)
+    it('should handle Prisma Decimal for memoryScoreThreshold', async () => {
+      // memoryScoreThreshold is still a Prisma Decimal (not in JSONB)
       const mockDecimal = {
         toNumber: () => 0.85,
       };
@@ -482,13 +507,8 @@ describe('LlmConfigResolver', () => {
           name: 'Decimal Config',
           model: 'test/model',
           visionModel: null,
-          temperature: mockDecimal, // Prisma Decimal
-          topP: null,
-          topK: null,
-          frequencyPenalty: null,
-          presencePenalty: null,
-          maxTokens: null,
-          memoryScoreThreshold: null,
+          advancedParameters: null,
+          memoryScoreThreshold: mockDecimal, // Prisma Decimal
           memoryLimit: null,
           contextWindowTokens: null,
         },
@@ -497,10 +517,10 @@ describe('LlmConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-123', 'personality-1', mockPersonality);
 
-      expect(result.config.temperature).toBe(0.85);
+      expect(result.config.memoryScoreThreshold).toBe(0.85);
     });
 
-    it('should return null for non-numeric, non-Decimal values', async () => {
+    it('should handle invalid advancedParameters gracefully', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'internal-user-id',
         defaultLlmConfigId: 'config-id',
@@ -508,12 +528,7 @@ describe('LlmConfigResolver', () => {
           name: 'Bad Config',
           model: 'test/model',
           visionModel: null,
-          temperature: 'not-a-number', // Invalid
-          topP: null,
-          topK: null,
-          frequencyPenalty: null,
-          presencePenalty: null,
-          maxTokens: null,
+          advancedParameters: 'not-an-object', // Invalid JSONB
           memoryScoreThreshold: null,
           memoryLimit: null,
           contextWindowTokens: null,
@@ -523,8 +538,9 @@ describe('LlmConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-123', 'personality-1', mockPersonality);
 
-      // Should fall back to personality default
+      // Should fall back to personality defaults when JSONB is invalid
       expect(result.config.temperature).toBe(0.7);
+      expect(result.config.topP).toBe(0.9);
     });
   });
 
@@ -546,12 +562,14 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         visionModel: null,
-        temperature: 0.7,
-        topP: 0.9,
-        topK: 40,
-        frequencyPenalty: 0.0,
-        presencePenalty: 0.0,
-        maxTokens: 4096,
+        advancedParameters: {
+          temperature: 0.7,
+          top_p: 0.9,
+          top_k: 40,
+          frequency_penalty: 0.0,
+          presence_penalty: 0.0,
+          max_tokens: 4096,
+        },
         memoryScoreThreshold: 0.7,
         memoryLimit: 10,
         contextWindowTokens: 131072,
@@ -562,6 +580,7 @@ describe('LlmConfigResolver', () => {
       expect(result).not.toBeNull();
       expect(result!.model).toBe('google/gemini-2.0-flash:free');
       expect(result!.temperature).toBe(0.7);
+      expect(result!.topP).toBe(0.9);
       expect(result!.maxTokens).toBe(4096);
     });
 
@@ -570,12 +589,9 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         visionModel: null,
-        temperature: 0.7,
-        topP: null,
-        topK: null,
-        frequencyPenalty: null,
-        presencePenalty: null,
-        maxTokens: null,
+        advancedParameters: {
+          temperature: 0.7,
+        },
         memoryScoreThreshold: null,
         memoryLimit: null,
         contextWindowTokens: null,
@@ -595,12 +611,9 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         visionModel: null,
-        temperature: 0.7,
-        topP: null,
-        topK: null,
-        frequencyPenalty: null,
-        presencePenalty: null,
-        maxTokens: null,
+        advancedParameters: {
+          temperature: 0.7,
+        },
         memoryScoreThreshold: null,
         memoryLimit: null,
         contextWindowTokens: null,
@@ -626,7 +639,7 @@ describe('LlmConfigResolver', () => {
       expect(result).toBeNull();
     });
 
-    it('should handle Prisma Decimal values in config', async () => {
+    it('should handle Prisma Decimal values for memoryScoreThreshold', async () => {
       const mockDecimal = {
         toNumber: () => 0.85,
       };
@@ -635,13 +648,15 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         visionModel: null,
-        temperature: mockDecimal, // Prisma Decimal
-        topP: mockDecimal,
-        topK: 40,
-        frequencyPenalty: mockDecimal,
-        presencePenalty: mockDecimal,
-        maxTokens: 4096,
-        memoryScoreThreshold: mockDecimal,
+        advancedParameters: {
+          temperature: 0.7,
+          top_p: 0.9,
+          top_k: 40,
+          frequency_penalty: 0.3,
+          presence_penalty: 0.2,
+          max_tokens: 4096,
+        },
+        memoryScoreThreshold: mockDecimal, // Prisma Decimal - only this uses toNumber()
         memoryLimit: 10,
         contextWindowTokens: 131072,
       });
@@ -649,10 +664,12 @@ describe('LlmConfigResolver', () => {
       const result = await resolver.getFreeDefaultConfig();
 
       expect(result).not.toBeNull();
-      expect(result!.temperature).toBe(0.85);
-      expect(result!.topP).toBe(0.85);
-      expect(result!.frequencyPenalty).toBe(0.85);
-      expect(result!.presencePenalty).toBe(0.85);
+      // JSONB values - native numbers
+      expect(result!.temperature).toBe(0.7);
+      expect(result!.topP).toBe(0.9);
+      expect(result!.frequencyPenalty).toBe(0.3);
+      expect(result!.presencePenalty).toBe(0.2);
+      // Prisma Decimal - uses toNumber()
       expect(result!.memoryScoreThreshold).toBe(0.85);
     });
 
@@ -661,12 +678,9 @@ describe('LlmConfigResolver', () => {
         name: 'Free Default Config',
         model: 'google/gemini-2.0-flash:free',
         visionModel: null,
-        temperature: 0.7,
-        topP: null,
-        topK: null,
-        frequencyPenalty: null,
-        presencePenalty: null,
-        maxTokens: null,
+        advancedParameters: {
+          temperature: 0.7,
+        },
         memoryScoreThreshold: null,
         memoryLimit: null,
         contextWindowTokens: null,
