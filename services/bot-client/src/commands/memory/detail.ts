@@ -31,7 +31,6 @@ export {
   handleCancelEditButton,
   handleEditModalSubmit,
   MAX_MODAL_CONTENT_LENGTH,
-  DISCORD_MODAL_MAX_LENGTH,
 } from './detailModals.js';
 import { formatDateShort, formatDateTime, EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 
@@ -79,7 +78,17 @@ export interface ListContext {
  * Build custom ID for memory actions
  */
 export function buildMemoryActionId(
-  action: 'select' | 'view' | 'edit' | 'lock' | 'delete' | 'back' | 'confirm-delete' | 'view-full',
+  action:
+    | 'select'
+    | 'view'
+    | 'edit'
+    | 'edit-truncated'
+    | 'cancel-edit'
+    | 'lock'
+    | 'delete'
+    | 'back'
+    | 'confirm-delete'
+    | 'view-full',
   memoryId?: string,
   extra?: string
 ): string {

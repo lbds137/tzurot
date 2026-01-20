@@ -15,7 +15,7 @@ import {
 } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { buildMemoryActionId, MEMORY_DETAIL_PREFIX } from './detail.js';
+import { buildMemoryActionId } from './detail.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
 import { buildDetailEmbed, buildDetailButtons } from './detail.js';
 import type { MemoryItem } from './detail.js';
@@ -23,14 +23,11 @@ import type { MemoryItem } from './detail.js';
 const logger = createLogger('memory-detail-modals');
 
 /**
- * Discord's hard limit for modal text input values.
- * This is enforced by Discord's API - we cannot set a value longer than this.
- */
-export const DISCORD_MODAL_MAX_LENGTH = 4000;
-
-/**
- * Our API's maximum content length for memory storage.
- * We limit to 2000 for consistency with API validation (memorySingle.ts MAX_CONTENT_LENGTH).
+ * Maximum content length for memory editing.
+ * This must match the max_length we set on the TextInput component.
+ * Discord requires that pre-filled value ≤ max_length.
+ *
+ * We use 2000 for consistency with API validation (memorySingle.ts MAX_CONTENT_LENGTH).
  */
 export const MAX_MODAL_CONTENT_LENGTH = 2000;
 
@@ -70,12 +67,12 @@ function buildTruncationWarningEmbed(memory: MemoryItem): EmbedBuilder {
     .setTitle('⚠️ Memory Too Long to Edit')
     .setColor(DISCORD_COLORS.WARNING)
     .setDescription(
-      `This memory contains **${charCount.toLocaleString()} characters**, which exceeds Discord's modal limit of ${DISCORD_MODAL_MAX_LENGTH.toLocaleString()} characters.\n\n` +
-        `**To edit this memory, it must be truncated to ${DISCORD_MODAL_MAX_LENGTH.toLocaleString()} characters.**\n\n` +
+      `This memory contains **${charCount.toLocaleString()} characters**, which exceeds the edit limit of ${MAX_MODAL_CONTENT_LENGTH.toLocaleString()} characters.\n\n` +
+        `**To edit this memory, it must be truncated to ${MAX_MODAL_CONTENT_LENGTH.toLocaleString()} characters.**\n\n` +
         `⚠️ **This is a destructive action** - the truncated content will be lost permanently when you save.\n\n` +
         `**Preview of content:**\n\`\`\`\n${truncatedPreview}\n\`\`\``
     )
-    .setFooter({ text: `${charCount - DISCORD_MODAL_MAX_LENGTH} characters will be removed` });
+    .setFooter({ text: `${charCount - MAX_MODAL_CONTENT_LENGTH} characters will be removed` });
 }
 
 /**
@@ -84,12 +81,12 @@ function buildTruncationWarningEmbed(memory: MemoryItem): EmbedBuilder {
 function buildTruncationButtons(memoryId: string): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`${MEMORY_DETAIL_PREFIX}:edit-truncated:${memoryId}`)
+      .setCustomId(buildMemoryActionId('edit-truncated', memoryId))
       .setLabel('Edit with Truncation')
       .setStyle(ButtonStyle.Danger)
       .setEmoji('✂️'),
     new ButtonBuilder()
-      .setCustomId(`${MEMORY_DETAIL_PREFIX}:cancel-edit:${memoryId}`)
+      .setCustomId(buildMemoryActionId('cancel-edit', memoryId))
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Secondary)
   );
@@ -113,8 +110,9 @@ export async function handleEditButton(
     return;
   }
 
-  // Check if content exceeds Discord's modal limit
-  if (memory.content.length > DISCORD_MODAL_MAX_LENGTH) {
+  // Check if content exceeds our modal's max_length setting
+  // Must use MAX_MODAL_CONTENT_LENGTH (2000) because Discord requires value ≤ max_length
+  if (memory.content.length > MAX_MODAL_CONTENT_LENGTH) {
     // Show truncation warning with confirmation buttons
     const embed = buildTruncationWarningEmbed(memory);
     const buttons = buildTruncationButtons(memoryId);
@@ -150,8 +148,8 @@ export async function handleEditTruncatedButton(
     return;
   }
 
-  // Truncate content to Discord's limit
-  const truncatedContent = memory.content.substring(0, DISCORD_MODAL_MAX_LENGTH);
+  // Truncate content to our max_length setting
+  const truncatedContent = memory.content.substring(0, MAX_MODAL_CONTENT_LENGTH);
 
   const modal = buildEditModal(memory, truncatedContent);
   await interaction.showModal(modal);
