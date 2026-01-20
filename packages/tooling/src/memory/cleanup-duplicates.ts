@@ -48,6 +48,8 @@ interface DuplicateSummary {
   earliestDuplicate: Date | null;
   latestDuplicate: Date | null;
   groups: DuplicateGroup[];
+  /** True if results were truncated due to LIMIT (run again after cleanup) */
+  truncated: boolean;
 }
 
 /**
@@ -95,7 +97,12 @@ async function getPrismaForEnv(env: Environment): Promise<{
  * Find duplicate memory groups
  */
 async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
-  // Use raw SQL for the complex duplicate detection query
+  // Use raw SQL for the complex duplicate detection query.
+  // The 60-second window is chosen because:
+  // 1. Retry loops complete in seconds (typically 3 attempts max with exponential backoff)
+  // 2. Network issues or rate limits could extend this, but 60s is generous
+  // 3. Legitimate identical messages within 60s are extremely rare in conversation
+  // If a user truly sends the same message twice intentionally, they'd likely wait longer.
   const results = await prisma.$queryRaw<
     {
       persona_id: string;
@@ -137,7 +144,12 @@ async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
     )
     SELECT * FROM duplicate_groups
     ORDER BY count DESC, first_created DESC
+    LIMIT 1000
   `;
+
+  // Query is limited to 1000 groups for bounded memory usage
+  const QUERY_LIMIT = 1000;
+  const truncated = results.length >= QUERY_LIMIT;
 
   if (results.length === 0) {
     return {
@@ -146,6 +158,7 @@ async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
       earliestDuplicate: null,
       latestDuplicate: null,
       groups: [],
+      truncated: false,
     };
   }
 
@@ -169,27 +182,29 @@ async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
     earliestDuplicate: groups.length > 0 ? groups[groups.length - 1].first_created : null,
     latestDuplicate: groups.length > 0 ? groups[0].last_created : null,
     groups,
+    truncated,
   };
 }
 
 /**
  * Delete duplicate memories by their IDs
+ * Uses Prisma's deleteMany for type-safe, injection-proof deletion.
  */
 async function deleteDuplicates(prisma: PrismaClient, idsToDelete: string[]): Promise<number> {
   if (idsToDelete.length === 0) {
     return 0;
   }
 
-  // Delete in batches to avoid overly long queries
+  // Delete in batches to avoid overly long IN clauses
   const BATCH_SIZE = 100;
   let totalDeleted = 0;
 
   for (let i = 0; i < idsToDelete.length; i += BATCH_SIZE) {
     const batch = idsToDelete.slice(i, i + BATCH_SIZE);
-    const result = await prisma.$executeRaw`
-      DELETE FROM memories WHERE id = ANY(${batch}::uuid[])
-    `;
-    totalDeleted += result;
+    const result = await prisma.memory.deleteMany({
+      where: { id: { in: batch } },
+    });
+    totalDeleted += result.count;
   }
 
   return totalDeleted;
@@ -201,6 +216,9 @@ function displaySummary(summary: DuplicateSummary, verbose: boolean): void {
   console.log(chalk.yellow('─'.repeat(50)));
   console.log(`   Groups with duplicates: ${chalk.bold(summary.totalGroups)}`);
   console.log(`   Total duplicates to remove: ${chalk.bold(summary.totalDuplicates)}`);
+  if (summary.truncated) {
+    console.log(chalk.cyan(`   ⚠️  Results truncated to 1000 groups - run again after cleanup`));
+  }
   if (summary.earliestDuplicate !== null) {
     console.log(`   Earliest duplicate: ${chalk.dim(summary.earliestDuplicate.toISOString())}`);
   }
@@ -334,27 +352,8 @@ export async function analyzeDuplicateMemories(options: {
       return;
     }
 
-    console.log(chalk.yellow('📊 Duplicate Memory Analysis'));
-    console.log(chalk.yellow('─'.repeat(50)));
-    console.log(`   Groups with duplicates: ${chalk.bold(summary.totalGroups)}`);
-    console.log(`   Total duplicates to remove: ${chalk.bold(summary.totalDuplicates)}`);
-    if (summary.earliestDuplicate) {
-      console.log(`   Earliest duplicate: ${chalk.dim(summary.earliestDuplicate.toISOString())}`);
-    }
-    if (summary.latestDuplicate) {
-      console.log(`   Latest duplicate: ${chalk.dim(summary.latestDuplicate.toISOString())}`);
-    }
-
-    if (verbose) {
-      console.log(chalk.dim('\nTop 10 duplicate groups:'));
-      for (const group of summary.groups.slice(0, 10)) {
-        const preview =
-          group.user_msg_prefix.length > 60
-            ? group.user_msg_prefix.substring(0, 60) + '...'
-            : group.user_msg_prefix;
-        console.log(chalk.dim(`  - ${group.count} copies: "${preview}"`));
-      }
-    }
+    // Reuse displaySummary for consistent output
+    displaySummary(summary, verbose);
 
     console.log(chalk.dim('\nRun with --cleanup to remove duplicates'));
     console.log(chalk.dim('Run with --cleanup --dry-run to preview changes'));
