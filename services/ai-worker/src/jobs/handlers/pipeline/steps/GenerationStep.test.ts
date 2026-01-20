@@ -953,6 +953,40 @@ describe('GenerationStep', () => {
         expect(result.result?.success).toBe(true);
         expect(mockRAGService.storeDeferredMemory).not.toHaveBeenCalled();
       });
+
+      it('should succeed even if storeDeferredMemory throws an error', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'Hello! Memory storage will fail.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          deferredMemoryData: {
+            contentForEmbedding: 'User message content',
+            responseContent: 'Hello! Memory storage will fail.',
+            personaId: 'persona-123',
+          },
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+        vi.mocked(mockRAGService.storeDeferredMemory).mockRejectedValue(
+          new Error('Database connection failed')
+        );
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfigForMemory,
+          auth: baseAuthForMemory,
+          preparedContext: basePreparedContextForMemory,
+        };
+
+        // Should NOT throw - job should succeed despite memory storage failure
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe('Hello! Memory storage will fail.');
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledOnce();
+      });
     });
   });
 });
