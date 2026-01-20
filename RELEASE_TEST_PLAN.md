@@ -137,8 +137,8 @@
 
 - [x] `/memory list` - Shows memories correctly
 - [x] `/memory view <id>` - Shows memory details
-- [ ] Memory timestamps display correctly
-- [ ] Memory content truncation works properly
+- [x] Memory timestamps display correctly
+- [x] Memory content truncation works properly
 
 ---
 
@@ -150,7 +150,7 @@
 
 **Test Steps**:
 
-- [ ] Timeframes in `/memory list` show human-readable format
+- [x] Timeframes in `/memory list` show human-readable format
 - [ ] Extended context age displays correctly
 - [ ] No "undefined" or malformed duration strings
 
@@ -173,20 +173,20 @@ Run these to ensure nothing broke:
 
 - [x] `/character create` - Create new character
 - [x] `/character list` - List characters
-- [ ] `@character message` - Chat with character
-- [ ] `/wallet status` - Check API key status
+- [x] `@character message` - Chat with character
+- [x] `/wallet test` - Check API key status
 - [ ] `/persona create` - Create persona
-- [ ] `/persona list` - List personas
+- [x] `/persona list` - List personas
 - [ ] `/channel status` - Check channel settings
 
 ---
 
 ## 📋 Pre-Release Checklist
 
-- [ ] All critical features tested ✓
-- [ ] No console errors during testing
-- [ ] All automated tests passing (CI green)
-- [ ] Database migrations applied (if any)
+- [x] All critical features tested ✓
+- [x] No console errors during testing
+- [x] All automated tests passing (CI green)
+- [x] Database migrations applied (if any)
 - [ ] No breaking API changes (or documented)
 
 ---
