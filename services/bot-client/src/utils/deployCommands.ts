@@ -20,10 +20,17 @@ interface CommandJson {
 
 /**
  * Load and validate a single command file
+ *
+ * Supports both default export (defineCommand pattern) and named exports (legacy).
+ * Default export is preferred - matches CommandHandler behavior.
+ *
  * @returns Command data JSON or null if invalid
  */
 async function loadCommandFile(filePath: string): Promise<unknown> {
-  const command = (await import(filePath)) as Command;
+  const importedModule = (await import(filePath)) as Record<string, unknown>;
+
+  // Support both default export (new pattern) and named exports (legacy)
+  const command = (importedModule.default ?? importedModule) as Partial<Command>;
 
   if (
     command.data === undefined ||
