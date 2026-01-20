@@ -54,6 +54,7 @@ const mockGlobalPresetData: PresetData = {
   visionModel: null,
   isGlobal: true,
   isOwned: false,
+  permissions: { canEdit: true, canDelete: true }, // Bot owner can edit global presets
   maxReferencedMessages: 20,
   params: {
     temperature: 0.8,

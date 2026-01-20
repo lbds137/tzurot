@@ -23,6 +23,7 @@ describe('flattenPresetData', () => {
       visionModel: 'anthropic/claude-sonnet-4',
       isGlobal: false,
       isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       params: {},
     };
@@ -50,6 +51,7 @@ describe('flattenPresetData', () => {
       visionModel: null,
       isGlobal: true,
       isOwned: false,
+      permissions: { canEdit: false, canDelete: false },
       maxReferencedMessages: 5,
       params: {},
     };
@@ -70,6 +72,7 @@ describe('flattenPresetData', () => {
       visionModel: null,
       isGlobal: false,
       isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       params: {
         temperature: 0.7,
@@ -99,6 +102,7 @@ describe('flattenPresetData', () => {
       visionModel: null,
       isGlobal: false,
       isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       params: {
         frequency_penalty: 0.5,
@@ -128,6 +132,7 @@ describe('flattenPresetData', () => {
       visionModel: null,
       isGlobal: false,
       isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       params: {
         reasoning: {
@@ -157,6 +162,7 @@ describe('flattenPresetData', () => {
       visionModel: null,
       isGlobal: false,
       isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       params: {},
     };

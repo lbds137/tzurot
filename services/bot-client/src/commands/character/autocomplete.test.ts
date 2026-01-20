@@ -27,13 +27,17 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 function createMockPersonality(overrides: Partial<PersonalitySummary> = {}): PersonalitySummary {
+  const isOwned = overrides.isOwned ?? true;
   return {
     id: 'test-id',
     slug: 'test-slug',
     name: 'Test',
     displayName: null,
-    isOwned: true,
+    isOwned,
     isPublic: false,
+    ownerId: null,
+    ownerDiscordId: null,
+    permissions: { canEdit: isOwned, canDelete: isOwned },
     ...overrides,
   };
 }

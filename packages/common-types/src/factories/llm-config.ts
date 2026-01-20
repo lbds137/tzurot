@@ -54,13 +54,24 @@ const defaultLlmConfigSummary: LlmConfigSummary = {
 
 /**
  * Create a validated mock LLM config summary
+ *
+ * Permissions are derived from isOwned if not explicitly set:
+ * - isOwned: true → canEdit: true, canDelete: true
+ * - isOwned: false → canEdit: false, canDelete: false
  */
 export function mockLlmConfigSummary(
   overrides: DeepPartial<LlmConfigSummary> = {}
 ): LlmConfigSummary {
+  // Derive permissions from isOwned if not explicitly provided
+  const isOwned = overrides.isOwned ?? defaultLlmConfigSummary.isOwned;
+  const defaultPermissions = {
+    canEdit: isOwned,
+    canDelete: isOwned,
+  };
+
   // Handle permissions merge specifically to avoid DeepPartial making fields optional
   const permissions = {
-    ...defaultLlmConfigSummary.permissions,
+    ...defaultPermissions,
     ...(overrides.permissions ?? {}),
   };
 

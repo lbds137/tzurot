@@ -115,14 +115,15 @@ function shouldShowPresetInAutocomplete(
   ownedOnly: boolean,
   queryLower: string
 ): boolean {
-  // Filter by ownership if required (delete command)
-  if (ownedOnly && !config.isOwned) {
+  // Filter by edit permission if required (delete command)
+  // Uses permissions.canEdit to support admin access
+  if (ownedOnly && !config.permissions.canEdit) {
     return false;
   }
 
-  // For non-delete commands, show owned + global presets
-  // Filter out presets that are neither owned nor global
-  if (!ownedOnly && !config.isOwned && !config.isGlobal) {
+  // For non-delete commands, show editable + global presets
+  // Filter out presets that user can't edit and aren't global
+  if (!ownedOnly && !config.permissions.canEdit && !config.isGlobal) {
     return false;
   }
 
