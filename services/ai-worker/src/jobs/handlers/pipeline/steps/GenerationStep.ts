@@ -136,6 +136,8 @@ export class GenerationStep implements IPipelineStep {
 
       // Generate response - each call gets new request_id via entropy injection
       // Pass retry config for escalating parameters on duplicate retries
+      // IMPORTANT: skipMemoryStorage=true prevents storing memory on every retry attempt.
+      // Memory is stored ONCE after the retry loop completes (see process method).
       const response = await this.ragService.generateResponse(
         personality,
         message,
@@ -144,6 +146,7 @@ export class GenerationStep implements IPipelineStep {
           userApiKey: apiKey,
           isGuestMode,
           retryConfig: { attempt, ...retryConfig },
+          skipMemoryStorage: true,
         }
       );
 
@@ -291,6 +294,17 @@ export class GenerationStep implements IPipelineStep {
         isGuestMode,
         jobId: job.id,
       });
+
+      // Store memory ONCE after retry loop completes with a valid response.
+      // This prevents duplicate memories when retries occur (the fix for the
+      // "swiss cheese" duplicate memory bug - see memory:cleanup command).
+      if (response.deferredMemoryData !== undefined && response.incognitoModeActive !== true) {
+        await this.ragService.storeDeferredMemory(
+          effectivePersonality,
+          conversationContext,
+          response.deferredMemoryData
+        );
+      }
 
       const processingTimeMs = Date.now() - startTime;
       logger.info(

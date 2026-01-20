@@ -122,6 +122,25 @@ export interface RAGResponse {
   focusModeEnabled?: boolean;
   /** Whether incognito mode was active (LTM storage was skipped) */
   incognitoModeActive?: boolean;
+  /**
+   * Data needed for deferred memory storage (when skipMemoryStorage was true).
+   * Caller should pass this to storeMemory() after validating the response.
+   */
+  deferredMemoryData?: DeferredMemoryData;
+}
+
+/**
+ * Data needed for deferred memory storage.
+ * Used when skipMemoryStorage is true to allow the caller to store memory
+ * after validating the response (e.g., after duplicate detection passes).
+ */
+export interface DeferredMemoryData {
+  /** Content to store as user message (may include reference text) */
+  contentForEmbedding: string;
+  /** AI response content */
+  responseContent: string;
+  /** User's persona ID */
+  personaId: string;
 }
 
 /** Result of processing input attachments and messages */
@@ -245,4 +264,14 @@ export interface GenerateResponseOptions {
   isGuestMode?: boolean;
   /** Retry configuration for duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
+  /**
+   * Skip memory storage during response generation. Default: false.
+   *
+   * When true, memory is NOT stored automatically. Instead, the response
+   * includes `deferredMemoryData` which the caller can use to store memory
+   * after validating the response (e.g., after duplicate detection passes).
+   *
+   * This prevents storing multiple memories when retry logic is used.
+   */
+  skipMemoryStorage?: boolean;
 }
