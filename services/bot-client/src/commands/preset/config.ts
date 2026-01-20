@@ -62,6 +62,7 @@ export interface FlattenedPresetData {
   visionModel: string;
   isGlobal: boolean;
   isOwned: boolean;
+  canEdit: boolean;
   maxReferencedMessages: string;
   // Sampling params
   temperature: string;
@@ -97,6 +98,7 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     visionModel: data.visionModel ?? '',
     isGlobal: data.isGlobal,
     isOwned: data.isOwned,
+    canEdit: data.permissions.canEdit,
     maxReferencedMessages: String(data.maxReferencedMessages),
     // Sampling params
     temperature: data.params.temperature?.toString() ?? '',

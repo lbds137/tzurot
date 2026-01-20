@@ -81,8 +81,9 @@ export async function handlePersonalityAutocomplete(
     // Filter personalities based on options and query
     const filtered = personalities
       .filter(p => {
-        // Filter by ownership if required
-        if (mergedOptions.ownedOnly && !p.isOwned) {
+        // Filter by edit permission if required (for edit/delete/avatar commands)
+        // Uses permissions.canEdit instead of isOwned to support admin access
+        if (mergedOptions.ownedOnly && !p.permissions.canEdit) {
           return false;
         }
 
@@ -109,8 +110,12 @@ export async function handlePersonalityAutocomplete(
       // Build label: [visibility] DisplayName (slug)
       let label = displayName;
       if (mergedOptions.showVisibility) {
-        // 🌐 = Public and owned, 🔒 = Private and owned, 📖 = Public not owned
-        const visibility = p.isOwned ? (p.isPublic ? '🌐' : '🔒') : '📖';
+        // Visibility icons based on permissions (not just ownership):
+        // 🔒 = Private, can edit (owned OR admin)
+        // 🌐 = Public, can edit (owned OR admin)
+        // 📖 = Public, read-only (not owned, not admin)
+        const canEdit = p.permissions.canEdit;
+        const visibility = canEdit ? (p.isPublic ? '🌐' : '🔒') : '📖';
         label = `${visibility} ${displayName}`;
       }
       // Always append slug in parentheses for disambiguation
@@ -143,12 +148,12 @@ export async function handlePersonalityAutocomplete(
 /**
  * Get visibility icon for a personality
  *
- * @param isOwned - Whether the user owns this personality
+ * @param canEdit - Whether the user can edit this personality (from permissions.canEdit)
  * @param isPublic - Whether the personality is public
  * @returns Emoji indicator
  */
-export function getVisibilityIcon(isOwned: boolean, isPublic: boolean): string {
-  if (isOwned) {
+export function getVisibilityIcon(canEdit: boolean, isPublic: boolean): string {
+  if (canEdit) {
     return isPublic ? '🌐' : '🔒';
   }
   return '📖';

@@ -38,6 +38,24 @@ vi.mock('../../../utils/autocomplete/autocompleteCache.js', () => ({
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
+import type { PersonalitySummary } from '@tzurot/common-types';
+
+// Helper to create mock personality with required fields
+function mockPersonality(overrides: Partial<PersonalitySummary>): PersonalitySummary {
+  const isOwned = overrides.isOwned ?? true;
+  return {
+    id: 'p1',
+    name: 'TestBot',
+    displayName: null,
+    slug: 'testbot',
+    isOwned,
+    isPublic: false,
+    ownerId: null,
+    ownerDiscordId: null,
+    permissions: { canEdit: isOwned, canDelete: isOwned },
+    ...overrides,
+  };
+}
 
 // Helper to mock both config and wallet APIs for config autocomplete tests
 function mockConfigApis(
@@ -92,22 +110,22 @@ describe('handleAutocomplete', () => {
         value: 'test',
       });
       mockGetCachedPersonalities.mockResolvedValue([
-        {
+        mockPersonality({
           id: 'p1',
           name: 'TestBot',
           displayName: 'Test Bot',
           slug: 'testbot',
           isOwned: true,
           isPublic: false,
-        },
-        {
+        }),
+        mockPersonality({
           id: 'p2',
           name: 'OtherBot',
           displayName: null,
           slug: 'otherbot',
           isOwned: false,
           isPublic: true,
-        },
+        }),
       ]);
 
       await handleAutocomplete(mockInteraction);
@@ -125,14 +143,14 @@ describe('handleAutocomplete', () => {
         value: '',
       });
       mockGetCachedPersonalities.mockResolvedValue([
-        {
+        mockPersonality({
           id: 'p1',
           name: 'TestBot',
           displayName: null,
           slug: 'testbot',
           isOwned: true,
           isPublic: false,
-        },
+        }),
       ]);
 
       await handleAutocomplete(mockInteraction);
@@ -148,22 +166,22 @@ describe('handleAutocomplete', () => {
         value: 'lil',
       });
       mockGetCachedPersonalities.mockResolvedValue([
-        {
+        mockPersonality({
           id: 'p1',
           name: 'Lilith',
           displayName: 'Lilith Bot',
           slug: 'lilith',
           isOwned: true,
           isPublic: true,
-        },
-        {
+        }),
+        mockPersonality({
           id: 'p2',
           name: 'Other',
           displayName: 'Other Bot',
           slug: 'other',
           isOwned: false,
           isPublic: true,
-        },
+        }),
       ]);
 
       await handleAutocomplete(mockInteraction);
@@ -180,14 +198,14 @@ describe('handleAutocomplete', () => {
         value: '',
       });
       mockGetCachedPersonalities.mockResolvedValue([
-        {
+        mockPersonality({
           id: 'p1',
           name: 'SharedBot',
           displayName: 'Shared Bot',
           slug: 'sharedbot',
           isOwned: false,
           isPublic: true,
-        },
+        }),
       ]);
 
       await handleAutocomplete(mockInteraction);
@@ -215,14 +233,16 @@ describe('handleAutocomplete', () => {
         name: 'personality',
         value: '',
       });
-      const manyPersonalities = Array.from({ length: 30 }, (_, i) => ({
-        id: `p${i}`,
-        name: `Personality${i}`,
-        displayName: null,
-        slug: `personality${i}`,
-        isOwned: true,
-        isPublic: false,
-      }));
+      const manyPersonalities = Array.from({ length: 30 }, (_, i) =>
+        mockPersonality({
+          id: `p${i}`,
+          name: `Personality${i}`,
+          displayName: null,
+          slug: `personality${i}`,
+          isOwned: true,
+          isPublic: false,
+        })
+      );
       mockGetCachedPersonalities.mockResolvedValue(manyPersonalities);
 
       await handleAutocomplete(mockInteraction);

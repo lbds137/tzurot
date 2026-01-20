@@ -195,10 +195,10 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       });
     }
 
-    // Check if user can edit this preset
-    if (!presetData.isOwned && !presetData.isGlobal) {
+    // Check if user can edit this preset (uses canEdit for admin support)
+    if (!presetData.canEdit) {
       await interaction.reply({
-        content: '❌ You can only edit your own presets.',
+        content: '❌ You do not have permission to edit this preset.',
         flags: MessageFlags.Ephemeral,
       });
       return;

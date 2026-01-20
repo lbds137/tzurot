@@ -49,13 +49,17 @@ describe('handlePersonalityAutocomplete', () => {
   }
 
   function createMockPersonality(overrides: Partial<PersonalitySummary> = {}): PersonalitySummary {
+    const isOwned = overrides.isOwned ?? true;
     return {
       id: 'personality-1',
       name: 'Test Personality',
       slug: 'test-personality',
       displayName: null,
       isPublic: false,
-      isOwned: true,
+      isOwned,
+      ownerId: null,
+      ownerDiscordId: null,
+      permissions: { canEdit: isOwned, canDelete: isOwned },
       ...overrides,
     };
   }

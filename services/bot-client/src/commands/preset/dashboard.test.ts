@@ -74,6 +74,7 @@ const mockPresetData: PresetData = {
   visionModel: null,
   isGlobal: false,
   isOwned: true,
+  permissions: { canEdit: true, canDelete: true },
   maxReferencedMessages: 10,
   params: { temperature: 0.7 },
 };
@@ -199,7 +200,7 @@ describe('handleSelectMenu', () => {
       entityId: 'preset-123',
     });
     mockSessionManagerGet.mockResolvedValue({
-      data: { id: 'preset-123', isGlobal: false, isOwned: true },
+      data: { id: 'preset-123', isGlobal: false, isOwned: true, canEdit: true },
     });
 
     await handleSelectMenu(createMockSelectInteraction('preset::select::preset-123', 'edit-basic'));
@@ -245,13 +246,13 @@ describe('handleSelectMenu', () => {
       entityId: 'preset-123',
     });
     mockSessionManagerGet.mockResolvedValue({
-      data: { id: 'preset-123', isGlobal: false, isOwned: false },
+      data: { id: 'preset-123', isGlobal: false, isOwned: false, canEdit: false },
     });
 
     await handleSelectMenu(createMockSelectInteraction('preset::select::preset-123', 'edit-basic'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: '❌ You can only edit your own presets.',
+      content: '❌ You do not have permission to edit this preset.',
       flags: MessageFlags.Ephemeral,
     });
   });
