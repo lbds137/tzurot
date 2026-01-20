@@ -101,6 +101,72 @@ interface SafeCommandContext {
 
 ## Priority 2: MEDIUM
 
+### Incognito API Response Uses String Matching
+
+**Problem**: The bot-client checks if incognito mode "was already active" by string matching in the API response message:
+
+```typescript
+// services/bot-client/src/commands/memory/incognito.ts:128
+const wasAlreadyActive = data.message.includes('already');
+```
+
+This is brittle - if the API message wording changes, this breaks silently.
+
+**Solution**: Add explicit flag to API response:
+
+```typescript
+interface IncognitoEnableResponse {
+  session: IncognitoSession;
+  timeRemaining: string;
+  wasAlreadyActive: boolean; // ✅ Explicit flag instead of string parsing
+  message: string;
+}
+```
+
+**Files to modify**:
+
+- `services/api-gateway/src/routes/user/memoryIncognito.ts` - Add flag to response
+- `services/bot-client/src/commands/memory/incognito.ts` - Use flag instead of string matching
+- `packages/common-types/src/types/incognito.ts` - Update response type
+
+**Source**: PR #494 code review (2026-01-20)
+
+---
+
+### Incognito Status Fires Parallel API Calls
+
+**Problem**: The `/memory incognito status` command fetches personality names for each active session in parallel:
+
+```typescript
+// services/bot-client/src/commands/memory/incognito.ts:241-248
+const sessionLines = await Promise.all(
+  data.sessions.map(async session => {
+    const name = await getPersonalityName(userId, session.personalityId);
+    return formatSessionInfo(session, name ?? session.personalityId);
+  })
+);
+```
+
+With the 100-session limit, this could fire **100 parallel API calls**.
+
+**Solutions** (pick one):
+
+1. **Batch fetch**: Single API call to get all personality names by IDs
+2. **Return names from API**: Have the sessions endpoint include personality names
+3. **Limit display**: Show first 10 sessions with "and X more..."
+
+**Recommended**: Option 2 - have the API return personality names with sessions.
+
+**Files to modify**:
+
+- `services/api-gateway/src/routes/user/memoryIncognito.ts` - Include personality names in status response
+- `services/bot-client/src/commands/memory/incognito.ts` - Use names from response
+- `packages/common-types/src/types/incognito.ts` - Update session type
+
+**Source**: PR #494 code review (2026-01-20)
+
+---
+
 ### Incomplete XML Prompt Migration
 
 **Problem**: Some prompt construction paths still use markdown formatting instead of the new XML format. This is visible when memory content is displayed - referenced messages appear with markdown `**bold**` formatting instead of proper XML tags.
