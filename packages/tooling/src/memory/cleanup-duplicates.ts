@@ -217,7 +217,11 @@ function displaySummary(summary: DuplicateSummary, verbose: boolean): void {
   console.log(`   Groups with duplicates: ${chalk.bold(summary.totalGroups)}`);
   console.log(`   Total duplicates to remove: ${chalk.bold(summary.totalDuplicates)}`);
   if (summary.truncated) {
-    console.log(chalk.cyan(`   ⚠️  Results truncated to 1000 groups - run again after cleanup`));
+    console.log(
+      chalk.cyan(
+        `   ⚠️  Results limited to 1000 groups. Run cleanup, then analyze again to find remaining duplicates.`
+      )
+    );
   }
   if (summary.earliestDuplicate !== null) {
     console.log(`   Earliest duplicate: ${chalk.dim(summary.earliestDuplicate.toISOString())}`);

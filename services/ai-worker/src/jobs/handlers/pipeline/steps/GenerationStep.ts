@@ -298,12 +298,21 @@ export class GenerationStep implements IPipelineStep {
       // Store memory ONCE after retry loop completes with a valid response.
       // This prevents duplicate memories when retries occur (the fix for the
       // "swiss cheese" duplicate memory bug - see memory:cleanup command).
+      // Wrapped in try-catch: memory storage failure shouldn't fail the job
+      // since the user already has their validated response.
       if (response.deferredMemoryData !== undefined && response.incognitoModeActive !== true) {
-        await this.ragService.storeDeferredMemory(
-          effectivePersonality,
-          conversationContext,
-          response.deferredMemoryData
-        );
+        try {
+          await this.ragService.storeDeferredMemory(
+            effectivePersonality,
+            conversationContext,
+            response.deferredMemoryData
+          );
+        } catch (error) {
+          logger.error(
+            { jobId: job.id, error },
+            '[GenerationStep] Failed to store deferred memory - continuing without memory storage'
+          );
+        }
       }
 
       const processingTimeMs = Date.now() - startTime;
