@@ -75,6 +75,7 @@ function createMockJob(data: Partial<LLMGenerationJobData> = {}): Job<LLMGenerat
 function createMockRAGService(): ConversationalRAGService {
   return {
     generateResponse: vi.fn(),
+    storeDeferredMemory: vi.fn().mockResolvedValue(undefined),
   } as unknown as ConversationalRAGService;
 }
 
@@ -844,6 +845,113 @@ describe('GenerationStep', () => {
         expect(result.result?.content).toBe(uniqueResponse.content);
         expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+    });
+
+    describe('deferred memory storage', () => {
+      const basePreparedContextForMemory: PreparedContext = {
+        conversationHistory: [],
+        rawConversationHistory: [],
+        participants: [],
+      };
+
+      const baseConfigForMemory: ResolvedConfig = {
+        effectivePersonality: TEST_PERSONALITY,
+        configSource: 'personality',
+      };
+
+      const baseAuthForMemory: ResolvedAuth = {
+        apiKey: 'sk-test-key',
+        provider: 'openrouter',
+        isGuestMode: false,
+      };
+
+      it('should call storeDeferredMemory when deferredMemoryData is present', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'Hello! Here is my response.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          deferredMemoryData: {
+            contentForEmbedding: 'User message content',
+            responseContent: 'Hello! Here is my response.',
+            personaId: 'persona-123',
+          },
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfigForMemory,
+          auth: baseAuthForMemory,
+          preparedContext: basePreparedContextForMemory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(mockRAGService.storeDeferredMemory).toHaveBeenCalledOnce();
+        // Verify it was called with correct personality and deferred data
+        const calls = vi.mocked(mockRAGService.storeDeferredMemory).mock.calls;
+        expect(calls[0][0]).toBe(TEST_PERSONALITY); // effectivePersonality
+        expect(calls[0][2]).toEqual(ragResponse.deferredMemoryData); // deferredMemoryData
+      });
+
+      it('should NOT call storeDeferredMemory when incognitoModeActive is true', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'Hello from incognito!',
+          retrievedMemories: 0,
+          tokensIn: 100,
+          tokensOut: 50,
+          incognitoModeActive: true,
+          deferredMemoryData: {
+            contentForEmbedding: 'User message',
+            responseContent: 'Hello from incognito!',
+            personaId: 'persona-123',
+          },
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfigForMemory,
+          auth: baseAuthForMemory,
+          preparedContext: basePreparedContextForMemory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(mockRAGService.storeDeferredMemory).not.toHaveBeenCalled();
+      });
+
+      it('should NOT call storeDeferredMemory when deferredMemoryData is undefined', async () => {
+        const ragResponse: RAGResponse = {
+          content: 'Hello! No memory to store.',
+          retrievedMemories: 0,
+          tokensIn: 100,
+          tokensOut: 50,
+          // No deferredMemoryData
+        };
+
+        vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfigForMemory,
+          auth: baseAuthForMemory,
+          preparedContext: basePreparedContextForMemory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(mockRAGService.storeDeferredMemory).not.toHaveBeenCalled();
       });
     });
   });
