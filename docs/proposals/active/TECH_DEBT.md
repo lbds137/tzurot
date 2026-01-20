@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-17
+> Last updated: 2026-01-20
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -19,6 +19,83 @@ Technical debt items prioritized by ROI: bug prevention, maintainability, and sc
 | `DatabaseNotificationListener.ts` | Reconnection timeout     | Redis-based coordination |
 
 **Solution**: Create a "SystemQueue" in BullMQ with repeatable jobs. Use deterministic job IDs to prevent duplicate cron jobs on restart.
+
+---
+
+### InteractionAlreadyReplied Architectural Fix (Hybrid Facade Pattern)
+
+**Problem**: Recurring bug where command handlers call `deferReply()` after the top-level handler already deferred, causing `InteractionAlreadyReplied` errors. This has happened **multiple times** across different commands because the API contract is misleading - handlers receive what looks like a standard Discord Interaction object, but calling certain methods crashes.
+
+**Current Workaround**: Runtime shim in `safeInteraction.ts` that makes `deferReply()` idempotent (no-op if already deferred) and logs warnings.
+
+**Root Cause**: Commands receive the raw interaction object which has `deferReply()` available, but calling it is invalid.
+
+**Recommended Solution** (from MCP council analysis): **Hybrid Facade Pattern**
+
+1. **Declarative metadata**: Commands declare `type: 'standard' | 'ephemeral' | 'modal'`
+2. **Top-level handling**: Read config, perform deferral (or not for modals)
+3. **Safe context object**: Pass a typed `SafeContext` that **doesn't have `deferReply()`** at all
+
+```typescript
+// Commands receive this instead of raw interaction
+interface SafeCommandContext {
+  user: User;
+  options: CommandInteractionOptionResolver;
+  reply: (content: string | InteractionReplyOptions) => Promise<Message>; // Maps to editReply
+  followUp: (content: string | InteractionReplyOptions) => Promise<Message>;
+  // NO deferReply - it doesn't exist, so you can't call it
+}
+```
+
+**Benefits**:
+
+- **Compile-time safety**: TypeScript error if dev tries to defer
+- **Self-documenting**: Command type visible at top of file
+- **Modal support**: `type: 'modal'` skips deferral, passes `ModalContext` with `showModal()`
+
+**Implementation Steps**:
+
+- [ ] Define `SafeCommandContext` and `ModalCommandContext` interfaces
+- [ ] Add `commandType` metadata to command definitions (default: 'ephemeral')
+- [ ] Update top-level handler to create appropriate context based on type
+- [ ] Refactor command handlers to use context instead of raw interaction
+- [ ] Optional: Add ESLint rule forbidding `interaction.deferReply()` in commands/
+
+**Source**: MCP council analysis (2026-01-20), multiple production incidents
+
+---
+
+### Preset List Interactive UI (Match Character/Memory List Pattern)
+
+**Problem**: `/preset list` shows a static embed, unlike `/character list` and `/memory list` which have interactive buttons for editing, deleting, and pagination. This inconsistency confuses users and requires them to type `/preset edit <name>` instead of just clicking.
+
+**Current State**: Plain embed with preset names and models, no interactivity.
+
+**Solution**: Refactor to match the established list pattern:
+
+| Feature       | Character List | Memory List | Preset List (TODO) |
+| ------------- | -------------- | ----------- | ------------------ |
+| Pagination    | ✅             | ✅          | ❌                 |
+| Edit button   | ✅             | ✅          | ❌                 |
+| Delete button | ✅             | ✅          | ❌                 |
+| View details  | ✅             | ✅          | ❌                 |
+| Select menu   | ✅             | ✅          | ❌                 |
+
+**Implementation Steps**:
+
+- [ ] Add pagination for large preset lists
+- [ ] Add "Edit" button that opens `/preset edit` dashboard
+- [ ] Add "Delete" button with confirmation
+- [ ] Add "Set Default" quick action
+- [ ] Ensure guest mode restrictions still apply (can't edit global presets)
+
+**Files to modify**:
+
+- `services/bot-client/src/commands/preset/list.ts` - main refactor
+- `services/bot-client/src/commands/preset/index.ts` - add button/select handlers
+- May need `services/bot-client/src/commands/preset/listComponents.ts` - new file for UI components
+
+**Source**: Release testing observation (2026-01-20)
 
 ---
 
