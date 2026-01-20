@@ -250,3 +250,44 @@ export function validateReasoningConstraints(params: AdvancedParams): boolean {
   // reasoning.max_tokens must be less than max_tokens to leave room for response
   return params.reasoning.max_tokens < params.max_tokens;
 }
+
+// ============================================
+// CONVERSION UTILITIES
+// ============================================
+
+/**
+ * Converted params in camelCase format for use in ResolvedLlmConfig.
+ * These are the sampling parameters that LlmConfigResolver needs.
+ */
+export interface ConvertedLlmParams {
+  temperature?: number;
+  topP?: number;
+  topK?: number;
+  frequencyPenalty?: number;
+  presencePenalty?: number;
+  repetitionPenalty?: number;
+  maxTokens?: number;
+}
+
+/**
+ * Convert advancedParameters (snake_case) to ResolvedLlmConfig format (camelCase).
+ *
+ * The database stores LLM params in snake_case (matching OpenRouter API format),
+ * but TypeScript code uses camelCase. This function bridges that gap.
+ *
+ * Used by LlmConfigResolver to extract params from JSONB for inference.
+ *
+ * @param params - Validated AdvancedParams from database JSONB
+ * @returns Object with camelCase keys for use in ResolvedLlmConfig
+ */
+export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedLlmParams {
+  return {
+    temperature: params.temperature,
+    topP: params.top_p,
+    topK: params.top_k,
+    frequencyPenalty: params.frequency_penalty,
+    presencePenalty: params.presence_penalty,
+    repetitionPenalty: params.repetition_penalty,
+    maxTokens: params.max_tokens,
+  };
+}
