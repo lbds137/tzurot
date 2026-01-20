@@ -123,9 +123,9 @@
 
 **Test Steps**:
 
-- [ ] All slash commands work: `/character`, `/preset`, `/persona`, `/wallet`, `/memory`
-- [ ] No duplicate command registrations in logs
-- [ ] Subcommands work correctly (e.g., `/character edit`, `/character create`)
+- [x] All slash commands work: `/character`, `/preset`, `/persona`, `/wallet`, `/memory`
+- [x] No duplicate command registrations in logs
+- [x] Subcommands work correctly (e.g., `/character edit`, `/character create`)
 
 ---
 
@@ -171,8 +171,8 @@
 
 Run these to ensure nothing broke:
 
-- [ ] `/character create` - Create new character
-- [ ] `/character list` - List characters
+- [x] `/character create` - Create new character
+- [x] `/character list` - List characters
 - [ ] `@character message` - Chat with character
 - [ ] `/wallet status` - Check API key status
 - [ ] `/persona create` - Create persona
@@ -215,6 +215,6 @@ Run these to ensure nothing broke:
 
 ---
 
-**Tester**: ******\_\_\_******
-**Date Tested**: ******\_\_\_******
+**Tester**: **\*\***\_\_\_**\*\***
+**Date Tested**: **\*\***\_\_\_**\*\***
 **Result**: [ ] PASS / [ ] FAIL

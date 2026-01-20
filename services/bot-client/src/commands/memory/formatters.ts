@@ -22,11 +22,10 @@ export const EMBED_DESCRIPTION_SAFE_LIMIT = 3800;
  */
 export function formatDateShort(dateStr: string): string {
   const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: '2-digit',
-  });
+  const month = date.toLocaleDateString('en-US', { month: 'short' });
+  const day = date.getDate();
+  const year = date.getFullYear().toString().slice(-2);
+  return `${month} ${day}, '${year}`;
 }
 
 /**
