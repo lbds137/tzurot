@@ -145,6 +145,41 @@ describe('wrapDeferredInteraction', () => {
     });
   });
 
+  describe('deferReply() interception', () => {
+    it('should make deferReply() a no-op when interaction is already deferred', () => {
+      const wrapped = wrapDeferredInteraction(mockInteraction);
+
+      wrapped.deferReply();
+
+      // The original deferReply should NOT be called (it would throw InteractionAlreadyReplied)
+      expect(mockInteraction.deferReply).not.toHaveBeenCalled();
+    });
+
+    it('should log a warning when deferReply() is intercepted', () => {
+      const wrapped = wrapDeferredInteraction(mockInteraction);
+
+      wrapped.deferReply();
+
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'test' }),
+        expect.stringContaining('Command called deferReply() but interaction is already deferred')
+      );
+    });
+
+    it('should include full command name in deferReply warning', () => {
+      (mockInteraction.options.getSubcommand as ReturnType<typeof vi.fn>).mockReturnValue('edit');
+      mockInteraction.commandName = 'preset';
+
+      const wrapped = wrapDeferredInteraction(mockInteraction);
+      wrapped.deferReply();
+
+      expect(mockWarn).toHaveBeenCalledWith(
+        expect.objectContaining({ command: 'preset edit' }),
+        expect.stringContaining('FIX: Remove deferReply() call from /preset edit')
+      );
+    });
+  });
+
   describe('logging', () => {
     it('should log a warning when reply() is intercepted', async () => {
       const wrapped = wrapDeferredInteraction(mockInteraction);

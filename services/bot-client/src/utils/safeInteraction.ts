@@ -37,13 +37,15 @@ const logger = createLogger('SafeInteraction');
 
 /**
  * Wraps a deferred ChatInputCommandInteraction to automatically convert
- * reply() calls to editReply() calls.
+ * reply() calls to editReply() calls, and make deferReply() a no-op.
  *
  * This is a runtime safety mechanism that prevents InteractionAlreadyReplied
- * errors regardless of whether command authors use reply() or editReply().
+ * errors regardless of whether command authors use reply(), editReply(), or
+ * redundantly call deferReply().
  *
  * @param interaction - The original interaction that has been deferred
  * @returns A proxied interaction where reply() calls are converted to editReply()
+ *          and deferReply() calls become no-ops
  */
 export function wrapDeferredInteraction(
   interaction: ChatInputCommandInteraction
@@ -51,6 +53,30 @@ export function wrapDeferredInteraction(
   // Create a proxy that intercepts method calls
   return new Proxy(interaction, {
     get(target, prop, receiver) {
+      // Intercept deferReply() calls and make them no-ops (already deferred)
+      if (prop === 'deferReply') {
+        return (): void => {
+          // Build full command name for logging
+          const subcommand = target.options.getSubcommand(false);
+          const subcommandGroup = target.options.getSubcommandGroup(false);
+          let fullCommand = target.commandName;
+          if (subcommandGroup !== null && subcommandGroup.length > 0) {
+            fullCommand += ` ${subcommandGroup}`;
+          }
+          if (subcommand !== null && subcommand.length > 0) {
+            fullCommand += ` ${subcommand}`;
+          }
+
+          logger.warn(
+            { command: fullCommand },
+            `[SafeInteraction] Command called deferReply() but interaction is already deferred - ignoring. ` +
+              `FIX: Remove deferReply() call from /${fullCommand} (handled at top-level)`
+          );
+
+          // No-op: interaction is already deferred
+        };
+      }
+
       // Intercept reply() calls and convert to editReply()
       if (prop === 'reply') {
         return async (
