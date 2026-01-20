@@ -8,9 +8,9 @@
 import { REST, Routes } from 'discord.js';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readdirSync, statSync } from 'node:fs';
 import type { Command } from '../types.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
+import { getCommandFiles } from './commandFileUtils.js';
 
 const logger = createLogger('deploy-commands');
 
@@ -37,27 +37,6 @@ async function loadCommandFile(filePath: string): Promise<unknown> {
 
   logger.info(`Loaded: /${command.data.name}`);
   return (command.data as CommandJson).toJSON();
-}
-
-/**
- * Recursively get all .ts/.js files from commands directory
- */
-function getCommandFiles(dir: string): string[] {
-  const files: string[] = [];
-
-  const items = readdirSync(dir);
-  for (const item of items) {
-    const fullPath = join(dir, item);
-    const stat = statSync(fullPath);
-
-    if (stat.isDirectory()) {
-      files.push(...getCommandFiles(fullPath));
-    } else if (item.endsWith('.ts') || item.endsWith('.js')) {
-      files.push(fullPath);
-    }
-  }
-
-  return files;
 }
 
 /**
