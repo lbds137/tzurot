@@ -13,6 +13,45 @@ import type {
 import { z } from 'zod';
 
 /**
+ * Context passed to dashboard rendering functions
+ * Used for dynamic field visibility and validation
+ */
+export interface DashboardContext {
+  /** Whether the current user is a bot admin */
+  isAdmin: boolean;
+  /** Discord user ID */
+  userId: string;
+}
+
+/**
+ * Type for properties that can be static or context-dependent
+ * Allows field properties to change based on runtime context (e.g., admin status)
+ */
+export type ContextAware<T> = T | ((context: DashboardContext) => T);
+
+/**
+ * Resolve a context-aware value to its concrete type
+ *
+ * @param value - Static value or function that takes context
+ * @param context - Dashboard context with user info
+ * @param defaultValue - Default if value is undefined
+ * @returns The resolved value
+ */
+export function resolveContextAware<T>(
+  value: ContextAware<T> | undefined,
+  context: DashboardContext,
+  defaultValue: T
+): T {
+  if (value === undefined) {
+    return defaultValue;
+  }
+  if (typeof value === 'function') {
+    return (value as (ctx: DashboardContext) => T)(context);
+  }
+  return value;
+}
+
+/**
  * Status indicator for dashboard sections
  */
 export enum SectionStatus {
@@ -54,6 +93,8 @@ export interface FieldDefinition {
   minLength?: number;
   /** Maximum length */
   maxLength?: number;
+  /** Hide this field from the modal (context-aware: can be boolean or function) */
+  hidden?: ContextAware<boolean>;
 }
 
 /**

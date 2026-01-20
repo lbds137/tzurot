@@ -13,7 +13,7 @@ import type {
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, getConfig, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, isBotOwner, type EnvConfig } from '@tzurot/common-types';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -23,9 +23,11 @@ import {
   getSessionManager,
   parseDashboardCustomId,
   isDashboardInteraction,
+  type DashboardContext,
 } from '../../utils/dashboard/index.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
-import { characterDashboardConfig, type CharacterData } from './config.js';
+import { getCharacterDashboardConfig, type CharacterData } from './config.js';
+import type { CharacterSessionData } from './edit.js';
 import { fetchCharacter, updateCharacter, toggleVisibility } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
 import { handleListPagination } from './list.js';
@@ -80,8 +82,20 @@ async function handleSectionModalSubmit(
 ): Promise<void> {
   await interaction.deferUpdate();
 
+  // SECURITY: Re-verify admin status for admin section edits
+  // Never trust session data - always check server-side
+  const isAdmin = isBotOwner(interaction.user.id);
+  if (sectionId === 'admin' && !isAdmin) {
+    logger.warn(
+      { userId: interaction.user.id, entityId, sectionId },
+      'Non-admin attempted admin section edit'
+    );
+    // Silently ignore - the section shouldn't have been visible to non-admins
+    return;
+  }
+
   const sessionManager = getSessionManager();
-  const session = await sessionManager.get<CharacterData>(
+  const session = await sessionManager.get<CharacterSessionData>(
     interaction.user.id,
     'character',
     entityId
@@ -92,8 +106,11 @@ async function handleSectionModalSubmit(
     logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
   }
 
+  // Get the appropriate dashboard config based on admin status
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+
   // Find the section config
-  const section = characterDashboardConfig.sections.find(s => s.id === sectionId);
+  const section = dashboardConfig.sections.find(s => s.id === sectionId);
   if (!section) {
     logger.error({ sectionId }, 'Unknown section');
     return;
@@ -109,26 +126,27 @@ async function handleSectionModalSubmit(
     // Update character via API (entityId is the slug)
     const updated = await updateCharacter(entityId, values, interaction.user.id, config);
 
-    // Update session
+    // Update session (preserve _isAdmin flag)
     if (session) {
-      await sessionManager.update<CharacterData>(
+      const sessionData: CharacterSessionData = { ...updated, _isAdmin: isAdmin };
+      await sessionManager.update<CharacterSessionData>(
         interaction.user.id,
         'character',
         entityId,
-        updated
+        sessionData
       );
     }
 
     // Refresh dashboard (use slug as entityId)
-    const embed = buildDashboardEmbed(characterDashboardConfig, updated);
-    const components = buildDashboardComponents(characterDashboardConfig, updated.slug, updated, {
+    const embed = buildDashboardEmbed(dashboardConfig, updated);
+    const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
       showClose: true,
       showRefresh: true,
     });
 
     await interaction.editReply({ embeds: [embed], components });
 
-    logger.info({ slug: entityId, sectionId }, 'Character section updated');
+    logger.info({ slug: entityId, sectionId, isAdmin }, 'Character section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update character section');
     // Since we deferred update, we can't send a new error message easily
@@ -149,10 +167,29 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
   const value = interaction.values[0];
   const entityId = parsed.entityId;
 
+  // Determine admin status for context-aware features
+  const isAdmin = isBotOwner(interaction.user.id);
+  const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+  const context: DashboardContext = { isAdmin, userId: interaction.user.id };
+
   // Handle section edit selection
   if (value.startsWith('edit-')) {
     const sectionId = value.replace('edit-', '');
-    const section = characterDashboardConfig.sections.find(s => s.id === sectionId);
+
+    // SECURITY: Block non-admins from admin section
+    if (sectionId === 'admin' && !isAdmin) {
+      logger.warn(
+        { userId: interaction.user.id, entityId, sectionId },
+        'Non-admin attempted to select admin section'
+      );
+      await interaction.reply({
+        content: '❌ This section is restricted to bot administrators.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const section = dashboardConfig.sections.find(s => s.id === sectionId);
     if (!section) {
       await interaction.reply({
         content: '❌ Unknown section.',
@@ -163,7 +200,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 
     // Get current data from session or fetch
     const sessionManager = getSessionManager();
-    const session = await sessionManager.get<CharacterData>(
+    const session = await sessionManager.get<CharacterSessionData>(
       interaction.user.id,
       'character',
       entityId
@@ -183,19 +220,20 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
         return;
       }
       characterData = character;
-      // Create new session
+      // Create new session (with admin flag)
+      const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
       await sessionManager.set({
         userId: interaction.user.id,
         entityType: 'character',
         entityId,
-        data: character,
+        data: sessionData,
         messageId: interaction.message.id,
         channelId: interaction.channelId,
       });
     }
 
-    // Build and show section modal
-    const modal = buildSectionModal(characterDashboardConfig, section, entityId, characterData);
+    // Build and show section modal (with context for field visibility)
+    const modal = buildSectionModal(dashboardConfig, section, entityId, characterData, context);
     await interaction.showModal(modal);
     return;
   }
@@ -328,28 +366,28 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       return;
     }
 
-    // Update session
+    // Determine admin status for dashboard config
+    const isAdmin = isBotOwner(interaction.user.id);
+    const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+
+    // Update session (with admin flag)
     const sessionManager = getSessionManager();
+    const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
     await sessionManager.set({
       userId: interaction.user.id,
       entityType: 'character',
       entityId,
-      data: character,
+      data: sessionData,
       messageId: interaction.message.id,
       channelId: interaction.channelId,
     });
 
     // Refresh dashboard (use slug as entityId)
-    const embed = buildDashboardEmbed(characterDashboardConfig, character);
-    const components = buildDashboardComponents(
-      characterDashboardConfig,
-      character.slug,
-      character,
-      {
-        showClose: true,
-        showRefresh: true,
-      }
-    );
+    const embed = buildDashboardEmbed(dashboardConfig, character);
+    const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
+      showClose: true,
+      showRefresh: true,
+    });
 
     await interaction.editReply({ embeds: [embed], components });
     return;
@@ -385,15 +423,20 @@ async function handleAction(
     // Update character data with new visibility
     const updated: CharacterData = { ...character, isPublic: result.isPublic };
 
-    // Update session
+    // Determine admin status for dashboard config
+    const isAdmin = isBotOwner(interaction.user.id);
+    const dashboardConfig = getCharacterDashboardConfig(isAdmin);
+
+    // Update session (preserve _isAdmin flag)
     const sessionManager = getSessionManager();
-    await sessionManager.update<CharacterData>(interaction.user.id, 'character', entityId, {
+    await sessionManager.update<CharacterSessionData>(interaction.user.id, 'character', entityId, {
       isPublic: result.isPublic,
+      _isAdmin: isAdmin,
     });
 
     // Refresh dashboard (use slug as entityId)
-    const embed = buildDashboardEmbed(characterDashboardConfig, updated);
-    const components = buildDashboardComponents(characterDashboardConfig, updated.slug, updated, {
+    const embed = buildDashboardEmbed(dashboardConfig, updated);
+    const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
       showClose: true,
       showRefresh: true,
     });

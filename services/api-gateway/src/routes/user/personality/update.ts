@@ -7,6 +7,7 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  isBotOwner,
   type PrismaClient,
   type CacheInvalidationService,
 } from '@tzurot/common-types';
@@ -15,6 +16,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { validateSlug } from '../../../utils/validators.js';
 import { optimizeAvatar } from '../../../utils/imageProcessor.js';
 import { deleteAvatarFile } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
@@ -26,6 +28,7 @@ const logger = createLogger('user-personality-update');
 interface UpdatePersonalityBody {
   name?: string;
   displayName?: string | null;
+  slug?: string;
   characterInfo?: string;
   personalityTraits?: string;
   personalityTone?: string | null;
@@ -87,6 +90,7 @@ function buildUpdateData(
   const updateData: Prisma.PersonalityUpdateInput = {};
 
   const simpleFields: (keyof UpdatePersonalityBody)[] = [
+    'slug',
     'characterInfo',
     'personalityTraits',
     'personalityTone',
@@ -155,6 +159,27 @@ async function handleAvatarCacheInvalidation(
     try {
       await cacheInvalidationService.invalidatePersonality(personalityId);
       logger.info({ personalityId }, '[User] Invalidated personality cache after avatar update');
+    } catch (error) {
+      logger.warn({ err: error, personalityId }, '[User] Failed to invalidate personality cache');
+    }
+  }
+}
+
+async function handleSlugCacheInvalidation(
+  oldSlug: string,
+  newSlug: string,
+  personalityId: string,
+  cacheInvalidationService?: CacheInvalidationService
+): Promise<void> {
+  // Delete cached avatar for both old and new slugs
+  await deleteAvatarFile(oldSlug, 'Slug update - old slug');
+  await deleteAvatarFile(newSlug, 'Slug update - new slug');
+
+  // Invalidate personality cache
+  if (cacheInvalidationService) {
+    try {
+      await cacheInvalidationService.invalidatePersonality(personalityId);
+      logger.info({ personalityId }, '[User] Invalidated personality cache after slug update');
     } catch (error) {
       logger.warn({ err: error, personalityId }, '[User] Failed to invalidate personality cache');
     }
@@ -272,6 +297,47 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
     }
 
     const body = req.body as UpdatePersonalityBody;
+
+    // Field-level permission check: slug updates require bot owner
+    if (body.slug !== undefined && body.slug !== slug) {
+      if (!isBotOwner(discordUserId)) {
+        logger.warn(
+          { discordUserId, currentSlug: slug, attemptedSlug: body.slug },
+          '[User] Non-admin attempted slug update'
+        );
+        return sendError(
+          res,
+          ErrorResponses.unauthorized('Only bot admins can update personality slugs')
+        );
+      }
+
+      // Validate slug format
+      const slugValidation = validateSlug(body.slug);
+      if (!slugValidation.valid) {
+        return sendError(res, slugValidation.error);
+      }
+
+      // Check uniqueness - ensure new slug doesn't already exist
+      const existingWithSlug = await prisma.personality.findUnique({
+        where: { slug: body.slug },
+        select: { id: true },
+      });
+      if (existingWithSlug !== null) {
+        return sendError(
+          res,
+          ErrorResponses.validationError(`Slug "${body.slug}" is already in use`)
+        );
+      }
+
+      logger.info(
+        { discordUserId, oldSlug: slug, newSlug: body.slug, personalityId: personality.id },
+        '[User] Bot admin updating personality slug'
+      );
+    }
+
+    // Track if slug is actually changing (for cache invalidation)
+    const slugWasUpdated = body.slug !== undefined && body.slug !== slug;
+
     const updateData = buildUpdateData(body, personality.name);
 
     const avatarResult = await processAvatarIfProvided(body.avatarData);
@@ -294,8 +360,19 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       await handleAvatarCacheInvalidation(slug, personality.id, cacheInvalidationService);
     }
 
+    // Invalidate caches when slug changes (avatar files may be cached by slug)
+    if (slugWasUpdated && body.slug !== undefined) {
+      await handleSlugCacheInvalidation(slug, body.slug, personality.id, cacheInvalidationService);
+    }
+
     logger.info(
-      { discordUserId, slug, personalityId: personality.id, avatarUpdated: avatarWasUpdated },
+      {
+        discordUserId,
+        slug,
+        personalityId: personality.id,
+        avatarUpdated: avatarWasUpdated,
+        slugUpdated: slugWasUpdated,
+      },
       '[User] Updated personality'
     );
 

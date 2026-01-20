@@ -3,9 +3,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { characterDashboardConfig, characterSeedFields, type CharacterData } from './config.js';
+import {
+  characterDashboardConfig,
+  characterSeedFields,
+  getCharacterDashboardConfig,
+  type CharacterData,
+} from './config.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types';
-import { SectionStatus } from '../../utils/dashboard/index.js';
+import { SectionStatus, type DashboardContext } from '../../utils/dashboard/index.js';
 
 /**
  * Create a minimal valid CharacterData for testing
@@ -344,6 +349,78 @@ describe('Character Dashboard Configuration', () => {
       const actionIds = characterDashboardConfig.actions.map(a => a.id);
       expect(actionIds).toContain('visibility');
       expect(actionIds).toContain('avatar');
+    });
+  });
+
+  describe('getCharacterDashboardConfig', () => {
+    it('should return 4 sections for non-admins', () => {
+      const config = getCharacterDashboardConfig(false);
+      expect(config.sections).toHaveLength(4);
+      const sectionIds = config.sections.map(s => s.id);
+      expect(sectionIds).toEqual(['identity', 'biography', 'preferences', 'conversation']);
+    });
+
+    it('should return 5 sections for admins (including admin section)', () => {
+      const config = getCharacterDashboardConfig(true);
+      expect(config.sections).toHaveLength(5);
+      const sectionIds = config.sections.map(s => s.id);
+      expect(sectionIds).toEqual(['identity', 'biography', 'preferences', 'conversation', 'admin']);
+    });
+
+    it('should include admin section only for admins', () => {
+      const userConfig = getCharacterDashboardConfig(false);
+      const adminConfig = getCharacterDashboardConfig(true);
+
+      expect(userConfig.sections.find(s => s.id === 'admin')).toBeUndefined();
+      expect(adminConfig.sections.find(s => s.id === 'admin')).toBeDefined();
+    });
+
+    it('should preserve entityType and other config properties', () => {
+      const config = getCharacterDashboardConfig(true);
+      expect(config.entityType).toBe('character');
+      expect(config.getTitle).toBeDefined();
+      expect(config.getDescription).toBeDefined();
+      expect(config.actions).toBeDefined();
+    });
+  });
+
+  describe('Admin section', () => {
+    const adminConfig = getCharacterDashboardConfig(true);
+    const adminSection = adminConfig.sections.find(s => s.id === 'admin')!;
+
+    it('should have slug field', () => {
+      expect(adminSection.fieldIds).toEqual(['slug']);
+      expect(adminSection.fields).toHaveLength(1);
+      expect(adminSection.fields[0].id).toBe('slug');
+    });
+
+    it('should have slug field required', () => {
+      const slugField = adminSection.fields.find(f => f.id === 'slug')!;
+      expect(slugField.required).toBe(true);
+    });
+
+    it('should have context-aware hidden property on slug field', () => {
+      const slugField = adminSection.fields.find(f => f.id === 'slug')!;
+      expect(typeof slugField.hidden).toBe('function');
+
+      // Test the hidden function
+      const adminContext: DashboardContext = { isAdmin: true, userId: 'admin-123' };
+      const userContext: DashboardContext = { isAdmin: false, userId: 'user-456' };
+
+      // Should be visible to admins (hidden = false)
+      expect((slugField.hidden as (ctx: DashboardContext) => boolean)(adminContext)).toBe(false);
+      // Should be hidden from non-admins (hidden = true)
+      expect((slugField.hidden as (ctx: DashboardContext) => boolean)(userContext)).toBe(true);
+    });
+
+    it('should always return DEFAULT status', () => {
+      const character = createTestCharacter();
+      expect(adminSection.getStatus(character)).toBe(SectionStatus.DEFAULT);
+    });
+
+    it('should preview the slug value', () => {
+      const character = createTestCharacter({ slug: 'my-character' });
+      expect(adminSection.getPreview(character)).toBe('`my-character`');
     });
   });
 });

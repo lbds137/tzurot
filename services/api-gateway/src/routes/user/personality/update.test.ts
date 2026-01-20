@@ -10,6 +10,7 @@ import {
   createMockReqRes,
   getHandler,
   setupStandardMocks,
+  mockIsBotOwner,
 } from './test-utils.js';
 
 // Mock dependencies before imports
@@ -512,6 +513,212 @@ describe('PUT /user/personality/:slug (update)', () => {
       // Should not call cache invalidation for non-avatar updates
       expect(mockCacheInvalidationService.invalidatePersonality).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
+    });
+  });
+
+  describe('slug update permissions (admin-only)', () => {
+    beforeEach(() => {
+      // Setup: user exists and owns the personality
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-slug-test',
+        ownerId: 'user-uuid-123',
+        name: 'Test Character',
+      });
+    });
+
+    it('should reject slug update from non-admin user', async () => {
+      mockIsBotOwner.mockReturnValue(false);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { slug: 'new-slug' }, // Attempting to change slug
+        { slug: 'old-slug' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Only bot admins'),
+        })
+      );
+      // Should NOT have called update
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+    });
+
+    it('should allow slug update from bot admin', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+      // No existing personality with new slug
+      mockPrisma.personality.findUnique
+        .mockResolvedValueOnce({
+          id: 'personality-slug-test',
+          ownerId: 'user-uuid-123',
+          name: 'Test Character',
+        })
+        .mockResolvedValueOnce(null); // Uniqueness check
+
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-slug-test',
+          name: 'Test Character',
+          slug: 'new-slug',
+          displayName: 'Test Character',
+        })
+      );
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes({ slug: 'new-slug' }, { slug: 'old-slug' });
+
+      await handler(req, res);
+
+      expect(mockPrisma.personality.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            slug: 'new-slug',
+          }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should invalidate cache when slug is updated', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+      mockUnlink.mockResolvedValue(undefined);
+      // No existing personality with new slug
+      mockPrisma.personality.findUnique
+        .mockResolvedValueOnce({
+          id: 'personality-slug-test',
+          ownerId: 'user-uuid-123',
+          name: 'Test Character',
+        })
+        .mockResolvedValueOnce(null); // Uniqueness check
+
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-slug-test',
+          name: 'Test Character',
+          slug: 'new-slug',
+          displayName: 'Test Character',
+        })
+      );
+
+      const mockCacheInvalidationService = {
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+      } as unknown as import('@tzurot/common-types').CacheInvalidationService;
+
+      const router = createPersonalityRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidationService
+      );
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes({ slug: 'new-slug' }, { slug: 'old-slug' });
+
+      await handler(req, res);
+
+      // Should delete cached avatar for both old and new slugs
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/old-slug.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/new-slug.png');
+      // Should invalidate personality cache
+      expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith(
+        'personality-slug-test'
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should reject invalid slug format', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { slug: 'Invalid Slug With Spaces!' }, // Invalid format
+        { slug: 'old-slug' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('Invalid slug format'),
+        })
+      );
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+    });
+
+    it('should reject duplicate slug', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+      // Existing personality with requested slug
+      mockPrisma.personality.findUnique
+        .mockResolvedValueOnce({
+          id: 'personality-slug-test',
+          ownerId: 'user-uuid-123',
+          name: 'Test Character',
+        })
+        .mockResolvedValueOnce({ id: 'other-personality' }); // Another personality has this slug
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes({ slug: 'taken-slug' }, { slug: 'old-slug' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('already in use'),
+        })
+      );
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+    });
+
+    it('should allow same slug value (no actual change)', async () => {
+      // When slug in body equals current slug, no admin check needed
+      mockIsBotOwner.mockReturnValue(false); // Not an admin
+      mockPrisma.personality.update.mockResolvedValue(
+        createMockPersonality({
+          id: 'personality-slug-test',
+          name: 'Updated Name',
+          slug: 'same-slug',
+          displayName: 'Updated Name',
+        })
+      );
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { name: 'Updated Name', slug: 'same-slug' }, // Same slug as URL param
+        { slug: 'same-slug' }
+      );
+
+      await handler(req, res);
+
+      // Should succeed because slug isn't actually changing
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should reject reserved slug names', async () => {
+      mockIsBotOwner.mockReturnValue(true);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { slug: 'admin' }, // Reserved slug
+        { slug: 'old-slug' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('reserved'),
+        })
+      );
+      expect(mockPrisma.personality.update).not.toHaveBeenCalled();
     });
   });
 });
