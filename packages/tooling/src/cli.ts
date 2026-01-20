@@ -23,6 +23,7 @@ import { registerCacheCommands } from './commands/cache.js';
 import { registerDevCommands } from './commands/dev.js';
 import { registerRunCommands } from './commands/run.js';
 import { registerGhCommands } from './commands/gh.js';
+import { registerMemoryCommands } from './commands/memory.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -39,6 +40,7 @@ registerCacheCommands(cli);
 registerDevCommands(cli);
 registerRunCommands(cli);
 registerGhCommands(cli);
+registerMemoryCommands(cli);
 
 // Global options
 cli.help();
