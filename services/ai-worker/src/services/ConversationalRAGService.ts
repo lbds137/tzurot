@@ -48,6 +48,7 @@ import type {
   ModelInvocationOptions,
   RAGResponse,
   GenerateResponseOptions,
+  DeferredMemoryData,
 } from './ConversationalRAGTypes.js';
 
 // Re-export public types for external consumers
@@ -58,6 +59,7 @@ export type {
   ConversationContext,
   RAGResponse,
   ParticipantInfo,
+  DeferredMemoryData,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -363,6 +365,7 @@ export class ConversationalRAGService {
    * @param context - Conversation context (history, environment, etc.)
    * @param options - Optional configuration (userApiKey, isGuestMode, retryConfig)
    */
+  // eslint-disable-next-line max-lines-per-function -- Orchestration method; further decomposition would obscure flow
   async generateResponse(
     personality: LoadedPersonality,
     message: MessageContent,
@@ -441,23 +444,53 @@ export class ConversationalRAGService {
           personality.id
         );
 
-      // Step 6: Check incognito mode and store to long-term memory
+      // Step 6: Check incognito mode and handle memory storage
       const incognitoModeActive = await redisService.isIncognitoActive(
         context.userId,
         personality.id
       );
-      if (!incognitoModeActive) {
+
+      // Build deferred memory data for potential later storage
+      let deferredMemoryData: DeferredMemoryData | undefined;
+
+      if (incognitoModeActive) {
+        logger.info(
+          { userId: context.userId, personalityId: personality.id },
+          '[RAG] Incognito mode active - skipping LTM storage'
+        );
+      } else if (options.skipMemoryStorage === true) {
+        // Deferred storage: resolve persona and build data for caller to store later
+        const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
+          context.userId,
+          personality.id
+        );
+        if (personaResult !== null) {
+          const contentForEmbedding =
+            inputs.referencedMessagesTextForSearch !== undefined &&
+            inputs.referencedMessagesTextForSearch.length > 0
+              ? `${budgetResult.contentForStorage}\n\n[Referenced content: ${inputs.referencedMessagesTextForSearch}]`
+              : budgetResult.contentForStorage;
+
+          deferredMemoryData = {
+            contentForEmbedding,
+            responseContent: finalContent,
+            personaId: personaResult.personaId,
+          };
+          logger.debug(
+            { userId: context.userId, personalityId: personality.id },
+            '[RAG] Memory storage deferred - data included in response'
+          );
+        } else {
+          logger.warn({}, `[RAG] No persona found for user ${context.userId}, cannot defer LTM`);
+        }
+      } else {
+        // Immediate storage (default behavior)
         await this.storeToLongTermMemory(
           personality,
           context,
           budgetResult.contentForStorage,
           finalContent,
           inputs.referencedMessagesTextForSearch
-        );
-      } else {
-        logger.info(
-          { userId: context.userId, personalityId: personality.id },
-          '[RAG] Incognito mode active - skipping LTM storage'
         );
       }
 
@@ -473,6 +506,7 @@ export class ConversationalRAGService {
         userMessageContent: budgetResult.contentForStorage,
         focusModeEnabled,
         incognitoModeActive,
+        deferredMemoryData,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
@@ -512,6 +546,35 @@ export class ConversationalRAGService {
     } else {
       logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
     }
+  }
+
+  /**
+   * Store deferred memory data to long-term memory.
+   *
+   * Call this method after response validation passes (e.g., after duplicate
+   * detection confirms the response is unique). This ensures only ONE memory
+   * is stored per interaction, even when retry logic is used.
+   *
+   * @param personality - The personality that generated the response
+   * @param context - Conversation context
+   * @param deferredData - Data returned from generateResponse when skipMemoryStorage was true
+   */
+  async storeDeferredMemory(
+    personality: LoadedPersonality,
+    context: ConversationContext,
+    deferredData: DeferredMemoryData
+  ): Promise<void> {
+    await this.longTermMemory.storeInteraction(
+      personality,
+      deferredData.contentForEmbedding,
+      deferredData.responseContent,
+      context,
+      deferredData.personaId
+    );
+    logger.info(
+      { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
+      '[RAG] Stored deferred memory to LTM'
+    );
   }
 
   /**
