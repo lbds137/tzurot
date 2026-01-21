@@ -4,12 +4,15 @@
  *
  * Activates a personality in the current channel so it responds
  * to ALL messages without requiring @mentions.
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type ActivateChannelResponse } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { requireManageMessagesDeferred } from '../../utils/permissions.js';
+import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
@@ -31,28 +34,27 @@ async function invalidateSettingsCache(channelId: string): Promise<void> {
 
 /**
  * Handle /channel activate command
+ *
+ * @param context - DeferredCommandContext (already deferred by framework)
  */
-export async function handleActivate(interaction: ChatInputCommandInteraction): Promise<void> {
-  const personalitySlug = interaction.options.getString('personality', true);
-  const channelId = interaction.channelId;
-  const guildId = interaction.guildId;
+export async function handleActivate(context: DeferredCommandContext): Promise<void> {
+  const personalitySlug = context.getRequiredOption<string>('personality');
+  const { channelId, guildId } = context;
 
-  // Note: deferReply is handled by top-level interactionCreate handler
-
-  // Check permission
-  if (!(await requireManageMessagesDeferred(interaction))) {
+  // Check permission using context-aware utility
+  if (!(await requireManageMessagesContext(context))) {
     return;
   }
 
   // Guild ID is required (permission check ensures we're in a guild)
   if (guildId === null) {
-    await interaction.editReply('❌ This command can only be used in a server.');
+    await context.editReply('❌ This command can only be used in a server.');
     return;
   }
 
   try {
     const result = await callGatewayApi<ActivateChannelResponse>('/user/channel/activate', {
-      userId: interaction.user.id,
+      userId: context.user.id,
       method: 'POST',
       body: {
         channelId,
@@ -64,7 +66,7 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
     if (!result.ok) {
       logger.warn(
         {
-          userId: interaction.user.id,
+          userId: context.user.id,
           channelId,
           personalitySlug,
           error: result.error,
@@ -75,7 +77,7 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
 
       // Handle specific error cases
       if (result.status === 404) {
-        await interaction.editReply(
+        await context.editReply(
           `❌ Personality **${personalitySlug}** not found.\n\n` +
             'Use the autocomplete to select a valid personality.'
         );
@@ -83,14 +85,14 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
       }
 
       if (result.status === 403) {
-        await interaction.editReply(
+        await context.editReply(
           `❌ You don't have access to **${personalitySlug}**.\n\n` +
             'You can only activate personalities that are public or that you own.'
         );
         return;
       }
 
-      await interaction.editReply(`❌ Failed to activate: ${result.error}`);
+      await context.editReply(`❌ Failed to activate: ${result.error}`);
       return;
     }
 
@@ -100,14 +102,14 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
     // Invalidate cache locally and across all bot-client instances
     await invalidateSettingsCache(channelId);
 
-    await interaction.editReply(
+    await context.editReply(
       `✅ Activated **${activation.personalityName}** in this channel${replacedNote}.\n\n` +
         `All messages in <#${channelId}> will now get responses from this personality.`
     );
 
     logger.info(
       {
-        userId: interaction.user.id,
+        userId: context.user.id,
         channelId,
         guildId,
         personalitySlug: activation.personalitySlug,
@@ -120,12 +122,12 @@ export async function handleActivate(interaction: ChatInputCommandInteraction): 
     logger.error(
       {
         err: error,
-        userId: interaction.user.id,
+        userId: context.user.id,
         channelId,
         personalitySlug,
       },
       '[Channel] Activation error'
     );
-    await interaction.editReply('❌ An unexpected error occurred while activating the channel.');
+    await context.editReply('❌ An unexpected error occurred while activating the channel.');
   }
 }

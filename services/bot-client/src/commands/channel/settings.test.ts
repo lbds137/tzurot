@@ -2,15 +2,17 @@
  * Tests for Channel Context Dashboard
  *
  * Tests the interactive settings dashboard for channel context settings.
+ *
+ * This command uses deferralMode: 'ephemeral' which means:
+ * - Framework calls deferReply before execute()
+ * - Execute receives a DeferredCommandContext (not raw interaction)
+ * - Tests must mock the context, not the interaction directly
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
-import type {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   handleContext,
   handleChannelContextButton,
@@ -85,30 +87,48 @@ describe('Channel Context Dashboard', () => {
     extendedContextMaxImages: 5,
   };
 
-  const createMockInteraction = (
-    hasPermission = true
-  ): ChatInputCommandInteraction & {
-    reply: ReturnType<typeof vi.fn>;
-    editReply: ReturnType<typeof vi.fn>;
-    deferred: boolean;
-    replied: boolean;
-  } => {
-    return {
-      channelId: 'channel-123',
-      user: { id: 'user-456' },
-      memberPermissions: {
-        has: vi.fn().mockReturnValue(hasPermission),
-      },
-      reply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   * The context wraps the interaction and provides type-safe methods.
+   *
+   * Note: createSettingsDashboard uses interaction.editReply directly,
+   * so we need to mock that on the interaction object.
+   */
+  const createMockContext = (hasPermission = true): DeferredCommandContext => {
+    // Mock editReply that can be shared
+    const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-123' });
+
+    // Mock the underlying interaction - createSettingsDashboard uses this
+    const mockInteraction = {
       deferred: true,
       replied: false,
-    } as unknown as ChatInputCommandInteraction & {
-      reply: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      deferred: boolean;
-      replied: boolean;
+      editReply: mockEditReply,
     };
+
+    // Create mock context that mirrors DeferredCommandContext
+    return {
+      interaction: mockInteraction,
+      user: { id: 'user-456' },
+      guild: null,
+      member: {
+        permissions: {
+          has: vi.fn().mockReturnValue(hasPermission),
+        },
+      },
+      channel: null,
+      channelId: 'channel-123',
+      guildId: 'guild-123',
+      commandName: 'channel',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'settings',
+      getSubcommandGroup: () => null,
+      // Context's editReply also uses the shared mock for consistency
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   };
 
   const createMockButtonInteraction = (
@@ -161,24 +181,24 @@ describe('Channel Context Dashboard', () => {
 
   describe('handleContext', () => {
     it('should require Manage Messages permission', async () => {
-      const interaction = createMockInteraction(false);
+      const context = createMockContext(false);
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Manage Messages'),
       });
     });
 
     it('should display settings dashboard embed with permission', async () => {
-      const interaction = createMockInteraction(true);
+      const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleContext(interaction);
+      await handleContext(context);
 
       expect(mockGetChannelSettings).toHaveBeenCalledWith('channel-123');
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
           components: expect.any(Array),
@@ -187,13 +207,13 @@ describe('Channel Context Dashboard', () => {
     });
 
     it('should include Channel Settings title in embed', async () => {
-      const interaction = createMockInteraction(true);
+      const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
@@ -201,65 +221,67 @@ describe('Channel Context Dashboard', () => {
     });
 
     it('should include channel mention in embed description', async () => {
-      const interaction = createMockInteraction(true);
+      const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
     it('should include all 4 settings fields', async () => {
-      const interaction = createMockInteraction(true);
+      const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       expect(embedJson.fields).toHaveLength(4);
     });
 
     it('should handle admin settings fetch failure', async () => {
-      const interaction = createMockInteraction(true);
+      const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(null);
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: 'Failed to fetch global settings.',
       });
     });
 
     it('should handle unexpected errors gracefully', async () => {
-      const interaction = createMockInteraction(true);
+      const context = createMockContext(true);
       mockGetChannelSettings.mockRejectedValue(new Error('Network error'));
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: 'An error occurred while opening the context settings dashboard.',
       });
     });
 
     it('should not respond again if already replied', async () => {
-      const interaction = createMockInteraction(true);
-      Object.defineProperty(interaction, 'replied', {
+      const context = createMockContext(true);
+      // The interaction's `replied` property is checked in the error handler
+      Object.defineProperty(context.interaction, 'replied', {
         get: () => true,
         configurable: true,
       });
       mockGetChannelSettings.mockRejectedValue(new Error('Network error'));
 
-      await handleContext(interaction);
+      await handleContext(context);
 
-      expect(interaction.editReply).not.toHaveBeenCalled();
+      // editReply should not be called when interaction.replied is true
+      expect(context.editReply).not.toHaveBeenCalled();
     });
   });
 
@@ -576,7 +598,7 @@ describe('Channel Context Dashboard', () => {
 
       await handleChannelContextModal(interaction as never);
 
-      // When update fails, handler returns early
+      // When update fails, handler returns early - verify interaction.editReply wasn't called
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });

@@ -1,13 +1,11 @@
 /**
  * Channel List Subcommand - Handles /channel list
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  TextChannel,
-  Client,
-} from 'discord.js';
+import type { ButtonInteraction, TextChannel, Client } from 'discord.js';
 import {
   EmbedBuilder,
   ButtonBuilder,
@@ -23,8 +21,9 @@ import {
   type ChannelSettings,
   DISCORD_COLORS,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { requireManageMessagesDeferred } from '../../utils/permissions.js';
+import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { ChannelCustomIds, type ChannelListSortType } from '../../utils/customIds.js';
 import { createListComparator, type ListSortType } from '../../utils/listSorting.js';
 import {
@@ -361,15 +360,16 @@ function buildPageView(opts: PageViewOptions): { embed: EmbedBuilder; totalPages
  * Set up button collector for pagination and sorting
  */
 function setupPaginationCollector(
-  interaction: ChatInputCommandInteraction,
-  response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
+  context: DeferredCommandContext,
+  response: Awaited<ReturnType<DeferredCommandContext['editReply']>>,
   activations: ChannelSettings[],
   showAll: boolean
 ): void {
+  const { interaction } = context;
   const collector = response.createMessageComponentCollector({
     componentType: ComponentType.Button,
     time: COLLECTOR_TIMEOUT_MS,
-    filter: i => i.user.id === interaction.user.id,
+    filter: i => i.user.id === context.user.id,
   });
 
   collector.on('collect', (buttonInteraction: ButtonInteraction) => {
@@ -405,7 +405,7 @@ function setupPaginationCollector(
   });
 
   collector.on('end', () => {
-    void interaction.editReply({ components: [] }).catch(() => {
+    void context.editReply({ components: [] }).catch(() => {
       // Ignore errors if message was deleted
     });
   });
@@ -413,18 +413,20 @@ function setupPaginationCollector(
 
 /**
  * Handle /channel list command
+ *
+ * @param context - DeferredCommandContext (already deferred by framework)
  */
-export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
+export async function handleList(context: DeferredCommandContext): Promise<void> {
+  const { interaction } = context;
 
   // Check permission - require Manage Messages
-  if (!(await requireManageMessagesDeferred(interaction))) {
+  if (!(await requireManageMessagesContext(context))) {
     return;
   }
 
-  const showAll = interaction.options.getBoolean('all') ?? false;
+  const showAll = context.getOption<boolean>('all') ?? false;
 
-  // Check --all permission (bot owner only)
+  // Check --all permission (bot owner only) - uses interaction for Discord.js compatibility
   if (showAll && !(await requireBotOwner(interaction))) {
     return;
   }
@@ -433,34 +435,34 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     // Build query path with optional guildId filter
     const queryPath = showAll
       ? '/user/channel/list'
-      : `/user/channel/list?guildId=${interaction.guildId}`;
+      : `/user/channel/list?guildId=${context.guildId}`;
 
     const result = await callGatewayApi<ListChannelSettingsResponse>(queryPath, {
-      userId: interaction.user.id,
+      userId: context.user.id,
       method: 'GET',
     });
 
     if (!result.ok) {
       logger.warn(
-        { userId: interaction.user.id, error: result.error, status: result.status },
+        { userId: context.user.id, error: result.error, status: result.status },
         '[Channel] List failed'
       );
-      await interaction.editReply(`❌ Failed to list settings: ${result.error}`);
+      await context.editReply(`❌ Failed to list settings: ${result.error}`);
       return;
     }
 
     let { settings } = result.data;
 
     // Lazy backfill missing guildIds
-    await backfillMissingGuildIds(settings, interaction.client, interaction.user.id);
+    await backfillMissingGuildIds(settings, interaction.client, context.user.id);
 
     // For current server view, filter again after backfill (in case some got resolved)
-    if (!showAll && interaction.guildId !== null) {
-      settings = settings.filter(s => s.guildId === interaction.guildId);
+    if (!showAll && context.guildId !== null) {
+      settings = settings.filter(s => s.guildId === context.guildId);
     }
 
     if (settings.length === 0) {
-      await interaction.editReply(getEmptyStateMessage(showAll));
+      await context.editReply(getEmptyStateMessage(showAll));
       return;
     }
 
@@ -479,25 +481,25 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     });
     const components = [buildButtons(0, totalPages, sortType)];
 
-    const response = await interaction.editReply({ embeds: [embed], components });
+    const response = await context.editReply({ embeds: [embed], components });
 
     logger.info(
-      { userId: interaction.user.id, count: settings.length, showAll },
+      { userId: context.user.id, count: settings.length, showAll },
       '[Channel] Listed channel settings'
     );
 
     // Set up button collector for pagination and sorting
     if (components.length > 0) {
-      setupPaginationCollector(interaction, response, settings, showAll);
+      setupPaginationCollector(context, response, settings, showAll);
     }
   } catch (error) {
     logger.error(
       {
         err: error,
-        userId: interaction.user.id,
+        userId: context.user.id,
       },
       '[Channel] List error'
     );
-    await interaction.editReply('❌ An unexpected error occurred while listing activations.');
+    await context.editReply('❌ An unexpected error occurred while listing activations.');
   }
 }

@@ -128,6 +128,8 @@ describe('Help Command', () => {
         guild: null,
         member: null,
         channel: null,
+        channelId: 'channel-123',
+        guildId: null,
         commandName: 'help',
         isEphemeral: true,
         getOption: <T>(name: string): T | null => {

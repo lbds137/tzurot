@@ -25,6 +25,8 @@ interface BaseContextProperties {
   readonly guild: Guild | null;
   readonly member: GuildMember | null;
   readonly channel: TextBasedChannel | null;
+  readonly channelId: string;
+  readonly guildId: string | null;
   readonly commandName: string;
   getOption: <T>(name: string) => T | null;
   getRequiredOption: <T>(name: string) => T;
@@ -43,6 +45,8 @@ function createBaseContext(interaction: ChatInputCommandInteraction): BaseContex
     guild: interaction.guild,
     member: interaction.member as GuildMember | null,
     channel: interaction.channel,
+    channelId: interaction.channelId,
+    guildId: interaction.guildId,
     commandName: interaction.commandName,
     getOption: <T>(name: string): T | null => {
       const option = interaction.options.get(name);
@@ -108,11 +112,9 @@ export function createModalContext(interaction: ChatInputCommandInteraction): Mo
 
   return {
     ...base,
-    showModal: modal =>
-      interaction.showModal(modal),
+    showModal: modal => interaction.showModal(modal),
     reply: options => interaction.reply(options),
-    deferReply: options =>
-      interaction.deferReply(options),
+    deferReply: options => interaction.deferReply(options),
   };
 }
 
@@ -133,10 +135,8 @@ export function createManualContext(
   return {
     ...base,
     reply: options => interaction.reply(options),
-    deferReply: options =>
-      interaction.deferReply(options),
+    deferReply: options => interaction.deferReply(options),
     editReply: options => interaction.editReply(options),
-    showModal: modal =>
-      interaction.showModal(modal),
+    showModal: modal => interaction.showModal(modal),
   };
 }
