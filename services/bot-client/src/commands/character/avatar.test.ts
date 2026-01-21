@@ -56,15 +56,17 @@ describe('Character Avatar Handler', () => {
       ...overrides,
     }) as Attachment;
 
-  const createMockInteraction = (slug: string, attachment: Attachment) =>
+  const createMockContext = (slug: string, attachment: Attachment) =>
     ({
       user: { id: 'user-123' },
-      options: {
-        getString: vi.fn((_name: string, _required?: boolean) => slug),
-        getAttachment: vi.fn((_name: string, _required?: boolean) => attachment),
+      interaction: {
+        options: {
+          getString: vi.fn((_name: string, _required?: boolean) => slug),
+          getAttachment: vi.fn((_name: string, _required?: boolean) => attachment),
+        },
       },
       editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+    }) as unknown as Parameters<typeof handleAvatar>[0];
 
   const createMockCharacter = (overrides = {}) => ({
     id: 'char-uuid-1',
@@ -111,11 +113,11 @@ describe('Character Avatar Handler', () => {
 
     it('should reject invalid image format', async () => {
       const attachment = createMockAttachment({ contentType: 'application/pdf' });
-      const mockInteraction = createMockInteraction('test-char', attachment);
+      const mockContext = createMockContext('test-char', attachment);
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Invalid image format')
       );
       expect(api.fetchCharacter).not.toHaveBeenCalled();
@@ -123,70 +125,70 @@ describe('Character Avatar Handler', () => {
 
     it('should reject null content type', async () => {
       const attachment = createMockAttachment({ contentType: null });
-      const mockInteraction = createMockInteraction('test-char', attachment);
+      const mockContext = createMockContext('test-char', attachment);
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Invalid image format')
       );
     });
 
     it('should reject images larger than 25MB', async () => {
       const attachment = createMockAttachment({ size: 26 * 1024 * 1024 }); // 26MB
-      const mockInteraction = createMockInteraction('test-char', attachment);
+      const mockContext = createMockContext('test-char', attachment);
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('too large'));
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('too large'));
       expect(api.fetchCharacter).not.toHaveBeenCalled();
     });
 
     it('should return error when character not found', async () => {
       const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('nonexistent', attachment);
+      const mockContext = createMockContext('nonexistent', attachment);
       vi.mocked(api.fetchCharacter).mockResolvedValue(null);
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
     });
 
     it('should return error when user cannot edit character', async () => {
       const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('other-char', attachment);
+      const mockContext = createMockContext('other-char', attachment);
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ canEdit: false, slug: 'other-char' })
       );
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining("don't have permission")
       );
     });
 
     it('should handle image download failure', async () => {
       const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('my-char', attachment);
+      const mockContext = createMockContext('my-char', attachment);
       vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
       mockFetch.mockResolvedValue({ ok: false });
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Failed to download')
       );
     });
 
     it('should successfully update avatar', async () => {
       const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('my-char', attachment);
+      const mockContext = createMockContext('my-char', attachment);
       const mockCharacter = createMockCharacter({ slug: 'my-char', name: 'Luna' });
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
       vi.mocked(api.updateCharacter).mockResolvedValue(undefined);
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
       expect(api.updateCharacter).toHaveBeenCalledWith(
         'my-char',
@@ -194,35 +196,31 @@ describe('Character Avatar Handler', () => {
         'user-123',
         mockConfig
       );
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Avatar updated')
-      );
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('Avatar updated'));
     });
 
     it('should use displayName in success message when available', async () => {
       const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('my-char', attachment);
+      const mockContext = createMockContext('my-char', attachment);
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ slug: 'my-char', name: 'Luna', displayName: 'Luna the Great' })
       );
       vi.mocked(api.updateCharacter).mockResolvedValue(undefined);
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Luna the Great')
-      );
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('Luna the Great'));
     });
 
     it('should handle update errors gracefully', async () => {
       const attachment = createMockAttachment();
-      const mockInteraction = createMockInteraction('my-char', attachment);
+      const mockContext = createMockContext('my-char', attachment);
       vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter({ slug: 'my-char' }));
       vi.mocked(api.updateCharacter).mockRejectedValue(new Error('API error'));
 
-      await handleAvatar(mockInteraction, mockConfig);
+      await handleAvatar(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining('Failed to update avatar')
       );
     });

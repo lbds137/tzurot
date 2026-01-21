@@ -43,14 +43,16 @@ global.fetch = mockFetch;
 describe('Character Export', () => {
   const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-  const createMockInteraction = () =>
+  const createMockContext = () =>
     ({
       user: { id: 'user-123' },
-      options: {
-        getString: vi.fn().mockReturnValue('test-character'),
+      interaction: {
+        options: {
+          getString: vi.fn().mockReturnValue('test-character'),
+        },
       },
       editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+    }) as unknown as Parameters<typeof handleExport>[0];
 
   const mockCharacterData = {
     id: 'char-uuid',
@@ -90,11 +92,11 @@ describe('Character Export', () => {
         data: { personality: mockCharacterData, canEdit: true },
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Exported **Test Display Name**'),
           files: expect.arrayContaining([expect.any(AttachmentBuilder)]),
@@ -102,7 +104,7 @@ describe('Character Export', () => {
       );
 
       // Verify only one file (JSON only, no avatar)
-      const editReplyArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         files: AttachmentBuilder[];
       };
       expect(editReplyArgs.files).toHaveLength(1);
@@ -114,13 +116,13 @@ describe('Character Export', () => {
         data: { personality: mockCharacterData, canEdit: true },
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
       // The JSON should include only non-null fields
       // We can't easily inspect the buffer contents, but we verified the flow works
-      expect(mockInteraction.editReply).toHaveBeenCalled();
+      expect(mockContext.editReply).toHaveBeenCalled();
     });
 
     it('should use character name when displayName is null', async () => {
@@ -134,11 +136,11 @@ describe('Character Export', () => {
         data: { personality: characterWithoutDisplayName, canEdit: true },
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Exported **Test Character**'),
         })
@@ -163,22 +165,22 @@ describe('Character Export', () => {
         arrayBuffer: vi.fn().mockResolvedValue(mockAvatarBuffer),
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
       // Verify avatar was fetched
       expect(mockFetch).toHaveBeenCalledWith('http://localhost:3000/avatars/test-character.png');
 
       // Verify response includes avatar message
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Avatar image included'),
         })
       );
 
       // Verify two files (JSON + avatar)
-      const editReplyArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         files: AttachmentBuilder[];
       };
       expect(editReplyArgs.files).toHaveLength(2);
@@ -198,19 +200,19 @@ describe('Character Export', () => {
       // Mock failed avatar fetch (network error)
       mockFetch.mockRejectedValue(new Error('Network error'));
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
       // Verify warning message is shown
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Avatar could not be exported'),
         })
       );
 
       // Verify only JSON file (no avatar)
-      const editReplyArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         files: AttachmentBuilder[];
       };
       expect(editReplyArgs.files).toHaveLength(1);
@@ -233,12 +235,12 @@ describe('Character Export', () => {
         status: 404,
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
       // Verify warning message is shown
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Avatar could not be exported'),
         })
@@ -252,11 +254,11 @@ describe('Character Export', () => {
         error: 'Not found',
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         '❌ Character `test-character` not found.'
       );
     });
@@ -268,11 +270,11 @@ describe('Character Export', () => {
         error: 'Forbidden',
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         "❌ You don't have access to character `test-character`."
       );
     });
@@ -284,11 +286,11 @@ describe('Character Export', () => {
         error: 'Internal server error',
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         '❌ An unexpected error occurred while exporting the character.'
       );
     });
@@ -296,11 +298,11 @@ describe('Character Export', () => {
     it('should handle network errors gracefully', async () => {
       vi.mocked(userGatewayClient.callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         '❌ An unexpected error occurred while exporting the character.'
       );
     });
@@ -311,9 +313,9 @@ describe('Character Export', () => {
         data: { personality: mockCharacterData, canEdit: true },
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
         '/user/personality/test-character',
@@ -327,11 +329,11 @@ describe('Character Export', () => {
         data: { personality: mockCharacterData, canEdit: true },
       });
 
-      const mockInteraction = createMockInteraction();
+      const mockContext = createMockContext();
 
-      await handleExport(mockInteraction, mockConfig);
+      await handleExport(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('/character import'),
         })

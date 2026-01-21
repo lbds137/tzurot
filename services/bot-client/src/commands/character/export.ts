@@ -4,9 +4,9 @@
  * Exports both a JSON file and a separate avatar image (if one exists)
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { AttachmentBuilder } from 'discord.js';
 import { createLogger, type EnvConfig, getConfig, isBotOwner } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
 
@@ -116,25 +116,25 @@ async function addAvatarAttachment(
  * Exports character as JSON file + separate avatar image (if exists)
  */
 export async function handleExport(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const slug = interaction.options.getString('character', true);
+  const slug = context.interaction.options.getString('character', true);
+  const userId = context.user.id;
 
   try {
     // Fetch character data
     const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${slug}`, {
-      userId: interaction.user.id,
+      userId,
     });
 
     if (!result.ok) {
       if (result.status === 404) {
-        await interaction.editReply(`❌ Character \`${slug}\` not found.`);
+        await context.editReply(`❌ Character \`${slug}\` not found.`);
         return;
       }
       if (result.status === 403) {
-        await interaction.editReply(`❌ You don't have access to character \`${slug}\`.`);
+        await context.editReply(`❌ You don't have access to character \`${slug}\`.`);
         return;
       }
       throw new Error(`API error: ${result.status}`);
@@ -145,8 +145,8 @@ export async function handleExport(
     const displayName = String(character.displayName ?? character.name);
 
     // Check ownership - only character owner or bot owner can export
-    if (!canEdit && !isBotOwner(interaction.user.id)) {
-      await interaction.editReply(
+    if (!canEdit && !isBotOwner(userId)) {
+      await context.editReply(
         `❌ You don't have permission to export \`${slug}\`.\n` +
           'You can only export characters you own.'
       );
@@ -180,17 +180,17 @@ export async function handleExport(
         'You can optionally include a new avatar image when importing.'
     );
 
-    await interaction.editReply({
+    await context.editReply({
       content: contentParts.join('\n'),
       files,
     });
 
     logger.info(
-      { slug, userId: interaction.user.id, hasAvatar: character.hasAvatar },
+      { slug, userId, hasAvatar: character.hasAvatar },
       '[Character/Export] Character exported successfully'
     );
   } catch (error) {
     logger.error({ err: error, slug }, '[Character/Export] Error exporting character');
-    await interaction.editReply('❌ An unexpected error occurred while exporting the character.');
+    await context.editReply('❌ An unexpected error occurred while exporting the character.');
   }
 }

@@ -3,9 +3,9 @@
  * Handles /character import - allows users to import characters from JSON files
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
 import {
@@ -421,34 +421,32 @@ function buildSuccessEmbed(
  * Optionally accepts a separate avatar image
  */
 export async function handleImport(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
+  const userId = context.user.id;
+  const username = context.user.username;
+
   try {
-    const fileAttachment = interaction.options.getAttachment('file', true);
-    const avatarAttachment = interaction.options.getAttachment('avatar', false);
+    const fileAttachment = context.interaction.options.getAttachment('file', true);
+    const avatarAttachment = context.interaction.options.getAttachment('avatar', false);
 
     // Step 1: Validate, download, parse, and validate JSON file
     const parseResult = await validateAndParseJsonFile(fileAttachment);
     if ('error' in parseResult) {
-      await interaction.editReply(parseResult.error);
+      await context.editReply(parseResult.error);
       return;
     }
 
     // Step 2: Normalize slug
-    const slug = normalizeSlugForUser(
-      parseResult.slug,
-      interaction.user.id,
-      interaction.user.username
-    );
+    const slug = normalizeSlugForUser(parseResult.slug, userId, username);
 
     // Step 3: Process optional avatar
     let avatarData: string | undefined;
     if (avatarAttachment) {
       const avatarResult = await validateAndProcessAvatar(avatarAttachment);
       if ('error' in avatarResult) {
-        await interaction.editReply(avatarResult.error);
+        await context.editReply(avatarResult.error);
         return;
       }
       avatarData = avatarResult.data;
@@ -458,9 +456,9 @@ export async function handleImport(
     const payload = buildImportPayload(parseResult.data, slug, avatarData);
 
     // Step 5: Check if character already exists
-    const existingCheck = await checkExistingCharacter(slug, interaction.user.id);
+    const existingCheck = await checkExistingCharacter(slug, userId);
     if (existingCheck.exists && !existingCheck.canEdit) {
-      await interaction.editReply(
+      await context.editReply(
         `❌ A character with the slug \`${slug}\` already exists and you don't own it.\n` +
           'You can only overwrite characters that you own.'
       );
@@ -468,14 +466,9 @@ export async function handleImport(
     }
 
     // Step 6: Create or update character
-    const saveResult = await saveCharacter(
-      slug,
-      interaction.user.id,
-      payload,
-      existingCheck.exists
-    );
+    const saveResult = await saveCharacter(slug, userId, payload, existingCheck.exists);
     if (!saveResult.ok) {
-      await interaction.editReply(
+      await context.editReply(
         `❌ Failed to ${existingCheck.exists ? 'update' : 'import'} character:\n` +
           `\`\`\`\n${saveResult.error.slice(0, 1500)}\n\`\`\``
       );
@@ -484,15 +477,15 @@ export async function handleImport(
 
     // Step 7: Send success response
     const embed = buildSuccessEmbed(payload, slug, existingCheck.exists);
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { slug, userId: interaction.user.id, isUpdate: existingCheck.exists },
+      { slug, userId, isUpdate: existingCheck.exists },
       `[Character/Import] Character ${existingCheck.exists ? 'updated' : 'imported'} successfully`
     );
   } catch (error) {
     logger.error({ err: error }, '[Character/Import] Error importing character');
-    await interaction.editReply(
+    await context.editReply(
       '❌ An unexpected error occurred while importing the character.\n' +
         'Check bot logs for details.'
     );

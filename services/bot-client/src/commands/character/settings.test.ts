@@ -83,31 +83,41 @@ describe('Character Settings Dashboard', () => {
 
   const mockConfig: EnvConfig = {} as EnvConfig;
 
-  const createMockInteraction = (): ChatInputCommandInteraction & {
-    reply: ReturnType<typeof vi.fn>;
+  const createMockContext = (): Parameters<typeof handleSettings>[0] & {
     editReply: ReturnType<typeof vi.fn>;
-    deferred: boolean;
-    replied: boolean;
-    options: {
-      getString: ReturnType<typeof vi.fn>;
-    };
-  } => {
-    return {
-      options: {
-        getString: vi.fn().mockReturnValue('aurora'),
-      },
-      user: { id: 'user-456' },
-      reply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
-      deferred: true,
-      replied: false,
-    } as unknown as ChatInputCommandInteraction & {
-      reply: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
+    interaction: {
       deferred: boolean;
       replied: boolean;
+      channelId: string;
+      editReply: ReturnType<typeof vi.fn>;
       options: {
         getString: ReturnType<typeof vi.fn>;
+      };
+    };
+  } => {
+    const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-123' });
+    return {
+      interaction: {
+        options: {
+          getString: vi.fn().mockReturnValue('aurora'),
+        },
+        channelId: 'channel-789',
+        deferred: true,
+        replied: false,
+        editReply: mockEditReply,
+      },
+      user: { id: 'user-456' },
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleSettings>[0] & {
+      editReply: ReturnType<typeof vi.fn>;
+      interaction: {
+        deferred: boolean;
+        replied: boolean;
+        channelId: string;
+        editReply: ReturnType<typeof vi.fn>;
+        options: {
+          getString: ReturnType<typeof vi.fn>;
+        };
       };
     };
   };
@@ -162,20 +172,20 @@ describe('Character Settings Dashboard', () => {
 
   describe('handleSettings', () => {
     it('should display settings dashboard embed', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: mockPersonality,
       });
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
         method: 'GET',
         userId: 'user-456',
       });
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
           components: expect.any(Array),
@@ -184,16 +194,16 @@ describe('Character Settings Dashboard', () => {
     });
 
     it('should include Character Settings title in embed', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: mockPersonality,
       });
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
@@ -201,104 +211,103 @@ describe('Character Settings Dashboard', () => {
     });
 
     it('should include character name in embed description', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: mockPersonality,
       });
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       expect(embedJson.description).toContain('Aurora');
     });
 
     it('should include all 4 settings fields', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: mockPersonality,
       });
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       expect(embedJson.fields).toHaveLength(4);
     });
 
     it('should handle character not found', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: false,
         status: 404,
         error: 'Not found',
       });
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('not found'),
       });
     });
 
     it('should handle API errors gracefully', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: false,
         status: 500,
         error: 'Server error',
       });
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to fetch character'),
       });
     });
 
     it('should handle admin settings fetch failure', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: mockPersonality,
       });
       mockGetAdminSettings.mockResolvedValue(null);
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: 'Failed to fetch global settings.',
       });
     });
 
     it('should handle unexpected errors gracefully', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: 'An error occurred while opening the settings dashboard.',
       });
     });
 
-    it('should not respond again if already replied', async () => {
-      const interaction = createMockInteraction();
-      Object.defineProperty(interaction, 'replied', {
-        get: () => true,
-        configurable: true,
-      });
+    it('should show error message on network failure', async () => {
+      // With deferred commands, errors should always be shown via editReply
+      const context = createMockContext();
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      await handleSettings(interaction, mockConfig);
+      await handleSettings(context, mockConfig);
 
-      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: 'An error occurred while opening the settings dashboard.',
+      });
     });
   });
 

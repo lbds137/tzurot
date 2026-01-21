@@ -4,8 +4,8 @@
  * Opens the dashboard for editing an existing character.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, isBotOwner, type EnvConfig } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -36,31 +36,32 @@ export interface CharacterSessionData extends CharacterData {
  * Handle the edit subcommand - show dashboard for selected character
  */
 export async function handleEdit(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const slug = interaction.options.getString('character', true);
+  const slug = context.interaction.options.getString('character', true);
+  const userId = context.user.id;
 
   try {
     // Fetch character data from API
-    const character = await fetchCharacter(slug, config, interaction.user.id);
+    const character = await fetchCharacter(slug, config, userId);
     if (!character) {
-      await interaction.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply({ content: `❌ Character \`${slug}\` not found or not accessible.` });
       return;
     }
 
     // Use server-side permission check (compares internal User UUIDs, not Discord IDs)
     if (!character.canEdit) {
-      await interaction.editReply(
-        `❌ You don't have permission to edit \`${slug}\`.\n` +
-          'You can only edit characters you own.'
-      );
+      await context.editReply({
+        content:
+          `❌ You don't have permission to edit \`${slug}\`.\n` +
+          'You can only edit characters you own.',
+      });
       return;
     }
 
     // Check if user is a bot admin (for admin-only sections)
-    const isAdmin = isBotOwner(interaction.user.id);
+    const isAdmin = isBotOwner(userId);
     const dashboardConfig = getCharacterDashboardConfig(isAdmin);
 
     // Build and send dashboard
@@ -71,27 +72,24 @@ export async function handleEdit(
       showRefresh: true,
     });
 
-    const reply = await interaction.editReply({ embeds: [embed], components });
+    const reply = await context.editReply({ embeds: [embed], components });
 
     // Create session for tracking (keyed by slug)
     // Store _isAdmin for later interactions (but always re-verify on sensitive operations)
     const sessionManager = getSessionManager();
     const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
     await sessionManager.set({
-      userId: interaction.user.id,
+      userId,
       entityType: 'character',
       entityId: character.slug,
       data: sessionData,
       messageId: reply.id,
-      channelId: interaction.channelId,
+      channelId: context.channelId,
     });
 
-    logger.info(
-      { userId: interaction.user.id, slug: character.slug, isAdmin },
-      'Character dashboard opened'
-    );
+    logger.info({ userId, slug: character.slug, isAdmin }, 'Character dashboard opened');
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to open character dashboard');
-    await interaction.editReply('❌ Failed to load character. Please try again.');
+    await context.editReply({ content: '❌ Failed to load character. Please try again.' });
   }
 }

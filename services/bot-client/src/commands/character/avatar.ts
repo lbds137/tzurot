@@ -5,8 +5,8 @@
  * Automatically resizes large images to fit within the API gateway's body limit.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type EnvConfig } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { fetchCharacter, updateCharacter } from './api.js';
 import {
   VALID_IMAGE_TYPES,
@@ -35,30 +35,30 @@ function validateAttachment(contentType: string | null, size: number): string | 
  * Handle avatar upload subcommand
  */
 export async function handleAvatar(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const slug = interaction.options.getString('character', true);
-  const attachment = interaction.options.getAttachment('image', true);
+  const slug = context.interaction.options.getString('character', true);
+  const attachment = context.interaction.options.getAttachment('image', true);
+  const userId = context.user.id;
 
   const validationError = validateAttachment(attachment.contentType, attachment.size);
   if (validationError !== null) {
-    await interaction.editReply(validationError);
+    await context.editReply(validationError);
     return;
   }
 
   try {
     // Check if user can edit this character
-    const character = await fetchCharacter(slug, config, interaction.user.id);
+    const character = await fetchCharacter(slug, config, userId);
     if (!character) {
-      await interaction.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
     }
 
     // Use server-side permission check (compares internal User UUIDs, not Discord IDs)
     if (!character.canEdit) {
-      await interaction.editReply(
+      await context.editReply(
         `❌ You don't have permission to edit \`${slug}\`.\n` +
           'You can only edit characters you own.'
       );
@@ -68,7 +68,7 @@ export async function handleAvatar(
     // Download the image
     const imageResponse = await fetch(attachment.url);
     if (!imageResponse.ok) {
-      await interaction.editReply('❌ Failed to download the image. Please try again.');
+      await context.editReply('❌ Failed to download the image. Please try again.');
       return;
     }
 
@@ -77,23 +77,23 @@ export async function handleAvatar(
     // Process avatar (resize if needed)
     const result = await processAvatarBuffer(rawBuffer, slug);
     if (!result.success) {
-      await interaction.editReply(`❌ ${result.message}`);
+      await context.editReply(`❌ ${result.message}`);
       return;
     }
 
     const base64Image = result.buffer.toString('base64');
 
     // Update character with new avatar
-    await updateCharacter(slug, { avatarData: base64Image }, interaction.user.id, config);
+    await updateCharacter(slug, { avatarData: base64Image }, userId, config);
 
-    await interaction.editReply(
+    await context.editReply(
       `✅ Avatar updated for **${character.displayName ?? character.name}**!`
     );
 
-    logger.info({ slug, userId: interaction.user.id }, 'Character avatar updated');
+    logger.info({ slug, userId }, 'Character avatar updated');
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to update avatar');
-    await interaction.editReply('❌ Failed to update avatar. Please try again.');
+    await context.editReply('❌ Failed to update avatar. Please try again.');
   }
 }
 

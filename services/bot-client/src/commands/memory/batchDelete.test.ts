@@ -64,18 +64,20 @@ describe('handleBatchDelete', () => {
     });
   });
 
-  function createMockInteraction(personality = 'lilith', timeframe: string | null = null) {
+  function createMockContext(personality = 'lilith', timeframe: string | null = null) {
     return {
       user: { id: 'user-123' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return personality;
-          if (name === 'timeframe') return timeframe;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'personality') return personality;
+            if (name === 'timeframe') return timeframe;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as Parameters<typeof handleBatchDelete>[0];
   }
 
   function createMockButtonInteraction(customId: string, userId = 'user-123') {
@@ -95,14 +97,13 @@ describe('handleBatchDelete', () => {
   describe('validation', () => {
     it('should show error when personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
-      const interaction = createMockInteraction('unknown-personality');
+      const context = createMockContext('unknown-personality');
 
-      await handleBatchDelete(interaction);
+      await handleBatchDelete(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('not found')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('not found'),
+      });
     });
 
     it('should resolve personality slug to ID', async () => {
@@ -118,8 +119,8 @@ describe('handleBatchDelete', () => {
         },
       });
 
-      const interaction = createMockInteraction('lilith');
-      await handleBatchDelete(interaction);
+      const context = createMockContext('lilith');
+      await handleBatchDelete(context);
 
       expect(mockResolvePersonalityId).toHaveBeenCalledWith('user-123', 'lilith');
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -141,10 +142,12 @@ describe('handleBatchDelete', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
-      expect(mockReplyWithError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Server error'),
+      });
     });
 
     it('should show 404 message when personality not found in API', async () => {
@@ -154,13 +157,12 @@ describe('handleBatchDelete', () => {
         error: 'Not found',
       });
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('not found')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('not found'),
+      });
     });
 
     it('should show "no memories" message when nothing to delete', async () => {
@@ -175,8 +177,8 @@ describe('handleBatchDelete', () => {
         },
       });
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('No memories found'),
@@ -195,8 +197,8 @@ describe('handleBatchDelete', () => {
         },
       });
 
-      const interaction = createMockInteraction('lilith', '7d');
-      await handleBatchDelete(interaction);
+      const context = createMockContext('lilith', '7d');
+      await handleBatchDelete(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         expect.stringMatching(/timeframe=7d/),
@@ -222,9 +224,9 @@ describe('handleBatchDelete', () => {
 
     it('should show confirmation embed with memory count', async () => {
       mockAwaitMessageComponent.mockRejectedValue(new Error('timeout'));
-      const interaction = createMockInteraction();
+      const context = createMockContext();
 
-      await handleBatchDelete(interaction);
+      await handleBatchDelete(context);
 
       // Verify editReply was called with embeds and components (buttons)
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -237,8 +239,8 @@ describe('handleBatchDelete', () => {
       const buttonInteraction = createMockButtonInteraction('memory_batch_delete_cancel');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
       expect(buttonInteraction.update).toHaveBeenCalledWith({
         content: 'Deletion cancelled.',
@@ -250,8 +252,8 @@ describe('handleBatchDelete', () => {
     it('should handle confirmation timeout', async () => {
       mockAwaitMessageComponent.mockRejectedValue(new Error('timeout'));
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
       // After timeout, should clear the confirmation dialog
       expect(mockEditReply).toHaveBeenLastCalledWith({
@@ -295,8 +297,8 @@ describe('handleBatchDelete', () => {
       const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
       // Verify delete API was called
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -342,8 +344,8 @@ describe('handleBatchDelete', () => {
       const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction('lilith', '7d');
-      await handleBatchDelete(interaction);
+      const context = createMockContext('lilith', '7d');
+      await handleBatchDelete(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/memory/delete',
@@ -375,8 +377,8 @@ describe('handleBatchDelete', () => {
       const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
       expect(buttonInteraction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to delete'),
@@ -411,8 +413,8 @@ describe('handleBatchDelete', () => {
       const buttonInteraction = createMockButtonInteraction('memory_batch_delete_confirm');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
       // deferUpdate should be called before the delete API
       expect(buttonInteraction.deferUpdate).toHaveBeenCalled();
@@ -423,10 +425,12 @@ describe('handleBatchDelete', () => {
     it('should handle unexpected errors gracefully', async () => {
       mockResolvePersonalityId.mockRejectedValue(new Error('Unexpected error'));
 
-      const interaction = createMockInteraction();
-      await handleBatchDelete(interaction);
+      const context = createMockContext();
+      await handleBatchDelete(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
+      });
     });
   });
 });

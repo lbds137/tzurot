@@ -41,10 +41,10 @@ global.fetch = mockFetch;
  * @param fileAttachment - Override for the required JSON file attachment
  * @param avatarAttachment - Override for the optional avatar attachment (defaults to null)
  */
-function createMockInteraction(
+function createMockContext(
   fileAttachment?: Partial<Attachment>,
   avatarAttachment: Partial<Attachment> | null = null
-): ChatInputCommandInteraction {
+): Parameters<typeof handleImport>[0] {
   const defaultFileAttachment: Attachment = {
     id: 'attachment-123',
     name: 'character.json',
@@ -90,14 +90,16 @@ function createMockInteraction(
   return {
     user: { id: 'owner-123', username: 'testowner' },
     editReply: vi.fn().mockResolvedValue(undefined),
-    options: {
-      getAttachment: vi.fn().mockImplementation((name: string, _required?: boolean) => {
-        if (name === 'file') return defaultFileAttachment;
-        if (name === 'avatar') return avatarAttachmentData;
-        return null;
-      }),
+    interaction: {
+      options: {
+        getAttachment: vi.fn().mockImplementation((name: string, _required?: boolean) => {
+          if (name === 'file') return defaultFileAttachment;
+          if (name === 'avatar') return avatarAttachmentData;
+          return null;
+        }),
+      },
     },
-  } as unknown as ChatInputCommandInteraction;
+  } as unknown as Parameters<typeof handleImport>[0];
 }
 
 /**
@@ -212,16 +214,16 @@ describe('handleImport', () => {
     // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should allow any user to import (no owner check)', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       // Override user ID to a non-owner user
-      (interaction.user as any).id = 'regular-user-456';
+      (context.user as any).id = 'regular-user-456';
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       // Should proceed to call API (not blocked)
       expect(callGatewayApi).toHaveBeenCalled();
@@ -230,18 +232,18 @@ describe('handleImport', () => {
 
   describe('file type validation', () => {
     it('should reject non-JSON files by content type', async () => {
-      const interaction = createMockInteraction({
+      const context = createMockContext({
         contentType: 'text/plain',
         name: 'character.txt',
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith('❌ File must be a JSON file (.json)');
+      expect(context.editReply).toHaveBeenCalledWith('❌ File must be a JSON file (.json)');
     });
 
     it('should accept files with .json extension even without content type', async () => {
-      const interaction = createMockInteraction({
+      const context = createMockContext({
         contentType: undefined,
         name: 'character.json',
       });
@@ -251,13 +253,13 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(mockFetch).toHaveBeenCalled();
     });
 
     it('should accept files with application/json content type', async () => {
-      const interaction = createMockInteraction({
+      const context = createMockContext({
         contentType: 'application/json',
         name: 'data.json',
       });
@@ -267,7 +269,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(mockFetch).toHaveBeenCalled();
     });
@@ -275,17 +277,17 @@ describe('handleImport', () => {
 
   describe('file size validation', () => {
     it('should reject files larger than AVATAR_SIZE limit', async () => {
-      const interaction = createMockInteraction({
+      const context = createMockContext({
         size: DISCORD_LIMITS.AVATAR_SIZE + 1,
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith('❌ File is too large (max 10MB)');
+      expect(context.editReply).toHaveBeenCalledWith('❌ File is too large (max 10MB)');
     });
 
     it('should accept files within size limit', async () => {
-      const interaction = createMockInteraction({
+      const context = createMockContext({
         size: DISCORD_LIMITS.AVATAR_SIZE - 1000,
       });
       mockFetch.mockResolvedValue({
@@ -294,7 +296,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(mockFetch).toHaveBeenCalled();
     });
@@ -302,29 +304,29 @@ describe('handleImport', () => {
 
   describe('JSON download and parsing', () => {
     it('should show error with template when fetch fails', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: false,
         status: 404,
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to parse JSON file');
       expect(editReplyArg).toContain('/character template');
     });
 
     it('should show error with template when JSON is invalid', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve('not valid json { broken'),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to parse JSON file');
       expect(editReplyArg).toContain('/character template');
     });
@@ -332,7 +334,7 @@ describe('handleImport', () => {
 
   describe('required field validation', () => {
     it('should show error with template when name is missing', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -345,23 +347,23 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Missing required fields: name');
       expect(editReplyArg).toContain('/character template');
     });
 
     it('should list all missing fields', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify({})),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('name');
       expect(editReplyArg).toContain('slug');
       expect(editReplyArg).toContain('characterInfo');
@@ -369,7 +371,7 @@ describe('handleImport', () => {
     });
 
     it('should treat empty string as missing', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -383,14 +385,14 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Missing required fields: name');
     });
 
     it('should treat null as missing', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -404,16 +406,16 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Missing required fields: name');
     });
   });
 
   describe('slug format validation', () => {
     it('should reject slugs with uppercase letters', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -426,15 +428,15 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Invalid slug format');
       expect(editReplyArg).toContain('lowercase letters, numbers, and hyphens');
     });
 
     it('should reject slugs with spaces', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -447,15 +449,15 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(context.editReply).toHaveBeenCalledWith(
         expect.stringContaining('❌ Invalid slug format')
       );
     });
 
     it('should reject slugs with special characters', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -468,15 +470,15 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(context.editReply).toHaveBeenCalledWith(
         expect.stringContaining('❌ Invalid slug format')
       );
     });
 
     it('should suggest a corrected slug', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -489,15 +491,15 @@ describe('handleImport', () => {
           ),
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('Example:');
       expect(editReplyArg).toContain('test-character');
     });
 
     it('should accept valid slugs with numbers and hyphens', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -511,7 +513,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalled();
     });
@@ -519,7 +521,7 @@ describe('handleImport', () => {
 
   describe('API error handling', () => {
     it('should handle conflict when user does not own existing character', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
@@ -527,16 +529,16 @@ describe('handleImport', () => {
       // Character exists but user doesn't own it
       mockUpdateScenario(false);
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('already exists');
       expect(editReplyArg).toContain("don't own it");
       expect(editReplyArg).toContain('test-character');
     });
 
     it('should handle other API errors during create', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
@@ -547,15 +549,15 @@ describe('handleImport', () => {
         status: 500,
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to import character');
       expect(editReplyArg).toContain('Internal server error');
     });
 
     it('should truncate long error messages', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
@@ -567,16 +569,16 @@ describe('handleImport', () => {
         status: 400,
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg.length).toBeLessThan(longError.length);
     });
   });
 
   describe('successful import', () => {
     it('should send correct payload to API using user endpoint', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       const characterData = createValidCharacterData({
         displayName: 'Test Display',
         personalityTone: 'friendly',
@@ -588,7 +590,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith('/user/personality', {
         userId: 'owner-123',
@@ -601,15 +603,15 @@ describe('handleImport', () => {
     });
 
     it('should include user ID in API call', async () => {
-      const interaction = createMockInteraction();
-      (interaction.user as any).id = 'user-789';
+      const context = createMockContext();
+      (context.user as any).id = 'user-789';
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
@@ -620,20 +622,20 @@ describe('handleImport', () => {
     });
 
     it('should show success embed with character name and slug', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       });
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const embed = embedArg.embeds[0];
       const json = embed.toJSON();
       expect(json.title).toBe('Character Imported Successfully');
@@ -642,7 +644,7 @@ describe('handleImport', () => {
     });
 
     it('should list all imported fields in embed', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       const fullCharacter = createValidCharacterData({
         displayName: 'Display',
         personalityTone: 'friendly',
@@ -660,9 +662,9 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const embed = embedArg.embeds[0];
       const json = embed.toJSON();
       const fieldsField = json.fields?.find((f: any) => f.name === 'Imported Fields');
@@ -680,7 +682,7 @@ describe('handleImport', () => {
     });
 
     it('should only list fields that were actually provided', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       // Minimal character with just required fields
       mockFetch.mockResolvedValue({
         ok: true,
@@ -688,9 +690,9 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const embed = embedArg.embeds[0];
       const json = embed.toJSON();
       const fieldsField = json.fields?.find((f: any) => f.name === 'Imported Fields');
@@ -703,14 +705,14 @@ describe('handleImport', () => {
 
   describe('visibility handling', () => {
     it('should default to private (isPublic: false) when not specified', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
@@ -721,13 +723,13 @@ describe('handleImport', () => {
         })
       );
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const json = embedArg.embeds[0].toJSON();
       expect(json.description).toContain('🔒 Private');
     });
 
     it('should use isPublic: true when specified in JSON', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -741,7 +743,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
@@ -752,13 +754,13 @@ describe('handleImport', () => {
         })
       );
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const json = embedArg.embeds[0].toJSON();
       expect(json.description).toContain('🌐 Public');
     });
 
     it('should use isPublic: false when explicitly set', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -772,7 +774,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
@@ -785,7 +787,7 @@ describe('handleImport', () => {
     });
 
     it('should treat non-boolean isPublic values as false', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () =>
@@ -799,7 +801,7 @@ describe('handleImport', () => {
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       expect(callGatewayApi).toHaveBeenCalledWith(
         '/user/personality',
@@ -827,16 +829,16 @@ describe('handleImport', () => {
     });
 
     it('should append username to slug for non-bot-owners in API payload', async () => {
-      const interaction = createMockInteraction();
-      (interaction.user as any).id = 'regular-user-456';
-      (interaction.user as any).username = 'cooluser';
+      const context = createMockContext();
+      (context.user as any).id = 'regular-user-456';
+      (context.user as any).username = 'cooluser';
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       // Verify the normalized slug is used in the POST payload
       expect(callGatewayApi).toHaveBeenCalledWith(
@@ -852,16 +854,16 @@ describe('handleImport', () => {
     });
 
     it('should use normalized slug for existence check', async () => {
-      const interaction = createMockInteraction();
-      (interaction.user as any).id = 'regular-user-456';
-      (interaction.user as any).username = 'testuser';
+      const context = createMockContext();
+      (context.user as any).id = 'regular-user-456';
+      (context.user as any).username = 'testuser';
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       // First call should check with normalized slug
       expect(callGatewayApi).toHaveBeenNthCalledWith(
@@ -874,18 +876,18 @@ describe('handleImport', () => {
     });
 
     it('should show normalized slug in success message', async () => {
-      const interaction = createMockInteraction();
-      (interaction.user as any).id = 'regular-user-456';
-      (interaction.user as any).username = 'myuser';
+      const context = createMockContext();
+      (context.user as any).id = 'regular-user-456';
+      (context.user as any).username = 'myuser';
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockCreateScenario({ ok: true, data: { id: 'new-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const embed = embedArg.embeds[0];
       const json = embed.toJSON();
       expect(json.description).toContain('test-character-myuser');
@@ -894,7 +896,7 @@ describe('handleImport', () => {
 
   describe('unexpected errors', () => {
     it('should handle unexpected exceptions gracefully', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
@@ -902,9 +904,9 @@ describe('handleImport', () => {
       // Make callGatewayApi throw an unexpected exception (not return error result)
       (callGatewayApi as Mock).mockRejectedValue(new Error('Unexpected network failure'));
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(context.editReply).toHaveBeenCalledWith(
         '❌ An unexpected error occurred while importing the character.\n' +
           'Check bot logs for details.'
       );
@@ -913,14 +915,14 @@ describe('handleImport', () => {
 
   describe('update existing character (upsert)', () => {
     it('should use PUT when character exists and user owns it', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       // First call should be GET to check existence
       expect(callGatewayApi).toHaveBeenNthCalledWith(1, '/user/personality/test-character', {
@@ -940,16 +942,16 @@ describe('handleImport', () => {
     });
 
     it('should show "Updated" in success message when updating', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockUpdateScenario(true, { ok: true, data: { id: 'existing-id' } });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const embedArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const embedArg = (context.editReply as Mock).mock.calls[0][0];
       const embed = embedArg.embeds[0];
       const json = embed.toJSON();
       expect(json.title).toBe('Character Updated Successfully');
@@ -957,25 +959,25 @@ describe('handleImport', () => {
     });
 
     it('should reject update when user does not own the character', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
       });
       mockUpdateScenario(false); // canEdit: false, no second call
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
       // Should only make one call (GET), not try to update
       expect(callGatewayApi).toHaveBeenCalledTimes(1);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('already exists');
       expect(editReplyArg).toContain("don't own it");
     });
 
     it('should handle API errors during update', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockFetch.mockResolvedValue({
         ok: true,
         text: () => Promise.resolve(JSON.stringify(createValidCharacterData())),
@@ -986,9 +988,9 @@ describe('handleImport', () => {
         status: 500,
       });
 
-      await handleImport(interaction, mockConfig);
+      await handleImport(context, mockConfig);
 
-      const editReplyArg = (interaction.editReply as Mock).mock.calls[0][0];
+      const editReplyArg = (context.editReply as Mock).mock.calls[0][0];
       expect(editReplyArg).toContain('❌ Failed to update character');
       expect(editReplyArg).toContain('Database error');
     });

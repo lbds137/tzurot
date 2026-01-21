@@ -81,6 +81,15 @@ vi.mock('../../utils/subcommandRouter.js', () => ({
       }
     };
   },
+  createTypedSubcommandRouter: <T>(handlers: Record<string, (context: T) => Promise<void>>) => {
+    return async (context: T & { interaction: { options: { getSubcommand: () => string } } }) => {
+      const subcommand = context.interaction.options.getSubcommand();
+      const handler = handlers[subcommand];
+      if (handler !== undefined) {
+        await handler(context);
+      }
+    };
+  },
 }));
 
 // Mock detail.js handlers
@@ -169,87 +178,88 @@ describe('Memory Command', () => {
   });
 
   describe('execute', () => {
-    function createMockInteraction(
-      subcommandGroup: string | null,
-      subcommand: string
-    ): ChatInputCommandInteraction {
+    function createMockContext(subcommandGroup: string | null, subcommand: string) {
       return {
-        options: {
-          getSubcommandGroup: () => subcommandGroup,
-          getSubcommand: () => subcommand,
+        getSubcommandGroup: () => subcommandGroup,
+        getSubcommand: () => subcommand,
+        interaction: {
+          options: {
+            getSubcommandGroup: () => subcommandGroup,
+            getSubcommand: () => subcommand,
+          },
         },
-      } as unknown as ChatInputCommandInteraction;
+      };
     }
 
     it('should route /memory stats to handleStats', async () => {
-      const interaction = createMockInteraction(null, 'stats');
+      const context = createMockContext(null, 'stats');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleStats).toHaveBeenCalledWith(interaction);
+      expect(mockHandleStats).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory focus enable to handleFocusEnable', async () => {
-      const interaction = createMockInteraction('focus', 'enable');
+      const context = createMockContext('focus', 'enable');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleFocusEnable).toHaveBeenCalledWith(interaction);
+      expect(mockHandleFocusEnable).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory focus disable to handleFocusDisable', async () => {
-      const interaction = createMockInteraction('focus', 'disable');
+      const context = createMockContext('focus', 'disable');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleFocusDisable).toHaveBeenCalledWith(interaction);
+      expect(mockHandleFocusDisable).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory focus status to handleFocusStatus', async () => {
-      const interaction = createMockInteraction('focus', 'status');
+      const context = createMockContext('focus', 'status');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleFocusStatus).toHaveBeenCalledWith(interaction);
+      expect(mockHandleFocusStatus).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory incognito enable to handleIncognitoEnable', async () => {
-      const interaction = createMockInteraction('incognito', 'enable');
+      const context = createMockContext('incognito', 'enable');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleIncognitoEnable).toHaveBeenCalledWith(interaction);
+      expect(mockHandleIncognitoEnable).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory incognito disable to handleIncognitoDisable', async () => {
-      const interaction = createMockInteraction('incognito', 'disable');
+      const context = createMockContext('incognito', 'disable');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleIncognitoDisable).toHaveBeenCalledWith(interaction);
+      expect(mockHandleIncognitoDisable).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory incognito status to handleIncognitoStatus', async () => {
-      const interaction = createMockInteraction('incognito', 'status');
+      const context = createMockContext('incognito', 'status');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleIncognitoStatus).toHaveBeenCalledWith(interaction);
+      expect(mockHandleIncognitoStatus).toHaveBeenCalledWith(context);
     });
 
     it('should route /memory incognito forget to handleIncognitoForget', async () => {
-      const interaction = createMockInteraction('incognito', 'forget');
+      const context = createMockContext('incognito', 'forget');
 
-      await execute(interaction);
+      await execute(context as never);
 
-      expect(mockHandleIncognitoForget).toHaveBeenCalledWith(interaction);
+      expect(mockHandleIncognitoForget).toHaveBeenCalledWith(context);
     });
 
     it('should handle unknown subcommand gracefully', async () => {
-      const interaction = createMockInteraction(null, 'unknown');
+      const context = createMockContext(null, 'unknown');
 
       // Should not throw
-      await expect(execute(interaction)).resolves.not.toThrow();
+      await expect(execute(context as never)).resolves.not.toThrow();
     });
   });
 

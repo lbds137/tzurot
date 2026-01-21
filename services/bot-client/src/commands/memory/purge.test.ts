@@ -67,17 +67,19 @@ describe('handlePurge', () => {
     });
   });
 
-  function createMockInteraction(personality = 'lilith') {
+  function createMockContext(personality = 'lilith') {
     return {
       user: { id: 'user-123' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return personality;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'personality') return personality;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as Parameters<typeof handlePurge>[0];
   }
 
   function createMockButtonInteraction(customId: string, userId = 'user-123') {
@@ -126,14 +128,13 @@ describe('handlePurge', () => {
   describe('validation', () => {
     it('should show error when personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
-      const interaction = createMockInteraction('unknown-personality');
+      const context = createMockContext('unknown-personality');
 
-      await handlePurge(interaction);
+      await handlePurge(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('not found')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('not found'),
+      });
     });
 
     it('should resolve personality slug to ID', async () => {
@@ -149,8 +150,8 @@ describe('handlePurge', () => {
         },
       });
 
-      const interaction = createMockInteraction('lilith');
-      await handlePurge(interaction);
+      const context = createMockContext('lilith');
+      await handlePurge(context);
 
       expect(mockResolvePersonalityId).toHaveBeenCalledWith('user-123', 'lilith');
     });
@@ -168,10 +169,12 @@ describe('handlePurge', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
-      expect(mockReplyWithError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed'),
+      });
     });
 
     it('should show 404 message when personality not found in stats', async () => {
@@ -181,13 +184,12 @@ describe('handlePurge', () => {
         error: 'Not found',
       });
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('not found')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('not found'),
+      });
     });
 
     it('should show "no memories" message when nothing to purge', async () => {
@@ -202,8 +204,8 @@ describe('handlePurge', () => {
         },
       });
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('No memories found'),
@@ -228,9 +230,9 @@ describe('handlePurge', () => {
 
     it('should show danger embed with memory counts', async () => {
       mockAwaitMessageComponent.mockRejectedValue(new Error('timeout'));
-      const interaction = createMockInteraction();
+      const context = createMockContext();
 
-      await handlePurge(interaction);
+      await handlePurge(context);
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.any(Array),
@@ -242,8 +244,8 @@ describe('handlePurge', () => {
       const buttonInteraction = createMockButtonInteraction('memory_purge_cancel');
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(buttonInteraction.update).toHaveBeenCalledWith({
         content: 'Purge cancelled.',
@@ -255,8 +257,8 @@ describe('handlePurge', () => {
     it('should handle button timeout', async () => {
       mockAwaitMessageComponent.mockRejectedValue(new Error('timeout'));
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(mockEditReply).toHaveBeenLastCalledWith({
         content: 'Purge cancelled - confirmation timed out.',
@@ -286,8 +288,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockRejectedValue(new Error('timeout'));
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(buttonInteraction._mockShowModal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -303,8 +305,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockRejectedValue(new Error('timeout'));
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(mockEditReply).toHaveBeenLastCalledWith({
         content: 'Purge cancelled - confirmation timed out.',
@@ -319,8 +321,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockResolvedValue(modalInteraction);
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       // Should reply with ephemeral error
       expect(modalInteraction.reply).toHaveBeenCalledWith({
@@ -372,8 +374,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockResolvedValue(modalInteraction);
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       // Verify purge API was called with correct params
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -422,8 +424,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockResolvedValue(modalInteraction);
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(modalInteraction.deferUpdate).toHaveBeenCalled();
     });
@@ -450,8 +452,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockResolvedValue(modalInteraction);
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       expect(modalInteraction.editReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to purge'),
@@ -478,8 +480,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockResolvedValue(modalInteraction);
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       // Should reject - phrase is case-sensitive (uppercase expected)
       expect(modalInteraction.reply).toHaveBeenCalledWith({
@@ -517,8 +519,8 @@ describe('handlePurge', () => {
       buttonInteraction._mockAwaitModalSubmit.mockResolvedValue(modalInteraction);
       mockAwaitMessageComponent.mockResolvedValue(buttonInteraction);
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
       // Should succeed after trimming
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/purge', expect.any(Object));
@@ -529,10 +531,12 @@ describe('handlePurge', () => {
     it('should handle unexpected errors gracefully', async () => {
       mockResolvePersonalityId.mockRejectedValue(new Error('Unexpected error'));
 
-      const interaction = createMockInteraction();
-      await handlePurge(interaction);
+      const context = createMockContext();
+      await handlePurge(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
+      });
     });
   });
 });
