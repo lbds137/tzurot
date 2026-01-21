@@ -10,16 +10,19 @@
  * - Max Age: Duration, Off, or Auto
  * - Max Images: 0-20 or Auto
  *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
+ *
  * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
 import type {
-  ChatInputCommandInteraction,
   ButtonInteraction,
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
 import { PermissionFlagsBits } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
@@ -59,14 +62,16 @@ const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
 
 /**
  * Handle /channel context command - shows interactive dashboard
+ *
+ * @param context - DeferredCommandContext (already deferred by framework)
  */
-export async function handleContext(interaction: ChatInputCommandInteraction): Promise<void> {
-  const channelId = interaction.channelId;
-  const userId = interaction.user.id;
+export async function handleContext(context: DeferredCommandContext): Promise<void> {
+  const { channelId, member, interaction } = context;
+  const userId = context.user.id;
 
   // Check permissions: Manage Messages required
-  if (interaction.memberPermissions?.has(PermissionFlagsBits.ManageMessages) !== true) {
-    await interaction.editReply({
+  if (member?.permissions.has(PermissionFlagsBits.ManageMessages) !== true) {
+    await context.editReply({
       content: 'You need the **Manage Messages** permission to manage channel context settings.',
     });
     return;
@@ -81,7 +86,7 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
     const adminSettings = await gatewayClient.getAdminSettings();
 
     if (adminSettings === null) {
-      await interaction.editReply({
+      await context.editReply({
         content: 'Failed to fetch global settings.',
       });
       return;
@@ -90,7 +95,7 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
     // Convert to dashboard data format
     const data = convertToSettingsData(settings, adminSettings);
 
-    // Create and display the dashboard
+    // Create and display the dashboard - uses interaction for Discord.js compatibility
     await createSettingsDashboard(interaction, {
       config: CHANNEL_CONTEXT_CONFIG,
       data,
@@ -105,8 +110,9 @@ export async function handleContext(interaction: ChatInputCommandInteraction): P
   } catch (error) {
     logger.error({ err: error, channelId }, '[Channel Context] Error opening dashboard');
 
+    // Check if already replied via interaction (dashboard may have responded)
     if (!interaction.replied) {
-      await interaction.editReply({
+      await context.editReply({
         content: 'An error occurred while opening the context settings dashboard.',
       });
     }

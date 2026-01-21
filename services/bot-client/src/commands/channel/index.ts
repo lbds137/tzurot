@@ -7,19 +7,27 @@
  * - /channel deactivate - Deactivate the personality from the current channel
  * - /channel list - List all activated channels
  * - /channel settings - Open extended context settings dashboard
+ *
+ * This command uses deferralMode: 'ephemeral' which means:
+ * - The framework calls deferReply({ ephemeral: true }) before execute()
+ * - The execute function receives a DeferredCommandContext (no deferReply method!)
+ * - TypeScript prevents accidental deferReply() calls at compile time
  */
 
 import { SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   AutocompleteInteraction,
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import {
+  defineCommand,
+  type DeferredCommandContext,
+  type SafeCommandContext,
+} from '../../utils/defineCommand.js';
+import { createSubcommandContextRouter } from '../../utils/subcommandContextRouter.js';
 import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
 import { handleList } from './list.js';
@@ -35,9 +43,10 @@ import { handleAutocomplete } from './autocomplete.js';
 const logger = createLogger('channel-command');
 
 /**
- * Subcommand router for channel commands
+ * Context-aware subcommand router for channel commands.
+ * All handlers receive DeferredCommandContext (no deferReply method).
  */
-const channelRouter = createSubcommandRouter(
+const channelRouter = createSubcommandContextRouter(
   {
     activate: handleActivate,
     deactivate: handleDeactivate,
@@ -48,10 +57,14 @@ const channelRouter = createSubcommandRouter(
 );
 
 /**
- * Command execution router
+ * Command execution - receives SafeCommandContext due to deferralMode.
+ *
+ * Note: The function signature uses SafeCommandContext for TypeScript compatibility,
+ * but the runtime value is always DeferredCommandContext when deferralMode is 'ephemeral'.
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await channelRouter(interaction);
+async function execute(ctx: SafeCommandContext): Promise<void> {
+  const context = ctx as DeferredCommandContext;
+  await channelRouter(context);
 }
 
 /**
@@ -94,8 +107,14 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 /**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
+ *
+ * deferralMode: 'ephemeral' means:
+ * - Framework calls deferReply({ ephemeral: true }) before execute()
+ * - Execute receives DeferredCommandContext (no deferReply method)
+ * - Compile-time prevention of InteractionAlreadyReplied errors
  */
 export default defineCommand({
+  deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
     .setName('channel')
     .setDescription('Manage automatic personality responses in channels')

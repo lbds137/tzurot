@@ -65,6 +65,12 @@ interface BaseCommandContext {
   /** The channel where the command was invoked */
   readonly channel: TextBasedChannel | null;
 
+  /** The channel ID where the command was invoked */
+  readonly channelId: string;
+
+  /** The guild ID (null in DMs) */
+  readonly guildId: string | null;
+
   /** The command name */
   readonly commandName: string;
 

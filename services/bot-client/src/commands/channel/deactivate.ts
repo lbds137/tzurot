@@ -4,12 +4,15 @@
  *
  * Deactivates any personality from the current channel,
  * stopping auto-responses.
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, type DeactivateChannelResponse } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { requireManageMessagesDeferred } from '../../utils/permissions.js';
+import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import { getChannelActivationCacheInvalidationService } from '../../services/serviceRegistry.js';
 
@@ -17,20 +20,20 @@ const logger = createLogger('channel-deactivate');
 
 /**
  * Handle /channel deactivate command
+ *
+ * @param context - DeferredCommandContext (already deferred by framework)
  */
-export async function handleDeactivate(interaction: ChatInputCommandInteraction): Promise<void> {
-  const channelId = interaction.channelId;
+export async function handleDeactivate(context: DeferredCommandContext): Promise<void> {
+  const { channelId } = context;
 
-  // Note: deferReply is handled by top-level interactionCreate handler
-
-  // Check permission
-  if (!(await requireManageMessagesDeferred(interaction))) {
+  // Check permission using context-aware utility
+  if (!(await requireManageMessagesContext(context))) {
     return;
   }
 
   try {
     const result = await callGatewayApi<DeactivateChannelResponse>('/user/channel/deactivate', {
-      userId: interaction.user.id,
+      userId: context.user.id,
       method: 'DELETE',
       body: {
         channelId,
@@ -40,7 +43,7 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
     if (!result.ok) {
       logger.warn(
         {
-          userId: interaction.user.id,
+          userId: context.user.id,
           channelId,
           error: result.error,
           status: result.status,
@@ -48,7 +51,7 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
         '[Channel] Deactivation failed'
       );
 
-      await interaction.editReply(`❌ Failed to deactivate: ${result.error}`);
+      await context.editReply(`❌ Failed to deactivate: ${result.error}`);
       return;
     }
 
@@ -71,21 +74,21 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
     }
 
     if (!deactivated) {
-      await interaction.editReply(
+      await context.editReply(
         '📍 No personality is currently activated in this channel.\n\n' +
           'Use `/channel activate` to activate one.'
       );
       return;
     }
 
-    await interaction.editReply(
+    await context.editReply(
       `✅ Deactivated **${personalityName}** from this channel.\n\n` +
         'The channel will no longer auto-respond to messages.'
     );
 
     logger.info(
       {
-        userId: interaction.user.id,
+        userId: context.user.id,
         channelId,
         personalityName,
       },
@@ -95,11 +98,11 @@ export async function handleDeactivate(interaction: ChatInputCommandInteraction)
     logger.error(
       {
         err: error,
-        userId: interaction.user.id,
+        userId: context.user.id,
         channelId,
       },
       '[Channel] Deactivation error'
     );
-    await interaction.editReply('❌ An unexpected error occurred while deactivating the channel.');
+    await context.editReply('❌ An unexpected error occurred while deactivating the channel.');
   }
 }
