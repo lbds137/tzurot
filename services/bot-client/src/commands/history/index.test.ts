@@ -51,12 +51,12 @@ vi.mock('./autocomplete.js', () => ({
   handleProfileAutocomplete: (...args: unknown[]) => mockHandleProfileAutocomplete(...args),
 }));
 
-// Mock subcommandRouter - use vi.hoisted to define mock before hoisting
+// Mock subcommandContextRouter - use vi.hoisted to define mock before hoisting
 const { mockRouter } = vi.hoisted(() => ({
   mockRouter: vi.fn(),
 }));
-vi.mock('../../utils/subcommandRouter.js', () => ({
-  createSubcommandRouter: () => mockRouter,
+vi.mock('../../utils/subcommandContextRouter.js', () => ({
+  createSubcommandContextRouter: () => mockRouter,
 }));
 
 // Mock customIds - matches real format: {source}::destructive::{action}::{operation}::{entityId}
@@ -157,12 +157,30 @@ describe('execute', () => {
     vi.clearAllMocks();
   });
 
-  it('should route to subcommand router for chat input', async () => {
-    const mockInteraction = {};
+  it('should route to subcommand context router', async () => {
+    // Create a mock DeferredCommandContext
+    const mockContext = {
+      interaction: {},
+      user: { id: '123456789' },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: '111111111111111111',
+      guildId: null,
+      commandName: 'history',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: vi.fn().mockReturnValue('clear'),
+      getSubcommandGroup: vi.fn().mockReturnValue(null),
+      editReply: vi.fn(),
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    };
 
-    await execute(mockInteraction as never);
+    await execute(mockContext as never);
 
-    expect(mockRouter).toHaveBeenCalledWith(mockInteraction);
+    expect(mockRouter).toHaveBeenCalledWith(mockContext);
   });
 });
 

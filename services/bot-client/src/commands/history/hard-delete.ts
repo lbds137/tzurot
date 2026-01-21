@@ -7,11 +7,13 @@
  * 2. User clicks danger button → Modal appears
  * 3. User types "DELETE" to confirm
  * 4. If valid → Deletes history permanently
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import { handleCommandError } from '../../utils/commandHelpers.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDestructiveWarning,
   createHardDeleteConfig,
@@ -23,10 +25,10 @@ const logger = createLogger('history-hard-delete');
  * Handle /history hard-delete
  * Shows warning with danger button. Actual deletion happens in button handler.
  */
-export async function handleHardDelete(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const channelId = interaction.channelId;
-  const personalitySlug = interaction.options.getString('personality', true);
+export async function handleHardDelete(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const channelId = context.channelId;
+  const personalitySlug = context.getRequiredOption<string>('personality');
 
   try {
     // Create the destructive confirmation config
@@ -50,7 +52,7 @@ export async function handleHardDelete(interaction: ChatInputCommandInteraction)
     // Build and send the warning
     const warning = buildDestructiveWarning(config);
 
-    await interaction.editReply({
+    await context.editReply({
       embeds: warning.embeds,
       components: warning.components,
     });
@@ -60,7 +62,11 @@ export async function handleHardDelete(interaction: ChatInputCommandInteraction)
       '[History] Showing hard-delete confirmation'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'History Hard-Delete' });
+    logger.error(
+      { err: error, userId, command: 'History Hard-Delete' },
+      '[History Hard-Delete] Error'
+    );
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
 
