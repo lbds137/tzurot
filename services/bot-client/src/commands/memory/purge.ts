@@ -13,18 +13,13 @@ import {
   TextInputBuilder,
   TextInputStyle,
   escapeMarkdown,
-  type ChatInputCommandInteraction,
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createDangerEmbed,
-  createSuccessEmbed,
-} from '../../utils/commandHelpers.js';
+import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 
 const logger = createLogger('memory-purge');
@@ -66,19 +61,18 @@ function getConfirmationPhrase(personalityName: string): string {
  * Shows warning and requires typed confirmation before purging
  */
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with multi-step confirmation flow
-export async function handlePurge(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
+export async function handlePurge(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
 
   try {
     // Resolve personality slug to ID
     const personalityId = await resolvePersonalityId(userId, personalityInput);
 
     if (personalityId === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      });
       return;
     }
 
@@ -100,7 +94,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
         { userId, personalityInput, status: statsResult.status },
         '[Memory] Purge stats failed'
       );
-      await replyWithError(interaction, errorMessage);
+      await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
 
@@ -108,7 +102,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
 
     // Nothing to purge
     if (stats.totalCount === 0) {
-      await interaction.editReply({
+      await context.editReply({
         content: `No memories found for **${escapeMarkdown(stats.personalityName)}**.`,
       });
       return;
@@ -143,7 +137,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(proceedButton, cancelButton);
 
-    const response = await interaction.editReply({
+    const response = await context.editReply({
       embeds: [embed],
       components: [row],
     });
@@ -157,7 +151,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
         time: CONFIRMATION_TIMEOUT,
       });
     } catch {
-      await interaction.editReply({
+      await context.editReply({
         content: 'Purge cancelled - confirmation timed out.',
         embeds: [],
         components: [],
@@ -203,7 +197,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
       });
     } catch {
       // Modal timed out or was dismissed
-      await interaction.editReply({
+      await context.editReply({
         content: 'Purge cancelled - confirmation timed out.',
         embeds: [],
         components: [],
@@ -219,7 +213,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
         content: `Purge cancelled - confirmation phrase did not match.\n\nYou entered: \`${enteredPhrase}\`\nExpected: \`${confirmPhrase}\``,
         ephemeral: true,
       });
-      await interaction.editReply({
+      await context.editReply({
         content: 'Purge cancelled - confirmation phrase did not match.',
         embeds: [],
         components: [],
@@ -274,6 +268,7 @@ export async function handlePurge(interaction: ChatInputCommandInteraction): Pro
       '[Memory] PURGE completed'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Purge' });
+    logger.error({ error, userId }, '[Memory Purge] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

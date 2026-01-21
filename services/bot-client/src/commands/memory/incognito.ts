@@ -10,7 +10,6 @@
  * - Incognito Mode: Disable WRITING (memories still retrieved)
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { escapeMarkdown } from 'discord.js';
 import {
   createLogger,
@@ -18,10 +17,9 @@ import {
   type IncognitoSession,
   type IncognitoDuration,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
-  replyWithError,
-  handleCommandError,
   createSuccessEmbed,
   createInfoEmbed,
   createWarningEmbed,
@@ -89,21 +87,18 @@ async function resolvePersonalityOrAll(
 /**
  * Handle /memory incognito enable
  */
-export async function handleIncognitoEnable(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
-  const duration = interaction.options.getString('duration', true) as IncognitoDuration;
+export async function handleIncognitoEnable(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
+  const duration = context.interaction.options.getString('duration', true) as IncognitoDuration;
 
   try {
     const resolved = await resolvePersonalityOrAll(userId, personalityInput);
 
     if (resolved === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`,
+      });
       return;
     }
 
@@ -118,7 +113,7 @@ export async function handleIncognitoEnable(
         { userId, personalityInput, duration, status: result.status },
         '[Memory/Incognito] Enable failed'
       );
-      await replyWithError(interaction, 'Failed to enable incognito mode. Please try again.');
+      await context.editReply({ content: '❌ Failed to enable incognito mode. Please try again.' });
       return;
     }
 
@@ -137,34 +132,32 @@ export async function handleIncognitoEnable(
           `Incognito mode is now **enabled** for **${escapeMarkdown(resolved.name ?? personalityInput)}** (${getDurationLabel(duration)}).\n\n**New memories will NOT be saved.** Existing memories can still be retrieved.\n\nUse \`/memory incognito disable\` to turn it off.`
         );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, personalityId: resolved.id, duration, wasAlreadyActive },
       '[Memory/Incognito] Mode enabled'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Incognito Enable' });
+    logger.error({ error, userId }, '[Memory/Incognito Enable] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
 
 /**
  * Handle /memory incognito disable
  */
-export async function handleIncognitoDisable(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
+export async function handleIncognitoDisable(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
 
   try {
     const resolved = await resolvePersonalityOrAll(userId, personalityInput);
 
     if (resolved === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`,
+      });
       return;
     }
 
@@ -179,7 +172,9 @@ export async function handleIncognitoDisable(
         { userId, personalityInput, status: result.status },
         '[Memory/Incognito] Disable failed'
       );
-      await replyWithError(interaction, 'Failed to disable incognito mode. Please try again.');
+      await context.editReply({
+        content: '❌ Failed to disable incognito mode. Please try again.',
+      });
       return;
     }
 
@@ -195,24 +190,23 @@ export async function handleIncognitoDisable(
           `Incognito mode was not active for **${escapeMarkdown(resolved.name ?? personalityInput)}**.`
         );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, personalityId: resolved.id, wasActive: data.disabled },
       '[Memory/Incognito] Mode disabled'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Incognito Disable' });
+    logger.error({ error, userId }, '[Memory/Incognito Disable] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
 
 /**
  * Handle /memory incognito status
  */
-export async function handleIncognitoStatus(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleIncognitoStatus(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   try {
     const result = await callGatewayApi<IncognitoStatusResponse>('/user/memory/incognito', {
@@ -222,7 +216,9 @@ export async function handleIncognitoStatus(
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, '[Memory/Incognito] Status check failed');
-      await replyWithError(interaction, 'Failed to check incognito status. Please try again.');
+      await context.editReply({
+        content: '❌ Failed to check incognito status. Please try again.',
+      });
       return;
     }
 
@@ -233,7 +229,7 @@ export async function handleIncognitoStatus(
         '👻 Incognito Status',
         'Incognito mode is **not active**.\n\nMemories are being saved normally during conversations.'
       );
-      await interaction.editReply({ embeds: [embed] });
+      await context.editReply({ embeds: [embed] });
       return;
     }
 
@@ -253,35 +249,33 @@ export async function handleIncognitoStatus(
       `Incognito mode is currently **active**.\n\n**Active sessions:**\n${sessionLines.join('\n')}\n\nNew memories will NOT be saved for these personalities.`
     );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, sessionCount: data.sessions.length },
       '[Memory/Incognito] Status checked'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Incognito Status' });
+    logger.error({ error, userId }, '[Memory/Incognito Status] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
 
 /**
  * Handle /memory incognito forget
  */
-export async function handleIncognitoForget(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
-  const timeframe = interaction.options.getString('timeframe', true);
+export async function handleIncognitoForget(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
+  const timeframe = context.interaction.options.getString('timeframe', true);
 
   try {
     const resolved = await resolvePersonalityOrAll(userId, personalityInput);
 
     if (resolved === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality, or type "all" for all personalities.`,
+      });
       return;
     }
 
@@ -296,7 +290,9 @@ export async function handleIncognitoForget(
         { userId, personalityInput, timeframe, status: result.status },
         '[Memory/Incognito] Forget failed'
       );
-      await replyWithError(interaction, 'Failed to delete recent memories. Please try again.');
+      await context.editReply({
+        content: '❌ Failed to delete recent memories. Please try again.',
+      });
       return;
     }
 
@@ -313,13 +309,14 @@ export async function handleIncognitoForget(
             `No unlocked memories found in the last ${timeframe} for **${escapeMarkdown(resolved.name ?? personalityInput)}**.`
           );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, personalityId: resolved.id, timeframe, deletedCount: data.deletedCount },
       '[Memory/Incognito] Forget executed'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Incognito Forget' });
+    logger.error({ error, userId }, '[Memory/Incognito Forget] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
