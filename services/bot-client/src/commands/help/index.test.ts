@@ -1,8 +1,10 @@
 /**
  * Tests for Help Command
  *
- * Note: This command uses editReply() because interactions are deferred
- * at the top level in index.ts. Ephemerality is set by deferReply().
+ * This command uses deferralMode: 'ephemeral' which means:
+ * - Framework calls deferReply before execute()
+ * - Execute receives a SafeCommandContext (not raw interaction)
+ * - Tests must mock the context, not the interaction directly
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -10,8 +12,9 @@ import { EmbedBuilder } from 'discord.js';
 import helpCommand from './index.js';
 
 // Destructure from default export
-const { execute, data } = helpCommand;
+const { execute, data, deferralMode } = helpCommand;
 import type { Command } from '../../types.js';
+import type { SafeCommandContext } from '../../utils/commandContext/index.js';
 
 // Mock common-types
 const mockConfig = {
@@ -54,6 +57,10 @@ describe('Help Command', () => {
       expect(json.options![0].name).toBe('command');
       expect(json.options![0].required).toBe(false);
     });
+
+    it('should have deferralMode set to ephemeral', () => {
+      expect(deferralMode).toBe('ephemeral');
+    });
   });
 
   describe('execute', () => {
@@ -95,23 +102,51 @@ describe('Help Command', () => {
       return commands;
     }
 
-    function createMockInteraction(
+    /**
+     * Create a mock SafeCommandContext for testing.
+     *
+     * The context wraps the interaction and provides type-safe methods.
+     */
+    function createMockContext(
       commandOption: string | null = null,
       commands?: Map<string, Command>
-    ) {
-      return {
+    ): SafeCommandContext {
+      // Mock the underlying interaction
+      const mockInteraction = {
         options: {
           getString: vi.fn(() => commandOption),
         },
-        editReply: mockEditReply,
         client: {
           commands: commands,
         },
-      } as unknown as Parameters<typeof execute>[0];
+      };
+
+      // Create mock context that mirrors DeferredCommandContext
+      return {
+        interaction: mockInteraction,
+        user: { id: 'user-123', username: 'testuser' },
+        guild: null,
+        member: null,
+        channel: null,
+        commandName: 'help',
+        isEphemeral: true,
+        getOption: <T>(name: string): T | null => {
+          if (name === 'command') {
+            return commandOption as T | null;
+          }
+          return null;
+        },
+        getRequiredOption: vi.fn(),
+        getSubcommand: () => null,
+        getSubcommandGroup: () => null,
+        editReply: mockEditReply,
+        followUp: vi.fn(),
+        deleteReply: vi.fn(),
+      } as unknown as SafeCommandContext;
     }
 
     it('should show error when commands not provided', async () => {
-      const interaction = createMockInteraction(null, undefined);
+      const interaction = createMockContext(null, undefined);
 
       await execute(interaction);
 
@@ -122,7 +157,7 @@ describe('Help Command', () => {
 
     it('should show all commands when no specific command requested', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction(null, commands);
+      const interaction = createMockContext(null, commands);
 
       await execute(interaction);
 
@@ -141,7 +176,7 @@ describe('Help Command', () => {
 
     it('should show command details when specific command requested', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction('character', commands);
+      const interaction = createMockContext('character', commands);
 
       await execute(interaction);
 
@@ -159,7 +194,7 @@ describe('Help Command', () => {
 
     it('should show error for unknown command', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction('nonexistent', commands);
+      const interaction = createMockContext('nonexistent', commands);
 
       await execute(interaction);
 
@@ -170,7 +205,7 @@ describe('Help Command', () => {
 
     it('should include subcommand count hints', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction(null, commands);
+      const interaction = createMockContext(null, commands);
 
       await execute(interaction);
 
@@ -186,7 +221,7 @@ describe('Help Command', () => {
 
     it('should include personality interaction info with configured mention char', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction(null, commands);
+      const interaction = createMockContext(null, commands);
 
       await execute(interaction);
 
@@ -202,7 +237,7 @@ describe('Help Command', () => {
 
     it('should include /character chat reference in personality interactions', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction(null, commands);
+      const interaction = createMockContext(null, commands);
 
       await execute(interaction);
 
@@ -220,7 +255,7 @@ describe('Help Command', () => {
       mockConfig.BOT_MENTION_CHAR = '&';
 
       const commands = createMockCommands();
-      const interaction = createMockInteraction(null, commands);
+      const interaction = createMockContext(null, commands);
 
       await execute(interaction);
 
@@ -238,7 +273,7 @@ describe('Help Command', () => {
 
     it('should sort categories by configured order', async () => {
       const commands = createMockCommands();
-      const interaction = createMockInteraction(null, commands);
+      const interaction = createMockContext(null, commands);
 
       await execute(interaction);
 

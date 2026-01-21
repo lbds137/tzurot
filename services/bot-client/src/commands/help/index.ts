@@ -4,14 +4,19 @@
  *
  * Shows all available commands grouped by category
  *
- * Note: This command uses editReply() because interactions are deferred
- * at the top level in index.ts. Ephemerality is set by deferReply().
+ * This command uses deferralMode: 'ephemeral' which means:
+ * - The framework calls deferReply({ ephemeral: true }) before execute()
+ * - The execute function receives a DeferredCommandContext (no deferReply method!)
+ * - TypeScript prevents accidental deferReply() calls at compile time
  */
 
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, getConfig } from '@tzurot/common-types';
-import { defineCommand } from '../../utils/defineCommand.js';
+import {
+  defineCommand,
+  type DeferredCommandContext,
+  type SafeCommandContext,
+} from '../../utils/defineCommand.js';
 import type { Command } from '../../types.js';
 // Note: Type augmentation for client.commands is in types/discord.d.ts
 
@@ -33,27 +38,36 @@ const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
 
 /**
  * Command execution
+ *
+ * Receives DeferredCommandContext (not ChatInputCommandInteraction) because
+ * deferralMode is set. This context does NOT have deferReply() - any attempt
+ * to call it would be a TypeScript error!
+ *
+ * Note: The function signature uses SafeCommandContext for TypeScript compatibility,
+ * but the runtime value is always DeferredCommandContext when deferralMode is 'ephemeral'.
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Access commands via the client - attached during bot startup
-  const commands = interaction.client.commands;
+async function execute(ctx: SafeCommandContext): Promise<void> {
+  // Cast to the specific context type we expect for this deferralMode
+  const context = ctx as DeferredCommandContext;
+  // Access commands via the interaction.client - attached during bot startup
+  const commands = context.interaction.client.commands;
 
   if (commands === undefined || commands.size === 0) {
     logger.error({}, 'Commands collection not available on client');
-    await interaction.editReply({
+    await context.editReply({
       content: '❌ Unable to load commands list. Please try again later.',
     });
     return;
   }
 
-  const specificCommand = interaction.options.getString('command');
+  const specificCommand = context.getOption<string>('command');
   const config = getConfig();
   const mentionChar = config.BOT_MENTION_CHAR;
 
   if (specificCommand !== null && specificCommand !== '') {
-    await showCommandDetails(interaction, commands, specificCommand);
+    await showCommandDetails(context, commands, specificCommand);
   } else {
-    await showAllCommands(interaction, commands, mentionChar);
+    await showAllCommands(context, commands, mentionChar);
   }
 }
 
@@ -61,14 +75,14 @@ async function execute(interaction: ChatInputCommandInteraction): Promise<void> 
  * Show detailed help for a specific command
  */
 async function showCommandDetails(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   commands: Map<string, Command>,
   commandName: string
 ): Promise<void> {
   const command = commands.get(commandName.toLowerCase());
 
   if (!command) {
-    await interaction.editReply({
+    await context.editReply({
       content: `❌ Unknown command: \`/${commandName}\`\n\nUse \`/help\` to see all available commands.`,
     });
     return;
@@ -99,14 +113,14 @@ async function showCommandDetails(
     }
   }
 
-  await interaction.editReply({ embeds: [embed] });
+  await context.editReply({ embeds: [embed] });
 }
 
 /**
  * Show all commands grouped by category
  */
 async function showAllCommands(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   commands: Map<string, Command>,
   mentionChar: string
 ): Promise<void> {
@@ -179,7 +193,7 @@ async function showAllCommands(
     inline: false,
   });
 
-  await interaction.editReply({ embeds: [embed] });
+  await context.editReply({ embeds: [embed] });
 }
 
 // Build command data outside defineCommand to get proper type inference
@@ -196,8 +210,14 @@ const commandData = new SlashCommandBuilder()
 /**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
+ *
+ * deferralMode: 'ephemeral' means:
+ * - Framework calls deferReply({ ephemeral: true }) before execute()
+ * - Execute receives DeferredCommandContext (no deferReply method)
+ * - Compile-time prevention of InteractionAlreadyReplied errors
  */
 export default defineCommand({
   data: commandData,
+  deferralMode: 'ephemeral',
   execute,
 });
