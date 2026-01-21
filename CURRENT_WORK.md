@@ -1,16 +1,66 @@
 # Current Work
 
-> Last updated: 2026-01-18
+> Last updated: 2026-01-20
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.43
+**Version**: v3.0.0-beta.44
 **Deployment**: Railway (stable)
-**Current Goal**: Slash Command Dashboard Pattern
+**Current Goal**: SafeCommandContext Migration
 
 ---
 
-## Active: Duplicate Detection & OpenAI Eviction Epic
+## Active: SafeCommandContext Migration
+
+**Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
+
+**Problem**: Commands can still call `deferReply()` after it's already been called, causing `InteractionAlreadyReplied` errors. TypeScript doesn't prevent this - it's only caught at runtime.
+
+**Solution**: Commands declare `deferralMode` and receive a typed context that doesn't expose `deferReply()` for already-deferred commands.
+
+**Pattern**:
+
+```typescript
+// Command declares deferralMode
+export default defineCommand({
+  deferralMode: 'ephemeral', // Framework defers before calling execute
+  ...
+});
+
+// Handler receives DeferredCommandContext (no deferReply method!)
+async function execute(ctx: SafeCommandContext): Promise<void> {
+  const context = ctx as DeferredCommandContext;
+  await context.editReply({ content: 'Done!' }); // ✅ Works
+  // context.deferReply() // ❌ TypeScript error - method doesn't exist
+}
+```
+
+**Migrated Commands** (on `feat/safe-command-context` branch):
+
+- [x] `/help` - Initial proof of concept (commit f571db28)
+- [x] `/channel` - All subcommands (commit 43a0e056)
+- [x] `/history` - All subcommands (commit e59726b7)
+- [x] `/admin` - All 7 subcommands + `requireBotOwnerContext` (commit dc07ea65)
+
+**Remaining Commands**:
+
+- [ ] `/wallet` - Simple, good next candidate
+- [ ] `/me` - Multiple subcommand groups
+- [ ] `/character` - Has modal subcommands (deferralMode: 'modal')
+- [ ] `/memory` - Has modals + complex interactions
+- [ ] `/preset` - Has modals
+
+**Key Files**:
+
+- `services/bot-client/src/utils/commandContext/` - Types and factories
+- `services/bot-client/src/utils/subcommandContextRouter.ts` - Router for context-based handlers
+- `services/bot-client/src/index.ts` - Framework deferral logic
+
+**After migration**: Remove hardcoded `MODAL_COMMANDS` and `NON_EPHEMERAL_COMMANDS` sets from index.ts.
+
+---
+
+## Completed: Duplicate Detection & OpenAI Eviction Epic
 
 **Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
 
