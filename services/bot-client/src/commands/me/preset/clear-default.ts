@@ -5,18 +5,17 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('me-preset-clear-default');
 
 /**
  * Handle /me preset clear-default
  */
-export async function handleClearDefault(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   try {
     const result = await callGatewayApi<{ deleted: boolean }>('/user/model-override/default', {
@@ -26,7 +25,7 @@ export async function handleClearDefault(interaction: ChatInputCommandInteractio
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to clear default');
-      await replyWithError(interaction, `Failed to clear default: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to clear default: ${result.error}` });
       return;
     }
 
@@ -39,10 +38,14 @@ export async function handleClearDefault(interaction: ChatInputCommandInteractio
       )
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId }, '[Me/Preset] Cleared default config');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset Clear-Default' });
+    logger.error(
+      { err: error, userId, command: 'Preset Clear-Default' },
+      '[Preset Clear-Default] Error'
+    );
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

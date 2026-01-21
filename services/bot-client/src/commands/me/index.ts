@@ -22,14 +22,19 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
 } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import type {
+  SafeCommandContext,
+  DeferredCommandContext,
+  ModalCommandContext,
+} from '../../utils/commandContext/types.js';
+import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
+import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 // Profile subcommand handlers
 import { handleViewPersona, handleExpandContent } from './profile/view.js';
 import { handleEditPersona, handleEditModalSubmit } from './profile/edit.js';
@@ -56,26 +61,31 @@ import { MeCustomIds } from '../../utils/customIds.js';
 const logger = createLogger('me-command');
 
 /**
- * Profile subcommand router
- * Handles: view, create, list, share-ltm, override-set, override-clear
- * (edit, default handled separately due to parameter passing)
+ * Profile subcommand router (mixed mode)
+ * - create, edit, override-set show modals
+ * - view, list, share-ltm, override-clear are deferred
+ * Note: edit and default are handled separately due to parameter passing
  */
-const profileRouter = createSubcommandRouter(
+const profileRouter = createMixedModeSubcommandRouter(
   {
-    view: handleViewPersona,
-    create: handleCreatePersona,
-    list: handleListPersonas,
-    'share-ltm': handleShareLtmSetting,
-    'override-set': handleOverrideSet,
-    'override-clear': handleOverrideClear,
+    deferred: {
+      view: handleViewPersona,
+      list: handleListPersonas,
+      'share-ltm': handleShareLtmSetting,
+      'override-clear': handleOverrideClear,
+    },
+    modal: {
+      create: handleCreatePersona,
+      'override-set': handleOverrideSet,
+    },
   },
   { logger, logPrefix: '[Me/Profile]' }
 );
 
 /**
- * Timezone subcommand router
+ * Timezone subcommand router (all deferred)
  */
-const timezoneRouter = createSubcommandRouter(
+const timezoneRouter = createTypedSubcommandRouter(
   {
     set: handleTimezoneSet,
     get: handleTimezoneGet,
@@ -84,9 +94,9 @@ const timezoneRouter = createSubcommandRouter(
 );
 
 /**
- * Preset subcommand router
+ * Preset subcommand router (all deferred)
  */
-const presetRouter = createSubcommandRouter(
+const presetRouter = createTypedSubcommandRouter(
   {
     list: handlePresetList,
     set: handlePresetSet,
@@ -100,27 +110,27 @@ const presetRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const group = interaction.options.getSubcommandGroup();
-  const subcommand = interaction.options.getSubcommand();
+async function execute(context: SafeCommandContext): Promise<void> {
+  const group = context.getSubcommandGroup();
+  const subcommand = context.getSubcommand();
 
   if (group === 'profile') {
     // Profile management subcommands
     if (subcommand === 'edit') {
-      // Edit needs special handling to pass profile ID
-      const personaId = interaction.options.getString('profile');
-      await handleEditPersona(interaction, personaId);
+      // Edit needs special handling to pass profile ID (modal command)
+      const personaId = context.interaction.options.getString('profile');
+      await handleEditPersona(context as ModalCommandContext, personaId);
     } else if (subcommand === 'default') {
-      // Default needs the profile ID
-      await handleSetDefaultPersona(interaction);
+      // Default needs the profile ID (deferred command)
+      await handleSetDefaultPersona(context as DeferredCommandContext);
     } else {
       // view, create, list, share-ltm, override-set, override-clear use profile router
-      await profileRouter(interaction);
+      await profileRouter(context);
     }
   } else if (group === 'timezone') {
-    await timezoneRouter(interaction);
+    await timezoneRouter(context as DeferredCommandContext);
   } else if (group === 'preset') {
-    await presetRouter(interaction);
+    await presetRouter(context as DeferredCommandContext);
   } else {
     logger.warn({ group }, '[Me] Unknown subcommand group');
   }
@@ -233,8 +243,18 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 /**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
+ *
+ * Uses mixed deferral modes:
+ * - Most subcommands use ephemeral deferral
+ * - 'profile create', 'profile edit', 'profile override-set' show modals
  */
 export default defineCommand({
+  deferralMode: 'ephemeral', // Default for most subcommands
+  subcommandDeferralModes: {
+    'profile create': 'modal',
+    'profile edit': 'modal',
+    'profile override-set': 'modal',
+  },
   data: new SlashCommandBuilder()
     .setName('me')
     .setDescription('Manage your personal settings and profile')

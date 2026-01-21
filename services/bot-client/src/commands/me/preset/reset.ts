@@ -3,15 +3,10 @@
  * Handles /me preset reset subcommand
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createSuccessEmbed,
-  createInfoEmbed,
-} from '../../../utils/commandHelpers.js';
+import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('me-preset-reset');
 
@@ -23,9 +18,9 @@ interface ResetResponse {
 /**
  * Handle /me preset reset
  */
-export async function handleReset(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityId = interaction.options.getString('personality', true);
+export async function handleReset(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityId = context.interaction.options.getString('personality', true);
 
   try {
     const result = await callGatewayApi<ResetResponse>(`/user/model-override/${personalityId}`, {
@@ -38,7 +33,7 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
         { userId, status: result.status, personalityId },
         '[Me/Preset] Failed to reset override'
       );
-      await replyWithError(interaction, `Failed to reset preset: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to reset preset: ${result.error}` });
       return;
     }
 
@@ -55,10 +50,11 @@ export async function handleReset(interaction: ChatInputCommandInteraction): Pro
           'This personality was already using its default preset.'
         );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, personalityId, wasSet }, '[Me/Preset] Reset override');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset Reset' });
+    logger.error({ err: error, userId, command: 'Preset Reset' }, '[Preset Reset] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

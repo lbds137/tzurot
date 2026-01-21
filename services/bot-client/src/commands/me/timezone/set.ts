@@ -3,14 +3,10 @@
  * Handles /me timezone set command
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createSuccessEmbed,
-} from '../../../utils/commandHelpers.js';
+import { createSuccessEmbed } from '../../../utils/commandHelpers.js';
 import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
 
 const logger = createLogger('timezone-set');
@@ -18,9 +14,9 @@ const logger = createLogger('timezone-set');
 /**
  * Handle /me timezone set
  */
-export async function handleTimezoneSet(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const timezone = interaction.options.getString('timezone', true);
+export async function handleTimezoneSet(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const timezone = context.interaction.options.getString('timezone', true);
 
   try {
     const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
@@ -31,7 +27,7 @@ export async function handleTimezoneSet(interaction: ChatInputCommandInteraction
 
     if (!result.ok) {
       logger.warn({ userId, timezone, status: result.status }, '[Timezone] Failed to set timezone');
-      await replyWithError(interaction, `Failed to set timezone: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to set timezone: ${result.error}` });
       return;
     }
 
@@ -53,10 +49,11 @@ export async function handleTimezoneSet(interaction: ChatInputCommandInteraction
       .setFooter({ text: 'This affects how dates and times are displayed to you' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, timezone }, '[Timezone] Timezone updated successfully');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Timezone Set' });
+    logger.error({ err: error, userId, command: 'Timezone Set' }, '[Timezone Set] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

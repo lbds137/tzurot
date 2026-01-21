@@ -14,8 +14,9 @@
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { MeCustomIds } from '../../../utils/customIds.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
@@ -77,14 +78,14 @@ async function fetchDefaultPersona(discordId: string): Promise<PersonaDetails | 
 /**
  * Handle /me profile edit [profile] command - shows modal
  *
- * @param interaction - The command interaction
+ * @param context - The modal command context
  * @param personaId - Optional profile ID from autocomplete. If null, edit default profile.
  */
 export async function handleEditPersona(
-  interaction: ChatInputCommandInteraction,
+  context: ModalCommandContext,
   personaId?: string | null
 ): Promise<void> {
-  const discordId = interaction.user.id;
+  const discordId = context.user.id;
 
   try {
     let persona: PersonaDetails | null = null;
@@ -99,7 +100,7 @@ export async function handleEditPersona(
       );
 
       if (!result.ok) {
-        await interaction.reply({
+        await context.reply({
           content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
           flags: MessageFlags.Ephemeral,
         });
@@ -127,25 +128,150 @@ export async function handleEditPersona(
     const inputFields = buildPersonaModalFields(persona);
     modal.addComponents(...inputFields);
 
-    await interaction.showModal(modal);
+    await context.showModal(modal);
     logger.info(
       { userId: discordId, personaId: persona?.id ?? 'new' },
       '[Me/Profile] Showed edit modal'
     );
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me/Profile] Failed to show edit modal');
-    await interaction.reply({
+    await context.reply({
       content: '❌ Failed to open edit dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
   }
 }
 
+/** Values extracted from modal submission */
+interface ModalValues {
+  personaName: string;
+  description: string | null;
+  preferredName: string | null;
+  pronouns: string | null;
+  content: string | null;
+}
+
+/** Extract and validate modal field values */
+function extractModalValues(interaction: ModalSubmitInteraction): ModalValues | null {
+  const personaName = interaction.fields.getTextInputValue('personaName').trim();
+  if (personaName.length === 0) {
+    return null;
+  }
+  return {
+    personaName,
+    description: interaction.fields.getTextInputValue('description').trim() || null,
+    preferredName: interaction.fields.getTextInputValue('preferredName').trim() || null,
+    pronouns: interaction.fields.getTextInputValue('pronouns').trim() || null,
+    content: interaction.fields.getTextInputValue('content').trim() || null,
+  };
+}
+
+/** Create a new profile */
+async function createNewProfile(
+  interaction: ModalSubmitInteraction,
+  values: ModalValues
+): Promise<void> {
+  const discordId = interaction.user.id;
+
+  const result = await callGatewayApi<SavePersonaResponse>('/user/persona', {
+    userId: discordId,
+    method: 'POST',
+    body: {
+      name: values.personaName,
+      description: values.description,
+      preferredName: values.preferredName,
+      pronouns: values.pronouns,
+      content: values.content ?? '',
+      username: interaction.user.username,
+    },
+  });
+
+  if (!result.ok) {
+    logger.warn(
+      { userId: discordId, error: result.error },
+      '[Me/Profile] Failed to create profile'
+    );
+    await interaction.reply({
+      content: '❌ Failed to create your profile. Please try again later.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const { persona, setAsDefault } = result.data;
+  logger.info({ userId: discordId, personaId: persona.id }, '[Me/Profile] Created new profile');
+
+  let response = `✅ **Profile "${values.personaName}" created!**`;
+  if (setAsDefault === true) {
+    response += '\n\n⭐ This profile has been set as your default.';
+  }
+  await interaction.reply({ content: response, flags: MessageFlags.Ephemeral });
+}
+
+/** Update an existing profile */
+async function updateExistingProfile(
+  interaction: ModalSubmitInteraction,
+  personaId: string,
+  values: ModalValues
+): Promise<void> {
+  const discordId = interaction.user.id;
+
+  const result = await callGatewayApi<SavePersonaResponse>(`/user/persona/${personaId}`, {
+    userId: discordId,
+    method: 'PUT',
+    body: {
+      name: values.personaName,
+      description: values.description,
+      preferredName: values.preferredName,
+      pronouns: values.pronouns,
+      content: values.content ?? '',
+    },
+  });
+
+  if (!result.ok) {
+    if (result.error?.includes('not found') || result.error?.includes('Not found')) {
+      await interaction.reply({
+        content:
+          '❌ Profile not found or you do not own it. Use `/me profile list` to see your profiles.',
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+    logger.warn(
+      { userId: discordId, personaId, error: result.error },
+      '[Me/Profile] Failed to update profile'
+    );
+    await interaction.reply({
+      content: '❌ Failed to save your profile. Please try again later.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  logger.info({ userId: discordId, personaId }, '[Me/Profile] Updated profile');
+
+  const changes = [`📝 Name: ${values.personaName}`];
+  if (values.description !== null) {
+    changes.push(`📋 Description: ${values.description}`);
+  }
+  if (values.preferredName !== null) {
+    changes.push(`📛 Preferred Name: ${values.preferredName}`);
+  }
+  if (values.pronouns !== null) {
+    changes.push(`🏷️ Pronouns: ${values.pronouns}`);
+  }
+  if (values.content !== null) {
+    changes.push(
+      `📄 Content: ${values.content.substring(0, 100)}${values.content.length > 100 ? '...' : ''}`
+    );
+  }
+
+  const responseContent = `✅ **Profile updated!**\n\n${changes.join('\n')}`;
+  await interaction.reply({ content: responseContent, flags: MessageFlags.Ephemeral });
+}
+
 /**
  * Handle modal submission for profile edit
- *
- * @param interaction - The modal submit interaction
- * @param personaId - Profile ID from modal customId, or 'new' for creating
  */
 export async function handleEditModalSubmit(
   interaction: ModalSubmitInteraction,
@@ -154,15 +280,8 @@ export async function handleEditModalSubmit(
   const discordId = interaction.user.id;
 
   try {
-    // Get values from modal
-    const personaName = interaction.fields.getTextInputValue('personaName').trim();
-    const description = interaction.fields.getTextInputValue('description').trim() || null;
-    const preferredName = interaction.fields.getTextInputValue('preferredName').trim() || null;
-    const pronouns = interaction.fields.getTextInputValue('pronouns').trim() || null;
-    const content = interaction.fields.getTextInputValue('content').trim() || null;
-
-    // Profile name is required
-    if (personaName.length === 0) {
+    const values = extractModalValues(interaction);
+    if (values === null) {
       await interaction.reply({
         content: '❌ Profile name is required.',
         flags: MessageFlags.Ephemeral,
@@ -171,115 +290,9 @@ export async function handleEditModalSubmit(
     }
 
     if (personaId === 'new') {
-      // Create new profile via gateway
-      const result = await callGatewayApi<SavePersonaResponse>('/user/persona', {
-        userId: discordId,
-        method: 'POST',
-        body: {
-          name: personaName,
-          description,
-          preferredName,
-          pronouns,
-          content: content ?? '',
-          username: interaction.user.username,
-        },
-      });
-
-      if (!result.ok) {
-        logger.warn(
-          { userId: discordId, error: result.error },
-          '[Me/Profile] Failed to create profile via gateway'
-        );
-        await interaction.reply({
-          content: '❌ Failed to create your profile. Please try again later.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const { persona, setAsDefault } = result.data;
-
-      logger.info(
-        { userId: discordId, personaId: persona.id, personaName },
-        '[Me/Profile] Created new profile from edit'
-      );
-
-      let response = `✅ **Profile "${personaName}" created!**`;
-      if (setAsDefault === true) {
-        response += '\n\n⭐ This profile has been set as your default.';
-      }
-      await interaction.reply({
-        content: response,
-        flags: MessageFlags.Ephemeral,
-      });
+      await createNewProfile(interaction, values);
     } else {
-      // Update existing profile via gateway
-      const result = await callGatewayApi<SavePersonaResponse>(`/user/persona/${personaId}`, {
-        userId: discordId,
-        method: 'PUT',
-        body: {
-          name: personaName,
-          description,
-          preferredName,
-          pronouns,
-          content: content ?? '',
-        },
-      });
-
-      if (!result.ok) {
-        // Handle specific error cases
-        if (result.error?.includes('not found') || result.error?.includes('Not found')) {
-          await interaction.reply({
-            content:
-              '❌ Profile not found or you do not own it. Use `/me profile list` to see your profiles.',
-            flags: MessageFlags.Ephemeral,
-          });
-          return;
-        }
-
-        logger.warn(
-          { userId: discordId, personaId, error: result.error },
-          '[Me/Profile] Failed to update profile via gateway'
-        );
-        await interaction.reply({
-          content: '❌ Failed to save your profile. Please try again later.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      logger.info(
-        { userId: discordId, personaId, personaName },
-        '[Me/Profile] Updated existing profile'
-      );
-
-      // Build response message
-      const changes: string[] = [];
-      changes.push(`📝 Name: ${personaName}`);
-      if (description !== null) {
-        changes.push(`📋 Description: ${description}`);
-      }
-      if (preferredName !== null) {
-        changes.push(`📛 Preferred Name: ${preferredName}`);
-      }
-      if (pronouns !== null) {
-        changes.push(`🏷️ Pronouns: ${pronouns}`);
-      }
-      if (content !== null) {
-        changes.push(
-          `📄 Content: ${content.substring(0, 100)}${content.length > 100 ? '...' : ''}`
-        );
-      }
-
-      const responseContent =
-        changes.length > 0
-          ? `✅ **Profile updated!**\n\n${changes.join('\n')}`
-          : '✅ **Profile saved!** (All optional fields cleared)';
-
-      await interaction.reply({
-        content: responseContent,
-        flags: MessageFlags.Ephemeral,
-      });
+      await updateExistingProfile(interaction, personaId, values);
     }
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me/Profile] Failed to save profile');

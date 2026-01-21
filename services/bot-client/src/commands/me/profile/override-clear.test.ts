@@ -39,17 +39,19 @@ describe('handleOverrideClear', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personalitySlug: string) {
+  function createMockContext(personalitySlug: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'personality') return personalitySlug;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'personality') return personalitySlug;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
-    } as any;
+    } as unknown as Parameters<typeof handleOverrideClear>[0];
   }
 
   it('should clear override successfully', async () => {
@@ -62,7 +64,7 @@ describe('handleOverrideClear', () => {
       }),
     });
 
-    await handleOverrideClear(createMockInteraction('lilith'));
+    await handleOverrideClear(createMockContext('lilith'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
       userId: '123456789',
@@ -83,7 +85,7 @@ describe('handleOverrideClear', () => {
       }),
     });
 
-    await handleOverrideClear(createMockInteraction('lilith'));
+    await handleOverrideClear(createMockContext('lilith'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a profile override"),
@@ -96,7 +98,7 @@ describe('handleOverrideClear', () => {
       error: 'Personality not found',
     });
 
-    await handleOverrideClear(createMockInteraction('nonexistent'));
+    await handleOverrideClear(createMockContext('nonexistent'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Personality "nonexistent" not found'),
@@ -109,7 +111,7 @@ describe('handleOverrideClear', () => {
       error: 'User has no account yet',
     });
 
-    await handleOverrideClear(createMockInteraction('lilith'));
+    await handleOverrideClear(createMockContext('lilith'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have an account yet"),
@@ -119,7 +121,7 @@ describe('handleOverrideClear', () => {
   it('should handle gateway errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleOverrideClear(createMockInteraction('lilith'));
+    await handleOverrideClear(createMockContext('lilith'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to clear profile override'),

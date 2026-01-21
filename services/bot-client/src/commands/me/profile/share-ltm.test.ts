@@ -36,17 +36,19 @@ describe('handleShareLtmSetting', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(enabled: 'enable' | 'disable') {
+  function createMockContext(enabled: 'enable' | 'disable') {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required: boolean) => {
-          if (name === 'enabled') return enabled;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required: boolean) => {
+            if (name === 'enabled') return enabled;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
-    } as any;
+    } as unknown as Parameters<typeof handleShareLtmSetting>[0];
   }
 
   it('should show error when user has no account', async () => {
@@ -55,7 +57,7 @@ describe('handleShareLtmSetting', () => {
       error: 'User has no account yet',
     });
 
-    await handleShareLtmSetting(createMockInteraction('enable'));
+    await handleShareLtmSetting(createMockContext('enable'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have an account"),
@@ -68,7 +70,7 @@ describe('handleShareLtmSetting', () => {
       error: 'No default persona',
     });
 
-    await handleShareLtmSetting(createMockInteraction('enable'));
+    await handleShareLtmSetting(createMockContext('enable'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a profile"),
@@ -81,7 +83,7 @@ describe('handleShareLtmSetting', () => {
       data: mockUpdatePersonaSettingsResponse({ unchanged: true }),
     });
 
-    await handleShareLtmSetting(createMockInteraction('enable'));
+    await handleShareLtmSetting(createMockContext('enable'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already sharing'),
@@ -94,7 +96,7 @@ describe('handleShareLtmSetting', () => {
       data: mockUpdatePersonaSettingsResponse({ unchanged: true }),
     });
 
-    await handleShareLtmSetting(createMockInteraction('disable'));
+    await handleShareLtmSetting(createMockContext('disable'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already keeping'),
@@ -107,7 +109,7 @@ describe('handleShareLtmSetting', () => {
       data: mockUpdatePersonaSettingsResponse({ unchanged: false }),
     });
 
-    await handleShareLtmSetting(createMockInteraction('enable'));
+    await handleShareLtmSetting(createMockContext('enable'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/settings', {
       userId: '123456789',
@@ -127,7 +129,7 @@ describe('handleShareLtmSetting', () => {
       data: mockUpdatePersonaSettingsResponse({ unchanged: false }),
     });
 
-    await handleShareLtmSetting(createMockInteraction('disable'));
+    await handleShareLtmSetting(createMockContext('disable'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/settings', {
       userId: '123456789',
@@ -144,7 +146,7 @@ describe('handleShareLtmSetting', () => {
   it('should handle gateway errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleShareLtmSetting(createMockInteraction('enable'));
+    await handleShareLtmSetting(createMockContext('enable'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to update'),

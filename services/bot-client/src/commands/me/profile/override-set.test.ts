@@ -50,19 +50,21 @@ describe('handleOverrideSet', () => {
     mockShowModal.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction(personalitySlug: string, personaId: string) {
+  function createMockContext(personalitySlug: string, personaId: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'personality') return personalitySlug;
-          if (name === 'profile') return personaId;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'personality') return personalitySlug;
+            if (name === 'profile') return personaId;
+            return null;
+          },
         },
       },
       reply: mockReply,
       showModal: mockShowModal,
-    } as any;
+    } as unknown as Parameters<typeof handleOverrideSet>[0];
   }
 
   it('should set existing persona as override', async () => {
@@ -75,7 +77,7 @@ describe('handleOverrideSet', () => {
       }),
     });
 
-    await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
+    await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
       userId: '123456789',
@@ -97,7 +99,7 @@ describe('handleOverrideSet', () => {
       }),
     });
 
-    await handleOverrideSet(createMockInteraction('lilith', CREATE_NEW_PERSONA_VALUE));
+    await handleOverrideSet(createMockContext('lilith', CREATE_NEW_PERSONA_VALUE));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/override/lilith', {
       userId: '123456789',
@@ -112,7 +114,7 @@ describe('handleOverrideSet', () => {
       error: 'Personality not found',
     });
 
-    await handleOverrideSet(createMockInteraction('nonexistent', 'persona-123'));
+    await handleOverrideSet(createMockContext('nonexistent', 'persona-123'));
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Personality "nonexistent" not found'),
@@ -126,7 +128,7 @@ describe('handleOverrideSet', () => {
       error: 'User has no account yet',
     });
 
-    await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
+    await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have an account yet"),
@@ -140,7 +142,7 @@ describe('handleOverrideSet', () => {
       error: 'Profile not found',
     });
 
-    await handleOverrideSet(createMockInteraction('lilith', 'other-persona'));
+    await handleOverrideSet(createMockContext('lilith', 'other-persona'));
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile not found'),
@@ -151,7 +153,7 @@ describe('handleOverrideSet', () => {
   it('should handle gateway errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleOverrideSet(createMockInteraction('lilith', 'persona-123'));
+    await handleOverrideSet(createMockContext('lilith', 'persona-123'));
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to set profile override'),

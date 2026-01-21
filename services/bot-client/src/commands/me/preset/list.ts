@@ -4,10 +4,9 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 const logger = createLogger('me-preset-list');
 
@@ -18,15 +17,15 @@ interface ListResponse {
 /**
  * Handle /me preset list
  */
-export async function handleListOverrides(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleListOverrides(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   try {
     const result = await callGatewayApi<ListResponse>('/user/model-override', { userId });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to list overrides');
-      await replyWithError(interaction, 'Failed to get overrides. Please try again later.');
+      await context.editReply({ content: '❌ Failed to get overrides. Please try again later.' });
       return;
     }
 
@@ -53,10 +52,11 @@ export async function handleListOverrides(interaction: ChatInputCommandInteracti
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, count: data.overrides.length }, '[Me/Preset] Listed overrides');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset List' });
+    logger.error({ err: error, userId, command: 'Preset List' }, '[Preset List] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
