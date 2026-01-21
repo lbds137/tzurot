@@ -46,7 +46,6 @@ import { ActivatedChannelProcessor } from './processors/ActivatedChannelProcesso
 import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
-import { wrapDeferredInteraction } from './utils/safeInteraction.js';
 import {
   createDeferredContext,
   createModalContext,
@@ -222,49 +221,20 @@ client.on(Events.MessageCreate, message => {
   })();
 });
 
-// Commands that should NOT use ephemeral deferral (visible to everyone)
-const NON_EPHEMERAL_COMMANDS = new Set(['character chat']);
-
-// Commands that should NOT be deferred because they show a modal
-// Modal must be shown as the FIRST response to an interaction (cannot defer first)
-const MODAL_COMMANDS = new Set([
-  'wallet set',
-  'me profile create',
-  'me profile edit',
-  'me profile override-set',
-  'character create',
-]);
-
 // Interaction handler for slash commands, modals, autocomplete, and component interactions
 client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
       if (interaction.isChatInputCommand()) {
-        // Get the command to check its deferralMode
+        // Get the command to determine its deferral mode
         const command = commandHandler.getCommand(interaction.commandName);
         if (command === undefined) {
           logger.warn({ commandName: interaction.commandName }, 'Unknown command');
           return;
         }
 
-        // Build full command name for checking against legacy sets
-        const subcommand = interaction.options.getSubcommand(false);
-        const subcommandGroup = interaction.options.getSubcommandGroup(false);
-        let fullCommand = interaction.commandName;
-        if (subcommandGroup !== null && subcommandGroup.length > 0) {
-          fullCommand += ` ${subcommandGroup}`;
-        }
-        if (subcommand !== null && subcommand.length > 0) {
-          fullCommand += ` ${subcommand}`;
-        }
-
-        // NEW PATTERN: Use command's deferralMode if set
-        if (command.deferralMode !== undefined) {
-          await handleCommandWithContext(interaction, command, fullCommand);
-        } else {
-          // LEGACY PATTERN: Use hardcoded sets and SafeInteraction proxy
-          await handleCommandLegacy(interaction, fullCommand);
-        }
+        // All commands use the typed context pattern with deferralMode metadata
+        await handleCommandWithContext(interaction, command);
       } else if (interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
       } else if (interaction.isAutocomplete()) {
@@ -322,19 +292,18 @@ function resolveEffectiveDeferralMode(
 }
 
 /**
- * Handle a command using the new typed context pattern.
+ * Handle a command using the typed context pattern.
  *
- * Commands with deferralMode receive a SafeCommandContext that doesn't
- * expose deferReply() (for deferred modes), preventing InteractionAlreadyReplied
- * errors at compile time.
+ * Commands declare their deferralMode via defineCommand(), and receive a
+ * SafeCommandContext that doesn't expose deferReply() (for deferred modes),
+ * preventing InteractionAlreadyReplied errors at compile time.
  *
  * For commands with mixed subcommand requirements, subcommandDeferralModes
  * allows per-subcommand overrides of the default deferral behavior.
  */
 async function handleCommandWithContext(
   interaction: import('discord.js').ChatInputCommandInteraction,
-  command: import('./types.js').Command,
-  fullCommand: string
+  command: import('./types.js').Command
 ): Promise<void> {
   // Resolve effective deferral mode (may be overridden per-subcommand)
   const effectiveMode = resolveEffectiveDeferralMode(command, interaction);
@@ -357,7 +326,10 @@ async function handleCommandWithContext(
           flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
         });
       } catch (deferError) {
-        logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
+        logger.error(
+          { err: deferError, command: interaction.commandName },
+          'Failed to defer interaction'
+        );
         return;
       }
       // Create typed context (no deferReply method!)
@@ -379,44 +351,6 @@ async function handleCommandWithContext(
       await execute(context);
       break;
     }
-  }
-}
-
-/**
- * Handle a command using the legacy SafeInteraction pattern.
- *
- * This uses the hardcoded MODAL_COMMANDS and NON_EPHEMERAL_COMMANDS sets
- * and wraps the interaction with SafeInteraction proxy for runtime safety.
- *
- * @deprecated Commands should migrate to using deferralMode for compile-time safety.
- */
-async function handleCommandLegacy(
-  interaction: import('discord.js').ChatInputCommandInteraction,
-  fullCommand: string
-): Promise<void> {
-  // Skip deferral for commands that show modals
-  // Modal must be the FIRST response to an interaction
-  if (!MODAL_COMMANDS.has(fullCommand)) {
-    // CRITICAL: Defer IMMEDIATELY to avoid 3-second Discord timeout
-    // Do this BEFORE any routing logic or async operations
-    const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
-
-    try {
-      await interaction.deferReply({
-        flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
-      });
-    } catch (deferError) {
-      // If defer fails, the interaction already expired - nothing we can do
-      logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
-      return;
-    }
-    // Wrap the interaction to auto-convert reply() to editReply()
-    // This prevents InteractionAlreadyReplied errors in commands
-    const safeInteraction = wrapDeferredInteraction(interaction);
-    await commandHandler.handleInteraction(safeInteraction);
-  } else {
-    // Modal commands are not deferred, pass original interaction
-    await commandHandler.handleInteraction(interaction);
   }
 }
 
