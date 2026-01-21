@@ -1,5 +1,10 @@
 /**
  * Tests for Memory Incognito Mode Handlers
+ *
+ * Tests updated to match DeferredCommandContext pattern where:
+ * - context.user.id for user ID
+ * - context.interaction.options for command options
+ * - context.editReply for responses
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -30,15 +35,11 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
-const mockCreateSuccessEmbed = vi.fn(() => ({}));
-const mockCreateInfoEmbed = vi.fn(() => ({}));
-const mockCreateWarningEmbed = vi.fn(() => ({}));
+// Mock commandHelpers - embeds return empty objects for test simplicity
+const mockCreateSuccessEmbed = vi.fn(() => ({ type: 'success' }));
+const mockCreateInfoEmbed = vi.fn(() => ({ type: 'info' }));
+const mockCreateWarningEmbed = vi.fn(() => ({ type: 'warning' }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
   createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
   createWarningEmbed: (...args: unknown[]) => mockCreateWarningEmbed(...args),
@@ -59,20 +60,22 @@ describe('Memory Incognito Handlers', () => {
     vi.clearAllMocks();
   });
 
-  // Helper to create mock interactions with different options
-  function createMockInteraction(options: {
+  // Helper to create mock DeferredCommandContext with different options
+  function createMockContext(options: {
     personality?: string;
     duration?: string;
     timeframe?: string;
   }) {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return options.personality ?? 'lilith';
-          if (name === 'duration') return options.duration ?? '1h';
-          if (name === 'timeframe') return options.timeframe ?? '15m';
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'personality') return options.personality ?? 'lilith';
+            if (name === 'duration') return options.duration ?? '1h';
+            if (name === 'timeframe') return options.timeframe ?? '15m';
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
@@ -98,8 +101,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith', duration: '1h' });
-      await handleIncognitoEnable(interaction);
+      const context = createMockContext({ personality: 'lilith', duration: '1h' });
+      await handleIncognitoEnable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
         userId: '123456789',
@@ -110,7 +113,7 @@ describe('Memory Incognito Handlers', () => {
         '👻 Incognito Mode Enabled',
         expect.stringContaining('enabled')
       );
-      expect(mockEditReply).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({ embeds: [expect.anything()] });
     });
 
     it('should enable incognito mode for all personalities', async () => {
@@ -130,8 +133,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'all', duration: 'forever' });
-      await handleIncognitoEnable(interaction);
+      const context = createMockContext({ personality: 'all', duration: 'forever' });
+      await handleIncognitoEnable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
@@ -160,8 +163,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoEnable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoEnable(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         '👻 Incognito Already Active',
@@ -172,13 +175,12 @@ describe('Memory Incognito Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const interaction = createMockInteraction({ personality: 'unknown' });
-      await handleIncognitoEnable(interaction);
+      const context = createMockContext({ personality: 'unknown' });
+      await handleIncognitoEnable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('unknown')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unknown'),
+      });
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
 
@@ -191,25 +193,23 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoEnable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoEnable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('Failed to enable incognito mode')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to enable incognito mode'),
+      });
     });
 
     it('should handle exceptions', async () => {
       const error = new Error('Network error');
       mockResolvePersonalityId.mockRejectedValue(error);
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoEnable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoEnable(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Memory Incognito Enable',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
       });
     });
   });
@@ -226,8 +226,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoDisable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoDisable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
         userId: '123456789',
@@ -249,8 +249,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'all' });
-      await handleIncognitoDisable(interaction);
+      const context = createMockContext({ personality: 'all' });
+      await handleIncognitoDisable(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito', {
@@ -271,8 +271,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoDisable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoDisable(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         '👻 Incognito Not Active',
@@ -283,13 +283,12 @@ describe('Memory Incognito Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const interaction = createMockInteraction({ personality: 'unknown' });
-      await handleIncognitoDisable(interaction);
+      const context = createMockContext({ personality: 'unknown' });
+      await handleIncognitoDisable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('unknown')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unknown'),
+      });
     });
 
     it('should handle API error', async () => {
@@ -300,25 +299,23 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoDisable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoDisable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('Failed to disable incognito mode')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to disable incognito mode'),
+      });
     });
 
     it('should handle exceptions', async () => {
       const error = new Error('Network error');
       mockResolvePersonalityId.mockRejectedValue(error);
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoDisable(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoDisable(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Memory Incognito Disable',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
       });
     });
   });
@@ -333,8 +330,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({});
-      await handleIncognitoStatus(interaction);
+      const context = createMockContext({});
+      await handleIncognitoStatus(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         '👻 Incognito Status',
@@ -361,8 +358,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({});
-      await handleIncognitoStatus(interaction);
+      const context = createMockContext({});
+      await handleIncognitoStatus(context);
 
       expect(mockCreateWarningEmbed).toHaveBeenCalledWith(
         '👻 Incognito Active',
@@ -397,8 +394,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({});
-      await handleIncognitoStatus(interaction);
+      const context = createMockContext({});
+      await handleIncognitoStatus(context);
 
       expect(mockGetPersonalityName).toHaveBeenCalledTimes(2);
       expect(mockCreateWarningEmbed).toHaveBeenCalled();
@@ -422,8 +419,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({});
-      await handleIncognitoStatus(interaction);
+      const context = createMockContext({});
+      await handleIncognitoStatus(context);
 
       // 'all' doesn't call getPersonalityName
       expect(mockGetPersonalityName).not.toHaveBeenCalled();
@@ -440,25 +437,23 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction({});
-      await handleIncognitoStatus(interaction);
+      const context = createMockContext({});
+      await handleIncognitoStatus(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('Failed to check incognito status')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to check incognito status'),
+      });
     });
 
     it('should handle exceptions', async () => {
       const error = new Error('Network error');
       mockCallGatewayApi.mockRejectedValue(error);
 
-      const interaction = createMockInteraction({});
-      await handleIncognitoStatus(interaction);
+      const context = createMockContext({});
+      await handleIncognitoStatus(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Memory Incognito Status',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
       });
     });
   });
@@ -476,8 +471,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith', timeframe: '15m' });
-      await handleIncognitoForget(interaction);
+      const context = createMockContext({ personality: 'lilith', timeframe: '15m' });
+      await handleIncognitoForget(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
         userId: '123456789',
@@ -500,8 +495,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'all', timeframe: '1h' });
-      await handleIncognitoForget(interaction);
+      const context = createMockContext({ personality: 'all', timeframe: '1h' });
+      await handleIncognitoForget(context);
 
       expect(mockResolvePersonalityId).not.toHaveBeenCalled();
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/incognito/forget', {
@@ -523,8 +518,8 @@ describe('Memory Incognito Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith', timeframe: '5m' });
-      await handleIncognitoForget(interaction);
+      const context = createMockContext({ personality: 'lilith', timeframe: '5m' });
+      await handleIncognitoForget(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         '🗑️ No Memories Found',
@@ -535,13 +530,12 @@ describe('Memory Incognito Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const interaction = createMockInteraction({ personality: 'unknown' });
-      await handleIncognitoForget(interaction);
+      const context = createMockContext({ personality: 'unknown' });
+      await handleIncognitoForget(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('unknown')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unknown'),
+      });
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
 
@@ -553,25 +547,23 @@ describe('Memory Incognito Handlers', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoForget(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoForget(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('Failed to delete recent memories')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to delete recent memories'),
+      });
     });
 
     it('should handle exceptions', async () => {
       const error = new Error('Network error');
       mockResolvePersonalityId.mockRejectedValue(error);
 
-      const interaction = createMockInteraction({ personality: 'lilith' });
-      await handleIncognitoForget(interaction);
+      const context = createMockContext({ personality: 'lilith' });
+      await handleIncognitoForget(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Memory Incognito Forget',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
       });
     });
   });

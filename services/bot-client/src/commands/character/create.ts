@@ -15,8 +15,9 @@ import {
   type ModalActionRowComponentBuilder,
   MessageFlags,
 } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_LIMITS } from '@tzurot/common-types';
+import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -32,8 +33,11 @@ const logger = createLogger('character-create');
 
 /**
  * Show the seed modal for character creation
+ *
+ * Receives ModalCommandContext (has showModal method!)
+ * because this subcommand uses deferralMode: 'modal'.
  */
-export async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleCreate(context: ModalCommandContext): Promise<void> {
   const modal = new ModalBuilder()
     .setCustomId(buildDashboardCustomId('character', 'seed'))
     .setTitle('Create New Character');
@@ -51,7 +55,7 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
     modal.addComponents(row);
   }
 
-  await interaction.showModal(modal);
+  await context.showModal(modal);
 }
 
 /**

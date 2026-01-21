@@ -14,12 +14,12 @@
  */
 
 import type {
-  ChatInputCommandInteraction,
   ButtonInteraction,
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { GatewayClient } from '../../utils/GatewayClient.js';
 import {
@@ -76,11 +76,11 @@ interface PersonalityResponse {
  * Handle /character settings command - shows interactive dashboard
  */
 export async function handleSettings(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  const characterSlug = interaction.options.getString('character', true);
-  const userId = interaction.user.id;
+  const characterSlug = context.interaction.options.getString('character', true);
+  const userId = context.user.id;
 
   logger.debug({ characterSlug, userId }, '[Character Settings] Opening dashboard');
 
@@ -93,12 +93,12 @@ export async function handleSettings(
 
     if (!result.ok) {
       if (result.status === 404) {
-        await interaction.editReply({
+        await context.editReply({
           content: `Character "${characterSlug}" not found.`,
         });
         return;
       }
-      await interaction.editReply({
+      await context.editReply({
         content: `Failed to fetch character: ${result.error}`,
       });
       return;
@@ -111,7 +111,7 @@ export async function handleSettings(
     const adminSettings = await gatewayClient.getAdminSettings();
 
     if (adminSettings === null) {
-      await interaction.editReply({
+      await context.editReply({
         content: 'Failed to fetch global settings.',
       });
       return;
@@ -121,7 +121,8 @@ export async function handleSettings(
     const data = convertToSettingsData(personality, adminSettings);
 
     // Create and display the dashboard
-    await createSettingsDashboard(interaction, {
+    // NOTE: createSettingsDashboard expects raw interaction for ongoing component updates
+    await createSettingsDashboard(context.interaction, {
       config: CHARACTER_SETTINGS_CONFIG,
       data,
       entityId: characterSlug,
@@ -135,11 +136,9 @@ export async function handleSettings(
   } catch (error) {
     logger.error({ err: error, characterSlug }, '[Character Settings] Error opening dashboard');
 
-    if (!interaction.replied) {
-      await interaction.editReply({
-        content: 'An error occurred while opening the settings dashboard.',
-      });
-    }
+    await context.editReply({
+      content: 'An error occurred while opening the settings dashboard.',
+    });
   }
 }
 

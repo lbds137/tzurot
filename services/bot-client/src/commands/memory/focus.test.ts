@@ -26,13 +26,9 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
 const mockCreateInfoEmbed = vi.fn(() => ({}));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
   createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
 }));
@@ -52,13 +48,15 @@ describe('Memory Focus Handlers', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personalitySlug: string = 'lilith') {
+  function createMockContext(personalitySlug: string = 'lilith') {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return personalitySlug;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'personality') return personalitySlug;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
@@ -77,8 +75,8 @@ describe('Memory Focus Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction();
-      await handleFocusEnable(interaction);
+      const context = createMockContext();
+      await handleFocusEnable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/focus', {
         userId: '123456789',
@@ -95,13 +93,12 @@ describe('Memory Focus Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const interaction = createMockInteraction('unknown');
-      await handleFocusEnable(interaction);
+      const context = createMockContext('unknown');
+      await handleFocusEnable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('unknown')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unknown'),
+      });
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
 
@@ -113,25 +110,22 @@ describe('Memory Focus Handlers', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction();
-      await handleFocusEnable(interaction);
+      const context = createMockContext();
+      await handleFocusEnable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('Failed to update focus mode')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to update focus mode'),
+      });
     });
 
     it('should handle exceptions', async () => {
-      const error = new Error('Network error');
-      mockResolvePersonalityId.mockRejectedValue(error);
+      mockResolvePersonalityId.mockRejectedValue(new Error('Network error'));
 
-      const interaction = createMockInteraction();
-      await handleFocusEnable(interaction);
+      const context = createMockContext();
+      await handleFocusEnable(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Memory Focus Enable',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
       });
     });
   });
@@ -148,8 +142,8 @@ describe('Memory Focus Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction();
-      await handleFocusDisable(interaction);
+      const context = createMockContext();
+      await handleFocusDisable(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/memory/focus', {
         userId: '123456789',
@@ -165,10 +159,12 @@ describe('Memory Focus Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const interaction = createMockInteraction('unknown');
-      await handleFocusDisable(interaction);
+      const context = createMockContext('unknown');
+      await handleFocusDisable(context);
 
-      expect(mockReplyWithError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unknown'),
+      });
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
   });
@@ -185,8 +181,8 @@ describe('Memory Focus Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction();
-      await handleFocusStatus(interaction);
+      const context = createMockContext();
+      await handleFocusStatus(context);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/memory/focus?personalityId=personality-uuid-123',
@@ -209,8 +205,8 @@ describe('Memory Focus Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction();
-      await handleFocusStatus(interaction);
+      const context = createMockContext();
+      await handleFocusStatus(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'Focus Mode Status',
@@ -229,8 +225,8 @@ describe('Memory Focus Handlers', () => {
         },
       });
 
-      const interaction = createMockInteraction('lilith');
-      await handleFocusStatus(interaction);
+      const context = createMockContext('lilith');
+      await handleFocusStatus(context);
 
       expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'Focus Mode Status',
@@ -241,10 +237,12 @@ describe('Memory Focus Handlers', () => {
     it('should handle personality not found', async () => {
       mockResolvePersonalityId.mockResolvedValue(null);
 
-      const interaction = createMockInteraction('unknown');
-      await handleFocusStatus(interaction);
+      const context = createMockContext('unknown');
+      await handleFocusStatus(context);
 
-      expect(mockReplyWithError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unknown'),
+      });
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
 
@@ -256,25 +254,22 @@ describe('Memory Focus Handlers', () => {
         error: 'Server error',
       });
 
-      const interaction = createMockInteraction();
-      await handleFocusStatus(interaction);
+      const context = createMockContext();
+      await handleFocusStatus(context);
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        expect.stringContaining('Failed to check focus mode')
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to check focus mode'),
+      });
     });
 
     it('should handle exceptions', async () => {
-      const error = new Error('Network error');
-      mockResolvePersonalityId.mockRejectedValue(error);
+      mockResolvePersonalityId.mockRejectedValue(new Error('Network error'));
 
-      const interaction = createMockInteraction();
-      await handleFocusStatus(interaction);
+      const context = createMockContext();
+      await handleFocusStatus(context);
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Memory Focus Status',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('unexpected error'),
       });
     });
   });

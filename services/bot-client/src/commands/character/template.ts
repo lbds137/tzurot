@@ -3,9 +3,9 @@
  * Handles /character template - provides a downloadable JSON template for import
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { AttachmentBuilder } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
 
 /**
@@ -13,7 +13,7 @@ import { CHARACTER_JSON_TEMPLATE } from './import.js';
  * Provides a downloadable JSON template file for character import
  */
 export async function handleTemplate(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
   // Create JSON attachment
@@ -30,7 +30,7 @@ export async function handleTemplate(
     '**Slug format:** lowercase letters, numbers, and hyphens only (e.g., `my-character`)\n' +
     '**Avatar:** Upload a separate image file when importing using the `avatar` option';
 
-  await interaction.editReply({
+  await context.editReply({
     content: message,
     files: [jsonAttachment],
   });

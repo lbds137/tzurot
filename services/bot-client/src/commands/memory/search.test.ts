@@ -72,15 +72,19 @@ describe('handleSearch', () => {
     });
   });
 
-  function createMockInteraction(query: string, personality: string | null = null) {
+  function createMockContext(query: string, personality: string | null = null) {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'query') return query;
-          if (name === 'personality') return personality;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'query') return query;
+            if (name === 'personality') return personality;
+            return null;
+          },
         },
+        // Also needed for setupSearchCollector which uses interaction.editReply directly
+        editReply: mockEditReply,
       },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleSearch>[0];
@@ -106,8 +110,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('cats');
-    await handleSearch(interaction);
+    const context = createMockContext('cats');
+    await handleSearch(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/memory/search',
@@ -130,8 +134,8 @@ describe('handleSearch', () => {
       data: { results: [], count: 0, hasMore: false },
     });
 
-    const interaction = createMockInteraction('test query', 'lilith');
-    await handleSearch(interaction);
+    const context = createMockContext('test query', 'lilith');
+    await handleSearch(context);
 
     expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -148,13 +152,12 @@ describe('handleSearch', () => {
   it('should show error when personality not found', async () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
-    const interaction = createMockInteraction('test', 'unknown-personality');
-    await handleSearch(interaction);
+    const context = createMockContext('test', 'unknown-personality');
+    await handleSearch(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('not found')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('not found'),
+    });
   });
 
   it('should handle API error', async () => {
@@ -164,13 +167,12 @@ describe('handleSearch', () => {
       error: 'Internal error',
     });
 
-    const interaction = createMockInteraction('test query');
-    await handleSearch(interaction);
+    const context = createMockContext('test query');
+    await handleSearch(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('Failed to search')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to search'),
+    });
   });
 
   it('should handle empty results gracefully', async () => {
@@ -179,8 +181,8 @@ describe('handleSearch', () => {
       data: { results: [], count: 0, hasMore: false },
     });
 
-    const interaction = createMockInteraction('nonexistent query');
-    await handleSearch(interaction);
+    const context = createMockContext('nonexistent query');
+    await handleSearch(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -191,14 +193,12 @@ describe('handleSearch', () => {
   it('should handle unexpected errors', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(
-      interaction,
-      expect.any(Error),
-      expect.objectContaining({ command: 'Memory Search' })
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('unexpected error'),
+    });
   });
 
   it('should set up pagination collector when results exist', async () => {
@@ -221,8 +221,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     expect(mockCreateMessageComponentCollector).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -237,8 +237,8 @@ describe('handleSearch', () => {
       data: { results: [], count: 0, hasMore: false },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
   });
@@ -263,8 +263,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -293,8 +293,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -323,8 +323,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('specific name');
-    await handleSearch(interaction);
+    const context = createMockContext('specific name');
+    await handleSearch(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -357,8 +357,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -374,20 +374,22 @@ describe('handleSearch', () => {
       data: { results: [], count: 0, hasMore: false },
     });
 
-    // Create interaction with empty string personality
-    const interaction = {
+    // Create context with empty string personality
+    const context = {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'query') return 'test';
-          if (name === 'personality') return '';
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'query') return 'test';
+            if (name === 'personality') return '';
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleSearch>[0];
 
-    await handleSearch(interaction);
+    await handleSearch(context);
 
     // Should NOT call resolvePersonalityId when personality is empty
     expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -420,8 +422,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     // Should still succeed - content is truncated in the embed
     expect(mockEditReply).toHaveBeenCalledWith(
@@ -470,8 +472,8 @@ describe('handleSearch', () => {
       },
     });
 
-    const interaction = createMockInteraction('test');
-    await handleSearch(interaction);
+    const context = createMockContext('test');
+    await handleSearch(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -510,14 +512,18 @@ describe('handleSearch collector behavior', () => {
     mockFollowUp.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'query') return 'test query';
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'query') return 'test query';
+            return null;
+          },
         },
+        // Also needed for setupSearchCollector which uses interaction.editReply directly
+        editReply: mockEditReply,
       },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleSearch>[0];
@@ -557,8 +563,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     // Simulate pagination button click for page 1
     mockCallGatewayApi.mockResolvedValueOnce({
@@ -611,8 +617,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     // API fails on page 2
     mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Server error' });
@@ -650,8 +656,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const selectInteraction = {
       isButton: () => false,
@@ -690,8 +696,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     // Reset mock to track the end behavior
     mockEditReply.mockClear();
@@ -722,8 +728,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     // Simulate editReply failing (message deleted)
     mockEditReply.mockClear();
@@ -754,8 +760,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const buttonInteraction = createMockButtonInteraction('unknown-prefix:action');
     collectCallback(buttonInteraction);
@@ -788,8 +794,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     // Page 2 request should include preferTextSearch
     mockCallGatewayApi.mockResolvedValueOnce({
@@ -845,8 +851,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::edit::memory-1');
     collectCallback(buttonInteraction);
@@ -876,8 +882,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::lock::memory-1');
     collectCallback(buttonInteraction);
@@ -907,8 +913,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::delete::memory-1');
     collectCallback(buttonInteraction);
@@ -938,8 +944,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const buttonInteraction = createMockButtonInteraction(
       'memory-detail::confirm-delete::memory-1'
@@ -971,8 +977,8 @@ describe('handleSearch collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleSearch(interaction);
+    const context = createMockContext();
+    await handleSearch(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::back::memory-1');
     collectCallback(buttonInteraction);

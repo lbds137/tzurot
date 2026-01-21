@@ -43,15 +43,17 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 describe('Character Delete Handler', () => {
   const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-  const createMockCommandInteraction = (slug: string) => {
+  const createMockContext = (slug: string) => {
     return {
       user: { id: 'user-123' },
-      channelId: 'channel-456',
-      options: {
-        getString: vi.fn((_name: string, _required?: boolean) => slug),
+      interaction: {
+        channelId: 'channel-456',
+        options: {
+          getString: vi.fn((_name: string, _required?: boolean) => slug),
+        },
       },
       editReply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
-    } as unknown as ChatInputCommandInteraction & {
+    } as unknown as Parameters<typeof handleDelete>[0] & {
       editReply: ReturnType<typeof vi.fn>;
     };
   };
@@ -103,35 +105,35 @@ describe('Character Delete Handler', () => {
     // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should return error when character not found', async () => {
-      const mockInteraction = createMockCommandInteraction('nonexistent');
+      const mockContext = createMockContext('nonexistent');
       vi.mocked(api.fetchCharacter).mockResolvedValue(null);
 
-      await handleDelete(mockInteraction, mockConfig);
+      await handleDelete(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
+      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
     });
 
     it('should return error when user cannot edit character', async () => {
-      const mockInteraction = createMockCommandInteraction('other-char');
+      const mockContext = createMockContext('other-char');
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ canEdit: false, slug: 'other-char' })
       );
 
-      await handleDelete(mockInteraction, mockConfig);
+      await handleDelete(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.stringContaining("don't have permission")
       );
     });
 
     it('should show confirmation embed with warning about data deletion', async () => {
-      const mockInteraction = createMockCommandInteraction('test-character');
+      const mockContext = createMockContext('test-character');
       const mockCharacter = createMockCharacter();
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
 
-      await handleDelete(mockInteraction, mockConfig);
+      await handleDelete(mockContext, mockConfig);
 
-      const editReplyCall = mockInteraction.editReply.mock.calls[0][0];
+      const editReplyCall = mockContext.editReply.mock.calls[0][0];
       expect(editReplyCall).toHaveProperty('embeds');
       expect(editReplyCall).toHaveProperty('components');
 
@@ -144,12 +146,12 @@ describe('Character Delete Handler', () => {
     });
 
     it('should use CharacterCustomIds for button customIds', async () => {
-      const mockInteraction = createMockCommandInteraction('test-character');
+      const mockContext = createMockContext('test-character');
       vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter());
 
-      await handleDelete(mockInteraction, mockConfig);
+      await handleDelete(mockContext, mockConfig);
 
-      const editReplyCall = mockInteraction.editReply.mock.calls[0][0];
+      const editReplyCall = mockContext.editReply.mock.calls[0][0];
       const components = editReplyCall.components[0].components;
 
       // Verify buttons use the correct customId pattern (:: delimiter)
@@ -158,12 +160,12 @@ describe('Character Delete Handler', () => {
     });
 
     it('should handle fetch errors gracefully', async () => {
-      const mockInteraction = createMockCommandInteraction('error-char');
+      const mockContext = createMockContext('error-char');
       vi.mocked(api.fetchCharacter).mockRejectedValue(new Error('Network error'));
 
-      await handleDelete(mockInteraction, mockConfig);
+      await handleDelete(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('Failed to process'),
         })
@@ -173,13 +175,13 @@ describe('Character Delete Handler', () => {
 
   describe('handleDeleteButton (handles confirm/cancel clicks)', () => {
     it('should cancel deletion when confirmed=false', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteCancel('test-character')
       );
 
-      await handleDeleteButton(mockInteraction, 'test-character', false);
+      await handleDeleteButton(mockContext, 'test-character', false);
 
-      expect(mockInteraction.update).toHaveBeenCalledWith({
+      expect(mockContext.update).toHaveBeenCalledWith({
         content: expect.stringContaining('cancelled'),
         embeds: [],
         components: [],
@@ -190,7 +192,7 @@ describe('Character Delete Handler', () => {
     });
 
     it('should delete character when confirmed=true', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -200,7 +202,7 @@ describe('Character Delete Handler', () => {
         data: deleteResponse,
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
       // Verify DELETE API was called with correct parameters
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
@@ -213,7 +215,7 @@ describe('Character Delete Handler', () => {
     });
 
     it('should display deletion counts in success message', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -231,10 +233,10 @@ describe('Character Delete Handler', () => {
         data: deleteResponse,
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
       // Verify final editReply contains counts
-      const lastCall = mockInteraction.editReply.mock.calls.at(-1)?.[0];
+      const lastCall = mockContext.editReply.mock.calls.at(-1)?.[0];
       expect(lastCall?.content).toContain('42 conversation');
       expect(lastCall?.content).toContain('7 long-term');
       expect(lastCall?.content).toContain('3 pending');
@@ -243,7 +245,7 @@ describe('Character Delete Handler', () => {
     });
 
     it('should handle API error gracefully', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -252,16 +254,16 @@ describe('Character Delete Handler', () => {
         error: 'Server error',
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
       // Verify error message shown
-      const lastCall = mockInteraction.editReply.mock.calls.at(-1)?.[0];
+      const lastCall = mockContext.editReply.mock.calls.at(-1)?.[0];
       expect(lastCall?.content).toContain('Failed to delete');
       expect(lastCall?.content).toContain('Server error');
     });
 
     it('should validate response against DeletePersonalityResponseSchema (contract test)', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -272,19 +274,19 @@ describe('Character Delete Handler', () => {
         data: validResponse,
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
       // Verify the response would pass schema validation
       const parseResult = DeletePersonalityResponseSchema.safeParse(validResponse);
       expect(parseResult.success).toBe(true);
 
       // Verify success message shown (not schema error)
-      const lastCall = mockInteraction.editReply.mock.calls.at(-1)?.[0];
+      const lastCall = mockContext.editReply.mock.calls.at(-1)?.[0];
       expect(lastCall?.content).toContain('permanently deleted');
     });
 
     it('should handle schema validation failure gracefully', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -295,16 +297,16 @@ describe('Character Delete Handler', () => {
         data: invalidResponse,
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
       // Should still show success since API returned 200
       // (response is validated but we handle gracefully)
-      const lastCall = mockInteraction.editReply.mock.calls.at(-1)?.[0];
+      const lastCall = mockContext.editReply.mock.calls.at(-1)?.[0];
       expect(lastCall?.content).toContain('deleted');
     });
 
     it('should handle zero counts (no extra data to delete)', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -322,17 +324,17 @@ describe('Character Delete Handler', () => {
         data: deleteResponse,
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
       // Verify success message without counts section
-      const lastCall = mockInteraction.editReply.mock.calls.at(-1)?.[0];
+      const lastCall = mockContext.editReply.mock.calls.at(-1)?.[0];
       expect(lastCall?.content).toContain('permanently deleted');
       // Should NOT contain "Deleted data:" section since all counts are 0
       expect(lastCall?.content).not.toContain('Deleted data:');
     });
 
     it('should correctly pluralize memory counts', async () => {
-      const mockInteraction = createMockButtonInteraction(
+      const mockContext = createMockButtonInteraction(
         CharacterCustomIds.deleteConfirm('test-character')
       );
 
@@ -351,9 +353,9 @@ describe('Character Delete Handler', () => {
         data: deleteResponse,
       });
 
-      await handleDeleteButton(mockInteraction, 'test-character', true);
+      await handleDeleteButton(mockContext, 'test-character', true);
 
-      const lastCall = mockInteraction.editReply.mock.calls.at(-1)?.[0];
+      const lastCall = mockContext.editReply.mock.calls.at(-1)?.[0];
       expect(lastCall?.content).toContain('1 long-term memory');
       expect(lastCall?.content).not.toContain('1 long-term memories');
       expect(lastCall?.content).toContain('1 pending memory');

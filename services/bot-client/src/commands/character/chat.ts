@@ -4,19 +4,18 @@
  * Allows users to chat with a character using a slash command.
  * This provides an alternative to the @mention pattern.
  *
- * Flow:
- * 1. User selects character (autocomplete) and enters message
- * 2. Bot sends user's message as visible channel message: **Username:** message
- * 3. Bot calls gateway to generate AI response
- * 4. Bot sends character response via webhook
+ * Supports two modes:
+ * 1. **Chat mode** (message provided):
+ *    - Bot sends user's message as visible channel message: **Username:** message
+ *    - Character responds to that message
+ *
+ * 2. **Weigh-in mode** (no message):
+ *    - No user message is sent to the channel
+ *    - Character is "summoned" to contribute to the ongoing conversation
+ *    - Uses conversation history to generate a contextual response
  */
 
-import type {
-  ChatInputCommandInteraction,
-  TextChannel,
-  ThreadChannel,
-  GuildMember,
-} from 'discord.js';
+import type { TextChannel, ThreadChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import {
   createLogger,
@@ -29,6 +28,7 @@ import {
   AI_ENDPOINTS,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { MessageContext } from '../../types.js';
 import {
   getGatewayClient,
@@ -42,25 +42,129 @@ import { redisService } from '../../redis.js';
 const logger = createLogger('character-chat');
 
 /**
- * Build Discord environment context from a slash command interaction.
+ * Channel types that support webhook responses
+ */
+type WebhookChannel = TextChannel | ThreadChannel;
+
+/**
+ * Resolve the user's display name using persona resolver.
+ * Falls back to Discord display name if persona resolution fails.
+ */
+async function resolveDisplayName(
+  userId: string,
+  personalityId: string,
+  discordDisplayName: string
+): Promise<string> {
+  try {
+    const personaResolver = getPersonaResolver();
+    const personaResult = await personaResolver.resolve(userId, personalityId);
+    if (
+      personaResult.config.preferredName !== null &&
+      personaResult.config.preferredName !== undefined &&
+      personaResult.config.preferredName.length > 0
+    ) {
+      logger.debug(
+        { userId, personalityId, source: personaResult.source },
+        '[Character Chat] Using persona preferredName'
+      );
+      return personaResult.config.preferredName;
+    }
+  } catch {
+    logger.debug({ userId }, '[Character Chat] Failed to resolve persona, using Discord name');
+  }
+  return discordDisplayName;
+}
+
+/**
+ * Validate that the channel supports webhook responses.
+ * Returns the channel cast to WebhookChannel if valid, null otherwise.
+ */
+function validateWebhookChannel(context: DeferredCommandContext): WebhookChannel | null {
+  const channel = context.channel;
+  if (
+    !channel ||
+    (channel.type !== ChannelType.GuildText &&
+      channel.type !== ChannelType.PublicThread &&
+      channel.type !== ChannelType.PrivateThread)
+  ) {
+    return null;
+  }
+  return channel as WebhookChannel;
+}
+
+/**
+ * Poll for job completion and send the character response.
+ * Returns true if successful, false if there was an error.
+ */
+async function pollAndSendResponse(
+  jobId: string,
+  channel: WebhookChannel,
+  personality: LoadedPersonality,
+  characterSlug: string,
+  isWeighInMode: boolean
+): Promise<boolean> {
+  const gatewayClient = getGatewayClient();
+
+  // Show typing indicator while waiting
+  await channel.sendTyping();
+
+  // Poll with typing indicator refresh (safe short-lived timer, see CLAUDE.md)
+  const typingInterval = setInterval(() => {
+    channel.sendTyping().catch(() => {
+      // Ignore typing errors - channel may be unavailable
+    });
+  }, INTERVALS.TYPING_INDICATOR_REFRESH);
+
+  try {
+    const result = await gatewayClient.pollJobUntilComplete(jobId, {
+      maxWaitMs: TIMEOUTS.JOB_BASE,
+      pollIntervalMs: INTERVALS.JOB_POLL_INTERVAL,
+    });
+
+    if (result?.content === undefined || result.content === null || result.content === '') {
+      await channel.send(`*${personality.displayName} is having trouble responding right now.*`);
+      return false;
+    }
+
+    await sendCharacterResponse(
+      channel,
+      personality,
+      result.content,
+      result.metadata?.modelUsed,
+      result.metadata?.isGuestMode
+    );
+
+    logger.info(
+      { jobId, characterSlug, isWeighInMode },
+      '[Character Chat] Response sent successfully'
+    );
+    return true;
+  } finally {
+    clearInterval(typingInterval);
+  }
+}
+
+/**
+ * Build Discord environment context from a deferred command context.
  *
  * Extracts guild, channel, and type information to provide context
  * for AI personality responses about where the conversation is happening.
  *
- * @param interaction - The slash command interaction from Discord
+ * @param context - The deferred command context
  * @returns Environment object with guild/channel metadata
  * @throws Error if channel is unavailable (should never happen in valid interactions)
  *
  * @example
- * const env = buildEnvironment(interaction);
+ * const env = buildEnvironment(context);
  * // Returns: { type: 'guild', guild: { id: '123', name: 'My Server' }, channel: { id: '456', name: 'general', type: 'text' } }
  */
-function buildEnvironment(interaction: ChatInputCommandInteraction): {
+function buildEnvironment(context: DeferredCommandContext): {
   type: 'guild' | 'dm';
   guild?: { id: string; name: string };
   channel: { id: string; name: string; type: string };
 } {
-  const { channel, guild } = interaction;
+  const channel = context.channel;
+  const guild = context.guild;
 
   if (!channel) {
     throw new Error('No channel available');
@@ -100,92 +204,77 @@ function buildEnvironment(interaction: ChatInputCommandInteraction): {
 }
 
 /**
+ * Weigh-in mode indicator message
+ * This signals to the AI that the character is being summoned to contribute
+ * to an ongoing conversation rather than responding to a specific user message.
+ */
+const WEIGH_IN_MESSAGE =
+  '[The user has summoned you to join this conversation. Contribute naturally based on the context above.]';
+
+/**
  * Handle /character chat subcommand
+ *
+ * Supports two modes:
+ * - Chat mode (message provided): User sends message, character responds
+ * - Weigh-in mode (no message): Character contributes to ongoing conversation
  */
 export async function handleChat(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  const characterSlug = interaction.options.getString('character', true);
-  const message = interaction.options.getString('message', true);
-  const userId = interaction.user.id;
-
-  // Get Discord display name (used as fallback)
-  const member = interaction.member as GuildMember | null;
-  const discordDisplayName = member?.displayName ?? interaction.user.displayName;
+  const characterSlug = context.interaction.options.getString('character', true);
+  const message = context.interaction.options.getString('message', false);
+  const userId = context.user.id;
+  const isWeighInMode = message === null || message.trim().length === 0;
+  const discordDisplayName = context.member?.displayName ?? context.user.displayName;
 
   logger.info(
-    { characterSlug, userId, messageLength: message.length },
+    { characterSlug, userId, messageLength: message?.length ?? 0, isWeighInMode },
     '[Character Chat] Processing chat request'
   );
 
-  // Note: deferReply is handled by top-level interactionCreate handler
-  // (character chat is in NON_EPHEMERAL_COMMANDS so it's non-ephemeral)
-
   try {
-    // 1. Load the personality
-    const personalityService = getPersonalityService();
-    const personality = await personalityService.loadPersonality(characterSlug, userId);
-
+    // 1. Load and validate personality
+    const personality = await getPersonalityService().loadPersonality(characterSlug, userId);
     if (!personality) {
-      await interaction.editReply({
-        content: `❌ Character "${characterSlug}" not found.`,
-      });
+      await context.editReply({ content: `❌ Character "${characterSlug}" not found.` });
       return;
     }
 
-    // 2. Get display name - use PersonaResolver for proper override → default hierarchy
-    // (matches behavior of conversation history and LTM resolution)
-    let displayName = discordDisplayName;
-    try {
-      const personaResolver = getPersonaResolver();
-      const personaResult = await personaResolver.resolve(userId, personality.id);
-      if (
-        personaResult.config.preferredName !== null &&
-        personaResult.config.preferredName !== undefined &&
-        personaResult.config.preferredName.length > 0
-      ) {
-        displayName = personaResult.config.preferredName;
-        logger.debug(
-          { userId, personalityId: personality.id, source: personaResult.source },
-          '[Character Chat] Using persona preferredName'
-        );
-      }
-    } catch {
-      // Silently fall back to Discord display name on error
-      logger.debug({ userId }, '[Character Chat] Failed to resolve persona, using Discord name');
-    }
-
-    // 3. Verify we're in a webhook-capable channel
-    const { channel } = interaction;
-    if (
-      !channel ||
-      (channel.type !== ChannelType.GuildText &&
-        channel.type !== ChannelType.PublicThread &&
-        channel.type !== ChannelType.PrivateThread)
-    ) {
-      await interaction.editReply({
+    // 2. Validate channel supports webhooks
+    const channel = validateWebhookChannel(context);
+    if (!channel) {
+      await context.editReply({
         content: 'This command can only be used in text channels or threads.',
       });
       return;
     }
 
-    // 4. Delete the deferred reply (we'll send our own messages)
-    await interaction.deleteReply();
+    // 3. Resolve display name (persona override or Discord name)
+    const displayName = await resolveDisplayName(userId, personality.id, discordDisplayName);
 
-    // 5. Send the user's message as a visible channel message
-    const userMessageContent = `**${displayName}:** ${message}`;
-    await channel.send(userMessageContent);
-
-    // 6. Fetch conversation history for this channel + personality
-    const conversationHistoryService = getConversationHistoryService();
-    const history = await conversationHistoryService.getRecentHistory(
+    // 4. Fetch conversation history
+    const history = await getConversationHistoryService().getRecentHistory(
       channel.id,
       personality.id,
       MESSAGE_LIMITS.MAX_HISTORY_FETCH
     );
 
-    // Convert history to API format (matching MessageContextBuilder pattern)
+    // 5. Weigh-in mode requires existing conversation
+    if (isWeighInMode && history.length === 0) {
+      await context.editReply({
+        content: `❌ No conversation history found for **${personality.displayName}** in this channel.\nStart a conversation first, or provide a message.`,
+      });
+      return;
+    }
+
+    // 6. Delete deferred reply and send user message (chat mode only)
+    await context.deleteReply();
+    if (!isWeighInMode) {
+      await channel.send(`**${displayName}:** ${message}`);
+    }
+
+    // 7. Build message context for AI
     const conversationHistory = history.map(msg => ({
       id: msg.id,
       role: msg.role,
@@ -195,81 +284,38 @@ export async function handleChat(
       personaName: msg.personaName,
     }));
 
-    logger.debug(
-      { historyCount: conversationHistory.length, characterSlug },
-      '[Character Chat] Fetched conversation history'
-    );
-
-    // 7. Build context for AI generation
-    const context: MessageContext = {
-      messageContent: message,
+    const messageContext: MessageContext = {
+      messageContent: isWeighInMode ? WEIGH_IN_MESSAGE : message,
       userId,
       userName: displayName,
-      environment: buildEnvironment(interaction),
+      environment: buildEnvironment(context),
       conversationHistory,
     };
 
-    // 8. Submit job to gateway
-    const gatewayClient = getGatewayClient();
-    const { jobId } = await gatewayClient.generate(personality, context);
+    // 8. Submit job and poll for response
+    const { jobId } = await getGatewayClient().generate(personality, messageContext);
+    logger.info({ jobId, characterSlug, isWeighInMode }, '[Character Chat] Job submitted');
 
-    logger.info({ jobId, characterSlug }, '[Character Chat] Job submitted, polling for result');
-
-    // 9. Show typing indicator while waiting
-    await channel.sendTyping();
-
-    // 10. Poll for result (with typing indicator refresh)
-    // NOTE: setInterval is a scaling blocker when used for persistent background tasks.
-    // Safe here because it's: (1) request-scoped, (2) short-lived (<2min per job timeout),
-    // and (3) always cleared in finally block. See CLAUDE.md "Timer Patterns".
-    const typingInterval = setInterval(() => {
-      channel.sendTyping().catch(() => {
-        // Ignore typing errors
-      });
-    }, INTERVALS.TYPING_INDICATOR_REFRESH);
-
-    try {
-      const result = await gatewayClient.pollJobUntilComplete(jobId, {
-        maxWaitMs: TIMEOUTS.JOB_BASE,
-        pollIntervalMs: INTERVALS.JOB_POLL_INTERVAL,
-      });
-
-      clearInterval(typingInterval);
-
-      if (result?.content === undefined || result.content === null || result.content === '') {
-        await channel.send(`*${personality.displayName} is having trouble responding right now.*`);
-        return;
-      }
-
-      // 11. Send AI response via webhook
-      await sendCharacterResponse(
-        channel as TextChannel | ThreadChannel,
-        personality,
-        result.content,
-        result.metadata?.modelUsed,
-        result.metadata?.isGuestMode
-      );
-
-      logger.info({ jobId, characterSlug }, '[Character Chat] Response sent successfully');
-    } finally {
-      clearInterval(typingInterval);
-    }
+    await pollAndSendResponse(jobId, channel, personality, characterSlug, isWeighInMode);
   } catch (error) {
     logger.error({ err: error, characterSlug }, '[Character Chat] Error processing chat');
+    await handleChatError(context);
+  }
+}
 
-    // Try to send error message
-    try {
-      if (interaction.replied || interaction.deferred) {
-        await interaction.editReply({
-          content: 'Sorry, something went wrong. Please try again.',
-        });
-      }
-    } catch {
-      // Interaction may have been deleted, try channel send
-      const ch = interaction.channel;
-      if (ch && 'send' in ch && typeof ch.send === 'function') {
-        await ch.send('Sorry, something went wrong. Please try again.');
-      }
+/**
+ * Handle errors in chat command by sending error message to user
+ */
+async function handleChatError(context: DeferredCommandContext): Promise<void> {
+  try {
+    const { interaction } = context;
+    if (interaction.replied || interaction.deferred) {
+      await context.editReply({ content: 'Sorry, something went wrong. Please try again.' });
+    }
+  } catch {
+    const ch = context.channel;
+    if (ch && 'send' in ch && typeof ch.send === 'function') {
+      await ch.send('Sorry, something went wrong. Please try again.');
     }
   }
 }

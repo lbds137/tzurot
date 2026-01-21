@@ -13,8 +13,9 @@ import {
   ActionRowBuilder,
   escapeMarkdown,
 } from 'discord.js';
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { CharacterCustomIds, type CharacterListSortType } from '../../utils/customIds.js';
 import { createListComparator } from '../../utils/listSorting.js';
 import { fetchUserCharacters, fetchPublicCharacters, fetchUsernames } from './api.js';
@@ -254,28 +255,29 @@ function buildCharacterListPage(
  * Handle list subcommand - show user's characters and global characters
  */
 export async function handleList(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
+  const userId = context.user.id;
+
   try {
     // Fetch user's own characters and all public characters
     const [ownCharacters, publicCharacters] = await Promise.all([
-      fetchUserCharacters(interaction.user.id, config),
-      fetchPublicCharacters(interaction.user.id, config),
+      fetchUserCharacters(userId, config),
+      fetchPublicCharacters(userId, config),
     ]);
 
     // Fetch creator usernames for public characters
-    const othersPublic = publicCharacters.filter(c => c.ownerId !== interaction.user.id);
+    const othersPublic = publicCharacters.filter(c => c.ownerId !== userId);
     const creatorIds = [...new Set(othersPublic.map(c => c.ownerId).filter(Boolean))] as string[];
-    const creatorNames = await fetchUsernames(interaction.client, creatorIds);
+    const creatorNames = await fetchUsernames(context.interaction.client, creatorIds);
 
     // Create sorted, grouped items (grouping happens BEFORE pagination)
     const allItems = createListItems(
       ownCharacters,
       publicCharacters,
       creatorNames,
-      interaction.user.id,
+      userId,
       DEFAULT_SORT
     );
 
@@ -287,10 +289,10 @@ export async function handleList(
       DEFAULT_SORT
     );
 
-    await interaction.editReply({ embeds: [embed], components });
+    await context.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error }, 'Failed to list characters');
-    await interaction.editReply('❌ Failed to load characters. Please try again.');
+    await context.editReply('❌ Failed to load characters. Please try again.');
   }
 }
 

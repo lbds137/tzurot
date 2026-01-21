@@ -21,15 +21,17 @@ describe('Character List', () => {
   describe('handleList', () => {
     const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-    const mockInteraction = {
+    const mockContext = {
       user: { id: 'user-123' },
-      client: {
-        users: {
-          fetch: vi.fn(),
+      interaction: {
+        client: {
+          users: {
+            fetch: vi.fn(),
+          },
         },
       },
       editReply: vi.fn(),
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as Parameters<typeof handleList>[0];
 
     beforeEach(() => {
       vi.clearAllMocks();
@@ -45,7 +47,7 @@ describe('Character List', () => {
     // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should fetch both owned and public characters', async () => {
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
       expect(api.fetchUserCharacters).toHaveBeenCalledWith('user-123', mockConfig);
       expect(api.fetchPublicCharacters).toHaveBeenCalledWith('user-123', mockConfig);
@@ -55,9 +57,9 @@ describe('Character List', () => {
       vi.mocked(api.fetchUserCharacters).mockResolvedValue([]);
       vi.mocked(api.fetchPublicCharacters).mockResolvedValue([]);
 
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.arrayContaining([
             expect.objectContaining({
@@ -100,9 +102,9 @@ describe('Character List', () => {
         },
       ]);
 
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.arrayContaining([
             expect.objectContaining({
@@ -118,9 +120,9 @@ describe('Character List', () => {
     it('should handle API errors gracefully', async () => {
       vi.mocked(api.fetchUserCharacters).mockRejectedValue(new Error('API error'));
 
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+      expect(mockContext.editReply).toHaveBeenCalledWith(
         '❌ Failed to load characters. Please try again.'
       );
     });
@@ -181,9 +183,9 @@ describe('Character List', () => {
         },
       ]);
 
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
-      const callArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0];
+      const callArgs = vi.mocked(mockContext.editReply).mock.calls[0][0];
       expect(callArgs).toEqual(
         expect.objectContaining({
           embeds: expect.arrayContaining([
@@ -201,7 +203,7 @@ describe('Character List', () => {
   describe('handleListPagination', () => {
     const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-    const mockInteraction = {
+    const mockContext = {
       user: { id: 'user-123' },
       client: {
         users: {
@@ -220,20 +222,20 @@ describe('Character List', () => {
     });
 
     it('should defer update on pagination', async () => {
-      await handleListPagination(mockInteraction, 1, 'date', mockConfig);
+      await handleListPagination(mockContext, 1, 'date', mockConfig);
 
-      expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+      expect(mockContext.deferUpdate).toHaveBeenCalled();
     });
 
     it('should refresh data on pagination', async () => {
-      await handleListPagination(mockInteraction, 1, 'date', mockConfig);
+      await handleListPagination(mockContext, 1, 'date', mockConfig);
 
       expect(api.fetchUserCharacters).toHaveBeenCalledWith('user-123', mockConfig);
       expect(api.fetchPublicCharacters).toHaveBeenCalledWith('user-123', mockConfig);
     });
 
     it('should use default sort when sortType is undefined', async () => {
-      await handleListPagination(mockInteraction, 1, undefined, mockConfig);
+      await handleListPagination(mockContext, 1, undefined, mockConfig);
 
       expect(api.fetchUserCharacters).toHaveBeenCalledWith('user-123', mockConfig);
     });
@@ -242,27 +244,27 @@ describe('Character List', () => {
       vi.mocked(api.fetchUserCharacters).mockRejectedValue(new Error('API error'));
 
       // Should not throw
-      await expect(
-        handleListPagination(mockInteraction, 1, 'date', mockConfig)
-      ).resolves.not.toThrow();
+      await expect(handleListPagination(mockContext, 1, 'date', mockConfig)).resolves.not.toThrow();
 
       // Should not call editReply on error (keeps existing content)
-      expect(mockInteraction.editReply).not.toHaveBeenCalled();
+      expect(mockContext.editReply).not.toHaveBeenCalled();
     });
   });
 
   describe('markdown escaping', () => {
     const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-    const mockInteraction = {
+    const mockContext = {
       user: { id: 'user-123' },
-      client: {
-        users: {
-          fetch: vi.fn(),
+      interaction: {
+        client: {
+          users: {
+            fetch: vi.fn(),
+          },
         },
       },
       editReply: vi.fn(),
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as Parameters<typeof handleList>[0];
 
     beforeEach(() => {
       vi.clearAllMocks();
@@ -307,9 +309,9 @@ describe('Character List', () => {
         new Map([['other-user-456', '**Bold_User**']])
       );
 
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
-      const callArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const callArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         embeds: { data: { description: string } }[];
       };
       const description = callArgs.embeds[0].data.description;
@@ -350,9 +352,9 @@ describe('Character List', () => {
       vi.mocked(api.fetchPublicCharacters).mockResolvedValue([]);
       vi.mocked(api.fetchUsernames).mockResolvedValue(new Map());
 
-      await handleList(mockInteraction, mockConfig);
+      await handleList(mockContext, mockConfig);
 
-      const callArgs = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const callArgs = vi.mocked(mockContext.editReply).mock.calls[0][0] as {
         embeds: { data: { description: string } }[];
       };
       const description = callArgs.embeds[0].data.description;
