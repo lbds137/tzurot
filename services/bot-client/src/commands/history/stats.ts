@@ -1,13 +1,16 @@
 /**
  * History Stats Handler
  * Handles /history stats command - view conversation statistics
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { escapeMarkdown } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
+import { createInfoEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-stats');
 
@@ -54,11 +57,11 @@ function formatDate(dateStr: string | null): string {
 /**
  * Handle /history stats
  */
-export async function handleStats(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const channelId = interaction.channelId;
-  const personalitySlug = interaction.options.getString('personality', true);
-  const personaId = interaction.options.getString('profile', false); // Optional profile/persona
+export async function handleStats(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const channelId = context.channelId;
+  const personalitySlug = context.getRequiredOption<string>('personality');
+  const personaId = context.getOption<string>('profile'); // Optional profile/persona
 
   try {
     // Build query params
@@ -83,7 +86,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
           ? `Personality "${personalitySlug}" not found.`
           : 'Failed to get stats. Please try again later.';
       logger.warn({ userId, personalitySlug, status: result.status }, '[History] Stats failed');
-      await replyWithError(interaction, errorMessage);
+      await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
 
@@ -132,7 +135,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       {
@@ -145,6 +148,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       '[History] Stats retrieved'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'History Stats' });
+    logger.error({ err: error, userId, command: 'History Stats' }, '[History Stats] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

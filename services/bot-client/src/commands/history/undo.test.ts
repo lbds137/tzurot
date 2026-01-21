@@ -1,8 +1,12 @@
 /**
  * Tests for History Undo Subcommand
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleUndo } from './undo.js';
 
 // Mock common-types
@@ -26,33 +30,46 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
 }));
 
 describe('handleUndo', () => {
-  const mockEditReply = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personalitySlug: string = 'lilith') {
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(personalitySlug: string = 'lilith'): DeferredCommandContext {
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
     return {
+      interaction: {},
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return personalitySlug;
-          return null;
-        },
-      },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: '111111111111111111',
+      guildId: null,
+      commandName: 'history',
+      isEphemeral: true,
+      getOption: vi.fn((name: string) => {
+        if (name === 'profile') return null;
+        return null;
+      }),
+      getRequiredOption: vi.fn((name: string) => {
+        if (name === 'personality') return personalitySlug;
+        throw new Error(`Unknown required option: ${name}`);
+      }),
+      getSubcommand: () => 'undo',
+      getSubcommandGroup: () => null,
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleUndo>[0];
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   }
 
   it('should undo clear successfully', async () => {
@@ -65,8 +82,8 @@ describe('handleUndo', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleUndo(interaction);
+    const context = createMockContext();
+    await handleUndo(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/history/undo', {
       userId: '123456789',
@@ -77,7 +94,7 @@ describe('handleUndo', () => {
       'Context Restored',
       expect.stringContaining('lilith')
     );
-    expect(mockEditReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should handle personality not found (404)', async () => {
@@ -87,13 +104,12 @@ describe('handleUndo', () => {
       error: 'Not found',
     });
 
-    const interaction = createMockInteraction('unknown');
-    await handleUndo(interaction);
+    const context = createMockContext('unknown');
+    await handleUndo(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Personality "unknown" not found.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ Personality "unknown" not found.',
+    });
   });
 
   it('should handle no previous context (400)', async () => {
@@ -103,13 +119,12 @@ describe('handleUndo', () => {
       error: 'No previous context',
     });
 
-    const interaction = createMockInteraction();
-    await handleUndo(interaction);
+    const context = createMockContext();
+    await handleUndo(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'No previous context to restore. Undo is only available after a clear operation.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ No previous context to restore. Undo is only available after a clear operation.',
+    });
   });
 
   it('should handle generic API error', async () => {
@@ -119,25 +134,23 @@ describe('handleUndo', () => {
       error: 'Server error',
     });
 
-    const interaction = createMockInteraction();
-    await handleUndo(interaction);
+    const context = createMockContext();
+    await handleUndo(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to undo. Please try again later.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ Failed to undo. Please try again later.',
+    });
   });
 
   it('should handle exceptions', async () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleUndo(interaction);
+    const context = createMockContext();
+    await handleUndo(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'History Undo',
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });
