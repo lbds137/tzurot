@@ -13,8 +13,9 @@
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, truncateText } from '@tzurot/common-types';
+import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { MeCustomIds } from '../../../utils/customIds.js';
@@ -63,149 +64,130 @@ interface CreateOverrideResponse {
   };
 }
 
-/**
- * Handle /me profile override-set <personality> <profile> command
- *
- * If profile is CREATE_NEW_PERSONA_VALUE, shows modal to create new profile.
- * Otherwise, directly sets the selected profile as override.
- */
-export async function handleOverrideSet(interaction: ChatInputCommandInteraction): Promise<void> {
-  const discordId = interaction.user.id;
-  const personalitySlug = interaction.options.getString('personality', true);
-  const personaId = interaction.options.getString('profile', true);
+/** Map API error to user-friendly message, or null if no specific mapping */
+function mapOverrideError(error: string | undefined, personalitySlug: string): string | null {
+  if (error === undefined) {
+    return null;
+  }
+  // Check specific errors first before generic 'not found'
+  if (error.includes('Profile not found') || error.includes('Persona not found')) {
+    return '❌ Profile not found. Use `/me profile list` to see your profiles.';
+  }
+  if (error.includes('Personality not found') || error.includes('personality not found')) {
+    return `❌ Personality "${personalitySlug}" not found.`;
+  }
+  if (error.includes('no account') || error.includes('User not found')) {
+    return "❌ You don't have an account yet. Send a message to any personality to create one!";
+  }
+  return null;
+}
 
-  try {
-    // Check if user wants to create a new profile
-    if (personaId === CREATE_NEW_PERSONA_VALUE) {
-      // Get personality info via gateway
-      const infoResult = await callGatewayApi<OverrideInfoResponse>(
-        `/user/persona/override/${personalitySlug}`,
-        { userId: discordId }
-      );
+/** Show modal to create a new profile for override */
+async function showCreateOverrideModal(
+  context: ModalCommandContext,
+  discordId: string,
+  personalitySlug: string
+): Promise<void> {
+  const infoResult = await callGatewayApi<OverrideInfoResponse>(
+    `/user/persona/override/${personalitySlug}`,
+    { userId: discordId }
+  );
 
-      if (!infoResult.ok) {
-        // Handle specific errors
-        if (
-          infoResult.error?.includes('Personality not found') ||
-          infoResult.error?.includes('not found')
-        ) {
-          await interaction.reply({
-            content: `❌ Personality "${personalitySlug}" not found.`,
-            flags: MessageFlags.Ephemeral,
-          });
-          return;
-        }
-
-        if (infoResult.error?.includes('no account') || infoResult.error?.includes('User')) {
-          await interaction.reply({
-            content:
-              "❌ You don't have an account yet. Send a message to any personality to create one!",
-            flags: MessageFlags.Ephemeral,
-          });
-          return;
-        }
-
-        await interaction.reply({
-          content: '❌ Failed to prepare profile creation. Please try again later.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      const { personality } = infoResult.data;
-      const personalityName = personality.displayName ?? personality.name;
-
-      // Show modal to create new profile for this personality
-      const modal = new ModalBuilder()
-        .setCustomId(MeCustomIds.override.createForOverride(personality.id))
-        .setTitle(
-          `New Persona for ${truncateText(personalityName, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
-        );
-
-      const inputFields = buildPersonaModalFields(null, {
-        namePlaceholder: `e.g., "My ${personalityName} Persona"`,
-        preferredNameLabel: `Preferred Name (what ${personalityName} calls you)`,
-        preferredNamePlaceholder: `What should ${personalityName} call you?`,
-        contentLabel: `About You (for ${personalityName})`,
-        contentPlaceholder: `Tell ${personalityName} specific things about yourself...`,
-      });
-      modal.addComponents(...inputFields);
-
-      await interaction.showModal(modal);
-      logger.info(
-        { userId: discordId, personalityId: personality.id },
-        '[Me] Showed create-for-override modal'
-      );
-      return;
-    }
-
-    // User selected an existing profile - set override via gateway
-    const result = await callGatewayApi<SetOverrideResponse>(
-      `/user/persona/override/${personalitySlug}`,
-      {
-        userId: discordId,
-        method: 'PUT',
-        body: { personaId },
-      }
-    );
-
-    if (!result.ok) {
-      // Handle specific errors
-      if (
-        result.error?.includes('Personality not found') ||
-        result.error?.includes('personality')
-      ) {
-        await interaction.reply({
-          content: `❌ Personality "${personalitySlug}" not found.`,
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      if (result.error?.includes('no account') || result.error?.includes('User')) {
-        await interaction.reply({
-          content:
-            "❌ You don't have an account yet. Send a message to any personality to create one!",
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      if (result.error?.includes('Profile not found') || result.error?.includes('Persona')) {
-        await interaction.reply({
-          content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-
-      logger.warn(
-        { userId: discordId, personalitySlug, personaId, error: result.error },
-        '[Me] Failed to set override via gateway'
-      );
-      await interaction.reply({
-        content: '❌ Failed to set profile override. Please try again later.',
-        flags: MessageFlags.Ephemeral,
-      });
-      return;
-    }
-
-    const { personality, persona } = result.data;
-    const personalityName = personality.displayName ?? personality.name;
-    const displayName = persona.preferredName ?? persona.name;
-
-    logger.info(
-      { userId: discordId, personalityId: personality.id, personaId: persona.id },
-      '[Me] Set override profile'
-    );
-
-    await interaction.reply({
-      content: `✅ **Profile override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis profile will be used when talking to ${personalityName} instead of your default profile.`,
+  if (!infoResult.ok) {
+    const errorMsg = mapOverrideError(infoResult.error, personalitySlug);
+    await context.reply({
+      content: errorMsg ?? '❌ Failed to prepare profile creation. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });
+    return;
+  }
+
+  const { personality } = infoResult.data;
+  const personalityName = personality.displayName ?? personality.name;
+
+  const modal = new ModalBuilder()
+    .setCustomId(MeCustomIds.override.createForOverride(personality.id))
+    .setTitle(
+      `New Persona for ${truncateText(personalityName, DISCORD_LIMITS.MODAL_TITLE_DYNAMIC_CONTENT)}`
+    );
+
+  const inputFields = buildPersonaModalFields(null, {
+    namePlaceholder: `e.g., "My ${personalityName} Persona"`,
+    preferredNameLabel: `Preferred Name (what ${personalityName} calls you)`,
+    preferredNamePlaceholder: `What should ${personalityName} call you?`,
+    contentLabel: `About You (for ${personalityName})`,
+    contentPlaceholder: `Tell ${personalityName} specific things about yourself...`,
+  });
+  modal.addComponents(...inputFields);
+
+  await context.showModal(modal);
+  logger.info(
+    { userId: discordId, personalityId: personality.id },
+    '[Me] Showed create-for-override modal'
+  );
+}
+
+/** Set an existing profile as override for a personality */
+async function setExistingOverride(
+  context: ModalCommandContext,
+  discordId: string,
+  personalitySlug: string,
+  personaId: string
+): Promise<void> {
+  const result = await callGatewayApi<SetOverrideResponse>(
+    `/user/persona/override/${personalitySlug}`,
+    { userId: discordId, method: 'PUT', body: { personaId } }
+  );
+
+  if (!result.ok) {
+    const errorMsg = mapOverrideError(result.error, personalitySlug);
+    if (errorMsg !== null) {
+      await context.reply({ content: errorMsg, flags: MessageFlags.Ephemeral });
+      return;
+    }
+    logger.warn(
+      { userId: discordId, personalitySlug, personaId, error: result.error },
+      '[Me] Failed to set override'
+    );
+    await context.reply({
+      content: '❌ Failed to set profile override. Please try again later.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  const { personality, persona } = result.data;
+  const personalityName = personality.displayName ?? personality.name;
+  const displayName = persona.preferredName ?? persona.name;
+
+  logger.info(
+    { userId: discordId, personalityId: personality.id, personaId: persona.id },
+    '[Me] Set override profile'
+  );
+
+  await context.reply({
+    content: `✅ **Profile override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis profile will be used when talking to ${personalityName} instead of your default profile.`,
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+/**
+ * Handle /me profile override-set <personality> <profile> command
+ */
+export async function handleOverrideSet(context: ModalCommandContext): Promise<void> {
+  const discordId = context.user.id;
+  const personalitySlug = context.interaction.options.getString('personality', true);
+  const personaId = context.interaction.options.getString('profile', true);
+
+  try {
+    if (personaId === CREATE_NEW_PERSONA_VALUE) {
+      await showCreateOverrideModal(context, discordId, personalitySlug);
+    } else {
+      await setExistingOverride(context, discordId, personalitySlug, personaId);
+    }
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to set override');
-    await interaction.reply({
+    await context.reply({
       content: '❌ Failed to set profile override. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });

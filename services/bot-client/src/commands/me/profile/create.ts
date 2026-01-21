@@ -12,8 +12,9 @@
  */
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { MeCustomIds } from '../../../utils/customIds.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
@@ -37,7 +38,7 @@ interface CreatePersonaResponse {
 /**
  * Handle /me profile create command - shows modal
  */
-export async function handleCreatePersona(interaction: ChatInputCommandInteraction): Promise<void> {
+export async function handleCreatePersona(context: ModalCommandContext): Promise<void> {
   try {
     const modal = new ModalBuilder()
       .setCustomId(MeCustomIds.profile.create())
@@ -49,14 +50,14 @@ export async function handleCreatePersona(interaction: ChatInputCommandInteracti
     });
     modal.addComponents(...inputFields);
 
-    await interaction.showModal(modal);
-    logger.info({ userId: interaction.user.id }, '[Me/Profile] Showed create modal');
+    await context.showModal(modal);
+    logger.info({ userId: context.user.id }, '[Me/Profile] Showed create modal');
   } catch (error) {
     logger.error(
-      { err: error, userId: interaction.user.id },
+      { err: error, userId: context.user.id },
       '[Me/Profile] Failed to show create modal'
     );
-    await interaction.reply({
+    await context.reply({
       content: '❌ Failed to open create dialog. Please try again later.',
       flags: MessageFlags.Ephemeral,
     });

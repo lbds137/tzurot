@@ -7,8 +7,8 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-default');
@@ -27,11 +27,9 @@ interface SetDefaultResponse {
 /**
  * Handle /me profile default <profile> command
  */
-export async function handleSetDefaultPersona(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const discordId = interaction.user.id;
-  const personaId = interaction.options.getString('profile', true);
+export async function handleSetDefaultPersona(context: DeferredCommandContext): Promise<void> {
+  const discordId = context.user.id;
+  const personaId = context.interaction.options.getString('profile', true);
 
   try {
     // Set default via gateway API
@@ -43,7 +41,7 @@ export async function handleSetDefaultPersona(
     if (!result.ok) {
       // Handle specific error cases
       if (result.error?.includes('not found') || result.error?.includes('Not found')) {
-        await interaction.editReply({
+        await context.editReply({
           content: '❌ Profile not found. Use `/me profile list` to see your profiles.',
         });
         return;
@@ -53,7 +51,7 @@ export async function handleSetDefaultPersona(
         { userId: discordId, personaId, error: result.error },
         '[Me] Failed to set default profile'
       );
-      await interaction.editReply({
+      await context.editReply({
         content: '❌ Failed to set default profile. Please try again later.',
       });
       return;
@@ -64,7 +62,7 @@ export async function handleSetDefaultPersona(
 
     // Check if already default
     if (alreadyDefault === true) {
-      await interaction.editReply({
+      await context.editReply({
         content: `ℹ️ **${displayName}** is already your default profile.`,
       });
       return;
@@ -75,12 +73,12 @@ export async function handleSetDefaultPersona(
       '[Me] Set default profile'
     );
 
-    await interaction.editReply({
+    await context.editReply({
       content: `⭐ **${displayName}** is now your default profile.\n\nThis profile will be used when talking to personalities that don't have a specific override set.`,
     });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to set default profile');
-    await interaction.editReply({
+    await context.editReply({
       content: '❌ Failed to set default profile. Please try again later.',
     });
   }

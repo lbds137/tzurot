@@ -4,7 +4,6 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
@@ -12,8 +11,8 @@ import {
   type AIProvider,
   type LlmConfigSummary,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('me-preset-set');
@@ -41,10 +40,10 @@ interface ConfigListResponse {
 /**
  * Handle /me preset set
  */
-export async function handleSet(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityId = interaction.options.getString('personality', true);
-  const configId = interaction.options.getString('preset', true);
+export async function handleSet(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityId = context.interaction.options.getString('personality', true);
+  const configId = context.interaction.options.getString('preset', true);
 
   // Handle "Unlock All Models" upsell selection
   if (configId === UNLOCK_MODELS_VALUE) {
@@ -61,7 +60,7 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
       .setFooter({ text: 'Your API key is encrypted and stored securely' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
     logger.info({ userId }, '[Me/Preset] User clicked unlock models upsell');
     return;
   }
@@ -93,7 +92,7 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
           .setFooter({ text: 'Use /me preset list to see available free presets' })
           .setTimestamp();
 
-        await interaction.editReply({ embeds: [embed] });
+        await context.editReply({ embeds: [embed] });
         logger.info(
           { userId, configId, configName: selectedConfig.name, isGuestMode },
           '[Me/Preset] Guest mode user tried to set premium model'
@@ -113,7 +112,7 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
         { userId, status: result.status, personalityId, configId },
         '[Me/Preset] Failed to set override'
       );
-      await replyWithError(interaction, `Failed to set preset: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to set preset: ${result.error}` });
       return;
     }
 
@@ -128,7 +127,7 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
       .setFooter({ text: 'Use /me preset reset to remove this override' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       {
@@ -142,6 +141,7 @@ export async function handleSet(interaction: ChatInputCommandInteraction): Promi
       '[Me/Preset] Set override'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset Set' });
+    logger.error({ err: error, userId, command: 'Preset Set' }, '[Preset Set] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

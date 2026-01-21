@@ -1,35 +1,37 @@
 /**
  * Tests for Me Preset Reset Handler
  *
- * Tests /me preset reset subcommand:
- * - Successful override removal
- * - API error handling
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleReset } from './reset.js';
-import * as userGatewayClient from '../../../utils/userGatewayClient.js';
-import * as commandHelpers from '../../../utils/commandHelpers.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
-import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
+// Create mock EmbedBuilder-like objects
+function createMockEmbed(title: string, description?: string) {
+  const data: Record<string, unknown> = { title };
+  if (description !== undefined) {
+    data.description = description;
+  }
+  return { data };
+}
+
+const mockCreateSuccessEmbed = vi.fn((title: string, description: string) =>
+  createMockEmbed(title, description)
+);
+const mockCreateInfoEmbed = vi.fn((title: string, description: string) =>
+  createMockEmbed(title, description)
+);
+
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn(),
-  handleCommandError: vi.fn(),
-  createSuccessEmbed: vi.fn().mockImplementation(() => {
-    // Dynamic import to avoid hoisting issues
-    const { EmbedBuilder } = require('discord.js');
-    return new EmbedBuilder().setTitle('Success');
-  }),
-  createInfoEmbed: vi.fn().mockImplementation(() => {
-    const { EmbedBuilder } = require('discord.js');
-    return new EmbedBuilder().setTitle('Info');
-  }),
+  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...(args as [string, string])),
+  createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...(args as [string, string])),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -45,103 +47,97 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+
 describe('Me Preset Reset Handler', () => {
-  const createMockInteraction = (personalityId: string) =>
-    ({
-      user: { id: 'user-123' },
-      options: {
-        getString: vi.fn((_name: string, _required?: boolean) => personalityId),
-      },
-      editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockCreateSuccessEmbed.mockImplementation((title: string, description: string) =>
+      createMockEmbed(title, description)
+    );
+    mockCreateInfoEmbed.mockImplementation((title: string, description: string) =>
+      createMockEmbed(title, description)
+    );
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  function createMockContext(personalityId: string) {
+    return {
+      user: { id: 'user-123' },
+      interaction: {
+        options: {
+          getString: (_name: string, _required?: boolean) => personalityId,
+        },
+      },
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleReset>[0];
+  }
 
   describe('handleReset', () => {
     it('should successfully reset model override when one exists', async () => {
-      const mockInteraction = createMockInteraction('personality-123');
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: { deleted: true }, // wasSet defaults to true when not specified
       });
 
-      await handleReset(mockInteraction);
+      await handleReset(createMockContext('personality-123'));
 
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/model-override/personality-123',
-        {
-          method: 'DELETE',
-          userId: 'user-123',
-        }
-      );
+      expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/personality-123', {
+        method: 'DELETE',
+        userId: 'user-123',
+      });
 
-      expect(commandHelpers.createSuccessEmbed).toHaveBeenCalledWith(
+      expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The personality will now use its default preset.'
       );
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
       });
     });
 
     it('should show info message when no override was set', async () => {
-      const mockInteraction = createMockInteraction('personality-123');
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: { deleted: true, wasSet: false },
       });
 
-      await handleReset(mockInteraction);
+      await handleReset(createMockContext('personality-123'));
 
-      expect(commandHelpers.createInfoEmbed).toHaveBeenCalledWith(
+      expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
         'ℹ️ No Override Set',
         'This personality was already using its default preset.'
       );
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
+      expect(mockEditReply).toHaveBeenCalledWith({
+        embeds: [expect.objectContaining({ data: expect.objectContaining({}) })],
       });
     });
 
     it('should handle API error', async () => {
-      const mockInteraction = createMockInteraction('nonexistent');
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: false,
         status: 404,
         error: 'Override not found',
       });
 
-      await handleReset(mockInteraction);
+      await handleReset(createMockContext('nonexistent'));
 
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
-        mockInteraction,
-        'Failed to reset preset: Override not found'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Failed to reset preset: Override not found',
+      });
     });
 
-    it('should handle network errors with handleCommandError', async () => {
-      const mockInteraction = createMockInteraction('personality-123');
+    it('should handle network errors', async () => {
+      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Connection refused'));
 
-      const networkError = new Error('Connection refused');
-      vi.mocked(userGatewayClient.callGatewayApi).mockRejectedValue(networkError);
+      await handleReset(createMockContext('personality-123'));
 
-      await handleReset(mockInteraction);
-
-      expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
-        mockInteraction,
-        networkError,
-        { userId: 'user-123', command: 'Preset Reset' }
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ An error occurred. Please try again later.',
+      });
     });
   });
 });

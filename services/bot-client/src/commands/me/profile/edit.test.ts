@@ -41,12 +41,12 @@ describe('handleEditPersona', () => {
     mockShowModal.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
       showModal: mockShowModal,
       reply: mockReply,
-    } as any;
+    } as unknown as Parameters<typeof handleEditPersona>[0];
   }
 
   it('should show modal with empty fields for user with no persona', async () => {
@@ -55,7 +55,7 @@ describe('handleEditPersona', () => {
       data: mockListPersonasResponse([]),
     });
 
-    await handleEditPersona(createMockInteraction());
+    await handleEditPersona(createMockContext());
 
     expect(mockShowModal).toHaveBeenCalled();
     expect(mockReply).not.toHaveBeenCalled();
@@ -81,7 +81,7 @@ describe('handleEditPersona', () => {
       }),
     });
 
-    await handleEditPersona(createMockInteraction());
+    await handleEditPersona(createMockContext());
 
     expect(mockShowModal).toHaveBeenCalled();
   });
@@ -99,7 +99,7 @@ describe('handleEditPersona', () => {
       }),
     });
 
-    await handleEditPersona(createMockInteraction(), 'specific-persona');
+    await handleEditPersona(createMockContext(), 'specific-persona');
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/specific-persona', {
       userId: '123456789',
@@ -113,7 +113,7 @@ describe('handleEditPersona', () => {
       error: 'Persona not found',
     });
 
-    await handleEditPersona(createMockInteraction(), 'nonexistent-persona');
+    await handleEditPersona(createMockContext(), 'nonexistent-persona');
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile not found'),
@@ -125,7 +125,7 @@ describe('handleEditPersona', () => {
   it('should handle gateway errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleEditPersona(createMockInteraction());
+    await handleEditPersona(createMockContext());
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to open edit dialog'),

@@ -1,27 +1,17 @@
 /**
  * Tests for Me Preset List Handler
  *
- * Tests /me preset list subcommand:
- * - Empty overrides list
- * - List with overrides
- * - API error handling
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleListOverrides } from './list.js';
-import * as userGatewayClient from '../../../utils/userGatewayClient.js';
-import * as commandHelpers from '../../../utils/commandHelpers.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
-}));
-
-vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn(),
-  handleCommandError: vi.fn(),
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -37,39 +27,36 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
+import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+
 describe('Me Preset List Handler', () => {
-  const createMockInteraction = () =>
-    ({
-      user: { id: 'user-123' },
-      editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+  function createMockContext() {
+    return {
+      user: { id: 'user-123' },
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleListOverrides>[0];
+  }
 
   describe('handleListOverrides', () => {
     it('should show empty state when no overrides', async () => {
-      const mockInteraction = createMockInteraction();
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: { overrides: [] },
       });
 
-      await handleListOverrides(mockInteraction);
+      await handleListOverrides(createMockContext());
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       });
 
-      const embedCall = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
-        embeds: EmbedBuilder[];
-      };
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
 
@@ -78,9 +65,7 @@ describe('Me Preset List Handler', () => {
     });
 
     it('should list overrides when present', async () => {
-      const mockInteraction = createMockInteraction();
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
           overrides: [
@@ -90,11 +75,9 @@ describe('Me Preset List Handler', () => {
         },
       });
 
-      await handleListOverrides(mockInteraction);
+      await handleListOverrides(createMockContext());
 
-      const embedCall = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
-        embeds: EmbedBuilder[];
-      };
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
 
@@ -106,20 +89,16 @@ describe('Me Preset List Handler', () => {
     });
 
     it('should handle unknown config name', async () => {
-      const mockInteraction = createMockInteraction();
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: {
           overrides: [{ personalityName: 'Test', configName: null }],
         },
       });
 
-      await handleListOverrides(mockInteraction);
+      await handleListOverrides(createMockContext());
 
-      const embedCall = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
-        embeds: EmbedBuilder[];
-      };
+      const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
       const embedData = embed.toJSON();
 
@@ -127,35 +106,27 @@ describe('Me Preset List Handler', () => {
     });
 
     it('should handle API error', async () => {
-      const mockInteraction = createMockInteraction();
-
-      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+      vi.mocked(callGatewayApi).mockResolvedValue({
         ok: false,
         status: 500,
         error: 'Internal error',
       });
 
-      await handleListOverrides(mockInteraction);
+      await handleListOverrides(createMockContext());
 
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
-        mockInteraction,
-        'Failed to get overrides. Please try again later.'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Failed to get overrides. Please try again later.',
+      });
     });
 
-    it('should handle network errors with handleCommandError', async () => {
-      const mockInteraction = createMockInteraction();
+    it('should handle network errors', async () => {
+      vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-      const networkError = new Error('Network error');
-      vi.mocked(userGatewayClient.callGatewayApi).mockRejectedValue(networkError);
+      await handleListOverrides(createMockContext());
 
-      await handleListOverrides(mockInteraction);
-
-      expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
-        mockInteraction,
-        networkError,
-        { userId: 'user-123', command: 'Preset List' }
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ An error occurred. Please try again later.',
+      });
     });
   });
 });

@@ -1,5 +1,8 @@
 /**
  * Tests for Preset Clear-Default Handler
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -11,14 +14,7 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
-// Mock commandHelpers
-vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn().mockResolvedValue(undefined),
-  handleCommandError: vi.fn().mockResolvedValue(undefined),
-}));
-
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -36,43 +32,40 @@ vi.mock('@tzurot/common-types', async () => {
 
 describe('handleClearDefault', () => {
   const mockEditReply = vi.fn();
-  const mockCallGatewayApi = vi.mocked(callGatewayApi);
-  const mockReplyWithError = vi.mocked(replyWithError);
-  const mockHandleCommandError = vi.mocked(handleCommandError);
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockEditReply.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789' },
       editReply: mockEditReply,
-    } as any;
+    } as unknown as Parameters<typeof handleClearDefault>[0];
   }
 
   it('should call gateway API with DELETE method', async () => {
-    mockCallGatewayApi.mockResolvedValue({
+    vi.mocked(callGatewayApi).mockResolvedValue({
       ok: true,
       data: mockClearDefaultConfigResponse(),
     });
 
-    await handleClearDefault(createMockInteraction());
+    await handleClearDefault(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
+    expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'DELETE',
       userId: '123456789',
     });
   });
 
   it('should show success embed when config cleared', async () => {
-    mockCallGatewayApi.mockResolvedValue({
+    vi.mocked(callGatewayApi).mockResolvedValue({
       ok: true,
       data: mockClearDefaultConfigResponse(),
     });
 
-    await handleClearDefault(createMockInteraction());
+    await handleClearDefault(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -86,29 +79,26 @@ describe('handleClearDefault', () => {
   });
 
   it('should show error when API fails', async () => {
-    mockCallGatewayApi.mockResolvedValue({
+    vi.mocked(callGatewayApi).mockResolvedValue({
       ok: false,
       status: 500,
       error: 'Internal server error',
     });
 
-    await handleClearDefault(createMockInteraction());
+    await handleClearDefault(createMockContext());
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      expect.anything(),
-      'Failed to clear default: Internal server error'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to clear default: Internal server error',
+    });
   });
 
-  it('should handle exceptions with handleCommandError', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+  it('should handle exceptions', async () => {
+    vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-    await handleClearDefault(createMockInteraction());
+    await handleClearDefault(createMockContext());
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(expect.anything(), error, {
-      userId: '123456789',
-      command: 'Preset Clear-Default',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });

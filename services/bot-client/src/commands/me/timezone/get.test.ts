@@ -1,5 +1,8 @@
 /**
  * Tests for Timezone Get Handler
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -25,10 +28,6 @@ const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
-
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 
 // Create mock EmbedBuilder-like objects
 function createMockEmbed(title: string, description?: string) {
@@ -58,8 +57,6 @@ const mockCreateInfoEmbed = vi.fn((title: string, description?: string) =>
 );
 
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createInfoEmbed: (...args: unknown[]) =>
     mockCreateInfoEmbed(...(args as [string, string | undefined])),
 }));
@@ -74,12 +71,9 @@ describe('handleTimezoneGet', () => {
     );
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: () => null,
-      },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleTimezoneGet>[0];
   }
@@ -90,8 +84,7 @@ describe('handleTimezoneGet', () => {
       data: mockGetTimezoneResponse({ timezone: 'America/New_York', isDefault: false }),
     });
 
-    const interaction = createMockInteraction();
-    await handleTimezoneGet(interaction);
+    await handleTimezoneGet(createMockContext());
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/timezone', {
       userId: '123456789',
@@ -109,8 +102,7 @@ describe('handleTimezoneGet', () => {
       data: mockGetTimezoneResponse({ timezone: 'UTC', isDefault: true }),
     });
 
-    const interaction = createMockInteraction();
-    await handleTimezoneGet(interaction);
+    await handleTimezoneGet(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -130,25 +122,20 @@ describe('handleTimezoneGet', () => {
       error: 'Server error',
     });
 
-    const interaction = createMockInteraction();
-    await handleTimezoneGet(interaction);
+    await handleTimezoneGet(createMockContext());
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to get timezone. Please try again later.'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to get timezone. Please try again later.',
+    });
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    const interaction = createMockInteraction();
-    await handleTimezoneGet(interaction);
+    await handleTimezoneGet(createMockContext());
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Timezone Get',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });

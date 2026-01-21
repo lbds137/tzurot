@@ -36,16 +36,16 @@ describe('handleCreatePersona', () => {
     mockShowModal.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
       showModal: mockShowModal,
       reply: mockReply,
-    } as any;
+    } as unknown as Parameters<typeof handleCreatePersona>[0];
   }
 
   it('should show create modal', async () => {
-    await handleCreatePersona(createMockInteraction());
+    await handleCreatePersona(createMockContext());
 
     expect(mockShowModal).toHaveBeenCalled();
     expect(mockReply).not.toHaveBeenCalled();
@@ -54,7 +54,7 @@ describe('handleCreatePersona', () => {
   it('should handle errors gracefully', async () => {
     mockShowModal.mockRejectedValue(new Error('Modal error'));
 
-    await handleCreatePersona(createMockInteraction());
+    await handleCreatePersona(createMockContext());
 
     expect(mockReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to open create dialog'),

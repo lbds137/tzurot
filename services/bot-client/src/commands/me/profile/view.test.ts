@@ -36,11 +36,11 @@ describe('handleViewPersona', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789' },
       editReply: mockEditReply,
-    } as any;
+    } as unknown as Parameters<typeof handleViewPersona>[0];
   }
 
   it('should show error when user has no personas', async () => {
@@ -49,7 +49,7 @@ describe('handleViewPersona', () => {
       data: mockListPersonasResponse([]),
     });
 
-    await handleViewPersona(createMockInteraction());
+    await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a profile"),
@@ -65,7 +65,7 @@ describe('handleViewPersona', () => {
       ]),
     });
 
-    await handleViewPersona(createMockInteraction());
+    await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have a default profile"),
@@ -93,7 +93,7 @@ describe('handleViewPersona', () => {
       }),
     });
 
-    await handleViewPersona(createMockInteraction());
+    await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -128,7 +128,7 @@ describe('handleViewPersona', () => {
       }),
     });
 
-    await handleViewPersona(createMockInteraction());
+    await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];
@@ -145,7 +145,7 @@ describe('handleViewPersona', () => {
       error: 'Gateway error',
     });
 
-    await handleViewPersona(createMockInteraction());
+    await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to retrieve'),
@@ -155,7 +155,7 @@ describe('handleViewPersona', () => {
   it('should handle network errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleViewPersona(createMockInteraction());
+    await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to retrieve'),

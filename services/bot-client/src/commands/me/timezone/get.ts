@@ -3,14 +3,10 @@
  * Handles /me timezone get command
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createInfoEmbed,
-} from '../../../utils/commandHelpers.js';
+import { createInfoEmbed } from '../../../utils/commandHelpers.js';
 import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
 
 const logger = createLogger('timezone-get');
@@ -18,15 +14,15 @@ const logger = createLogger('timezone-get');
 /**
  * Handle /me timezone get
  */
-export async function handleTimezoneGet(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleTimezoneGet(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   try {
     const result = await callGatewayApi<TimezoneResponse>('/user/timezone', { userId });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, '[Timezone] Failed to get timezone');
-      await replyWithError(interaction, 'Failed to get timezone. Please try again later.');
+      await context.editReply({ content: '❌ Failed to get timezone. Please try again later.' });
       return;
     }
 
@@ -49,8 +45,9 @@ export async function handleTimezoneGet(interaction: ChatInputCommandInteraction
       })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Timezone Get' });
+    logger.error({ err: error, userId, command: 'Timezone Get' }, '[Timezone Get] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
