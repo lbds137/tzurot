@@ -26,13 +26,7 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
-vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
-}));
+// Note: Handlers now use context.editReply() directly, not commandHelpers
 
 describe('handleList', () => {
   const mockEditReply = vi.fn();
@@ -41,7 +35,7 @@ describe('handleList', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789' },
       editReply: mockEditReply,
@@ -91,8 +85,8 @@ describe('handleList', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: '123456789' });
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/list', { userId: '123456789' });
@@ -129,8 +123,8 @@ describe('handleList', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -150,25 +144,23 @@ describe('handleList', () => {
       error: 'Server error',
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to get presets. Please try again later.'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to get presets. Please try again later.',
+    });
   });
 
   it('should handle exceptions', async () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Preset List',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });

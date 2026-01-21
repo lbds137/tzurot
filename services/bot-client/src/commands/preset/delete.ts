@@ -3,23 +3,19 @@
  * Handles /preset delete subcommand
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createSuccessEmbed,
-} from '../../utils/commandHelpers.js';
+import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('preset-delete');
 
 /**
  * Handle /preset delete
  */
-export async function handleDelete(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const presetId = interaction.options.getString('preset', true);
+export async function handleDelete(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const presetId = context.interaction.options.getString('preset', true);
 
   try {
     const result = await callGatewayApi<void>(`/user/llm-config/${presetId}`, {
@@ -29,15 +25,16 @@ export async function handleDelete(interaction: ChatInputCommandInteraction): Pr
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, presetId }, '[Preset] Failed to delete preset');
-      await replyWithError(interaction, `Failed to delete preset: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to delete preset: ${result.error}` });
       return;
     }
 
     const embed = createSuccessEmbed('🗑️ Preset Deleted', 'Your preset has been deleted.');
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, presetId }, '[Preset] Deleted preset');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset Delete' });
+    logger.error({ err: error, userId }, '[Preset] Error deleting preset');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

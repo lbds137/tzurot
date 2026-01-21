@@ -3,7 +3,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
 import presetCommand from './index.js';
 
 // Destructure from default export
@@ -14,7 +13,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
-    requireBotOwner: vi.fn(),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
@@ -23,6 +21,12 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
+
+// Mock requireBotOwnerContext from factories
+const mockRequireBotOwnerContext = vi.fn();
+vi.mock('../../utils/commandContext/factories.js', () => ({
+  requireBotOwnerContext: (...args: unknown[]) => mockRequireBotOwnerContext(...args),
+}));
 
 // Mock subcommand handlers
 vi.mock('./list.js', () => ({ handleList: vi.fn() }));
@@ -35,7 +39,6 @@ vi.mock('./global/edit.js', () => ({ handleGlobalEdit: vi.fn() }));
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/set-free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
-import { requireBotOwner } from '@tzurot/common-types';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
@@ -45,20 +48,24 @@ import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
 
 describe('Preset Command', () => {
-  const mockReply = vi.fn();
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(subcommand: string, subcommandGroup: string | null = null) {
+  function createMockContext(subcommand: string, subcommandGroup: string | null = null) {
     return {
       user: { id: '123456789' },
-      options: {
-        getSubcommand: () => subcommand,
-        getSubcommandGroup: () => subcommandGroup,
+      interaction: {
+        options: {
+          getSubcommand: () => subcommand,
+          getSubcommandGroup: () => subcommandGroup,
+        },
       },
-      reply: mockReply,
+      getSubcommand: () => subcommand,
+      getSubcommandGroup: () => subcommandGroup,
+      editReply: mockEditReply,
     } as unknown as Parameters<typeof execute>[0];
   }
 
@@ -89,78 +96,78 @@ describe('Preset Command', () => {
 
   describe('user preset routing', () => {
     it('should route "list" to handleList', async () => {
-      const interaction = createMockInteraction('list');
-      await execute(interaction);
-      expect(handleList).toHaveBeenCalledWith(interaction);
+      const context = createMockContext('list');
+      await execute(context);
+      expect(handleList).toHaveBeenCalledWith(context);
     });
 
     it('should route "create" to handleCreate', async () => {
-      const interaction = createMockInteraction('create');
-      await execute(interaction);
-      expect(handleCreate).toHaveBeenCalledWith(interaction);
+      const context = createMockContext('create');
+      await execute(context);
+      expect(handleCreate).toHaveBeenCalledWith(context);
     });
 
     it('should route "delete" to handleDelete', async () => {
-      const interaction = createMockInteraction('delete');
-      await execute(interaction);
-      expect(handleDelete).toHaveBeenCalledWith(interaction);
+      const context = createMockContext('delete');
+      await execute(context);
+      expect(handleDelete).toHaveBeenCalledWith(context);
     });
 
     it('should reply with error for unknown subcommand', async () => {
-      const interaction = createMockInteraction('unknown');
-      await execute(interaction);
-      expect(mockReply).toHaveBeenCalledWith({
+      const context = createMockContext('unknown');
+      await execute(context);
+      // Note: editReply doesn't need flags - ephemerality is set at deferral time
+      expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
       });
     });
   });
 
   describe('global preset routing (owner only)', () => {
     it('should check owner permission for global create', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(false);
-      const interaction = createMockInteraction('create', 'global');
+      mockRequireBotOwnerContext.mockResolvedValue(false);
+      const context = createMockContext('create', 'global');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(requireBotOwner).toHaveBeenCalledWith(interaction);
+      expect(mockRequireBotOwnerContext).toHaveBeenCalledWith(context);
       expect(handleGlobalCreate).not.toHaveBeenCalled();
     });
 
     it('should route to handleGlobalCreate when owner check passes', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      const interaction = createMockInteraction('create', 'global');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('create', 'global');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleGlobalCreate).toHaveBeenCalledWith(interaction);
+      expect(handleGlobalCreate).toHaveBeenCalledWith(context);
     });
 
     it('should route to handleGlobalEdit when owner check passes', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      const interaction = createMockInteraction('edit', 'global');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('edit', 'global');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleGlobalEdit).toHaveBeenCalledWith(interaction);
+      expect(handleGlobalEdit).toHaveBeenCalledWith(context);
     });
 
     it('should route to handleGlobalSetDefault when owner check passes', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      const interaction = createMockInteraction('set-default', 'global');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('set-default', 'global');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleGlobalSetDefault).toHaveBeenCalledWith(interaction);
+      expect(handleGlobalSetDefault).toHaveBeenCalledWith(context);
     });
 
     it('should route to handleGlobalSetFreeDefault when owner check passes', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      const interaction = createMockInteraction('set-free-default', 'global');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('set-free-default', 'global');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleGlobalSetFreeDefault).toHaveBeenCalledWith(interaction);
+      expect(handleGlobalSetFreeDefault).toHaveBeenCalledWith(context);
     });
   });
 });

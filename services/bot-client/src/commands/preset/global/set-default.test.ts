@@ -9,8 +9,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleGlobalSetDefault } from './set-default.js';
 import * as adminApiClient from '../../../utils/adminApiClient.js';
-import * as commandHelpers from '../../../utils/commandHelpers.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
@@ -18,10 +16,7 @@ vi.mock('../../../utils/adminApiClient.js', () => ({
   adminPutJson: vi.fn(),
 }));
 
-vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn(),
-  handleCommandError: vi.fn(),
-}));
+// Note: Handlers now use context.editReply() directly, not commandHelpers
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -37,14 +32,18 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('Preset Global Set Default Handler', () => {
-  const createMockInteraction = (configId: string) =>
+  const mockEditReply = vi.fn();
+
+  const createMockContext = (configId: string) =>
     ({
       user: { id: 'owner-123' },
-      options: {
-        getString: vi.fn((_name: string, _required?: boolean) => configId),
+      interaction: {
+        options: {
+          getString: vi.fn((_name: string, _required?: boolean) => configId),
+        },
       },
-      editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+      editReply: mockEditReply,
+    }) as unknown as Parameters<typeof handleGlobalSetDefault>[0];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -56,25 +55,25 @@ describe('Preset Global Set Default Handler', () => {
 
   describe('handleGlobalSetDefault', () => {
     it('should successfully set system default', async () => {
-      const mockInteraction = createMockInteraction('config-123');
+      const context = createMockContext('config-123');
 
       vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({ configName: 'Claude Opus' }),
       } as unknown as Response);
 
-      await handleGlobalSetDefault(mockInteraction);
+      await handleGlobalSetDefault(context);
 
       expect(adminApiClient.adminPutJson).toHaveBeenCalledWith(
         '/admin/llm-config/config-123/set-default',
         {}
       );
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       });
 
-      const embedCall = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const embedCall = mockEditReply.mock.calls[0][0] as {
         embeds: EmbedBuilder[];
       };
       const embed = embedCall.embeds[0];
@@ -86,7 +85,7 @@ describe('Preset Global Set Default Handler', () => {
     });
 
     it('should handle API error response', async () => {
-      const mockInteraction = createMockInteraction('invalid-config');
+      const context = createMockContext('invalid-config');
 
       vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
         ok: false,
@@ -94,16 +93,15 @@ describe('Preset Global Set Default Handler', () => {
         json: vi.fn().mockResolvedValue({ error: 'Config not found' }),
       } as unknown as Response);
 
-      await handleGlobalSetDefault(mockInteraction);
+      await handleGlobalSetDefault(context);
 
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
-        mockInteraction,
-        'Config not found'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Config not found',
+      });
     });
 
     it('should handle API error without message', async () => {
-      const mockInteraction = createMockInteraction('config-123');
+      const context = createMockContext('config-123');
 
       vi.mocked(adminApiClient.adminPutJson).mockResolvedValue({
         ok: false,
@@ -111,24 +109,23 @@ describe('Preset Global Set Default Handler', () => {
         json: vi.fn().mockResolvedValue({}),
       } as unknown as Response);
 
-      await handleGlobalSetDefault(mockInteraction);
+      await handleGlobalSetDefault(context);
 
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(mockInteraction, 'HTTP 500');
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ HTTP 500',
+      });
     });
 
-    it('should handle network errors with handleCommandError', async () => {
-      const mockInteraction = createMockInteraction('config-123');
+    it('should handle network errors', async () => {
+      const context = createMockContext('config-123');
 
-      const networkError = new Error('Connection timeout');
-      vi.mocked(adminApiClient.adminPutJson).mockRejectedValue(networkError);
+      vi.mocked(adminApiClient.adminPutJson).mockRejectedValue(new Error('Connection timeout'));
 
-      await handleGlobalSetDefault(mockInteraction);
+      await handleGlobalSetDefault(context);
 
-      expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
-        mockInteraction,
-        networkError,
-        { userId: 'owner-123', command: 'Preset Global Set Default' }
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ An error occurred. Please try again later.',
+      });
     });
   });
 });
