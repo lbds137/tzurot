@@ -77,8 +77,34 @@ export interface CommandDefinition {
    * When set, the command's execute() receives a typed SafeCommandContext
    * instead of raw ChatInputCommandInteraction. This enables compile-time
    * prevention of InteractionAlreadyReplied errors.
+   *
+   * For commands with mixed subcommand modes, use `subcommandDeferralModes`
+   * to override specific subcommands.
    */
   deferralMode?: DeferralMode;
+
+  /**
+   * Per-subcommand deferral mode overrides.
+   *
+   * Use this for commands where different subcommands need different deferral
+   * behavior. The key is either the subcommand name (e.g., 'set') or the full
+   * path for subcommand groups (e.g., 'profile create').
+   *
+   * @example
+   * ```typescript
+   * defineCommand({
+   *   deferralMode: 'ephemeral', // Default for most subcommands
+   *   subcommandDeferralModes: {
+   *     'set': 'modal', // /wallet set shows a modal
+   *   },
+   *   execute: async (context) => {
+   *     // Context type varies based on which subcommand was invoked
+   *     // Framework handles this automatically
+   *   },
+   * });
+   * ```
+   */
+  subcommandDeferralModes?: Record<string, DeferralMode>;
 
   /**
    * Main command execution handler.
@@ -130,6 +156,7 @@ export interface CommandDefinition {
 export const VALID_COMMAND_KEYS: readonly (keyof CommandDefinition)[] = [
   'data',
   'deferralMode',
+  'subcommandDeferralModes',
   'execute',
   'autocomplete',
   'handleButton',

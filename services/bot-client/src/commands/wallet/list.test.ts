@@ -3,8 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleListKeys } from './list.js';
 import { mockListWalletKeysResponse, AIProvider } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -26,14 +28,6 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
-vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
-}));
-
 // Mock providers
 vi.mock('../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
@@ -51,11 +45,30 @@ describe('handleListKeys', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction() {
-    return {
+  function createMockContext(): DeferredCommandContext {
+    const mockInteraction = {
       user: { id: '123456789' },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleListKeys>[0];
+    } as unknown as ChatInputCommandInteraction;
+
+    return {
+      interaction: mockInteraction,
+      user: mockInteraction.user,
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'wallet',
+      isEphemeral: true,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: vi.fn().mockReturnValue('list'),
+      getSubcommandGroup: vi.fn().mockReturnValue(null),
+    } as unknown as DeferredCommandContext;
   }
 
   it('should list keys successfully', async () => {
@@ -71,8 +84,8 @@ describe('handleListKeys', () => {
       ]),
     });
 
-    const interaction = createMockInteraction();
-    await handleListKeys(interaction);
+    const context = createMockContext();
+    await handleListKeys(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/list', { userId: '123456789' });
     expect(mockEditReply).toHaveBeenCalledWith({
@@ -93,8 +106,8 @@ describe('handleListKeys', () => {
       data: mockListWalletKeysResponse([]),
     });
 
-    const interaction = createMockInteraction();
-    await handleListKeys(interaction);
+    const context = createMockContext();
+    await handleListKeys(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -115,25 +128,23 @@ describe('handleListKeys', () => {
       error: 'Server error',
     });
 
-    const interaction = createMockInteraction();
-    await handleListKeys(interaction);
+    const context = createMockContext();
+    await handleListKeys(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to retrieve wallet info: Server error'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to retrieve wallet info: Server error',
+    });
   });
 
   it('should handle exceptions', async () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleListKeys(interaction);
+    const context = createMockContext();
+    await handleListKeys(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Wallet List',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An unexpected error occurred. Please try again.',
     });
   });
 
@@ -150,8 +161,8 @@ describe('handleListKeys', () => {
       ]),
     });
 
-    const interaction = createMockInteraction();
-    await handleListKeys(interaction);
+    const context = createMockContext();
+    await handleListKeys(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [

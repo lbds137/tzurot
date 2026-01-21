@@ -6,13 +6,15 @@
  * - Never displays actual API keys
  * - Shows only provider names and status
  * - Response is ephemeral (only visible to the user)
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral' for this subcommand.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-list');
@@ -30,14 +32,14 @@ interface WalletListResponse {
  * Handle /wallet list subcommand
  * Displays configured API keys (without showing actual keys)
  */
-export async function handleListKeys(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleListKeys(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   try {
     const result = await callGatewayApi<WalletListResponse>('/wallet/list', { userId });
 
     if (!result.ok) {
-      await replyWithError(interaction, `Failed to retrieve wallet info: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to retrieve wallet info: ${result.error}` });
       return;
     }
 
@@ -59,7 +61,7 @@ export async function handleListKeys(interaction: ChatInputCommandInteraction): 
         .setFooter({ text: 'BYOK = Bring Your Own Key' })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [embed] });
+      await context.editReply({ embeds: [embed] });
       return;
     }
 
@@ -94,10 +96,11 @@ export async function handleListKeys(interaction: ChatInputCommandInteraction): 
       .setFooter({ text: 'Keys are encrypted at rest and never visible' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, keyCount: data.keys.length }, '[Wallet List] Listed keys');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Wallet List' });
+    logger.error({ error, userId }, '[Wallet List] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

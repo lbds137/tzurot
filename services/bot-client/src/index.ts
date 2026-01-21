@@ -280,18 +280,64 @@ client.on(Events.InteractionCreate, interaction => {
 });
 
 /**
+ * Get the subcommand path for looking up deferral mode overrides.
+ * Returns 'group subcommand' for subcommand groups, or just 'subcommand' for simple subcommands.
+ */
+function getSubcommandPath(
+  interaction: import('discord.js').ChatInputCommandInteraction
+): string | null {
+  try {
+    const group = interaction.options.getSubcommandGroup(false);
+    const subcommand = interaction.options.getSubcommand(false);
+
+    if (group !== null && subcommand !== null) {
+      return `${group} ${subcommand}`;
+    }
+    return subcommand;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolve the effective deferral mode for a command/subcommand.
+ *
+ * Checks subcommandDeferralModes for overrides, falls back to deferralMode.
+ */
+function resolveEffectiveDeferralMode(
+  command: import('./types.js').Command,
+  interaction: import('discord.js').ChatInputCommandInteraction
+): import('./utils/commandContext/index.js').DeferralMode {
+  const defaultMode = command.deferralMode ?? 'ephemeral';
+
+  // Check for subcommand-level override
+  if (command.subcommandDeferralModes !== undefined) {
+    const subcommandPath = getSubcommandPath(interaction);
+    if (subcommandPath !== null && subcommandPath in command.subcommandDeferralModes) {
+      return command.subcommandDeferralModes[subcommandPath];
+    }
+  }
+
+  return defaultMode;
+}
+
+/**
  * Handle a command using the new typed context pattern.
  *
  * Commands with deferralMode receive a SafeCommandContext that doesn't
  * expose deferReply() (for deferred modes), preventing InteractionAlreadyReplied
  * errors at compile time.
+ *
+ * For commands with mixed subcommand requirements, subcommandDeferralModes
+ * allows per-subcommand overrides of the default deferral behavior.
  */
 async function handleCommandWithContext(
   interaction: import('discord.js').ChatInputCommandInteraction,
   command: import('./types.js').Command,
   fullCommand: string
 ): Promise<void> {
-  const deferralMode = command.deferralMode;
+  // Resolve effective deferral mode (may be overridden per-subcommand)
+  const effectiveMode = resolveEffectiveDeferralMode(command, interaction);
 
   // Type assertion: We dispatch the correct context type based on deferralMode,
   // but TypeScript can't narrow the execute function signature at compile time.
@@ -301,11 +347,11 @@ async function handleCommandWithContext(
   ) => Promise<void>;
   const execute = command.execute as ContextExecute;
 
-  switch (deferralMode) {
+  switch (effectiveMode) {
     case 'ephemeral':
     case 'public': {
       // Defer appropriately
-      const isEphemeral = deferralMode === 'ephemeral';
+      const isEphemeral = effectiveMode === 'ephemeral';
       try {
         await interaction.deferReply({
           flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
