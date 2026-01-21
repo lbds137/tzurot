@@ -36,11 +36,11 @@ describe('handleListPersonas', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789', username: 'testuser' },
       editReply: mockEditReply,
-    } as any;
+    } as unknown as Parameters<typeof handleListPersonas>[0];
   }
 
   it('should show empty state when user has no profiles', async () => {
@@ -49,7 +49,7 @@ describe('handleListPersonas', () => {
       data: mockListPersonasResponse([]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining("don't have any profiles yet"),
@@ -62,7 +62,7 @@ describe('handleListPersonas', () => {
       error: 'Gateway error',
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to load'),
@@ -90,7 +90,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.arrayContaining([
@@ -117,7 +117,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];
@@ -155,7 +155,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];
@@ -167,7 +167,7 @@ describe('handleListPersonas', () => {
   it('should handle network errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to load'),
@@ -189,7 +189,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];
@@ -211,7 +211,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];
@@ -235,7 +235,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];
@@ -261,7 +261,7 @@ describe('handleListPersonas', () => {
       ]),
     });
 
-    await handleListPersonas(createMockInteraction());
+    await handleListPersonas(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalled();
     const call = mockEditReply.mock.calls[0][0];

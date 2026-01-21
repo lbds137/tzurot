@@ -134,159 +134,111 @@ describe('Me Command Index', () => {
   });
 
   describe('execute - subcommand routing', () => {
+    /**
+     * Create a mock SafeCommandContext for routing tests
+     * Context methods (getSubcommandGroup, getSubcommand) are on the context itself
+     */
+    function createMockContext(
+      group: string,
+      subcommand: string,
+      options: { getString?: (name: string) => string | null } = {}
+    ) {
+      return {
+        user: { id: '123' },
+        interaction: {
+          options: {
+            getString: options.getString ?? (() => null),
+          },
+        },
+        getSubcommandGroup: () => group,
+        getSubcommand: () => subcommand,
+        editReply: vi.fn(),
+        showModal: vi.fn(),
+        reply: vi.fn(),
+      } as any;
+    }
+
     it('should route to view handler for /me profile view', async () => {
       const { handleViewPersona } = await import('./profile/view.js');
+      const context = createMockContext('profile', 'view');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'view',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleViewPersona).toHaveBeenCalledWith(interaction);
+      expect(handleViewPersona).toHaveBeenCalledWith(context);
     });
 
     it('should route to edit handler for /me profile edit', async () => {
       const { handleEditPersona } = await import('./profile/edit.js');
+      const context = createMockContext('profile', 'edit');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'edit',
-          getString: () => null, // No persona specified
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleEditPersona).toHaveBeenCalledWith(interaction, null);
+      expect(handleEditPersona).toHaveBeenCalledWith(context, null);
     });
 
     it('should pass profile ID to edit handler when specified', async () => {
       const { handleEditPersona } = await import('./profile/edit.js');
+      const context = createMockContext('profile', 'edit', {
+        getString: () => 'persona-123',
+      });
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'edit',
-          getString: () => 'persona-123',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleEditPersona).toHaveBeenCalledWith(interaction, 'persona-123');
+      expect(handleEditPersona).toHaveBeenCalledWith(context, 'persona-123');
     });
 
     it('should route to create handler for /me profile create', async () => {
       const { handleCreatePersona } = await import('./profile/create.js');
+      const context = createMockContext('profile', 'create');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'create',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleCreatePersona).toHaveBeenCalledWith(interaction);
+      expect(handleCreatePersona).toHaveBeenCalledWith(context);
     });
 
     it('should route to list handler for /me profile list', async () => {
       const { handleListPersonas } = await import('./profile/list.js');
+      const context = createMockContext('profile', 'list');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'list',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleListPersonas).toHaveBeenCalledWith(interaction);
+      expect(handleListPersonas).toHaveBeenCalledWith(context);
     });
 
     it('should route to default handler for /me profile default', async () => {
       const { handleSetDefaultPersona } = await import('./profile/default.js');
+      const context = createMockContext('profile', 'default');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'default',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleSetDefaultPersona).toHaveBeenCalledWith(interaction);
+      expect(handleSetDefaultPersona).toHaveBeenCalledWith(context);
     });
 
     it('should route to share-ltm handler for /me profile share-ltm', async () => {
       const { handleShareLtmSetting } = await import('./profile/share-ltm.js');
+      const context = createMockContext('profile', 'share-ltm');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'share-ltm',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleShareLtmSetting).toHaveBeenCalledWith(interaction);
+      expect(handleShareLtmSetting).toHaveBeenCalledWith(context);
     });
 
     it('should route to override-set handler for /me profile override-set', async () => {
       const { handleOverrideSet } = await import('./profile/override-set.js');
+      const context = createMockContext('profile', 'override-set');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'override-set',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleOverrideSet).toHaveBeenCalledWith(interaction);
+      expect(handleOverrideSet).toHaveBeenCalledWith(context);
     });
 
     it('should route to override-clear handler for /me profile override-clear', async () => {
       const { handleOverrideClear } = await import('./profile/override-clear.js');
+      const context = createMockContext('profile', 'override-clear');
 
-      const interaction = {
-        isModalSubmit: () => false,
-        options: {
-          getSubcommandGroup: () => 'profile',
-          getSubcommand: () => 'override-clear',
-        },
-        user: { id: '123' },
-      } as any;
+      await execute(context);
 
-      await execute(interaction);
-
-      expect(handleOverrideClear).toHaveBeenCalledWith(interaction);
+      expect(handleOverrideClear).toHaveBeenCalledWith(context);
     });
   });
 

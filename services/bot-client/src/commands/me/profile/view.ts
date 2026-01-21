@@ -18,8 +18,9 @@ import {
   ActionRowBuilder,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { MeCustomIds } from '../../../utils/customIds.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
@@ -44,50 +45,95 @@ interface PersonaDetails extends PersonaSummary {
 /** Maximum content length to show in embed before truncating */
 const CONTENT_PREVIEW_LENGTH = 1000;
 
+/** Build embed and action row for profile view */
+function buildProfileEmbed(personaDetails: PersonaDetails): {
+  embed: EmbedBuilder;
+  components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
+} {
+  const embed = new EmbedBuilder().setTitle('🎭 Your Profile').setColor(0x5865f2).setTimestamp();
+
+  if (personaDetails.preferredName !== null && personaDetails.preferredName.length > 0) {
+    embed.addFields({
+      name: '📛 Preferred Name',
+      value: personaDetails.preferredName,
+      inline: true,
+    });
+  }
+
+  if (personaDetails.pronouns !== null && personaDetails.pronouns.length > 0) {
+    embed.addFields({ name: '🏷️ Pronouns', value: personaDetails.pronouns, inline: true });
+  }
+
+  const ltmStatus = personaDetails.shareLtmAcrossPersonalities
+    ? '✅ Enabled - Memories shared across all personalities'
+    : '❌ Disabled - Memories kept per personality';
+  embed.addFields({ name: '🔗 LTM Sharing', value: ltmStatus, inline: false });
+
+  const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
+  const contentText = personaDetails.content;
+  const hasContent = contentText !== null && contentText.length > 0;
+  const isTruncated = hasContent && contentText.length > CONTENT_PREVIEW_LENGTH;
+
+  if (hasContent && contentText !== null) {
+    const content = isTruncated
+      ? contentText.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
+      : contentText;
+    embed.addFields({ name: '📝 Content', value: content, inline: false });
+
+    if (isTruncated) {
+      const expandButton = new ButtonBuilder()
+        .setCustomId(MeCustomIds.view.expand(personaDetails.id, 'content'))
+        .setLabel('Show Full Content')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('📖');
+      components.push(
+        new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(expandButton)
+      );
+    }
+  } else {
+    embed.addFields({
+      name: '📝 Content',
+      value: '*No content set. Use `/me profile edit` to add information about yourself.*',
+      inline: false,
+    });
+  }
+
+  embed.setFooter({ text: 'Use /me profile edit to update • /me settings to change options' });
+  return { embed, components };
+}
+
 /**
  * Handle /me profile view command
  */
-export async function handleViewPersona(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const discordId = interaction.user.id;
+export async function handleViewPersona(context: DeferredCommandContext): Promise<void> {
+  const discordId = context.user.id;
 
   try {
-    // Fetch user's personas via gateway API
     const result = await callGatewayApi<{ personas: PersonaSummary[] }>('/user/persona', {
       userId: discordId,
     });
 
     if (!result.ok) {
       logger.warn({ userId: discordId, error: result.error }, '[Me] Failed to fetch personas');
-      await interaction.editReply({
+      await context.editReply({
         content: '❌ Failed to retrieve your profile. Please try again later.',
       });
       return;
     }
 
-    // Find the default persona
     const persona = result.data.personas.find(p => p.isDefault);
-
     if (persona === undefined) {
-      // No personas at all, or no default set
-      if (result.data.personas.length === 0) {
-        await interaction.editReply({
-          content: "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!",
-        });
-      } else {
-        await interaction.editReply({
-          content: "❌ You don't have a default profile set. Use `/me profile default` to set one!",
-        });
-      }
+      const message =
+        result.data.personas.length === 0
+          ? "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!"
+          : "❌ You don't have a default profile set. Use `/me profile default` to set one!";
+      await context.editReply({ content: message });
       return;
     }
 
-    // Fetch full persona details (including content) via gateway
     const detailsResult = await callGatewayApi<{ persona: PersonaDetails }>(
       `/user/persona/${persona.id}`,
-      {
-        userId: discordId,
-      }
+      { userId: discordId }
     );
 
     if (!detailsResult.ok) {
@@ -95,84 +141,18 @@ export async function handleViewPersona(interaction: ChatInputCommandInteraction
         { userId: discordId, personaId: persona.id, error: detailsResult.error },
         '[Me] Failed to fetch persona details'
       );
-      await interaction.editReply({
+      await context.editReply({
         content: '❌ Failed to retrieve your profile. Please try again later.',
       });
       return;
     }
 
-    const personaDetails = detailsResult.data.persona;
-
-    // Build embed with profile information
-    const embed = new EmbedBuilder()
-      .setTitle('🎭 Your Profile')
-      .setColor(0x5865f2) // Discord blurple
-      .setTimestamp();
-
-    // Add fields
-    if (personaDetails.preferredName !== null && personaDetails.preferredName.length > 0) {
-      embed.addFields({
-        name: '📛 Preferred Name',
-        value: personaDetails.preferredName,
-        inline: true,
-      });
-    }
-
-    if (personaDetails.pronouns !== null && personaDetails.pronouns.length > 0) {
-      embed.addFields({ name: '🏷️ Pronouns', value: personaDetails.pronouns, inline: true });
-    }
-
-    // Settings
-    const ltmStatus = personaDetails.shareLtmAcrossPersonalities
-      ? '✅ Enabled - Memories shared across all personalities'
-      : '❌ Disabled - Memories kept per personality';
-    embed.addFields({ name: '🔗 LTM Sharing', value: ltmStatus, inline: false });
-
-    // Content (truncate if too long)
-    const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
-    const isTruncated =
-      personaDetails.content !== null && personaDetails.content.length > CONTENT_PREVIEW_LENGTH;
-
-    if (personaDetails.content !== null && personaDetails.content.length > 0) {
-      const content = isTruncated
-        ? personaDetails.content.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
-        : personaDetails.content;
-      embed.addFields({ name: '📝 Content', value: content, inline: false });
-
-      // Add expand button if content is truncated
-      if (isTruncated) {
-        const expandButton = new ButtonBuilder()
-          .setCustomId(MeCustomIds.view.expand(personaDetails.id, 'content'))
-          .setLabel('Show Full Content')
-          .setStyle(ButtonStyle.Secondary)
-          .setEmoji('📖');
-
-        components.push(
-          new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(expandButton)
-        );
-      }
-    } else {
-      embed.addFields({
-        name: '📝 Content',
-        value: '*No content set. Use `/me profile edit` to add information about yourself.*',
-        inline: false,
-      });
-    }
-
-    // Footer with help
-    embed.setFooter({
-      text: 'Use /me profile edit to update • /me settings to change options',
-    });
-
-    await interaction.editReply({
-      embeds: [embed],
-      components,
-    });
-
+    const { embed, components } = buildProfileEmbed(detailsResult.data.persona);
+    await context.editReply({ embeds: [embed], components });
     logger.info({ userId: discordId }, '[Me] User viewed their profile');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to view profile');
-    await interaction.editReply({
+    await context.editReply({
       content: '❌ Failed to retrieve your profile. Please try again later.',
     });
   }

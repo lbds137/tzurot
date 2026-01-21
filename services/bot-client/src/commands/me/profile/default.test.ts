@@ -36,17 +36,19 @@ describe('handleSetDefaultPersona', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personaId: string) {
+  function createMockContext(personaId: string) {
     return {
       user: { id: '123456789', username: 'testuser' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'profile') return personaId;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'profile') return personaId;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
-    } as any;
+    } as unknown as Parameters<typeof handleSetDefaultPersona>[0];
   }
 
   it('should set persona as default', async () => {
@@ -61,7 +63,7 @@ describe('handleSetDefaultPersona', () => {
       }),
     });
 
-    await handleSetDefaultPersona(createMockInteraction('persona-123'));
+    await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123/default', {
       userId: '123456789',
@@ -87,7 +89,7 @@ describe('handleSetDefaultPersona', () => {
       }),
     });
 
-    await handleSetDefaultPersona(createMockInteraction('persona-123'));
+    await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Work Persona'),
@@ -100,7 +102,7 @@ describe('handleSetDefaultPersona', () => {
       error: 'Persona not found',
     });
 
-    await handleSetDefaultPersona(createMockInteraction('nonexistent-persona'));
+    await handleSetDefaultPersona(createMockContext('nonexistent-persona'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Profile not found'),
@@ -119,7 +121,7 @@ describe('handleSetDefaultPersona', () => {
       }),
     });
 
-    await handleSetDefaultPersona(createMockInteraction('persona-123'));
+    await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('already your default'),
@@ -132,7 +134,7 @@ describe('handleSetDefaultPersona', () => {
       error: 'Gateway error',
     });
 
-    await handleSetDefaultPersona(createMockInteraction('persona-123'));
+    await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to set default'),
@@ -142,7 +144,7 @@ describe('handleSetDefaultPersona', () => {
   it('should handle network errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleSetDefaultPersona(createMockInteraction('persona-123'));
+    await handleSetDefaultPersona(createMockContext('persona-123'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to set default'),

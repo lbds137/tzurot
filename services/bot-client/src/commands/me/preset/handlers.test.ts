@@ -1,5 +1,8 @@
 /**
  * Tests for Preset Command Handlers (list, set, reset)
+ *
+ * Note: These handlers use editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -40,14 +43,12 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
+// Mock commandHelpers (only used by reset for createSuccessEmbed/createInfoEmbed)
 const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: 'Success' } });
+const mockCreateInfoEmbed = vi.fn().mockReturnValue({ data: { title: 'Info' } });
 vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
+  createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
 }));
 
 describe('Preset Command Handlers', () => {
@@ -58,7 +59,7 @@ describe('Preset Command Handlers', () => {
   });
 
   describe('handleListOverrides', () => {
-    function createMockInteraction() {
+    function createMockContext() {
       return {
         user: { id: '123456789' },
         editReply: mockEditReply,
@@ -84,8 +85,7 @@ describe('Preset Command Handlers', () => {
         ]),
       });
 
-      const interaction = createMockInteraction();
-      await handleListOverrides(interaction);
+      await handleListOverrides(createMockContext());
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
         userId: '123456789',
@@ -108,8 +108,7 @@ describe('Preset Command Handlers', () => {
         data: mockListModelOverridesResponse([]),
       });
 
-      const interaction = createMockInteraction();
-      await handleListOverrides(interaction);
+      await handleListOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
@@ -125,22 +124,25 @@ describe('Preset Command Handlers', () => {
     it('should handle API error', async () => {
       mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Error' });
 
-      const interaction = createMockInteraction();
-      await handleListOverrides(interaction);
+      await handleListOverrides(createMockContext());
 
-      expect(mockReplyWithError).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to get overrides'),
+      });
     });
   });
 
   describe('handleSet', () => {
-    function createMockInteraction(personalityId = PERSONALITY_ID_1, configId = CONFIG_ID_1) {
+    function createMockContext(personalityId = PERSONALITY_ID_1, configId = CONFIG_ID_1) {
       return {
         user: { id: '123456789' },
-        options: {
-          getString: (name: string) => {
-            if (name === 'personality') return personalityId;
-            if (name === 'preset') return configId;
-            return null;
+        interaction: {
+          options: {
+            getString: (name: string) => {
+              if (name === 'personality') return personalityId;
+              if (name === 'preset') return configId;
+              return null;
+            },
           },
         },
         editReply: mockEditReply,
@@ -180,8 +182,7 @@ describe('Preset Command Handlers', () => {
         return Promise.resolve({ ok: false, error: 'Unknown path' });
       });
 
-      const interaction = createMockInteraction();
-      await handleSet(interaction);
+      await handleSet(createMockContext());
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
         method: 'PUT',
@@ -206,24 +207,24 @@ describe('Preset Command Handlers', () => {
         error: 'Personality not found',
       });
 
-      const interaction = createMockInteraction('invalid', 'c1');
-      await handleSet(interaction);
+      await handleSet(createMockContext('invalid', 'c1'));
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        'Failed to set preset: Personality not found'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to set preset'),
+      });
     });
   });
 
   describe('handleReset', () => {
-    function createMockInteraction(personalityId = PERSONALITY_ID_1) {
+    function createMockContext(personalityId = PERSONALITY_ID_1) {
       return {
         user: { id: '123456789' },
-        options: {
-          getString: (name: string) => {
-            if (name === 'personality') return personalityId;
-            return null;
+        interaction: {
+          options: {
+            getString: (name: string) => {
+              if (name === 'personality') return personalityId;
+              return null;
+            },
           },
         },
         editReply: mockEditReply,
@@ -236,8 +237,7 @@ describe('Preset Command Handlers', () => {
         data: mockDeleteModelOverrideResponse(),
       });
 
-      const interaction = createMockInteraction();
-      await handleReset(interaction);
+      await handleReset(createMockContext());
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/model-override/${PERSONALITY_ID_1}`, {
         method: 'DELETE',
@@ -256,25 +256,20 @@ describe('Preset Command Handlers', () => {
         error: 'No override found',
       });
 
-      const interaction = createMockInteraction();
-      await handleReset(interaction);
+      await handleReset(createMockContext());
 
-      expect(mockReplyWithError).toHaveBeenCalledWith(
-        interaction,
-        'Failed to reset preset: No override found'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to reset preset'),
+      });
     });
 
     it('should handle exceptions', async () => {
-      const error = new Error('Network error');
-      mockCallGatewayApi.mockRejectedValue(error);
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-      const interaction = createMockInteraction();
-      await handleReset(interaction);
+      await handleReset(createMockContext());
 
-      expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-        userId: '123456789',
-        command: 'Preset Reset',
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('An error occurred'),
       });
     });
   });

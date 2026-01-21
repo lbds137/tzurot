@@ -1,11 +1,12 @@
 /**
  * Tests for Preset Default Handler
+ *
+ * Note: This command uses editReply() because interactions are deferred
+ * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleDefault } from './default.js';
-import type { ChatInputCommandInteraction, User } from 'discord.js';
-import { MessageFlags } from 'discord.js';
 import {
   mockSetDefaultConfigResponse,
   mockListWalletKeysResponse,
@@ -31,38 +32,27 @@ vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
-// Mock command helpers
-vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn().mockResolvedValue(undefined),
-  handleCommandError: vi.fn().mockResolvedValue(undefined),
-}));
-
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 
 describe('handleDefault', () => {
-  let mockInteraction: ChatInputCommandInteraction;
-  let mockUser: User;
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockEditReply.mockResolvedValue(undefined);
+  });
 
-    mockUser = {
-      id: 'user-123',
-    } as User;
-
-    mockInteraction = {
-      user: mockUser,
-      options: {
-        getString: vi.fn(),
+  function createMockContext(configId: string) {
+    return {
+      user: { id: 'user-123' },
+      interaction: {
+        options: {
+          getString: (_name: string, _required?: boolean) => configId,
+        },
       },
-      editReply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ChatInputCommandInteraction;
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleDefault>[0];
+  }
 
   // Helper to mock all API calls for a non-guest user with free config
   function mockNonGuestUserApis(configId: string, configName: string) {
@@ -94,10 +84,9 @@ describe('handleDefault', () => {
   }
 
   it('should call API with correct parameters', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('config-456');
     mockNonGuestUserApis('config-456', 'Test Config');
 
-    await handleDefault(mockInteraction);
+    await handleDefault(createMockContext('config-456'));
 
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
       method: 'PUT',
@@ -107,12 +96,11 @@ describe('handleDefault', () => {
   });
 
   it('should display success embed on successful update', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('config-123');
     mockNonGuestUserApis('config-123', 'My Default Config');
 
-    await handleDefault(mockInteraction);
+    await handleDefault(createMockContext('config-123'));
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
@@ -124,7 +112,6 @@ describe('handleDefault', () => {
   });
 
   it('should show error when API returns error', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('config-123');
     vi.mocked(callGatewayApi).mockImplementation((path: string) => {
       if (path === '/wallet/list') {
         return Promise.resolve({
@@ -150,28 +137,24 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
-    await handleDefault(mockInteraction);
+    await handleDefault(createMockContext('config-123'));
 
-    expect(replyWithError).toHaveBeenCalledWith(
-      mockInteraction,
-      'Failed to set default: Config not found'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to set default: Config not found',
+    });
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('config-123');
     vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-    await handleDefault(mockInteraction);
+    await handleDefault(createMockContext('config-123'));
 
-    expect(handleCommandError).toHaveBeenCalledWith(mockInteraction, expect.any(Error), {
-      userId: 'user-123',
-      command: 'Preset Default',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 
   it('should show error when guest user tries to set premium model as default', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('premium-config');
     vi.mocked(callGatewayApi).mockImplementation((path: string) => {
       if (path === '/wallet/list') {
         // No active wallet keys = guest mode
@@ -191,7 +174,7 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false, error: 'Should not be called' });
     });
 
-    await handleDefault(mockInteraction);
+    await handleDefault(createMockContext('premium-config'));
 
     // Should NOT call the set-default API
     expect(callGatewayApi).not.toHaveBeenCalledWith(
@@ -200,7 +183,7 @@ describe('handleDefault', () => {
     );
 
     // Should show error embed
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
@@ -212,7 +195,6 @@ describe('handleDefault', () => {
   });
 
   it('should allow guest user to set free model as default', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('free-config');
     vi.mocked(callGatewayApi).mockImplementation((path: string) => {
       if (path === '/wallet/list') {
         // No active wallet keys = guest mode
@@ -244,7 +226,7 @@ describe('handleDefault', () => {
       return Promise.resolve({ ok: false, error: 'Unknown path' });
     });
 
-    await handleDefault(mockInteraction);
+    await handleDefault(createMockContext('free-config'));
 
     // Should call the set-default API
     expect(callGatewayApi).toHaveBeenCalledWith('/user/model-override/default', {
@@ -254,7 +236,7 @@ describe('handleDefault', () => {
     });
 
     // Should show success embed
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({

@@ -5,7 +5,6 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
@@ -13,8 +12,8 @@ import {
   type AIProvider,
   type LlmConfigSummary,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('me-preset-default');
@@ -40,9 +39,9 @@ interface ConfigListResponse {
 /**
  * Handle /me preset default
  */
-export async function handleDefault(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const configId = interaction.options.getString('preset', true);
+export async function handleDefault(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const configId = context.interaction.options.getString('preset', true);
 
   // Handle "Unlock All Models" upsell selection
   if (configId === UNLOCK_MODELS_VALUE) {
@@ -59,7 +58,7 @@ export async function handleDefault(interaction: ChatInputCommandInteraction): P
       .setFooter({ text: 'Your API key is encrypted and stored securely' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
     logger.info({ userId }, '[Me/Preset] User clicked unlock models upsell');
     return;
   }
@@ -91,7 +90,7 @@ export async function handleDefault(interaction: ChatInputCommandInteraction): P
           .setFooter({ text: 'Use /me preset list to see available free presets' })
           .setTimestamp();
 
-        await interaction.editReply({ embeds: [embed] });
+        await context.editReply({ embeds: [embed] });
         logger.info(
           { userId, configId, configName: selectedConfig.name, isGuestMode },
           '[Me/Preset] Guest mode user tried to set premium model as default'
@@ -108,7 +107,7 @@ export async function handleDefault(interaction: ChatInputCommandInteraction): P
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, configId }, '[Me/Preset] Failed to set default');
-      await replyWithError(interaction, `Failed to set default: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to set default: ${result.error}` });
       return;
     }
 
@@ -124,13 +123,14 @@ export async function handleDefault(interaction: ChatInputCommandInteraction): P
       .setFooter({ text: 'Use /me preset clear-default to remove this setting' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, configId, configName: data.default.configName },
       '[Me/Preset] Set default config'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset Default' });
+    logger.error({ err: error, userId, command: 'Preset Default' }, '[Preset Default] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

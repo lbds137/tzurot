@@ -8,13 +8,13 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
   TEXT_LIMITS,
   type ListPersonasResponse,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-list');
@@ -57,8 +57,8 @@ function buildPersonaField(persona: PersonaData): { name: string; value: string;
 /**
  * Handle /me profile list command
  */
-export async function handleListPersonas(interaction: ChatInputCommandInteraction): Promise<void> {
-  const discordId = interaction.user.id;
+export async function handleListPersonas(context: DeferredCommandContext): Promise<void> {
+  const discordId = context.user.id;
 
   try {
     // Fetch user's personas via gateway API
@@ -68,14 +68,14 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
 
     if (!result.ok) {
       logger.warn({ userId: discordId, error: result.error }, '[Me] Failed to fetch personas');
-      await interaction.editReply({
+      await context.editReply({
         content: '❌ Failed to load your profiles. Please try again later.',
       });
       return;
     }
 
     if (result.data.personas.length === 0) {
-      await interaction.editReply({
+      await context.editReply({
         content:
           "📋 **You don't have any profiles yet.**\n\n" +
           'Use `/me profile create` to create your first profile, or `/me profile edit` to set up your default profile.',
@@ -100,14 +100,14 @@ export async function handleListPersonas(interaction: ChatInputCommandInteractio
       text: 'Use /me profile edit <profile> to edit • /me profile default <profile> to change default',
     });
 
-    await interaction.editReply({
+    await context.editReply({
       embeds: [embed],
     });
 
     logger.info({ userId: discordId, personaCount: personas.length }, '[Me] Listed profiles');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to list profiles');
-    await interaction.editReply({
+    await context.editReply({
       content: '❌ Failed to load your profiles. Please try again later.',
     });
   }

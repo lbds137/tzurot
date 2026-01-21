@@ -6,8 +6,8 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('me-settings');
@@ -25,11 +25,9 @@ interface UpdateSettingsResponse {
 /**
  * Handle /me settings share-ltm command
  */
-export async function handleShareLtmSetting(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const discordId = interaction.user.id;
-  const enabledValue = interaction.options.getString('enabled', true);
+export async function handleShareLtmSetting(context: DeferredCommandContext): Promise<void> {
+  const discordId = context.user.id;
+  const enabledValue = context.interaction.options.getString('enabled', true);
   const enabled = enabledValue === 'enable';
 
   try {
@@ -45,7 +43,7 @@ export async function handleShareLtmSetting(
     if (!result.ok) {
       // Handle specific error cases
       if (result.error?.includes('no account') || result.error?.includes('Not found')) {
-        await interaction.editReply({
+        await context.editReply({
           content:
             "❌ You don't have an account yet. Send a message to any personality to create one!",
         });
@@ -53,7 +51,7 @@ export async function handleShareLtmSetting(
       }
 
       if (result.error?.includes('no profile') || result.error?.includes('No default persona')) {
-        await interaction.editReply({
+        await context.editReply({
           content:
             "❌ You don't have a profile set up yet. Use `/me profile edit` to create one first!",
         });
@@ -64,7 +62,7 @@ export async function handleShareLtmSetting(
         { userId: discordId, enabled, error: result.error },
         '[Me] Failed to update LTM sharing setting via gateway'
       );
-      await interaction.editReply({
+      await context.editReply({
         content: '❌ Failed to update LTM sharing setting. Please try again later.',
       });
       return;
@@ -75,7 +73,7 @@ export async function handleShareLtmSetting(
       const statusText = enabled
         ? 'already sharing memories across all personalities'
         : 'already keeping memories separate per personality';
-      await interaction.editReply({
+      await context.editReply({
         content: `ℹ️ LTM sharing is ${statusText}. No changes needed.`,
       });
       return;
@@ -87,14 +85,14 @@ export async function handleShareLtmSetting(
       : '✅ **LTM sharing disabled!**\n\nYour memories will now be kept separate per personality. ' +
         "Each personality will only remember conversations you've had with them specifically.";
 
-    await interaction.editReply({
+    await context.editReply({
       content: responseText,
     });
 
     logger.info({ userId: discordId, enabled }, '[Me] Updated shareLtmAcrossPersonalities setting');
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Me] Failed to update LTM sharing setting');
-    await interaction.editReply({
+    await context.editReply({
       content: '❌ Failed to update LTM sharing setting. Please try again later.',
     });
   }
