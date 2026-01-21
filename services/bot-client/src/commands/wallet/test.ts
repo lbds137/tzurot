@@ -7,11 +7,10 @@
  * - Never displays the actual API key
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-test');
@@ -27,10 +26,13 @@ interface WalletTestResponse {
 /**
  * Handle /wallet test <provider> subcommand
  * Tests the API key validity
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral' for this subcommand.
  */
-export async function handleTestKey(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const provider = interaction.options.getString('provider', true) as AIProvider;
+export async function handleTestKey(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const provider = context.interaction.options.getString('provider', true) as AIProvider;
 
   try {
     const result = await callGatewayApi<WalletTestResponse>('/wallet/test', {
@@ -41,10 +43,9 @@ export async function handleTestKey(interaction: ChatInputCommandInteraction): P
 
     if (!result.ok) {
       if (result.status === 404) {
-        await replyWithError(
-          interaction,
-          `You don't have an API key configured for **${getProviderDisplayName(provider)}**.\n\nUse \`/wallet set\` to add your API key first.`
-        );
+        await context.editReply({
+          content: `❌ You don't have an API key configured for **${getProviderDisplayName(provider)}**.\n\nUse \`/wallet set\` to add your API key first.`,
+        });
         return;
       }
 
@@ -68,7 +69,7 @@ export async function handleTestKey(interaction: ChatInputCommandInteraction): P
         })
         .setTimestamp();
 
-      await interaction.editReply({ embeds: [embed] });
+      await context.editReply({ embeds: [embed] });
       return;
     }
 
@@ -97,13 +98,14 @@ export async function handleTestKey(interaction: ChatInputCommandInteraction): P
       })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { provider, userId, hasCredits: data.credits !== undefined },
       '[Wallet Test] API key validated'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Wallet Test' });
+    logger.error({ error, userId, provider }, '[Wallet Test] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

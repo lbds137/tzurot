@@ -8,9 +8,9 @@
  * - Response is ephemeral (only visible to the user)
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { createLogger, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
+import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { WalletCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('wallet-set');
@@ -18,9 +18,12 @@ const logger = createLogger('wallet-set');
 /**
  * Handle /wallet set <provider> subcommand
  * Shows a modal for secure API key input
+ *
+ * Receives ModalCommandContext (has showModal method!)
+ * because this subcommand uses deferralMode: 'modal'.
  */
-export async function handleSetKey(interaction: ChatInputCommandInteraction): Promise<void> {
-  const provider = interaction.options.getString('provider', true) as AIProvider;
+export async function handleSetKey(context: ModalCommandContext): Promise<void> {
+  const provider = context.interaction.options.getString('provider', true) as AIProvider;
 
   // Determine provider display name and help text
   const providerInfo = getProviderInfo(provider);
@@ -45,12 +48,9 @@ export async function handleSetKey(interaction: ChatInputCommandInteraction): Pr
   modal.addComponents(row);
 
   // Show modal to user
-  await interaction.showModal(modal);
+  await context.showModal(modal);
 
-  logger.info(
-    { provider, userId: interaction.user.id },
-    '[Wallet Set] Showing API key input modal'
-  );
+  logger.info({ provider, userId: context.user.id }, '[Wallet Set] Showing API key input modal');
 }
 
 /**

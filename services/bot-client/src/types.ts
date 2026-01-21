@@ -84,6 +84,14 @@ export interface Command {
   deferralMode?: DeferralMode;
 
   /**
+   * Per-subcommand deferral mode overrides.
+   *
+   * Use for commands with mixed subcommand requirements (e.g., some show modals,
+   * others need deferral). Key is subcommand name or 'group subcommand' for groups.
+   */
+  subcommandDeferralModes?: Record<string, DeferralMode>;
+
+  /**
    * Main command execution handler.
    *
    * If deferralMode is set, receives a typed SafeCommandContext.
