@@ -2,14 +2,12 @@
  * Tests for Admin Settings Dashboard
  *
  * Tests the interactive settings dashboard for admin settings.
+ * Note: handleSettings receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   handleSettings,
   handleAdminSettingsButton,
@@ -17,6 +15,7 @@ import {
   handleAdminSettingsModal,
   isAdminSettingsInteraction,
 } from './settings.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -65,29 +64,47 @@ describe('Admin Settings Dashboard', () => {
     extendedContextMaxImages: 5,
   };
 
-  const createMockInteraction = (): ChatInputCommandInteraction & {
-    reply: ReturnType<typeof vi.fn>;
+  /**
+   * Create a mock DeferredCommandContext for testing handleSettings.
+   *
+   * Note: createSettingsDashboard receives context.interaction directly and calls
+   * interaction.editReply(), so the mock interaction must have editReply too.
+   */
+  function createMockContext(): DeferredCommandContext & {
     editReply: ReturnType<typeof vi.fn>;
-    deferred: boolean;
-    replied: boolean;
-  } => {
-    return {
-      options: {
-        getString: vi.fn(),
-        getInteger: vi.fn(),
-      },
-      user: { id: 'user-456' },
-      reply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+    interaction: { editReply: ReturnType<typeof vi.fn>; deferred: boolean; replied: boolean };
+  } {
+    const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-123' });
+
+    // The interaction must have editReply because createSettingsDashboard calls it directly
+    const mockInteraction = {
+      editReply: mockEditReply,
       deferred: true,
       replied: false,
-    } as unknown as ChatInputCommandInteraction & {
-      reply: ReturnType<typeof vi.fn>;
-      editReply: ReturnType<typeof vi.fn>;
-      deferred: boolean;
-      replied: boolean;
     };
-  };
+
+    return {
+      interaction: mockInteraction,
+      user: { id: 'user-456' },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'admin',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'settings',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply, // Context's editReply mirrors interaction's for consistency
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext & {
+      editReply: ReturnType<typeof vi.fn>;
+      interaction: { editReply: ReturnType<typeof vi.fn>; deferred: boolean; replied: boolean };
+    };
+  }
 
   const createMockButtonInteraction = (
     customId: string
@@ -139,19 +156,19 @@ describe('Admin Settings Dashboard', () => {
 
   describe('handleSettings', () => {
     it('should display settings dashboard embed', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue(mockSettings),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
       expect(mockAdminFetch).toHaveBeenCalledWith('/admin/settings', {
         method: 'GET',
         userId: 'user-456',
       });
-      expect(interaction.editReply).toHaveBeenCalledWith(
+      expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
           components: expect.any(Array),
@@ -160,15 +177,15 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should include Global Settings title in embed', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue(mockSettings),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.embeds).toHaveLength(1);
 
       const embedJson = editReplyCall.embeds[0].toJSON();
@@ -176,15 +193,15 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should include all 4 settings fields', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue(mockSettings),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       expect(embedJson.fields).toHaveLength(4);
@@ -199,15 +216,15 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should show enabled status correctly', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: true }),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
       const enabledField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Extended Context')
@@ -217,15 +234,15 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should show disabled status correctly', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: false }),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
       const enabledField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Extended Context')
@@ -235,54 +252,54 @@ describe('Admin Settings Dashboard', () => {
     });
 
     it('should include select menu and close button', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
         json: vi.fn().mockResolvedValue(mockSettings),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      const editReplyCall = interaction.editReply.mock.calls[0][0];
+      const editReplyCall = context.editReply.mock.calls[0][0];
       expect(editReplyCall.components).toHaveLength(2);
     });
 
     it('should handle fetch failure gracefully', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: false,
         json: vi.fn(),
       });
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: 'Failed to fetch admin settings.',
       });
     });
 
     it('should handle unexpected errors gracefully', async () => {
-      const interaction = createMockInteraction();
+      const context = createMockContext();
       mockAdminFetch.mockRejectedValue(new Error('Network error'));
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      expect(interaction.editReply).toHaveBeenCalledWith({
+      expect(context.editReply).toHaveBeenCalledWith({
         content: 'An error occurred while opening the settings dashboard.',
       });
     });
 
     it('should not respond again if already replied', async () => {
-      const interaction = createMockInteraction();
-      Object.defineProperty(interaction, 'replied', {
+      const context = createMockContext();
+      Object.defineProperty(context.interaction, 'replied', {
         get: () => true,
         configurable: true,
       });
       mockAdminFetch.mockRejectedValue(new Error('Network error'));
 
-      await handleSettings(interaction);
+      await handleSettings(context);
 
-      expect(interaction.editReply).not.toHaveBeenCalled();
+      expect(context.editReply).not.toHaveBeenCalled();
     });
   });
 

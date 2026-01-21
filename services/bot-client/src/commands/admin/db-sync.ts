@@ -1,12 +1,15 @@
 /**
  * Admin DB Sync Subcommand
  * Handles /admin db-sync
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
 import { adminPostJson } from '../../utils/adminApiClient.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-db-sync');
 
@@ -59,25 +62,25 @@ function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
   return summary.join('\n');
 }
 
-export async function handleDbSync(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const dryRun = interaction.options.getBoolean('dry-run') ?? false;
+export async function handleDbSync(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const dryRun = context.getOption<boolean>('dry-run') ?? false;
 
   try {
     // Call API Gateway sync endpoint
     // (API gateway will validate that database URLs are configured)
     const response = await adminPostJson('/admin/db-sync', {
       dryRun,
-      ownerId: interaction.user.id,
+      ownerId: userId,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       logger.error({ status: response.status, error: errorText }, 'DB sync failed');
 
-      await interaction.editReply(
-        `❌ Database sync failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``
-      );
+      await context.editReply({
+        content: `❌ Database sync failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``,
+      });
       return;
     }
 
@@ -97,12 +100,12 @@ export async function handleDbSync(interaction: ChatInputCommandInteraction): Pr
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
   } catch (error) {
     logger.error({ err: error }, 'Error during database sync');
-    await interaction.editReply(
-      '❌ Error during database sync.\n' + 'Check API gateway logs for details.'
-    );
+    await context.editReply({
+      content: '❌ Error during database sync.\nCheck API gateway logs for details.',
+    });
   }
 }
 

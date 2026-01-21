@@ -1,5 +1,8 @@
 /**
  * Tests for Admin Command Router
+ *
+ * This command uses deferralMode: 'ephemeral', so execute receives SafeCommandContext.
+ * The router casts to DeferredCommandContext and uses requireBotOwnerContext.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -7,29 +10,33 @@ import adminCommand from './index.js';
 
 // Destructure from default export
 const { data, execute, autocomplete } = adminCommand;
-import type {
-  ChatInputCommandInteraction,
-  AutocompleteInteraction,
-  Collection,
-  Guild,
-} from 'discord.js';
-import { MessageFlags } from 'discord.js';
+import type { AutocompleteInteraction, Collection, Guild } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock fetch
 global.fetch = vi.fn();
 
-// Mock requireBotOwner middleware
+// Mock logger
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    requireBotOwner: vi.fn(),
     createLogger: () => ({
       debug: vi.fn(),
       info: vi.fn(),
       warn: vi.fn(),
       error: vi.fn(),
     }),
+  };
+});
+
+// Mock requireBotOwnerContext from commandContext module
+const mockRequireBotOwnerContext = vi.fn();
+vi.mock('../../utils/commandContext/index.js', async () => {
+  const actual = await vi.importActual('../../utils/commandContext/index.js');
+  return {
+    ...actual,
+    requireBotOwnerContext: (...args: unknown[]) => mockRequireBotOwnerContext(...args),
   };
 });
 
@@ -50,7 +57,6 @@ vi.mock('./usage.js', () => ({
   handleUsage: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { requireBotOwner } from '@tzurot/common-types';
 import { handleDbSync } from './db-sync.js';
 import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
@@ -109,27 +115,43 @@ describe('admin command', () => {
   });
 
   describe('execute (router)', () => {
-    let mockInteraction: ChatInputCommandInteraction;
+    /**
+     * Create a mock DeferredCommandContext for testing the router.
+     */
+    function createMockContext(subcommand: string): DeferredCommandContext {
+      const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
+      return {
+        interaction: {},
+        user: { id: 'test-user-id' },
+        guild: null,
+        member: null,
+        channel: null,
+        channelId: 'channel-123',
+        guildId: null,
+        commandName: 'admin',
+        isEphemeral: true,
+        getOption: vi.fn(),
+        getRequiredOption: vi.fn(),
+        getSubcommand: () => subcommand,
+        getSubcommandGroup: () => null,
+        editReply: mockEditReply,
+        followUp: vi.fn(),
+        deleteReply: vi.fn(),
+      } as unknown as DeferredCommandContext;
+    }
 
     beforeEach(() => {
       vi.clearAllMocks();
-
-      mockInteraction = {
-        user: { id: 'test-user-id' },
-        options: {
-          getSubcommand: vi.fn(),
-        },
-        reply: vi.fn().mockResolvedValue(undefined),
-        isModalSubmit: vi.fn().mockReturnValue(false),
-      } as unknown as ChatInputCommandInteraction;
     });
 
     it('should check owner permission before executing', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(false);
+      mockRequireBotOwnerContext.mockResolvedValue(false);
+      const context = createMockContext('db-sync');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      expect(requireBotOwner).toHaveBeenCalledWith(mockInteraction);
+      expect(mockRequireBotOwnerContext).toHaveBeenCalledWith(context);
       // Should not call any handlers
       expect(handleDbSync).not.toHaveBeenCalled();
       expect(handleServers).not.toHaveBeenCalled();
@@ -138,62 +160,62 @@ describe('admin command', () => {
     });
 
     it('should route to handleDbSync for db-sync subcommand', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('db-sync');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('db-sync');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      expect(handleDbSync).toHaveBeenCalledWith(mockInteraction);
+      expect(handleDbSync).toHaveBeenCalledWith(context);
       expect(handleServers).not.toHaveBeenCalled();
       expect(handleKick).not.toHaveBeenCalled();
       expect(handleUsage).not.toHaveBeenCalled();
     });
 
     it('should route to handleServers for servers subcommand', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('servers');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('servers');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      expect(handleServers).toHaveBeenCalledWith(mockInteraction);
+      expect(handleServers).toHaveBeenCalledWith(context);
       expect(handleDbSync).not.toHaveBeenCalled();
       expect(handleKick).not.toHaveBeenCalled();
       expect(handleUsage).not.toHaveBeenCalled();
     });
 
     it('should route to handleKick for kick subcommand', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('kick');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('kick');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      expect(handleKick).toHaveBeenCalledWith(mockInteraction);
+      expect(handleKick).toHaveBeenCalledWith(context);
       expect(handleDbSync).not.toHaveBeenCalled();
       expect(handleServers).not.toHaveBeenCalled();
       expect(handleUsage).not.toHaveBeenCalled();
     });
 
     it('should route to handleUsage for usage subcommand', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('usage');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('usage');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      expect(handleUsage).toHaveBeenCalledWith(mockInteraction);
+      expect(handleUsage).toHaveBeenCalledWith(context);
       expect(handleDbSync).not.toHaveBeenCalled();
       expect(handleServers).not.toHaveBeenCalled();
       expect(handleKick).not.toHaveBeenCalled();
     });
 
     it('should handle unknown subcommand', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('unknown');
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('unknown');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
+      // createSubcommandContextRouter returns a generic message without the subcommand name
+      expect(context.editReply).toHaveBeenCalledWith({
         content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
       });
       expect(handleDbSync).not.toHaveBeenCalled();
       expect(handleServers).not.toHaveBeenCalled();
@@ -201,14 +223,14 @@ describe('admin command', () => {
       expect(handleUsage).not.toHaveBeenCalled();
     });
 
-    it('should route handlers without passing config directly', async () => {
-      vi.mocked(requireBotOwner).mockResolvedValue(true);
-      vi.mocked(mockInteraction.options.getSubcommand).mockReturnValue('db-sync');
+    it('should route handlers with context (not raw interaction)', async () => {
+      mockRequireBotOwnerContext.mockResolvedValue(true);
+      const context = createMockContext('db-sync');
 
-      await execute(mockInteraction);
+      await execute(context);
 
-      // Handlers now get config internally via centralized adminApiClient
-      expect(handleDbSync).toHaveBeenCalledWith(mockInteraction);
+      // Handlers receive DeferredCommandContext, not raw interaction
+      expect(handleDbSync).toHaveBeenCalledWith(context);
     });
   });
 

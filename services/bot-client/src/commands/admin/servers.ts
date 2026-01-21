@@ -1,21 +1,23 @@
 /**
  * Admin Servers Subcommand
  * Handles /admin servers
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-servers');
 
-export async function handleServers(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
+export async function handleServers(context: DeferredCommandContext): Promise<void> {
   try {
-    const guilds = interaction.client.guilds.cache;
+    const guilds = context.interaction.client.guilds.cache;
 
     if (guilds.size === 0) {
-      await interaction.editReply('Bot is not in any servers.');
+      await context.editReply({ content: 'Bot is not in any servers.' });
       return;
     }
 
@@ -41,10 +43,10 @@ export async function handleServers(interaction: ChatInputCommandInteraction): P
       embed.setDescription(serverList);
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
   } catch (error) {
     logger.error({ err: error }, 'Error listing servers');
-    await interaction.editReply('❌ Failed to retrieve server list.');
+    await context.editReply({ content: '❌ Failed to retrieve server list.' });
   }
 }
 

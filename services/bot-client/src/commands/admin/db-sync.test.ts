@@ -1,10 +1,13 @@
 /**
  * Tests for Admin DB Sync Subcommand Handler
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleDbSync } from './db-sync.js';
-import type { ChatInputCommandInteraction, User } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
@@ -28,38 +31,50 @@ vi.mock('@tzurot/common-types', async () => {
 global.fetch = vi.fn();
 
 describe('handleDbSync', () => {
-  let mockInteraction: ChatInputCommandInteraction;
-  let mockUser: User;
-
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockUser = {
-      id: 'owner-123',
-    } as User;
-
-    mockInteraction = {
-      user: mockUser,
-      options: {
-        getBoolean: vi.fn(),
-      },
-      editReply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ChatInputCommandInteraction;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  // Note: deferReply is handled by top-level interactionCreate handler
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(dryRun: boolean | null = null): DeferredCommandContext {
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
+    return {
+      interaction: {},
+      user: { id: 'owner-123' },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'admin',
+      isEphemeral: true,
+      getOption: vi.fn((name: string) => {
+        if (name === 'dry-run') return dryRun;
+        return null;
+      }),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'db-sync',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
+  }
 
   it('should default dry-run to false when not provided', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(null);
+    await handleDbSync(context);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -70,12 +85,12 @@ describe('handleDbSync', () => {
   });
 
   it('should use provided dry-run value', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(true);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(true);
+    await handleDbSync(context);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -86,12 +101,12 @@ describe('handleDbSync', () => {
   });
 
   it('should include owner ID in request body', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -102,12 +117,12 @@ describe('handleDbSync', () => {
   });
 
   it('should use POST method with correct headers including service secret', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ schemaVersion: '1.0' }), { status: 200 })
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
     expect(fetch).toHaveBeenCalledWith(
       'http://localhost:3000/admin/db-sync',
@@ -122,7 +137,6 @@ describe('handleDbSync', () => {
   });
 
   it('should display success embed for dry run', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(true);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -135,15 +149,15 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(true);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should display success embed for actual sync', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -156,15 +170,15 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should display sync statistics', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -178,15 +192,15 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should display warnings when present', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -198,38 +212,37 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should handle HTTP errors', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(new Response('Database not configured', { status: 500 }));
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Database sync failed')
-    );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 500'));
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('❌ Database sync failed'),
+    });
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockRejectedValue(new Error('Network timeout'));
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Error during database sync')
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('❌ Error during database sync'),
+    });
   });
 
   it('should handle changes preview in dry run', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(true);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -243,15 +256,15 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(true);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should handle empty stats gracefully', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -261,22 +274,22 @@ describe('handleDbSync', () => {
       )
     );
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should handle 403 unauthorized response', async () => {
-    vi.mocked(mockInteraction.options.getBoolean).mockReturnValue(false);
     vi.mocked(fetch).mockResolvedValue(new Response('Forbidden', { status: 403 }));
 
-    await handleDbSync(mockInteraction);
+    const context = createMockContext(false);
+    await handleDbSync(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Database sync failed')
-    );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 403'));
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('❌ Database sync failed'),
+    });
   });
 });

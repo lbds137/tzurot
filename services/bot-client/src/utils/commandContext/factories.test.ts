@@ -7,7 +7,25 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction, GuildMember } from 'discord.js';
-import { createDeferredContext, createModalContext, createManualContext } from './factories.js';
+import {
+  createDeferredContext,
+  createModalContext,
+  createManualContext,
+  requireBotOwnerContext,
+} from './factories.js';
+import type { DeferredCommandContext } from './types.js';
+
+// Mock common-types
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    getConfig: vi.fn(() => ({ BOT_OWNER_ID: 'owner-123' })),
+    isBotOwner: vi.fn((id: string) => id === 'owner-123'),
+  };
+});
+
+import { getConfig, isBotOwner } from '@tzurot/common-types';
 
 // Mock Discord.js interaction
 function createMockInteraction(): ChatInputCommandInteraction {
@@ -259,5 +277,79 @@ describe('Type Safety (compile-time verified)', () => {
      * deferReply() after it's already been called by the framework.
      */
     expect(true).toBe(true);
+  });
+});
+
+describe('requireBotOwnerContext', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createMockContext(userId: string = 'owner-123'): DeferredCommandContext {
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
+    return {
+      interaction: {} as ChatInputCommandInteraction,
+      user: { id: userId },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'admin',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: vi.fn().mockReturnValue(null),
+      getSubcommandGroup: vi.fn().mockReturnValue(null),
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
+  }
+
+  it('should return true for bot owner', async () => {
+    const context = createMockContext('owner-123');
+
+    const result = await requireBotOwnerContext(context);
+
+    expect(result).toBe(true);
+    expect(context.editReply).not.toHaveBeenCalled();
+  });
+
+  it('should return false and show error for non-owner', async () => {
+    vi.mocked(isBotOwner).mockReturnValueOnce(false);
+    const context = createMockContext('user-456');
+
+    const result = await requireBotOwnerContext(context);
+
+    expect(result).toBe(false);
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ Owner-only command. This command is restricted to the bot owner.',
+    });
+  });
+
+  it('should return false and show error when BOT_OWNER_ID not configured', async () => {
+    vi.mocked(getConfig).mockReturnValueOnce({} as ReturnType<typeof getConfig>);
+    const context = createMockContext('any-user');
+
+    const result = await requireBotOwnerContext(context);
+
+    expect(result).toBe(false);
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
+    });
+  });
+
+  it('should return false when BOT_OWNER_ID is empty string', async () => {
+    vi.mocked(getConfig).mockReturnValueOnce({ BOT_OWNER_ID: '' } as ReturnType<typeof getConfig>);
+    const context = createMockContext('any-user');
+
+    const result = await requireBotOwnerContext(context);
+
+    expect(result).toBe(false);
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
+    });
   });
 });
