@@ -65,6 +65,37 @@ When making changes that affect multiple files:
 2. Verify no files are missed using global search
 3. If you find additional files mid-implementation, update the plan
 
+### Mandatory Skill Pre-Flight Check
+
+**Before writing ANY code, consult relevant skills:**
+
+1. **Check skill descriptions** in `.claude/skills/` for matching keywords
+2. **Invoke matching skills** to load project-specific patterns
+3. **Follow skill guidance** over general knowledge
+
+**Trigger Keywords → Skills**:
+
+| Keywords                                      | Skill                   |
+| --------------------------------------------- | ----------------------- |
+| `.test.ts`, `vitest`, `mock`, `coverage`      | tzurot-testing          |
+| `BullMQ`, `job`, `async`, `deferral`          | tzurot-async-flow       |
+| `Prisma`, `pgvector`, `database`, `migration` | tzurot-db-vector        |
+| `Railway`, `deploy`, `logs`, `service`        | tzurot-deployment       |
+| `slash command`, `button`, `pagination`       | tzurot-slash-command-ux |
+| `logging`, `debugging`, `operations`          | tzurot-observability    |
+| `types`, `Zod`, `schema`, `constants`         | tzurot-types            |
+| `secret`, `security`, `PII`, `injection`      | tzurot-security         |
+| `git`, `commit`, `PR`, `branch`               | tzurot-git-workflow     |
+| `cache`, `invalidation`, `TTL`                | tzurot-caching          |
+| `refactor`, `lint`, `complexity`              | tzurot-code-quality     |
+| `architecture`, `service boundary`            | tzurot-architecture     |
+| `CURRENT_WORK.md`, `documentation`            | tzurot-docs             |
+| `skill`, `SKILL.md`                           | tzurot-skills-guide     |
+| `CLI`, `ops`, `script`                        | tzurot-tooling          |
+| `MCP`, `council`, `second opinion`            | tzurot-council-mcp      |
+
+**Why This Matters**: Skills contain project-specific patterns that override general knowledge. The tzurot-testing skill specifies `.component.test.ts` naming - ignoring it caused a misnamed test file.
+
 ### Deterministic UUIDs Required
 
 **NEVER use random UUIDs (v4). ALWAYS use deterministic UUIDs (v5).**
@@ -219,7 +250,7 @@ Before approving any PR:
 
 ```
 tzurot/
-├── .claude/skills/         # 14 project-specific skills
+├── .claude/skills/         # 16 project-specific skills
 ├── services/
 │   ├── bot-client/         # Discord interface
 │   ├── api-gateway/        # HTTP API + BullMQ queue

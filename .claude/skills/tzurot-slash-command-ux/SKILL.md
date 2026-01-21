@@ -1,7 +1,7 @@
 ---
 name: tzurot-slash-command-ux
 description: Use when implementing Discord slash commands, building list/browse UX, adding buttons or pagination, or creating dashboard patterns. Covers standard naming, shared utilities, and confirmation flows.
-lastUpdated: '2026-01-18'
+lastUpdated: '2026-01-21'
 ---
 
 # Slash Command UX Patterns

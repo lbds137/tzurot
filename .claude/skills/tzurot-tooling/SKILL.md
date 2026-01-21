@@ -1,7 +1,7 @@
 ---
 name: tzurot-tooling
 description: Use when adding CLI commands, dev scripts, or tooling utilities. Covers the ops CLI structure, where scripts belong, and standardized commands for linting/testing.
-lastUpdated: '2026-01-17'
+lastUpdated: '2026-01-21'
 ---
 
 # Tooling & CLI Commands

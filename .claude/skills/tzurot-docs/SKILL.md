@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
-description: Documentation maintenance for Tzurot v3 - Updating CURRENT_WORK.md, folder structure, and keeping docs current. Use at session end or when documentation needs updating.
-lastUpdated: '2026-01-04'
+description: Contains MANDATORY documentation procedures. MUST be consulted at session end or when updating CURRENT_WORK.md. Covers folder structure and knowledge continuity.
+lastUpdated: '2026-01-21'
 ---
 
 # Tzurot v3 Documentation Maintenance

@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
-description: PostgreSQL and pgvector patterns for Tzurot v3 - Connection management, vector operations, migrations, and Railway-specific considerations. Use when working with database or memory retrieval.
-lastUpdated: '2026-01-17'
+description: Contains MANDATORY PostgreSQL and pgvector patterns for Tzurot v3. MUST be consulted before writing Prisma queries or migrations. Covers connection management, vector operations, and Railway-specific considerations.
+lastUpdated: '2026-01-21'
 ---
 
 # Tzurot v3 Database & Vector Memory

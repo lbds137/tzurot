@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
-description: Git workflow for Tzurot v3 - Rebase-only strategy, PR creation against develop, commit message format, and safety checks. Use when creating commits, PRs, or performing git operations.
-lastUpdated: '2026-01-17'
+description: Contains MANDATORY git workflow rules for Tzurot v3. MUST be consulted before any git operation (commit, PR, rebase). Covers rebase-only strategy, commit format, and safety checks.
+lastUpdated: '2026-01-21'
 ---
 
 # Tzurot v3 Git Workflow

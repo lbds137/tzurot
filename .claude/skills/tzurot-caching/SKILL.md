@@ -1,3 +1,9 @@
+---
+name: tzurot-caching
+description: Contains MANDATORY caching patterns for Tzurot v3. MUST be consulted before implementing cache layers or TTL strategies. Covers Redis patterns, cache-aside, and invalidation.
+lastUpdated: '2026-01-21'
+---
+
 # Tzurot Caching & Horizontal Scaling Patterns
 
 ## Overview
