@@ -26,14 +26,10 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 const mockCreateInfoEmbed = vi.fn(() => ({
   addFields: vi.fn().mockReturnThis(),
 }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
 }));
 
@@ -50,13 +46,15 @@ describe('handleStats', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personalitySlug: string = 'lilith') {
+  function createMockContext(personalitySlug: string = 'lilith') {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return personalitySlug;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'personality') return personalitySlug;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
@@ -79,8 +77,8 @@ describe('handleStats', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleStats(interaction);
+    const context = createMockContext();
+    await handleStats(context);
 
     expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -113,8 +111,8 @@ describe('handleStats', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleStats(interaction);
+    const context = createMockContext();
+    await handleStats(context);
 
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Memory Statistics',
@@ -141,8 +139,8 @@ describe('handleStats', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleStats(interaction);
+    const context = createMockContext();
+    await handleStats(context);
 
     expect(mockCreateInfoEmbed).toHaveBeenCalledWith(
       'Memory Statistics',
@@ -162,13 +160,12 @@ describe('handleStats', () => {
   it('should handle personality not found from resolver', async () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
-    const interaction = createMockInteraction('unknown');
-    await handleStats(interaction);
+    const context = createMockContext('unknown');
+    await handleStats(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('unknown')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('unknown'),
+    });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
@@ -180,13 +177,12 @@ describe('handleStats', () => {
       error: 'Not found',
     });
 
-    const interaction = createMockInteraction('unknown');
-    await handleStats(interaction);
+    const context = createMockContext('unknown');
+    await handleStats(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('not found')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('not found'),
+    });
   });
 
   it('should handle generic API error', async () => {
@@ -197,25 +193,22 @@ describe('handleStats', () => {
       error: 'Server error',
     });
 
-    const interaction = createMockInteraction();
-    await handleStats(interaction);
+    const context = createMockContext();
+    await handleStats(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('Failed to get stats')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to get stats'),
+    });
   });
 
   it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockResolvePersonalityId.mockRejectedValue(error);
+    mockResolvePersonalityId.mockRejectedValue(new Error('Network error'));
 
-    const interaction = createMockInteraction();
-    await handleStats(interaction);
+    const context = createMockContext();
+    await handleStats(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Memory Stats',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('unexpected error'),
     });
   });
 });

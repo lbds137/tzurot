@@ -17,13 +17,14 @@
  */
 
 import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import {
   createLogger,
   type EnvConfig,
   DeletePersonalityResponseSchema,
   DISCORD_COLORS,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { fetchCharacter } from './api.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
@@ -35,23 +36,23 @@ const logger = createLogger('character-delete');
  * The actual deletion is handled by handleDeleteButton when user clicks confirm
  */
 export async function handleDelete(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const slug = interaction.options.getString('character', true);
+  const slug = context.interaction.options.getString('character', true);
+  const userId = context.user.id;
 
   try {
     // Fetch character to verify existence and ownership
-    const character = await fetchCharacter(slug, config, interaction.user.id);
+    const character = await fetchCharacter(slug, config, userId);
     if (!character) {
-      await interaction.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
     }
 
     // Use server-side permission check
     if (!character.canEdit) {
-      await interaction.editReply(
+      await context.editReply(
         `❌ You don't have permission to delete \`${slug}\`.\n` +
           'You can only delete characters you own.'
       );
@@ -85,15 +86,15 @@ export async function handleDelete(
         .setStyle(ButtonStyle.Secondary)
     );
 
-    await interaction.editReply({
+    await context.editReply({
       embeds: [embed],
       components: [buttons],
     });
 
-    logger.info({ userId: interaction.user.id, slug }, '[Character] Showing delete confirmation');
+    logger.info({ userId, slug }, '[Character] Showing delete confirmation');
   } catch (error) {
     logger.error({ err: error, slug }, '[Character] Delete command failed');
-    await interaction.editReply({
+    await context.editReply({
       content: '❌ Failed to process delete command. Please try again.',
       embeds: [],
       components: [],

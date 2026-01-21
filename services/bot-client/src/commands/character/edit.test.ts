@@ -45,16 +45,19 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 describe('Character Edit Handler', () => {
   const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-  const createMockInteraction = (slug: string) => {
+  const createMockContext = (slug: string) => {
     const mockReply = { id: 'reply-123' };
     return {
       user: { id: 'user-123' },
       channelId: 'channel-456',
-      options: {
-        getString: vi.fn((_name: string, _required?: boolean) => slug),
+      interaction: {
+        options: {
+          getString: vi.fn((_name: string, _required?: boolean) => slug),
+        },
       },
+      channel: { id: 'channel-456' },
       editReply: vi.fn().mockResolvedValue(mockReply),
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as Parameters<typeof handleEdit>[0];
   };
 
   const createMockCharacter = (overrides = {}) => ({
@@ -91,33 +94,35 @@ describe('Character Edit Handler', () => {
     // Note: deferReply is handled by top-level interactionCreate handler
 
     it('should return error when character not found', async () => {
-      const mockInteraction = createMockInteraction('nonexistent');
+      const mockContext = createMockContext('nonexistent');
       vi.mocked(api.fetchCharacter).mockResolvedValue(null);
 
-      await handleEdit(mockInteraction, mockConfig);
+      await handleEdit(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('not found'),
+      });
     });
 
     it('should return error when user cannot edit character', async () => {
-      const mockInteraction = createMockInteraction('other-char');
+      const mockContext = createMockContext('other-char');
       vi.mocked(api.fetchCharacter).mockResolvedValue(
         createMockCharacter({ canEdit: false, slug: 'other-char' })
       );
 
-      await handleEdit(mockInteraction, mockConfig);
+      await handleEdit(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission")
-      );
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining("don't have permission"),
+      });
     });
 
     it('should open dashboard for editable character', async () => {
-      const mockInteraction = createMockInteraction('my-char');
+      const mockContext = createMockContext('my-char');
       const mockCharacter = createMockCharacter({ slug: 'my-char' });
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
 
-      await handleEdit(mockInteraction, mockConfig);
+      await handleEdit(mockContext, mockConfig);
 
       expect(dashboardUtils.buildDashboardEmbed).toHaveBeenCalled();
       expect(dashboardUtils.buildDashboardComponents).toHaveBeenCalledWith(
@@ -126,14 +131,14 @@ describe('Character Edit Handler', () => {
         mockCharacter,
         expect.objectContaining({ showClose: true, showRefresh: true })
       );
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+      expect(mockContext.editReply).toHaveBeenCalledWith({
         embeds: expect.any(Array),
         components: expect.any(Array),
       });
     });
 
     it('should create session after opening dashboard', async () => {
-      const mockInteraction = createMockInteraction('my-char');
+      const mockContext = createMockContext('my-char');
       const mockCharacter = createMockCharacter({ slug: 'my-char' });
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
 
@@ -144,7 +149,7 @@ describe('Character Edit Handler', () => {
       };
       vi.mocked(dashboardUtils.getSessionManager).mockReturnValue(mockSessionManager as never);
 
-      await handleEdit(mockInteraction, mockConfig);
+      await handleEdit(mockContext, mockConfig);
 
       expect(mockSessionManager.set).toHaveBeenCalledWith({
         userId: 'user-123',
@@ -158,14 +163,14 @@ describe('Character Edit Handler', () => {
     });
 
     it('should handle fetch errors gracefully', async () => {
-      const mockInteraction = createMockInteraction('error-char');
+      const mockContext = createMockContext('error-char');
       vi.mocked(api.fetchCharacter).mockRejectedValue(new Error('Network error'));
 
-      await handleEdit(mockInteraction, mockConfig);
+      await handleEdit(mockContext, mockConfig);
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith(
-        expect.stringContaining('Failed to load character')
-      );
+      expect(mockContext.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to load character'),
+      });
     });
   });
 });

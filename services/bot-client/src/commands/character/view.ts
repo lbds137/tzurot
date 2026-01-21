@@ -10,7 +10,7 @@ import {
   MessageFlags,
   escapeMarkdown,
 } from 'discord.js';
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 import {
   createLogger,
   type EnvConfig,
@@ -20,6 +20,7 @@ import {
   TEXT_LIMITS,
   splitMessage,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -114,6 +115,126 @@ function buildOverviewDescription(character: CharacterData): string {
 }
 
 /**
+ * Build page 0: Overview & Identity
+ */
+function buildOverviewPage(
+  character: CharacterData,
+  embed: EmbedBuilder,
+  truncatedFields: string[]
+): void {
+  embed.setDescription(buildOverviewDescription(character));
+
+  embed.addFields(
+    {
+      name: '🏷️ Identity',
+      value:
+        `**Name:** ${escapeMarkdown(character.name)}\n` +
+        `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
+        `**Slug:** \`${character.slug}\``,
+      inline: false,
+    },
+    {
+      name: '⚙️ Settings',
+      value:
+        `**Visibility:** ${character.isPublic ? '🌐 Public' : '🔒 Private'}\n` +
+        `**Voice:** ${character.voiceEnabled ? '🎤 Enabled' : '❌ Disabled'}\n` +
+        `**Images:** ${character.imageEnabled ? '🖼️ Enabled' : '❌ Disabled'}`,
+      inline: false,
+    }
+  );
+
+  const traits = truncateField(character.personalityTraits, CHARACTER_VIEW_LIMITS.MEDIUM);
+  if (traits.wasTruncated) {
+    truncatedFields.push('personalityTraits');
+  }
+  embed.addFields({ name: '🎭 Personality Traits', value: traits.value, inline: false });
+
+  embed.addFields(
+    { name: '🎨 Tone', value: character.personalityTone ?? '_Not set_', inline: true },
+    { name: '📅 Age', value: character.personalityAge ?? '_Not set_', inline: true }
+  );
+}
+
+/**
+ * Build page 1: Biography & Appearance
+ */
+function buildBiographyPage(
+  character: CharacterData,
+  embed: EmbedBuilder,
+  truncatedFields: string[]
+): void {
+  const charInfo = truncateField(character.characterInfo);
+  const appearance = truncateField(character.personalityAppearance);
+  if (charInfo.wasTruncated) {
+    truncatedFields.push('characterInfo');
+  }
+  if (appearance.wasTruncated) {
+    truncatedFields.push('personalityAppearance');
+  }
+  embed.addFields(
+    { name: '📝 Character Info', value: charInfo.value, inline: false },
+    { name: '👤 Appearance', value: appearance.value, inline: false }
+  );
+}
+
+/**
+ * Build page 2: Preferences (Likes/Dislikes)
+ */
+function buildPreferencesPage(
+  character: CharacterData,
+  embed: EmbedBuilder,
+  truncatedFields: string[]
+): void {
+  const likes = truncateField(character.personalityLikes);
+  const dislikes = truncateField(character.personalityDislikes);
+  if (likes.wasTruncated) {
+    truncatedFields.push('personalityLikes');
+  }
+  if (dislikes.wasTruncated) {
+    truncatedFields.push('personalityDislikes');
+  }
+  embed.addFields(
+    { name: '❤️ Likes', value: likes.value, inline: false },
+    { name: '💔 Dislikes', value: dislikes.value, inline: false }
+  );
+}
+
+/**
+ * Build page 3: Conversation & Errors
+ */
+function buildConversationPage(
+  character: CharacterData,
+  embed: EmbedBuilder,
+  truncatedFields: string[]
+): void {
+  const goals = truncateField(character.conversationalGoals);
+  const examples = truncateField(character.conversationalExamples);
+  const errorMsg = truncateField(character.errorMessage, CHARACTER_VIEW_LIMITS.MEDIUM);
+  if (goals.wasTruncated) {
+    truncatedFields.push('conversationalGoals');
+  }
+  if (examples.wasTruncated) {
+    truncatedFields.push('conversationalExamples');
+  }
+  if (errorMsg.wasTruncated) {
+    truncatedFields.push('errorMessage');
+  }
+  embed.addFields(
+    { name: '🎯 Conversational Goals', value: goals.value, inline: false },
+    { name: '💬 Example Dialogues', value: examples.value, inline: false },
+    { name: '⚠️ Error Message', value: errorMsg.value, inline: false }
+  );
+}
+
+/** Page builder functions by page number */
+const PAGE_BUILDERS = [
+  buildOverviewPage,
+  buildBiographyPage,
+  buildPreferencesPage,
+  buildConversationPage,
+];
+
+/**
  * Build a single page of the character view embed
  */
 export function buildCharacterViewPage(character: CharacterData, page: number): ViewPageResult {
@@ -126,104 +247,8 @@ export function buildCharacterViewPage(character: CharacterData, page: number): 
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTimestamp();
 
-  switch (safePage) {
-    case 0: {
-      // Overview & Identity page
-      embed.setDescription(buildOverviewDescription(character));
-
-      // Identity info
-      embed.addFields(
-        {
-          name: '🏷️ Identity',
-          value:
-            `**Name:** ${escapeMarkdown(character.name)}\n` +
-            `**Display Name:** ${character.displayName !== null && character.displayName !== undefined ? escapeMarkdown(character.displayName) : '_Not set_'}\n` +
-            `**Slug:** \`${character.slug}\``,
-          inline: false,
-        },
-        {
-          name: '⚙️ Settings',
-          value:
-            `**Visibility:** ${character.isPublic ? '🌐 Public' : '🔒 Private'}\n` +
-            `**Voice:** ${character.voiceEnabled ? '🎤 Enabled' : '❌ Disabled'}\n` +
-            `**Images:** ${character.imageEnabled ? '🖼️ Enabled' : '❌ Disabled'}`,
-          inline: false,
-        }
-      );
-
-      // Add traits, tone, age if set
-      const traits = truncateField(character.personalityTraits, CHARACTER_VIEW_LIMITS.MEDIUM);
-      if (traits.wasTruncated) {
-        truncatedFields.push('personalityTraits');
-      }
-      embed.addFields({ name: '🎭 Personality Traits', value: traits.value, inline: false });
-
-      // Tone and age inline
-      const toneValue = character.personalityTone ?? '_Not set_';
-      const ageValue = character.personalityAge ?? '_Not set_';
-      embed.addFields(
-        { name: '🎨 Tone', value: toneValue, inline: true },
-        { name: '📅 Age', value: ageValue, inline: true }
-      );
-      break;
-    }
-
-    case 1: {
-      // Biography & Appearance page
-      const charInfo = truncateField(character.characterInfo);
-      const appearance = truncateField(character.personalityAppearance);
-      if (charInfo.wasTruncated) {
-        truncatedFields.push('characterInfo');
-      }
-      if (appearance.wasTruncated) {
-        truncatedFields.push('personalityAppearance');
-      }
-      embed.addFields(
-        { name: '📝 Character Info', value: charInfo.value, inline: false },
-        { name: '👤 Appearance', value: appearance.value, inline: false }
-      );
-      break;
-    }
-
-    case 2: {
-      // Preferences page
-      const likes = truncateField(character.personalityLikes);
-      const dislikes = truncateField(character.personalityDislikes);
-      if (likes.wasTruncated) {
-        truncatedFields.push('personalityLikes');
-      }
-      if (dislikes.wasTruncated) {
-        truncatedFields.push('personalityDislikes');
-      }
-      embed.addFields(
-        { name: '❤️ Likes', value: likes.value, inline: false },
-        { name: '💔 Dislikes', value: dislikes.value, inline: false }
-      );
-      break;
-    }
-
-    case 3: {
-      // Conversation & Errors page
-      const goals = truncateField(character.conversationalGoals);
-      const examples = truncateField(character.conversationalExamples);
-      const errorMsg = truncateField(character.errorMessage, CHARACTER_VIEW_LIMITS.MEDIUM);
-      if (goals.wasTruncated) {
-        truncatedFields.push('conversationalGoals');
-      }
-      if (examples.wasTruncated) {
-        truncatedFields.push('conversationalExamples');
-      }
-      if (errorMsg.wasTruncated) {
-        truncatedFields.push('errorMessage');
-      }
-      embed.addFields(
-        { name: '🎯 Conversational Goals', value: goals.value, inline: false },
-        { name: '💬 Example Dialogues', value: examples.value, inline: false },
-        { name: '⚠️ Error Message', value: errorMsg.value, inline: false }
-      );
-      break;
-    }
-  }
+  // Build the appropriate page content
+  PAGE_BUILDERS[safePage](character, embed, truncatedFields);
 
   // Add footer with timestamps
   const created = new Date(character.createdAt).toLocaleDateString();
@@ -334,16 +359,16 @@ async function fetchCharacter(slug: string, userId: string): Promise<CharacterDa
  * Handle /character view subcommand
  */
 export async function handleView(
-  interaction: ChatInputCommandInteraction,
+  context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const slug = interaction.options.getString('character', true);
+  const slug = context.interaction.options.getString('character', true);
+  const userId = context.user.id;
 
   try {
-    const character = await fetchCharacter(slug, interaction.user.id);
+    const character = await fetchCharacter(slug, userId);
     if (!character) {
-      await interaction.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
+      await context.editReply(`❌ Character \`${slug}\` not found or not accessible.`);
       return;
     }
 
@@ -351,10 +376,10 @@ export async function handleView(
     const { embed, truncatedFields } = buildCharacterViewPage(character, 0);
     const components = buildViewComponents(slug, 0, truncatedFields);
 
-    await interaction.editReply({ embeds: [embed], components });
+    await context.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error({ err: error, slug }, 'Failed to view character');
-    await interaction.editReply('❌ Failed to load character. Please try again.');
+    await context.editReply('❌ Failed to load character. Please try again.');
   }
 }
 

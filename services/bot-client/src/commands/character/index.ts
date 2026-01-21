@@ -11,15 +11,18 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   ModalSubmitInteraction,
   AutocompleteInteraction,
   StringSelectMenuInteraction,
   ButtonInteraction,
 } from 'discord.js';
-import { createLogger, getConfig, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import type {
+  SafeCommandContext,
+  DeferredCommandContext,
+} from '../../utils/commandContext/types.js';
+import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 
 // Import handlers from split modules
 import { handleAutocomplete } from './autocomplete.js';
@@ -49,24 +52,33 @@ import {
 const logger = createLogger('character-command');
 
 /**
- * Create character router with config dependency
+ * Create character router with mixed deferral modes
+ *
+ * - 'create' shows a modal (receives ModalCommandContext)
+ * - All other subcommands are deferred (receive DeferredCommandContext)
+ *
+ * Handlers that need config get it via getConfig() internally or via wrapper.
  */
-function createCharacterRouter(
-  config: EnvConfig
-): (interaction: ChatInputCommandInteraction) => Promise<void> {
-  return createSubcommandRouter(
+function createCharacterRouter(): (context: SafeCommandContext) => Promise<void> {
+  const config = getConfig();
+
+  return createMixedModeSubcommandRouter(
     {
-      create: handleCreate,
-      edit: interaction => handleEdit(interaction, config),
-      delete: interaction => handleDelete(interaction, config),
-      view: interaction => handleView(interaction, config),
-      list: interaction => handleList(interaction, config),
-      avatar: interaction => handleAvatar(interaction, config),
-      import: interaction => handleImport(interaction, config),
-      export: interaction => handleExport(interaction, config),
-      template: interaction => handleTemplate(interaction, config),
-      chat: interaction => handleChat(interaction, config),
-      settings: interaction => handleSettings(interaction, config),
+      modal: {
+        create: handleCreate,
+      },
+      deferred: {
+        edit: (ctx: DeferredCommandContext) => handleEdit(ctx, config),
+        delete: (ctx: DeferredCommandContext) => handleDelete(ctx, config),
+        view: (ctx: DeferredCommandContext) => handleView(ctx, config),
+        list: (ctx: DeferredCommandContext) => handleList(ctx, config),
+        avatar: (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
+        import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
+        export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
+        template: (ctx: DeferredCommandContext) => handleTemplate(ctx, config),
+        chat: (ctx: DeferredCommandContext) => handleChat(ctx, config),
+        settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
+      },
     },
     { logger, logPrefix: '[Character]' }
   );
@@ -75,10 +87,9 @@ function createCharacterRouter(
 /**
  * Command execution router
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const config = getConfig();
-  const router = createCharacterRouter(config);
-  await router(interaction);
+async function execute(context: SafeCommandContext): Promise<void> {
+  const router = createCharacterRouter();
+  await router(context);
 }
 
 /**
@@ -136,8 +147,16 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 /**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
+ *
+ * Uses mixed deferral modes:
+ * - Most subcommands use ephemeral deferral
+ * - 'create' shows a modal (no deferral)
  */
 export default defineCommand({
+  deferralMode: 'ephemeral', // Default for most subcommands
+  subcommandDeferralModes: {
+    create: 'modal', // /character create shows a modal
+  },
   data: new SlashCommandBuilder()
     .setName('character')
     .setDescription('Manage AI characters')
@@ -234,7 +253,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand
         .setName('chat')
-        .setDescription('Send a message to a character using a slash command')
+        .setDescription('Send a message to a character, or summon them to weigh in')
         .addStringOption(option =>
           option
             .setName('character')
@@ -245,8 +264,10 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('message')
-            .setDescription('Message to send')
-            .setRequired(true)
+            .setDescription(
+              'Message to send (leave empty to have them weigh in on the conversation)'
+            )
+            .setRequired(false)
             .setMaxLength(2000)
         )
     )

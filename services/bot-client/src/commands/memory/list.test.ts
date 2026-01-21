@@ -70,14 +70,18 @@ describe('handleList', () => {
     });
   });
 
-  function createMockInteraction(personality: string | null = null) {
+  function createMockContext(personality: string | null = null) {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'personality') return personality;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'personality') return personality;
+            return null;
+          },
         },
+        // Also needed for setupListCollector which uses interaction.editReply directly
+        editReply: mockEditReply,
       },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleList>[0];
@@ -105,8 +109,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       expect.stringContaining('/user/memory/list'),
@@ -134,8 +138,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction('lilith');
-    await handleList(interaction);
+    const context = createMockContext('lilith');
+    await handleList(context);
 
     expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -147,13 +151,12 @@ describe('handleList', () => {
   it('should show error when personality not found', async () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
-    const interaction = createMockInteraction('unknown-personality');
-    await handleList(interaction);
+    const context = createMockContext('unknown-personality');
+    await handleList(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('not found')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('not found'),
+    });
   });
 
   it('should handle API error', async () => {
@@ -163,13 +166,12 @@ describe('handleList', () => {
       error: 'Internal error',
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('Failed to load')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to load'),
+    });
   });
 
   it('should display empty state when no memories', async () => {
@@ -184,8 +186,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -215,8 +217,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockCreateMessageComponentCollector).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -237,8 +239,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
   });
@@ -246,13 +248,12 @@ describe('handleList', () => {
   it('should handle unexpected errors', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('unexpected error')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('unexpected error'),
+    });
   });
 
   it('should include pagination buttons with memories', async () => {
@@ -277,8 +278,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -308,8 +309,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     // The embed should contain the lock emoji for locked memories
     expect(mockEditReply).toHaveBeenCalledWith(
@@ -331,19 +332,21 @@ describe('handleList', () => {
       },
     });
 
-    // Create interaction with empty string personality
-    const interaction = {
+    // Create context with empty string personality
+    const context = {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'personality') return '';
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'personality') return '';
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleList>[0];
 
-    await handleList(interaction);
+    await handleList(context);
 
     // Should NOT call resolvePersonalityId when personality is empty
     expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -393,8 +396,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -428,8 +431,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     // Should succeed - content is truncated and newlines removed
     expect(mockEditReply).toHaveBeenCalledWith(
@@ -461,8 +464,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -486,8 +489,8 @@ describe('handleList', () => {
       },
     });
 
-    const interaction = createMockInteraction('lilith');
-    await handleList(interaction);
+    const context = createMockContext('lilith');
+    await handleList(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -524,11 +527,15 @@ describe('handleList collector behavior', () => {
     mockFollowUp.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction() {
+  function createMockContext() {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: () => null,
+      interaction: {
+        options: {
+          getString: () => null,
+        },
+        // Also needed for setupListCollector which uses interaction.editReply directly
+        editReply: mockEditReply,
       },
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleList>[0];
@@ -569,8 +576,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     // Simulate pagination button click for page 1
     mockCallGatewayApi.mockResolvedValueOnce({
@@ -625,8 +632,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     // API fails on page 2
     mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Server error' });
@@ -666,8 +673,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const selectInteraction = {
       isButton: () => false,
@@ -708,8 +715,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     // Reset mock to track the end behavior
     mockEditReply.mockClear();
@@ -742,8 +749,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     // Simulate editReply failing (message deleted)
     mockEditReply.mockClear();
@@ -776,8 +783,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const buttonInteraction = createMockButtonInteraction('unknown-prefix::action');
     collectCallback(buttonInteraction);
@@ -810,8 +817,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::edit::memory-1');
     collectCallback(buttonInteraction);
@@ -843,8 +850,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::lock::memory-1');
     collectCallback(buttonInteraction);
@@ -876,8 +883,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::delete::memory-1');
     collectCallback(buttonInteraction);
@@ -909,8 +916,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const buttonInteraction = createMockButtonInteraction(
       'memory-detail::confirm-delete::memory-1'
@@ -944,8 +951,8 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleList(interaction);
+    const context = createMockContext();
+    await handleList(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::back::memory-1');
     collectCallback(buttonInteraction);
