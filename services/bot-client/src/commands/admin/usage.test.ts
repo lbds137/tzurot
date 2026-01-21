@@ -1,10 +1,13 @@
 /**
  * Tests for Admin Usage Subcommand Handler
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleUsage } from './usage.js';
-import type { ChatInputCommandInteraction, User } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
@@ -64,49 +67,61 @@ function createMockUsageStats(
 }
 
 describe('handleUsage', () => {
-  let mockInteraction: ChatInputCommandInteraction;
-  let mockUser: User;
-
   beforeEach(() => {
     vi.clearAllMocks();
-
-    mockUser = {
-      id: 'user-123',
-    } as User;
-
-    mockInteraction = {
-      user: mockUser,
-      options: {
-        getString: vi.fn(),
-      },
-      editReply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ChatInputCommandInteraction;
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  // Note: deferReply is handled by top-level interactionCreate handler
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(period: string | null = null): DeferredCommandContext {
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
+    return {
+      interaction: {},
+      user: { id: 'user-123' },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'admin',
+      isEphemeral: true,
+      getOption: vi.fn((name: string) => {
+        if (name === 'period') return period;
+        return null;
+      }),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'usage',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
+  }
 
   it('should use default timeframe of 7d when not provided', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
     expect(fetch).toHaveBeenCalledWith(expect.stringContaining('timeframe=7d'), expect.any(Object));
   });
 
   it('should use provided timeframe', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('30d');
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(createMockUsageStats({ timeframe: '30d' })), { status: 200 })
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext('30d');
+    await handleUsage(context);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.stringContaining('timeframe=30d'),
@@ -115,12 +130,12 @@ describe('handleUsage', () => {
   });
 
   it('should include service secret in headers', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify(createMockUsageStats()), { status: 200 })
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
     expect(fetch).toHaveBeenCalledWith(
       expect.any(String),
@@ -133,7 +148,6 @@ describe('handleUsage', () => {
   });
 
   it('should display usage statistics in embed', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('7d');
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify(createMockUsageStats({ totalRequests: 150, totalTokens: 50000 })),
@@ -141,38 +155,37 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext('7d');
+    await handleUsage(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should handle HTTP errors', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(new Response('Internal Server Error', { status: 500 }));
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Failed to retrieve usage statistics')
-    );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 500'));
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('❌ Failed to retrieve usage statistics'),
+    });
   });
 
   it('should handle network errors', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Error retrieving usage statistics')
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('❌ Error retrieving usage statistics'),
+    });
   });
 
   it('should handle zero usage data', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify(
@@ -192,15 +205,15 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should handle large token counts', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify(
@@ -215,16 +228,16 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
     // Large token counts should be formatted with K/M suffixes
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should display all breakdowns when data is available', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify(
@@ -247,22 +260,22 @@ describe('handleUsage', () => {
       )
     );
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
     });
   });
 
   it('should handle 403 unauthorized response', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(null);
     vi.mocked(fetch).mockResolvedValue(new Response('Unauthorized', { status: 403 }));
 
-    await handleUsage(mockInteraction);
+    const context = createMockContext(null);
+    await handleUsage(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('❌ Failed to retrieve usage statistics')
-    );
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining('HTTP 403'));
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('❌ Failed to retrieve usage statistics'),
+    });
   });
 });

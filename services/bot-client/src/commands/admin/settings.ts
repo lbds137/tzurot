@@ -10,15 +10,18 @@
  * - Max Age: Duration or Off
  * - Max Images: 0-20
  *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
+ *
  * @see docs/planning/EXTENDED_CONTEXT_IMPROVEMENTS.md
  */
 
 import type {
-  ChatInputCommandInteraction,
   ButtonInteraction,
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { createLogger, DISCORD_COLORS, type GetAdminSettingsResponse } from '@tzurot/common-types';
 import { adminFetch, adminPatchJson } from '../../utils/adminApiClient.js';
 import {
@@ -57,8 +60,8 @@ const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
 /**
  * Handle /admin settings command - shows interactive dashboard
  */
-export async function handleSettings(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleSettings(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   logger.debug({ userId }, '[Admin Settings] Opening dashboard');
 
@@ -67,7 +70,7 @@ export async function handleSettings(interaction: ChatInputCommandInteraction): 
     const settings = await fetchAdminSettings(userId);
 
     if (settings === null) {
-      await interaction.editReply({
+      await context.editReply({
         content: 'Failed to fetch admin settings.',
       });
       return;
@@ -77,7 +80,8 @@ export async function handleSettings(interaction: ChatInputCommandInteraction): 
     const data = convertToSettingsData(settings);
 
     // Create and display the dashboard
-    await createSettingsDashboard(interaction, {
+    // Pass the underlying interaction since createSettingsDashboard expects ChatInputCommandInteraction
+    await createSettingsDashboard(context.interaction, {
       config: ADMIN_SETTINGS_CONFIG,
       data,
       entityId: 'global',
@@ -90,8 +94,9 @@ export async function handleSettings(interaction: ChatInputCommandInteraction): 
   } catch (error) {
     logger.error({ err: error }, '[Admin Settings] Error opening dashboard');
 
-    if (!interaction.replied) {
-      await interaction.editReply({
+    // Only respond if we haven't already (createSettingsDashboard may have replied)
+    if (!context.interaction.replied) {
+      await context.editReply({
         content: 'An error occurred while opening the settings dashboard.',
       });
     }

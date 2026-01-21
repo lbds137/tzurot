@@ -1,11 +1,14 @@
 /**
  * Admin Cleanup Subcommand
  * Handles /admin cleanup - Manually trigger cleanup of old conversation history and tombstones
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, CLEANUP_DEFAULTS } from '@tzurot/common-types';
 import { adminPostJson } from '../../utils/adminApiClient.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-cleanup');
 
@@ -18,25 +21,24 @@ interface CleanupResponse {
   timestamp: string;
 }
 
-export async function handleCleanup(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Note: deferReply is handled by top-level interactionCreate handler
-  const daysToKeep =
-    interaction.options.getInteger('days') ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
-  const target = interaction.options.getString('target') ?? 'all';
+export async function handleCleanup(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const daysToKeep = context.getOption<number>('days') ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
+  const target = context.getOption<string>('target') ?? 'all';
 
   try {
     const response = await adminPostJson('/admin/cleanup', {
       daysToKeep,
       target,
-      ownerId: interaction.user.id,
+      ownerId: userId,
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       logger.error({ status: response.status, error: errorText }, '[AdminCleanup] Cleanup failed');
-      await interaction.editReply(
-        `❌ Cleanup failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``
-      );
+      await context.editReply({
+        content: `❌ Cleanup failed (HTTP ${response.status}):\n\`\`\`\n${errorText}\n\`\`\``,
+      });
       return;
     }
 
@@ -53,7 +55,7 @@ export async function handleCleanup(interaction: ChatInputCommandInteraction): P
       `⏱️ Completed at: ${data.timestamp}`,
     ];
 
-    await interaction.editReply(lines.join('\n'));
+    await context.editReply({ content: lines.join('\n') });
 
     logger.info(
       {
@@ -66,6 +68,6 @@ export async function handleCleanup(interaction: ChatInputCommandInteraction): P
     );
   } catch (error) {
     logger.error({ err: error }, '[AdminCleanup] Error running cleanup');
-    await interaction.editReply('❌ Error running cleanup. Please try again later.');
+    await context.editReply({ content: '❌ Error running cleanup. Please try again later.' });
   }
 }

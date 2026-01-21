@@ -11,15 +11,19 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   AutocompleteInteraction,
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, requireBotOwner, DISCORD_LIMITS } from '@tzurot/common-types';
+import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import { createSubcommandContextRouter } from '../../utils/subcommandContextRouter.js';
+import type {
+  SafeCommandContext,
+  DeferredCommandContext,
+} from '../../utils/commandContext/types.js';
+import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 
 // Import subcommand handlers
 import { handlePing } from './ping.js';
@@ -39,35 +43,38 @@ import {
 const logger = createLogger('admin-command');
 
 /**
- * Create admin router with config dependency
+ * Create admin router for context-based commands.
+ * Uses createSubcommandContextRouter for type-safe routing with DeferredCommandContext.
  */
-function createAdminRouter(): (interaction: ChatInputCommandInteraction) => Promise<void> {
-  return createSubcommandRouter(
-    {
-      ping: handlePing,
-      'db-sync': handleDbSync,
-      servers: handleServers,
-      kick: handleKick,
-      usage: handleUsage,
-      cleanup: handleCleanup,
-      settings: handleSettings,
-    },
-    { logger, logPrefix: '[Admin]' }
-  );
-}
+const adminRouter = createSubcommandContextRouter(
+  {
+    ping: handlePing,
+    'db-sync': handleDbSync,
+    servers: handleServers,
+    kick: handleKick,
+    usage: handleUsage,
+    cleanup: handleCleanup,
+    settings: handleSettings,
+  },
+  { logger, logPrefix: '[Admin]' }
+);
 
 /**
  * Command execution router
  * Routes to the appropriate subcommand handler
+ *
+ * Receives SafeCommandContext (specifically DeferredCommandContext since
+ * deferralMode: 'ephemeral') - the framework has already deferred the reply.
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  // Owner-only check
-  if (!(await requireBotOwner(interaction))) {
+async function execute(ctx: SafeCommandContext): Promise<void> {
+  const context = ctx as DeferredCommandContext;
+
+  // Owner-only check (uses editReply since already deferred)
+  if (!(await requireBotOwnerContext(context))) {
     return;
   }
 
-  const router = createAdminRouter();
-  await router(interaction);
+  await adminRouter(context);
 }
 
 /**
@@ -234,6 +241,7 @@ export default defineCommand({
     .addSubcommand(subcommand =>
       subcommand.setName('settings').setDescription('Open global settings dashboard')
     ),
+  deferralMode: 'ephemeral',
   execute,
   autocomplete,
   handleSelectMenu,

@@ -13,6 +13,7 @@ import type {
   TextBasedChannel,
   User,
 } from 'discord.js';
+import { isBotOwner, getConfig } from '@tzurot/common-types';
 import type { DeferredCommandContext, ModalCommandContext, ManualCommandContext } from './types.js';
 
 /**
@@ -139,4 +140,36 @@ export function createManualContext(
     editReply: options => interaction.editReply(options),
     showModal: modal => interaction.showModal(modal),
   };
+}
+
+/**
+ * Verify that the context user is the bot owner.
+ *
+ * This is the context-aware version of requireBotOwner() from common-types.
+ * It uses editReply() instead of reply() since the interaction is already deferred.
+ *
+ * @param context - Deferred command context
+ * @returns true if user is owner, false otherwise (error already sent)
+ */
+export async function requireBotOwnerContext(context: DeferredCommandContext): Promise<boolean> {
+  const config = getConfig();
+  const ownerId = config.BOT_OWNER_ID;
+
+  // Check if owner ID is configured
+  if (ownerId === undefined || ownerId === null || ownerId.length === 0) {
+    await context.editReply({
+      content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
+    });
+    return false;
+  }
+
+  // Check if user is the owner
+  if (!isBotOwner(context.user.id)) {
+    await context.editReply({
+      content: '❌ Owner-only command. This command is restricted to the bot owner.',
+    });
+    return false;
+  }
+
+  return true;
 }

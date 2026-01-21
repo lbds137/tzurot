@@ -22,4 +22,9 @@ export type {
   SafeCommandContext,
 } from './types.js';
 
-export { createDeferredContext, createModalContext, createManualContext } from './factories.js';
+export {
+  createDeferredContext,
+  createModalContext,
+  createManualContext,
+  requireBotOwnerContext,
+} from './factories.js';
