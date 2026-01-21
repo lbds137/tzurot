@@ -113,6 +113,7 @@ export class CommandHandler {
         const commandWithCategory: Command = {
           data: cmdDef.data,
           deferralMode: cmdDef.deferralMode, // New: compile-time safe deferral
+          subcommandDeferralModes: cmdDef.subcommandDeferralModes, // Per-subcommand overrides
           execute: cmdDef.execute,
           autocomplete: cmdDef.autocomplete,
           handleSelectMenu: cmdDef.handleSelectMenu,
