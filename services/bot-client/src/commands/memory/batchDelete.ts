@@ -10,17 +10,12 @@ import {
   ActionRowBuilder,
   ComponentType,
   escapeMarkdown,
-  type ChatInputCommandInteraction,
   type ButtonInteraction,
 } from 'discord.js';
 import { createLogger, Duration, DurationParseError } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createWarningEmbed,
-  createSuccessEmbed,
-} from '../../utils/commandHelpers.js';
+import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 
 const logger = createLogger('memory-batch-delete');
@@ -67,20 +62,19 @@ function formatTimeframe(timeframe: string | null): string {
  * Shows preview and confirmation before batch deleting
  */
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with sequential UI flow
-export async function handleBatchDelete(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
-  const timeframe = interaction.options.getString('timeframe');
+export async function handleBatchDelete(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
+  const timeframe = context.interaction.options.getString('timeframe');
 
   try {
     // Resolve personality slug to ID
     const personalityId = await resolvePersonalityId(userId, personalityInput);
 
     if (personalityId === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      });
       return;
     }
 
@@ -107,7 +101,7 @@ export async function handleBatchDelete(interaction: ChatInputCommandInteraction
         { userId, personalityInput, status: previewResult.status },
         '[Memory] Delete preview failed'
       );
-      await replyWithError(interaction, errorMessage);
+      await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
 
@@ -115,7 +109,7 @@ export async function handleBatchDelete(interaction: ChatInputCommandInteraction
 
     // Nothing to delete
     if (preview.wouldDelete === 0) {
-      await interaction.editReply({
+      await context.editReply({
         content: `No memories found matching the criteria for **${escapeMarkdown(preview.personalityName)}**.`,
       });
       return;
@@ -152,7 +146,7 @@ export async function handleBatchDelete(interaction: ChatInputCommandInteraction
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
 
-    const response = await interaction.editReply({
+    const response = await context.editReply({
       embeds: [embed],
       components: [row],
     });
@@ -229,13 +223,14 @@ export async function handleBatchDelete(interaction: ChatInputCommandInteraction
       );
     } catch {
       // Timeout or error - clear components
-      await interaction.editReply({
+      await context.editReply({
         content: 'Deletion cancelled - confirmation timed out.',
         embeds: [],
         components: [],
       });
     }
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Delete' });
+    logger.error({ error, userId }, '[Memory Batch Delete] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

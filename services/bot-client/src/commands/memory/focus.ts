@@ -6,16 +6,11 @@
  * Memories continue to be saved, but won't be retrieved during conversations.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { escapeMarkdown } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createSuccessEmbed,
-  createInfoEmbed,
-} from '../../utils/commandHelpers.js';
+import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId, getPersonalityName } from './autocomplete.js';
 
 const logger = createLogger('memory-focus');
@@ -30,33 +25,32 @@ interface FocusResponse {
 /**
  * Handle /memory focus enable
  */
-export async function handleFocusEnable(interaction: ChatInputCommandInteraction): Promise<void> {
-  await setFocusMode(interaction, true);
+export async function handleFocusEnable(context: DeferredCommandContext): Promise<void> {
+  await setFocusMode(context, true);
 }
 
 /**
  * Handle /memory focus disable
  */
-export async function handleFocusDisable(interaction: ChatInputCommandInteraction): Promise<void> {
-  await setFocusMode(interaction, false);
+export async function handleFocusDisable(context: DeferredCommandContext): Promise<void> {
+  await setFocusMode(context, false);
 }
 
 /**
  * Handle /memory focus status
  */
-export async function handleFocusStatus(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
+export async function handleFocusStatus(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
 
   try {
     // Resolve personality slug to ID
     const personalityId = await resolvePersonalityId(userId, personalityInput);
 
     if (personalityId === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      });
       return;
     }
 
@@ -73,7 +67,9 @@ export async function handleFocusStatus(interaction: ChatInputCommandInteraction
         { userId, personalityInput, status: result.status },
         '[Memory/Focus] Status check failed'
       );
-      await replyWithError(interaction, 'Failed to check focus mode status. Please try again.');
+      await context.editReply({
+        content: '❌ Failed to check focus mode status. Please try again.',
+      });
       return;
     }
 
@@ -87,36 +83,33 @@ export async function handleFocusStatus(interaction: ChatInputCommandInteraction
         : `Focus mode is **disabled** for **${escapeMarkdown(personalityName ?? personalityInput)}**.\n\nLong-term memories are being retrieved normally during conversations.`
     );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, personalityId, focusModeEnabled: data.focusModeEnabled },
       '[Memory/Focus] Status checked'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Focus Status' });
+    logger.error({ error, userId }, '[Memory/Focus Status] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
 
 /**
  * Common handler for enabling/disabling focus mode
  */
-async function setFocusMode(
-  interaction: ChatInputCommandInteraction,
-  enabled: boolean
-): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
+async function setFocusMode(context: DeferredCommandContext, enabled: boolean): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
 
   try {
     // Resolve personality slug to ID
     const personalityId = await resolvePersonalityId(userId, personalityInput);
 
     if (personalityId === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      });
       return;
     }
 
@@ -131,7 +124,7 @@ async function setFocusMode(
         { userId, personalityInput, enabled, status: result.status },
         '[Memory/Focus] Set focus mode failed'
       );
-      await replyWithError(interaction, 'Failed to update focus mode. Please try again.');
+      await context.editReply({ content: '❌ Failed to update focus mode. Please try again.' });
       return;
     }
 
@@ -147,16 +140,17 @@ async function setFocusMode(
           `Focus mode is now **disabled** for **${escapeMarkdown(data.personalityName)}**.\n\nLong-term memories will be retrieved normally during conversations.`
         );
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, personalityId, enabled },
       `[Memory/Focus] Focus mode ${enabled ? 'enabled' : 'disabled'}`
     );
   } catch (error) {
-    await handleCommandError(interaction, error, {
-      userId,
-      command: `Memory Focus ${enabled ? 'Enable' : 'Disable'}`,
-    });
+    logger.error(
+      { error, userId },
+      `[Memory/Focus ${enabled ? 'Enable' : 'Disable'}] Unexpected error`
+    );
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

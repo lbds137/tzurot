@@ -6,8 +6,8 @@
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 import {
   buildPaginationButtons,
@@ -450,10 +450,10 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
 /**
  * Handle /memory search
  */
-export async function handleSearch(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const query = interaction.options.getString('query', true);
-  const personalityInput = interaction.options.getString('personality');
+export async function handleSearch(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const query = context.interaction.options.getString('query', true);
+  const personalityInput = context.interaction.options.getString('personality');
 
   try {
     // Resolve personality if provided
@@ -461,10 +461,9 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
     if (personalityInput !== null && personalityInput.length > 0) {
       const resolved = await resolvePersonalityId(userId, personalityInput);
       if (resolved === null) {
-        await replyWithError(
-          interaction,
-          `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-        );
+        await context.editReply({
+          content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+        });
         return;
       }
       personalityId = resolved;
@@ -481,7 +480,7 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
 
     if (data === null) {
       logger.warn({ userId, query: query.substring(0, 50) }, '[Memory] Search failed');
-      await replyWithError(interaction, 'Failed to search memories. Please try again later.');
+      await context.editReply({ content: '❌ Failed to search memories. Please try again later.' });
       return;
     }
 
@@ -514,7 +513,7 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
           ]
         : [];
 
-    const response = await interaction.editReply({ embeds: [embed], components });
+    const response = await context.editReply({ embeds: [embed], components });
 
     logger.info(
       {
@@ -529,8 +528,9 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
     );
 
     // Set up collector for pagination
+    // Pass the raw interaction since collectors need it for ongoing edits
     if (components.length > 0) {
-      setupSearchCollector(interaction, response, {
+      setupSearchCollector(context.interaction, response, {
         userId,
         query,
         personalityId,
@@ -538,6 +538,7 @@ export async function handleSearch(interaction: ChatInputCommandInteraction): Pr
       });
     }
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Search' });
+    logger.error({ error, userId }, '[Memory Search] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

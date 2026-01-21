@@ -6,8 +6,8 @@
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 import {
   buildPaginationButtons,
@@ -371,9 +371,9 @@ function setupListCollector(
 /**
  * Handle /memory list command
  */
-export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality');
+export async function handleList(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality');
 
   try {
     // Resolve personality if provided
@@ -381,10 +381,9 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     if (personalityInput !== null && personalityInput.length > 0) {
       const resolved = await resolvePersonalityId(userId, personalityInput);
       if (resolved === null) {
-        await replyWithError(
-          interaction,
-          `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-        );
+        await context.editReply({
+          content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+        });
         return;
       }
       personalityId = resolved;
@@ -395,7 +394,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
     if (data === null) {
       logger.warn({ userId }, '[Memory] List failed');
-      await replyWithError(interaction, 'Failed to load memories. Please try again later.');
+      await context.editReply({ content: '❌ Failed to load memories. Please try again later.' });
       return;
     }
 
@@ -427,13 +426,14 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       personalityId,
     };
 
-    const response = await interaction.editReply({ embeds: [embed], components });
+    const response = await context.editReply({ embeds: [embed], components });
 
     logger.info({ userId, total, personalityId, hasMore: data.hasMore }, '[Memory] List displayed');
 
     // Set up collector for pagination and select menu
+    // Pass the raw interaction since collectors need it for ongoing edits
     if (components.length > 0) {
-      setupListCollector(interaction, response, {
+      setupListCollector(context.interaction, response, {
         userId,
         personalityId,
         listContext,
@@ -441,6 +441,8 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
     }
   } catch (error) {
     logger.error({ err: error, userId }, '[Memory] List error');
-    await replyWithError(interaction, 'An unexpected error occurred. Please try again later.');
+    await context.editReply({
+      content: '❌ An unexpected error occurred. Please try again later.',
+    });
   }
 }
