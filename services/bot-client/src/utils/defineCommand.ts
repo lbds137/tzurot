@@ -9,15 +9,25 @@
  * CommandHandler looked for `handleModal`. The typo was silently ignored,
  * causing cryptic runtime errors. This pattern prevents that class of bug.
  *
- * Usage:
+ * Usage (legacy - receives raw interaction):
  * ```typescript
  * export default defineCommand({
  *   data: new SlashCommandBuilder().setName('ping').setDescription('Pong'),
  *   execute: async (interaction) => {
- *     await interaction.reply('Pong!');
+ *     await interaction.editReply('Pong!');
  *   },
- *   // TypeScript will autocomplete valid handler names here
- *   handleModal: async (interaction) => { ... },
+ * });
+ * ```
+ *
+ * Usage (new - receives typed context, compile-time safe):
+ * ```typescript
+ * export default defineCommand({
+ *   data: new SlashCommandBuilder().setName('ping').setDescription('Pong'),
+ *   deferralMode: 'ephemeral', // Determines context type
+ *   execute: async (context) => {
+ *     // context.deferReply() would be a TypeScript ERROR here
+ *     await context.editReply('Pong!');
+ *   },
  * });
  * ```
  */
@@ -32,6 +42,15 @@ import type {
   SlashCommandSubcommandsOnlyBuilder,
   SlashCommandOptionsOnlyBuilder,
 } from 'discord.js';
+import type { DeferralMode, SafeCommandContext } from './commandContext/index.js';
+
+// Re-export context types for convenience
+export type { DeferralMode, SafeCommandContext } from './commandContext/index.js';
+export type {
+  DeferredCommandContext,
+  ModalCommandContext,
+  ManualCommandContext,
+} from './commandContext/index.js';
 
 /**
  * Command definition that can be passed to defineCommand.
@@ -48,10 +67,29 @@ export interface CommandDefinition {
     | Omit<SlashCommandBuilder, 'addSubcommand' | 'addSubcommandGroup'>;
 
   /**
+   * How this command's interaction should be deferred.
+   *
+   * - 'ephemeral': Deferred with ephemeral: true (default - only user sees "thinking")
+   * - 'public': Deferred with ephemeral: false (everyone sees "thinking")
+   * - 'modal': Not deferred - command shows a modal first
+   * - 'none': Not deferred - command handles response timing itself
+   *
+   * When set, the command's execute() receives a typed SafeCommandContext
+   * instead of raw ChatInputCommandInteraction. This enables compile-time
+   * prevention of InteractionAlreadyReplied errors.
+   */
+  deferralMode?: DeferralMode;
+
+  /**
    * Main command execution handler.
    * Called when the slash command is invoked.
+   *
+   * If deferralMode is set, receives a typed SafeCommandContext.
+   * Otherwise, receives raw ChatInputCommandInteraction (legacy mode).
    */
-  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  execute:
+    | ((interaction: ChatInputCommandInteraction) => Promise<void>)
+    | ((context: SafeCommandContext) => Promise<void>);
 
   /**
    * Autocomplete handler for commands with autocomplete options.
@@ -91,6 +129,7 @@ export interface CommandDefinition {
  */
 export const VALID_COMMAND_KEYS: readonly (keyof CommandDefinition)[] = [
   'data',
+  'deferralMode',
   'execute',
   'autocomplete',
   'handleButton',

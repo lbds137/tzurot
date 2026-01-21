@@ -47,6 +47,11 @@ import { PersonalityMentionProcessor } from './processors/PersonalityMentionProc
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
 import { wrapDeferredInteraction } from './utils/safeInteraction.js';
+import {
+  createDeferredContext,
+  createModalContext,
+  createManualContext,
+} from './utils/commandContext/index.js';
 
 // Initialize logger
 const logger = createLogger('bot-client');
@@ -235,7 +240,14 @@ client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
       if (interaction.isChatInputCommand()) {
-        // Build full command name for checking against sets
+        // Get the command to check its deferralMode
+        const command = commandHandler.getCommand(interaction.commandName);
+        if (command === undefined) {
+          logger.warn({ commandName: interaction.commandName }, 'Unknown command');
+          return;
+        }
+
+        // Build full command name for checking against legacy sets
         const subcommand = interaction.options.getSubcommand(false);
         const subcommandGroup = interaction.options.getSubcommandGroup(false);
         let fullCommand = interaction.commandName;
@@ -246,29 +258,12 @@ client.on(Events.InteractionCreate, interaction => {
           fullCommand += ` ${subcommand}`;
         }
 
-        // Skip deferral for commands that show modals
-        // Modal must be the FIRST response to an interaction
-        if (!MODAL_COMMANDS.has(fullCommand)) {
-          // CRITICAL: Defer IMMEDIATELY to avoid 3-second Discord timeout
-          // Do this BEFORE any routing logic or async operations
-          const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
-
-          try {
-            await interaction.deferReply({
-              flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
-            });
-          } catch (deferError) {
-            // If defer fails, the interaction already expired - nothing we can do
-            logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
-            return;
-          }
-          // Wrap the interaction to auto-convert reply() to editReply()
-          // This prevents InteractionAlreadyReplied errors in commands
-          const safeInteraction = wrapDeferredInteraction(interaction);
-          await commandHandler.handleInteraction(safeInteraction);
+        // NEW PATTERN: Use command's deferralMode if set
+        if (command.deferralMode !== undefined) {
+          await handleCommandWithContext(interaction, command, fullCommand);
         } else {
-          // Modal commands are not deferred, pass original interaction
-          await commandHandler.handleInteraction(interaction);
+          // LEGACY PATTERN: Use hardcoded sets and SafeInteraction proxy
+          await handleCommandLegacy(interaction, fullCommand);
         }
       } else if (interaction.isModalSubmit()) {
         await commandHandler.handleInteraction(interaction);
@@ -283,6 +278,101 @@ client.on(Events.InteractionCreate, interaction => {
     }
   })();
 });
+
+/**
+ * Handle a command using the new typed context pattern.
+ *
+ * Commands with deferralMode receive a SafeCommandContext that doesn't
+ * expose deferReply() (for deferred modes), preventing InteractionAlreadyReplied
+ * errors at compile time.
+ */
+async function handleCommandWithContext(
+  interaction: import('discord.js').ChatInputCommandInteraction,
+  command: import('./types.js').Command,
+  fullCommand: string
+): Promise<void> {
+  const deferralMode = command.deferralMode;
+
+  // Type assertion: We dispatch the correct context type based on deferralMode,
+  // but TypeScript can't narrow the execute function signature at compile time.
+  // This is safe because we control both the context creation and the dispatch.
+  type ContextExecute = (
+    context: import('./utils/commandContext/index.js').SafeCommandContext
+  ) => Promise<void>;
+  const execute = command.execute as ContextExecute;
+
+  switch (deferralMode) {
+    case 'ephemeral':
+    case 'public': {
+      // Defer appropriately
+      const isEphemeral = deferralMode === 'ephemeral';
+      try {
+        await interaction.deferReply({
+          flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
+        });
+      } catch (deferError) {
+        logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
+        return;
+      }
+      // Create typed context (no deferReply method!)
+      const context = createDeferredContext(interaction, isEphemeral);
+      await execute(context);
+      break;
+    }
+
+    case 'modal': {
+      // Don't defer - command will show modal
+      const context = createModalContext(interaction);
+      await execute(context);
+      break;
+    }
+
+    case 'none': {
+      // Don't defer - command handles timing itself
+      const context = createManualContext(interaction);
+      await execute(context);
+      break;
+    }
+  }
+}
+
+/**
+ * Handle a command using the legacy SafeInteraction pattern.
+ *
+ * This uses the hardcoded MODAL_COMMANDS and NON_EPHEMERAL_COMMANDS sets
+ * and wraps the interaction with SafeInteraction proxy for runtime safety.
+ *
+ * @deprecated Commands should migrate to using deferralMode for compile-time safety.
+ */
+async function handleCommandLegacy(
+  interaction: import('discord.js').ChatInputCommandInteraction,
+  fullCommand: string
+): Promise<void> {
+  // Skip deferral for commands that show modals
+  // Modal must be the FIRST response to an interaction
+  if (!MODAL_COMMANDS.has(fullCommand)) {
+    // CRITICAL: Defer IMMEDIATELY to avoid 3-second Discord timeout
+    // Do this BEFORE any routing logic or async operations
+    const isEphemeral = !NON_EPHEMERAL_COMMANDS.has(fullCommand);
+
+    try {
+      await interaction.deferReply({
+        flags: isEphemeral ? MessageFlags.Ephemeral : undefined,
+      });
+    } catch (deferError) {
+      // If defer fails, the interaction already expired - nothing we can do
+      logger.error({ err: deferError, command: fullCommand }, 'Failed to defer interaction');
+      return;
+    }
+    // Wrap the interaction to auto-convert reply() to editReply()
+    // This prevents InteractionAlreadyReplied errors in commands
+    const safeInteraction = wrapDeferredInteraction(interaction);
+    await commandHandler.handleInteraction(safeInteraction);
+  } else {
+    // Modal commands are not deferred, pass original interaction
+    await commandHandler.handleInteraction(interaction);
+  }
+}
 
 // Ready event
 client.once(Events.ClientReady, () => {

@@ -112,6 +112,7 @@ export class CommandHandler {
         // Create command object with category (don't mutate the imported module)
         const commandWithCategory: Command = {
           data: cmdDef.data,
+          deferralMode: cmdDef.deferralMode, // New: compile-time safe deferral
           execute: cmdDef.execute,
           autocomplete: cmdDef.autocomplete,
           handleSelectMenu: cmdDef.handleSelectMenu,
@@ -174,7 +175,11 @@ export class CommandHandler {
 
     try {
       logger.info(`[CommandHandler] Executing command: ${commandName}`);
-      await command.execute(interaction);
+      // Type assertion for legacy commands that receive raw interaction
+      // New commands with deferralMode are handled by index.ts directly
+      type LegacyExecute = (interaction: ChatInputCommandInteraction) => Promise<void>;
+      const execute = command.execute as LegacyExecute;
+      await execute(interaction);
     } catch (error) {
       logger.error({ err: error }, `[CommandHandler] Error executing command: ${commandName}`);
 
@@ -342,5 +347,12 @@ export class CommandHandler {
    */
   getCommands(): Collection<string, Command> {
     return this.commands;
+  }
+
+  /**
+   * Get a specific command by name
+   */
+  getCommand(name: string): Command | undefined {
+    return this.commands.get(name);
   }
 }
