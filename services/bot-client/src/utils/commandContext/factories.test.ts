@@ -13,7 +13,8 @@ import {
   createManualContext,
   requireBotOwnerContext,
 } from './factories.js';
-import type { DeferredCommandContext } from './types.js';
+import type { DeferredCommandContext, SafeCommandContext } from './types.js';
+import { isDeferredContext, isModalContext, isManualContext } from './types.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -350,6 +351,65 @@ describe('requireBotOwnerContext', () => {
     expect(result).toBe(false);
     expect(context.editReply).toHaveBeenCalledWith({
       content: '⚠️ Bot owner not configured. Please set BOT_OWNER_ID environment variable.',
+    });
+  });
+});
+
+describe('Type Guards', () => {
+  let mockInteraction: ChatInputCommandInteraction;
+
+  beforeEach(() => {
+    mockInteraction = createMockInteraction();
+  });
+
+  describe('isDeferredContext', () => {
+    it('should return true for DeferredCommandContext', () => {
+      const context = createDeferredContext(mockInteraction, true);
+      expect(isDeferredContext(context)).toBe(true);
+    });
+
+    it('should return false for ModalCommandContext', () => {
+      const context = createModalContext(mockInteraction);
+      expect(isDeferredContext(context as SafeCommandContext)).toBe(false);
+    });
+
+    it('should return false for ManualCommandContext', () => {
+      const context = createManualContext(mockInteraction);
+      expect(isDeferredContext(context as SafeCommandContext)).toBe(false);
+    });
+  });
+
+  describe('isModalContext', () => {
+    it('should return true for ModalCommandContext', () => {
+      const context = createModalContext(mockInteraction);
+      expect(isModalContext(context as SafeCommandContext)).toBe(true);
+    });
+
+    it('should return false for DeferredCommandContext', () => {
+      const context = createDeferredContext(mockInteraction, true);
+      expect(isModalContext(context)).toBe(false);
+    });
+
+    it('should return false for ManualCommandContext', () => {
+      const context = createManualContext(mockInteraction);
+      expect(isModalContext(context as SafeCommandContext)).toBe(false);
+    });
+  });
+
+  describe('isManualContext', () => {
+    it('should return true for ManualCommandContext', () => {
+      const context = createManualContext(mockInteraction);
+      expect(isManualContext(context as SafeCommandContext)).toBe(true);
+    });
+
+    it('should return false for DeferredCommandContext', () => {
+      const context = createDeferredContext(mockInteraction, true);
+      expect(isManualContext(context)).toBe(false);
+    });
+
+    it('should return false for ModalCommandContext', () => {
+      const context = createModalContext(mockInteraction);
+      expect(isManualContext(context as SafeCommandContext)).toBe(false);
     });
   });
 });
