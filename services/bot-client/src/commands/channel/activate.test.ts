@@ -1,15 +1,31 @@
 /**
  * Tests for /channel activate subcommand
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
-import type { ChatInputCommandInteraction, GuildMember, PermissionsBitField } from 'discord.js';
+import type { PermissionsBitField, GuildMember } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleActivate } from './activate.js';
 
 // Mock gateway client
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+}));
+
+// Mock GatewayClient for cache invalidation
+vi.mock('../../utils/GatewayClient.js', () => ({
+  invalidateChannelSettingsCache: vi.fn(),
+}));
+
+// Mock service registry
+vi.mock('../../services/serviceRegistry.js', () => ({
+  getChannelActivationCacheInvalidationService: vi.fn().mockReturnValue({
+    invalidateChannel: vi.fn(),
+  }),
 }));
 
 // Mock logger
@@ -31,18 +47,19 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 describe('/channel activate', () => {
   const mockCallGatewayApi = vi.mocked(callGatewayApi);
 
-  function createMockInteraction(options: {
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(options: {
     personalitySlug?: string;
     channelId?: string;
     guildId?: string | null;
-    inGuild?: boolean;
     hasManageMessages?: boolean;
-  }): ChatInputCommandInteraction {
+  }): DeferredCommandContext {
     const {
       personalitySlug = 'test-personality',
       channelId = '123456789012345678',
       guildId = '987654321098765432',
-      inGuild = true,
       hasManageMessages = true,
     } = options;
 
@@ -59,21 +76,29 @@ describe('/channel activate', () => {
       permissions: mockPermissions,
     } as GuildMember;
 
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
     return {
-      options: {
-        getString: vi.fn((name: string) => {
-          if (name === 'personality') return personalitySlug;
-          return null;
-        }),
-      },
+      interaction: { editReply: mockEditReply },
+      user: { id: 'user-123' },
+      guild: guildId !== null ? { id: guildId } : null,
+      member: guildId !== null ? mockMember : null,
+      channel: null,
       channelId,
       guildId,
-      user: { id: 'user-123' },
-      member: mockMember,
-      inGuild: vi.fn().mockReturnValue(inGuild),
-      deferReply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ChatInputCommandInteraction;
+      commandName: 'channel',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn((name: string) => {
+        if (name === 'personality') return personalitySlug;
+        throw new Error(`Unknown option: ${name}`);
+      }),
+      getSubcommand: () => 'activate',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   }
 
   beforeEach(() => {
@@ -81,25 +106,21 @@ describe('/channel activate', () => {
   });
 
   it('should activate a personality successfully', async () => {
-    const interaction = createMockInteraction({});
-    mockCallGatewayApi.mockResolvedValue({
+    const context = createMockContext({});
+    mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
       data: {
         activation: {
-          id: 'activation-uuid',
-          channelId: '123456789012345678',
+          id: 'activation-123',
           personalitySlug: 'test-personality',
           personalityName: 'Test Personality',
-          activatedBy: 'user-uuid',
-          createdAt: '2024-01-01T00:00:00.000Z',
         },
         replaced: false,
       },
     });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    // deferReply is now handled at top-level interactionCreate handler
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/activate', {
       userId: 'user-123',
       method: 'POST',
@@ -109,106 +130,99 @@ describe('/channel activate', () => {
         guildId: '987654321098765432',
       },
     });
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('Activated **Test Personality**')
     );
   });
 
   it('should indicate when replacing an existing activation', async () => {
-    const interaction = createMockInteraction({});
-    mockCallGatewayApi.mockResolvedValue({
+    const context = createMockContext({});
+    mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
       data: {
         activation: {
-          id: 'activation-uuid',
-          channelId: '123456789012345678',
-          personalitySlug: 'new-personality',
-          personalityName: 'New Personality',
-          activatedBy: 'user-uuid',
-          createdAt: '2024-01-01T00:00:00.000Z',
+          id: 'activation-123',
+          personalitySlug: 'test-personality',
+          personalityName: 'Test Personality',
         },
         replaced: true,
       },
     });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('replaced previous activation')
     );
   });
 
   it('should reject when not in a guild', async () => {
-    const interaction = createMockInteraction({ inGuild: false });
+    const context = createMockContext({ guildId: null });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith({
-      content: '❌ This command can only be used in a server.',
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('only be used in a server'),
     });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should reject when user lacks ManageMessages permission', async () => {
-    const interaction = createMockInteraction({ hasManageMessages: false });
+    const context = createMockContext({ hasManageMessages: false });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith({
-      content: '❌ You need the "Manage Messages" permission to use this command.',
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Manage Messages'),
     });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should handle 404 - personality not found', async () => {
-    const interaction = createMockInteraction({});
-    mockCallGatewayApi.mockResolvedValue({
+    const context = createMockContext({});
+    mockCallGatewayApi.mockResolvedValueOnce({
       ok: false,
-      error: 'NOT_FOUND',
       status: 404,
+      error: 'Personality not found',
     });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
   });
 
   it('should handle 403 - no access to personality', async () => {
-    const interaction = createMockInteraction({});
-    mockCallGatewayApi.mockResolvedValue({
+    const context = createMockContext({});
+    mockCallGatewayApi.mockResolvedValueOnce({
       ok: false,
-      error: 'UNAUTHORIZED',
       status: 403,
+      error: 'Access denied',
     });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining("don't have access")
-    );
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining("don't have access"));
   });
 
   it('should handle generic API errors', async () => {
-    const interaction = createMockInteraction({});
-    mockCallGatewayApi.mockResolvedValue({
+    const context = createMockContext({});
+    mockCallGatewayApi.mockResolvedValueOnce({
       ok: false,
-      error: 'Internal server error',
       status: 500,
+      error: 'Internal server error',
     });
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to activate')
-    );
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to activate'));
   });
 
   it('should handle unexpected errors', async () => {
-    const interaction = createMockInteraction({});
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+    const context = createMockContext({});
+    mockCallGatewayApi.mockRejectedValueOnce(new Error('Network error'));
 
-    await handleActivate(interaction);
+    await handleActivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
   });
 });

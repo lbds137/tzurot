@@ -1,15 +1,31 @@
 /**
  * Tests for /channel deactivate subcommand
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PermissionFlagsBits } from 'discord.js';
-import type { ChatInputCommandInteraction, GuildMember, PermissionsBitField } from 'discord.js';
+import type { PermissionsBitField, GuildMember } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleDeactivate } from './deactivate.js';
 
 // Mock gateway client
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+}));
+
+// Mock GatewayClient for cache invalidation
+vi.mock('../../utils/GatewayClient.js', () => ({
+  invalidateChannelSettingsCache: vi.fn(),
+}));
+
+// Mock service registry
+vi.mock('../../services/serviceRegistry.js', () => ({
+  getChannelActivationCacheInvalidationService: vi.fn().mockReturnValue({
+    invalidateChannel: vi.fn(),
+  }),
 }));
 
 // Mock logger
@@ -31,12 +47,19 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 describe('/channel deactivate', () => {
   const mockCallGatewayApi = vi.mocked(callGatewayApi);
 
-  function createMockInteraction(options: {
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(options: {
     channelId?: string;
-    inGuild?: boolean;
+    guildId?: string | null;
     hasManageMessages?: boolean;
-  }): ChatInputCommandInteraction {
-    const { channelId = '123456789012345678', inGuild = true, hasManageMessages = true } = options;
+  }): DeferredCommandContext {
+    const {
+      channelId = '123456789012345678',
+      guildId = '987654321098765432',
+      hasManageMessages = true,
+    } = options;
 
     const mockPermissions = {
       has: vi.fn((permission: bigint) => {
@@ -51,14 +74,26 @@ describe('/channel deactivate', () => {
       permissions: mockPermissions,
     } as GuildMember;
 
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
     return {
-      channelId,
+      interaction: { editReply: mockEditReply },
       user: { id: 'user-123' },
-      member: mockMember,
-      inGuild: vi.fn().mockReturnValue(inGuild),
-      deferReply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ChatInputCommandInteraction;
+      guild: guildId !== null ? { id: guildId } : null,
+      member: guildId !== null ? mockMember : null,
+      channel: null,
+      channelId,
+      guildId,
+      commandName: 'channel',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'deactivate',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   }
 
   beforeEach(() => {
@@ -66,7 +101,7 @@ describe('/channel deactivate', () => {
   });
 
   it('should deactivate a channel successfully', async () => {
-    const interaction = createMockInteraction({});
+    const context = createMockContext({});
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -75,9 +110,8 @@ describe('/channel deactivate', () => {
       },
     });
 
-    await handleDeactivate(interaction);
+    await handleDeactivate(context);
 
-    // deferReply is now handled at top-level interactionCreate handler
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/deactivate', {
       userId: 'user-123',
       method: 'DELETE',
@@ -85,13 +119,13 @@ describe('/channel deactivate', () => {
         channelId: '123456789012345678',
       },
     });
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('Deactivated **Test Personality**')
     );
   });
 
   it('should handle when no activation exists', async () => {
-    const interaction = createMockInteraction({});
+    const context = createMockContext({});
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -99,56 +133,54 @@ describe('/channel deactivate', () => {
       },
     });
 
-    await handleDeactivate(interaction);
+    await handleDeactivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('No personality is currently activated')
     );
   });
 
   it('should reject when not in a guild', async () => {
-    const interaction = createMockInteraction({ inGuild: false });
+    const context = createMockContext({ guildId: null });
 
-    await handleDeactivate(interaction);
+    await handleDeactivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       content: '❌ This command can only be used in a server.',
     });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should reject when user lacks ManageMessages permission', async () => {
-    const interaction = createMockInteraction({ hasManageMessages: false });
+    const context = createMockContext({ hasManageMessages: false });
 
-    await handleDeactivate(interaction);
+    await handleDeactivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith({
+    expect(context.editReply).toHaveBeenCalledWith({
       content: '❌ You need the "Manage Messages" permission to use this command.',
     });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should handle API errors', async () => {
-    const interaction = createMockInteraction({});
+    const context = createMockContext({});
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       error: 'Database error',
       status: 500,
     });
 
-    await handleDeactivate(interaction);
+    await handleDeactivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
-      expect.stringContaining('Failed to deactivate')
-    );
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('Failed to deactivate'));
   });
 
   it('should handle unexpected errors', async () => {
-    const interaction = createMockInteraction({});
+    const context = createMockContext({});
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleDeactivate(interaction);
+    await handleDeactivate(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
   });
 });

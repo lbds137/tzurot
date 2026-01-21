@@ -1,13 +1,18 @@
 /**
  * Tests for /channel command group
+ *
+ * This command uses deferralMode: 'ephemeral' which means:
+ * - Execute receives SafeCommandContext (not raw interaction)
+ * - Tests must mock the context, not the interaction directly
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ChatInputCommandInteraction, AutocompleteInteraction } from 'discord.js';
+import type { AutocompleteInteraction } from 'discord.js';
+import type { SafeCommandContext } from '../../utils/commandContext/types.js';
 import channelCommand from './index.js';
 
 // Destructure from default export
-const { data, execute, autocomplete } = channelCommand;
+const { data, execute, autocomplete, deferralMode } = channelCommand;
 
 // Mock handlers
 vi.mock('./activate.js', () => ({
@@ -69,6 +74,10 @@ describe('/channel command group', () => {
       expect(data.description.length).toBeGreaterThan(0);
     });
 
+    it('should have deferralMode set to ephemeral', () => {
+      expect(deferralMode).toBe('ephemeral');
+    });
+
     it('should have activate subcommand', () => {
       const json = data.toJSON();
       const activateSubcommand = json.options?.find(
@@ -101,47 +110,60 @@ describe('/channel command group', () => {
   });
 
   describe('execute', () => {
-    function createMockInteraction(subcommand: string): ChatInputCommandInteraction {
+    /**
+     * Create a mock SafeCommandContext for testing routing.
+     */
+    function createMockContext(subcommand: string): SafeCommandContext {
       return {
-        options: {
-          getSubcommand: vi.fn().mockReturnValue(subcommand),
-        },
+        interaction: {},
         user: { id: 'user-123' },
-        reply: vi.fn().mockResolvedValue(undefined),
-        isModalSubmit: vi.fn().mockReturnValue(false),
-      } as unknown as ChatInputCommandInteraction;
+        guild: null,
+        member: null,
+        channel: null,
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+        commandName: 'channel',
+        isEphemeral: true,
+        getOption: vi.fn(),
+        getRequiredOption: vi.fn(),
+        getSubcommand: () => subcommand,
+        getSubcommandGroup: () => null,
+        editReply: vi.fn(),
+        followUp: vi.fn(),
+        deleteReply: vi.fn(),
+      } as unknown as SafeCommandContext;
     }
 
     it('should route to activate handler', async () => {
-      const interaction = createMockInteraction('activate');
+      const context = createMockContext('activate');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleActivate).toHaveBeenCalledWith(interaction);
+      expect(handleActivate).toHaveBeenCalled();
     });
 
     it('should route to deactivate handler', async () => {
-      const interaction = createMockInteraction('deactivate');
+      const context = createMockContext('deactivate');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleDeactivate).toHaveBeenCalledWith(interaction);
+      expect(handleDeactivate).toHaveBeenCalled();
     });
 
     it('should route to list handler', async () => {
-      const interaction = createMockInteraction('list');
+      const context = createMockContext('list');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleList).toHaveBeenCalledWith(interaction);
+      expect(handleList).toHaveBeenCalled();
     });
 
     it('should route to settings handler', async () => {
-      const interaction = createMockInteraction('settings');
+      const context = createMockContext('settings');
 
-      await execute(interaction);
+      await execute(context);
 
-      expect(handleContext).toHaveBeenCalledWith(interaction);
+      expect(handleContext).toHaveBeenCalled();
     });
   });
 

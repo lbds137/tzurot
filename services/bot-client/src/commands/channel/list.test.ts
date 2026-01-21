@@ -1,10 +1,14 @@
 /**
  * Tests for /channel list subcommand
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { EmbedBuilder, GuildMember, PermissionFlagsBits, PermissionsBitField } from 'discord.js';
-import type { ChatInputCommandInteraction, Client, Channel, Guild } from 'discord.js';
+import { EmbedBuilder } from 'discord.js';
+import type { Client, Guild } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleList, buildGuildPages, CHANNELS_PER_PAGE_ALL_SERVERS } from './list.js';
 import type { GuildPage } from './list.js';
 import type { ChannelSettings } from '@tzurot/common-types';
@@ -14,9 +18,9 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
 
-// Mock permissions
+// Mock permissions - use new context-aware version
 vi.mock('../../utils/permissions.js', () => ({
-  requireManageMessagesDeferred: vi.fn(),
+  requireManageMessagesContext: vi.fn(),
 }));
 
 // Mock logger and requireBotOwner
@@ -35,19 +39,22 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { requireManageMessagesDeferred } from '../../utils/permissions.js';
+import { requireManageMessagesContext } from '../../utils/permissions.js';
 import { requireBotOwner } from '@tzurot/common-types';
 
 describe('/channel list', () => {
   const mockCallGatewayApi = vi.mocked(callGatewayApi);
-  const mockRequireManageMessages = vi.mocked(requireManageMessagesDeferred);
+  const mockRequireManageMessages = vi.mocked(requireManageMessagesContext);
   const mockRequireBotOwner = vi.mocked(requireBotOwner);
 
   const MOCK_GUILD_ID = '987654321098765432';
 
-  function createMockInteraction(
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(
     options: { showAll?: boolean; guildId?: string | null } = {}
-  ): ChatInputCommandInteraction {
+  ): DeferredCommandContext {
     const { showAll = false, guildId = MOCK_GUILD_ID } = options;
 
     const mockGuild = {
@@ -80,19 +87,39 @@ describe('/channel list', () => {
       }),
     };
 
+    const mockEditReply = vi.fn().mockResolvedValue(mockMessage);
+
     return {
-      user: { id: 'user-123' },
-      guildId,
-      client: mockClient,
-      options: {
-        getBoolean: vi.fn().mockImplementation((name: string) => {
-          if (name === 'all') return showAll;
-          return null;
-        }),
+      interaction: {
+        user: { id: 'user-123' },
+        client: mockClient,
+        options: {
+          getBoolean: vi.fn().mockImplementation((name: string) => {
+            if (name === 'all') return showAll;
+            return null;
+          }),
+        },
+        editReply: mockEditReply,
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(mockMessage),
-    } as unknown as ChatInputCommandInteraction;
+      user: { id: 'user-123' },
+      guild: guildId !== null ? mockGuild : null,
+      member: null,
+      channel: null,
+      channelId: '123456789012345678',
+      guildId,
+      commandName: 'channel',
+      isEphemeral: true,
+      getOption: vi.fn().mockImplementation((name: string) => {
+        if (name === 'all') return showAll;
+        return null;
+      }),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'list',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   }
 
   beforeEach(() => {
@@ -103,7 +130,7 @@ describe('/channel list', () => {
   });
 
   it('should list channel settings successfully', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -134,16 +161,16 @@ describe('/channel list', () => {
       },
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(mockRequireManageMessages).toHaveBeenCalledWith(interaction);
+    expect(mockRequireManageMessages).toHaveBeenCalledWith(context);
     expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/channel/list?guildId=${MOCK_GUILD_ID}`, {
       userId: 'user-123',
       method: 'GET',
     });
 
     // Check that editReply was called with an embed and buttons
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
         components: expect.any(Array),
@@ -152,7 +179,7 @@ describe('/channel list', () => {
   });
 
   it('should show message when no channel settings exist', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -160,39 +187,39 @@ describe('/channel list', () => {
       },
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('No channels have activated personalities')
     );
   });
 
   it('should handle API errors', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       error: 'Database error',
       status: 500,
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.stringContaining('Failed to list settings')
     );
   });
 
   it('should handle unexpected errors', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
+    expect(context.editReply).toHaveBeenCalledWith(expect.stringContaining('unexpected error'));
   });
 
   it('should display single channel setting correctly', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -212,9 +239,9 @@ describe('/channel list', () => {
       },
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(interaction.editReply).toHaveBeenCalledWith(
+    expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       })
@@ -222,27 +249,27 @@ describe('/channel list', () => {
   });
 
   it('should return early if Manage Messages permission check fails', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockRequireManageMessages.mockResolvedValue(false);
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(mockRequireManageMessages).toHaveBeenCalledWith(interaction);
+    expect(mockRequireManageMessages).toHaveBeenCalledWith(context);
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should reject --all flag for non-bot-owner', async () => {
-    const interaction = createMockInteraction({ showAll: true });
+    const context = createMockContext({ showAll: true });
     mockRequireBotOwner.mockResolvedValue(false);
 
-    await handleList(interaction);
+    await handleList(context);
 
-    expect(mockRequireBotOwner).toHaveBeenCalledWith(interaction);
+    expect(mockRequireBotOwner).toHaveBeenCalledWith(context.interaction);
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
   });
 
   it('should fetch all servers when --all flag is used by bot owner', async () => {
-    const interaction = createMockInteraction({ showAll: true });
+    const context = createMockContext({ showAll: true });
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -262,7 +289,7 @@ describe('/channel list', () => {
       },
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
     // Should call without guildId filter
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/channel/list', {
@@ -466,11 +493,14 @@ describe('buildGuildPages', () => {
  */
 describe('markdown escaping integration', () => {
   const mockCallGatewayApi = vi.mocked(callGatewayApi);
-  const mockRequireManageMessages = vi.mocked(requireManageMessagesDeferred);
+  const mockRequireManageMessages = vi.mocked(requireManageMessagesContext);
 
   const MOCK_GUILD_ID = '987654321098765432';
 
-  function createMockInteraction(): ChatInputCommandInteraction {
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(): DeferredCommandContext {
     const mockGuild = {
       id: MOCK_GUILD_ID,
       name: 'Test Server',
@@ -498,16 +528,33 @@ describe('markdown escaping integration', () => {
       }),
     };
 
+    const mockEditReply = vi.fn().mockResolvedValue(mockMessage);
+
     return {
-      user: { id: 'user-123' },
-      guildId: MOCK_GUILD_ID,
-      client: mockClient,
-      options: {
-        getBoolean: vi.fn().mockReturnValue(false),
+      interaction: {
+        user: { id: 'user-123' },
+        client: mockClient,
+        options: {
+          getBoolean: vi.fn().mockReturnValue(false),
+        },
+        editReply: mockEditReply,
       },
-      deferReply: vi.fn().mockResolvedValue(undefined),
-      editReply: vi.fn().mockResolvedValue(mockMessage),
-    } as unknown as ChatInputCommandInteraction;
+      user: { id: 'user-123' },
+      guild: mockGuild,
+      member: null,
+      channel: null,
+      channelId: '123456789012345678',
+      guildId: MOCK_GUILD_ID,
+      commandName: 'channel',
+      isEphemeral: true,
+      getOption: vi.fn().mockReturnValue(false),
+      getRequiredOption: vi.fn(),
+      getSubcommand: () => 'list',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   }
 
   beforeEach(() => {
@@ -516,7 +563,7 @@ describe('markdown escaping integration', () => {
   });
 
   it('should escape markdown characters in personality names', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -538,11 +585,11 @@ describe('markdown escaping integration', () => {
       },
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
     // Verify editReply was called with an embed
-    expect(interaction.editReply).toHaveBeenCalled();
-    const callArgs = vi.mocked(interaction.editReply).mock.calls[0][0];
+    expect(context.editReply).toHaveBeenCalled();
+    const callArgs = vi.mocked(context.editReply).mock.calls[0][0];
     expect(callArgs).toHaveProperty('embeds');
 
     // Get the embed description and verify markdown is escaped
@@ -558,7 +605,7 @@ describe('markdown escaping integration', () => {
   });
 
   it('should escape asterisks in personality names to prevent bold formatting', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -578,9 +625,9 @@ describe('markdown escaping integration', () => {
       },
     });
 
-    await handleList(interaction);
+    await handleList(context);
 
-    const callArgs = vi.mocked(interaction.editReply).mock.calls[0][0];
+    const callArgs = vi.mocked(context.editReply).mock.calls[0][0];
     const embeds = (callArgs as { embeds: EmbedBuilder[] }).embeds;
     const description = embeds[0].data.description ?? '';
 
@@ -589,7 +636,7 @@ describe('markdown escaping integration', () => {
   });
 
   it('should handle empty and whitespace-only personality names gracefully', async () => {
-    const interaction = createMockInteraction();
+    const context = createMockContext();
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
@@ -621,9 +668,9 @@ describe('markdown escaping integration', () => {
     });
 
     // Should not throw
-    await expect(handleList(interaction)).resolves.not.toThrow();
+    await expect(handleList(context)).resolves.not.toThrow();
 
     // Should still call editReply successfully
-    expect(interaction.editReply).toHaveBeenCalled();
+    expect(context.editReply).toHaveBeenCalled();
   });
 });

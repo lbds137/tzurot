@@ -16,6 +16,8 @@ function createMockInteraction(): ChatInputCommandInteraction {
     guild: { id: 'guild-123', name: 'Test Guild' },
     member: { id: 'member-123' } as GuildMember,
     channel: { id: 'channel-123' },
+    channelId: 'channel-123',
+    guildId: 'guild-123',
     commandName: 'testcommand',
     options: {
       get: vi.fn().mockReturnValue({ value: 'test-value' }),
@@ -46,6 +48,8 @@ describe('createDeferredContext', () => {
     expect(context.guild).toBe(mockInteraction.guild);
     expect(context.member).toBe(mockInteraction.member);
     expect(context.channel).toBe(mockInteraction.channel);
+    expect(context.channelId).toBe('channel-123');
+    expect(context.guildId).toBe('guild-123');
     expect(context.commandName).toBe('testcommand');
   });
 
