@@ -19,7 +19,6 @@
 
 import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
@@ -27,7 +26,11 @@ import type {
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import type {
+  DeferredCommandContext,
+  SafeCommandContext,
+} from '../../utils/commandContext/types.js';
+import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
 import { handleList, LIST_PAGINATION_CONFIG } from './list.js';
 import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
@@ -58,9 +61,9 @@ import { hasActiveCollector } from '../../utils/activeCollectorRegistry.js';
 const logger = createLogger('memory-command');
 
 /**
- * Focus subcommand router
+ * Focus subcommand router (typed for DeferredCommandContext)
  */
-const focusRouter = createSubcommandRouter(
+const focusRouter = createTypedSubcommandRouter(
   {
     enable: handleFocusEnable,
     disable: handleFocusDisable,
@@ -70,9 +73,9 @@ const focusRouter = createSubcommandRouter(
 );
 
 /**
- * Incognito subcommand router
+ * Incognito subcommand router (typed for DeferredCommandContext)
  */
-const incognitoRouter = createSubcommandRouter(
+const incognitoRouter = createTypedSubcommandRouter(
   {
     enable: handleIncognitoEnable,
     disable: handleIncognitoDisable,
@@ -84,25 +87,30 @@ const incognitoRouter = createSubcommandRouter(
 
 /**
  * Command execution router
+ *
+ * Note: The function signature uses SafeCommandContext for TypeScript compatibility,
+ * but the runtime value is always DeferredCommandContext when deferralMode is 'ephemeral'.
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const subcommandGroup = interaction.options.getSubcommandGroup();
-  const subcommand = interaction.options.getSubcommand();
+async function execute(ctx: SafeCommandContext): Promise<void> {
+  // Cast to the specific context type we expect for this deferralMode
+  const context = ctx as DeferredCommandContext;
+  const subcommandGroup = context.getSubcommandGroup();
+  const subcommand = context.getSubcommand();
 
   if (subcommandGroup === 'focus') {
-    await focusRouter(interaction);
+    await focusRouter(context);
   } else if (subcommandGroup === 'incognito') {
-    await incognitoRouter(interaction);
+    await incognitoRouter(context);
   } else if (subcommand === 'stats') {
-    await handleStats(interaction);
+    await handleStats(context);
   } else if (subcommand === 'list') {
-    await handleList(interaction);
+    await handleList(context);
   } else if (subcommand === 'search') {
-    await handleSearch(interaction);
+    await handleSearch(context);
   } else if (subcommand === 'delete') {
-    await handleBatchDelete(interaction);
+    await handleBatchDelete(context);
   } else if (subcommand === 'purge') {
-    await handlePurge(interaction);
+    await handlePurge(context);
   } else {
     logger.warn({ subcommandGroup, subcommand }, '[Memory] Unknown subcommand');
   }
@@ -275,8 +283,11 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
  * NOTE: If you tried to export `handleModalSubmit` instead of `handleModal`,
  * TypeScript would immediately flag it as an error thanks to defineCommand's
  * strict type checking. This is the "two-layer defense" in action!
+ *
+ * deferralMode: 'ephemeral' means all subcommands receive DeferredCommandContext.
  */
 export default defineCommand({
+  deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
     .setName('memory')
     .setDescription('Manage your long-term memories')

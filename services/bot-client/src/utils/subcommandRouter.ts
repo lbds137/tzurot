@@ -103,3 +103,66 @@ export async function replyUnknownAction(interaction: ModalSubmitInteraction): P
     flags: MessageFlags.Ephemeral,
   });
 }
+
+// ============================================================================
+// Typed Context Routers (for SafeCommandContext pattern)
+// ============================================================================
+
+import type { DeferredCommandContext } from './commandContext/types.js';
+
+/**
+ * Handler function signature for subcommands using typed context
+ */
+export type TypedSubcommandHandler = (context: DeferredCommandContext) => Promise<void>;
+
+/**
+ * Map of subcommand names to typed handlers
+ */
+export type TypedSubcommandMap = Record<string, TypedSubcommandHandler>;
+
+/**
+ * Creates a subcommand router for commands using DeferredCommandContext.
+ *
+ * For commands where all subcommands share the same deferral mode, this provides
+ * type-safe routing with the proper context type.
+ *
+ * @example
+ * ```typescript
+ * const router = createTypedSubcommandRouter({
+ *   stats: handleStats,
+ *   list: handleList,
+ *   search: handleSearch,
+ * }, { logger, logPrefix: '[Memory]' });
+ *
+ * // In execute():
+ * await router(context);
+ * ```
+ */
+export function createTypedSubcommandRouter(
+  handlers: TypedSubcommandMap,
+  options: RouterOptions = {}
+): (context: DeferredCommandContext) => Promise<void> {
+  const { logger, logPrefix } = options;
+
+  return async (context: DeferredCommandContext): Promise<void> => {
+    const subcommand = context.getSubcommand();
+
+    // Log subcommand execution if logger provided
+    if (logger !== undefined && logPrefix !== undefined) {
+      logger.info({ subcommand, userId: context.user.id }, `${logPrefix} Executing subcommand`);
+    }
+
+    if (subcommand === null) {
+      await context.editReply({ content: '❌ No subcommand specified' });
+      return;
+    }
+
+    const handler = handlers[subcommand];
+
+    if (handler !== undefined) {
+      await handler(context);
+    } else {
+      await context.editReply({ content: '❌ Unknown subcommand' });
+    }
+  };
+}

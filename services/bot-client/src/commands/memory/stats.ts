@@ -3,11 +3,11 @@
  * Handles /memory stats command - view memory statistics
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { escapeMarkdown } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError, createInfoEmbed } from '../../utils/commandHelpers.js';
+import { createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
 import { formatDateTime } from './formatters.js';
 
@@ -32,19 +32,18 @@ function formatDateOrNA(dateStr: string | null): string {
 /**
  * Handle /memory stats
  */
-export async function handleStats(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalityInput = interaction.options.getString('personality', true);
+export async function handleStats(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalityInput = context.interaction.options.getString('personality', true);
 
   try {
     // Resolve personality slug to ID
     const personalityId = await resolvePersonalityId(userId, personalityInput);
 
     if (personalityId === null) {
-      await replyWithError(
-        interaction,
-        `Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`
-      );
+      await context.editReply({
+        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
+      });
       return;
     }
 
@@ -62,7 +61,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
           ? `Personality "${personalityInput}" not found.`
           : 'Failed to get stats. Please try again later.';
       logger.warn({ userId, personalityInput, status: result.status }, '[Memory] Stats failed');
-      await replyWithError(interaction, errorMessage);
+      await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
 
@@ -110,7 +109,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       {
@@ -123,6 +122,7 @@ export async function handleStats(interaction: ChatInputCommandInteraction): Pro
       '[Memory] Stats retrieved'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Memory Stats' });
+    logger.error({ error, userId }, '[Memory Stats] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }
