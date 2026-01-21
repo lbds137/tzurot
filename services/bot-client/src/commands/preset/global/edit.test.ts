@@ -8,7 +8,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
 import { handleGlobalEdit } from './edit.js';
 import type { PresetData } from '../config.js';
 
@@ -63,22 +62,22 @@ const mockGlobalPresetData: PresetData = {
 };
 
 describe('Preset Global Edit Handler', () => {
-  const mockDeferReply = vi.fn();
   const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-789' });
 
-  function createMockInteraction(configId = 'global-preset-123') {
+  function createMockContext(configId = 'global-preset-123') {
     return {
       user: { id: 'owner-123' },
       channelId: 'channel-999',
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'config') {
-            return configId;
-          }
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'config') {
+              return configId;
+            }
+            return null;
+          },
         },
       },
-      deferReply: mockDeferReply,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleGlobalEdit>[0];
   }
@@ -91,9 +90,9 @@ describe('Preset Global Edit Handler', () => {
     it('should open dashboard for global preset', async () => {
       mockFetchGlobalPreset.mockResolvedValue(mockGlobalPresetData);
 
-      await handleGlobalEdit(createMockInteraction());
+      await handleGlobalEdit(createMockContext());
 
-      expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+      // Note: deferReply is now called at the framework level, not in the handler
       expect(mockFetchGlobalPreset).toHaveBeenCalledWith('global-preset-123');
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockBuildDashboardComponents).toHaveBeenCalledWith(
@@ -122,9 +121,9 @@ describe('Preset Global Edit Handler', () => {
     it('should show error when global preset not found', async () => {
       mockFetchGlobalPreset.mockResolvedValue(null);
 
-      await handleGlobalEdit(createMockInteraction());
+      await handleGlobalEdit(createMockContext());
 
-      expect(mockEditReply).toHaveBeenCalledWith('❌ Global preset not found.');
+      expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Global preset not found.' });
       expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
       expect(mockSessionManagerSet).not.toHaveBeenCalled();
     });
@@ -132,11 +131,11 @@ describe('Preset Global Edit Handler', () => {
     it('should handle fetch errors gracefully', async () => {
       mockFetchGlobalPreset.mockRejectedValue(new Error('Network error'));
 
-      await handleGlobalEdit(createMockInteraction());
+      await handleGlobalEdit(createMockContext());
 
-      expect(mockEditReply).toHaveBeenCalledWith(
-        '❌ Failed to load global preset. Please try again.'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Failed to load global preset. Please try again.',
+      });
       expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
       expect(mockSessionManagerSet).not.toHaveBeenCalled();
     });
@@ -144,7 +143,7 @@ describe('Preset Global Edit Handler', () => {
     it('should flatten preset data correctly for dashboard', async () => {
       mockFetchGlobalPreset.mockResolvedValue(mockGlobalPresetData);
 
-      await handleGlobalEdit(createMockInteraction());
+      await handleGlobalEdit(createMockContext());
 
       // Verify the flattened data passed to dashboard embed includes expected fields
       expect(mockBuildDashboardEmbed).toHaveBeenCalledWith(

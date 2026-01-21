@@ -4,7 +4,6 @@
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
@@ -12,8 +11,8 @@ import {
   type LlmConfigSummary,
   type AIProvider,
 } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('preset-list');
 
@@ -31,8 +30,8 @@ interface WalletListResponse {
 /**
  * Handle /preset list
  */
-export async function handleList(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
+export async function handleList(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
 
   try {
     // Fetch presets and wallet status in parallel
@@ -43,7 +42,7 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
 
     if (!presetResult.ok) {
       logger.warn({ userId, status: presetResult.status }, '[Preset] Failed to list presets');
-      await replyWithError(interaction, 'Failed to get presets. Please try again later.');
+      await context.editReply({ content: '❌ Failed to get presets. Please try again later.' });
       return;
     }
 
@@ -114,10 +113,11 @@ export async function handleList(interaction: ChatInputCommandInteraction): Prom
       });
     }
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, count: data.configs.length, isGuestMode }, '[Preset] Listed presets');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset List' });
+    logger.error({ err: error, userId }, '[Preset] Error listing presets');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

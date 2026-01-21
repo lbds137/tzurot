@@ -4,10 +4,9 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('preset-create');
 
@@ -23,13 +22,13 @@ interface CreateResponse {
 /**
  * Handle /preset create
  */
-export async function handleCreate(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const name = interaction.options.getString('name', true);
-  const model = interaction.options.getString('model', true);
-  const description = interaction.options.getString('description');
-  const provider = interaction.options.getString('provider') ?? 'openrouter';
-  const visionModel = interaction.options.getString('vision-model');
+export async function handleCreate(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const name = context.interaction.options.getString('name', true);
+  const model = context.interaction.options.getString('model', true);
+  const description = context.interaction.options.getString('description');
+  const provider = context.interaction.options.getString('provider') ?? 'openrouter';
+  const visionModel = context.interaction.options.getString('vision-model');
 
   try {
     const result = await callGatewayApi<CreateResponse>('/user/llm-config', {
@@ -40,7 +39,7 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status, name }, '[Preset] Failed to create preset');
-      await replyWithError(interaction, `Failed to create preset: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to create preset: ${result.error}` });
       return;
     }
 
@@ -61,10 +60,11 @@ export async function handleCreate(interaction: ChatInputCommandInteraction): Pr
       .setFooter({ text: 'Use /model set to apply this preset to a personality' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ userId, configId: data.config.id, name }, '[Preset] Created preset');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Preset Create' });
+    logger.error({ err: error, userId }, '[Preset] Error creating preset');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

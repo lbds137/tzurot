@@ -10,8 +10,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleGlobalCreate } from './create.js';
 import * as adminApiClient from '../../../utils/adminApiClient.js';
-import * as commandHelpers from '../../../utils/commandHelpers.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
@@ -19,10 +17,7 @@ vi.mock('../../../utils/adminApiClient.js', () => ({
   adminPostJson: vi.fn(),
 }));
 
-vi.mock('../../../utils/commandHelpers.js', () => ({
-  replyWithError: vi.fn(),
-  handleCommandError: vi.fn(),
-}));
+// Note: Handlers now use context.editReply() directly, not commandHelpers
 
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
@@ -38,16 +33,20 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('Preset Global Create Handler', () => {
-  const createMockInteraction = (options: Record<string, string | null>) =>
+  const mockEditReply = vi.fn();
+
+  const createMockContext = (options: Record<string, string | null>) =>
     ({
       user: { id: 'owner-123' },
-      options: {
-        getString: vi.fn((name: string, _required?: boolean) => {
-          return options[name] ?? null;
-        }),
+      interaction: {
+        options: {
+          getString: vi.fn((name: string, _required?: boolean) => {
+            return options[name] ?? null;
+          }),
+        },
       },
-      editReply: vi.fn(),
-    }) as unknown as ChatInputCommandInteraction;
+      editReply: mockEditReply,
+    }) as unknown as Parameters<typeof handleGlobalCreate>[0];
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -59,7 +58,7 @@ describe('Preset Global Create Handler', () => {
 
   describe('handleGlobalCreate', () => {
     it('should successfully create preset with all fields', async () => {
-      const mockInteraction = createMockInteraction({
+      const context = createMockContext({
         name: 'Full Preset',
         model: 'claude-3-opus',
         provider: 'anthropic',
@@ -74,7 +73,7 @@ describe('Preset Global Create Handler', () => {
         }),
       } as unknown as Response);
 
-      await handleGlobalCreate(mockInteraction);
+      await handleGlobalCreate(context);
 
       expect(adminApiClient.adminPostJson).toHaveBeenCalledWith('/admin/llm-config', {
         name: 'Full Preset',
@@ -84,13 +83,13 @@ describe('Preset Global Create Handler', () => {
         visionModel: 'gpt-4-vision',
       });
 
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+      expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
       });
     });
 
     it('should use openrouter as default provider', async () => {
-      const mockInteraction = createMockInteraction({
+      const context = createMockContext({
         name: 'Default Provider',
         model: 'gpt-4',
         // No provider specified
@@ -103,7 +102,7 @@ describe('Preset Global Create Handler', () => {
         }),
       } as unknown as Response);
 
-      await handleGlobalCreate(mockInteraction);
+      await handleGlobalCreate(context);
 
       expect(adminApiClient.adminPostJson).toHaveBeenCalledWith('/admin/llm-config', {
         name: 'Default Provider',
@@ -115,7 +114,7 @@ describe('Preset Global Create Handler', () => {
     });
 
     it('should handle API error response', async () => {
-      const mockInteraction = createMockInteraction({
+      const context = createMockContext({
         name: 'Duplicate',
         model: 'gpt-4',
       });
@@ -126,16 +125,15 @@ describe('Preset Global Create Handler', () => {
         json: vi.fn().mockResolvedValue({ error: 'Preset already exists' }),
       } as unknown as Response);
 
-      await handleGlobalCreate(mockInteraction);
+      await handleGlobalCreate(context);
 
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(
-        mockInteraction,
-        'Preset already exists'
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Preset already exists',
+      });
     });
 
     it('should handle API error without message', async () => {
-      const mockInteraction = createMockInteraction({
+      const context = createMockContext({
         name: 'Server Error',
         model: 'gpt-4',
       });
@@ -146,31 +144,30 @@ describe('Preset Global Create Handler', () => {
         json: vi.fn().mockResolvedValue({}),
       } as unknown as Response);
 
-      await handleGlobalCreate(mockInteraction);
+      await handleGlobalCreate(context);
 
-      expect(commandHelpers.replyWithError).toHaveBeenCalledWith(mockInteraction, 'HTTP 500');
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ HTTP 500',
+      });
     });
 
-    it('should handle network errors with handleCommandError', async () => {
-      const mockInteraction = createMockInteraction({
+    it('should handle network errors', async () => {
+      const context = createMockContext({
         name: 'Network Test',
         model: 'gpt-4',
       });
 
-      const networkError = new Error('Connection refused');
-      vi.mocked(adminApiClient.adminPostJson).mockRejectedValue(networkError);
+      vi.mocked(adminApiClient.adminPostJson).mockRejectedValue(new Error('Connection refused'));
 
-      await handleGlobalCreate(mockInteraction);
+      await handleGlobalCreate(context);
 
-      expect(commandHelpers.handleCommandError).toHaveBeenCalledWith(
-        mockInteraction,
-        networkError,
-        { userId: 'owner-123', command: 'Preset Global Create' }
-      );
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ An error occurred. Please try again later.',
+      });
     });
 
     it('should show ID in success embed', async () => {
-      const mockInteraction = createMockInteraction({
+      const context = createMockContext({
         name: 'ID Test',
         model: 'gpt-4',
       });
@@ -182,9 +179,9 @@ describe('Preset Global Create Handler', () => {
         }),
       } as unknown as Response);
 
-      await handleGlobalCreate(mockInteraction);
+      await handleGlobalCreate(context);
 
-      const embedCall = vi.mocked(mockInteraction.editReply).mock.calls[0][0] as {
+      const embedCall = mockEditReply.mock.calls[0][0] as {
         embeds: EmbedBuilder[];
       };
       const embed = embedCall.embeds[0];

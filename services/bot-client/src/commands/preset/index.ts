@@ -15,15 +15,19 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   AutocompleteInteraction,
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, DISCORD_PROVIDER_CHOICES, requireBotOwner } from '@tzurot/common-types';
+import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
+import type {
+  DeferredCommandContext,
+  SafeCommandContext,
+} from '../../utils/commandContext/types.js';
+import { requireBotOwnerContext } from '../../utils/commandContext/factories.js';
 import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
@@ -45,7 +49,7 @@ const logger = createLogger('preset-command');
 /**
  * Create user preset router
  */
-const userRouter = createSubcommandRouter(
+const userRouter = createTypedSubcommandRouter(
   {
     list: handleList,
     create: handleCreate,
@@ -58,7 +62,7 @@ const userRouter = createSubcommandRouter(
 /**
  * Create global preset router (owner only)
  */
-const globalRouter = createSubcommandRouter(
+const globalRouter = createTypedSubcommandRouter(
   {
     create: handleGlobalCreate,
     edit: handleGlobalEdit,
@@ -71,18 +75,20 @@ const globalRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  const group = interaction.options.getSubcommandGroup(false);
+async function execute(context: SafeCommandContext): Promise<void> {
+  // All preset commands use ephemeral deferral - cast to DeferredCommandContext
+  const ctx = context as DeferredCommandContext;
+  const group = ctx.getSubcommandGroup();
 
   if (group === 'global') {
     // Owner-only check for global subcommand group
-    if (!(await requireBotOwner(interaction))) {
+    if (!(await requireBotOwnerContext(ctx))) {
       return;
     }
-    await globalRouter(interaction);
+    await globalRouter(ctx);
   } else {
     // User preset commands (no special permissions)
-    await userRouter(interaction);
+    await userRouter(ctx);
   }
 }
 
@@ -264,6 +270,7 @@ export default defineCommand({
             )
         )
     ),
+  deferralMode: 'ephemeral',
   execute,
   autocomplete,
   handleSelectMenu: selectMenu,

@@ -4,9 +4,8 @@
  * Opens the preset dashboard for editing global presets (owner only)
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -22,18 +21,16 @@ const logger = createLogger('preset-global-edit');
  * Opens the preset dashboard for a global preset
  * Note: Owner check is done at the command routing level in index.ts
  */
-export async function handleGlobalEdit(interaction: ChatInputCommandInteraction): Promise<void> {
-  const configId = interaction.options.getString('config', true);
-  const userId = interaction.user.id;
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+export async function handleGlobalEdit(context: DeferredCommandContext): Promise<void> {
+  const configId = context.interaction.options.getString('config', true);
+  const userId = context.user.id;
 
   try {
     // Fetch the global preset
     const preset = await fetchGlobalPreset(configId);
 
     if (!preset) {
-      await interaction.editReply('❌ Global preset not found.');
+      await context.editReply({ content: '❌ Global preset not found.' });
       return;
     }
 
@@ -48,7 +45,7 @@ export async function handleGlobalEdit(interaction: ChatInputCommandInteraction)
     });
 
     // Send dashboard
-    const reply = await interaction.editReply({ embeds: [embed], components });
+    const reply = await context.editReply({ embeds: [embed], components });
 
     // Create session for tracking
     const sessionManager = getSessionManager();
@@ -58,7 +55,7 @@ export async function handleGlobalEdit(interaction: ChatInputCommandInteraction)
       entityId: configId,
       data: flattenedData,
       messageId: reply.id,
-      channelId: interaction.channelId ?? '',
+      channelId: context.channelId,
     });
 
     logger.info(
@@ -67,6 +64,6 @@ export async function handleGlobalEdit(interaction: ChatInputCommandInteraction)
     );
   } catch (error) {
     logger.error({ err: error, configId }, '[Preset/Global] Failed to open preset edit dashboard');
-    await interaction.editReply('❌ Failed to load global preset. Please try again.');
+    await context.editReply({ content: '❌ Failed to load global preset. Please try again.' });
   }
 }

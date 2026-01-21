@@ -7,9 +7,8 @@
  * - Non-owners can view global presets in autocomplete but cannot edit them
  */
 
-import { MessageFlags } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -24,18 +23,16 @@ const logger = createLogger('preset-edit');
  * Handle /preset edit command
  * Opens the preset dashboard for the selected preset
  */
-export async function handleEdit(interaction: ChatInputCommandInteraction): Promise<void> {
-  const presetId = interaction.options.getString('preset', true);
-  const userId = interaction.user.id;
-
-  await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+export async function handleEdit(context: DeferredCommandContext): Promise<void> {
+  const presetId = context.interaction.options.getString('preset', true);
+  const userId = context.user.id;
 
   try {
     // Fetch the preset
     const preset = await fetchPreset(presetId, userId);
 
     if (!preset) {
-      await interaction.editReply('❌ Preset not found.');
+      await context.editReply({ content: '❌ Preset not found.' });
       return;
     }
 
@@ -44,15 +41,17 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     if (!preset.permissions.canEdit) {
       // User doesn't own the preset and isn't the bot owner
       if (preset.isGlobal) {
-        await interaction.editReply(
-          '❌ Global presets can only be edited by the bot owner.\n' +
-            'Use `/preset create` to create your own copy based on this preset.'
-        );
+        await context.editReply({
+          content:
+            '❌ Global presets can only be edited by the bot owner.\n' +
+            'Use `/preset create` to create your own copy based on this preset.',
+        });
       } else {
-        await interaction.editReply(
-          '❌ You can only edit your own presets.\n' +
-            'Use `/preset create` to create a copy of this preset.'
-        );
+        await context.editReply({
+          content:
+            '❌ You can only edit your own presets.\n' +
+            'Use `/preset create` to create a copy of this preset.',
+        });
       }
       return;
     }
@@ -68,7 +67,7 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
     });
 
     // Send dashboard
-    const reply = await interaction.editReply({ embeds: [embed], components });
+    const reply = await context.editReply({ embeds: [embed], components });
 
     // Create session for tracking
     const sessionManager = getSessionManager();
@@ -78,12 +77,12 @@ export async function handleEdit(interaction: ChatInputCommandInteraction): Prom
       entityId: presetId,
       data: flattenedData,
       messageId: reply.id,
-      channelId: interaction.channelId ?? '',
+      channelId: context.channelId,
     });
 
     logger.info({ userId, presetId, name: preset.name }, 'Opened preset edit dashboard');
   } catch (error) {
     logger.error({ err: error, presetId }, 'Failed to open preset edit dashboard');
-    await interaction.editReply('❌ Failed to load preset. Please try again.');
+    await context.editReply({ content: '❌ Failed to load preset. Please try again.' });
   }
 }
