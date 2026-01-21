@@ -1,16 +1,15 @@
 /**
  * History Clear Handler
  * Handles /history clear command - soft reset conversation context
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import {
-  replyWithError,
-  handleCommandError,
-  createSuccessEmbed,
-} from '../../utils/commandHelpers.js';
+import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-clear');
 
@@ -25,10 +24,10 @@ interface ClearResponse {
 /**
  * Handle /history clear
  */
-export async function handleClear(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const personalitySlug = interaction.options.getString('personality', true);
-  const personaId = interaction.options.getString('profile', false); // Optional profile/persona
+export async function handleClear(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const personalitySlug = context.getRequiredOption<string>('personality');
+  const personaId = context.getOption<string>('profile'); // Optional profile/persona
 
   try {
     // Build request body, only include personaId if explicitly provided
@@ -49,7 +48,7 @@ export async function handleClear(interaction: ChatInputCommandInteraction): Pro
           ? `Personality "${personalitySlug}" not found.`
           : 'Failed to clear history. Please try again later.';
       logger.warn({ userId, personalitySlug, status: result.status }, '[History] Clear failed');
-      await replyWithError(interaction, errorMessage);
+      await context.editReply({ content: `❌ ${errorMessage}` });
       return;
     }
 
@@ -67,13 +66,14 @@ export async function handleClear(interaction: ChatInputCommandInteraction): Pro
       inline: false,
     });
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { userId, personalitySlug, epoch: data.epoch },
       '[History] Context cleared successfully'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'History Clear' });
+    logger.error({ err: error, userId, command: 'History Clear' }, '[History Clear] Error');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

@@ -1,8 +1,12 @@
 /**
  * Tests for History Clear Subcommand
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { handleClear } from './clear.js';
 
 // Mock common-types
@@ -26,35 +30,48 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
 const mockCreateSuccessEmbed = vi.fn(() => ({
   addFields: vi.fn().mockReturnThis(),
 }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
 }));
 
 describe('handleClear', () => {
-  const mockEditReply = vi.fn();
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(personalitySlug: string = 'lilith') {
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(personalitySlug: string = 'lilith'): DeferredCommandContext {
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
     return {
+      interaction: {},
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'personality') return personalitySlug;
-          return null;
-        },
-      },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: '111111111111111111',
+      guildId: null,
+      commandName: 'history',
+      isEphemeral: true,
+      getOption: vi.fn((name: string) => {
+        if (name === 'profile') return null;
+        return null;
+      }),
+      getRequiredOption: vi.fn((name: string) => {
+        if (name === 'personality') return personalitySlug;
+        throw new Error(`Unknown required option: ${name}`);
+      }),
+      getSubcommand: () => 'clear',
+      getSubcommandGroup: () => null,
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleClear>[0];
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
   }
 
   it('should clear history successfully', async () => {
@@ -68,8 +85,8 @@ describe('handleClear', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleClear(interaction);
+    const context = createMockContext();
+    await handleClear(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/history/clear', {
       userId: '123456789',
@@ -80,7 +97,7 @@ describe('handleClear', () => {
       'Context Cleared',
       expect.stringContaining('lilith')
     );
-    expect(mockEditReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
+    expect(context.editReply).toHaveBeenCalledWith({ embeds: [expect.any(Object)] });
   });
 
   it('should show undo available when canUndo is true', async () => {
@@ -97,8 +114,8 @@ describe('handleClear', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleClear(interaction);
+    const context = createMockContext();
+    await handleClear(context);
 
     expect(mockEmbed.addFields).toHaveBeenCalledWith({
       name: 'Undo Available',
@@ -121,8 +138,8 @@ describe('handleClear', () => {
       },
     });
 
-    const interaction = createMockInteraction();
-    await handleClear(interaction);
+    const context = createMockContext();
+    await handleClear(context);
 
     expect(mockEmbed.addFields).toHaveBeenCalledWith({
       name: 'Undo Available',
@@ -138,13 +155,12 @@ describe('handleClear', () => {
       error: 'Not found',
     });
 
-    const interaction = createMockInteraction('unknown');
-    await handleClear(interaction);
+    const context = createMockContext('unknown');
+    await handleClear(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Personality "unknown" not found.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ Personality "unknown" not found.',
+    });
   });
 
   it('should handle generic API error', async () => {
@@ -154,25 +170,23 @@ describe('handleClear', () => {
       error: 'Server error',
     });
 
-    const interaction = createMockInteraction();
-    await handleClear(interaction);
+    const context = createMockContext();
+    await handleClear(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to clear history. Please try again later.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ Failed to clear history. Please try again later.',
+    });
   });
 
   it('should handle exceptions', async () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleClear(interaction);
+    const context = createMockContext();
+    await handleClear(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'History Clear',
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });

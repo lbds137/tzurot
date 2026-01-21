@@ -11,14 +11,17 @@
 
 import { SlashCommandBuilder } from 'discord.js';
 import type {
-  ChatInputCommandInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import { createSubcommandContextRouter } from '../../utils/subcommandContextRouter.js';
+import type {
+  SafeCommandContext,
+  DeferredCommandContext,
+} from '../../utils/commandContext/types.js';
 import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
@@ -38,9 +41,10 @@ import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 const logger = createLogger('history-command');
 
 /**
- * Subcommand router
+ * Context-aware subcommand router
+ * Routes to handlers that receive DeferredCommandContext
  */
-const router = createSubcommandRouter(
+const historyRouter = createSubcommandContextRouter(
   {
     clear: handleClear,
     undo: handleUndo,
@@ -52,9 +56,11 @@ const router = createSubcommandRouter(
 
 /**
  * Command execution router
+ * Receives SafeCommandContext and routes to appropriate handler
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await router(interaction);
+async function execute(ctx: SafeCommandContext): Promise<void> {
+  const context = ctx as DeferredCommandContext;
+  await historyRouter(context);
 }
 
 /**
@@ -215,8 +221,12 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 /**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
+ *
+ * Uses deferralMode: 'ephemeral' - handlers receive DeferredCommandContext
+ * with no deferReply() method (already deferred by framework)
  */
 export default defineCommand({
+  deferralMode: 'ephemeral',
   data: new SlashCommandBuilder()
     .setName('history')
     .setDescription('Manage your conversation history')
