@@ -22,6 +22,8 @@ export type {
   SafeCommandContext,
 } from './types.js';
 
+export { isDeferredContext, isModalContext, isManualContext } from './types.js';
+
 export {
   createDeferredContext,
   createModalContext,

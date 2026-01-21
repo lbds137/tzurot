@@ -211,3 +211,31 @@ export type SafeCommandContext =
   | DeferredCommandContext
   | ModalCommandContext
   | ManualCommandContext;
+
+// ============================================================================
+// Type Guards
+// ============================================================================
+
+/**
+ * Type guard to check if context is a DeferredCommandContext.
+ * DeferredCommandContext has isEphemeral property (unique to this type).
+ */
+export function isDeferredContext(ctx: SafeCommandContext): ctx is DeferredCommandContext {
+  return 'isEphemeral' in ctx;
+}
+
+/**
+ * Type guard to check if context is a ModalCommandContext.
+ * ModalCommandContext has showModal but NOT editReply.
+ */
+export function isModalContext(ctx: SafeCommandContext): ctx is ModalCommandContext {
+  return 'showModal' in ctx && !('editReply' in ctx);
+}
+
+/**
+ * Type guard to check if context is a ManualCommandContext.
+ * ManualCommandContext has both showModal AND editReply (but no isEphemeral).
+ */
+export function isManualContext(ctx: SafeCommandContext): ctx is ManualCommandContext {
+  return 'showModal' in ctx && 'editReply' in ctx && !('isEphemeral' in ctx);
+}

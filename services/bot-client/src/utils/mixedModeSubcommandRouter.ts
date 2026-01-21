@@ -32,6 +32,7 @@ import type {
   DeferredCommandContext,
   ModalCommandContext,
 } from './commandContext/types.js';
+import { isDeferredContext } from './commandContext/index.js';
 
 /**
  * Handler for deferred subcommands (receives DeferredCommandContext)
@@ -91,12 +92,10 @@ export function createMixedModeSubcommandRouter(
 
     if (subcommand === null) {
       // No subcommand - try to respond appropriately based on context type
-      if ('editReply' in context) {
-        await (context as DeferredCommandContext).editReply({
-          content: '❌ No subcommand specified',
-        });
+      if (isDeferredContext(context)) {
+        await context.editReply({ content: '❌ No subcommand specified' });
       } else if ('reply' in context) {
-        await (context).reply({ content: '❌ No subcommand specified' });
+        await context.reply({ content: '❌ No subcommand specified' });
       }
       return;
     }
@@ -114,10 +113,10 @@ export function createMixedModeSubcommandRouter(
     }
 
     // Unknown subcommand
-    if ('editReply' in context) {
-      await (context as DeferredCommandContext).editReply({ content: '❌ Unknown subcommand' });
+    if (isDeferredContext(context)) {
+      await context.editReply({ content: '❌ Unknown subcommand' });
     } else if ('reply' in context) {
-      await (context).reply({ content: '❌ Unknown subcommand' });
+      await context.reply({ content: '❌ Unknown subcommand' });
     }
   };
 }
