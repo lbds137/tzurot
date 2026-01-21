@@ -1,10 +1,14 @@
 /**
  * Tests for Admin Kick Subcommand Handler
+ *
+ * This handler receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral'.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleKick } from './kick.js';
-import type { ChatInputCommandInteraction, Client, Collection, Guild, User } from 'discord.js';
+import type { ChatInputCommandInteraction, Client, Collection, Guild } from 'discord.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -21,10 +25,8 @@ vi.mock('@tzurot/common-types', async () => {
 });
 
 describe('handleKick', () => {
-  let mockInteraction: ChatInputCommandInteraction;
-  let mockClient: Client;
   let mockGuilds: Collection<string, Guild>;
-  let mockUser: User;
+  let mockClient: Client;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -36,41 +38,49 @@ describe('handleKick', () => {
         cache: mockGuilds,
       },
     } as unknown as Client;
-
-    mockUser = {
-      tag: 'TestUser#1234',
-    } as User;
-
-    mockInteraction = {
-      client: mockClient,
-      user: mockUser,
-      options: {
-        getString: vi.fn(),
-      },
-      editReply: vi.fn().mockResolvedValue(undefined),
-    } as unknown as ChatInputCommandInteraction;
   });
 
-  // Note: deferReply is handled by top-level interactionCreate handler
+  /**
+   * Create a mock DeferredCommandContext for testing.
+   */
+  function createMockContext(serverId: string): DeferredCommandContext {
+    const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
-  it('should get server-id from options as required', async () => {
-    vi.mocked(mockInteraction.options.getString).mockReturnValue('server-123');
-
-    await handleKick(mockInteraction);
-
-    expect(mockInteraction.options.getString).toHaveBeenCalledWith('server-id', true);
-  });
+    return {
+      interaction: {
+        client: mockClient,
+      } as unknown as ChatInputCommandInteraction,
+      user: { id: '123456789' },
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'admin',
+      isEphemeral: true,
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn((name: string) => {
+        if (name === 'server-id') return serverId;
+        throw new Error(`Unknown required option: ${name}`);
+      }),
+      getSubcommand: () => 'kick',
+      getSubcommandGroup: () => null,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+    } as unknown as DeferredCommandContext;
+  }
 
   it('should reply with error when server not found', async () => {
     const serverId = '999';
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(serverId);
+    const context = createMockContext(serverId);
+    await handleKick(context);
 
-    await handleKick(mockInteraction);
-
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      `❌ Bot is not in a server with ID \`${serverId}\`.\n\n` +
-        'Use `/admin servers` to see a list of all servers.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content:
+        `❌ Bot is not in a server with ID \`${serverId}\`.\n\n` +
+        'Use `/admin servers` to see a list of all servers.',
+    });
   });
 
   it('should successfully leave server', async () => {
@@ -84,14 +94,14 @@ describe('handleKick', () => {
     } as unknown as Guild;
 
     mockGuilds.set(serverId, mockGuild);
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(serverId);
 
-    await handleKick(mockInteraction);
+    const context = createMockContext(serverId);
+    await handleKick(context);
 
     expect(mockGuild.leave).toHaveBeenCalled();
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      `✅ Successfully left server: **${serverName}** (\`${serverId}\`)`
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: `✅ Successfully left server: **${serverName}** (\`${serverId}\`)`,
+    });
   });
 
   it('should handle errors when leaving server fails', async () => {
@@ -105,14 +115,15 @@ describe('handleKick', () => {
     } as unknown as Guild;
 
     mockGuilds.set(serverId, mockGuild);
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(serverId);
 
-    await handleKick(mockInteraction);
+    const context = createMockContext(serverId);
+    await handleKick(context);
 
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(
-      `❌ Failed to leave server \`${serverId}\`.\n\n` +
-        'The server may no longer exist or bot may lack permissions.'
-    );
+    expect(context.editReply).toHaveBeenCalledWith({
+      content:
+        `❌ Failed to leave server \`${serverId}\`.\n\n` +
+        'The server may no longer exist or bot may lack permissions.',
+    });
   });
 
   it('should handle server with special characters in name', async () => {
@@ -126,11 +137,13 @@ describe('handleKick', () => {
     } as unknown as Guild;
 
     mockGuilds.set(serverId, mockGuild);
-    vi.mocked(mockInteraction.options.getString).mockReturnValue(serverId);
 
-    await handleKick(mockInteraction);
+    const context = createMockContext(serverId);
+    await handleKick(context);
 
     expect(mockGuild.leave).toHaveBeenCalled();
-    expect(mockInteraction.editReply).toHaveBeenCalledWith(expect.stringContaining(serverName));
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining(serverName),
+    });
   });
 });
