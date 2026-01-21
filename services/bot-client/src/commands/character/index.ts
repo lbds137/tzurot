@@ -156,6 +156,7 @@ export default defineCommand({
   deferralMode: 'ephemeral', // Default for most subcommands
   subcommandDeferralModes: {
     create: 'modal', // /character create shows a modal
+    chat: 'public', // /character chat is visible to everyone
   },
   data: new SlashCommandBuilder()
     .setName('character')
