@@ -25,6 +25,7 @@ import type {
   ReferencedMessage,
 } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
+import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
 
 // Re-export shared API types
 export type {
@@ -69,8 +70,28 @@ export interface Command {
   /** Category derived from folder structure (e.g., 'Memory', 'Character') */
   category?: string;
 
-  /** Main command execution handler */
-  execute: (interaction: ChatInputCommandInteraction) => Promise<void>;
+  /**
+   * How this command's interaction should be deferred.
+   *
+   * - 'ephemeral': Deferred with ephemeral: true (default - only user sees "thinking")
+   * - 'public': Deferred with ephemeral: false (everyone sees "thinking")
+   * - 'modal': Not deferred - command shows a modal first
+   * - 'none': Not deferred - command handles response timing itself
+   *
+   * When set, execute() receives a typed SafeCommandContext.
+   * When not set (legacy mode), execute() receives raw ChatInputCommandInteraction.
+   */
+  deferralMode?: DeferralMode;
+
+  /**
+   * Main command execution handler.
+   *
+   * If deferralMode is set, receives a typed SafeCommandContext.
+   * Otherwise, receives raw ChatInputCommandInteraction (legacy mode).
+   */
+  execute:
+    | ((interaction: ChatInputCommandInteraction) => Promise<void>)
+    | ((context: SafeCommandContext) => Promise<void>);
 
   /** Optional autocomplete handler for commands with autocomplete options */
   autocomplete?: (interaction: AutocompleteInteraction) => Promise<void>;
