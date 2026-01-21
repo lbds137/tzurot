@@ -1,7 +1,7 @@
 ---
 name: tzurot-code-quality
-description: Use when fixing lint warnings, refactoring complex functions, or understanding ESLint rules. Covers complexity limits, refactoring patterns, and when to suppress rules.
-lastUpdated: '2025-12-31'
+description: Contains MANDATORY code quality rules enforced by CI. MUST be consulted before refactoring or when hitting ESLint limits. Covers complexity thresholds, extraction patterns, and rule suppression.
+lastUpdated: '2026-01-21'
 ---
 
 # Code Quality & Linting

@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
 description: Best practices for using the Council MCP server in Tzurot v3 development - When to consult external AI, how to structure prompts, model selection, and multi-turn conversations. Use when planning major changes or needing a second opinion.
-lastUpdated: '2025-12-30'
+lastUpdated: '2026-01-21'
 ---
 
 # Tzurot v3 Council MCP Collaboration

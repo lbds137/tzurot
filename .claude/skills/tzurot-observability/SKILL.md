@@ -1,7 +1,7 @@
 ---
 name: tzurot-observability
-description: Use when adding logging, debugging production issues, checking service health, or performing routine operations (adding personalities, database queries). Covers structured logging, correlation IDs, Railway log analysis, and common operations.
-lastUpdated: '2026-01-07'
+description: Contains MANDATORY logging and debugging patterns for Tzurot v3. MUST be consulted before adding logs or debugging production. Covers structured logging, correlation IDs, and Railway log analysis.
+lastUpdated: '2026-01-21'
 ---
 
 # Tzurot v3 Observability & Operations

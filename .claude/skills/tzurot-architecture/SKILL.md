@@ -1,7 +1,7 @@
 ---
 name: tzurot-architecture
-description: Microservices architecture for Tzurot v3 - Service boundaries, responsibilities, dependency rules, and anti-patterns from v2. Use when deciding where code belongs or designing new features.
-lastUpdated: '2025-12-31'
+description: Contains MANDATORY microservices architecture rules for Tzurot v3. MUST be consulted before creating new services or deciding where code belongs. Covers service boundaries, dependencies, and anti-patterns from v2.
+lastUpdated: '2026-01-21'
 ---
 
 # Tzurot v3 Architecture
