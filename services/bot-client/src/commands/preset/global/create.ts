@@ -5,9 +5,8 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { adminPostJson } from '../../../utils/adminApiClient.js';
 
 const logger = createLogger('preset-global-create');
@@ -15,12 +14,12 @@ const logger = createLogger('preset-global-create');
 /**
  * Handle /preset global create
  */
-export async function handleGlobalCreate(interaction: ChatInputCommandInteraction): Promise<void> {
-  const name = interaction.options.getString('name', true);
-  const model = interaction.options.getString('model', true);
-  const provider = interaction.options.getString('provider') ?? 'openrouter';
-  const description = interaction.options.getString('description');
-  const visionModel = interaction.options.getString('vision-model');
+export async function handleGlobalCreate(context: DeferredCommandContext): Promise<void> {
+  const name = context.interaction.options.getString('name', true);
+  const model = context.interaction.options.getString('model', true);
+  const provider = context.interaction.options.getString('provider') ?? 'openrouter';
+  const description = context.interaction.options.getString('description');
+  const visionModel = context.interaction.options.getString('vision-model');
 
   try {
     const response = await adminPostJson('/admin/llm-config', {
@@ -33,7 +32,7 @@ export async function handleGlobalCreate(interaction: ChatInputCommandInteractio
 
     if (!response.ok) {
       const errorData = (await response.json()) as { error?: string };
-      await replyWithError(interaction, errorData.error ?? `HTTP ${response.status}`);
+      await context.editReply({ content: `❌ ${errorData.error ?? `HTTP ${response.status}`}` });
       return;
     }
 
@@ -51,13 +50,11 @@ export async function handleGlobalCreate(interaction: ChatInputCommandInteractio
       )
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ name, model }, '[Preset/Global] Created global preset');
   } catch (error) {
-    await handleCommandError(interaction, error, {
-      userId: interaction.user.id,
-      command: 'Preset Global Create',
-    });
+    logger.error({ err: error, userId: context.user.id }, '[Preset/Global] Error creating preset');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }

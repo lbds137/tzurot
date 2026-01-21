@@ -26,13 +26,7 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
-vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
-}));
+// Note: Handlers now use context.editReply() directly, not commandHelpers
 
 describe('handleCreate', () => {
   const mockEditReply = vi.fn();
@@ -41,7 +35,7 @@ describe('handleCreate', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(
+  function createMockContext(
     options: {
       name?: string;
       model?: string;
@@ -52,22 +46,24 @@ describe('handleCreate', () => {
   ) {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          switch (name) {
-            case 'name':
-              return options.name ?? 'MyPreset';
-            case 'model':
-              return options.model ?? 'anthropic/claude-sonnet-4';
-            case 'description':
-              return options.description ?? null;
-            case 'provider':
-              return options.provider ?? null;
-            case 'vision-model':
-              return options.visionModel ?? null;
-            default:
-              return null;
-          }
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            switch (name) {
+              case 'name':
+                return options.name ?? 'MyPreset';
+              case 'model':
+                return options.model ?? 'anthropic/claude-sonnet-4';
+              case 'description':
+                return options.description ?? null;
+              case 'provider':
+                return options.provider ?? null;
+              case 'vision-model':
+                return options.visionModel ?? null;
+              default:
+                return null;
+            }
+          },
         },
       },
       editReply: mockEditReply,
@@ -85,8 +81,8 @@ describe('handleCreate', () => {
       }),
     });
 
-    const interaction = createMockInteraction();
-    await handleCreate(interaction);
+    const context = createMockContext();
+    await handleCreate(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
       method: 'POST',
@@ -122,12 +118,12 @@ describe('handleCreate', () => {
       }),
     });
 
-    const interaction = createMockInteraction({
+    const context = createMockContext({
       name: 'GeminiPreset',
       model: 'gemini-2.0-flash',
       provider: 'gemini',
     });
-    await handleCreate(interaction);
+    await handleCreate(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
       method: 'POST',
@@ -143,25 +139,23 @@ describe('handleCreate', () => {
       error: 'Name already exists',
     });
 
-    const interaction = createMockInteraction();
-    await handleCreate(interaction);
+    const context = createMockContext();
+    await handleCreate(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to create preset: Name already exists'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to create preset: Name already exists',
+    });
   });
 
   it('should handle exceptions', async () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleCreate(interaction);
+    const context = createMockContext();
+    await handleCreate(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Preset Create',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });

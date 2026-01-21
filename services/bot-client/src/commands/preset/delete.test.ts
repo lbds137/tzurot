@@ -26,13 +26,9 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
+// Mock commandHelpers - only need createSuccessEmbed, handlers use context.editReply() directly
 const mockCreateSuccessEmbed = vi.fn().mockReturnValue({ data: { title: '🗑️ Preset Deleted' } });
 vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
   createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
 }));
 
@@ -43,13 +39,15 @@ describe('handleDelete', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(presetId: string = 'cfg-123') {
+  function createMockContext(presetId: string = 'cfg-123') {
     return {
       user: { id: '123456789' },
-      options: {
-        getString: (name: string) => {
-          if (name === 'preset') return presetId;
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string) => {
+            if (name === 'preset') return presetId;
+            return null;
+          },
         },
       },
       editReply: mockEditReply,
@@ -59,8 +57,8 @@ describe('handleDelete', () => {
   it('should delete preset successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({ ok: true, data: mockDeleteLlmConfigResponse() });
 
-    const interaction = createMockInteraction('cfg-123');
-    await handleDelete(interaction);
+    const context = createMockContext('cfg-123');
+    await handleDelete(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config/cfg-123', {
       method: 'DELETE',
@@ -80,13 +78,12 @@ describe('handleDelete', () => {
       error: 'Preset not found',
     });
 
-    const interaction = createMockInteraction('non-existent');
-    await handleDelete(interaction);
+    const context = createMockContext('non-existent');
+    await handleDelete(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      'Failed to delete preset: Preset not found'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to delete preset: Preset not found',
+    });
   });
 
   it('should handle preset in use error', async () => {
@@ -96,25 +93,23 @@ describe('handleDelete', () => {
       error: 'Cannot delete: preset is in use by 2 personality override(s)',
     });
 
-    const interaction = createMockInteraction('cfg-in-use');
-    await handleDelete(interaction);
+    const context = createMockContext('cfg-in-use');
+    await handleDelete(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining('preset is in use')
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('preset is in use'),
+    });
   });
 
   it('should handle exceptions', async () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleDelete(interaction);
+    const context = createMockContext();
+    await handleDelete(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Preset Delete',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An error occurred. Please try again later.',
     });
   });
 });

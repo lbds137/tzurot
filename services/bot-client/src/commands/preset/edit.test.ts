@@ -3,7 +3,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { MessageFlags } from 'discord.js';
 import { handleEdit } from './edit.js';
 import type { PresetData } from './config.js';
 
@@ -61,22 +60,22 @@ const mockPresetData: PresetData = {
 };
 
 describe('handleEdit', () => {
-  const mockDeferReply = vi.fn();
   const mockEditReply = vi.fn().mockResolvedValue({ id: 'message-789' });
 
-  function createMockInteraction(presetId = 'preset-123') {
+  function createMockContext(presetId = 'preset-123') {
     return {
       user: { id: 'user-456' },
       channelId: 'channel-999',
-      options: {
-        getString: (name: string, _required?: boolean) => {
-          if (name === 'preset') {
-            return presetId;
-          }
-          return null;
+      interaction: {
+        options: {
+          getString: (name: string, _required?: boolean) => {
+            if (name === 'preset') {
+              return presetId;
+            }
+            return null;
+          },
         },
       },
-      deferReply: mockDeferReply,
       editReply: mockEditReply,
     } as unknown as Parameters<typeof handleEdit>[0];
   }
@@ -88,9 +87,9 @@ describe('handleEdit', () => {
   it('should open dashboard for owned preset', async () => {
     mockFetchPreset.mockResolvedValue(mockPresetData);
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
-    expect(mockDeferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
+    // Note: deferReply is now called at the framework level, not in the handler
     expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockBuildDashboardComponents).toHaveBeenCalledWith(
@@ -116,9 +115,9 @@ describe('handleEdit', () => {
   it('should show error when preset not found', async () => {
     mockFetchPreset.mockResolvedValue(null);
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
-    expect(mockEditReply).toHaveBeenCalledWith('❌ Preset not found.');
+    expect(mockEditReply).toHaveBeenCalledWith({ content: '❌ Preset not found.' });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
     expect(mockSessionManagerSet).not.toHaveBeenCalled();
   });
@@ -131,12 +130,13 @@ describe('handleEdit', () => {
       permissions: { canEdit: false, canDelete: false }, // No edit permission
     });
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
-    expect(mockEditReply).toHaveBeenCalledWith(
-      '❌ You can only edit your own presets.\n' +
-        'Use `/preset create` to create a copy of this preset.'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content:
+        '❌ You can only edit your own presets.\n' +
+        'Use `/preset create` to create a copy of this preset.',
+    });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
     expect(mockSessionManagerSet).not.toHaveBeenCalled();
   });
@@ -149,12 +149,13 @@ describe('handleEdit', () => {
       permissions: { canEdit: false, canDelete: false }, // No edit permission
     });
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
-    expect(mockEditReply).toHaveBeenCalledWith(
-      '❌ Global presets can only be edited by the bot owner.\n' +
-        'Use `/preset create` to create your own copy based on this preset.'
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content:
+        '❌ Global presets can only be edited by the bot owner.\n' +
+        'Use `/preset create` to create your own copy based on this preset.',
+    });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
     expect(mockSessionManagerSet).not.toHaveBeenCalled();
   });
@@ -167,7 +168,7 @@ describe('handleEdit', () => {
       permissions: { canEdit: true, canDelete: true }, // Bot owner has permission
     });
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockBuildDashboardComponents).toHaveBeenCalled();
@@ -182,7 +183,7 @@ describe('handleEdit', () => {
       permissions: { canEdit: true, canDelete: true }, // Bot owner has permission
     });
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockBuildDashboardComponents).toHaveBeenCalled();
@@ -192,9 +193,11 @@ describe('handleEdit', () => {
   it('should handle fetch errors gracefully', async () => {
     mockFetchPreset.mockRejectedValue(new Error('Network error'));
 
-    await handleEdit(createMockInteraction());
+    await handleEdit(createMockContext());
 
-    expect(mockEditReply).toHaveBeenCalledWith('❌ Failed to load preset. Please try again.');
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to load preset. Please try again.',
+    });
     expect(mockBuildDashboardEmbed).not.toHaveBeenCalled();
     expect(mockSessionManagerSet).not.toHaveBeenCalled();
   });

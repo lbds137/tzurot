@@ -5,9 +5,8 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { replyWithError, handleCommandError } from '../../../utils/commandHelpers.js';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { adminPutJson } from '../../../utils/adminApiClient.js';
 
 const logger = createLogger('preset-global-set-default');
@@ -15,17 +14,15 @@ const logger = createLogger('preset-global-set-default');
 /**
  * Handle /preset global set-default
  */
-export async function handleGlobalSetDefault(
-  interaction: ChatInputCommandInteraction
-): Promise<void> {
-  const configId = interaction.options.getString('config', true);
+export async function handleGlobalSetDefault(context: DeferredCommandContext): Promise<void> {
+  const configId = context.interaction.options.getString('config', true);
 
   try {
     const response = await adminPutJson(`/admin/llm-config/${configId}/set-default`, {});
 
     if (!response.ok) {
       const errorData = (await response.json()) as { error?: string };
-      await replyWithError(interaction, errorData.error ?? `HTTP ${response.status}`);
+      await context.editReply({ content: `❌ ${errorData.error ?? `HTTP ${response.status}`}` });
       return;
     }
 
@@ -40,16 +37,14 @@ export async function handleGlobalSetDefault(
       )
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info(
       { configId, configName: data.configName },
       '[Preset/Global] Set system default preset'
     );
   } catch (error) {
-    await handleCommandError(interaction, error, {
-      userId: interaction.user.id,
-      command: 'Preset Global Set Default',
-    });
+    logger.error({ err: error, userId: context.user.id }, '[Preset/Global] Error setting default');
+    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
   }
 }
