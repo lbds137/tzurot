@@ -7,11 +7,10 @@
  * - Confirms removal before deletion
  */
 
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { replyWithError, handleCommandError } from '../../utils/commandHelpers.js';
 import { getProviderDisplayName } from '../../utils/providers.js';
 
 const logger = createLogger('wallet-remove');
@@ -19,10 +18,13 @@ const logger = createLogger('wallet-remove');
 /**
  * Handle /wallet remove <provider> subcommand
  * Removes the API key for the specified provider
+ *
+ * Receives DeferredCommandContext (no deferReply method!)
+ * because the parent command uses deferralMode: 'ephemeral' for this subcommand.
  */
-export async function handleRemoveKey(interaction: ChatInputCommandInteraction): Promise<void> {
-  const userId = interaction.user.id;
-  const provider = interaction.options.getString('provider', true) as AIProvider;
+export async function handleRemoveKey(context: DeferredCommandContext): Promise<void> {
+  const userId = context.user.id;
+  const provider = context.interaction.options.getString('provider', true) as AIProvider;
 
   try {
     const result = await callGatewayApi<void>(`/wallet/${provider}`, {
@@ -32,14 +34,13 @@ export async function handleRemoveKey(interaction: ChatInputCommandInteraction):
 
     if (!result.ok) {
       if (result.status === 404) {
-        await replyWithError(
-          interaction,
-          `You don't have an API key configured for **${getProviderDisplayName(provider)}**.`
-        );
+        await context.editReply({
+          content: `❌ You don't have an API key configured for **${getProviderDisplayName(provider)}**.`,
+        });
         return;
       }
 
-      await replyWithError(interaction, `Failed to remove API key: ${result.error}`);
+      await context.editReply({ content: `❌ Failed to remove API key: ${result.error}` });
       return;
     }
 
@@ -53,10 +54,11 @@ export async function handleRemoveKey(interaction: ChatInputCommandInteraction):
       .setFooter({ text: 'Use /wallet set to configure a new key' })
       .setTimestamp();
 
-    await interaction.editReply({ embeds: [embed] });
+    await context.editReply({ embeds: [embed] });
 
     logger.info({ provider, userId }, '[Wallet Remove] API key removed');
   } catch (error) {
-    await handleCommandError(interaction, error, { userId, command: 'Wallet Remove' });
+    logger.error({ error, userId, provider }, '[Wallet Remove] Unexpected error');
+    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
 }

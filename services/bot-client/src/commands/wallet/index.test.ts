@@ -3,9 +3,8 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SlashCommandBuilder, MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
-import { AIProvider } from '@tzurot/common-types';
+import type { SafeCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -48,7 +47,7 @@ vi.mock('./modal.js', () => ({
 import walletCommand from './index.js';
 
 // Destructure from default export
-const { data, execute, handleModal } = walletCommand;
+const { data, execute, handleModal, deferralMode, subcommandDeferralModes } = walletCommand;
 import { handleSetKey } from './set.js';
 import { handleListKeys } from './list.js';
 import { handleRemoveKey } from './remove.js';
@@ -109,6 +108,17 @@ describe('Wallet Command', () => {
     });
   });
 
+  describe('deferral mode configuration', () => {
+    it('should have ephemeral as default deferral mode', () => {
+      expect(deferralMode).toBe('ephemeral');
+    });
+
+    it('should have modal deferral mode for set subcommand', () => {
+      expect(subcommandDeferralModes).toBeDefined();
+      expect(subcommandDeferralModes?.set).toBe('modal');
+    });
+  });
+
   describe('handleModal', () => {
     it('should route modal submissions to handleWalletModalSubmit', async () => {
       const mockModalInteraction = {
@@ -122,74 +132,81 @@ describe('Wallet Command', () => {
   });
 
   describe('execute', () => {
-    it('should route set subcommand to handleSetKey', async () => {
+    function createMockContext(subcommandName: string | null): SafeCommandContext {
       const mockInteraction = {
-        options: {
-          getSubcommand: () => 'set',
-        },
         user: { id: '123456789' },
+        options: {
+          getSubcommand: () => subcommandName,
+        },
       } as unknown as ChatInputCommandInteraction;
 
-      await execute(mockInteraction);
+      const mockEditReply = vi.fn();
+      const mockReply = vi.fn();
 
-      expect(handleSetKey).toHaveBeenCalledWith(mockInteraction);
+      return {
+        interaction: mockInteraction,
+        user: mockInteraction.user,
+        guild: null,
+        member: null,
+        channel: null,
+        channelId: 'channel-123',
+        guildId: null,
+        commandName: 'wallet',
+        isEphemeral: true,
+        getOption: vi.fn(),
+        getRequiredOption: vi.fn(),
+        getSubcommand: () => subcommandName,
+        getSubcommandGroup: () => null,
+        editReply: mockEditReply,
+        followUp: vi.fn(),
+        deleteReply: vi.fn(),
+        showModal: vi.fn(),
+        reply: mockReply,
+        deferReply: vi.fn(),
+      } as unknown as SafeCommandContext;
+    }
+
+    it('should route set subcommand to handleSetKey', async () => {
+      const context = createMockContext('set');
+      await execute(context);
+
+      expect(handleSetKey).toHaveBeenCalledWith(context);
     });
 
     it('should route list subcommand to handleListKeys', async () => {
-      const mockInteraction = {
-        options: {
-          getSubcommand: () => 'list',
-        },
-        user: { id: '123456789' },
-      } as unknown as ChatInputCommandInteraction;
+      const context = createMockContext('list');
+      await execute(context);
 
-      await execute(mockInteraction);
-
-      expect(handleListKeys).toHaveBeenCalledWith(mockInteraction);
+      expect(handleListKeys).toHaveBeenCalledWith(context);
     });
 
     it('should route remove subcommand to handleRemoveKey', async () => {
-      const mockInteraction = {
-        options: {
-          getSubcommand: () => 'remove',
-        },
-        user: { id: '123456789' },
-      } as unknown as ChatInputCommandInteraction;
+      const context = createMockContext('remove');
+      await execute(context);
 
-      await execute(mockInteraction);
-
-      expect(handleRemoveKey).toHaveBeenCalledWith(mockInteraction);
+      expect(handleRemoveKey).toHaveBeenCalledWith(context);
     });
 
     it('should route test subcommand to handleTestKey', async () => {
-      const mockInteraction = {
-        options: {
-          getSubcommand: () => 'test',
-        },
-        user: { id: '123456789' },
-      } as unknown as ChatInputCommandInteraction;
+      const context = createMockContext('test');
+      await execute(context);
 
-      await execute(mockInteraction);
-
-      expect(handleTestKey).toHaveBeenCalledWith(mockInteraction);
+      expect(handleTestKey).toHaveBeenCalledWith(context);
     });
 
     it('should reply with error for unknown subcommand', async () => {
-      const mockReply = vi.fn();
-      const mockInteraction = {
-        options: {
-          getSubcommand: () => 'unknown',
-        },
-        user: { id: '123456789' },
-        reply: mockReply,
-      } as unknown as ChatInputCommandInteraction;
+      const context = createMockContext('unknown');
+      await execute(context);
 
-      await execute(mockInteraction);
+      // The mixed-mode router uses editReply for deferred contexts
+      expect(context.editReply).toHaveBeenCalledWith({ content: '❌ Unknown subcommand' });
+    });
 
-      expect(mockReply).toHaveBeenCalledWith({
-        content: '❌ Unknown subcommand',
-        flags: MessageFlags.Ephemeral,
-      });
+    it('should handle null subcommand', async () => {
+      const context = createMockContext(null);
+      await execute(context);
+
+      expect(context.editReply).toHaveBeenCalledWith({ content: '❌ No subcommand specified' });
     });
   });
 });

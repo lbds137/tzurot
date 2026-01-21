@@ -10,10 +10,11 @@
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
-import { createSubcommandRouter } from '../../utils/subcommandRouter.js';
+import type { SafeCommandContext } from '../../utils/commandContext/types.js';
+import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 import { handleSetKey } from './set.js';
 import { handleListKeys } from './list.js';
 import { handleRemoveKey } from './remove.js';
@@ -23,14 +24,21 @@ import { handleWalletModalSubmit } from './modal.js';
 const logger = createLogger('wallet-command');
 
 /**
- * Subcommand router for wallet commands
+ * Mixed-mode subcommand router for wallet commands
+ *
+ * - 'set' shows a modal (receives ModalCommandContext)
+ * - 'list', 'remove', 'test' are deferred (receive DeferredCommandContext)
  */
-const walletRouter = createSubcommandRouter(
+const walletRouter = createMixedModeSubcommandRouter(
   {
-    set: handleSetKey,
-    list: handleListKeys,
-    remove: handleRemoveKey,
-    test: handleTestKey,
+    deferred: {
+      list: handleListKeys,
+      remove: handleRemoveKey,
+      test: handleTestKey,
+    },
+    modal: {
+      set: handleSetKey,
+    },
   },
   { logger, logPrefix: '[Wallet]' }
 );
@@ -38,8 +46,8 @@ const walletRouter = createSubcommandRouter(
 /**
  * Command execution router
  */
-async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
-  await walletRouter(interaction);
+async function execute(context: SafeCommandContext): Promise<void> {
+  await walletRouter(context);
 }
 
 /**
@@ -52,8 +60,16 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
 /**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
+ *
+ * Uses mixed deferral modes:
+ * - Most subcommands use ephemeral deferral (list, remove, test)
+ * - 'set' shows a modal (no deferral)
  */
 export default defineCommand({
+  deferralMode: 'ephemeral', // Default for most subcommands
+  subcommandDeferralModes: {
+    set: 'modal', // /wallet set shows a modal
+  },
   data: new SlashCommandBuilder()
     .setName('wallet')
     .setDescription('Manage your API keys (BYOK - Bring Your Own Key)')

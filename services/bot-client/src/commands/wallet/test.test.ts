@@ -3,8 +3,10 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleTestKey } from './test.js';
 import { mockTestWalletKeyResponse, AIProvider } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -26,14 +28,6 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
 
-// Mock commandHelpers
-const mockReplyWithError = vi.fn();
-const mockHandleCommandError = vi.fn();
-vi.mock('../../utils/commandHelpers.js', () => ({
-  replyWithError: (...args: unknown[]) => mockReplyWithError(...args),
-  handleCommandError: (...args: unknown[]) => mockHandleCommandError(...args),
-}));
-
 // Mock providers
 vi.mock('../../utils/providers.js', () => ({
   getProviderDisplayName: (provider: string) => {
@@ -51,8 +45,8 @@ describe('handleTestKey', () => {
     vi.clearAllMocks();
   });
 
-  function createMockInteraction(provider: string = 'openrouter') {
-    return {
+  function createMockContext(provider: string = 'openrouter'): DeferredCommandContext {
+    const mockInteraction = {
       user: { id: '123456789' },
       options: {
         getString: (name: string, _required?: boolean) => {
@@ -61,7 +55,26 @@ describe('handleTestKey', () => {
         },
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleTestKey>[0];
+    } as unknown as ChatInputCommandInteraction;
+
+    return {
+      interaction: mockInteraction,
+      user: mockInteraction.user,
+      guild: null,
+      member: null,
+      channel: null,
+      channelId: 'channel-123',
+      guildId: null,
+      commandName: 'wallet',
+      isEphemeral: true,
+      editReply: mockEditReply,
+      followUp: vi.fn(),
+      deleteReply: vi.fn(),
+      getOption: vi.fn(),
+      getRequiredOption: vi.fn(),
+      getSubcommand: vi.fn().mockReturnValue('test'),
+      getSubcommandGroup: vi.fn().mockReturnValue(null),
+    } as unknown as DeferredCommandContext;
   }
 
   it('should test key successfully with credits', async () => {
@@ -74,8 +87,8 @@ describe('handleTestKey', () => {
       }),
     });
 
-    const interaction = createMockInteraction('openrouter');
-    await handleTestKey(interaction);
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/test', {
       method: 'POST',
@@ -103,8 +116,8 @@ describe('handleTestKey', () => {
       }),
     });
 
-    const interaction = createMockInteraction('openrouter');
-    await handleTestKey(interaction);
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -124,13 +137,12 @@ describe('handleTestKey', () => {
       error: 'Not found',
     });
 
-    const interaction = createMockInteraction('openrouter');
-    await handleTestKey(interaction);
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
 
-    expect(mockReplyWithError).toHaveBeenCalledWith(
-      interaction,
-      expect.stringContaining("don't have an API key configured for **OpenRouter**")
-    );
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining("don't have an API key configured for **OpenRouter**"),
+    });
   });
 
   it('should handle validation failure', async () => {
@@ -140,8 +152,8 @@ describe('handleTestKey', () => {
       error: 'Invalid API key',
     });
 
-    const interaction = createMockInteraction('openrouter');
-    await handleTestKey(interaction);
+    const context = createMockContext('openrouter');
+    await handleTestKey(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
@@ -158,12 +170,11 @@ describe('handleTestKey', () => {
     const error = new Error('Network error');
     mockCallGatewayApi.mockRejectedValue(error);
 
-    const interaction = createMockInteraction();
-    await handleTestKey(interaction);
+    const context = createMockContext();
+    await handleTestKey(context);
 
-    expect(mockHandleCommandError).toHaveBeenCalledWith(interaction, error, {
-      userId: '123456789',
-      command: 'Wallet Test',
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ An unexpected error occurred. Please try again.',
     });
   });
 });
