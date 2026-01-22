@@ -594,7 +594,7 @@ describe('LlmConfigResolver', () => {
         },
         memoryScoreThreshold: null,
         memoryLimit: null,
-        contextWindowTokens: null,
+        contextWindowTokens: 128000,
       });
 
       // First call
@@ -616,7 +616,7 @@ describe('LlmConfigResolver', () => {
         },
         memoryScoreThreshold: null,
         memoryLimit: null,
-        contextWindowTokens: null,
+        contextWindowTokens: 128000,
       });
 
       // First call
@@ -683,7 +683,7 @@ describe('LlmConfigResolver', () => {
         },
         memoryScoreThreshold: null,
         memoryLimit: null,
-        contextWindowTokens: null,
+        contextWindowTokens: 128000,
       });
 
       // First call - caches result

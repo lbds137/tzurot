@@ -100,6 +100,21 @@ export function parseLlmConfig(dbConfig: unknown): LlmConfig {
 }
 
 /**
+ * Raw LLM config shape from database (nested inside defaultConfigLink).
+ *
+ * Uses advancedParameters JSONB column instead of legacy individual columns.
+ * This shape matches the LLM_CONFIG_SELECT from LlmConfigMapper.
+ */
+export interface DatabaseLlmConfig {
+  model: string;
+  visionModel: string | null;
+  advancedParameters: unknown; // JSONB - validated via Zod in mapper
+  memoryScoreThreshold: Decimal | null;
+  memoryLimit: number | null;
+  contextWindowTokens: number;
+}
+
+/**
  * Database personality type with all raw fields from Prisma query
  */
 export interface DatabasePersonality {
@@ -122,20 +137,7 @@ export interface DatabasePersonality {
     content: string;
   } | null;
   defaultConfigLink: {
-    llmConfig: {
-      model: string;
-      visionModel: string | null;
-      temperature: Decimal | null;
-      topP: Decimal | null;
-      topK: number | null;
-      frequencyPenalty: Decimal | null;
-      presencePenalty: Decimal | null;
-      repetitionPenalty: Decimal | null;
-      maxTokens: number | null;
-      memoryScoreThreshold: Decimal | null;
-      memoryLimit: number | null;
-      contextWindowTokens: number;
-    };
+    llmConfig: DatabaseLlmConfig;
   } | null;
   // Character definition fields
   characterInfo: string;

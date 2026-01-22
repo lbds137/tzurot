@@ -67,7 +67,8 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 **External APIs:**
 
 - **OpenRouter**: 400+ AI models via unified API (primary provider, includes free models)
-- **OpenAI**: Whisper (voice transcription) + text-embedding-3-small (vectors)
+- **OpenAI**: Whisper (voice transcription only)
+- **Local Embeddings**: Xenova/bge-small-en-v1.5 (384-dim vectors, no API needed)
 
 ## Quick Start
 

@@ -234,6 +234,271 @@ describe('ModelFactory', () => {
         })
       );
     });
+
+    // ===================================
+    // Advanced sampling parameters
+    // ===================================
+
+    it('should pass minP via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        minP: 0.1,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            min_p: 0.1,
+          }),
+        })
+      );
+    });
+
+    it('should pass topA via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        topA: 0.5,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            top_a: 0.5,
+          }),
+        })
+      );
+    });
+
+    it('should pass seed via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        seed: 12345,
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            seed: 12345,
+          }),
+        })
+      );
+    });
+
+    // ===================================
+    // Output control parameters
+    // ===================================
+
+    it('should pass stop sequences via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        stop: ['STOP', 'END'],
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            stop: ['STOP', 'END'],
+          }),
+        })
+      );
+    });
+
+    it('should pass logitBias via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        logitBias: { '1234': 50, '5678': -50 },
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            logit_bias: { '1234': 50, '5678': -50 },
+          }),
+        })
+      );
+    });
+
+    it('should pass responseFormat via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        responseFormat: { type: 'json_object' },
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            response_format: { type: 'json_object' },
+          }),
+        })
+      );
+    });
+
+    // ===================================
+    // Reasoning parameters (CRITICAL for thinking models)
+    // ===================================
+
+    it('should pass reasoning with effort via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        reasoning: { effort: 'high' },
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            reasoning: { effort: 'high' },
+          }),
+        })
+      );
+    });
+
+    it('should pass reasoning with maxTokens (converted to snake_case) via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        reasoning: { maxTokens: 16000 },
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            reasoning: { max_tokens: 16000 },
+          }),
+        })
+      );
+    });
+
+    it('should pass full reasoning object with all fields', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        reasoning: {
+          effort: 'xhigh',
+          maxTokens: 32000,
+          exclude: false,
+          enabled: true,
+        },
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            reasoning: {
+              effort: 'xhigh',
+              max_tokens: 32000,
+              exclude: false,
+              enabled: true,
+            },
+          }),
+        })
+      );
+    });
+
+    // ===================================
+    // OpenRouter-specific parameters
+    // ===================================
+
+    it('should pass transforms via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        transforms: ['middle-out'],
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            transforms: ['middle-out'],
+          }),
+        })
+      );
+    });
+
+    it('should pass route via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        route: 'fallback',
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            route: 'fallback',
+          }),
+        })
+      );
+    });
+
+    it('should pass verbosity via modelKwargs', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        verbosity: 'low',
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            verbosity: 'low',
+          }),
+        })
+      );
+    });
+
+    it('should pass all advanced parameters together', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        // Advanced sampling
+        minP: 0.1,
+        topA: 0.5,
+        seed: 42,
+        // Output
+        stop: ['END'],
+        responseFormat: { type: 'text' },
+        // Reasoning
+        reasoning: { effort: 'high', maxTokens: 8000 },
+        // OpenRouter
+        transforms: ['middle-out'],
+        route: 'fallback',
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            min_p: 0.1,
+            top_a: 0.5,
+            seed: 42,
+            stop: ['END'],
+            response_format: { type: 'text' },
+            reasoning: { effort: 'high', max_tokens: 8000 },
+            transforms: ['middle-out'],
+            route: 'fallback',
+          }),
+        })
+      );
+    });
   });
 
   describe('getModelCacheKey', () => {
@@ -299,6 +564,52 @@ describe('ModelFactory', () => {
       const key2 = getModelCacheKey(config2);
 
       expect(key1).not.toBe(key2);
+    });
+
+    // ===================================
+    // New parameter cache key tests
+    // ===================================
+
+    it('should differentiate by minP', () => {
+      const config1: ModelConfig = { modelName: 'model-1', minP: 0.1 };
+      const config2: ModelConfig = { modelName: 'model-1', minP: 0.2 };
+
+      expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    });
+
+    it('should differentiate by reasoning effort', () => {
+      const config1: ModelConfig = { modelName: 'model-1', reasoning: { effort: 'high' } };
+      const config2: ModelConfig = { modelName: 'model-1', reasoning: { effort: 'low' } };
+
+      expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    });
+
+    it('should differentiate by reasoning maxTokens', () => {
+      const config1: ModelConfig = { modelName: 'model-1', reasoning: { maxTokens: 8000 } };
+      const config2: ModelConfig = { modelName: 'model-1', reasoning: { maxTokens: 16000 } };
+
+      expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    });
+
+    it('should differentiate by stop sequences', () => {
+      const config1: ModelConfig = { modelName: 'model-1', stop: ['STOP'] };
+      const config2: ModelConfig = { modelName: 'model-1', stop: ['END'] };
+
+      expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    });
+
+    it('should differentiate by transforms', () => {
+      const config1: ModelConfig = { modelName: 'model-1', transforms: ['middle-out'] };
+      const config2: ModelConfig = { modelName: 'model-1', transforms: [] };
+
+      expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    });
+
+    it('should differentiate by route', () => {
+      const config1: ModelConfig = { modelName: 'model-1', route: 'fallback' };
+      const config2: ModelConfig = { modelName: 'model-1' };
+
+      expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
     });
   });
 });

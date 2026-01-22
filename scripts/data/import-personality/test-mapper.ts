@@ -84,13 +84,8 @@ async function testMapper() {
     console.log('\n⚙️  LLM Config:');
     console.log(`  Name: ${v3Data.llmConfig.name}`);
     console.log(`  Model: ${v3Data.llmConfig.model}`);
-    console.log(`  Temperature: ${v3Data.llmConfig.temperature}`);
-    console.log(`  Top P: ${v3Data.llmConfig.topP}`);
-    console.log(`  Top K: ${v3Data.llmConfig.topK}`);
-    console.log(`  Frequency Penalty: ${v3Data.llmConfig.frequencyPenalty}`);
-    console.log(`  Presence Penalty: ${v3Data.llmConfig.presencePenalty}`);
-    console.log(`  Repetition Penalty: ${v3Data.llmConfig.repetitionPenalty}`);
-    console.log(`  Context Window Size: ${v3Data.llmConfig.contextWindowSize}`);
+    console.log(`  Advanced Parameters: ${JSON.stringify(v3Data.llmConfig.advancedParameters)}`);
+    console.log(`  Context Window Tokens: ${v3Data.llmConfig.contextWindowTokens}`);
     console.log(`  Memory Score Threshold: ${v3Data.llmConfig.memoryScoreThreshold}`);
     console.log(`  Memory Limit: ${v3Data.llmConfig.memoryLimit}`);
     console.log(`  Is Global: ${v3Data.llmConfig.isGlobal}`);
@@ -98,11 +93,12 @@ async function testMapper() {
     // Verify critical mappings
     console.log('\n✅ Critical Verifications:');
     console.log(`  ✓ Model mapped: ${shapesConfig.engine_model} → ${v3Data.llmConfig.model}`);
+    const advParams = v3Data.llmConfig.advancedParameters as Record<string, unknown> | null;
     console.log(
-      `  ✓ Temperature preserved: ${shapesConfig.engine_temperature} → ${v3Data.llmConfig.temperature}`
+      `  ✓ Temperature preserved: ${shapesConfig.engine_temperature} → ${advParams?.temperature}`
     );
     console.log(
-      `  ✓ STM window preserved: ${shapesConfig.stm_window} → ${v3Data.llmConfig.contextWindowSize}`
+      `  ✓ STM window preserved: ${shapesConfig.stm_window} → ${v3Data.llmConfig.contextWindowTokens}`
     );
     console.log(
       `  ✓ LTM threshold preserved: ${shapesConfig.ltm_threshold} → ${v3Data.llmConfig.memoryScoreThreshold}`

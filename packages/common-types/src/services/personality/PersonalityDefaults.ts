@@ -6,8 +6,7 @@
 import type { LoadedPersonality } from '../../types/schemas.js';
 import { MODEL_DEFAULTS, AI_DEFAULTS, PLACEHOLDERS } from '../../constants/index.js';
 import type { DatabasePersonality } from './PersonalityValidator.js';
-import type { LlmConfig } from './PersonalityValidator.js';
-import { parseLlmConfig } from './PersonalityValidator.js';
+import { mapLlmConfigFromDb, type MappedLlmConfig } from '../LlmConfigMapper.js';
 
 /**
  * Get a config value with cascade: personality > global > fallback
@@ -24,8 +23,8 @@ function getConfigValue<T>(
  * Get required LLM config fields (these always have values via defaults)
  */
 function getRequiredLlmConfig(
-  pc: ReturnType<typeof parseLlmConfig>,
-  gc: LlmConfig
+  pc: MappedLlmConfig | null,
+  gc: MappedLlmConfig | null
 ): Pick<LoadedPersonality, 'model' | 'temperature' | 'maxTokens' | 'contextWindowTokens'> {
   return {
     model:
@@ -50,8 +49,8 @@ function getRequiredLlmConfig(
  * Get optional sampling parameters (topP, topK, penalties)
  */
 function getSamplingConfig(
-  pc: ReturnType<typeof parseLlmConfig>,
-  gc: LlmConfig
+  pc: MappedLlmConfig | null,
+  gc: MappedLlmConfig | null
 ): Pick<
   LoadedPersonality,
   'topP' | 'topK' | 'frequencyPenalty' | 'presencePenalty' | 'repetitionPenalty'
@@ -69,13 +68,25 @@ function getSamplingConfig(
  * Get optional memory and vision config
  */
 function getMemoryAndVisionConfig(
-  pc: ReturnType<typeof parseLlmConfig>,
-  gc: LlmConfig
+  pc: MappedLlmConfig | null,
+  gc: MappedLlmConfig | null
 ): Pick<LoadedPersonality, 'visionModel' | 'memoryScoreThreshold' | 'memoryLimit'> {
   return {
     visionModel: getConfigValue(pc?.visionModel, gc?.visionModel),
     memoryScoreThreshold: getConfigValue(pc?.memoryScoreThreshold, gc?.memoryScoreThreshold),
     memoryLimit: getConfigValue(pc?.memoryLimit, gc?.memoryLimit),
+  };
+}
+
+/**
+ * Get reasoning/thinking display config
+ */
+function getReasoningConfig(
+  pc: MappedLlmConfig | null,
+  gc: MappedLlmConfig | null
+): Pick<LoadedPersonality, 'showThinking'> {
+  return {
+    showThinking: getConfigValue(pc?.showThinking, gc?.showThinking),
   };
 }
 
@@ -184,11 +195,14 @@ export function deriveAvatarUrl(
  */
 export function mapToPersonality(
   db: DatabasePersonality,
-  globalDefaultConfig: LlmConfig = null,
+  globalDefaultConfig: MappedLlmConfig | null = null,
   logger: { warn: (obj: object, msg: string) => void }
 ): LoadedPersonality {
-  // Parse personality-specific config from database (handles Decimal conversion)
-  const personalityConfig = parseLlmConfig(db.defaultConfigLink?.llmConfig);
+  // Map personality-specific config from database using the shared mapper
+  // This converts advancedParameters JSONB to camelCase format
+  const personalityConfig = db.defaultConfigLink?.llmConfig
+    ? mapLlmConfigFromDb(db.defaultConfigLink.llmConfig)
+    : null;
 
   return {
     // Identity fields
@@ -203,6 +217,7 @@ export function mapToPersonality(
     ...getRequiredLlmConfig(personalityConfig, globalDefaultConfig),
     ...getSamplingConfig(personalityConfig, globalDefaultConfig),
     ...getMemoryAndVisionConfig(personalityConfig, globalDefaultConfig),
+    ...getReasoningConfig(personalityConfig, globalDefaultConfig),
 
     // Character definition fields (with placeholders replaced)
     ...processCharacterFields(db),

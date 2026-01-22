@@ -70,13 +70,6 @@ const SHARED_VARIABLES: VariableConfig[] = [
     defaultValue: 'qwen/qwen3-vl-235b-a22b-instruct',
   },
   {
-    key: 'EMBEDDING_MODEL',
-    description: 'Embedding model',
-    isSecret: false,
-    required: true,
-    defaultValue: 'text-embedding-3-small',
-  },
-  {
     key: 'NODE_ENV',
     description: 'Node environment',
     isSecret: false,

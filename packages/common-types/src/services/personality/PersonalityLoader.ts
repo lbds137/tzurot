@@ -7,14 +7,17 @@ import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { isBotOwner } from '../../utils/ownerMiddleware.js';
 import { isValidUUID, SYNC_LIMITS } from '../../constants/index.js';
-import type { DatabasePersonality, LlmConfig } from './PersonalityValidator.js';
-import { parseLlmConfig } from './PersonalityValidator.js';
+import type { DatabasePersonality } from './PersonalityValidator.js';
+import { LLM_CONFIG_SELECT, mapLlmConfigFromDb, type MappedLlmConfig } from '../LlmConfigMapper.js';
 
 const logger = createLogger('PersonalityLoader');
 
 /**
  * Prisma query select object for personality queries
  * Extracted as constant to ensure consistency across loadPersonality and loadAllPersonalities
+ *
+ * Uses LLM_CONFIG_SELECT from LlmConfigMapper for LLM config fields,
+ * ensuring we read from advancedParameters JSONB instead of legacy columns.
  */
 const PERSONALITY_SELECT = {
   id: true,
@@ -44,19 +47,7 @@ const PERSONALITY_SELECT = {
   defaultConfigLink: {
     select: {
       llmConfig: {
-        select: {
-          model: true,
-          visionModel: true,
-          temperature: true,
-          topP: true,
-          topK: true,
-          frequencyPenalty: true,
-          presencePenalty: true,
-          maxTokens: true,
-          memoryScoreThreshold: true,
-          memoryLimit: true,
-          contextWindowTokens: true,
-        },
+        select: LLM_CONFIG_SELECT, // Uses advancedParameters JSONB
       },
     },
   },
@@ -267,49 +258,40 @@ export class PersonalityLoader {
   /**
    * Load global default LLM config
    * Returns the config marked as isGlobal: true and isDefault: true
+   *
+   * @returns MappedLlmConfig with ALL params from advancedParameters JSONB, or null if not found
    */
-  async loadGlobalDefaultConfig(): Promise<LlmConfig> {
+  async loadGlobalDefaultConfig(): Promise<MappedLlmConfig | null> {
     try {
       const globalDefault = await this.prisma.llmConfig.findFirst({
         where: {
           isGlobal: true,
           isDefault: true,
         },
-        select: {
-          model: true,
-          visionModel: true,
-          temperature: true,
-          topP: true,
-          topK: true,
-          frequencyPenalty: true,
-          presencePenalty: true,
-          maxTokens: true,
-          memoryScoreThreshold: true,
-          memoryLimit: true,
-          contextWindowTokens: true,
-        },
+        select: LLM_CONFIG_SELECT, // Uses advancedParameters JSONB
       });
 
-      // Parse and validate the global default config
-      const parsedConfig = parseLlmConfig(globalDefault);
-
-      if (parsedConfig) {
-        logger.info(
-          {
-            model: parsedConfig.model,
-            visionModel: parsedConfig.visionModel,
-            hasVisionModel:
-              parsedConfig.visionModel !== undefined &&
-              parsedConfig.visionModel !== null &&
-              parsedConfig.visionModel.length > 0,
-          },
-          '[PersonalityLoader] Loaded global default LLM config'
-        );
-      } else {
+      if (globalDefault === null) {
         logger.warn({}, '[PersonalityLoader] No global default LLM config found');
+        return null;
       }
 
-      return parsedConfig;
+      // Map the raw DB result to application format using the shared mapper
+      const mappedConfig = mapLlmConfigFromDb(globalDefault);
+
+      logger.info(
+        {
+          model: mappedConfig.model,
+          visionModel: mappedConfig.visionModel,
+          hasVisionModel:
+            mappedConfig.visionModel !== undefined &&
+            mappedConfig.visionModel !== null &&
+            mappedConfig.visionModel.length > 0,
+        },
+        '[PersonalityLoader] Loaded global default LLM config'
+      );
+
+      return mappedConfig;
     } catch (error) {
       logger.warn({ err: error }, '[PersonalityLoader] Failed to load global default config');
       return null;

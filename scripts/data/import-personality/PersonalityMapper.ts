@@ -115,23 +115,48 @@ export class PersonalityMapper {
 
   /**
    * Map LLM configuration
+   *
+   * Uses the advancedParameters JSONB format (snake_case) instead of
+   * individual columns for sampling parameters.
    */
   private mapLlmConfig(config: ShapesIncPersonalityConfig) {
+    // Build advancedParameters JSONB in snake_case format
+    // Only include non-null values
+    const advancedParameters: Record<string, unknown> = {};
+
+    if (config.engine_temperature !== undefined) {
+      advancedParameters.temperature = config.engine_temperature;
+    }
+    if (config.engine_top_p !== undefined && config.engine_top_p !== null) {
+      advancedParameters.top_p = config.engine_top_p;
+    }
+    if (config.engine_top_k !== undefined && config.engine_top_k !== null) {
+      advancedParameters.top_k = config.engine_top_k;
+    }
+    if (config.engine_frequency_penalty !== undefined && config.engine_frequency_penalty !== null) {
+      advancedParameters.frequency_penalty = config.engine_frequency_penalty;
+    }
+    if (config.engine_presence_penalty !== undefined && config.engine_presence_penalty !== null) {
+      advancedParameters.presence_penalty = config.engine_presence_penalty;
+    }
+    if (
+      config.engine_repetition_penalty !== undefined &&
+      config.engine_repetition_penalty !== null
+    ) {
+      advancedParameters.repetition_penalty = config.engine_repetition_penalty;
+    }
+
     return {
       name: `${config.name} LLM Config`,
       description: `LLM configuration for ${config.name} personality (imported from shapes.inc)`,
       model: this.mapModelName(config.engine_model),
       visionModel: null, // v3 handles vision detection automatically
-      temperature: config.engine_temperature,
-      topP: config.engine_top_p ?? null,
-      topK: config.engine_top_k ?? null,
-      frequencyPenalty: config.engine_frequency_penalty ?? null,
-      presencePenalty: config.engine_presence_penalty ?? null,
-      repetitionPenalty: config.engine_repetition_penalty ?? null,
-      maxTokens: null, // Let model defaults handle this
+      // Sampling params in advancedParameters JSONB (snake_case)
+      advancedParameters: Object.keys(advancedParameters).length > 0 ? advancedParameters : null,
+      // Non-JSONB fields
       memoryScoreThreshold: config.ltm_threshold ?? null,
       memoryLimit: config.ltm_max_retrieved_summaries ?? null,
-      contextWindowSize: config.stm_window,
+      contextWindowTokens: config.stm_window,
       isGlobal: false, // Imported configs are user-owned
       ownerId: null, // Will be set during import with actual user ID
     };

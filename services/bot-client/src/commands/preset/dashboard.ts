@@ -30,6 +30,8 @@ import {
   unflattenPresetData,
 } from './config.js';
 import { fetchPreset, updatePreset, fetchGlobalPreset, updateGlobalPreset } from './api.js';
+import { presetConfigValidator } from './presetValidation.js';
+import { buildValidationEmbed, canProceed } from '../../utils/configValidation.js';
 
 const logger = createLogger('preset-dashboard');
 
@@ -98,6 +100,26 @@ async function handleSectionModalSubmit(
     const currentData = session?.data ?? {};
     const mergedFlat = { ...currentData, ...values } as Partial<FlattenedPresetData>;
 
+    // Validate the merged configuration before saving
+    const validationResult = presetConfigValidator.validate(mergedFlat as FlattenedPresetData);
+
+    // If validation has errors, show them and don't save
+    if (!canProceed(validationResult)) {
+      const errorEmbed = buildValidationEmbed(validationResult);
+      if (errorEmbed !== null) {
+        // Show validation errors as a follow-up message
+        await interaction.followUp({
+          embeds: [errorEmbed],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      logger.warn(
+        { entityId, sectionId, errors: validationResult.errors },
+        'Preset save blocked by validation errors'
+      );
+      return;
+    }
+
     // Convert to API format
     const updatePayload = unflattenPresetData(mergedFlat);
 
@@ -130,6 +152,17 @@ async function handleSectionModalSubmit(
     });
 
     await interaction.editReply({ embeds: [embed], components });
+
+    // Show validation warnings after successful save (if any)
+    if (validationResult.warnings.length > 0) {
+      const warningEmbed = buildValidationEmbed(validationResult);
+      if (warningEmbed !== null) {
+        await interaction.followUp({
+          embeds: [warningEmbed],
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+    }
 
     logger.info({ presetId: entityId, sectionId }, 'Preset section updated');
   } catch (error) {
