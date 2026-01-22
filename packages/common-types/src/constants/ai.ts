@@ -16,10 +16,12 @@ export const AI_DEFAULTS = {
   VISION_TEMPERATURE: 0.3,
   /** Default language for Whisper transcription */
   WHISPER_LANGUAGE: 'en',
-  /** Default memory score threshold for retrieval */
-  MEMORY_SCORE_THRESHOLD: 0.15,
+  /** Default memory score threshold for retrieval (0.0-1.0, higher = stricter matching) */
+  MEMORY_SCORE_THRESHOLD: 0.5,
   /** Default number of memories to retrieve */
-  MEMORY_LIMIT: 15,
+  MEMORY_LIMIT: 20,
+  /** Default number of recent messages to include as context */
+  MAX_REFERENCED_MESSAGES: 100,
   /**
    * Maximum fraction of context window to allocate for memories
    *

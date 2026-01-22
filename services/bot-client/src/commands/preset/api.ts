@@ -5,6 +5,7 @@
  * Uses callGatewayApi for user endpoints and adminFetch for admin endpoints.
  */
 
+import type { EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
 import type { PresetData } from './config.js';
@@ -111,4 +112,31 @@ export async function updateGlobalPreset(
     isOwned: true, // Admin owns global presets
     permissions: { canEdit: true, canDelete: true }, // Admin always has full permissions
   };
+}
+
+/**
+ * Create a new preset (user endpoint)
+ */
+export async function createPreset(
+  data: {
+    name: string;
+    model: string;
+    provider?: string;
+    description?: string;
+    maxReferencedMessages?: number;
+  },
+  userId: string,
+  _config: EnvConfig
+): Promise<PresetData> {
+  const result = await callGatewayApi<PresetResponse>('/user/llm-config', {
+    method: 'POST',
+    userId,
+    body: data,
+  });
+
+  if (!result.ok) {
+    throw new Error(`Failed to create preset: ${result.status} - ${result.error ?? 'Unknown'}`);
+  }
+
+  return result.data.config;
 }

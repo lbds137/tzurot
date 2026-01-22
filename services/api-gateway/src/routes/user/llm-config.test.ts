@@ -75,6 +75,7 @@ const mockCacheInvalidation = {
 
 import { createLlmConfigRoutes } from './llm-config.js';
 import type { PrismaClient } from '@tzurot/common-types';
+import { AI_DEFAULTS } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
@@ -429,7 +430,7 @@ describe('/user/llm-config routes', () => {
             model: 'gpt-4',
             provider: 'openrouter',
             isGlobal: false,
-            maxReferencedMessages: 20,
+            maxReferencedMessages: AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
           }),
         })
       );

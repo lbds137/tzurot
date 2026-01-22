@@ -13,7 +13,7 @@ import type {
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -31,6 +31,7 @@ import {
   unflattenPresetData,
 } from './config.js';
 import { fetchPreset, updatePreset, fetchGlobalPreset, updateGlobalPreset } from './api.js';
+import { handleSeedModalSubmit } from './create.js';
 import { presetConfigValidator } from './presetValidation.js';
 import { buildValidationEmbed, canProceed } from '../../utils/configValidation.js';
 
@@ -78,10 +79,18 @@ async function refreshDashboardUI(
  */
 export async function handleModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   const customId = interaction.customId;
+  const parsed = parseDashboardCustomId(customId);
+
+  // Handle seed modal for new preset creation
+  // Format: preset::seed
+  if (parsed?.entityType === 'preset' && parsed.action === 'seed') {
+    const config = getConfig();
+    await handleSeedModalSubmit(interaction, config);
+    return;
+  }
 
   // Handle section edit modals
   // Format: preset::modal::{entityId}::{sectionId}
-  const parsed = parseDashboardCustomId(customId);
   if (
     parsed?.entityType === 'preset' &&
     parsed.action === 'modal' &&

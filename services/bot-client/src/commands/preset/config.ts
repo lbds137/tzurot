@@ -193,3 +193,26 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
   getFooter: () => 'Select a section to edit • Changes save automatically',
   color: 0x5865f2, // Discord blurple
 };
+
+/**
+ * Seed modal field definitions for creating a new preset
+ * Minimal fields required to create a preset - user can configure more via dashboard
+ */
+export const presetSeedFields = [
+  {
+    id: 'name',
+    label: 'Preset Name',
+    placeholder: 'e.g., Claude Fast, GPT Creative',
+    required: true,
+    style: 'short' as const,
+    maxLength: 100,
+  },
+  {
+    id: 'model',
+    label: 'Model ID',
+    placeholder: 'e.g., anthropic/claude-sonnet-4',
+    required: true,
+    style: 'short' as const,
+    maxLength: 255,
+  },
+];

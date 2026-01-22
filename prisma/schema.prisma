@@ -162,7 +162,7 @@ model LlmConfig {
   /// New JSONB field for provider-specific parameters (temperature, reasoning, etc.)
   /// See AdvancedParamsSchema in common-types for validation
   advancedParameters          Json?                      @map("advanced_parameters")
-  maxReferencedMessages       Int                        @default(20) @map("max_referenced_messages")
+  maxReferencedMessages       Int                        @default(100) @map("max_referenced_messages")
   // Legacy columns - will be migrated to advancedParameters in Step B
   temperature                 Decimal?                   @db.Decimal(3, 2)
   topP                        Decimal?                   @map("top_p") @db.Decimal(3, 2)

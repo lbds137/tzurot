@@ -105,7 +105,7 @@ CREATE TABLE "llm_configs" (
     "model" VARCHAR(255) NOT NULL,
     "vision_model" VARCHAR(255),
     "advanced_parameters" JSONB,
-    "max_referenced_messages" INTEGER NOT NULL DEFAULT 20,
+    "max_referenced_messages" INTEGER NOT NULL DEFAULT 100,
     "temperature" DECIMAL(3,2),
     "top_p" DECIMAL(3,2),
     "top_k" INTEGER,

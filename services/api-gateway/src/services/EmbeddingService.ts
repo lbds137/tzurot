@@ -134,3 +134,12 @@ export async function shutdownEmbeddingService(): Promise<void> {
     logger.info('[EmbeddingService] Embedding service shut down');
   }
 }
+
+/**
+ * Reset internal state for testing purposes
+ * @internal Only use in tests
+ */
+export function __resetForTesting(): void {
+  embeddingService = null;
+  initializationPromise = null;
+}

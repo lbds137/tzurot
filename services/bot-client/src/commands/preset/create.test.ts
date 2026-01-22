@@ -1,10 +1,14 @@
 /**
- * Tests for Preset Create Handler
+ * Tests for Preset Create Handlers
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleCreate } from './create.js';
-import { mockCreateLlmConfigResponse } from '@tzurot/common-types';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { MessageFlags } from 'discord.js';
+import { handleCreate, handleSeedModalSubmit } from './create.js';
+import * as api from './api.js';
+import * as dashboardUtils from '../../utils/dashboard/index.js';
+import type { EnvConfig } from '@tzurot/common-types';
+import type { ModalSubmitInteraction } from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -20,142 +24,237 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-// Mock userGatewayClient
-const mockCallGatewayApi = vi.fn();
-vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+vi.mock('./api.js', () => ({
+  createPreset: vi.fn(),
 }));
 
-// Note: Handlers now use context.editReply() directly, not commandHelpers
+vi.mock('../../utils/dashboard/index.js', () => ({
+  buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
+  buildDashboardComponents: vi.fn().mockReturnValue([]),
+  buildDashboardCustomId: vi.fn().mockReturnValue('preset::seed'),
+  extractModalValues: vi.fn(),
+  getSessionManager: vi.fn().mockReturnValue({
+    set: vi.fn(),
+  }),
+}));
 
-describe('handleCreate', () => {
-  const mockEditReply = vi.fn();
+describe('Preset Create', () => {
+  const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
+  describe('handleCreate', () => {
+    const mockContext = {
+      showModal: vi.fn(),
+    };
 
-  function createMockContext(
-    options: {
-      name?: string;
-      model?: string;
-      description?: string | null;
-      provider?: string | null;
-      visionModel?: string | null;
-    } = {}
-  ) {
-    return {
-      user: { id: '123456789' },
-      interaction: {
-        options: {
-          getString: (name: string, _required?: boolean) => {
-            switch (name) {
-              case 'name':
-                return options.name ?? 'MyPreset';
-              case 'model':
-                return options.model ?? 'anthropic/claude-sonnet-4';
-              case 'description':
-                return options.description ?? null;
-              case 'provider':
-                return options.provider ?? null;
-              case 'vision-model':
-                return options.visionModel ?? null;
-              default:
-                return null;
-            }
-          },
-        },
-      },
-      editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleCreate>[0];
-  }
-
-  it('should create preset successfully', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreateLlmConfigResponse({
-        id: 'cfg-123',
-        name: 'MyPreset',
-        model: 'anthropic/claude-sonnet-4',
-        provider: 'openrouter',
-      }),
+    beforeEach(() => {
+      vi.clearAllMocks();
     });
 
-    const context = createMockContext();
-    await handleCreate(context);
+    it('should show modal for preset creation', async () => {
+      await handleCreate(mockContext as Parameters<typeof handleCreate>[0]);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      method: 'POST',
-      userId: '123456789',
-      body: {
-        name: 'MyPreset',
-        model: 'anthropic/claude-sonnet-4',
-        description: null,
-        provider: 'openrouter',
-        visionModel: null,
-      },
-    });
-    expect(mockEditReply).toHaveBeenCalledWith({
-      embeds: [
+      expect(mockContext.showModal).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '✅ Preset Created',
-            description: expect.stringContaining('MyPreset'),
+            title: 'Create New Preset',
           }),
-        }),
-      ],
+        })
+      );
+    });
+
+    it('should include seed fields in modal', async () => {
+      await handleCreate(mockContext as Parameters<typeof handleCreate>[0]);
+
+      const modalBuilder = vi.mocked(mockContext.showModal).mock.calls[0][0] as {
+        toJSON: () => { components: Array<{ components: Array<{ custom_id: string }> }> };
+      };
+      const modalData = modalBuilder.toJSON();
+      const fieldIds = modalData.components.flatMap(row => row.components.map(c => c.custom_id));
+
+      expect(fieldIds).toContain('name');
+      expect(fieldIds).toContain('model');
     });
   });
 
-  it('should use custom provider when specified', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreateLlmConfigResponse({
-        id: 'cfg-123',
-        name: 'GeminiPreset',
-        model: 'gemini-2.0-flash',
-        provider: 'gemini',
-      }),
+  describe('handleSeedModalSubmit', () => {
+    const createMockModalInteraction = (values: Record<string, string>) =>
+      ({
+        user: { id: 'user-123' },
+        channelId: 'channel-123',
+        deferReply: vi.fn(),
+        editReply: vi.fn().mockResolvedValue({ id: 'message-123' }),
+        fields: {
+          getTextInputValue: vi.fn((id: string) => values[id] ?? ''),
+        },
+      }) as unknown as ModalSubmitInteraction;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
     });
 
-    const context = createMockContext({
-      name: 'GeminiPreset',
-      model: 'gemini-2.0-flash',
-      provider: 'gemini',
-    });
-    await handleCreate(context);
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
-      method: 'POST',
-      userId: '123456789',
-      body: expect.objectContaining({ provider: 'gemini' }),
-    });
-  });
-
-  it('should handle API error', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      status: 400,
-      error: 'Name already exists',
+    afterEach(() => {
+      vi.restoreAllMocks();
     });
 
-    const context = createMockContext();
-    await handleCreate(context);
+    it('should defer reply with ephemeral flag', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test Preset',
+        model: 'anthropic/claude-sonnet-4',
+      });
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ Failed to create preset: Name already exists',
+      vi.mocked(api.createPreset).mockResolvedValue({
+        id: 'preset-123',
+        name: 'Test Preset',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: false,
+        isOwned: true,
+        permissions: { canEdit: true, canDelete: true },
+        maxReferencedMessages: 100,
+        params: {},
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test Preset',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.deferReply).toHaveBeenCalledWith({
+        flags: MessageFlags.Ephemeral,
+      });
     });
-  });
 
-  it('should handle exceptions', async () => {
-    const error = new Error('Network error');
-    mockCallGatewayApi.mockRejectedValue(error);
+    it('should reject empty name', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: '',
+        model: 'anthropic/claude-sonnet-4',
+      });
 
-    const context = createMockContext();
-    await handleCreate(context);
+      const mockInteraction = createMockModalInteraction({
+        name: '',
+        model: 'anthropic/claude-sonnet-4',
+      });
 
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: '❌ An error occurred. Please try again later.',
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ Preset name is required.');
+      expect(api.createPreset).not.toHaveBeenCalled();
+    });
+
+    it('should reject empty model', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test Preset',
+        model: '',
+      });
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test Preset',
+        model: '',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith('❌ Model ID is required.');
+      expect(api.createPreset).not.toHaveBeenCalled();
+    });
+
+    it('should create preset and show dashboard on success', async () => {
+      const mockPreset = {
+        id: 'preset-123',
+        name: 'My Preset',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: false,
+        isOwned: true,
+        permissions: { canEdit: true, canDelete: true },
+        maxReferencedMessages: 100,
+        params: {},
+      };
+
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'My Preset',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      vi.mocked(api.createPreset).mockResolvedValue(mockPreset);
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'My Preset',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(api.createPreset).toHaveBeenCalledWith(
+        {
+          name: 'My Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+        },
+        'user-123',
+        mockConfig
+      );
+
+      // Dashboard should be built
+      expect(dashboardUtils.buildDashboardEmbed).toHaveBeenCalled();
+      expect(dashboardUtils.buildDashboardComponents).toHaveBeenCalled();
+
+      // Session should be created
+      const mockSessionManager = vi.mocked(dashboardUtils.getSessionManager)();
+      expect(mockSessionManager.set).toHaveBeenCalledWith({
+        userId: 'user-123',
+        entityType: 'preset',
+        entityId: 'preset-123',
+        data: expect.any(Object),
+        messageId: 'message-123',
+        channelId: 'channel-123',
+      });
+    });
+
+    it('should handle duplicate name error', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Duplicate',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      vi.mocked(api.createPreset).mockRejectedValue(new Error('409 - Conflict'));
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Duplicate',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('already exists')
+      );
+    });
+
+    it('should handle generic API errors', async () => {
+      vi.mocked(dashboardUtils.extractModalValues).mockReturnValue({
+        name: 'Test',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      vi.mocked(api.createPreset).mockRejectedValue(new Error('Network error'));
+
+      const mockInteraction = createMockModalInteraction({
+        name: 'Test',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handleSeedModalSubmit(mockInteraction, mockConfig);
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith(
+        '❌ Failed to create preset. Please try again.'
+      );
     });
   });
 });
