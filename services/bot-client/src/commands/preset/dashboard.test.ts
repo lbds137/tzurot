@@ -83,16 +83,19 @@ describe('isPresetDashboardInteraction', () => {
   it('should delegate to isDashboardInteraction', () => {
     mockIsDashboardInteraction.mockReturnValue(true);
 
-    const result = isPresetDashboardInteraction('preset::modal::123::basic');
+    const result = isPresetDashboardInteraction('preset::modal::123::identity');
 
-    expect(mockIsDashboardInteraction).toHaveBeenCalledWith('preset::modal::123::basic', 'preset');
+    expect(mockIsDashboardInteraction).toHaveBeenCalledWith(
+      'preset::modal::123::identity',
+      'preset'
+    );
     expect(result).toBe(true);
   });
 
   it('should return false for non-preset interactions', () => {
     mockIsDashboardInteraction.mockReturnValue(false);
 
-    const result = isPresetDashboardInteraction('character::modal::123::basic');
+    const result = isPresetDashboardInteraction('character::modal::123::identity');
 
     expect(result).toBe(false);
   });
@@ -122,14 +125,14 @@ describe('handleModalSubmit', () => {
       entityType: 'preset',
       action: 'modal',
       entityId: 'preset-123',
-      sectionId: 'basic',
+      sectionId: 'identity',
     });
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true },
     });
     mockUpdatePreset.mockResolvedValue(mockPresetData);
 
-    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::basic'));
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', expect.any(Object), 'user-456');
@@ -145,14 +148,14 @@ describe('handleModalSubmit', () => {
       entityType: 'preset',
       action: 'modal',
       entityId: 'preset-123',
-      sectionId: 'basic',
+      sectionId: 'identity',
     });
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', name: 'Test', isGlobal: true, isOwned: true },
     });
     mockUpdateGlobalPreset.mockResolvedValue(mockPresetData);
 
-    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::basic'));
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
 
     expect(mockUpdateGlobalPreset).toHaveBeenCalledWith('preset-123', expect.any(Object));
     expect(mockUpdatePreset).not.toHaveBeenCalled();
@@ -203,7 +206,9 @@ describe('handleSelectMenu', () => {
       data: { id: 'preset-123', isGlobal: false, isOwned: true, canEdit: true },
     });
 
-    await handleSelectMenu(createMockSelectInteraction('preset::select::preset-123', 'edit-basic'));
+    await handleSelectMenu(
+      createMockSelectInteraction('preset::select::preset-123', 'edit-identity')
+    );
 
     expect(mockBuildSectionModal).toHaveBeenCalled();
     expect(mockShowModal).toHaveBeenCalledWith({ title: 'Test Modal' });
@@ -217,7 +222,9 @@ describe('handleSelectMenu', () => {
     mockSessionManagerGet.mockResolvedValue(null);
     mockFetchPreset.mockResolvedValue(mockPresetData);
 
-    await handleSelectMenu(createMockSelectInteraction('preset::select::preset-123', 'edit-basic'));
+    await handleSelectMenu(
+      createMockSelectInteraction('preset::select::preset-123', 'edit-identity')
+    );
 
     expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
     expect(mockSessionManagerSet).toHaveBeenCalled();
@@ -232,7 +239,9 @@ describe('handleSelectMenu', () => {
     mockSessionManagerGet.mockResolvedValue(null);
     mockFetchPreset.mockResolvedValue(null);
 
-    await handleSelectMenu(createMockSelectInteraction('preset::select::preset-123', 'edit-basic'));
+    await handleSelectMenu(
+      createMockSelectInteraction('preset::select::preset-123', 'edit-identity')
+    );
 
     expect(mockReply).toHaveBeenCalledWith({
       content: '❌ Preset not found.',
@@ -249,7 +258,9 @@ describe('handleSelectMenu', () => {
       data: { id: 'preset-123', isGlobal: false, isOwned: false, canEdit: false },
     });
 
-    await handleSelectMenu(createMockSelectInteraction('preset::select::preset-123', 'edit-basic'));
+    await handleSelectMenu(
+      createMockSelectInteraction('preset::select::preset-123', 'edit-identity')
+    );
 
     expect(mockReply).toHaveBeenCalledWith({
       content: '❌ You do not have permission to edit this preset.',
@@ -276,24 +287,8 @@ describe('handleSelectMenu', () => {
     });
   });
 
-  it('should handle refresh action', async () => {
-    mockParseDashboardCustomId.mockReturnValue({
-      entityType: 'preset',
-      entityId: 'preset-123',
-    });
-    mockSessionManagerGet.mockResolvedValue({
-      data: { id: 'preset-123', isGlobal: false },
-    });
-    mockFetchPreset.mockResolvedValue(mockPresetData);
-
-    await handleSelectMenu(
-      createMockSelectInteraction('preset::select::preset-123', 'action-refresh')
-    );
-
-    expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockFetchPreset).toHaveBeenCalled();
-    expect(mockEditReply).toHaveBeenCalled();
-  });
+  // Note: Refresh action removed from dropdown (use refresh button instead)
+  // handleButton tests cover refresh functionality
 
   it('should ignore non-preset interactions', async () => {
     mockParseDashboardCustomId.mockReturnValue({
@@ -302,7 +297,7 @@ describe('handleSelectMenu', () => {
     });
 
     await handleSelectMenu(
-      createMockSelectInteraction('character::select::char-123', 'edit-basic')
+      createMockSelectInteraction('character::select::char-123', 'edit-identity')
     );
 
     expect(mockShowModal).not.toHaveBeenCalled();

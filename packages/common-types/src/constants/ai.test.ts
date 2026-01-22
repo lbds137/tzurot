@@ -32,7 +32,7 @@ describe('isFreeModel', () => {
 
 describe('GUEST_MODE', () => {
   it('should have a default free model configured', () => {
-    expect(GUEST_MODE.DEFAULT_MODEL).toBe('x-ai/grok-4.1-fast:free');
+    expect(GUEST_MODE.DEFAULT_MODEL).toBe('google/gemma-3-27b-it:free');
     expect(isFreeModel(GUEST_MODE.DEFAULT_MODEL)).toBe(true);
   });
 

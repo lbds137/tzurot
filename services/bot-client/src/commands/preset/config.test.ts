@@ -336,13 +336,13 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     expect(PRESET_DASHBOARD_CONFIG.entityType).toBe('preset');
   });
 
-  it('should have 5 sections', () => {
-    expect(PRESET_DASHBOARD_CONFIG.sections).toHaveLength(5);
+  it('should have 4 sections', () => {
+    expect(PRESET_DASHBOARD_CONFIG.sections).toHaveLength(4);
   });
 
   it('should have correct section IDs', () => {
     const sectionIds = PRESET_DASHBOARD_CONFIG.sections.map(s => s.id);
-    expect(sectionIds).toEqual(['basic', 'model', 'sampling', 'penalties', 'reasoning']);
+    expect(sectionIds).toEqual(['identity', 'sampling', 'advanced', 'reasoning']);
   });
 
   describe('getTitle', () => {
@@ -374,54 +374,41 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     });
   });
 
-  describe('Basic Info section', () => {
-    const basicSection = PRESET_DASHBOARD_CONFIG.sections[0];
+  describe('Identity section (merged basic + model)', () => {
+    const identitySection = PRESET_DASHBOARD_CONFIG.sections[0];
 
     it('should have correct fields', () => {
-      expect(basicSection.fields).toHaveLength(2);
-      expect(basicSection.fields[0].id).toBe('name');
-      expect(basicSection.fields[1].id).toBe('description');
+      expect(identitySection.fields).toHaveLength(5);
+      const keys = identitySection.fields.map(f => f.id);
+      expect(keys).toEqual(['name', 'description', 'provider', 'model', 'visionModel']);
     });
 
-    it('should return EMPTY status when no name', () => {
-      const data = { name: '' } as FlattenedPresetData;
-      expect(basicSection.getStatus(data)).toBe(SectionStatus.EMPTY);
+    it('should return EMPTY status when no name or model', () => {
+      const data = { name: '', model: '' } as FlattenedPresetData;
+      expect(identitySection.getStatus(data)).toBe(SectionStatus.EMPTY);
     });
 
-    it('should return COMPLETE status when description is set', () => {
-      const data = { name: 'Test', description: 'A description' } as FlattenedPresetData;
-      expect(basicSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
+    it('should return COMPLETE status when name, model, and description set', () => {
+      const data = {
+        name: 'Test',
+        model: 'anthropic/claude-sonnet-4',
+        description: 'A description',
+      } as FlattenedPresetData;
+      expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
 
-    it('should return DEFAULT status when name set but no description', () => {
-      const data = { name: 'Test', description: '' } as FlattenedPresetData;
-      expect(basicSection.getStatus(data)).toBe(SectionStatus.DEFAULT);
-    });
-  });
-
-  describe('Model section', () => {
-    const modelSection = PRESET_DASHBOARD_CONFIG.sections[1];
-
-    it('should have correct fields', () => {
-      expect(modelSection.fields).toHaveLength(3);
-      expect(modelSection.fields[0].id).toBe('provider');
-      expect(modelSection.fields[1].id).toBe('model');
-      expect(modelSection.fields[2].id).toBe('visionModel');
-    });
-
-    it('should return EMPTY status when no model', () => {
-      const data = { model: '' } as FlattenedPresetData;
-      expect(modelSection.getStatus(data)).toBe(SectionStatus.EMPTY);
-    });
-
-    it('should return COMPLETE status when model is set', () => {
-      const data = { model: 'anthropic/claude-sonnet-4' } as FlattenedPresetData;
-      expect(modelSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
+    it('should return DEFAULT status when name and model set but no description', () => {
+      const data = {
+        name: 'Test',
+        model: 'anthropic/claude-sonnet-4',
+        description: '',
+      } as FlattenedPresetData;
+      expect(identitySection.getStatus(data)).toBe(SectionStatus.DEFAULT);
     });
   });
 
   describe('Core Sampling section', () => {
-    const samplingSection = PRESET_DASHBOARD_CONFIG.sections[2];
+    const samplingSection = PRESET_DASHBOARD_CONFIG.sections[1];
 
     it('should have correct fields', () => {
       expect(samplingSection.fields).toHaveLength(5);
@@ -450,12 +437,12 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     });
   });
 
-  describe('Penalties section', () => {
-    const penaltiesSection = PRESET_DASHBOARD_CONFIG.sections[3];
+  describe('Advanced section (renamed from penalties)', () => {
+    const advancedSection = PRESET_DASHBOARD_CONFIG.sections[2];
 
     it('should have correct fields', () => {
-      expect(penaltiesSection.fields).toHaveLength(5);
-      const keys = penaltiesSection.fields.map(f => f.id);
+      expect(advancedSection.fields).toHaveLength(5);
+      const keys = advancedSection.fields.map(f => f.id);
       expect(keys).toEqual([
         'frequency_penalty',
         'presence_penalty',
@@ -467,17 +454,17 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
 
     it('should return DEFAULT status when no params set', () => {
       const data = {} as FlattenedPresetData;
-      expect(penaltiesSection.getStatus(data)).toBe(SectionStatus.DEFAULT);
+      expect(advancedSection.getStatus(data)).toBe(SectionStatus.DEFAULT);
     });
 
     it('should return COMPLETE status when any param is set', () => {
       const data = { frequency_penalty: '0.5' } as FlattenedPresetData;
-      expect(penaltiesSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
+      expect(advancedSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
   });
 
   describe('Reasoning section', () => {
-    const reasoningSection = PRESET_DASHBOARD_CONFIG.sections[4];
+    const reasoningSection = PRESET_DASHBOARD_CONFIG.sections[3];
 
     it('should have correct fields', () => {
       expect(reasoningSection.fields).toHaveLength(5);

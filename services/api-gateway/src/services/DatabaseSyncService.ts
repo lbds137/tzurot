@@ -74,6 +74,11 @@ interface UpsertRowOptions {
    * Use for circular foreign keys that reference rows not yet inserted.
    */
   deferredFkColumns?: readonly string[];
+  /**
+   * Columns to completely exclude from sync.
+   * These columns are not copied, allowing different values per environment.
+   */
+  excludeColumns?: readonly string[];
 }
 
 export class DatabaseSyncService {
@@ -213,16 +218,9 @@ export class DatabaseSyncService {
     const devRows = await this.fetchAllRows(this.devClient, tableName);
     const prodRows = await this.fetchAllRows(this.prodClient, tableName);
 
-    let devToProd = 0;
-    let prodToDev = 0;
-    let conflicts = 0;
-
     // Build maps by primary key for efficient lookup
     const devMap = this.buildRowMap(devRows, config.pk);
     const prodMap = this.buildRowMap(prodRows, config.pk);
-
-    // Get deferred FK columns (will be set to NULL in pass 1, updated in pass 2)
-    const deferredFkColumns = config.deferredFkColumns ?? [];
 
     // Find rows that need syncing
     const allKeys = new Set([...devMap.keys(), ...prodMap.keys()]);
@@ -230,81 +228,89 @@ export class DatabaseSyncService {
     // For conversation_history, skip rows that have tombstones (already deleted)
     const shouldSkipTombstones = tableName === 'conversation_history' && tombstoneIds !== undefined;
 
+    // Build upsert options once
+    const upsertOptions = {
+      tableName,
+      pkField: config.pk,
+      uuidColumns: config.uuidColumns,
+      timestampColumns: config.timestampColumns ?? [],
+      deferredFkColumns: config.deferredFkColumns ?? [],
+      excludeColumns: config.excludeColumns ?? [],
+    };
+
+    let devToProd = 0;
+    let prodToDev = 0;
+    let conflicts = 0;
+
     for (const key of allKeys) {
       // Skip messages that have been hard-deleted (tombstoned)
       if (shouldSkipTombstones && tombstoneIds?.has(key) === true) {
         continue;
       }
 
-      const devRow = devMap.get(key);
-      const prodRow = prodMap.get(key);
+      const result = await this.syncRow(
+        devMap.get(key),
+        prodMap.get(key),
+        config,
+        dryRun,
+        upsertOptions
+      );
 
-      if (devRow === undefined && prodRow !== undefined) {
-        // Row only in prod - copy to dev
-        if (!dryRun) {
-          await this.upsertRow({
-            client: this.devClient,
-            tableName,
-            row: prodRow,
-            pkField: config.pk,
-            uuidColumns: config.uuidColumns,
-            timestampColumns: config.timestampColumns ?? [],
-            deferredFkColumns,
-          });
-        }
-        prodToDev++;
-      } else if (devRow !== undefined && prodRow === undefined) {
-        // Row only in dev - copy to prod
-        if (!dryRun) {
-          await this.upsertRow({
-            client: this.prodClient,
-            tableName,
-            row: devRow,
-            pkField: config.pk,
-            uuidColumns: config.uuidColumns,
-            timestampColumns: config.timestampColumns ?? [],
-            deferredFkColumns,
-          });
-        }
-        devToProd++;
-      } else if (devRow !== undefined && prodRow !== undefined) {
-        // Row in both - check timestamps
-        const comparison = this.compareTimestamps(devRow, prodRow, config);
-
-        if (comparison === 'dev-newer') {
-          if (!dryRun) {
-            await this.upsertRow({
-              client: this.prodClient,
-              tableName,
-              row: devRow,
-              pkField: config.pk,
-              uuidColumns: config.uuidColumns,
-              timestampColumns: config.timestampColumns ?? [],
-              deferredFkColumns,
-            });
-          }
-          devToProd++;
-          conflicts++;
-        } else if (comparison === 'prod-newer') {
-          if (!dryRun) {
-            await this.upsertRow({
-              client: this.devClient,
-              tableName,
-              row: prodRow,
-              pkField: config.pk,
-              uuidColumns: config.uuidColumns,
-              timestampColumns: config.timestampColumns ?? [],
-              deferredFkColumns,
-            });
-          }
-          prodToDev++;
-          conflicts++;
-        }
-        // If 'same', no action needed
-      }
+      devToProd += result.devToProd;
+      prodToDev += result.prodToDev;
+      conflicts += result.conflicts;
     }
 
     return { devToProd, prodToDev, conflicts };
+  }
+
+  /**
+   * Sync a single row between dev and prod databases
+   */
+  private async syncRow(
+    devRow: unknown,
+    prodRow: unknown,
+    config: (typeof SYNC_CONFIG)[keyof typeof SYNC_CONFIG],
+    dryRun: boolean,
+    upsertOptions: Omit<UpsertRowOptions, 'client' | 'row'>
+  ): Promise<{ devToProd: number; prodToDev: number; conflicts: number }> {
+    if (devRow === undefined && prodRow !== undefined) {
+      // Row only in prod - copy to dev
+      if (!dryRun) {
+        await this.upsertRow({ client: this.devClient, row: prodRow, ...upsertOptions });
+      }
+      return { devToProd: 0, prodToDev: 1, conflicts: 0 };
+    }
+
+    if (devRow !== undefined && prodRow === undefined) {
+      // Row only in dev - copy to prod
+      if (!dryRun) {
+        await this.upsertRow({ client: this.prodClient, row: devRow, ...upsertOptions });
+      }
+      return { devToProd: 1, prodToDev: 0, conflicts: 0 };
+    }
+
+    if (devRow !== undefined && prodRow !== undefined) {
+      // Row in both - check timestamps
+      const comparison = this.compareTimestamps(devRow, prodRow, config);
+
+      if (comparison === 'dev-newer') {
+        if (!dryRun) {
+          await this.upsertRow({ client: this.prodClient, row: devRow, ...upsertOptions });
+        }
+        return { devToProd: 1, prodToDev: 0, conflicts: 1 };
+      }
+
+      if (comparison === 'prod-newer') {
+        if (!dryRun) {
+          await this.upsertRow({ client: this.devClient, row: prodRow, ...upsertOptions });
+        }
+        return { devToProd: 0, prodToDev: 1, conflicts: 1 };
+      }
+    }
+
+    // No sync needed (both undefined or timestamps match)
+    return { devToProd: 0, prodToDev: 0, conflicts: 0 };
   }
 
   /**
@@ -416,6 +422,7 @@ export class DatabaseSyncService {
       uuidColumns = [],
       timestampColumns = [],
       deferredFkColumns = [],
+      excludeColumns = [],
     } = options;
 
     // Defense-in-depth: validate table name before SQL interpolation
@@ -427,15 +434,17 @@ export class DatabaseSyncService {
 
     const rowObj = row as Record<string, unknown>;
 
+    // Filter out excluded columns - these are not synced between environments
+    const columns = Object.keys(rowObj).filter(col => !excludeColumns.includes(col));
+
     // Defense-in-depth: validate all column names before SQL interpolation
-    const columns = Object.keys(rowObj);
     for (const col of columns) {
       assertValidColumnName(col);
     }
 
-    // Build values (columns already validated above)
-    const values = Object.values(rowObj).map((val, i) => {
-      const col = columns[i];
+    // Build values from filtered columns (columns already validated above)
+    const values = columns.map(col => {
+      const val = rowObj[col];
       // Set deferred FK columns to NULL (will be updated in pass 2)
       if (deferredFkColumns.includes(col)) {
         return null;

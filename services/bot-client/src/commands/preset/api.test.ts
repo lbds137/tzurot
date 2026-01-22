@@ -100,11 +100,11 @@ describe('fetchGlobalPreset', () => {
     const result = await fetchGlobalPreset('preset-123');
 
     expect(mockAdminFetch).toHaveBeenCalledWith('/admin/llm-config/preset-123');
-    // fetchGlobalPreset adds isOwned: false and permissions for dashboard compatibility
+    // fetchGlobalPreset adds isOwned: true (admin owns global presets) and permissions
     // Admin always has full permissions on global presets
     expect(result).toEqual({
       ...mockPresetData,
-      isOwned: false,
+      isOwned: true, // Admin owns global presets
       permissions: { canEdit: true, canDelete: true },
     });
   });
@@ -184,16 +184,23 @@ describe('updateGlobalPreset', () => {
   });
 
   it('should update global preset successfully', async () => {
+    // Admin API doesn't return isOwned/permissions, so function adds them
+    const apiResponse = { ...mockPresetData };
     mockAdminPutJson.mockResolvedValue({
       ok: true,
-      json: async () => ({ config: mockPresetData }),
+      json: async () => ({ config: apiResponse }),
     });
 
     const updateData = { name: 'Updated Name' };
     const result = await updateGlobalPreset('preset-123', updateData);
 
     expect(mockAdminPutJson).toHaveBeenCalledWith('/admin/llm-config/preset-123', updateData);
-    expect(result).toEqual(mockPresetData);
+    // Function adds isOwned: true (admin owns global presets) and permissions for dashboard
+    expect(result).toEqual({
+      ...mockPresetData,
+      isOwned: true, // Admin owns global presets
+      permissions: { canEdit: true, canDelete: true },
+    });
   });
 
   it('should throw on error with body', async () => {

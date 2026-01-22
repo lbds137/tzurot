@@ -242,13 +242,6 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     await interaction.showModal(modal);
     return;
   }
-
-  // Handle action selection
-  if (value.startsWith('action-')) {
-    const actionId = value.replace('action-', '');
-    await handleAction(interaction, entityId, actionId);
-    return;
-  }
 }
 
 /**
@@ -324,63 +317,6 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     await interaction.editReply({ embeds: [embed], components });
     return;
   }
-}
-
-/**
- * Handle dashboard actions (refresh)
- */
-async function handleAction(
-  interaction: StringSelectMenuInteraction,
-  entityId: string,
-  actionId: string
-): Promise<void> {
-  if (actionId === 'refresh') {
-    await interaction.deferUpdate();
-
-    // Get session to determine if this is a global preset
-    const sessionManager = getSessionManager();
-    const session = await sessionManager.get<FlattenedPresetData>(
-      interaction.user.id,
-      'preset',
-      entityId
-    );
-    const isGlobal = session?.data.isGlobal ?? false;
-
-    // Fetch fresh data
-    const preset = isGlobal
-      ? await fetchGlobalPreset(entityId)
-      : await fetchPreset(entityId, interaction.user.id);
-
-    if (!preset) {
-      return;
-    }
-
-    const flattenedData = flattenPresetData(preset);
-
-    // Update session
-    await sessionManager.set({
-      userId: interaction.user.id,
-      entityType: 'preset',
-      entityId,
-      data: flattenedData,
-      messageId: interaction.message.id,
-      channelId: interaction.channelId,
-    });
-
-    // Refresh dashboard
-    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, entityId, flattenedData, {
-      showClose: true,
-      showRefresh: true,
-    });
-
-    await interaction.editReply({ embeds: [embed], components });
-
-    logger.info({ presetId: entityId }, 'Preset dashboard refreshed');
-    return;
-  }
-
-  logger.warn({ actionId }, 'Unknown action');
 }
 
 /**

@@ -164,10 +164,9 @@ export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<
 
 // Import section definitions from separate file to keep under 500 lines
 import {
-  basicInfoSection,
-  modelSection,
+  identitySection,
   coreSamplingSection,
-  penaltiesSection,
+  advancedSection,
   reasoningSection,
 } from './presetSections.js';
 
@@ -189,14 +188,8 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
     }
     return badges.length > 0 ? badges.join(' • ') : '';
   },
-  sections: [
-    basicInfoSection,
-    modelSection,
-    coreSamplingSection,
-    penaltiesSection,
-    reasoningSection,
-  ],
-  actions: [{ id: 'refresh', label: 'Refresh', description: 'Reload preset data', emoji: '🔄' }],
+  sections: [identitySection, coreSamplingSection, advancedSection, reasoningSection],
+  actions: [], // Refresh button already exists - no need for dropdown entry
   getFooter: () => 'Select a section to edit • Changes save automatically',
   color: 0x5865f2, // Discord blurple
 };
