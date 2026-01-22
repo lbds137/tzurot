@@ -525,12 +525,50 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should reject editing global config', async () => {
+    it('should allow owner to edit own global config', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
         ownerId: 'user-uuid-123',
         isGlobal: true,
-        name: 'Global Config',
+        name: 'My Global Config',
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'Updated Global Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'test-model',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        ownerId: 'user-uuid-123',
+        maxReferencedMessages: 20,
+        advancedParameters: {},
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes(
+        { name: 'Updated Global Config' },
+        { id: 'config-123' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.llmConfig.update).toHaveBeenCalled();
+    });
+
+    it('should reject editing system global config', async () => {
+      // System global configs have no owner (ownerId is null)
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: null,
+        isGlobal: true,
+        name: 'System Global Config',
       });
 
       const router = createLlmConfigRoutes(

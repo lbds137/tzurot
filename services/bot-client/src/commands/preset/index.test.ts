@@ -35,7 +35,6 @@ vi.mock('./delete.js', () => ({ handleDelete: vi.fn() }));
 
 // Mock global subcommand handlers
 vi.mock('./global/create.js', () => ({ handleGlobalCreate: vi.fn() }));
-vi.mock('./global/edit.js', () => ({ handleGlobalEdit: vi.fn() }));
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/set-free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
@@ -43,7 +42,6 @@ import { handleList } from './list.js';
 import { handleCreate } from './create.js';
 import { handleDelete } from './delete.js';
 import { handleGlobalCreate } from './global/create.js';
-import { handleGlobalEdit } from './global/edit.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
 
@@ -88,9 +86,9 @@ describe('Preset Command', () => {
       // Check global group has expected subcommands
       const globalSubcommands = (globalGroup?.options ?? []).map((s: { name: string }) => s.name);
       expect(globalSubcommands).toContain('create');
-      expect(globalSubcommands).toContain('edit');
-      expect(globalSubcommands).toContain('set-default');
-      expect(globalSubcommands).toContain('set-free-default');
+      expect(globalSubcommands).toContain('default');
+      expect(globalSubcommands).toContain('free-default');
+      // Note: 'edit' was removed - global presets can be edited via /preset edit
     });
   });
 
@@ -143,18 +141,9 @@ describe('Preset Command', () => {
       expect(handleGlobalCreate).toHaveBeenCalledWith(context);
     });
 
-    it('should route to handleGlobalEdit when owner check passes', async () => {
-      mockRequireBotOwnerContext.mockResolvedValue(true);
-      const context = createMockContext('edit', 'global');
-
-      await execute(context);
-
-      expect(handleGlobalEdit).toHaveBeenCalledWith(context);
-    });
-
     it('should route to handleGlobalSetDefault when owner check passes', async () => {
       mockRequireBotOwnerContext.mockResolvedValue(true);
-      const context = createMockContext('set-default', 'global');
+      const context = createMockContext('default', 'global');
 
       await execute(context);
 
@@ -163,7 +152,7 @@ describe('Preset Command', () => {
 
     it('should route to handleGlobalSetFreeDefault when owner check passes', async () => {
       mockRequireBotOwnerContext.mockResolvedValue(true);
-      const context = createMockContext('set-free-default', 'global');
+      const context = createMockContext('free-default', 'global');
 
       await execute(context);
 

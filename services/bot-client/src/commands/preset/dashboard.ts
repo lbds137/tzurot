@@ -22,6 +22,7 @@ import {
   getSessionManager,
   parseDashboardCustomId,
   isDashboardInteraction,
+  type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
 import {
   PRESET_DASHBOARD_CONFIG,
@@ -34,6 +35,20 @@ import { presetConfigValidator } from './presetValidation.js';
 import { buildValidationEmbed, canProceed } from '../../utils/configValidation.js';
 
 const logger = createLogger('preset-dashboard');
+
+/**
+ * Build dashboard button options including toggle-global for owned presets
+ */
+function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
+  return {
+    showClose: true,
+    showRefresh: true,
+    toggleGlobal: {
+      isGlobal: data.isGlobal,
+      isOwned: data.isOwned,
+    },
+  };
+}
 
 /**
  * Handle modal submissions for preset editing
@@ -146,10 +161,12 @@ async function handleSectionModalSubmit(
 
     // Refresh dashboard
     const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, entityId, flattenedData, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      PRESET_DASHBOARD_CONFIG,
+      entityId,
+      flattenedData,
+      buildPresetDashboardOptions(flattenedData)
+    );
 
     await interaction.editReply({ embeds: [embed], components });
 
@@ -245,6 +262,143 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 }
 
 /**
+ * Handle close button - delete session and close dashboard
+ */
+async function handleCloseButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
+  const sessionManager = getSessionManager();
+  await sessionManager.delete(interaction.user.id, 'preset', entityId);
+
+  await interaction.update({
+    content: '✅ Dashboard closed.',
+    embeds: [],
+    components: [],
+  });
+}
+
+/**
+ * Handle refresh button - fetch fresh data and update dashboard
+ */
+async function handleRefreshButton(
+  interaction: ButtonInteraction,
+  entityId: string
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPresetData>(
+    interaction.user.id,
+    'preset',
+    entityId
+  );
+  const isGlobal = session?.data.isGlobal ?? false;
+
+  const preset = isGlobal
+    ? await fetchGlobalPreset(entityId)
+    : await fetchPreset(entityId, interaction.user.id);
+
+  if (!preset) {
+    await interaction.editReply({
+      content: '❌ Preset not found.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const flattenedData = flattenPresetData(preset);
+
+  await sessionManager.set({
+    userId: interaction.user.id,
+    entityType: 'preset',
+    entityId,
+    data: flattenedData,
+    messageId: interaction.message.id,
+    channelId: interaction.channelId,
+  });
+
+  const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
+  const components = buildDashboardComponents(
+    PRESET_DASHBOARD_CONFIG,
+    entityId,
+    flattenedData,
+    buildPresetDashboardOptions(flattenedData)
+  );
+
+  await interaction.editReply({ embeds: [embed], components });
+}
+
+/**
+ * Handle toggle-global button - toggle preset visibility
+ */
+async function handleToggleGlobalButton(
+  interaction: ButtonInteraction,
+  entityId: string
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPresetData>(
+    interaction.user.id,
+    'preset',
+    entityId
+  );
+
+  if (!session) {
+    await interaction.editReply({
+      content: '❌ Session expired. Please reopen the dashboard.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  if (!session.data.isOwned) {
+    await interaction.followUp({
+      content: '❌ You can only toggle global status for presets you own.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  try {
+    const newIsGlobal = !session.data.isGlobal;
+    const updatedPreset = await updatePreset(
+      entityId,
+      { isGlobal: newIsGlobal },
+      interaction.user.id
+    );
+
+    const flattenedData = flattenPresetData(updatedPreset);
+
+    await sessionManager.update<FlattenedPresetData>(
+      interaction.user.id,
+      'preset',
+      entityId,
+      flattenedData
+    );
+
+    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
+    const components = buildDashboardComponents(
+      PRESET_DASHBOARD_CONFIG,
+      entityId,
+      flattenedData,
+      buildPresetDashboardOptions(flattenedData)
+    );
+
+    await interaction.editReply({ embeds: [embed], components });
+
+    const statusText = newIsGlobal ? 'global (visible to everyone)' : 'private (only you)';
+    logger.info({ presetId: entityId, newIsGlobal }, `Preset visibility changed to ${statusText}`);
+  } catch (error) {
+    logger.error({ err: error, entityId }, 'Failed to toggle preset global status');
+    await interaction.followUp({
+      content: '❌ Failed to update preset visibility. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+/**
  * Handle button interactions for dashboard
  */
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
@@ -257,65 +411,11 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   const action = parsed.action;
 
   if (action === 'close') {
-    // Delete the session and message
-    const sessionManager = getSessionManager();
-    await sessionManager.delete(interaction.user.id, 'preset', entityId);
-
-    await interaction.update({
-      content: '✅ Dashboard closed.',
-      embeds: [],
-      components: [],
-    });
-    return;
-  }
-
-  if (action === 'refresh') {
-    await interaction.deferUpdate();
-
-    // Get session to determine if this is a global preset
-    const sessionManager = getSessionManager();
-    const session = await sessionManager.get<FlattenedPresetData>(
-      interaction.user.id,
-      'preset',
-      entityId
-    );
-    const isGlobal = session?.data.isGlobal ?? false;
-
-    // Fetch fresh data
-    const preset = isGlobal
-      ? await fetchGlobalPreset(entityId)
-      : await fetchPreset(entityId, interaction.user.id);
-
-    if (!preset) {
-      await interaction.editReply({
-        content: '❌ Preset not found.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    const flattenedData = flattenPresetData(preset);
-
-    // Update session
-    await sessionManager.set({
-      userId: interaction.user.id,
-      entityType: 'preset',
-      entityId,
-      data: flattenedData,
-      messageId: interaction.message.id,
-      channelId: interaction.channelId,
-    });
-
-    // Refresh dashboard
-    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, entityId, flattenedData, {
-      showClose: true,
-      showRefresh: true,
-    });
-
-    await interaction.editReply({ embeds: [embed], components });
-    return;
+    await handleCloseButton(interaction, entityId);
+  } else if (action === 'refresh') {
+    await handleRefreshButton(interaction, entityId);
+  } else if (action === 'toggle-global') {
+    await handleToggleGlobalButton(interaction, entityId);
   }
 }
 
