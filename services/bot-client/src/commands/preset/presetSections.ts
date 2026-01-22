@@ -10,11 +10,15 @@ import type { FlattenedPresetData } from './types.js';
 
 // --- Section Definitions ---
 
-export const basicInfoSection: SectionDefinition<FlattenedPresetData> = {
-  id: 'basic',
-  label: '📝 Basic Info',
-  description: 'Name and description',
-  fieldIds: ['name', 'description'],
+/**
+ * Identity section - combines name/description with model settings
+ * (5 fields, maximum for a Discord modal)
+ */
+export const identitySection: SectionDefinition<FlattenedPresetData> = {
+  id: 'identity',
+  label: '📝 Identity',
+  description: 'Name, description, and model',
+  fieldIds: ['name', 'description', 'provider', 'model', 'visionModel'],
   fields: [
     {
       id: 'name',
@@ -29,34 +33,9 @@ export const basicInfoSection: SectionDefinition<FlattenedPresetData> = {
       label: 'Description',
       placeholder: 'Optimized for creative writing tasks',
       required: false,
-      style: 'paragraph',
-      maxLength: 500,
+      style: 'short', // Changed to short to fit 5 fields better
+      maxLength: 200,
     },
-  ],
-  getStatus: data => {
-    if (!data.name) {
-      return SectionStatus.EMPTY;
-    }
-    return data.description ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
-  },
-  getPreview: data => {
-    const parts: string[] = [];
-    if (data.name) {
-      parts.push(`**Name:** ${data.name}`);
-    }
-    if (data.description) {
-      parts.push(`**Description:** ${data.description.slice(0, 50)}...`);
-    }
-    return parts.length > 0 ? parts.join('\n') : '_Not configured_';
-  },
-};
-
-export const modelSection: SectionDefinition<FlattenedPresetData> = {
-  id: 'model',
-  label: '🤖 Model',
-  description: 'Provider and model settings',
-  fieldIds: ['provider', 'model', 'visionModel'],
-  fields: [
     {
       id: 'provider',
       label: 'Provider',
@@ -82,11 +61,16 @@ export const modelSection: SectionDefinition<FlattenedPresetData> = {
       maxLength: 200,
     },
   ],
-  getStatus: data => (data.model ? SectionStatus.COMPLETE : SectionStatus.EMPTY),
+  getStatus: data => {
+    if (!data.name || !data.model) {
+      return SectionStatus.EMPTY;
+    }
+    return data.description ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
+  },
   getPreview: data => {
     const parts: string[] = [];
-    if (data.provider) {
-      parts.push(`**Provider:** ${data.provider}`);
+    if (data.name) {
+      parts.push(`**Name:** ${data.name}`);
     }
     if (data.model) {
       parts.push(`**Model:** \`${data.model}\``);
@@ -170,10 +154,10 @@ export const coreSamplingSection: SectionDefinition<FlattenedPresetData> = {
   },
 };
 
-export const penaltiesSection: SectionDefinition<FlattenedPresetData> = {
-  id: 'penalties',
-  label: '⚖️ Penalties',
-  description: 'Frequency, presence, repetition penalties, min_p, top_a',
+export const advancedSection: SectionDefinition<FlattenedPresetData> = {
+  id: 'advanced',
+  label: '🔧 Advanced',
+  description: 'Penalties and advanced sampling (min_p, top_a)',
   fieldIds: ['frequency_penalty', 'presence_penalty', 'repetition_penalty', 'min_p', 'top_a'],
   fields: [
     {

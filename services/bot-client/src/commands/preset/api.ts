@@ -60,7 +60,7 @@ export async function fetchGlobalPreset(presetId: string): Promise<PresetData | 
   // Safe to hardcode: this function is only reachable by bot owners (see JSDoc above)
   return {
     ...data.config,
-    isOwned: false, // Truthful: admin didn't create system presets
+    isOwned: true, // Admin owns global presets
     permissions: { canEdit: true, canDelete: true }, // Admin always has full permissions
   };
 }
@@ -88,6 +88,9 @@ export async function updatePreset(
 
 /**
  * Update a global preset (admin endpoint)
+ *
+ * IMPORTANT: Like fetchGlobalPreset, this function is ONLY callable by bot owners.
+ * The admin endpoint doesn't return permissions, so we add them for dashboard compatibility.
  */
 export async function updateGlobalPreset(
   presetId: string,
@@ -101,5 +104,11 @@ export async function updateGlobalPreset(
   }
 
   const result = (await response.json()) as PresetResponse;
-  return result.config;
+  // Admin endpoint doesn't include isOwned/permissions - add for dashboard compatibility
+  // Safe to hardcode: this function is only reachable by bot owners (see JSDoc above)
+  return {
+    ...result.config,
+    isOwned: true, // Admin owns global presets
+    permissions: { canEdit: true, canDelete: true }, // Admin always has full permissions
+  };
 }

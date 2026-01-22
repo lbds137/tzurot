@@ -164,16 +164,16 @@ export enum AIProvider {
 export const GUEST_MODE = {
   /**
    * Default free model for guest users
-   * Grok 4.1 Fast: 2M context window, vision support, excellent for conversational AI
+   * Gemma 3 27B: 96k context window, excellent for conversational AI
    */
-  DEFAULT_MODEL: 'x-ai/grok-4.1-fast:free',
+  DEFAULT_MODEL: 'google/gemma-3-27b-it:free',
 
   /**
    * Alternative free models (for failover or user choice)
    * Ordered by preference for chat/roleplay use cases
    */
   FREE_MODELS: [
-    'x-ai/grok-4.1-fast:free', // 2M context, vision support
+    'google/gemma-3-27b-it:free', // 96k context, balanced quality/speed
     'nvidia/nemotron-nano-12b-v2-vl:free', // 128k context, vision support
     'tngtech/tng-r1t-chimera:free', // 164k context, creative storytelling
   ] as const,
