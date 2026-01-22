@@ -86,6 +86,8 @@ const CONFIG_DETAIL_SELECT = {
   ...CONFIG_SELECT,
   advancedParameters: true,
   maxReferencedMessages: true,
+  memoryScoreThreshold: true,
+  memoryLimit: true,
   ownerId: true,
 } as const;
 
@@ -192,6 +194,8 @@ function createGetHandler(prisma: PrismaClient) {
       isOwned,
       permissions,
       maxReferencedMessages: config.maxReferencedMessages,
+      memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
+      memoryLimit: config.memoryLimit,
       params,
     };
 
@@ -253,9 +257,11 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
         model: body.model.trim(),
         visionModel: body.visionModel ?? null,
         maxReferencedMessages: body.maxReferencedMessages ?? AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
+        memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
+        memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
         advancedParameters: body.advancedParameters ?? undefined,
       },
-      select: CONFIG_SELECT,
+      select: CONFIG_DETAIL_SELECT,
     });
 
     // User always owns their own created config
@@ -265,13 +271,33 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
       discordUserId
     );
 
+    // Parse advancedParameters for response (matching get handler format)
+    const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
+
     logger.info(
       { discordUserId, configId: config.id, name: config.name },
       '[LlmConfig] Created config'
     );
     sendCustomSuccess(
       res,
-      { config: { ...config, isOwned: true, permissions } },
+      {
+        config: {
+          id: config.id,
+          name: config.name,
+          description: config.description,
+          provider: config.provider,
+          model: config.model,
+          visionModel: config.visionModel,
+          isGlobal: config.isGlobal,
+          isDefault: config.isDefault,
+          isOwned: true,
+          permissions,
+          maxReferencedMessages: config.maxReferencedMessages,
+          memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
+          memoryLimit: config.memoryLimit,
+          params,
+        },
+      },
       StatusCodes.CREATED
     );
   };
@@ -282,7 +308,7 @@ function createUpdateHandler(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ) {
-  // eslint-disable-next-line max-lines-per-function -- straightforward field validation
+  // eslint-disable-next-line max-lines-per-function, complexity -- straightforward field validation in PUT handler
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
@@ -391,6 +417,8 @@ function createUpdateHandler(
       isOwned: true,
       permissions,
       maxReferencedMessages: updated.maxReferencedMessages,
+      memoryScoreThreshold: updated.memoryScoreThreshold?.toNumber() ?? null,
+      memoryLimit: updated.memoryLimit,
       params,
     };
 
