@@ -411,4 +411,117 @@ describe('handleButton', () => {
 
     expect(mockUpdate).not.toHaveBeenCalled();
   });
+
+  describe('toggle-global button', () => {
+    const mockFollowUp = vi.fn();
+
+    function createToggleButtonInteraction(customId: string) {
+      return {
+        customId,
+        user: { id: 'user-456' },
+        channelId: 'channel-999',
+        message: { id: 'message-789' },
+        update: mockUpdate,
+        deferUpdate: mockDeferUpdate,
+        editReply: mockEditReply,
+        followUp: mockFollowUp,
+      } as unknown as Parameters<typeof handleButton>[0];
+    }
+
+    beforeEach(() => {
+      mockFollowUp.mockClear();
+    });
+
+    it('should toggle preset from private to global', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'toggle-global',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: { id: 'preset-123', isGlobal: false, isOwned: true },
+      });
+      mockUpdatePreset.mockResolvedValue({ ...mockPresetData, isGlobal: true });
+
+      await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
+
+      expect(mockDeferUpdate).toHaveBeenCalled();
+      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', { isGlobal: true }, 'user-456');
+      expect(mockSessionManagerUpdate).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalled();
+    });
+
+    it('should toggle preset from global to private', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'toggle-global',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: { id: 'preset-123', isGlobal: true, isOwned: true },
+      });
+      mockUpdatePreset.mockResolvedValue({ ...mockPresetData, isGlobal: false });
+
+      await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
+
+      expect(mockUpdatePreset).toHaveBeenCalledWith('preset-123', { isGlobal: false }, 'user-456');
+    });
+
+    it('should show error when session expired', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'toggle-global',
+      });
+      mockSessionManagerGet.mockResolvedValue(null);
+
+      await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
+
+      expect(mockDeferUpdate).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Session expired. Please reopen the dashboard.',
+        embeds: [],
+        components: [],
+      });
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+    });
+
+    it('should show error when user does not own preset', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'toggle-global',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: { id: 'preset-123', isGlobal: false, isOwned: false },
+      });
+
+      await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
+
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: '❌ You can only toggle global status for presets you own.',
+        flags: MessageFlags.Ephemeral,
+      });
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+    });
+
+    it('should show error on API failure', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'toggle-global',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: { id: 'preset-123', isGlobal: false, isOwned: true },
+      });
+      mockUpdatePreset.mockRejectedValue(new Error('API Error'));
+
+      await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
+
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: '❌ Failed to update preset visibility. Please try again.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+  });
 });

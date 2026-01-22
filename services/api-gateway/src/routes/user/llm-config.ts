@@ -12,6 +12,7 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { z } from 'zod';
 import {
   createLogger,
   UserService,
@@ -21,6 +22,7 @@ import {
   generateLlmConfigUuid,
   safeValidateAdvancedParams,
   computeLlmConfigPermissions,
+  AdvancedParamsSchema,
   type AdvancedParams,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
@@ -47,17 +49,24 @@ interface CreateConfigBody {
   advancedParameters?: AdvancedParams;
 }
 
-interface UpdateConfigBody {
-  name?: string;
-  description?: string;
-  provider?: string;
-  model?: string;
-  visionModel?: string;
-  maxReferencedMessages?: number;
-  advancedParameters?: AdvancedParams;
+/**
+ * Zod schema for UpdateConfigBody request validation.
+ * Uses proper type coercion and validation at the service boundary.
+ */
+const UpdateConfigBodySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().optional(),
+  provider: z.string().optional(),
+  model: z.string().min(1).optional(),
+  visionModel: z.string().nullable().optional(),
+  maxReferencedMessages: z.number().int().positive().optional(),
+  advancedParameters: AdvancedParamsSchema.optional(),
   /** Toggle global visibility - users can share their presets */
-  isGlobal?: boolean;
-}
+  isGlobal: z.boolean().optional(),
+});
+
+// Type is exported for use in tests and documentation
+export type UpdateConfigBody = z.infer<typeof UpdateConfigBodySchema>;
 
 /** Select fields for list queries (summary data) */
 const CONFIG_SELECT = {
@@ -272,11 +281,20 @@ function createUpdateHandler(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ) {
-  // eslint-disable-next-line complexity, max-lines-per-function -- straightforward field validation
+  // eslint-disable-next-line max-lines-per-function -- straightforward field validation
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
-    const body = req.body as UpdateConfigBody;
+
+    // Validate request body with Zod schema
+    const parseResult = UpdateConfigBodySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      const fieldPath = firstIssue.path.join('.');
+      const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+      return sendError(res, ErrorResponses.validationError(message));
+    }
+    const body = parseResult.data;
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
@@ -301,16 +319,10 @@ function createUpdateHandler(
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
     }
 
-    // Build update data
+    // Build update data from validated body
     const updateData: Record<string, unknown> = {};
 
-    if (body.name !== undefined && body.name.trim().length > 0) {
-      if (body.name.length > 100) {
-        return sendError(
-          res,
-          ErrorResponses.validationError('name must be 100 characters or less')
-        );
-      }
+    if (body.name !== undefined) {
       // Check for duplicate name (excluding current config)
       const duplicate = await prisma.llmConfig.findFirst({
         where: { ownerId: user.id, name: body.name.trim(), id: { not: configId } },
@@ -330,7 +342,7 @@ function createUpdateHandler(
     if (body.provider !== undefined) {
       updateData.provider = body.provider;
     }
-    if (body.model !== undefined && body.model.trim().length > 0) {
+    if (body.model !== undefined) {
       updateData.model = body.model.trim();
     }
     if (body.visionModel !== undefined) {
@@ -342,13 +354,7 @@ function createUpdateHandler(
     if (body.isGlobal !== undefined) {
       updateData.isGlobal = body.isGlobal;
     }
-
-    // Handle advancedParameters update
     if (body.advancedParameters !== undefined) {
-      const validated = safeValidateAdvancedParams(body.advancedParameters);
-      if (validated === null) {
-        return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
-      }
       updateData.advancedParameters = body.advancedParameters;
     }
 
