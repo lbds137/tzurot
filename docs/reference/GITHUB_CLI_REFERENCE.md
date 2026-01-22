@@ -8,6 +8,23 @@
 
 ## ⚠️ Critical Notes
 
+### 🚨 USE OPS CLI FOR PR COMMENTS/REVIEWS
+
+**`gh pr view` and `gh pr edit` are FLAKY** due to GitHub's "Projects (classic) deprecation" GraphQL error. **Use the ops CLI instead:**
+
+```bash
+# ✅ PREFERRED - Reliable ops commands
+pnpm ops gh:pr-comments 499     # Get all comments
+pnpm ops gh:pr-reviews 499      # Get all reviews
+pnpm ops gh:pr-conversation 499 # Get conversation comments
+pnpm ops gh:pr-all 499          # Get everything
+pnpm ops gh:pr-edit 499 --title "New title"  # Edit PR
+
+# ❌ FLAKY - May fail with GraphQL errors
+gh pr view 499 --comments
+gh pr edit 499 --title "..."
+```
+
 ### Comment Types in Pull Requests
 
 **There are THREE types of comments on a PR - they use DIFFERENT API endpoints!**
