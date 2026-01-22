@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-22 (added API Response Consistency)
+> Last updated: 2026-01-22 (added dashboard race condition, logger magic number)
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -187,6 +187,38 @@ function buildConfigResponse(config: ConfigDetailRow, user: UserRow): ConfigResp
 - [ ] Add TypeScript return types to all CRUD handlers to catch mismatches
 
 **Source**: PR #500 production bug (2026-01-22) - `/preset create` crashed due to missing `params`
+
+---
+
+### Dashboard Refresh Race Condition (Global/Private Toggle)
+
+**Problem**: The preset dashboard refresh handler uses session-cached `isGlobal` state to determine which API to call. This can become stale if the preset's visibility changed in another session.
+
+**Scenario**:
+
+1. User A opens global preset dashboard (`isGlobal: true` cached in session)
+2. Owner makes preset private via another session/device
+3. User A clicks refresh → uses `fetchGlobalPreset` → 404 error
+
+**Current Location**: `services/bot-client/src/commands/preset/dashboard.ts:310-348`
+
+**Solution**: Make refresh resilient to visibility changes:
+
+```typescript
+// Option 1: Try user preset first, fall back to global
+const result = await fetchPreset(userId, entityId);
+if (!result.ok && result.error.includes('not found')) {
+  // Maybe it became global - try that
+  return fetchGlobalPreset(entityId);
+}
+
+// Option 2: Include isGlobal in entity ID
+// e.g., "global:uuid" vs "user:uuid"
+```
+
+**Why MEDIUM**: Edge case requiring specific timing, but causes confusing 404 errors when it occurs.
+
+**Source**: PR #501 review (2026-01-22)
 
 ---
 
@@ -400,7 +432,7 @@ Log these events:
 
 ---
 
-### Inconsistent Request Validation in API Gateway
+### Inconsistent Request Validation in API Gateway (Epic Candidate)
 
 **Problem**: The api-gateway uses a mix of validation patterns:
 
@@ -412,6 +444,8 @@ Log these events:
 | Validators util functions               | `utils/validators.ts`                | Good but limited to specific cases |
 
 This inconsistency means some routes validate strictly while others accept malformed requests.
+
+**Note**: This is a codebase-wide pattern issue, not a single fix. Consider treating as an epic in ROADMAP.md with systematic audit of all routes.
 
 **Solution**: Standardize on Zod schemas for all request body validation:
 
@@ -481,6 +515,28 @@ fi
 - Pre-commit hook already uses safe pattern (the primary automated path)
 
 **Source**: PR #456 code review (2026-01-08)
+
+---
+
+### Magic Number in Error Serializer
+
+**Problem**: The error serializer uses a hardcoded 500-character truncation limit:
+
+```typescript
+// packages/common-types/src/utils/logger.ts:187
+if (stringified.length <= 500) {
+```
+
+**Solution**: Extract to named constant for maintainability:
+
+```typescript
+const MAX_RAW_ERROR_LENGTH = 500;
+if (stringified.length <= MAX_RAW_ERROR_LENGTH) {
+```
+
+**Why low priority**: Functional, just a minor readability improvement.
+
+**Source**: PR #501 review (2026-01-22)
 
 ---
 
