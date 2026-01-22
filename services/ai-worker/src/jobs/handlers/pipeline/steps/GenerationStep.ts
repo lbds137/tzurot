@@ -87,6 +87,35 @@ export class GenerationStep implements IPipelineStep {
   ) {}
 
   /**
+   * Clone the conversation context for retry isolation.
+   *
+   * The RAG service may mutate rawConversationHistory in-place (e.g., injectImageDescriptions),
+   * which would affect subsequent retry attempts if not cloned. This ensures each retry gets
+   * a fresh context to work with.
+   */
+  private cloneContextForRetry(context: ConversationContext): ConversationContext {
+    return {
+      ...context,
+      rawConversationHistory: context.rawConversationHistory?.map(entry => ({
+        ...entry,
+        // Deep clone messageMetadata to prevent mutation bleeding
+        messageMetadata: entry.messageMetadata
+          ? {
+              ...entry.messageMetadata,
+              // Clone nested arrays if present
+              referencedMessages: entry.messageMetadata.referencedMessages
+                ? [...entry.messageMetadata.referencedMessages]
+                : undefined,
+              imageDescriptions: entry.messageMetadata.imageDescriptions
+                ? [...entry.messageMetadata.imageDescriptions]
+                : undefined,
+            }
+          : undefined,
+      })),
+    };
+  }
+
+  /**
    * Generate response with cross-turn duplication retry.
    * Treats duplicate responses as retryable failures, matching LLM retry pattern.
    * Uses RETRY_CONFIG.MAX_ATTEMPTS (3 attempts = 1 initial + 2 retries).
@@ -134,6 +163,11 @@ export class GenerationStep implements IPipelineStep {
         );
       }
 
+      // Clone context for each attempt to prevent mutation bleeding across retries.
+      // The RAG service mutates rawConversationHistory (injectImageDescriptions),
+      // so we need a fresh copy for each attempt.
+      const attemptContext = this.cloneContextForRetry(conversationContext);
+
       // Generate response - each call gets new request_id via entropy injection
       // Pass retry config for escalating parameters on duplicate retries
       // IMPORTANT: skipMemoryStorage=true prevents storing memory on every retry attempt.
@@ -141,7 +175,7 @@ export class GenerationStep implements IPipelineStep {
       const response = await this.ragService.generateResponse(
         personality,
         message,
-        conversationContext,
+        attemptContext,
         {
           userApiKey: apiKey,
           isGuestMode,

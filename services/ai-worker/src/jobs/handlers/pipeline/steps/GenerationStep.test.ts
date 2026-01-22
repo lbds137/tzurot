@@ -846,6 +846,81 @@ describe('GenerationStep', () => {
         expect(result.result?.metadata?.crossTurnDuplicateDetected).toBe(true);
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
+
+      it('should isolate context mutations across retry attempts', async () => {
+        // This test verifies the fix for the repetition bug:
+        // The RAG service mutates rawConversationHistory (e.g., injectImageDescriptions),
+        // so each retry must get a fresh copy of the context to prevent mutations
+        // from attempt 1 affecting attempt 2+.
+
+        const duplicateResponse: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+        };
+
+        const uniqueResponse: RAGResponse = {
+          content: 'A completely unique response that is different.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 45,
+        };
+
+        // Track all contexts passed to generateResponse
+        const capturedContexts: { historyLength: number; hasImageDescriptions: boolean }[] = [];
+
+        vi.mocked(mockRAGService.generateResponse).mockImplementation(
+          async (_personality, _message, context) => {
+            // Capture context state BEFORE mutation
+            const entry = context.rawConversationHistory?.[0];
+            capturedContexts.push({
+              historyLength: context.rawConversationHistory?.length ?? 0,
+              hasImageDescriptions: !!entry?.messageMetadata?.imageDescriptions,
+            });
+
+            // Simulate mutation that happens in injectImageDescriptions
+            // This would pollute subsequent retries if context wasn't cloned
+            if (context.rawConversationHistory?.[0]) {
+              context.rawConversationHistory[0].messageMetadata ??= {};
+              context.rawConversationHistory[0].messageMetadata.imageDescriptions = [
+                { filename: 'test.png', description: 'A test image' },
+              ];
+            }
+
+            // First call returns duplicate, second returns unique
+            return capturedContexts.length === 1 ? duplicateResponse : uniqueResponse;
+          }
+        );
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponse },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe(uniqueResponse.content);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+
+        // CRITICAL: Both calls should receive context WITHOUT pre-existing imageDescriptions
+        // If context cloning is working, the second call should NOT see mutations from the first
+        expect(capturedContexts).toHaveLength(2);
+        expect(capturedContexts[0].hasImageDescriptions).toBe(false);
+        expect(capturedContexts[1].hasImageDescriptions).toBe(false); // Should be fresh copy!
+      });
     });
 
     describe('deferred memory storage', () => {
