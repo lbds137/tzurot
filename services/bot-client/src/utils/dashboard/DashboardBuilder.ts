@@ -127,16 +127,28 @@ export function buildEditMenu<T>(
 }
 
 /**
+ * Options for building dashboard action buttons
+ */
+export interface ActionButtonOptions {
+  showDelete?: boolean;
+  showClose?: boolean;
+  showRefresh?: boolean;
+  /** If defined, shows a toggle button with state-appropriate label */
+  toggleGlobal?: {
+    /** Current global state */
+    isGlobal: boolean;
+    /** Only show if user owns the entity */
+    isOwned: boolean;
+  };
+}
+
+/**
  * Build action buttons row (for common actions like Save, Delete, Close)
  */
 export function buildActionButtons<T>(
   config: DashboardConfig<T>,
   entityId: string,
-  options?: {
-    showDelete?: boolean;
-    showClose?: boolean;
-    showRefresh?: boolean;
-  }
+  options?: ActionButtonOptions
 ): ActionRowBuilder<MessageActionRowComponentBuilder> {
   const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();
 
@@ -147,6 +159,18 @@ export function buildActionButtons<T>(
         .setLabel('Refresh')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🔄')
+    );
+  }
+
+  // Toggle Global button - only for owned entities
+  if (options?.toggleGlobal?.isOwned === true) {
+    const { isGlobal } = options.toggleGlobal;
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(buildDashboardCustomId(config.entityType, 'toggle-global', entityId))
+        .setLabel(isGlobal ? 'Make Private' : 'Make Global')
+        .setStyle(isGlobal ? ButtonStyle.Secondary : ButtonStyle.Primary)
+        .setEmoji(isGlobal ? '🔒' : '🌐')
     );
   }
 
@@ -180,11 +204,7 @@ export function buildDashboardComponents<T>(
   config: DashboardConfig<T>,
   entityId: string,
   data: T,
-  options?: {
-    showDelete?: boolean;
-    showClose?: boolean;
-    showRefresh?: boolean;
-  }
+  options?: ActionButtonOptions
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
 
@@ -192,11 +212,13 @@ export function buildDashboardComponents<T>(
   components.push(buildEditMenu(config, entityId, data));
 
   // Add action buttons if any options are enabled
-  if (
+  const hasButtonOptions =
     options?.showDelete === true ||
     options?.showClose === true ||
-    options?.showRefresh === true
-  ) {
+    options?.showRefresh === true ||
+    options?.toggleGlobal !== undefined;
+
+  if (hasButtonOptions) {
     components.push(buildActionButtons(config, entityId, options));
   }
 

@@ -55,6 +55,8 @@ interface UpdateConfigBody {
   visionModel?: string;
   maxReferencedMessages?: number;
   advancedParameters?: AdvancedParams;
+  /** Toggle global visibility - users can share their presets */
+  isGlobal?: boolean;
 }
 
 /** Select fields for list queries (summary data) */
@@ -294,8 +296,8 @@ function createUpdateHandler(
       return sendError(res, ErrorResponses.notFound('Config not found'));
     }
 
-    // Users can only edit their own configs (not global ones)
-    if (config.isGlobal || config.ownerId !== user.id) {
+    // Users can only edit configs they own (including their own global presets)
+    if (config.ownerId !== user.id) {
       return sendError(res, ErrorResponses.unauthorized('You can only edit your own configs'));
     }
 
@@ -337,6 +339,9 @@ function createUpdateHandler(
     if (body.maxReferencedMessages !== undefined) {
       updateData.maxReferencedMessages = body.maxReferencedMessages;
     }
+    if (body.isGlobal !== undefined) {
+      updateData.isGlobal = body.isGlobal;
+    }
 
     // Handle advancedParameters update
     if (body.advancedParameters !== undefined) {
@@ -362,7 +367,7 @@ function createUpdateHandler(
 
     // User always owns their own updated config (we already checked ownership above)
     const permissions = computeLlmConfigPermissions(
-      { ownerId: user.id, isGlobal: false },
+      { ownerId: user.id, isGlobal: updated.isGlobal },
       user.id,
       discordUserId
     );

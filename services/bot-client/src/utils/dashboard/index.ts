@@ -48,6 +48,7 @@ export {
   buildActionButtons,
   buildDashboardComponents,
   getOverallStatus,
+  type ActionButtonOptions,
 } from './DashboardBuilder.js';
 
 // Modal Factory
