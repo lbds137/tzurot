@@ -31,6 +31,7 @@ import {
   type IPipelineStep,
   type GenerationContext,
   ValidationStep,
+  NormalizationStep,
   DependencyStep,
   ConfigStep,
   AuthStep,
@@ -45,11 +46,12 @@ const logger = createLogger('LLMGenerationHandler');
  *
  * Uses the Pipeline Pattern to process jobs through discrete steps:
  * 1. ValidationStep - Validates job data against schema
- * 2. DependencyStep - Fetches preprocessing results (audio/image) from Redis
+ * 2. NormalizationStep - Normalizes legacy data formats (roles, timestamps)
  * 3. ConfigStep - Resolves LLM config with user overrides
  * 4. AuthStep - Resolves API key (BYOK) and handles guest mode
- * 5. ContextStep - Prepares conversation history and participants
- * 6. GenerationStep - Calls RAG service to generate response
+ * 5. DependencyStep - Fetches preprocessing results (audio/image) from Redis
+ * 6. ContextStep - Prepares conversation history and participants
+ * 7. GenerationStep - Calls RAG service to generate response
  *
  * Each step is stateless - context flows through as function arguments,
  * ensuring thread safety when handling concurrent jobs.
@@ -88,6 +90,9 @@ export class LLMGenerationHandler {
     //
     // Pipeline Order Rationale:
     // - ValidationStep: Must be first to validate job data before any processing
+    // - NormalizationStep: Normalizes legacy data formats (roles, timestamps) after validation.
+    //   Handles "User"/"Assistant" → "user"/"assistant" and Date → ISO string conversions.
+    //   Must run before any step that processes conversation history.
     // - ConfigStep: Resolves LLM config (needed by AuthStep for BYOK validation)
     // - AuthStep: Resolves API key (BYOK/system) and guest mode flags
     // - DependencyStep: Fetches preprocessing results AND processes extended context attachments.
@@ -99,6 +104,7 @@ export class LLMGenerationHandler {
     // - GenerationStep: Calls RAG service (needs all prior context)
     this.pipeline = [
       new ValidationStep(),
+      new NormalizationStep(),
       new ConfigStep(configResolver),
       new AuthStep(apiKeyResolver, configResolver),
       new DependencyStep(),

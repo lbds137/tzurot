@@ -82,6 +82,16 @@ export {
   xmlSelfClosing,
   XML_TAGS,
 } from './utils/xmlBuilder.js';
+export {
+  normalizeRole,
+  isRoleMatch,
+  normalizeTimestamp,
+  extractTimestampMs,
+  normalizeConversationMessage,
+  normalizeConversationHistory,
+  type LooseConversationMessage,
+  type NormalizedConversationMessage,
+} from './utils/messageNormalization.js';
 
 // Export services
 export * from './services/prisma.js';
