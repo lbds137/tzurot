@@ -50,6 +50,12 @@ export interface SendResponseOptions {
   focusModeEnabled?: boolean;
   /** Whether incognito mode was active (LTM storage skipped) */
   incognitoModeActive?: boolean;
+  /**
+   * Extracted thinking/reasoning content from <think> tags.
+   * If present, will be sent as a separate message before the main response.
+   * Displayed in a collapsible spoiler format.
+   */
+  thinkingContent?: string;
 }
 
 /**
@@ -82,7 +88,18 @@ export class DiscordResponseSender {
       isAutoResponse,
       focusModeEnabled,
       incognitoModeActive,
+      thinkingContent,
     } = options;
+
+    // Send thinking content as a separate message before the main response
+    // Only displayed if the personality has showThinking enabled
+    if (
+      personality.showThinking === true &&
+      thinkingContent !== undefined &&
+      thinkingContent.length > 0
+    ) {
+      await this.sendThinkingBlock(message, personality, thinkingContent);
+    }
 
     // Build footer to append AFTER chunking (to preserve newline formatting)
     // The chunker's word-level splitting replaces \n with spaces, so we add footer post-chunk
@@ -220,5 +237,108 @@ export class DiscordResponseSender {
       await redisService.storeWebhookMessage(sentMessage.id, personality.id);
       chunkMessageIds.push(sentMessage.id);
     }
+  }
+
+  /**
+   * Send thinking/reasoning content as a collapsible message
+   *
+   * Uses Discord's spoiler format to make the thinking content collapsible.
+   * This allows users to optionally view the model's reasoning process
+   * without cluttering the main conversation.
+   *
+   * Format:
+   * 💭 **Thinking:** ||
+   * [content hidden in spoiler]
+   * ||
+   *
+   * For very long thinking content, splits into multiple messages.
+   */
+  private async sendThinkingBlock(
+    message: Message,
+    personality: LoadedPersonality,
+    thinkingContent: string
+  ): Promise<void> {
+    const HEADER = '💭 **Thinking:**';
+
+    // Calculate available space for content in spoiler
+    // Format: "💭 **Thinking:**\n||content||"
+    // Reserve space for header, newlines, and spoiler markers (|| ... ||)
+    const OVERHEAD = HEADER.length + 1 + 4; // +1 for \n, +4 for || and ||
+    const MAX_CONTENT_PER_MESSAGE = DISCORD_LIMITS.MESSAGE_LENGTH - OVERHEAD;
+
+    // Truncate thinking content if it's extremely long (rare edge case)
+    // Most thinking blocks are under 10k chars; Discord allows up to 6 messages
+    const MAX_THINKING_LENGTH = MAX_CONTENT_PER_MESSAGE * 3; // Allow up to 3 messages
+    const truncatedContent =
+      thinkingContent.length > MAX_THINKING_LENGTH
+        ? thinkingContent.substring(0, MAX_THINKING_LENGTH) + '\n[...truncated]'
+        : thinkingContent;
+
+    // Escape any existing spoiler markers in the content to prevent format breaking
+    const escapedContent = truncatedContent.replace(/\|\|/g, '\\|\\|');
+
+    // Split into chunks if content is too long
+    const chunks: string[] = [];
+    let remaining = escapedContent;
+
+    while (remaining.length > 0) {
+      if (remaining.length <= MAX_CONTENT_PER_MESSAGE) {
+        chunks.push(remaining);
+        break;
+      }
+
+      // Find a good break point (newline or space)
+      let breakPoint = remaining.lastIndexOf('\n', MAX_CONTENT_PER_MESSAGE);
+      if (breakPoint === -1 || breakPoint < MAX_CONTENT_PER_MESSAGE * 0.5) {
+        breakPoint = remaining.lastIndexOf(' ', MAX_CONTENT_PER_MESSAGE);
+      }
+      if (breakPoint === -1) {
+        breakPoint = MAX_CONTENT_PER_MESSAGE;
+      }
+
+      chunks.push(remaining.substring(0, breakPoint));
+      remaining = remaining.substring(breakPoint).trimStart();
+    }
+
+    // Determine channel type
+    const isWebhookChannel =
+      message.guild !== null &&
+      (message.channel instanceof TextChannel || message.channel instanceof ThreadChannel);
+
+    // Send each chunk as a spoiler message
+    for (let i = 0; i < chunks.length; i++) {
+      const isFirst = i === 0;
+      const chunkContent = isFirst ? `${HEADER}\n||${chunks[i]}||` : `||${chunks[i]}||`;
+
+      try {
+        if (isWebhookChannel) {
+          // Send via webhook (matches personality appearance)
+          await this.webhookManager.sendAsPersonality(
+            message.channel as TextChannel | ThreadChannel,
+            personality,
+            chunkContent
+          );
+        } else {
+          // Send via DM (with personality prefix)
+          await message.reply(`**${personality.displayName}:** ${chunkContent}`);
+        }
+      } catch (error) {
+        logger.warn(
+          { err: error, chunk: i + 1, totalChunks: chunks.length },
+          '[DiscordResponseSender] Failed to send thinking block chunk'
+        );
+        // Continue with main response even if thinking fails
+        break;
+      }
+    }
+
+    logger.debug(
+      {
+        thinkingLength: thinkingContent.length,
+        chunks: chunks.length,
+        personalityName: personality.name,
+      },
+      '[DiscordResponseSender] Sent thinking block'
+    );
   }
 }

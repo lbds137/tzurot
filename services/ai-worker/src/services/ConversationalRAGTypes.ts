@@ -127,6 +127,11 @@ export interface RAGResponse {
    * Caller should pass this to storeMemory() after validating the response.
    */
   deferredMemoryData?: DeferredMemoryData;
+  /**
+   * Extracted thinking/reasoning content from <think> tags.
+   * Only present if the model included thinking blocks in its response.
+   */
+  thinkingContent?: string;
 }
 
 /**
@@ -195,6 +200,8 @@ export interface ModelInvocationResult {
   modelName: string;
   tokensIn?: number;
   tokensOut?: number;
+  /** Extracted thinking/reasoning content from <think> tags, if present */
+  thinkingContent?: string;
 }
 
 /** Options for budget allocation */

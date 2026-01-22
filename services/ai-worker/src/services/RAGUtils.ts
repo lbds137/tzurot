@@ -5,9 +5,10 @@
  * These functions have no dependencies on class instances and can be used standalone.
  */
 
-import { createLogger, AttachmentType } from '@tzurot/common-types';
+import { createLogger, AttachmentType, AI_DEFAULTS } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGService.js';
+import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('RAGUtils');
 
@@ -154,4 +155,148 @@ export function generateStopSequences(
   );
 
   return stopSequences;
+}
+
+/**
+ * Build a map from Discord message ID to image descriptions
+ *
+ * This allows us to associate preprocessed image descriptions with their
+ * source messages in the conversation history for inline display.
+ *
+ * @param attachments Preprocessed extended context attachments
+ * @returns Map of Discord message ID to array of image descriptions
+ */
+export function buildImageDescriptionMap(
+  attachments: ProcessedAttachment[] | undefined
+): Map<string, InlineImageDescription[]> {
+  const map = new Map<string, InlineImageDescription[]>();
+
+  if (!attachments || attachments.length === 0) {
+    return map;
+  }
+
+  for (const att of attachments) {
+    const msgId = att.metadata.sourceDiscordMessageId;
+    if (msgId === undefined || msgId.length === 0) {
+      continue;
+    }
+
+    const existingList = map.get(msgId) ?? [];
+    existingList.push({
+      filename: att.metadata.name ?? 'image',
+      description: att.description,
+    });
+    if (!map.has(msgId)) {
+      map.set(msgId, existingList);
+    }
+  }
+
+  if (map.size > 0) {
+    logger.debug(
+      { messageCount: map.size, totalImages: attachments.length },
+      '[RAG] Built image description map for inline display'
+    );
+  }
+
+  return map;
+}
+
+/** Raw conversation history entry shape for injection */
+export interface RawHistoryEntry {
+  id?: string;
+  role: string;
+  content: string;
+  tokenCount?: number;
+  messageMetadata?: {
+    imageDescriptions?: InlineImageDescription[];
+    [key: string]: unknown;
+  };
+}
+
+/**
+ * Inject image descriptions into conversation history entries
+ *
+ * Modifies history entries in-place to add imageDescriptions to their
+ * messageMetadata. This enables inline display of image descriptions
+ * within the chat_log rather than a separate section.
+ *
+ * @param history Raw conversation history (will be mutated)
+ * @param imageMap Map of Discord message ID to image descriptions
+ */
+export function injectImageDescriptions(
+  history: RawHistoryEntry[] | undefined,
+  imageMap: Map<string, InlineImageDescription[]>
+): void {
+  if (!history || history.length === 0 || imageMap.size === 0) {
+    return;
+  }
+
+  let injectedCount = 0;
+
+  for (const entry of history) {
+    // For extended context messages, entry.id IS the Discord message ID
+    if (entry.id !== undefined && entry.id.length > 0 && imageMap.has(entry.id)) {
+      const descriptions = imageMap.get(entry.id);
+      if (descriptions !== undefined && descriptions.length > 0) {
+        // Ensure messageMetadata exists
+        entry.messageMetadata ??= {};
+        entry.messageMetadata.imageDescriptions = descriptions;
+        injectedCount++;
+      }
+    }
+  }
+
+  if (injectedCount > 0) {
+    logger.info(
+      { injectedCount },
+      '[RAG] Injected image descriptions into history entries for inline display'
+    );
+  }
+}
+
+/**
+ * Extract recent conversation history for context-aware LTM search
+ *
+ * Returns the last N conversation turns (user + assistant pairs) as a formatted string.
+ * This helps resolve pronouns like "that", "it", "he" in the current message by
+ * providing recent topic context to the embedding model.
+ *
+ * @param rawHistory The raw conversation history array
+ * @returns Formatted string of recent history, or undefined if no history
+ */
+export function extractRecentHistoryWindow(
+  rawHistory?: { role: string; content: string; tokenCount?: number }[]
+): string | undefined {
+  if (!rawHistory || rawHistory.length === 0) {
+    return undefined;
+  }
+
+  // Get the last N turns (each turn = 2 messages: user + assistant)
+  const turnsToInclude = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS;
+  const messagesToInclude = turnsToInclude * 2;
+
+  // Take the last N messages (they're already in chronological order)
+  const recentMessages = rawHistory.slice(-messagesToInclude);
+
+  if (recentMessages.length === 0) {
+    return undefined;
+  }
+
+  // Format as content only (no role labels) - role labels are noise for semantic search
+  // The content itself is what matters for finding relevant memories
+  const formatted = recentMessages
+    .map(msg => {
+      // Truncate very long messages to avoid bloating the search query
+      // Use LTM_SEARCH_MESSAGE_PREVIEW (500) instead of LOG_PREVIEW (150) for better semantic context
+      return msg.content.length > AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW
+        ? msg.content.substring(0, AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW) + '...'
+        : msg.content;
+    })
+    .join('\n');
+
+  logger.debug(
+    `[RAG] Extracted ${recentMessages.length} messages (${Math.ceil(recentMessages.length / 2)} turns) for LTM search context`
+  );
+
+  return formatted;
 }

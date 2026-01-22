@@ -71,13 +71,14 @@ export type SamplingParams = z.infer<typeof SamplingParamsSchema>;
 export const ReasoningConfigSchema = z.object({
   /**
    * Effort level - maps to approximate reasoning token budget:
+   * - xhigh: ~95% of max_tokens (maximum thinking)
    * - high: ~80% of max_tokens
    * - medium: ~50% of max_tokens
    * - low: ~20% of max_tokens
    * - minimal: ~10% of max_tokens
    * - none: 0% (reasoning disabled)
    */
-  effort: z.enum(['high', 'medium', 'low', 'minimal', 'none']).optional(),
+  effort: z.enum(['xhigh', 'high', 'medium', 'low', 'minimal', 'none']).optional(),
 
   /**
    * Direct token budget for reasoning (Anthropic, Gemini, Alibaba Qwen).
@@ -127,6 +128,14 @@ export const OutputParamsSchema = z.object({
       type: z.enum(['text', 'json_object']),
     })
     .optional(),
+
+  /**
+   * Toggle for displaying <think> blocks to users.
+   * When enabled, thinking content from reasoning models (DeepSeek R1, o1, Claude)
+   * is extracted and shown as a separate message before the response.
+   * Default: false (thinking content is hidden)
+   */
+  show_thinking: z.boolean().optional(),
 });
 
 export type OutputParams = z.infer<typeof OutputParamsSchema>;
@@ -256,17 +265,79 @@ export function validateReasoningConstraints(params: AdvancedParams): boolean {
 // ============================================
 
 /**
+ * Reasoning configuration in camelCase format.
+ * Matches the OpenRouter API shape for easy pass-through.
+ */
+export interface ConvertedReasoningConfig {
+  /** Effort level: xhigh (~95%), high (~80%), medium (~50%), low (~20%), minimal (~10%), none */
+  effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
+  /** Direct token budget for reasoning (different from top-level maxTokens) */
+  maxTokens?: number;
+  /** Whether to exclude reasoning from the response */
+  exclude?: boolean;
+  /** Enable/disable reasoning entirely */
+  enabled?: boolean;
+}
+
+/**
  * Converted params in camelCase format for use in ResolvedLlmConfig.
- * These are the sampling parameters that LlmConfigResolver needs.
+ *
+ * This interface represents ALL parameters from AdvancedParamsSchema,
+ * converted from snake_case (OpenRouter API format) to camelCase (TypeScript convention).
+ *
+ * Parameter categories:
+ * - Sampling (basic): temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
+ * - Sampling (advanced): minP, topA, seed
+ * - Output: maxTokens, stop, logitBias, responseFormat, showThinking
+ * - Reasoning: reasoning object (for thinking models)
+ * - OpenRouter-specific: transforms, route, verbosity
  */
 export interface ConvertedLlmParams {
+  // Sampling (basic) - widely supported across models
   temperature?: number;
   topP?: number;
   topK?: number;
   frequencyPenalty?: number;
   presencePenalty?: number;
   repetitionPenalty?: number;
+
+  // Sampling (advanced) - OpenRouter-specific
+  minP?: number;
+  topA?: number;
+  seed?: number;
+
+  // Output control
   maxTokens?: number;
+  stop?: string[];
+  logitBias?: Record<string, number>;
+  responseFormat?: { type: 'text' | 'json_object' };
+  showThinking?: boolean;
+
+  // Reasoning (for thinking models: o1/o3, Claude, Gemini, DeepSeek R1)
+  reasoning?: ConvertedReasoningConfig;
+
+  // OpenRouter-specific routing/transform params
+  transforms?: string[];
+  route?: 'fallback';
+  verbosity?: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Convert reasoning config from snake_case to camelCase.
+ * Internal helper for advancedParamsToConfigFormat.
+ */
+function convertReasoningConfig(
+  reasoning: ReasoningConfig | undefined
+): ConvertedReasoningConfig | undefined {
+  if (reasoning === undefined) {
+    return undefined;
+  }
+  return {
+    effort: reasoning.effort,
+    maxTokens: reasoning.max_tokens,
+    exclude: reasoning.exclude,
+    enabled: reasoning.enabled,
+  };
 }
 
 /**
@@ -282,12 +353,32 @@ export interface ConvertedLlmParams {
  */
 export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedLlmParams {
   return {
+    // Sampling (basic) - widely supported
     temperature: params.temperature,
     topP: params.top_p,
     topK: params.top_k,
     frequencyPenalty: params.frequency_penalty,
     presencePenalty: params.presence_penalty,
     repetitionPenalty: params.repetition_penalty,
+
+    // Sampling (advanced) - OpenRouter-specific
+    minP: params.min_p,
+    topA: params.top_a,
+    seed: params.seed,
+
+    // Output control
     maxTokens: params.max_tokens,
+    stop: params.stop,
+    logitBias: params.logit_bias,
+    responseFormat: params.response_format,
+    showThinking: params.show_thinking,
+
+    // Reasoning (for thinking models)
+    reasoning: convertReasoningConfig(params.reasoning),
+
+    // OpenRouter-specific routing/transform params
+    transforms: params.transforms,
+    route: params.route,
+    verbosity: params.verbosity,
   };
 }

@@ -179,6 +179,9 @@ export const loadedPersonalitySchema = z.object({
   repetitionPenalty: z.number().optional(),
   contextWindowTokens: z.number(),
 
+  // Reasoning/thinking display
+  showThinking: z.boolean().optional(), // Display <think> blocks as separate messages
+
   // Memory configuration
   memoryScoreThreshold: z.number().optional(),
   memoryLimit: z.number().optional(),
@@ -353,6 +356,17 @@ export const generationPayloadSchema = z.object({
       focusModeEnabled: z.boolean().optional(),
       /** Whether incognito mode was active (LTM storage skipped) */
       incognitoModeActive: z.boolean().optional(),
+      /**
+       * Extracted thinking/reasoning content from <think> tags.
+       * Only present if the model included thinking blocks in its response.
+       * Display to users depends on showThinking setting.
+       */
+      thinkingContent: z.string().optional(),
+      /**
+       * Whether to display thinking content to users.
+       * From the preset's show_thinking setting.
+       */
+      showThinking: z.boolean().optional(),
       /** Pipeline step that failed (only set on error) */
       failedStep: z.string().optional(),
       /** Last successfully completed pipeline step (only set on error) */

@@ -105,11 +105,18 @@ describe('LLM Advanced Params Schema', () => {
 
   describe('ReasoningConfigSchema', () => {
     it('should accept valid effort levels', () => {
+      expect(ReasoningConfigSchema.parse({ effort: 'xhigh' })).toEqual({ effort: 'xhigh' });
       expect(ReasoningConfigSchema.parse({ effort: 'high' })).toEqual({ effort: 'high' });
       expect(ReasoningConfigSchema.parse({ effort: 'medium' })).toEqual({ effort: 'medium' });
       expect(ReasoningConfigSchema.parse({ effort: 'low' })).toEqual({ effort: 'low' });
       expect(ReasoningConfigSchema.parse({ effort: 'minimal' })).toEqual({ effort: 'minimal' });
       expect(ReasoningConfigSchema.parse({ effort: 'none' })).toEqual({ effort: 'none' });
+    });
+
+    it('should accept xhigh effort level for maximum thinking', () => {
+      // xhigh is ~95% token allocation for reasoning
+      const config = { effort: 'xhigh' as const, max_tokens: 30000 };
+      expect(ReasoningConfigSchema.parse(config)).toEqual(config);
     });
 
     it('should reject invalid effort levels', () => {
@@ -207,6 +214,16 @@ describe('LLM Advanced Params Schema', () => {
 
     it('should reject invalid response_format type', () => {
       expect(() => OutputParamsSchema.parse({ response_format: { type: 'xml' } })).toThrow();
+    });
+
+    it('should accept show_thinking boolean', () => {
+      expect(OutputParamsSchema.parse({ show_thinking: true })).toEqual({ show_thinking: true });
+      expect(OutputParamsSchema.parse({ show_thinking: false })).toEqual({ show_thinking: false });
+    });
+
+    it('should reject non-boolean show_thinking', () => {
+      expect(() => OutputParamsSchema.parse({ show_thinking: 'yes' })).toThrow();
+      expect(() => OutputParamsSchema.parse({ show_thinking: 1 })).toThrow();
     });
   });
 
@@ -321,8 +338,11 @@ describe('LLM Advanced Params Schema', () => {
     });
 
     it('should return true when effort is set (not none)', () => {
+      expect(hasReasoningEnabled({ reasoning: { effort: 'xhigh' } })).toBe(true);
       expect(hasReasoningEnabled({ reasoning: { effort: 'high' } })).toBe(true);
+      expect(hasReasoningEnabled({ reasoning: { effort: 'medium' } })).toBe(true);
       expect(hasReasoningEnabled({ reasoning: { effort: 'low' } })).toBe(true);
+      expect(hasReasoningEnabled({ reasoning: { effort: 'minimal' } })).toBe(true);
     });
 
     it('should return true when max_tokens is set', () => {
@@ -426,7 +446,7 @@ describe('LLM Advanced Params Schema', () => {
   });
 
   describe('advancedParamsToConfigFormat', () => {
-    it('should convert snake_case to camelCase', () => {
+    it('should convert basic sampling params from snake_case to camelCase', () => {
       const input: AdvancedParams = {
         temperature: 0.7,
         top_p: 0.9,
@@ -437,6 +457,98 @@ describe('LLM Advanced Params Schema', () => {
         max_tokens: 4096,
       };
       const result = advancedParamsToConfigFormat(input);
+      expect(result.temperature).toBe(0.7);
+      expect(result.topP).toBe(0.9);
+      expect(result.topK).toBe(50);
+      expect(result.frequencyPenalty).toBe(0.5);
+      expect(result.presencePenalty).toBe(0.3);
+      expect(result.repetitionPenalty).toBe(1.1);
+      expect(result.maxTokens).toBe(4096);
+    });
+
+    it('should convert advanced sampling params (minP, topA, seed)', () => {
+      const input: AdvancedParams = {
+        min_p: 0.1,
+        top_a: 0.5,
+        seed: 42,
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.minP).toBe(0.1);
+      expect(result.topA).toBe(0.5);
+      expect(result.seed).toBe(42);
+    });
+
+    it('should convert output params (stop, logitBias, responseFormat, showThinking)', () => {
+      const input: AdvancedParams = {
+        stop: ['END', 'STOP'],
+        logit_bias: { '1234': 50, '5678': -50 },
+        response_format: { type: 'json_object' },
+        show_thinking: true,
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.stop).toEqual(['END', 'STOP']);
+      expect(result.logitBias).toEqual({ '1234': 50, '5678': -50 });
+      expect(result.responseFormat).toEqual({ type: 'json_object' });
+      expect(result.showThinking).toBe(true);
+    });
+
+    it('should convert reasoning config with all fields', () => {
+      const input: AdvancedParams = {
+        reasoning: {
+          effort: 'xhigh',
+          max_tokens: 16000,
+          exclude: false,
+          enabled: true,
+        },
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.reasoning).toEqual({
+        effort: 'xhigh',
+        maxTokens: 16000,
+        exclude: false,
+        enabled: true,
+      });
+    });
+
+    it('should convert OpenRouter-specific params (transforms, route, verbosity)', () => {
+      const input: AdvancedParams = {
+        transforms: ['middle-out'],
+        route: 'fallback',
+        verbosity: 'high',
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.transforms).toEqual(['middle-out']);
+      expect(result.route).toBe('fallback');
+      expect(result.verbosity).toBe('high');
+    });
+
+    it('should convert ALL params together', () => {
+      const input: AdvancedParams = {
+        // Sampling (basic)
+        temperature: 0.7,
+        top_p: 0.9,
+        top_k: 50,
+        frequency_penalty: 0.5,
+        presence_penalty: 0.3,
+        repetition_penalty: 1.1,
+        // Sampling (advanced)
+        min_p: 0.1,
+        top_a: 0.5,
+        seed: 42,
+        // Output
+        max_tokens: 4096,
+        stop: ['END'],
+        logit_bias: { '1234': 50 },
+        response_format: { type: 'text' },
+        show_thinking: true,
+        // Reasoning
+        reasoning: { effort: 'high', max_tokens: 8000 },
+        // OpenRouter
+        transforms: ['middle-out'],
+        route: 'fallback',
+        verbosity: 'medium',
+      };
+      const result = advancedParamsToConfigFormat(input);
       expect(result).toEqual({
         temperature: 0.7,
         topP: 0.9,
@@ -444,21 +556,33 @@ describe('LLM Advanced Params Schema', () => {
         frequencyPenalty: 0.5,
         presencePenalty: 0.3,
         repetitionPenalty: 1.1,
+        minP: 0.1,
+        topA: 0.5,
+        seed: 42,
         maxTokens: 4096,
+        stop: ['END'],
+        logitBias: { '1234': 50 },
+        responseFormat: { type: 'text' },
+        showThinking: true,
+        reasoning: { effort: 'high', maxTokens: 8000, exclude: undefined, enabled: undefined },
+        transforms: ['middle-out'],
+        route: 'fallback',
+        verbosity: 'medium',
       });
     });
 
-    it('should handle empty object', () => {
+    it('should handle empty object with all undefined values', () => {
       const result = advancedParamsToConfigFormat({});
-      expect(result).toEqual({
-        temperature: undefined,
-        topP: undefined,
-        topK: undefined,
-        frequencyPenalty: undefined,
-        presencePenalty: undefined,
-        repetitionPenalty: undefined,
-        maxTokens: undefined,
-      });
+      expect(result.temperature).toBeUndefined();
+      expect(result.topP).toBeUndefined();
+      expect(result.topK).toBeUndefined();
+      expect(result.minP).toBeUndefined();
+      expect(result.topA).toBeUndefined();
+      expect(result.seed).toBeUndefined();
+      expect(result.reasoning).toBeUndefined();
+      expect(result.stop).toBeUndefined();
+      expect(result.transforms).toBeUndefined();
+      expect(result.showThinking).toBeUndefined();
     });
 
     it('should handle partial params', () => {
@@ -478,26 +602,33 @@ describe('LLM Advanced Params Schema', () => {
         temperature: 0,
         top_k: 0,
         frequency_penalty: 0,
+        seed: 0,
       };
       const result = advancedParamsToConfigFormat(input);
       expect(result.temperature).toBe(0);
       expect(result.topK).toBe(0);
       expect(result.frequencyPenalty).toBe(0);
+      expect(result.seed).toBe(0);
     });
 
-    it('should ignore non-sampling params like reasoning', () => {
+    it('should preserve false values for booleans', () => {
       const input: AdvancedParams = {
-        temperature: 0.7,
-        reasoning: { effort: 'high' },
-        stop: ['END'],
-        transforms: ['middle-out'],
+        show_thinking: false,
+        reasoning: { enabled: false, exclude: false },
       };
       const result = advancedParamsToConfigFormat(input);
-      // Only sampling params are converted
-      expect(result.temperature).toBe(0.7);
-      expect(result).not.toHaveProperty('reasoning');
-      expect(result).not.toHaveProperty('stop');
-      expect(result).not.toHaveProperty('transforms');
+      expect(result.showThinking).toBe(false);
+      expect(result.reasoning?.enabled).toBe(false);
+      expect(result.reasoning?.exclude).toBe(false);
+    });
+
+    it('should handle reasoning with only effort set', () => {
+      const input: AdvancedParams = {
+        reasoning: { effort: 'medium' },
+      };
+      const result = advancedParamsToConfigFormat(input);
+      expect(result.reasoning?.effort).toBe('medium');
+      expect(result.reasoning?.maxTokens).toBeUndefined();
     });
   });
 });

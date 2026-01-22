@@ -375,6 +375,7 @@ export class GenerationStep implements IPipelineStep {
             crossTurnDuplicateDetected: duplicateRetries > 0,
             focusModeEnabled: response.focusModeEnabled,
             incognitoModeActive: response.incognitoModeActive,
+            thinkingContent: response.thinkingContent,
           },
         },
       };

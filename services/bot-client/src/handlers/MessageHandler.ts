@@ -221,6 +221,7 @@ export class MessageHandler {
         isAutoResponse,
         focusModeEnabled: result.metadata?.focusModeEnabled,
         incognitoModeActive: result.metadata?.incognitoModeActive,
+        thinkingContent: result.metadata?.thinkingContent,
       });
 
       // Save assistant message to conversation history
