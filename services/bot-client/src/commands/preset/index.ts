@@ -8,9 +8,10 @@
  * - /preset edit - Edit your preset (opens dashboard)
  * - /preset delete - Delete your preset
  * - /preset global create - Create global preset (owner only)
- * - /preset global edit - Edit global preset (owner only)
- * - /preset global set-default - Set system default (owner only)
- * - /preset global set-free-default - Set free tier default (owner only)
+ * - /preset global default - Set system default (owner only)
+ * - /preset global free-default - Set free tier default (owner only)
+ *
+ * Note: Global presets can be edited via /preset edit (dashboard handles both)
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -34,7 +35,6 @@ import { handleEdit } from './edit.js';
 import { handleDelete } from './delete.js';
 import { handleAutocomplete } from './autocomplete.js';
 import { handleGlobalCreate } from './global/create.js';
-import { handleGlobalEdit } from './global/edit.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
 import {
@@ -65,9 +65,8 @@ const userRouter = createTypedSubcommandRouter(
 const globalRouter = createTypedSubcommandRouter(
   {
     create: handleGlobalCreate,
-    edit: handleGlobalEdit,
-    'set-default': handleGlobalSetDefault,
-    'set-free-default': handleGlobalSetFreeDefault,
+    default: handleGlobalSetDefault,
+    'free-default': handleGlobalSetFreeDefault,
   },
   { logger, logPrefix: '[Preset/Global]' }
 );
@@ -235,19 +234,7 @@ export default defineCommand({
         )
         .addSubcommand(subcommand =>
           subcommand
-            .setName('edit')
-            .setDescription('Edit a global preset via dashboard (Owner only)')
-            .addStringOption(option =>
-              option
-                .setName('config')
-                .setDescription('Global preset to edit')
-                .setRequired(true)
-                .setAutocomplete(true)
-            )
-        )
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('set-default')
+            .setName('default')
             .setDescription('Set a global preset as the system default (Owner only)')
             .addStringOption(option =>
               option
@@ -259,7 +246,7 @@ export default defineCommand({
         )
         .addSubcommand(subcommand =>
           subcommand
-            .setName('set-free-default')
+            .setName('free-default')
             .setDescription('Set a global preset as the free tier default (Owner only)')
             .addStringOption(option =>
               option
