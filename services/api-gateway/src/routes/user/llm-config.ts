@@ -24,6 +24,7 @@ import {
   computeLlmConfigPermissions,
   AdvancedParamsSchema,
   type AdvancedParams,
+  AI_DEFAULTS,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -251,7 +252,7 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
         provider: body.provider ?? 'openrouter',
         model: body.model.trim(),
         visionModel: body.visionModel ?? null,
-        maxReferencedMessages: body.maxReferencedMessages ?? 20,
+        maxReferencedMessages: body.maxReferencedMessages ?? AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
         advancedParameters: body.advancedParameters ?? undefined,
       },
       select: CONFIG_SELECT,

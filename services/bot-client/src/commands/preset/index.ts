@@ -24,6 +24,7 @@ import type {
 import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
+import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 import type {
   DeferredCommandContext,
   SafeCommandContext,
@@ -47,14 +48,14 @@ import {
 const logger = createLogger('preset-command');
 
 /**
- * Create user preset router
+ * Create user preset router with mixed deferral modes
+ * - create: modal mode (shows seed modal)
+ * - list/edit/delete: deferred mode (ephemeral response)
  */
-const userRouter = createTypedSubcommandRouter(
+const userRouter = createMixedModeSubcommandRouter(
   {
-    list: handleList,
-    create: handleCreate,
-    edit: handleEdit,
-    delete: handleDelete,
+    modal: { create: handleCreate },
+    deferred: { list: handleList, edit: handleEdit, delete: handleDelete },
   },
   { logger, logPrefix: '[Preset]' }
 );
@@ -73,21 +74,21 @@ const globalRouter = createTypedSubcommandRouter(
 
 /**
  * Command execution router
+ * Routes to appropriate handler based on subcommand and deferral mode
  */
 async function execute(context: SafeCommandContext): Promise<void> {
-  // All preset commands use ephemeral deferral - cast to DeferredCommandContext
-  const ctx = context as DeferredCommandContext;
-  const group = ctx.getSubcommandGroup();
+  const group = context.getSubcommandGroup();
 
   if (group === 'global') {
     // Owner-only check for global subcommand group
-    if (!(await requireBotOwnerContext(ctx))) {
+    const deferredCtx = context as DeferredCommandContext;
+    if (!(await requireBotOwnerContext(deferredCtx))) {
       return;
     }
-    await globalRouter(ctx);
+    await globalRouter(deferredCtx);
   } else {
-    // User preset commands (no special permissions)
-    await userRouter(ctx);
+    // User preset commands - router handles modal vs deferred
+    await userRouter(context);
   }
 }
 
@@ -140,36 +141,7 @@ export default defineCommand({
       subcommand.setName('list').setDescription('Show all available model presets')
     )
     .addSubcommand(subcommand =>
-      subcommand
-        .setName('create')
-        .setDescription('Create a new model preset')
-        .addStringOption(option =>
-          option.setName('name').setDescription('Preset name (unique to you)').setRequired(true)
-        )
-        .addStringOption(option =>
-          option
-            .setName('model')
-            .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-        .addStringOption(option =>
-          option
-            .setName('provider')
-            .setDescription('AI provider')
-            .setRequired(false)
-            .addChoices(...DISCORD_PROVIDER_CHOICES)
-        )
-        .addStringOption(option =>
-          option.setName('description').setDescription('Optional description').setRequired(false)
-        )
-        .addStringOption(option =>
-          option
-            .setName('vision-model')
-            .setDescription('Vision model for image analysis (optional)')
-            .setRequired(false)
-            .setAutocomplete(true)
-        )
+      subcommand.setName('create').setDescription('Create a new model preset')
     )
     .addSubcommand(subcommand =>
       subcommand
@@ -258,6 +230,9 @@ export default defineCommand({
         )
     ),
   deferralMode: 'ephemeral',
+  subcommandDeferralModes: {
+    create: 'modal',
+  },
   execute,
   autocomplete,
   handleSelectMenu: selectMenu,

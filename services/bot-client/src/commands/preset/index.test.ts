@@ -52,6 +52,8 @@ describe('Preset Command', () => {
     vi.clearAllMocks();
   });
 
+  const mockReply = vi.fn();
+
   function createMockContext(subcommand: string, subcommandGroup: string | null = null) {
     return {
       user: { id: '123456789' },
@@ -64,6 +66,7 @@ describe('Preset Command', () => {
       getSubcommand: () => subcommand,
       getSubcommandGroup: () => subcommandGroup,
       editReply: mockEditReply,
+      reply: mockReply,
     } as unknown as Parameters<typeof execute>[0];
   }
 
@@ -114,8 +117,8 @@ describe('Preset Command', () => {
     it('should reply with error for unknown subcommand', async () => {
       const context = createMockContext('unknown');
       await execute(context);
-      // Note: editReply doesn't need flags - ephemerality is set at deferral time
-      expect(mockEditReply).toHaveBeenCalledWith({
+      // Mixed mode router uses reply() for unknown subcommands since context isn't deferred
+      expect(mockReply).toHaveBeenCalledWith({
         content: '❌ Unknown subcommand',
       });
     });
