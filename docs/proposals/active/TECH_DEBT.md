@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-20
+> Last updated: 2026-01-22
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -340,6 +340,57 @@ Log these events:
 - [ ] `event="llm_request"` - with latency and token counts
 
 **Note**: Defer Prometheus/Grafana until log volume makes grep impractical.
+
+---
+
+### Inconsistent Request Validation in API Gateway
+
+**Problem**: The api-gateway uses a mix of validation patterns:
+
+| Pattern                                 | Example Location                     | Issue                              |
+| --------------------------------------- | ------------------------------------ | ---------------------------------- |
+| Manual type checks (`typeof x !== 'y'`) | `routes/user/llm-config.ts` (before) | Verbose, easy to miss cases        |
+| Zod schemas                             | `routes/user/llm-config.ts` (after)  | Proper, but not used consistently  |
+| No validation (casting `as Type`)       | Various POST/PUT handlers            | Trusts untrusted input             |
+| Validators util functions               | `utils/validators.ts`                | Good but limited to specific cases |
+
+This inconsistency means some routes validate strictly while others accept malformed requests.
+
+**Solution**: Standardize on Zod schemas for all request body validation:
+
+- [ ] Create `schemas/` directory in api-gateway for route-specific schemas
+- [ ] Define Zod schemas for all POST/PUT request bodies
+- [ ] Use `safeParse` pattern consistently (format field-prefixed error messages)
+- [ ] Remove manual type checks in favor of schema validation
+- [ ] Consider shared helper for Zod validation error formatting
+
+**Example pattern** (from PR #500):
+
+```typescript
+const UpdateConfigBodySchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  isGlobal: z.boolean().optional(),
+  // ...
+});
+
+// In handler:
+const parseResult = UpdateConfigBodySchema.safeParse(req.body);
+if (!parseResult.success) {
+  const firstIssue = parseResult.error.issues[0];
+  const fieldPath = firstIssue.path.join('.');
+  const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+  return sendError(res, ErrorResponses.validationError(message));
+}
+const body = parseResult.data; // Now type-safe
+```
+
+**Files to audit**:
+
+- `services/api-gateway/src/routes/user/*.ts`
+- `services/api-gateway/src/routes/admin/*.ts`
+- `services/api-gateway/src/routes/internal/*.ts`
+
+**Source**: PR #500 code review (2026-01-22)
 
 ---
 
