@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-22
+> Last updated: 2026-01-22 (added API Response Consistency)
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -130,6 +130,63 @@ interface IncognitoEnableResponse {
 - `packages/common-types/src/types/incognito.ts` - Update response type
 
 **Source**: PR #494 code review (2026-01-20)
+
+---
+
+### API Response Consistency (CRUD Endpoints)
+
+**Problem**: CRUD endpoints for the same resource return different field structures, causing client-side parsing failures. The `/user/llm-config` endpoints demonstrated this issue:
+
+| Operation | Response Fields                                          | Bug Caused      |
+| --------- | -------------------------------------------------------- | --------------- |
+| GET /:id  | Full detail (params, maxReferencedMessages, memoryLimit) | ✅ Works        |
+| POST /    | Summary only (no params, no maxReferencedMessages)       | ❌ Client crash |
+| PUT /:id  | Full detail                                              | ✅ Works        |
+
+When `/preset create` was called, the API returned a config without the `params` field. The bot-client's `flattenPresetData()` crashed accessing `data.params.temperature` on an object without `params`.
+
+**Root Cause**: Handlers use different Prisma `select` constants (`CONFIG_SELECT` vs `CONFIG_DETAIL_SELECT`) and build response objects inline, making it easy to forget fields.
+
+**Solution**: Use shared response builder functions for CRUD endpoints:
+
+```typescript
+// Before: Inline response building in each handler
+const response = {
+  id: config.id,
+  name: config.name,
+  // Easy to forget fields here...
+};
+
+// After: Shared builder ensures consistency
+function buildConfigResponse(config: ConfigDetailRow, user: UserRow): ConfigResponse {
+  return {
+    id: config.id,
+    name: config.name,
+    // All fields defined once
+    params: safeValidateAdvancedParams(config.advancedParameters) ?? {},
+    maxReferencedMessages: config.maxReferencedMessages,
+    memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
+    memoryLimit: config.memoryLimit,
+    // ...
+  };
+}
+```
+
+**Files to audit** (all routes that return the same resource from multiple endpoints):
+
+- `services/api-gateway/src/routes/user/llm-config.ts` - Fixed in PR #500, but no shared builder
+- `services/api-gateway/src/routes/user/personality/*.ts` - Multiple CRUD endpoints
+- `services/api-gateway/src/routes/user/persona/*.ts` - Multiple CRUD endpoints
+- `services/api-gateway/src/routes/user/memory*.ts` - Multiple endpoints
+
+**Implementation Steps**:
+
+- [ ] Create `buildLlmConfigResponse()` helper, use in get/create/update handlers
+- [ ] Create `buildPersonalityResponse()` helper for personality routes
+- [ ] Create `buildPersonaResponse()` helper for persona routes
+- [ ] Add TypeScript return types to all CRUD handlers to catch mismatches
+
+**Source**: PR #500 production bug (2026-01-22) - `/preset create` crashed due to missing `params`
 
 ---
 
