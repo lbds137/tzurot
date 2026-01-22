@@ -37,7 +37,8 @@ import { buildValidationEmbed, canProceed } from '../../utils/configValidation.j
 const logger = createLogger('preset-dashboard');
 
 /**
- * Build dashboard button options including toggle-global for owned presets
+ * Build dashboard button options including toggle-global for owned presets.
+ * The toggle button only appears if the user owns the preset.
  */
 function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
   return {
@@ -48,6 +49,28 @@ function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOpt
       isOwned: data.isOwned,
     },
   };
+}
+
+/**
+ * Refresh the dashboard UI with updated data.
+ * Builds embed and components, then updates the interaction reply.
+ * @param interaction - The deferred interaction to update
+ * @param entityId - The preset ID
+ * @param flattenedData - The flattened preset data for display
+ */
+async function refreshDashboardUI(
+  interaction: ModalSubmitInteraction | ButtonInteraction,
+  entityId: string,
+  flattenedData: FlattenedPresetData
+): Promise<void> {
+  const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
+  const components = buildDashboardComponents(
+    PRESET_DASHBOARD_CONFIG,
+    entityId,
+    flattenedData,
+    buildPresetDashboardOptions(flattenedData)
+  );
+  await interaction.editReply({ embeds: [embed], components });
 }
 
 /**
@@ -160,15 +183,7 @@ async function handleSectionModalSubmit(
     }
 
     // Refresh dashboard
-    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(
-      PRESET_DASHBOARD_CONFIG,
-      entityId,
-      flattenedData,
-      buildPresetDashboardOptions(flattenedData)
-    );
-
-    await interaction.editReply({ embeds: [embed], components });
+    await refreshDashboardUI(interaction, entityId, flattenedData);
 
     // Show validation warnings after successful save (if any)
     if (validationResult.warnings.length > 0) {
@@ -262,7 +277,9 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 }
 
 /**
- * Handle close button - delete session and close dashboard
+ * Handle close button - delete session and close dashboard.
+ * @param interaction - The button interaction
+ * @param entityId - The preset ID to close
  */
 async function handleCloseButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
   const sessionManager = getSessionManager();
@@ -276,7 +293,10 @@ async function handleCloseButton(interaction: ButtonInteraction, entityId: strin
 }
 
 /**
- * Handle refresh button - fetch fresh data and update dashboard
+ * Handle refresh button - fetch fresh data and update dashboard.
+ * Detects whether the preset is global to use the appropriate fetch API.
+ * @param interaction - The button interaction
+ * @param entityId - The preset ID to refresh
  */
 async function handleRefreshButton(
   interaction: ButtonInteraction,
@@ -316,19 +336,14 @@ async function handleRefreshButton(
     channelId: interaction.channelId,
   });
 
-  const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-  const components = buildDashboardComponents(
-    PRESET_DASHBOARD_CONFIG,
-    entityId,
-    flattenedData,
-    buildPresetDashboardOptions(flattenedData)
-  );
-
-  await interaction.editReply({ embeds: [embed], components });
+  await refreshDashboardUI(interaction, entityId, flattenedData);
 }
 
 /**
- * Handle toggle-global button - toggle preset visibility
+ * Handle toggle-global button - toggle preset visibility.
+ * Only the owner of a preset can toggle its global status.
+ * @param interaction - The button interaction
+ * @param entityId - The preset ID to toggle
  */
 async function handleToggleGlobalButton(
   interaction: ButtonInteraction,
@@ -377,15 +392,7 @@ async function handleToggleGlobalButton(
       flattenedData
     );
 
-    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(
-      PRESET_DASHBOARD_CONFIG,
-      entityId,
-      flattenedData,
-      buildPresetDashboardOptions(flattenedData)
-    );
-
-    await interaction.editReply({ embeds: [embed], components });
+    await refreshDashboardUI(interaction, entityId, flattenedData);
 
     const statusText = newIsGlobal ? 'global (visible to everyone)' : 'private (only you)';
     logger.info({ presetId: entityId, newIsGlobal }, `Preset visibility changed to ${statusText}`);

@@ -628,6 +628,31 @@ describe('/user/llm-config routes', () => {
       );
     });
 
+    it('should reject non-boolean isGlobal value', async () => {
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      // Send string instead of boolean - Zod validates before DB lookup
+      const { req, res } = createMockReqRes({ isGlobal: 'true' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      // Zod returns field-prefixed error with "expected boolean" message
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('isGlobal'),
+        })
+      );
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: expect.stringContaining('expected boolean'),
+        })
+      );
+    });
+
     it('should update owned config', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
