@@ -11,6 +11,29 @@ import { createLogger } from '@tzurot/common-types';
 const logger = createLogger('ConversationHistoryUtils');
 
 /**
+ * Normalize a role string for case-insensitive comparison.
+ * Handles legacy data that may have capitalized roles ("User", "Assistant")
+ * vs the current standard lowercase roles ("user", "assistant").
+ *
+ * @param role - The role string to normalize
+ * @returns Lowercase role string
+ */
+function normalizeRole(role: string): string {
+  return role.toLowerCase();
+}
+
+/**
+ * Check if a role matches the expected assistant role (case-insensitive).
+ * This handles legacy data that may have "Assistant" instead of "assistant".
+ *
+ * @param role - The role to check
+ * @returns true if the role is an assistant role
+ */
+function isAssistantRole(role: string): boolean {
+  return normalizeRole(role) === 'assistant';
+}
+
+/**
  * Number of recent assistant messages to extract by default.
  * Set to 5 based on production observations showing API-level caching
  * can return responses from 3-4 turns back.
@@ -31,8 +54,9 @@ export function getLastAssistantMessage(
   }
 
   // Find the last assistant message (iterate from end)
+  // Uses case-insensitive comparison to handle legacy data with capitalized roles
   for (let i = history.length - 1; i >= 0; i--) {
-    if (history[i].role === 'assistant') {
+    if (isAssistantRole(history[i].role)) {
       return history[i].content;
     }
   }
@@ -63,20 +87,42 @@ export function getRecentAssistantMessages(
   const messages: string[] = [];
 
   // Find assistant messages from end (most recent first)
+  // Uses case-insensitive comparison to handle legacy data with capitalized roles
   for (let i = history.length - 1; i >= 0 && messages.length < maxMessages; i--) {
-    if (history[i].role === 'assistant') {
+    if (isAssistantRole(history[i].role)) {
       messages.push(history[i].content);
     }
   }
 
-  // Compute role distribution for diagnostics
+  // Compute role distribution for diagnostics (using normalized roles)
   const roleDistribution = history.reduce(
+    (acc, msg) => {
+      const normalized = normalizeRole(msg.role);
+      acc[normalized] = (acc[normalized] || 0) + 1;
+      return acc;
+    },
+    {} as Record<string, number>
+  );
+
+  // Also track raw roles to detect legacy capitalization issues
+  const rawRoleDistribution = history.reduce(
     (acc, msg) => {
       acc[msg.role] = (acc[msg.role] || 0) + 1;
       return acc;
     },
     {} as Record<string, number>
   );
+
+  // Log if we detect legacy capitalized roles (for monitoring migration)
+  const hasLegacyRoles = Object.keys(rawRoleDistribution).some(
+    role => role !== normalizeRole(role)
+  );
+  if (hasLegacyRoles) {
+    logger.info(
+      { rawRoleDistribution },
+      '[ConversationHistoryUtils] Detected legacy capitalized roles in conversation history'
+    );
+  }
 
   // DIAGNOSTIC: Log at INFO level when we have history but find no assistant messages
   // This is the anomaly that can cause duplicate detection to fail

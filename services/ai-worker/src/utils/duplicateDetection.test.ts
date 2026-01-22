@@ -715,26 +715,39 @@ Now sit there, be quiet, and try to learn something about how a real professiona
   });
 
   describe('Role comparison edge cases', () => {
-    it('should NOT match if role is uppercase "ASSISTANT"', () => {
-      // This would be a data format bug - roles should be lowercase
+    it('should match uppercase "ASSISTANT" (case-insensitive for legacy data)', () => {
+      // Legacy data may have capitalized roles - we handle this gracefully
       const historyWithUppercaseRole = [
         { role: 'user', content: 'Hello' },
         { role: 'ASSISTANT', content: 'A long enough response to pass the minimum length check.' },
       ];
 
       const messages = getRecentAssistantMessages(historyWithUppercaseRole);
-      expect(messages.length).toBe(0); // Would NOT find it - indicates data bug
+      expect(messages.length).toBe(1); // Case-insensitive matching finds it
+      expect(messages[0]).toBe('A long enough response to pass the minimum length check.');
+    });
+
+    it('should match mixed-case "Assistant" (case-insensitive for legacy data)', () => {
+      // Legacy data may have PascalCase roles from enum serialization
+      const historyWithMixedCase = [
+        { role: 'User', content: 'Hello' },
+        { role: 'Assistant', content: 'A long enough response to pass the minimum length check.' },
+      ];
+
+      const messages = getRecentAssistantMessages(historyWithMixedCase);
+      expect(messages.length).toBe(1); // Case-insensitive matching finds it
+      expect(messages[0]).toBe('A long enough response to pass the minimum length check.');
     });
 
     it('should NOT match if role has extra whitespace', () => {
-      // This would be a data format bug
+      // Whitespace in role is a genuine data bug, not legacy capitalization
       const historyWithWhitespace = [
         { role: 'user', content: 'Hello' },
         { role: ' assistant', content: 'A long enough response to pass the minimum length check.' },
       ];
 
       const messages = getRecentAssistantMessages(historyWithWhitespace);
-      expect(messages.length).toBe(0); // Would NOT find it - indicates data bug
+      expect(messages.length).toBe(0); // Whitespace is not tolerated
     });
   });
 });

@@ -21,6 +21,21 @@ import {
 const logger = createLogger('conversationUtils');
 
 /**
+ * Check if a role matches the expected role (case-insensitive).
+ * Handles legacy data that may have capitalized roles ("User", "Assistant")
+ * vs the current standard lowercase roles from MessageRole enum.
+ *
+ * @param actual - The actual role value from data
+ * @param expected - The expected role (from MessageRole enum)
+ * @returns true if the roles match (case-insensitive)
+ */
+function isRoleMatch(actual: string | MessageRole, expected: MessageRole): boolean {
+  const normalizedActual = String(actual).toLowerCase();
+  const normalizedExpected = String(expected).toLowerCase();
+  return normalizedActual === normalizedExpected;
+}
+
+/**
  * Participant information extracted from conversation history
  */
 export interface Participant {
@@ -47,7 +62,7 @@ export function extractParticipants(
 
   const userMessagesWithPersona = history.filter(
     m =>
-      m.role === MessageRole.User &&
+      isRoleMatch(m.role, MessageRole.User) &&
       m.personaId !== undefined &&
       m.personaId.length > 0 &&
       m.personaName !== undefined &&
@@ -60,7 +75,7 @@ export function extractParticipants(
   // Extract from history
   for (const msg of history) {
     if (
-      msg.role === MessageRole.User &&
+      isRoleMatch(msg.role, MessageRole.User) &&
       msg.personaId !== undefined &&
       msg.personaId.length > 0 &&
       msg.personaName !== undefined &&
@@ -115,7 +130,7 @@ export function convertConversationHistory(
     let content = msg.content;
 
     // For user messages, include persona name and timestamp
-    if (msg.role === MessageRole.User) {
+    if (isRoleMatch(msg.role, MessageRole.User)) {
       const parts: string[] = [];
 
       if (msg.personaName !== undefined && msg.personaName.length > 0) {
@@ -132,7 +147,7 @@ export function convertConversationHistory(
     }
 
     // For assistant messages, include personality name and timestamp
-    if (msg.role === MessageRole.Assistant) {
+    if (isRoleMatch(msg.role, MessageRole.Assistant)) {
       const parts: string[] = [];
 
       // Use the personality name (e.g., "Lilith")
@@ -145,9 +160,9 @@ export function convertConversationHistory(
       content = `${parts.join(' ')} ${msg.content}`;
     }
 
-    if (msg.role === MessageRole.User) {
+    if (isRoleMatch(msg.role, MessageRole.User)) {
       return new HumanMessage(content);
-    } else if (msg.role === MessageRole.Assistant) {
+    } else if (isRoleMatch(msg.role, MessageRole.Assistant)) {
       return new AIMessage(content);
     } else {
       // System messages are handled separately in the prompt
@@ -243,8 +258,9 @@ export function formatSingleHistoryEntryAsXml(
   let speakerName: string;
   let role: 'user' | 'assistant';
 
-  // Compare against string literals to handle both enum and string values
-  if (msg.role === 'user') {
+  // Use case-insensitive matching to handle legacy capitalized roles ("User", "Assistant")
+  const normalizedRole = String(msg.role).toLowerCase();
+  if (normalizedRole === 'user') {
     // User message - use persona name if available
     speakerName =
       msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
@@ -260,7 +276,7 @@ export function formatSingleHistoryEntryAsXml(
     }
 
     role = 'user';
-  } else if (msg.role === 'assistant') {
+  } else if (normalizedRole === 'assistant') {
     // Assistant message - use personality name
     speakerName = personalityName;
     role = 'assistant';
@@ -283,14 +299,14 @@ export function formatSingleHistoryEntryAsXml(
   // Add from_id attribute for ID binding to participants (user messages only)
   // This links chat_log messages to <participant id="..."> definitions
   const fromIdAttr =
-    msg.role === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
+    normalizedRole === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
       ? ` from_id="${escapeXml(msg.personaId)}"`
       : '';
 
   // Format referenced messages from messageMetadata (user messages only)
   let quotedSection = '';
   if (
-    msg.role === 'user' &&
+    normalizedRole === 'user' &&
     msg.messageMetadata?.referencedMessages !== undefined &&
     msg.messageMetadata.referencedMessages.length > 0
   ) {
@@ -422,16 +438,23 @@ function estimateReferenceLength(ref: StoredReferencedMessage): number {
  * @param personalityName - Name of the AI personality
  * @returns Character length of the formatted message
  */
+// eslint-disable-next-line complexity -- Mirrors formatSingleHistoryEntryAsXml structure for accurate length estimation
 export function getFormattedMessageCharLength(
   msg: RawHistoryEntry,
   personalityName: string
 ): number {
-  // Determine the speaker name
-  let speakerName: string;
-  let role: 'user' | 'assistant';
+  // Determine the speaker name and role using case-insensitive matching
+  const isUser = isRoleMatch(msg.role, MessageRole.User);
+  const isAssistant = isRoleMatch(msg.role, MessageRole.Assistant);
 
-  // Compare against string literals to handle both enum and string values
-  if (msg.role === 'user') {
+  if (!isUser && !isAssistant) {
+    return 0;
+  }
+
+  let speakerName: string;
+  const role: 'user' | 'assistant' = isUser ? 'user' : 'assistant';
+
+  if (isUser) {
     speakerName =
       msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
 
@@ -443,13 +466,8 @@ export function getFormattedMessageCharLength(
     ) {
       speakerName = `${speakerName} (@${msg.discordUsername})`;
     }
-
-    role = 'user';
-  } else if (msg.role === 'assistant') {
-    speakerName = personalityName;
-    role = 'assistant';
   } else {
-    return 0;
+    speakerName = personalityName;
   }
 
   // Approximate the formatted length
@@ -461,7 +479,7 @@ export function getFormattedMessageCharLength(
 
   // Account for from_id attribute (user messages with personaId)
   const fromIdAttr =
-    msg.role === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
+    isUser && msg.personaId !== undefined && msg.personaId.length > 0
       ? ` from_id="${msg.personaId}"`
       : '';
 
@@ -471,7 +489,7 @@ export function getFormattedMessageCharLength(
 
   // Add length for referenced messages if present (user messages only)
   if (
-    msg.role === 'user' &&
+    isUser &&
     msg.messageMetadata?.referencedMessages !== undefined &&
     msg.messageMetadata.referencedMessages.length > 0
   ) {

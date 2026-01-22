@@ -14,6 +14,34 @@ import type { IPipelineStep, GenerationContext, Participant, PreparedContext } f
 
 const logger = createLogger('ContextStep');
 
+/**
+ * Extract timestamp from various formats (ISO string, Date object, or undefined)
+ * Handles data from both DB history (string after JSON serialization) and
+ * any unexpected Date objects that might bypass serialization.
+ *
+ * @param timestamp - ISO string, Date object, or undefined
+ * @returns Unix timestamp in milliseconds, or null if invalid/missing
+ */
+function extractTimestamp(timestamp: string | Date | undefined | null): number | null {
+  if (timestamp === undefined || timestamp === null) {
+    return null;
+  }
+
+  // Handle Date objects directly (defensive - should be strings after BullMQ serialization)
+  if (timestamp instanceof Date) {
+    const time = timestamp.getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+
+  // Handle string timestamps (expected case - ISO format from toISOString())
+  if (typeof timestamp === 'string' && timestamp.length > 0) {
+    const time = new Date(timestamp).getTime();
+    return Number.isNaN(time) ? null : time;
+  }
+
+  return null;
+}
+
 export class ContextStep implements IPipelineStep {
   readonly name = 'ContextPreparation';
 
@@ -31,15 +59,25 @@ export class ContextStep implements IPipelineStep {
     const allTimestamps: number[] = [];
 
     // Timestamps from conversation history
+    // Note: createdAt may be ISO string (after BullMQ serialization) or Date object
     if (jobContext.conversationHistory && jobContext.conversationHistory.length > 0) {
       const historyTimestamps = jobContext.conversationHistory
-        .map(msg =>
-          msg.createdAt !== undefined && msg.createdAt.length > 0
-            ? new Date(msg.createdAt).getTime()
-            : null
-        )
+        .map(msg => extractTimestamp(msg.createdAt as string | Date | undefined))
         .filter((t): t is number => t !== null);
       allTimestamps.push(...historyTimestamps);
+
+      // Log diagnostic if we found fewer timestamps than messages
+      if (historyTimestamps.length < jobContext.conversationHistory.length) {
+        logger.warn(
+          {
+            jobId: job.id,
+            historyLength: jobContext.conversationHistory.length,
+            validTimestamps: historyTimestamps.length,
+            missingTimestamps: jobContext.conversationHistory.length - historyTimestamps.length,
+          },
+          '[ContextStep] Some conversation history messages missing valid createdAt timestamps'
+        );
+      }
     }
 
     // Timestamps from referenced messages (replies, message links)
@@ -47,11 +85,7 @@ export class ContextStep implements IPipelineStep {
     // the content of messages being replied to
     if (jobContext.referencedMessages && jobContext.referencedMessages.length > 0) {
       const refTimestamps = jobContext.referencedMessages
-        .map(ref =>
-          ref.timestamp !== undefined && ref.timestamp.length > 0
-            ? new Date(ref.timestamp).getTime()
-            : null
-        )
+        .map(ref => extractTimestamp(ref.timestamp as string | Date | undefined))
         .filter((t): t is number => t !== null);
       allTimestamps.push(...refTimestamps);
     }
