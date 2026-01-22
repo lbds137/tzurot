@@ -23,6 +23,14 @@ export interface TableSyncConfig {
    * Solution: Sync users with default_persona_id=NULL first, then update after personas sync
    */
   deferredFkColumns?: string[];
+  /**
+   * Columns to completely exclude from sync.
+   * These columns are not copied between environments, allowing dev and prod to have
+   * different values. Useful for environment-specific settings like default flags.
+   *
+   * Example: llm_configs.is_default should be different in dev vs prod
+   */
+  excludeColumns?: string[];
 }
 
 export type SyncTableName =
@@ -77,6 +85,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
+    // Exclude singleton flags from sync - dev and prod should have independent defaults
+    excludeColumns: ['is_default', 'is_free_default'],
   },
   personalities: {
     pk: 'id',

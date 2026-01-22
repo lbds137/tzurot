@@ -313,4 +313,41 @@ describe('syncTables Configuration', () => {
       }
     });
   });
+
+  describe('Excluded columns (not synced between environments)', () => {
+    it('should exclude is_default and is_free_default from llm_configs sync', () => {
+      // These singleton flags should be different in dev vs prod
+      // Each environment has its own system default preset
+      const llmConfigsConfig = SYNC_CONFIG.llm_configs;
+      expect(llmConfigsConfig.excludeColumns).toBeDefined();
+      expect(llmConfigsConfig.excludeColumns).toContain('is_default');
+      expect(llmConfigsConfig.excludeColumns).toContain('is_free_default');
+    });
+
+    it('should have excludeColumns as array or undefined for all tables', () => {
+      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+        if (config.excludeColumns !== undefined) {
+          expect(
+            Array.isArray(config.excludeColumns),
+            `Table "${tableName}" excludeColumns must be an array`
+          ).toBe(true);
+        }
+      }
+    });
+
+    it('should not exclude primary key columns', () => {
+      // Excluding a PK would break sync logic
+      for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
+        const excludeCols = config.excludeColumns ?? [];
+        const pkCols = typeof config.pk === 'string' ? [config.pk] : config.pk;
+
+        for (const pkCol of pkCols) {
+          expect(
+            excludeCols,
+            `Table "${tableName}" cannot exclude primary key column "${pkCol}"`
+          ).not.toContain(pkCol);
+        }
+      }
+    });
+  });
 });
