@@ -15,41 +15,25 @@
 import {
   createLogger,
   INTERVALS,
-  safeValidateAdvancedParams,
-  advancedParamsToConfigFormat,
+  LLM_CONFIG_SELECT_WITH_NAME,
+  mapLlmConfigFromDbWithName,
   type PrismaClient,
   type LoadedPersonality,
+  type MappedLlmConfigWithName,
+  type ConvertedLlmParams,
 } from '@tzurot/common-types';
 
 const logger = createLogger('LlmConfigResolver');
 
 /**
- * Prisma select for LlmConfig fields needed for resolution.
- * Shared between user.defaultLlmConfig and userPersonalityConfig.llmConfig queries.
+ * Resolved LLM config values that can override personality defaults.
+ *
+ * Extends ConvertedLlmParams to include ALL parameters from advancedParameters JSONB,
+ * plus database-specific fields (memory, context window).
  */
-const LLM_CONFIG_SELECT = {
-  name: true,
-  model: true,
-  visionModel: true,
-  advancedParameters: true, // JSONB with sampling params (snake_case)
-  memoryScoreThreshold: true, // Not in JSONB - memory-specific
-  memoryLimit: true, // Not in JSONB - memory-specific
-  contextWindowTokens: true, // Not in JSONB - context-specific
-} as const;
-
-/**
- * Resolved LLM config values that can override personality defaults
- */
-export interface ResolvedLlmConfig {
+export interface ResolvedLlmConfig extends ConvertedLlmParams {
   model: string;
   visionModel?: string | null;
-  temperature?: number | null;
-  topP?: number | null;
-  topK?: number | null;
-  frequencyPenalty?: number | null;
-  presencePenalty?: number | null;
-  repetitionPenalty?: number | null;
-  maxTokens?: number | null;
   memoryScoreThreshold?: number | null;
   memoryLimit?: number | null;
   contextWindowTokens?: number;
@@ -175,7 +159,7 @@ export class LlmConfigResolver {
         select: {
           id: true,
           defaultLlmConfigId: true,
-          defaultLlmConfig: { select: LLM_CONFIG_SELECT },
+          defaultLlmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME },
         },
       });
 
@@ -192,14 +176,15 @@ export class LlmConfigResolver {
       // Priority 1: Check for per-personality override
       const personalityOverride = await this.prisma.userPersonalityConfig.findFirst({
         where: { userId: user.id, personalityId, llmConfigId: { not: null } },
-        select: { llmConfig: { select: LLM_CONFIG_SELECT } },
+        select: { llmConfig: { select: LLM_CONFIG_SELECT_WITH_NAME } },
       });
 
       if (personalityOverride?.llmConfig) {
+        const mapped = mapLlmConfigFromDbWithName(personalityOverride.llmConfig);
         const result: ConfigResolutionResult = {
-          config: this.mergeConfig(personalityConfig, personalityOverride.llmConfig),
+          config: this.mergeConfig(personalityConfig, mapped),
           source: 'user-personality',
-          configName: personalityOverride.llmConfig.name,
+          configName: mapped.name,
         };
         this.cacheResult(cacheKey, result);
         logger.debug(
@@ -211,10 +196,11 @@ export class LlmConfigResolver {
 
       // Priority 2: Check for user global default
       if (user.defaultLlmConfig) {
+        const mapped = mapLlmConfigFromDbWithName(user.defaultLlmConfig);
         const result: ConfigResolutionResult = {
-          config: this.mergeConfig(personalityConfig, user.defaultLlmConfig),
+          config: this.mergeConfig(personalityConfig, mapped),
           source: 'user-default',
-          configName: user.defaultLlmConfig.name,
+          configName: mapped.name,
         };
         this.cacheResult(cacheKey, result);
         logger.debug(
@@ -266,75 +252,52 @@ export class LlmConfigResolver {
 
   /**
    * Merge override config into personality defaults.
-   * Parses advancedParameters JSONB and converts snake_case to camelCase.
+   * Uses pre-mapped config from LlmConfigMapper (already converted to camelCase).
    * Only non-null values from override replace personality values.
    */
   private mergeConfig(
     personality: LoadedPersonality,
-    override: {
-      model: string;
-      visionModel?: string | null;
-      advancedParameters?: unknown; // JSONB from Prisma (snake_case)
-      memoryScoreThreshold?: unknown; // Prisma Decimal - not in JSONB
-      memoryLimit?: number | null; // Not in JSONB
-      contextWindowTokens?: number; // Not in JSONB
-    }
+    override: MappedLlmConfigWithName
   ): ResolvedLlmConfig {
-    // Parse and convert advancedParameters from snake_case JSONB to camelCase
-    const params = safeValidateAdvancedParams(override.advancedParameters);
-    const converted = params !== null ? advancedParamsToConfigFormat(params) : {};
-
     return {
       // Model is always overridden (it's required)
       model: override.model,
       // Vision model: use override if provided, else personality default
       visionModel: override.visionModel ?? personality.visionModel,
-      // Sampling params: use converted JSONB values, fall back to personality defaults
-      temperature: converted.temperature ?? personality.temperature,
-      topP: converted.topP ?? personality.topP,
-      topK: converted.topK ?? personality.topK,
-      frequencyPenalty: converted.frequencyPenalty ?? personality.frequencyPenalty,
-      presencePenalty: converted.presencePenalty ?? personality.presencePenalty,
-      repetitionPenalty: converted.repetitionPenalty ?? personality.repetitionPenalty,
-      maxTokens: converted.maxTokens ?? personality.maxTokens,
-      // Non-JSONB fields (still use individual columns)
-      memoryScoreThreshold:
-        this.toNumber(override.memoryScoreThreshold) ?? personality.memoryScoreThreshold,
+
+      // Basic sampling params
+      temperature: override.temperature ?? personality.temperature,
+      topP: override.topP ?? personality.topP,
+      topK: override.topK ?? personality.topK,
+      frequencyPenalty: override.frequencyPenalty ?? personality.frequencyPenalty,
+      presencePenalty: override.presencePenalty ?? personality.presencePenalty,
+      repetitionPenalty: override.repetitionPenalty ?? personality.repetitionPenalty,
+
+      // Advanced sampling params (new)
+      minP: override.minP,
+      topA: override.topA,
+      seed: override.seed,
+
+      // Output params
+      maxTokens: override.maxTokens ?? personality.maxTokens,
+      stop: override.stop,
+      logitBias: override.logitBias,
+      responseFormat: override.responseFormat,
+      showThinking: override.showThinking,
+
+      // Reasoning params (new - for thinking models)
+      reasoning: override.reasoning,
+
+      // OpenRouter-specific params (new)
+      transforms: override.transforms,
+      route: override.route,
+      verbosity: override.verbosity,
+
+      // Non-JSONB fields (memory and context)
+      memoryScoreThreshold: override.memoryScoreThreshold ?? personality.memoryScoreThreshold,
       memoryLimit: override.memoryLimit ?? personality.memoryLimit,
       contextWindowTokens: override.contextWindowTokens ?? personality.contextWindowTokens,
     };
-  }
-
-  /**
-   * Convert Prisma Decimal to number with type safety
-   *
-   * Handles Prisma's Decimal type which has a toNumber() method.
-   * Validates the result is actually a number to catch any future
-   * changes in Prisma's internal implementation.
-   */
-  private toNumber(value: unknown): number | null {
-    if (value === null || value === undefined) {
-      return null;
-    }
-    if (typeof value === 'number') {
-      return value;
-    }
-    // Handle Prisma Decimal (has toNumber method)
-    if (
-      typeof value === 'object' &&
-      value !== null &&
-      'toNumber' in value &&
-      typeof (value as Record<string, unknown>).toNumber === 'function'
-    ) {
-      const result = (value as { toNumber: () => unknown }).toNumber();
-      if (typeof result === 'number') {
-        return result;
-      }
-      logger.warn({ valueType: typeof result }, 'Prisma Decimal.toNumber() returned non-number');
-      return null;
-    }
-    logger.warn({ valueType: typeof value }, 'Unexpected value type in toNumber');
-    return null;
   }
 
   /**
@@ -388,7 +351,7 @@ export class LlmConfigResolver {
     try {
       const freeConfig = await this.prisma.llmConfig.findFirst({
         where: { isFreeDefault: true },
-        select: LLM_CONFIG_SELECT,
+        select: LLM_CONFIG_SELECT_WITH_NAME,
       });
 
       if (freeConfig === null) {
@@ -396,33 +359,51 @@ export class LlmConfigResolver {
         return null;
       }
 
-      // Parse and convert advancedParameters from snake_case JSONB to camelCase
-      const params = safeValidateAdvancedParams(freeConfig.advancedParameters);
-      const converted = params !== null ? advancedParamsToConfigFormat(params) : {};
+      // Use shared mapper to convert from DB format to application format
+      const mapped = mapLlmConfigFromDbWithName(freeConfig);
 
+      // Create ResolvedLlmConfig with all params from the mapper
+      // The mapper already returns undefined for missing values, matching ConvertedLlmParams
       const config: ResolvedLlmConfig = {
-        model: freeConfig.model,
-        visionModel: freeConfig.visionModel,
-        temperature: converted.temperature ?? null,
-        topP: converted.topP ?? null,
-        topK: converted.topK ?? null,
-        frequencyPenalty: converted.frequencyPenalty ?? null,
-        presencePenalty: converted.presencePenalty ?? null,
-        repetitionPenalty: converted.repetitionPenalty ?? null,
-        maxTokens: converted.maxTokens ?? null,
-        memoryScoreThreshold: this.toNumber(freeConfig.memoryScoreThreshold),
-        memoryLimit: freeConfig.memoryLimit,
-        contextWindowTokens: freeConfig.contextWindowTokens,
+        model: mapped.model,
+        visionModel: mapped.visionModel,
+        // Basic sampling - directly from mapper (undefined if not set)
+        temperature: mapped.temperature,
+        topP: mapped.topP,
+        topK: mapped.topK,
+        frequencyPenalty: mapped.frequencyPenalty,
+        presencePenalty: mapped.presencePenalty,
+        repetitionPenalty: mapped.repetitionPenalty,
+        // Advanced sampling
+        minP: mapped.minP,
+        topA: mapped.topA,
+        seed: mapped.seed,
+        // Output
+        maxTokens: mapped.maxTokens,
+        stop: mapped.stop,
+        logitBias: mapped.logitBias,
+        responseFormat: mapped.responseFormat,
+        showThinking: mapped.showThinking,
+        // Reasoning
+        reasoning: mapped.reasoning,
+        // OpenRouter
+        transforms: mapped.transforms,
+        route: mapped.route,
+        verbosity: mapped.verbosity,
+        // Memory/context
+        memoryScoreThreshold: mapped.memoryScoreThreshold,
+        memoryLimit: mapped.memoryLimit,
+        contextWindowTokens: mapped.contextWindowTokens,
       };
 
       // Cache the result
       this.cache.set(cacheKey, {
-        result: { config, source: 'personality', configName: freeConfig.name },
+        result: { config, source: 'personality', configName: mapped.name },
         expiresAt: Date.now() + this.cacheTtlMs,
       });
 
       logger.info(
-        { configName: freeConfig.name, model: config.model },
+        { configName: mapped.name, model: config.model },
         'Free default config loaded from database'
       );
       return config;

@@ -18,7 +18,6 @@ import { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import {
   MessageContent,
   createLogger,
-  AI_DEFAULTS,
   TEXT_LIMITS,
   getPrismaClient,
   type LoadedPersonality,
@@ -26,6 +25,7 @@ import {
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripResponseArtifacts } from '../utils/responseArtifacts.js';
 import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
+import { extractThinkingBlocks } from '../utils/thinkingExtraction.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -37,9 +37,14 @@ import { ContextWindowManager } from './context/ContextWindowManager.js';
 import { PersonaResolver } from './resolvers/index.js';
 import { UserReferenceResolver } from './UserReferenceResolver.js';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
-import { buildAttachmentDescriptions, generateStopSequences } from './RAGUtils.js';
+import {
+  buildAttachmentDescriptions,
+  generateStopSequences,
+  buildImageDescriptionMap,
+  injectImageDescriptions,
+  extractRecentHistoryWindow,
+} from './RAGUtils.js';
 import { redisService } from '../redis.js';
-import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 import type {
   ConversationContext,
   ProcessedInputs,
@@ -154,7 +159,7 @@ export class ConversationalRAGService {
         : undefined;
 
     // Extract recent conversation history for context-aware LTM search
-    const recentHistoryWindow = this.extractRecentHistoryWindow(context.rawConversationHistory);
+    const recentHistoryWindow = extractRecentHistoryWindow(context.rawConversationHistory);
 
     // Build search query for memory retrieval
     const searchQuery = this.promptBuilder.buildSearchQuery(
@@ -299,8 +304,12 @@ export class ConversationalRAGService {
     // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
     const deduplicatedContent = removeDuplicateResponse(rawContent);
 
-    // Strip artifacts
-    let cleanedContent = stripResponseArtifacts(deduplicatedContent, personality.name);
+    // Extract thinking blocks (DeepSeek R1, Claude with reasoning, o1/o3, etc.)
+    // This must happen before stripResponseArtifacts to preserve the full thinking content
+    const { thinkingContent, visibleContent } = extractThinkingBlocks(deduplicatedContent);
+
+    // Strip artifacts from visible content only
+    let cleanedContent = stripResponseArtifacts(visibleContent, personality.name);
 
     // Replace placeholders
     const userName =
@@ -321,7 +330,9 @@ export class ConversationalRAGService {
         rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
         cleanedContentPreview: cleanedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
         wasDeduplicated: rawContent !== deduplicatedContent,
-        wasStripped: deduplicatedContent !== cleanedContent,
+        hadThinkingBlocks: thinkingContent !== null,
+        thinkingContentLength: thinkingContent?.length ?? 0,
+        wasStripped: visibleContent !== cleanedContent,
       },
       `[RAG] Content cleanup check for ${personality.name}`
     );
@@ -345,6 +356,7 @@ export class ConversationalRAGService {
       modelName,
       tokensIn: usageMetadata?.input_tokens,
       tokensOut: usageMetadata?.output_tokens,
+      thinkingContent: thinkingContent ?? undefined,
     };
   }
 
@@ -387,10 +399,10 @@ export class ConversationalRAGService {
 
       // Step 1.5: Inject image descriptions into history for inline display
       // This replaces the separate <recent_channel_images> section with inline descriptions
-      const imageDescriptionMap = this.buildImageDescriptionMap(
+      const imageDescriptionMap = buildImageDescriptionMap(
         context.preprocessedExtendedContextAttachments
       );
-      this.injectImageDescriptions(context.rawConversationHistory, imageDescriptionMap);
+      injectImageDescriptions(context.rawConversationHistory, imageDescriptionMap);
 
       // Step 2: Load personas and resolve user references
       const { participantPersonas, processedPersonality } =
@@ -507,6 +519,7 @@ export class ConversationalRAGService {
         focusModeEnabled,
         incognitoModeActive,
         deferredMemoryData,
+        thinkingContent: modelResult.thinkingContent,
       };
     } catch (error) {
       logAndThrow(logger, `[RAG] Error generating response for ${personality.name}`, error);
@@ -575,137 +588,5 @@ export class ConversationalRAGService {
       { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
       '[RAG] Stored deferred memory to LTM'
     );
-  }
-
-  /**
-   * Build a map from Discord message ID to image descriptions
-   *
-   * This allows us to associate preprocessed image descriptions with their
-   * source messages in the conversation history for inline display.
-   *
-   * @param attachments Preprocessed extended context attachments
-   * @returns Map of Discord message ID to array of image descriptions
-   */
-  private buildImageDescriptionMap(
-    attachments: ProcessedAttachment[] | undefined
-  ): Map<string, InlineImageDescription[]> {
-    const map = new Map<string, InlineImageDescription[]>();
-
-    if (!attachments || attachments.length === 0) {
-      return map;
-    }
-
-    for (const att of attachments) {
-      const msgId = att.metadata.sourceDiscordMessageId;
-      if (msgId === undefined || msgId.length === 0) {
-        continue;
-      }
-
-      const existingList = map.get(msgId) ?? [];
-      existingList.push({
-        filename: att.metadata.name ?? 'image',
-        description: att.description,
-      });
-      if (!map.has(msgId)) {
-        map.set(msgId, existingList);
-      }
-    }
-
-    if (map.size > 0) {
-      logger.debug(
-        { messageCount: map.size, totalImages: attachments.length },
-        '[RAG] Built image description map for inline display'
-      );
-    }
-
-    return map;
-  }
-
-  /**
-   * Inject image descriptions into conversation history entries
-   *
-   * Modifies history entries in-place to add imageDescriptions to their
-   * messageMetadata. This enables inline display of image descriptions
-   * within the chat_log rather than a separate section.
-   *
-   * @param history Raw conversation history (will be mutated)
-   * @param imageMap Map of Discord message ID to image descriptions
-   */
-  private injectImageDescriptions(
-    history: ConversationContext['rawConversationHistory'],
-    imageMap: Map<string, InlineImageDescription[]>
-  ): void {
-    if (!history || history.length === 0 || imageMap.size === 0) {
-      return;
-    }
-
-    let injectedCount = 0;
-
-    for (const entry of history) {
-      // For extended context messages, entry.id IS the Discord message ID
-      if (entry.id !== undefined && entry.id.length > 0 && imageMap.has(entry.id)) {
-        const descriptions = imageMap.get(entry.id);
-        if (descriptions !== undefined && descriptions.length > 0) {
-          // Ensure messageMetadata exists
-          entry.messageMetadata ??= {};
-          entry.messageMetadata.imageDescriptions = descriptions;
-          injectedCount++;
-        }
-      }
-    }
-
-    if (injectedCount > 0) {
-      logger.info(
-        { injectedCount },
-        '[RAG] Injected image descriptions into history entries for inline display'
-      );
-    }
-  }
-
-  /**
-   * Extract recent conversation history for context-aware LTM search
-   *
-   * Returns the last N conversation turns (user + assistant pairs) as a formatted string.
-   * This helps resolve pronouns like "that", "it", "he" in the current message by
-   * providing recent topic context to the embedding model.
-   *
-   * @param rawHistory The raw conversation history array
-   * @returns Formatted string of recent history, or undefined if no history
-   */
-  private extractRecentHistoryWindow(
-    rawHistory?: { role: string; content: string; tokenCount?: number }[]
-  ): string | undefined {
-    if (!rawHistory || rawHistory.length === 0) {
-      return undefined;
-    }
-
-    // Get the last N turns (each turn = 2 messages: user + assistant)
-    const turnsToInclude = AI_DEFAULTS.LTM_SEARCH_HISTORY_TURNS;
-    const messagesToInclude = turnsToInclude * 2;
-
-    // Take the last N messages (they're already in chronological order)
-    const recentMessages = rawHistory.slice(-messagesToInclude);
-
-    if (recentMessages.length === 0) {
-      return undefined;
-    }
-
-    // Format as content only (no role labels) - role labels are noise for semantic search
-    // The content itself is what matters for finding relevant memories
-    const formatted = recentMessages
-      .map(msg => {
-        // Truncate very long messages to avoid bloating the search query
-        // Use LTM_SEARCH_MESSAGE_PREVIEW (500) instead of LOG_PREVIEW (150) for better semantic context
-        return msg.content.length > AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW
-          ? msg.content.substring(0, AI_DEFAULTS.LTM_SEARCH_MESSAGE_PREVIEW) + '...'
-          : msg.content;
-      })
-      .join('\n');
-
-    logger.debug(
-      `[RAG] Extracted ${recentMessages.length} messages (${Math.ceil(recentMessages.length / 2)} turns) for LTM search context`
-    );
-
-    return formatted;
   }
 }

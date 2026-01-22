@@ -96,6 +96,7 @@ export {
 // Export services
 export * from './services/prisma.js';
 export * from './services/personality/index.js';
+export * from './services/LlmConfigMapper.js';
 export * from './services/ConversationHistoryService.js';
 export * from './services/ConversationRetentionService.js';
 export * from './services/ConversationSyncService.js';

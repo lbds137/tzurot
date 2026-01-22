@@ -129,9 +129,14 @@ export const MODEL_DEFAULTS = {
   WHISPER: 'whisper-1',
   /** Vision fallback for BYOK users (paid) */
   VISION_FALLBACK: 'qwen/qwen3-vl-235b-a22b-instruct',
-  /** Vision fallback for free tier users (no BYOK) */
-  VISION_FALLBACK_FREE: 'google/gemma-3-27b-it:free',
-  EMBEDDING: 'text-embedding-3-small',
+  /** Vision fallback for free tier users (no BYOK) - ~30k context window */
+  VISION_FALLBACK_FREE: 'qwen/qwen-2.5-vl-7b-instruct:free',
+  /**
+   * Local embedding model (not configurable via env)
+   * Uses @tzurot/embeddings package with 384-dimensional vectors.
+   * Replaces OpenAI's text-embedding-3-small (1536 dims) for cost savings.
+   */
+  EMBEDDING: 'Xenova/bge-small-en-v1.5',
 } as const;
 
 /**

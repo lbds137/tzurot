@@ -71,7 +71,7 @@ export const envSchema = z.object({
   // AI Model Defaults
   WHISPER_MODEL: z.string().default(MODEL_DEFAULTS.WHISPER),
   VISION_FALLBACK_MODEL: z.string().default(MODEL_DEFAULTS.VISION_FALLBACK),
-  EMBEDDING_MODEL: z.string().default(MODEL_DEFAULTS.EMBEDDING),
+  // Note: Embeddings are local (Xenova/bge-small-en-v1.5) - no env config needed
 
   // Redis Configuration
   REDIS_URL: z
@@ -221,7 +221,6 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // AI Model Defaults
     WHISPER_MODEL: MODEL_DEFAULTS.WHISPER,
     VISION_FALLBACK_MODEL: MODEL_DEFAULTS.VISION_FALLBACK,
-    EMBEDDING_MODEL: MODEL_DEFAULTS.EMBEDDING,
 
     // Redis
     REDIS_URL: undefined,

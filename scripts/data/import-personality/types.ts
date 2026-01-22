@@ -138,22 +138,18 @@ export interface V3PersonalityData {
     isDefault: boolean;
   };
 
-  // LLM config
+  // LLM config (v3 uses advancedParameters JSONB for sampling params)
   llmConfig: {
     name: string;
     description: string | null;
     model: string; // OpenRouter format
     visionModel: string | null;
-    temperature: number;
-    topP: number | null;
-    topK: number | null;
-    frequencyPenalty: number | null;
-    presencePenalty: number | null;
-    repetitionPenalty: number | null;
-    maxTokens: number | null;
+    // Sampling params in advancedParameters JSONB (snake_case)
+    advancedParameters: Record<string, unknown> | null;
+    // Non-JSONB fields
     memoryScoreThreshold: number | null;
     memoryLimit: number | null;
-    contextWindowSize: number;
+    contextWindowTokens: number;
     isGlobal: boolean;
     ownerId: string | null;
   };

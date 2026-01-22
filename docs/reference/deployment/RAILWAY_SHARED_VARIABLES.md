@@ -314,11 +314,11 @@ Railway will automatically:
 DATABASE_URL=<Railway PostgreSQL URL - includes pgvector>
 AI_PROVIDER=openrouter
 OPENROUTER_API_KEY=<your-openrouter-key>
-OPENAI_API_KEY=<your-openai-key>
+OPENAI_API_KEY=<your-openai-key>  # For Whisper transcription only
 DEFAULT_AI_MODEL=anthropic/claude-haiku-4.5
 WHISPER_MODEL=whisper-1
 VISION_FALLBACK_MODEL=qwen/qwen3-vl-235b-a22b-instruct
-EMBEDDING_MODEL=text-embedding-3-small
+# Note: Embeddings are local (no API key needed)
 NODE_ENV=development
 LOG_LEVEL=debug
 ```

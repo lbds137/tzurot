@@ -170,7 +170,7 @@ DISCORD_CLIENT_ID=123456789
       const output = consoleLogs.join('\n');
       // Should use defaults
       expect(output).toContain('WHISPER_MODEL: whisper-1');
-      expect(output).toContain('EMBEDDING_MODEL: text-embedding-3-small');
+      // Note: EMBEDDING_MODEL removed - local embeddings don't need env config
     });
 
     it('should report 0 variables when .env file is missing', async () => {

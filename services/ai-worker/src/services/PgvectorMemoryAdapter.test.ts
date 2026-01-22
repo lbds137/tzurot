@@ -49,7 +49,7 @@ vi.mock('@tzurot/common-types', async () => {
       error: vi.fn(),
     }),
     MODEL_DEFAULTS: {
-      EMBEDDING: 'text-embedding-3-small',
+      EMBEDDING: 'Xenova/bge-small-en-v1.5',
     },
     AI_DEFAULTS: {
       CHANNEL_MEMORY_BUDGET_RATIO: 0.5,
