@@ -81,18 +81,25 @@ const NODE_ERROR_PROPS = ['code', 'errno', 'syscall', 'statusCode'];
 
 /**
  * Extract standard error properties (message, stack, cause)
+ * Also handles alternative property names used by various error types.
  */
 function extractStandardProps(
   err: unknown,
   errObj: Record<string, unknown>,
   serialized: Record<string, unknown>
 ): void {
+  // Try 'message' first, then 'error' (used by some APIs like OpenRouter)
   if (typeof errObj.message === 'string') {
     serialized.message = sanitizeLogMessage(errObj.message);
+  } else if (typeof errObj.error === 'string') {
+    // Some APIs use 'error' instead of 'message'
+    serialized.message = sanitizeLogMessage(errObj.error);
   }
+
   if (typeof errObj.stack === 'string') {
     serialized.stack = sanitizeLogMessage(errObj.stack);
   }
+
   if ('cause' in errObj && errObj.cause !== undefined) {
     serialized.cause = errObj.cause === err ? '[Circular]' : customErrorSerializer(errObj.cause);
   }
@@ -170,6 +177,22 @@ function customErrorSerializer(err: unknown): object {
 
   extractStandardProps(err, errObj, serialized);
   extractExtraProps(err, errObj, serialized);
+
+  // Fallback: if we extracted nothing useful, stringify the object for debugging
+  // "useful" means we have something beyond just 'type' and '_nonErrorObject'
+  const usefulKeys = Object.keys(serialized).filter(k => k !== 'type' && k !== '_nonErrorObject');
+  if (usefulKeys.length === 0) {
+    try {
+      const stringified = JSON.stringify(err);
+      if (stringified.length <= 500) {
+        serialized.raw = stringified;
+      } else {
+        serialized.raw = stringified.substring(0, 500) + '... [truncated]';
+      }
+    } catch {
+      serialized.raw = '[circular or non-serializable object]';
+    }
+  }
 
   return serialized;
 }
