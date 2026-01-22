@@ -317,6 +317,11 @@ git commit -m "feat(service): description"
 
 # Merge strategy (ONLY with user approval)
 gh pr merge <number> --rebase --delete-branch
+
+# PR review/comments - USE OPS CLI (gh pr view is flaky)
+pnpm ops gh:pr-comments <number>   # Get all comments
+pnpm ops gh:pr-reviews <number>    # Get all reviews
+pnpm ops gh:pr-all <number>        # Get everything
 ```
 
 **📚 See**: `tzurot-git-workflow` for complete workflow, hooks, safety protocol

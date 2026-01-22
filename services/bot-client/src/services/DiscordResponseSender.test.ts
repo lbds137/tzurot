@@ -747,6 +747,275 @@ describe('DiscordResponseSender', () => {
       expect(footerLines.length).toBeLessThanOrEqual(4);
     });
   });
+
+  describe('sendResponse - Thinking Content', () => {
+    it('should send thinking block before main response when showThinking is enabled', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      // Track call order
+      const callOrder: string[] = [];
+      mockWebhookManager.sendAsPersonality.mockImplementation(
+        async (_channel, _personality, content: string) => {
+          if (content.includes('💭 **Thinking:**')) {
+            callOrder.push('thinking');
+          } else {
+            callOrder.push('main');
+          }
+          return { id: `msg-${callOrder.length}` };
+        }
+      );
+
+      await sender.sendResponse({
+        content: 'Main response content',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: 'This is my reasoning process...',
+      });
+
+      // Thinking should be sent before main response
+      expect(callOrder).toEqual(['thinking', 'main']);
+    });
+
+    it('should NOT send thinking block when showThinking is false', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithoutThinking = {
+        ...mockPersonality,
+        showThinking: false,
+      } as LoadedPersonality;
+
+      await sender.sendResponse({
+        content: 'Main response content',
+        personality: personalityWithoutThinking,
+        message: mockMessage,
+        thinkingContent: 'This reasoning should NOT be shown',
+      });
+
+      // Should only send main response, not thinking
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(1);
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).not.toContain('💭 **Thinking:**');
+      expect(calledContent).toContain('Main response content');
+    });
+
+    it('should NOT send thinking block when thinkingContent is undefined', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      await sender.sendResponse({
+        content: 'Main response content',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        // thinkingContent not provided
+      });
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(1);
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).not.toContain('💭 **Thinking:**');
+    });
+
+    it('should NOT send thinking block when thinkingContent is empty string', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      await sender.sendResponse({
+        content: 'Main response content',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: '',
+      });
+
+      expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(1);
+      const calledContent = mockWebhookManager.sendAsPersonality.mock.calls[0][2];
+      expect(calledContent).not.toContain('💭 **Thinking:**');
+    });
+
+    it('should format thinking content with spoiler tags', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      await sender.sendResponse({
+        content: 'Main response',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: 'My reasoning here',
+      });
+
+      // Find the thinking message call
+      const thinkingCall = mockWebhookManager.sendAsPersonality.mock.calls.find(call =>
+        (call[2] as string).includes('💭 **Thinking:**')
+      );
+
+      expect(thinkingCall).toBeDefined();
+      const thinkingContent = thinkingCall![2] as string;
+
+      // Should have header and spoiler format
+      expect(thinkingContent).toContain('💭 **Thinking:**');
+      expect(thinkingContent).toContain('||My reasoning here||');
+    });
+
+    it('should escape existing spoiler markers in thinking content', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      await sender.sendResponse({
+        content: 'Main response',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: 'Content with ||existing spoilers|| inside',
+      });
+
+      const thinkingCall = mockWebhookManager.sendAsPersonality.mock.calls.find(call =>
+        (call[2] as string).includes('💭 **Thinking:**')
+      );
+
+      const thinkingContent = thinkingCall![2] as string;
+      // Existing spoilers should be escaped
+      expect(thinkingContent).toContain('\\|\\|existing spoilers\\|\\|');
+    });
+
+    it('should send thinking via DM with personality prefix when not in guild', async () => {
+      const mockChannel = createMockTextChannel('dm-123');
+      const mockMessage = createMockMessage(mockChannel, null); // No guild = DM
+      (mockMessage.reply as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'reply-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      await sender.sendResponse({
+        content: 'Main response',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: 'DM thinking content',
+      });
+
+      // First call should be thinking, second should be main response
+      expect(mockMessage.reply).toHaveBeenCalledTimes(2);
+
+      const thinkingCall = mockMessage.reply.mock.calls[0][0] as string;
+      expect(thinkingCall).toContain('**Test Bot:**');
+      expect(thinkingCall).toContain('💭 **Thinking:**');
+      expect(thinkingCall).toContain('||DM thinking content||');
+    });
+
+    it('should continue with main response even if thinking block fails', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      // First call (thinking) fails, second call (main) succeeds
+      mockWebhookManager.sendAsPersonality
+        .mockRejectedValueOnce(new Error('Webhook failed'))
+        .mockResolvedValueOnce({ id: 'msg-main' });
+
+      const result = await sender.sendResponse({
+        content: 'Main response',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: 'This thinking will fail',
+      });
+
+      // Main response should still be sent
+      expect(result.chunkMessageIds).toEqual(['msg-main']);
+      expect(result.chunkCount).toBe(1);
+    });
+
+    it('should truncate extremely long thinking content', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      // Create very long thinking content (over the 3-message limit)
+      const veryLongThinking = 'x'.repeat(10000);
+
+      await sender.sendResponse({
+        content: 'Main response',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: veryLongThinking,
+      });
+
+      // Find thinking calls (may be multiple chunks)
+      const thinkingCalls = mockWebhookManager.sendAsPersonality.mock.calls.filter(call =>
+        (call[2] as string).includes('||')
+      );
+
+      // Should have at least one thinking call
+      expect(thinkingCalls.length).toBeGreaterThan(0);
+
+      // Last chunk should contain truncation indicator if content was truncated
+      const allThinkingContent = thinkingCalls.map(c => c[2] as string).join('');
+      expect(allThinkingContent).toContain('[...truncated]');
+    });
+
+    it('should chunk long thinking content into multiple messages', async () => {
+      const mockChannel = createMockTextChannel('channel-123');
+      const mockMessage = createMockMessage(mockChannel, { id: 'guild-123' });
+
+      const personalityWithThinking = {
+        ...mockPersonality,
+        showThinking: true,
+      } as LoadedPersonality;
+
+      // Create thinking content that needs chunking (but not truncation)
+      const longThinking = 'Line of thinking.\n'.repeat(150); // ~2700 chars
+
+      await sender.sendResponse({
+        content: 'Main response',
+        personality: personalityWithThinking,
+        message: mockMessage,
+        thinkingContent: longThinking,
+      });
+
+      // Should have multiple thinking calls plus the main response
+      expect(mockWebhookManager.sendAsPersonality.mock.calls.length).toBeGreaterThan(2);
+
+      // First thinking chunk should have header
+      const firstThinkingCall = mockWebhookManager.sendAsPersonality.mock.calls[0][2] as string;
+      expect(firstThinkingCall).toContain('💭 **Thinking:**');
+
+      // Subsequent thinking chunks should just have spoiler content
+      const secondThinkingCall = mockWebhookManager.sendAsPersonality.mock.calls[1][2] as string;
+      expect(secondThinkingCall).toMatch(/^\|\|.*\|\|$/s);
+    });
+  });
 });
 
 // Helper functions for creating type-safe mocks
