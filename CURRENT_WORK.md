@@ -126,28 +126,46 @@ _Naming changes deferred - do as part of a "UX consistency pass" after Phase 3._
 ## In Progress: Slash Command UX Epic ⬅️ CURRENT
 
 **Reference**: [docs/proposals/active/SLASH_COMMAND_UX_EPIC.md](docs/proposals/active/SLASH_COMMAND_UX_EPIC.md)
+**Branch**: `feature/slash-command-ux-epic`
+**Scope**: Full alignment across ALL commands (~5 hours, 2 sessions)
+**Status**: Planning complete, implementation ready
 
-Standardize CRUD UX patterns across all commands. Commands become **gateways** to dashboards.
+Standardize CRUD UX patterns with low-level shared utilities across all commands.
 
-**Key Patterns**:
+**Phase 1: Fix Free Model Validation Bug** (15 min):
 
-- **Gateway & Dashboard**: `/preset create` → Modal → Dashboard (all editing happens in dashboards)
-- **Browse Pattern**: `/resource browse [query?]` combines list + search
-- **Autocomplete**: Consistent emoji format `[Scope Emoji] [Name] · [Metadata]`
+- [ ] Add model validation in `createSetFreeDefaultHandler` (`api-gateway/src/routes/admin/llm-config.ts:307-344`)
+- [ ] Reject presets that don't use free models (model ID ending in `:free`)
+- [ ] Add test case
 
-**Phase 1 (Preset Prototype)**:
+**Phase 2: Autocomplete Standardization** (1 hour):
 
-- [ ] Create `/preset browse [query] [filter]` command
-- [ ] Implement paginated list with emoji formatting
-- [ ] Add select menu → dashboard flow
-- [ ] Move deletion into dashboard
-- [ ] Fix: Global free default not filtering to free models
+- [ ] Create `formatAutocompleteOption()` utility in `common-types`
+- [ ] Define `AUTOCOMPLETE_BADGES` constants (🌐 🌍 🔒 📖 ⭐ 🆓 🔐)
+- [ ] Refactor `personalityAutocomplete.ts` to use shared utility
+- [ ] Refactor `preset/autocomplete.ts` to use shared utility
 
-**Phase 2 (Autocomplete)**:
+**Phase 3: Dashboard Deletion Integration** (1.25 hours):
 
-- [ ] Create `formatAutocompleteOption()` utility
-- [ ] Audit all autocomplete implementations
-- [ ] Standardize emoji usage (🌍 Global, 👤 Personal, 🔒 Locked)
+- [ ] Add Delete button to preset dashboard (only for owned presets)
+- [ ] Implement confirmation flow (Cancel / 🗑️ Delete)
+- [ ] Remove `/preset delete` command, delete `preset/delete.ts`
+- [ ] Add Delete button to character dashboard
+- [ ] Remove `/character delete` command, delete `character/delete.ts`
+
+**Phase 4: Browse Command Pattern** (2.5 hours):
+
+Convert ALL list commands to browse pattern:
+
+| Command                                 | Status |
+| --------------------------------------- | ------ |
+| `/preset list` → `/preset browse`       | [ ]    |
+| `/character list` → `/character browse` | [ ]    |
+| `/channel list` → `/channel browse`     | [ ]    |
+| `/wallet list` → `/wallet browse`       | [ ]    |
+| `/memory list` → `/memory browse`       | [ ]    |
+
+Each browse command includes: pagination, optional query, optional filter
 
 ---
 
