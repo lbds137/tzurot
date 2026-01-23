@@ -20,6 +20,31 @@ const logger = createLogger('RAGUtils');
 const MAX_STOP_SEQUENCES = 16;
 
 /**
+ * Extract content-only descriptions from processed attachments.
+ *
+ * Filters out placeholder descriptions (like `[image]` or `[audio]` when processing fails)
+ * and returns only actual semantic content (vision descriptions, audio transcriptions).
+ *
+ * Used for:
+ * - Memory search queries (semantic search needs actual content, not placeholders)
+ * - Token counting (count only real content)
+ * - Building message content (user sees actual descriptions)
+ *
+ * @param processedAttachments - Array of processed attachments
+ * @returns Concatenated descriptions separated by double newlines, or empty string if none
+ */
+export function extractContentDescriptions(processedAttachments: ProcessedAttachment[]): string {
+  if (processedAttachments.length === 0) {
+    return '';
+  }
+
+  return processedAttachments
+    .map(a => a.description)
+    .filter(d => d.length > 0 && !d.startsWith('[')) // Filter out placeholders like [image], [audio]
+    .join('\n\n');
+}
+
+/**
  * Build attachment descriptions for storage and display
  *
  * Formats processed attachments into human-readable descriptions with headers
