@@ -4,7 +4,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { AttachmentType } from '@tzurot/common-types';
-import { buildAttachmentDescriptions, generateStopSequences } from './RAGUtils.js';
+import {
+  buildAttachmentDescriptions,
+  extractContentDescriptions,
+  generateStopSequences,
+} from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGService.js';
 
@@ -153,6 +157,90 @@ describe('RAGUtils', () => {
       const result = buildAttachmentDescriptions(attachments);
       // Unknown types get no header, just description
       expect(result).toBe('\nSome unknown content');
+    });
+  });
+
+  describe('extractContentDescriptions', () => {
+    it('should return empty string for empty attachments', () => {
+      const result = extractContentDescriptions([]);
+      expect(result).toBe('');
+    });
+
+    it('should extract descriptions without placeholders', () => {
+      const attachments: ProcessedAttachment[] = [
+        {
+          type: AttachmentType.Image,
+          description: 'A beautiful sunset',
+          metadata: { name: 'sunset.jpg' },
+        },
+        {
+          type: AttachmentType.Audio,
+          description: 'Hello, how are you today?',
+          metadata: { name: 'voice.ogg', isVoiceMessage: true, duration: 3.5 },
+        },
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('A beautiful sunset\n\nHello, how are you today?');
+    });
+
+    it('should filter out placeholder descriptions starting with [', () => {
+      const attachments: ProcessedAttachment[] = [
+        {
+          type: AttachmentType.Image,
+          description: '[image]', // Placeholder when vision fails
+          metadata: { name: 'failed.jpg' },
+        },
+        {
+          type: AttachmentType.Image,
+          description: 'A valid description',
+          metadata: { name: 'good.jpg' },
+        },
+        {
+          type: AttachmentType.Audio,
+          description: '[audio]', // Placeholder when transcription fails
+          metadata: { name: 'failed.ogg' },
+        },
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('A valid description');
+    });
+
+    it('should filter out empty descriptions', () => {
+      const attachments: ProcessedAttachment[] = [
+        {
+          type: AttachmentType.Image,
+          description: '',
+          metadata: { name: 'empty.jpg' },
+        },
+        {
+          type: AttachmentType.Image,
+          description: 'Valid content',
+          metadata: { name: 'good.jpg' },
+        },
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('Valid content');
+    });
+
+    it('should return empty string when all descriptions are placeholders', () => {
+      const attachments: ProcessedAttachment[] = [
+        {
+          type: AttachmentType.Image,
+          description: '[image]',
+          metadata: { name: 'a.jpg' },
+        },
+        {
+          type: AttachmentType.Image,
+          description: '[unsupported format]',
+          metadata: { name: 'b.jpg' },
+        },
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('');
     });
   });
 
