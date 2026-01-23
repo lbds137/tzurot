@@ -87,7 +87,7 @@ describe('handleAutocomplete', () => {
       expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
       // Should only return owned presets
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'My Preset (claude-sonnet-4)', value: 'c1' },
+        { name: 'My Preset · claude-sonnet-4', value: 'c1' },
       ]);
     });
 
@@ -119,7 +119,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Fast Preset (claude-sonnet-4)', value: 'c1' },
+        { name: 'Fast Preset · claude-sonnet-4', value: 'c1' },
       ]);
     });
 
@@ -151,7 +151,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'GPT Preset (gpt-4)', value: 'c2' },
+        { name: 'GPT Preset · gpt-4', value: 'c2' },
       ]);
     });
 
@@ -185,7 +185,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Preset A (claude-sonnet-4)', value: 'c1' },
+        { name: 'Preset A · claude-sonnet-4', value: 'c1' },
       ]);
     });
 

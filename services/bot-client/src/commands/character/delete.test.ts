@@ -1,28 +1,24 @@
 /**
  * Tests for Character Delete Handler
  *
- * Tests /character delete subcommand with global button handler pattern:
- * - handleDelete: Shows confirmation dialog
- * - handleDeleteButton: Handles confirm/cancel button clicks
+ * Tests delete confirmation button handling:
+ * - handleDeleteButton: Handles confirm/cancel button clicks from dashboard
+ *
+ * Note: The confirmation dialog is shown via the dashboard (handleDeleteAction).
+ * This test file focuses on the button click handling after confirmation is shown.
  *
  * This uses the global button handler pattern instead of awaitMessageComponent
  * because awaitMessageComponent doesn't work reliably in multi-replica deployments.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleDelete, handleDeleteButton } from './delete.js';
-import * as api from './api.js';
+import { handleDeleteButton } from './delete.js';
 import * as userGatewayClient from '../../utils/userGatewayClient.js';
-import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { ButtonInteraction } from 'discord.js';
 import { DeletePersonalityResponseSchema } from '@tzurot/common-types';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 
 // Mock dependencies
-vi.mock('./api.js', () => ({
-  fetchCharacter: vi.fn(),
-}));
-
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
 }));
@@ -41,23 +37,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 });
 
 describe('Character Delete Handler', () => {
-  const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
-
-  const createMockContext = (slug: string) => {
-    return {
-      user: { id: 'user-123' },
-      interaction: {
-        channelId: 'channel-456',
-        options: {
-          getString: vi.fn((_name: string, _required?: boolean) => slug),
-        },
-      },
-      editReply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
-    } as unknown as Parameters<typeof handleDelete>[0] & {
-      editReply: ReturnType<typeof vi.fn>;
-    };
-  };
-
   const createMockButtonInteraction = (customId: string, userId = 'user-123') => {
     return {
       customId,
@@ -69,15 +48,6 @@ describe('Character Delete Handler', () => {
       editReply: ReturnType<typeof vi.fn>;
     };
   };
-
-  const createMockCharacter = (overrides = {}) => ({
-    id: 'char-uuid-1',
-    name: 'Test Character',
-    displayName: 'Test Display',
-    slug: 'test-character',
-    canEdit: true,
-    ...overrides,
-  });
 
   const createMockDeleteResponse = (overrides = {}) => ({
     success: true,
@@ -99,78 +69,6 @@ describe('Character Delete Handler', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
-  });
-
-  describe('handleDelete (shows confirmation dialog)', () => {
-    // Note: deferReply is handled by top-level interactionCreate handler
-
-    it('should return error when character not found', async () => {
-      const mockContext = createMockContext('nonexistent');
-      vi.mocked(api.fetchCharacter).mockResolvedValue(null);
-
-      await handleDelete(mockContext, mockConfig);
-
-      expect(mockContext.editReply).toHaveBeenCalledWith(expect.stringContaining('not found'));
-    });
-
-    it('should return error when user cannot edit character', async () => {
-      const mockContext = createMockContext('other-char');
-      vi.mocked(api.fetchCharacter).mockResolvedValue(
-        createMockCharacter({ canEdit: false, slug: 'other-char' })
-      );
-
-      await handleDelete(mockContext, mockConfig);
-
-      expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.stringContaining("don't have permission")
-      );
-    });
-
-    it('should show confirmation embed with warning about data deletion', async () => {
-      const mockContext = createMockContext('test-character');
-      const mockCharacter = createMockCharacter();
-      vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
-
-      await handleDelete(mockContext, mockConfig);
-
-      const editReplyCall = mockContext.editReply.mock.calls[0][0];
-      expect(editReplyCall).toHaveProperty('embeds');
-      expect(editReplyCall).toHaveProperty('components');
-
-      // Check embed has warning content
-      const embed = editReplyCall.embeds[0];
-      expect(embed.data.title).toContain('Delete');
-      expect(embed.data.description).toContain('permanently delete');
-      expect(embed.data.description).toContain('conversation history');
-      expect(embed.data.description).toContain('memories');
-    });
-
-    it('should use CharacterCustomIds for button customIds', async () => {
-      const mockContext = createMockContext('test-character');
-      vi.mocked(api.fetchCharacter).mockResolvedValue(createMockCharacter());
-
-      await handleDelete(mockContext, mockConfig);
-
-      const editReplyCall = mockContext.editReply.mock.calls[0][0];
-      const components = editReplyCall.components[0].components;
-
-      // Verify buttons use the correct customId pattern (:: delimiter)
-      expect(components[0].data.custom_id).toBe(CharacterCustomIds.deleteConfirm('test-character'));
-      expect(components[1].data.custom_id).toBe(CharacterCustomIds.deleteCancel('test-character'));
-    });
-
-    it('should handle fetch errors gracefully', async () => {
-      const mockContext = createMockContext('error-char');
-      vi.mocked(api.fetchCharacter).mockRejectedValue(new Error('Network error'));
-
-      await handleDelete(mockContext, mockConfig);
-
-      expect(mockContext.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Failed to process'),
-        })
-      );
-    });
   });
 
   describe('handleDeleteButton (handles confirm/cancel clicks)', () => {

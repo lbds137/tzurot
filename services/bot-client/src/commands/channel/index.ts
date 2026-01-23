@@ -5,7 +5,7 @@
  * Commands:
  * - /channel activate <personality> - Activate a personality in the current channel
  * - /channel deactivate - Deactivate the personality from the current channel
- * - /channel list - List all activated channels
+ * - /channel browse - Browse activated channels with search and filtering
  * - /channel settings - Open extended context settings dashboard
  *
  * This command uses deferralMode: 'ephemeral' which means:
@@ -30,7 +30,7 @@ import {
 import { createSubcommandContextRouter } from '../../utils/subcommandContextRouter.js';
 import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
-import { handleList } from './list.js';
+import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 import {
   handleContext,
   handleChannelContextSelectMenu,
@@ -50,7 +50,7 @@ const channelRouter = createSubcommandContextRouter(
   {
     activate: handleActivate,
     deactivate: handleDeactivate,
-    list: handleList,
+    browse: handleBrowse,
     settings: handleContext,
   },
   { logger, logPrefix: '[Channel]' }
@@ -88,6 +88,12 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
  * Handle button interactions for channel commands
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  // Handle browse pagination
+  if (isChannelBrowseInteraction(interaction.customId)) {
+    await handleBrowsePagination(interaction, interaction.guildId);
+    return;
+  }
+
   // Context dashboard interactions
   if (isChannelContextInteraction(interaction.customId)) {
     await handleChannelContextButton(interaction);
@@ -137,13 +143,20 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('list')
-        .setDescription('List activated channels in this server')
-        .addBooleanOption(option =>
+        .setName('browse')
+        .setDescription('Browse activated channels')
+        .addStringOption(option =>
+          option.setName('query').setDescription('Search by personality name').setRequired(false)
+        )
+        .addStringOption(option =>
           option
-            .setName('all')
-            .setDescription('Show all servers (bot owner only)')
+            .setName('filter')
+            .setDescription('Filter channels by scope')
             .setRequired(false)
+            .addChoices(
+              { name: 'This Server', value: 'current' },
+              { name: 'All Servers (Owner only)', value: 'all' }
+            )
         )
     )
     .addSubcommand(subcommand =>

@@ -1,6 +1,6 @@
 /**
- * Memory List Handler
- * Handles /memory list command - paginated browsing of memories
+ * Memory Browse Handler
+ * Handles /memory browse command - paginated browsing of memories
  */
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
@@ -34,18 +34,18 @@ import {
   deregisterActiveCollector,
 } from '../../utils/activeCollectorRegistry.js';
 
-const logger = createLogger('memory-list');
+const logger = createLogger('memory-browse');
 
-/** Pagination configuration for memory list - exported for componentPrefixes aggregation */
-export const LIST_PAGINATION_CONFIG: PaginationConfig = {
-  prefix: 'memory-list',
+/** Pagination configuration for memory browse - exported for componentPrefixes aggregation */
+export const BROWSE_PAGINATION_CONFIG: PaginationConfig = {
+  prefix: 'memory-browse',
   hideSortToggle: true, // Memories don't have a "name" to sort by
 };
 
 /** Items per page */
 const MEMORIES_PER_PAGE = 10;
 
-interface ListResponse {
+interface BrowseResponse {
   memories: MemoryItem[];
   total: number;
   limit: number;
@@ -53,7 +53,7 @@ interface ListResponse {
   hasMore: boolean;
 }
 
-interface BuildListEmbedOptions {
+interface BuildBrowseEmbedOptions {
   memories: MemoryItem[];
   total: number;
   page: number;
@@ -64,7 +64,7 @@ interface BuildListEmbedOptions {
 /**
  * Build the memory list embed
  */
-function buildListEmbed(options: BuildListEmbedOptions): EmbedBuilder {
+function buildBrowseEmbed(options: BuildBrowseEmbedOptions): EmbedBuilder {
   const { memories, total, page, totalPages, personalityFilter } = options;
   const embed = new EmbedBuilder().setTitle('🧠 Memory Browser').setColor(DISCORD_COLORS.BLURPLE);
 
@@ -110,7 +110,7 @@ async function fetchMemories(
   personalityId: string | undefined,
   offset: number,
   limit: number
-): Promise<ListResponse | null> {
+): Promise<BrowseResponse | null> {
   const queryParams = new URLSearchParams();
   queryParams.set('limit', limit.toString());
   queryParams.set('offset', offset.toString());
@@ -121,10 +121,13 @@ async function fetchMemories(
     queryParams.set('personalityId', personalityId);
   }
 
-  const result = await callGatewayApi<ListResponse>(`/user/memory/list?${queryParams.toString()}`, {
-    userId,
-    method: 'GET',
-  });
+  const result = await callGatewayApi<BrowseResponse>(
+    `/user/memory/list?${queryParams.toString()}`,
+    {
+      userId,
+      method: 'GET',
+    }
+  );
 
   if (!result.ok) {
     return null;
@@ -133,7 +136,7 @@ async function fetchMemories(
   return result.data;
 }
 
-interface ListCollectorContext {
+interface BrowseCollectorContext {
   userId: string;
   personalityId: string | undefined;
   listContext: ListContext;
@@ -142,13 +145,13 @@ interface ListCollectorContext {
 /**
  * Handle button interactions for pagination
  */
-async function handleListButton(
+async function handleBrowseButton(
   buttonInteraction: ButtonInteraction,
-  context: ListCollectorContext
+  context: BrowseCollectorContext
 ): Promise<{ newPage: number; memories: MemoryItem[] } | null> {
   const { userId, personalityId } = context;
 
-  const parsed = parsePaginationId(buttonInteraction.customId, LIST_PAGINATION_CONFIG.prefix);
+  const parsed = parsePaginationId(buttonInteraction.customId, BROWSE_PAGINATION_CONFIG.prefix);
   if (parsed === null) {
     return null;
   }
@@ -177,7 +180,7 @@ async function handleListButton(
     newPage
   );
 
-  const newEmbed = buildListEmbed({
+  const newEmbed = buildBrowseEmbed({
     memories: newData.memories,
     total: newData.total,
     page: newPage,
@@ -187,7 +190,7 @@ async function handleListButton(
 
   const newComponents = [
     buildMemorySelectMenu(newData.memories, newPage, MEMORIES_PER_PAGE),
-    buildPaginationButtons(LIST_PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
+    buildPaginationButtons(BROWSE_PAGINATION_CONFIG, newPage, newTotalPages, 'date'),
   ];
 
   await buttonInteraction.editReply({ embeds: [newEmbed], components: newComponents });
@@ -200,7 +203,7 @@ async function handleListButton(
  */
 async function handleDetailAction(
   buttonInteraction: ButtonInteraction,
-  _context: ListCollectorContext,
+  _context: BrowseCollectorContext,
   refreshList: () => Promise<void>
 ): Promise<boolean> {
   const parsed = parseMemoryActionId(buttonInteraction.customId);
@@ -256,10 +259,10 @@ async function handleDetailAction(
 /**
  * Set up collector for pagination and select menu interactions
  */
-function setupListCollector(
+function setupBrowseCollector(
   interaction: ChatInputCommandInteraction,
   response: Awaited<ReturnType<ChatInputCommandInteraction['editReply']>>,
-  context: ListCollectorContext
+  context: BrowseCollectorContext
 ): void {
   const { userId, personalityId, listContext } = context;
   let currentContext = { ...listContext };
@@ -300,7 +303,7 @@ function setupListCollector(
     }
 
     const { totalPages } = calculatePagination(data.total, MEMORIES_PER_PAGE, pageToFetch);
-    const embed = buildListEmbed({
+    const embed = buildBrowseEmbed({
       memories: data.memories,
       total: data.total,
       page: pageToFetch,
@@ -312,7 +315,7 @@ function setupListCollector(
       data.memories.length > 0
         ? [
             buildMemorySelectMenu(data.memories, pageToFetch, MEMORIES_PER_PAGE),
-            buildPaginationButtons(LIST_PAGINATION_CONFIG, pageToFetch, totalPages, 'date'),
+            buildPaginationButtons(BROWSE_PAGINATION_CONFIG, pageToFetch, totalPages, 'date'),
           ]
         : [];
 
@@ -333,7 +336,7 @@ function setupListCollector(
           const handled = await handleDetailAction(i, context, refreshList);
           if (!handled) {
             // Otherwise handle as pagination
-            const result = await handleListButton(i, context);
+            const result = await handleBrowseButton(i, context);
             if (result !== null) {
               currentContext = { ...currentContext, page: result.newPage };
             }
@@ -369,9 +372,9 @@ function setupListCollector(
 }
 
 /**
- * Handle /memory list command
+ * Handle /memory browse command
  */
-export async function handleList(context: DeferredCommandContext): Promise<void> {
+export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const personalityInput = context.interaction.options.getString('personality');
 
@@ -393,7 +396,7 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
     const data = await fetchMemories(userId, personalityId, 0, MEMORIES_PER_PAGE);
 
     if (data === null) {
-      logger.warn({ userId }, '[Memory] List failed');
+      logger.warn({ userId }, '[Memory] Browse failed');
       await context.editReply({ content: '❌ Failed to load memories. Please try again later.' });
       return;
     }
@@ -402,7 +405,7 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
     const { totalPages } = calculatePagination(total, MEMORIES_PER_PAGE, 0);
 
     // Build initial embed
-    const embed = buildListEmbed({
+    const embed = buildBrowseEmbed({
       memories,
       total,
       page: 0,
@@ -415,7 +418,7 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
       memories.length > 0
         ? [
             buildMemorySelectMenu(memories, 0, MEMORIES_PER_PAGE),
-            buildPaginationButtons(LIST_PAGINATION_CONFIG, 0, totalPages, 'date'),
+            buildPaginationButtons(BROWSE_PAGINATION_CONFIG, 0, totalPages, 'date'),
           ]
         : [];
 
@@ -428,19 +431,22 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
 
     const response = await context.editReply({ embeds: [embed], components });
 
-    logger.info({ userId, total, personalityId, hasMore: data.hasMore }, '[Memory] List displayed');
+    logger.info(
+      { userId, total, personalityId, hasMore: data.hasMore },
+      '[Memory] Browse displayed'
+    );
 
     // Set up collector for pagination and select menu
     // Pass the raw interaction since collectors need it for ongoing edits
     if (components.length > 0) {
-      setupListCollector(context.interaction, response, {
+      setupBrowseCollector(context.interaction, response, {
         userId,
         personalityId,
         listContext,
       });
     }
   } catch (error) {
-    logger.error({ err: error, userId }, '[Memory] List error');
+    logger.error({ err: error, userId }, '[Memory] Browse error');
     await context.editReply({
       content: '❌ An unexpected error occurred. Please try again later.',
     });

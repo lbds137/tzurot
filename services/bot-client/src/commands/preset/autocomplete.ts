@@ -9,7 +9,10 @@ import {
   DISCORD_LIMITS,
   TIMEOUTS,
   TTLCache,
+  AUTOCOMPLETE_BADGES,
+  formatAutocompleteOption,
   type LlmConfigSummary,
+  type AutocompleteBadge,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
@@ -91,11 +94,13 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
 }
 
 /**
- * Get visibility icon for a preset
- * 🌐 = Global preset, 🔒 = User-owned preset
+ * Get scope badge for a preset
+ * Uses standardized badges from AUTOCOMPLETE_BADGES:
+ * - 🌐 GLOBAL = System-provided global preset
+ * - 🔒 OWNED = User-created preset
  */
-function getPresetVisibilityIcon(isGlobal: boolean): string {
-  return isGlobal ? '🌐' : '🔒';
+function getPresetScopeBadge(isGlobal: boolean): AutocompleteBadge {
+  return isGlobal ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED;
 }
 
 /**
@@ -171,14 +176,16 @@ async function handlePresetAutocomplete(
     .filter(c => shouldShowPresetInAutocomplete(c, ownedOnly, queryLower))
     .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
+  // Format choices using standardized autocomplete utility
   const choices = filtered.map(c => {
-    // Add visibility icon for edit command
-    const icon = subcommand === 'edit' ? `${getPresetVisibilityIcon(c.isGlobal)} ` : '';
-    return {
-      // Show visibility icon and model info for clarity
-      name: `${icon}${c.name} (${c.model.split('/').pop()})`,
+    return formatAutocompleteOption({
+      name: c.name,
       value: c.id,
-    };
+      // Show scope badge for edit command only (global vs owned)
+      scopeBadge: subcommand === 'edit' ? getPresetScopeBadge(c.isGlobal) : undefined,
+      // Show model short name as metadata
+      metadata: c.model.split('/').pop(),
+    });
   });
 
   await interaction.respond(choices);
@@ -279,18 +286,24 @@ async function handleGlobalConfigAutocomplete(
       })
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
+    // Format choices using standardized autocomplete utility with status badges
     const choices = filtered.map(c => {
-      let suffix = '';
+      // Build status badges array for default/free indicators
+      const statusBadges: AutocompleteBadge[] = [];
       if (c.isDefault === true) {
-        suffix += ' [DEFAULT]';
+        statusBadges.push(AUTOCOMPLETE_BADGES.DEFAULT);
       }
       if (c.isFreeDefault === true) {
-        suffix += ' [FREE]';
+        statusBadges.push(AUTOCOMPLETE_BADGES.FREE);
       }
-      return {
-        name: `${c.name} (${c.model.split('/').pop()})${suffix}`,
+
+      return formatAutocompleteOption({
+        name: c.name,
         value: c.id,
-      };
+        scopeBadge: AUTOCOMPLETE_BADGES.GLOBAL,
+        statusBadges: statusBadges.length > 0 ? statusBadges : undefined,
+        metadata: c.model.split('/').pop(),
+      });
     });
 
     await interaction.respond(choices);

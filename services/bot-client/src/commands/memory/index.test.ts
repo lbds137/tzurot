@@ -115,10 +115,10 @@ vi.mock('./detail.js', () => ({
   handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
 }));
 
-// Mock list and search pagination configs
-vi.mock('./list.js', () => ({
-  handleList: vi.fn(),
-  LIST_PAGINATION_CONFIG: { prefix: 'memory-list' },
+// Mock browse and search pagination configs
+vi.mock('./browse.js', () => ({
+  handleBrowse: vi.fn(),
+  BROWSE_PAGINATION_CONFIG: { prefix: 'memory-browse' },
 }));
 
 vi.mock('./search.js', () => ({
@@ -303,8 +303,8 @@ describe('Memory Command', () => {
   // It's no longer exported from the command module itself
 
   describe('componentPrefixes', () => {
-    it('should include list and search pagination prefixes', () => {
-      expect(componentPrefixes).toContain('memory-list');
+    it('should include browse and search pagination prefixes', () => {
+      expect(componentPrefixes).toContain('memory-browse');
       expect(componentPrefixes).toContain('memory-search');
       expect(componentPrefixes).toContain('mem-detail');
     });
@@ -327,7 +327,7 @@ describe('Memory Command', () => {
 
     it('should handle expired pagination (non-memory-detail prefix) when no collector active', async () => {
       const interaction = createMockButtonInteraction(
-        'memory-list:page:0:date',
+        'memory-browse:page:0:date',
         'no-collector-msg'
       );
 
@@ -348,7 +348,7 @@ describe('Memory Command', () => {
       registerActiveCollector(messageId);
 
       try {
-        const interaction = createMockButtonInteraction('memory-list:page:0:date', messageId);
+        const interaction = createMockButtonInteraction('memory-browse:page:0:date', messageId);
         await handleButton(interaction);
 
         // Should NOT call reply - collector handles it

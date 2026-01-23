@@ -70,6 +70,7 @@ export async function handleEdit(
     const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
       showClose: true,
       showRefresh: true,
+      showDelete: character.canEdit, // Only show delete for owned characters
     });
 
     const reply = await context.editReply({ embeds: [embed], components });

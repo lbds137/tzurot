@@ -29,18 +29,21 @@ vi.mock('../../utils/commandContext/factories.js', () => ({
 }));
 
 // Mock subcommand handlers
-vi.mock('./list.js', () => ({ handleList: vi.fn() }));
+vi.mock('./browse.js', () => ({
+  handleBrowse: vi.fn(),
+  handleBrowsePagination: vi.fn(),
+  isPresetBrowseInteraction: vi.fn(),
+}));
 vi.mock('./create.js', () => ({ handleCreate: vi.fn() }));
-vi.mock('./delete.js', () => ({ handleDelete: vi.fn() }));
+// Note: delete is now handled via the dashboard, not a standalone command
 
 // Mock global subcommand handlers
 vi.mock('./global/create.js', () => ({ handleGlobalCreate: vi.fn() }));
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/set-free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
-import { handleList } from './list.js';
+import { handleBrowse } from './browse.js';
 import { handleCreate } from './create.js';
-import { handleDelete } from './delete.js';
 import { handleGlobalCreate } from './global/create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
@@ -96,10 +99,10 @@ describe('Preset Command', () => {
   });
 
   describe('user preset routing', () => {
-    it('should route "list" to handleList', async () => {
-      const context = createMockContext('list');
+    it('should route "browse" to handleBrowse', async () => {
+      const context = createMockContext('browse');
       await execute(context);
-      expect(handleList).toHaveBeenCalledWith(context);
+      expect(handleBrowse).toHaveBeenCalledWith(context);
     });
 
     it('should route "create" to handleCreate', async () => {
@@ -108,11 +111,7 @@ describe('Preset Command', () => {
       expect(handleCreate).toHaveBeenCalledWith(context);
     });
 
-    it('should route "delete" to handleDelete', async () => {
-      const context = createMockContext('delete');
-      await execute(context);
-      expect(handleDelete).toHaveBeenCalledWith(context);
-    });
+    // Note: delete is now handled via the dashboard, not a standalone command
 
     it('should reply with error for unknown subcommand', async () => {
       const context = createMockContext('unknown');

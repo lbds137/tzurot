@@ -23,8 +23,10 @@ vi.mock('./deactivate.js', () => ({
   handleDeactivate: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./list.js', () => ({
-  handleList: vi.fn().mockResolvedValue(undefined),
+vi.mock('./browse.js', () => ({
+  handleBrowse: vi.fn().mockResolvedValue(undefined),
+  handleBrowsePagination: vi.fn().mockResolvedValue(undefined),
+  isChannelBrowseInteraction: vi.fn().mockReturnValue(false),
 }));
 
 vi.mock('./autocomplete.js', () => ({
@@ -55,7 +57,7 @@ vi.mock('@tzurot/common-types', async () => {
 
 import { handleActivate } from './activate.js';
 import { handleDeactivate } from './deactivate.js';
-import { handleList } from './list.js';
+import { handleBrowse } from './browse.js';
 import { handleAutocomplete } from './autocomplete.js';
 import { handleContext } from './settings.js';
 
@@ -94,10 +96,10 @@ describe('/channel command group', () => {
       expect(deactivateSubcommand).toBeDefined();
     });
 
-    it('should have list subcommand', () => {
+    it('should have browse subcommand', () => {
       const json = data.toJSON();
-      const listSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'list');
-      expect(listSubcommand).toBeDefined();
+      const browseSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'browse');
+      expect(browseSubcommand).toBeDefined();
     });
 
     it('should have settings subcommand', () => {
@@ -150,12 +152,12 @@ describe('/channel command group', () => {
       expect(handleDeactivate).toHaveBeenCalled();
     });
 
-    it('should route to list handler', async () => {
-      const context = createMockContext('list');
+    it('should route to browse handler', async () => {
+      const context = createMockContext('browse');
 
       await execute(context);
 
-      expect(handleList).toHaveBeenCalled();
+      expect(handleBrowse).toHaveBeenCalled();
     });
 
     it('should route to settings handler', async () => {
