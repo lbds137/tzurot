@@ -1,5 +1,7 @@
 # Command Migration Guide - v3.0.0-beta.9
 
+> **⚠️ HISTORICAL DOCUMENT**: This guide was written for v3.0.0-beta.9. The current version is beta.46+. These command renames have been in effect since November 2025 and are no longer "new". Kept for reference only.
+
 This guide documents the slash command changes in v3.0.0-beta.9. Users familiar with previous beta versions should review this to update their workflows.
 
 ## Command Renames

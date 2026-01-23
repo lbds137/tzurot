@@ -1,10 +1,10 @@
 # Current Work
 
-> Last updated: 2026-01-20
+> Last updated: 2026-01-22
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.44
+**Version**: v3.0.0-beta.46
 **Deployment**: Railway (stable)
 **Current Goal**: SafeCommandContext Migration
 
@@ -12,7 +12,7 @@
 
 ## Active: SafeCommandContext Migration
 
-**Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
+**Reference**: [TECH_DEBT.md - InteractionAlreadyReplied Architectural Fix](docs/proposals/active/TECH_DEBT.md#interactionalreadyreplied-architectural-fix-hybrid-facade-pattern)
 
 **Problem**: Commands can still call `deferReply()` after it's already been called, causing `InteractionAlreadyReplied` errors. TypeScript doesn't prevent this - it's only caught at runtime.
 
@@ -61,8 +61,6 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 ---
 
 ## Completed: Duplicate Detection & OpenAI Eviction Epic
-
-**Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
 
 **Problem**: Users experience repetitive AI responses despite existing detection. Root cause: bigram Dice coefficient measures _spelling_ similarity, but free models have _semantic_ caching that returns identical content with minor variations.
 
@@ -177,7 +175,6 @@ _Naming changes deferred - do as part of a "UX consistency pass" after Phase 3._
 
 ## Deferred: DRY Message Extraction Refactor
 
-**Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)
 **Tech Debt Tracking**: [`docs/proposals/active/TECH_DEBT.md`](docs/proposals/active/TECH_DEBT.md)
 
 **Problem**: Two parallel message processing paths (main vs extended context) keep diverging.
