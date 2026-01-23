@@ -30,8 +30,8 @@ describe('EnvironmentFormatter', () => {
   });
 
   describe('formatEnvironmentContext', () => {
-    describe('XML wrapper', () => {
-      it('should wrap output in <current_situation> tags', () => {
+    describe('XML structure', () => {
+      it('should return a <location> element for DM', () => {
         const dmEnvironment: DiscordEnvironment = {
           type: 'dm',
           channel: {
@@ -43,8 +43,21 @@ describe('EnvironmentFormatter', () => {
 
         const result = formatEnvironmentContext(dmEnvironment);
 
-        expect(result).toMatch(/^<current_situation>\n/);
-        expect(result).toMatch(/\n<\/current_situation>$/);
+        expect(result).toMatch(/^<location type="dm">/);
+        expect(result).toMatch(/<\/location>$/);
+      });
+
+      it('should return a <location> element for guild', () => {
+        const guildEnvironment: DiscordEnvironment = {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'Test Server' },
+          channel: { id: 'channel-1', name: 'general', type: 'text' },
+        };
+
+        const result = formatEnvironmentContext(guildEnvironment);
+
+        expect(result).toMatch(/^<location type="guild">/);
+        expect(result).toMatch(/<\/location>$/);
       });
 
       it('should have properly closed XML tags', () => {
@@ -56,9 +69,9 @@ describe('EnvironmentFormatter', () => {
 
         const result = formatEnvironmentContext(guildEnvironment);
 
-        // Count opening and closing tags
-        const openTags = (result.match(/<current_situation>/g) || []).length;
-        const closeTags = (result.match(/<\/current_situation>/g) || []).length;
+        // Count opening and closing location tags
+        const openTags = (result.match(/<location[^>]*>/g) || []).length;
+        const closeTags = (result.match(/<\/location>/g) || []).length;
         expect(openTags).toBe(1);
         expect(closeTags).toBe(1);
       });

@@ -23,6 +23,7 @@ import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
+import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
@@ -237,27 +238,12 @@ RESPOND ONLY to ${senderName}'s message above. The <memory_archive> section (if 
 
     // Build <system_identity> section with identity AND constraints
     // This is the START of the prompt - primacy effect
-    // Detect name collision: user's persona name matches personality name (case-insensitive)
-    const activePersonaName = context.activePersonaName ?? '';
-    const discordUsername = context.discordUsername ?? '';
-    const namesMatch =
-      activePersonaName.length > 0 &&
-      activePersonaName.toLowerCase() === personality.name.toLowerCase();
-    const hasNameCollision = namesMatch && discordUsername.length > 0;
-
-    // Error if collision detected but can't add instruction (no discordUsername to disambiguate)
-    // This is elevated to error because it represents a real UX issue - the AI can't distinguish users
-    if (namesMatch && discordUsername.length === 0) {
-      logger.error(
-        { personalityId: personality.id, activePersonaName },
-        '[PromptBuilder] Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
-      );
-    }
-
-    const collisionInfo = hasNameCollision
-      ? { userName: activePersonaName, discordUsername: discordUsername }
-      : undefined;
-
+    const collisionInfo = this.detectNameCollision(
+      context.activePersonaName,
+      context.discordUsername,
+      personality.name,
+      personality.id
+    );
     const identityConstraints = this.buildIdentityConstraints(personality.name, collisionInfo);
     const identitySection = `<system_identity>
 <role>
@@ -273,10 +259,12 @@ ${identityConstraints}
 
     // Current date/time and environment context wrapped in <context>
     const datetime = formatFullDateTime(new Date(), context.userTimezone);
-    const locationInfo =
+
+    // Format location as XML - formatEnvironmentContext returns a <location> element
+    const locationXml =
       context.environment !== undefined && context.environment !== null
-        ? this.formatLocationForContext(context.environment)
-        : 'Direct Message (private chat)';
+        ? formatEnvironmentContext(context.environment)
+        : '<location type="dm">Direct Message (private one-on-one chat)</location>';
 
     // Unique request ID to break API-level prompt caching (OpenRouter/free models)
     // This ensures each request is treated as unique even if context is similar
@@ -284,7 +272,7 @@ ${identityConstraints}
 
     const contextSection = `\n\n<context>
 <datetime>${datetime}</datetime>
-<location>${locationInfo}</location>
+${locationXml}
 <request_id>${requestId}</request_id>
 </context>`;
 
@@ -343,58 +331,18 @@ ${serializedHistory}
     );
 
     // Detailed prompt assembly logging (development only)
-    if (
-      config.NODE_ENV !== undefined &&
-      config.NODE_ENV.length > 0 &&
-      config.NODE_ENV === 'development'
-    ) {
-      logger.debug(
-        {
-          personalityId: personality.id,
-          personalityName: personality.name,
-          personaLength: persona.length,
-          protocolLength: protocol.length,
-          participantCount: participantPersonas.size,
-          participantsContextLength: participantsContext.length,
-          activePersonaName: context.activePersonaName,
-          memoryCount: relevantMemories.length,
-          memoryIds: relevantMemories.map(m =>
-            m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
-              ? m.metadata.id
-              : 'unknown'
-          ),
-          memoryTimestamps: relevantMemories.map(m =>
-            m.metadata?.createdAt !== undefined && m.metadata.createdAt !== null
-              ? formatMemoryTimestamp(m.metadata.createdAt)
-              : 'unknown'
-          ),
-          totalMemoryChars: memoryContext.length,
-          historyLength,
-          totalSystemPromptLength: fullSystemPrompt.length,
-          // Include STM info for duplication detection
-          stmCount: context.conversationHistory?.length ?? 0,
-          stmOldestTimestamp:
-            context.oldestHistoryTimestamp !== undefined &&
-            context.oldestHistoryTimestamp !== null &&
-            context.oldestHistoryTimestamp > 0
-              ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
-              : null,
-        },
-        '[PromptBuilder] Detailed prompt assembly:'
-      );
-
-      // Show full prompt in debug mode (truncated to avoid massive logs)
-      const maxPreviewLength = TEXT_LIMITS.LOG_FULL_PROMPT;
-      if (fullSystemPrompt.length <= maxPreviewLength) {
-        logger.debug('[PromptBuilder] Full system prompt:\n' + fullSystemPrompt);
-      } else {
-        logger.debug(
-          `[PromptBuilder] Full system prompt (showing first ${maxPreviewLength} chars):\n` +
-            fullSystemPrompt.substring(0, maxPreviewLength) +
-            `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
-        );
-      }
-    }
+    this.logDetailedPromptAssembly({
+      personality,
+      persona,
+      protocol,
+      participantPersonas,
+      participantsContext,
+      context,
+      relevantMemories,
+      memoryContext,
+      historyLength,
+      fullSystemPrompt,
+    });
 
     return new SystemMessage(fullSystemPrompt);
   }
@@ -429,36 +377,122 @@ NEVER output XML tags in your response.`;
   }
 
   /**
-   * Format Discord environment for the context section
+   * Detect name collision between user's persona and personality name.
+   *
+   * A collision occurs when a user's display name matches the AI character's name,
+   * which can cause confusion in conversations. When detected with a valid
+   * discordUsername, we return collision info for disambiguation instructions.
+   *
+   * @param activePersonaName - User's display name in the conversation
+   * @param discordUsername - User's Discord username for disambiguation
+   * @param personalityName - The AI character's name
+   * @param personalityId - For logging purposes
+   * @returns Collision info if disambiguation is possible, undefined otherwise
    */
-  private formatLocationForContext(environment: ConversationContext['environment']): string {
-    if (environment === undefined || environment === null) {
-      return 'Direct Message (private chat)';
+  private detectNameCollision(
+    activePersonaName: string | undefined,
+    discordUsername: string | undefined,
+    personalityName: string,
+    personalityId: string
+  ): { userName: string; discordUsername: string } | undefined {
+    const name = activePersonaName ?? '';
+    const username = discordUsername ?? '';
+
+    const namesMatch = name.length > 0 && name.toLowerCase() === personalityName.toLowerCase();
+
+    if (!namesMatch) {
+      return undefined;
     }
 
-    if (environment.type === 'dm') {
-      return 'Direct Message (private chat)';
+    // Collision detected but can't disambiguate without discordUsername
+    if (username.length === 0) {
+      logger.error(
+        { personalityId, activePersonaName },
+        '[PromptBuilder] Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
+      );
+      return undefined;
     }
 
-    const parts: string[] = [];
-    if (environment.guild !== undefined && environment.guild !== null) {
-      parts.push(`Server: ${escapeXmlContent(environment.guild.name)}`);
+    return { userName: name, discordUsername: username };
+  }
+
+  /**
+   * Log detailed prompt assembly info in development mode.
+   * Extracted to reduce buildFullSystemPrompt complexity.
+   */
+  private logDetailedPromptAssembly(opts: {
+    personality: { id: string; name: string };
+    persona: string;
+    protocol: string;
+    participantPersonas: Map<string, ParticipantInfo>;
+    participantsContext: string;
+    context: ConversationContext;
+    relevantMemories: MemoryDocument[];
+    memoryContext: string;
+    historyLength: number;
+    fullSystemPrompt: string;
+  }): void {
+    const {
+      personality,
+      persona,
+      protocol,
+      participantPersonas,
+      participantsContext,
+      context,
+      relevantMemories,
+      memoryContext,
+      historyLength,
+      fullSystemPrompt,
+    } = opts;
+    if (config.NODE_ENV !== 'development') {
+      return;
     }
-    if (
-      environment.category !== undefined &&
-      environment.category !== null &&
-      environment.category.name.length > 0
-    ) {
-      parts.push(`Category: ${escapeXmlContent(environment.category.name)}`);
-    }
-    parts.push(
-      `Channel: #${escapeXmlContent(environment.channel.name)} (${environment.channel.type})`
+
+    logger.debug(
+      {
+        personalityId: personality.id,
+        personalityName: personality.name,
+        personaLength: persona.length,
+        protocolLength: protocol.length,
+        participantCount: participantPersonas.size,
+        participantsContextLength: participantsContext.length,
+        activePersonaName: context.activePersonaName,
+        memoryCount: relevantMemories.length,
+        memoryIds: relevantMemories.map(m =>
+          m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
+            ? m.metadata.id
+            : 'unknown'
+        ),
+        memoryTimestamps: relevantMemories.map(m =>
+          m.metadata?.createdAt !== undefined && m.metadata.createdAt !== null
+            ? formatMemoryTimestamp(m.metadata.createdAt)
+            : 'unknown'
+        ),
+        totalMemoryChars: memoryContext.length,
+        historyLength,
+        totalSystemPromptLength: fullSystemPrompt.length,
+        stmCount: context.conversationHistory?.length ?? 0,
+        stmOldestTimestamp:
+          context.oldestHistoryTimestamp !== undefined &&
+          context.oldestHistoryTimestamp !== null &&
+          context.oldestHistoryTimestamp > 0
+            ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
+            : null,
+      },
+      '[PromptBuilder] Detailed prompt assembly:'
     );
-    if (environment.thread !== undefined && environment.thread !== null) {
-      parts.push(`Thread: ${escapeXmlContent(environment.thread.name)}`);
-    }
 
-    return parts.join(', ');
+    // Show full prompt in debug mode (truncated to avoid massive logs)
+    const maxPreviewLength = TEXT_LIMITS.LOG_FULL_PROMPT;
+    if (fullSystemPrompt.length <= maxPreviewLength) {
+      logger.debug('[PromptBuilder] Full system prompt:\n' + fullSystemPrompt);
+    } else {
+      logger.debug(
+        `[PromptBuilder] Full system prompt (showing first ${maxPreviewLength} chars):\n` +
+          fullSystemPrompt.substring(0, maxPreviewLength) +
+          `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
+      );
+    }
   }
 
   /**
