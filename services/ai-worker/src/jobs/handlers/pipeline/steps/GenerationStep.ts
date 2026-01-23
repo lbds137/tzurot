@@ -4,7 +4,7 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
-import { createLogger, MessageContent, RETRY_CONFIG } from '@tzurot/common-types';
+import { createLogger, MessageContent, RETRY_CONFIG, getPrismaClient } from '@tzurot/common-types';
 import type {
   ConversationalRAGService,
   RAGResponse,
@@ -24,6 +24,7 @@ import {
   buildRetryConfig,
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
+import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';
 
 const logger = createLogger('GenerationStep');
@@ -116,6 +117,54 @@ export class GenerationStep implements IPipelineStep {
   }
 
   /**
+   * Store diagnostic data to the database (fire-and-forget).
+   *
+   * This method finalizes the diagnostic collector and writes the data to
+   * the llm_diagnostic_logs table. It runs asynchronously and does NOT
+   * block the response - any errors are logged but don't affect the user.
+   *
+   * Data is automatically cleaned up after 24 hours via the scheduled
+   * cleanup-diagnostic-logs job.
+   */
+  private storeDiagnosticLog(
+    collector: DiagnosticCollector,
+    model: string,
+    provider: string
+  ): void {
+    const payload = collector.finalize();
+
+    // Fire-and-forget: don't await, just log errors
+    const prisma = getPrismaClient();
+    prisma.llmDiagnosticLog
+      .create({
+        data: {
+          requestId: payload.meta.requestId,
+          personalityId: payload.meta.personalityId,
+          userId: payload.meta.userId,
+          guildId: payload.meta.guildId,
+          channelId: payload.meta.channelId,
+          model,
+          provider,
+          durationMs: payload.timing.totalDurationMs,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment -- Prisma JSON field requires any cast
+          data: payload as any,
+        },
+      })
+      .then(() => {
+        logger.debug(
+          { requestId: payload.meta.requestId },
+          '[GenerationStep] Diagnostic log stored successfully'
+        );
+      })
+      .catch((err: unknown) => {
+        logger.error(
+          { err, requestId: payload.meta.requestId },
+          '[GenerationStep] Failed to store diagnostic log'
+        );
+      });
+  }
+
+  /**
    * Generate response with cross-turn duplication retry.
    * Treats duplicate responses as retryable failures, matching LLM retry pattern.
    * Uses RETRY_CONFIG.MAX_ATTEMPTS (3 attempts = 1 initial + 2 retries).
@@ -131,6 +180,7 @@ export class GenerationStep implements IPipelineStep {
     apiKey: string | undefined;
     isGuestMode: boolean;
     jobId: string | undefined;
+    diagnosticCollector?: DiagnosticCollector;
   }): Promise<{ response: RAGResponse; duplicateRetries: number }> {
     const {
       personality,
@@ -140,6 +190,7 @@ export class GenerationStep implements IPipelineStep {
       apiKey,
       isGuestMode,
       jobId,
+      diagnosticCollector,
     } = opts;
 
     let duplicateRetries = 0;
@@ -172,6 +223,7 @@ export class GenerationStep implements IPipelineStep {
       // Pass retry config for escalating parameters on duplicate retries
       // IMPORTANT: skipMemoryStorage=true prevents storing memory on every retry attempt.
       // Memory is stored ONCE after the retry loop completes (see process method).
+      // diagnosticCollector captures data from each attempt - overwrites with final attempt's data
       const response = await this.ragService.generateResponse(
         personality,
         message,
@@ -181,6 +233,7 @@ export class GenerationStep implements IPipelineStep {
           isGuestMode,
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
+          diagnosticCollector,
         }
       );
 
@@ -238,7 +291,7 @@ export class GenerationStep implements IPipelineStep {
     throw new Error('[GenerationStep] Unexpected: no response generated');
   }
 
-  // eslint-disable-next-line max-lines-per-function -- Pipeline step with diagnostic logging and error handling
+  // eslint-disable-next-line max-lines-per-function, complexity -- Pipeline step with diagnostic logging and error handling
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job, startTime, preprocessing } = context;
     const { requestId, personality, message, context: jobContext } = job.data;
@@ -264,6 +317,16 @@ export class GenerationStep implements IPipelineStep {
       },
       '[GenerationStep] Processing with context'
     );
+
+    // Create diagnostic collector for flight recorder (captures full pipeline data)
+    const diagnosticCollector = new DiagnosticCollector({
+      requestId,
+      personalityId: effectivePersonality.id,
+      personalityName: effectivePersonality.name,
+      userId: jobContext.userId,
+      guildId: jobContext.serverId ?? null,
+      channelId: jobContext.channelId ?? '',
+    });
 
     try {
       // Build conversation context once (reused for retry if needed)
@@ -327,6 +390,7 @@ export class GenerationStep implements IPipelineStep {
         apiKey,
         isGuestMode,
         jobId: job.id,
+        diagnosticCollector,
       });
 
       // Store memory ONCE after retry loop completes with a valid response.
@@ -353,6 +417,14 @@ export class GenerationStep implements IPipelineStep {
       logger.info(
         { jobId: job.id, processingTimeMs, duplicateRetries },
         '[GenerationStep] Generation completed'
+      );
+
+      // Fire-and-forget: Store diagnostic data for flight recorder
+      // This runs async and doesn't block the response
+      this.storeDiagnosticLog(
+        diagnosticCollector,
+        response.modelUsed ?? 'unknown',
+        provider ?? 'unknown'
       );
 
       return {

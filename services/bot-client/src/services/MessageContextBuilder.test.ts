@@ -56,6 +56,18 @@ vi.mock('../utils/discordContext.js', () => ({
   })),
 }));
 
+// Mock redis since TranscriptRetriever imports it
+vi.mock('../redis.js', () => ({
+  redisService: {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    exists: vi.fn(),
+    expire: vi.fn(),
+    setWithExpiry: vi.fn(),
+  },
+}));
+
 vi.mock('../utils/attachmentExtractor.js', () => ({
   extractAttachments: vi.fn(() => []),
 }));

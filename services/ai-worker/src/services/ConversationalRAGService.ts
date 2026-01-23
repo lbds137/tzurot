@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Complex orchestration service, diagnostic recording pushed slightly over 500 lines */
 /**
  * Conversational RAG Service - Orchestrates memory-augmented conversations
  *
@@ -239,6 +240,7 @@ export class ConversationalRAGService {
   }
 
   /** Invoke the model and clean up the response */
+  // eslint-disable-next-line max-lines-per-function, complexity -- Core orchestration method with diagnostic logging
   private async invokeModelAndClean(opts: ModelInvocationOptions): Promise<ModelInvocationResult> {
     const {
       personality,
@@ -250,6 +252,7 @@ export class ConversationalRAGService {
       referencedMessagesDescriptions,
       userApiKey,
       retryConfig,
+      diagnosticCollector,
     } = opts;
     // Build current message
     const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
@@ -264,13 +267,17 @@ export class ConversationalRAGService {
 
     // Get model with all LLM sampling parameters
     // Apply retry config overrides if present (for duplicate detection retries)
+    const effectiveTemperature = retryConfig?.temperatureOverride ?? personality.temperature;
+    const effectiveFrequencyPenalty =
+      retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty;
+
     const { model, modelName } = this.llmInvoker.getModel({
       modelName: personality.model,
       apiKey: userApiKey,
-      temperature: retryConfig?.temperatureOverride ?? personality.temperature,
+      temperature: effectiveTemperature,
       topP: personality.topP,
       topK: personality.topK,
-      frequencyPenalty: retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
+      frequencyPenalty: effectiveFrequencyPenalty,
       presencePenalty: personality.presencePenalty,
       repetitionPenalty: personality.repetitionPenalty,
       maxTokens: personality.maxTokens,
@@ -289,6 +296,28 @@ export class ConversationalRAGService {
     // Generate stop sequences
     const stopSequences = generateStopSequences(personality.name, participantPersonas);
 
+    // Record assembled prompt and LLM config for diagnostics
+    if (diagnosticCollector) {
+      const totalTokenEstimate =
+        this.promptBuilder.countTokens(systemPrompt.content as string) +
+        this.promptBuilder.countTokens(currentMessage.content as string);
+
+      diagnosticCollector.recordAssembledPrompt(messages, totalTokenEstimate);
+      diagnosticCollector.recordLlmConfig({
+        model: modelName,
+        provider: modelName.split('/')[0] || 'unknown',
+        temperature: effectiveTemperature,
+        topP: personality.topP,
+        topK: personality.topK,
+        maxTokens: personality.maxTokens,
+        frequencyPenalty: effectiveFrequencyPenalty,
+        presencePenalty: personality.presencePenalty,
+        repetitionPenalty: personality.repetitionPenalty,
+        stopSequences,
+      });
+      diagnosticCollector.markLlmInvocationStart();
+    }
+
     // Invoke model
     const response = await this.llmInvoker.invokeWithRetry({
       model,
@@ -300,6 +329,47 @@ export class ConversationalRAGService {
     });
 
     const rawContent = response.content as string;
+
+    // Extract token usage and finish reason for diagnostics
+    const responseData = response as unknown as {
+      usage_metadata?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        total_tokens?: number;
+      };
+      response_metadata?: {
+        finish_reason?: string;
+        stop_reason?: string;
+        finishReason?: string;
+        stop?: string;
+        stop_sequence?: string;
+      };
+    };
+    const usageMetadata = responseData.usage_metadata;
+    const responseMetadata = responseData.response_metadata;
+
+    // Record LLM response for diagnostics
+    if (diagnosticCollector) {
+      const finishReason =
+        responseMetadata?.finish_reason ??
+        responseMetadata?.stop_reason ??
+        responseMetadata?.finishReason ??
+        'unknown';
+      const rawStop = responseMetadata?.stop;
+      const rawStopSeq = responseMetadata?.stop_sequence;
+      const stopSequenceTriggered =
+        (typeof rawStop === 'string' ? rawStop : null) ??
+        (typeof rawStopSeq === 'string' ? rawStopSeq : null);
+
+      diagnosticCollector.recordLlmResponse({
+        rawContent,
+        finishReason: String(finishReason),
+        stopSequenceTriggered,
+        promptTokens: usageMetadata?.input_tokens ?? 0,
+        completionTokens: usageMetadata?.output_tokens ?? 0,
+        modelUsed: modelName,
+      });
+    }
 
     // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
     const deduplicatedContent = removeDuplicateResponse(rawContent);
@@ -325,6 +395,17 @@ export class ConversationalRAGService {
       context.discordUsername
     );
 
+    // Record post-processing for diagnostics
+    if (diagnosticCollector) {
+      diagnosticCollector.recordPostProcessing({
+        rawContent,
+        deduplicatedContent,
+        thinkingContent,
+        strippedContent: visibleContent,
+        finalContent: cleanedContent,
+      });
+    }
+
     logger.debug(
       {
         rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
@@ -340,16 +421,6 @@ export class ConversationalRAGService {
     logger.info(
       `[RAG] Generated ${cleanedContent.length} chars for ${personality.name} using model: ${modelName}`
     );
-
-    // Extract token usage
-    const responseData = response as unknown as {
-      usage_metadata?: {
-        input_tokens?: number;
-        output_tokens?: number;
-        total_tokens?: number;
-      };
-    };
-    const usageMetadata = responseData.usage_metadata;
 
     return {
       cleanedContent,
@@ -384,7 +455,7 @@ export class ConversationalRAGService {
     context: ConversationContext,
     options: GenerateResponseOptions = {}
   ): Promise<RAGResponse> {
-    const { userApiKey, isGuestMode = false, retryConfig } = options;
+    const { userApiKey, isGuestMode = false, retryConfig, diagnosticCollector } = options;
 
     try {
       // Step 1: Process inputs (attachments, messages, search query)
@@ -396,6 +467,19 @@ export class ConversationalRAGService {
         isGuestMode,
         userApiKey
       );
+
+      // Record input processing for diagnostics
+      if (diagnosticCollector) {
+        diagnosticCollector.recordInputProcessing({
+          rawUserMessage: typeof message === 'string' ? message : message.content,
+          processedAttachments: inputs.processedAttachments,
+          referencedMessages: context.referencedMessages?.map(ref => ({
+            discordMessageId: ref.discordMessageId,
+            content: ref.content,
+          })),
+          searchQuery: inputs.searchQuery,
+        });
+      }
 
       // Step 1.5: Inject image descriptions into history for inline display
       // This replaces the separate <recent_channel_images> section with inline descriptions
@@ -412,6 +496,7 @@ export class ConversationalRAGService {
       logger.info(
         `[RAG] Memory search query: "${inputs.searchQuery.substring(0, TEXT_LIMITS.LOG_PREVIEW)}${inputs.searchQuery.length > TEXT_LIMITS.LOG_PREVIEW ? '...' : ''}"`
       );
+      diagnosticCollector?.markMemoryRetrievalStart();
       const { memories: retrievedMemories, focusModeEnabled } =
         await this.memoryRetriever.retrieveRelevantMemories(
           personality,
@@ -434,6 +519,25 @@ export class ConversationalRAGService {
         historyReductionPercent: retryConfig?.historyReductionPercent,
       });
 
+      // Record memory retrieval and token budget for diagnostics
+      if (diagnosticCollector) {
+        diagnosticCollector.recordMemoryRetrieval({
+          retrievedMemories,
+          selectedMemories: budgetResult.relevantMemories,
+          focusModeEnabled,
+        });
+        diagnosticCollector.recordTokenBudget({
+          contextWindowSize: personality.contextWindowTokens ?? 131072,
+          systemPromptTokens: this.promptBuilder.countTokens(
+            budgetResult.systemPrompt.content as string
+          ),
+          memoryTokensUsed: budgetResult.memoryTokensUsed,
+          historyTokensUsed: budgetResult.historyTokensUsed,
+          memoriesDropped: budgetResult.memoriesDroppedCount,
+          historyMessagesDropped: budgetResult.messagesDropped,
+        });
+      }
+
       // Step 5: Invoke model and clean response
       const modelResult = await this.invokeModelAndClean({
         personality,
@@ -445,6 +549,7 @@ export class ConversationalRAGService {
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         userApiKey,
         retryConfig,
+        diagnosticCollector,
       });
 
       // Step 5.5: Resolve user references in AI output (shapes.inc format -> readable names)
