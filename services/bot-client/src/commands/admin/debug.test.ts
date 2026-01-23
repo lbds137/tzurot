@@ -8,7 +8,8 @@
  * - Successful diagnostic log fetch
  * - 404 handling (log not found/expired)
  * - Error handling
- * - Request ID validation
+ * - Identifier validation (supports message ID, message link, or request UUID)
+ * - Message ID lookup via /by-message endpoint
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -122,8 +123,9 @@ describe('handleDebug', () => {
 
   /**
    * Create a mock DeferredCommandContext for testing.
+   * @param identifier - Can be a request UUID, message ID, or message link
    */
-  function createMockContext(requestId: string | null = 'test-req-123'): DeferredCommandContext {
+  function createMockContext(identifier: string | null = 'test-req-123'): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
@@ -137,8 +139,8 @@ describe('handleDebug', () => {
       commandName: 'admin',
       isEphemeral: true,
       getOption: vi.fn((name: string) => {
-        if (name === 'request-id') {
-          return requestId;
+        if (name === 'identifier') {
+          return identifier;
         }
         return null;
       }),
@@ -194,13 +196,13 @@ describe('handleDebug', () => {
     );
   });
 
-  it('should handle missing request ID', async () => {
+  it('should handle missing identifier', async () => {
     const context = createMockContext(null);
     await handleDebug(context);
 
     expect(fetch).not.toHaveBeenCalled();
     expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('❌ Request ID is required'),
+      content: expect.stringContaining('❌ Identifier is required'),
     });
   });
 
@@ -361,5 +363,182 @@ describe('handleDebug', () => {
         files: expect.arrayContaining([expect.any(Object)]),
       })
     );
+  });
+
+  describe('identifier parsing', () => {
+    it('should use /by-message endpoint for Discord message IDs (snowflakes)', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            logs: [
+              {
+                id: 'log-uuid',
+                requestId: 'internal-req-uuid',
+                triggerMessageId: '1234567890123456789',
+                personalityId: 'personality-uuid',
+                userId: '123456789',
+                guildId: '987654321',
+                channelId: '111222333',
+                model: 'test',
+                provider: 'test',
+                durationMs: 100,
+                createdAt: '2026-01-22T12:00:00Z',
+                data: mockPayload,
+              },
+            ],
+            count: 1,
+          }),
+          { status: 200 }
+        )
+      );
+
+      // Discord snowflake (17-20 digits)
+      const context = createMockContext('1234567890123456789');
+      await handleDebug(context);
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/admin/diagnostic/by-message/1234567890123456789'),
+        expect.any(Object)
+      );
+    });
+
+    it('should extract message ID from Discord message link', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            logs: [
+              {
+                id: 'log-uuid',
+                requestId: 'internal-req-uuid',
+                triggerMessageId: '1234567890123456789',
+                personalityId: 'personality-uuid',
+                userId: '123456789',
+                guildId: '987654321',
+                channelId: '111222333',
+                model: 'test',
+                provider: 'test',
+                durationMs: 100,
+                createdAt: '2026-01-22T12:00:00Z',
+                data: mockPayload,
+              },
+            ],
+            count: 1,
+          }),
+          { status: 200 }
+        )
+      );
+
+      // Discord message link with message ID at the end
+      const context = createMockContext(
+        'https://discord.com/channels/111111111111111111/222222222222222222/1234567890123456789'
+      );
+      await handleDebug(context);
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/admin/diagnostic/by-message/1234567890123456789'),
+        expect.any(Object)
+      );
+    });
+
+    it('should use direct endpoint for UUIDs', async () => {
+      vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+
+      // UUID format
+      const context = createMockContext('a1b2c3d4-e5f6-7890-abcd-ef1234567890');
+      await handleDebug(context);
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/admin/diagnostic/a1b2c3d4-e5f6-7890-abcd-ef1234567890'),
+        expect.any(Object)
+      );
+      expect(fetch).not.toHaveBeenCalledWith(
+        expect.stringContaining('/by-message/'),
+        expect.any(Object)
+      );
+    });
+
+    it('should handle 404 for message ID lookup', async () => {
+      vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+
+      const context = createMockContext('1234567890123456789');
+      await handleDebug(context);
+
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('No diagnostic logs found for this message'),
+      });
+    });
+
+    it('should handle empty logs array for message ID lookup', async () => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ logs: [], count: 0 }), { status: 200 })
+      );
+
+      const context = createMockContext('1234567890123456789');
+      await handleDebug(context);
+
+      expect(context.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('No diagnostic logs found for this message'),
+      });
+    });
+
+    it('should use most recent log when multiple logs exist for a message', async () => {
+      const mockPayload1 = createMockDiagnosticPayload();
+      const mockPayload2 = createMockDiagnosticPayload();
+      mockPayload1.meta.requestId = 'older-req';
+      mockPayload2.meta.requestId = 'newer-req';
+
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            logs: [
+              // Most recent first (as returned by the API)
+              {
+                id: 'log-uuid-2',
+                requestId: 'newer-req',
+                triggerMessageId: '1234567890123456789',
+                personalityId: null,
+                userId: null,
+                guildId: null,
+                channelId: null,
+                model: 'test',
+                provider: 'test',
+                durationMs: 100,
+                createdAt: '2026-01-22T12:00:00Z',
+                data: mockPayload2,
+              },
+              {
+                id: 'log-uuid-1',
+                requestId: 'older-req',
+                triggerMessageId: '1234567890123456789',
+                personalityId: null,
+                userId: null,
+                guildId: null,
+                channelId: null,
+                model: 'test',
+                provider: 'test',
+                durationMs: 100,
+                createdAt: '2026-01-22T11:00:00Z',
+                data: mockPayload1,
+              },
+            ],
+            count: 2,
+          }),
+          { status: 200 }
+        )
+      );
+
+      const context = createMockContext('1234567890123456789');
+      await handleDebug(context);
+
+      // Should succeed with the most recent log
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.arrayContaining([expect.any(Object)]),
+          files: expect.arrayContaining([expect.any(Object)]),
+        })
+      );
+    });
   });
 });

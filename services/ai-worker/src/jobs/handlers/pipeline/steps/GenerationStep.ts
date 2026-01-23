@@ -139,6 +139,7 @@ export class GenerationStep implements IPipelineStep {
       .create({
         data: {
           requestId: payload.meta.requestId,
+          triggerMessageId: payload.meta.triggerMessageId,
           personalityId: payload.meta.personalityId,
           userId: payload.meta.userId,
           guildId: payload.meta.guildId,
@@ -321,6 +322,7 @@ export class GenerationStep implements IPipelineStep {
     // Create diagnostic collector for flight recorder (captures full pipeline data)
     const diagnosticCollector = new DiagnosticCollector({
       requestId,
+      triggerMessageId: jobContext.triggerMessageId,
       personalityId: effectivePersonality.id,
       personalityName: effectivePersonality.name,
       userId: jobContext.userId,

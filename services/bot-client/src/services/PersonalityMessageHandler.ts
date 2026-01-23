@@ -22,6 +22,7 @@ const logger = createLogger('PersonalityMessageHandler');
  * Handles personality message processing
  */
 export class PersonalityMessageHandler {
+  // eslint-disable-next-line max-params -- Pre-existing: refactor to options object tracked in tech debt
   constructor(
     private readonly gatewayClient: GatewayClient,
     private readonly jobTracker: JobTracker,
@@ -101,7 +102,11 @@ export class PersonalityMessageHandler {
       const userMessageTime = new Date();
 
       // Submit job to api-gateway (ASYNC PATTERN - returns immediately with jobId)
-      const { jobId } = await this.gatewayClient.generate(personality, context);
+      // Include trigger message ID for diagnostic lookup
+      const { jobId } = await this.gatewayClient.generate(personality, {
+        ...context,
+        triggerMessageId: message.id,
+      });
 
       // Verify channel type is compatible with JobTracker (TextChannel, DMChannel, or NewsChannel)
       const { channel } = message;
