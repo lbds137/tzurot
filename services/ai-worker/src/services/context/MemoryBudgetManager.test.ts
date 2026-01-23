@@ -30,7 +30,7 @@ vi.mock('../prompt/MemoryFormatter.js', () => ({
   ),
   getMemoryWrapperOverheadText: vi.fn(
     () =>
-      '<memory_archive>\n<instruction>SUMMARIZED NOTES from past interactions</instruction>\n</memory_archive>'
+      '<memory_archive usage="context_only_do_not_repeat">\n<instruction>SUMMARIZED NOTES from past interactions</instruction>\n</memory_archive>'
   ),
 }));
 

@@ -67,7 +67,7 @@ NEVER output XML tags in your response.
 </participant>
 </participants>
 
-<memory_archive>
+<memory_archive usage="context_only_do_not_repeat">
 <instruction>These are SUMMARIZED NOTES from past interactions, not current conversation. Use ONLY as background context to inform your response to the CURRENT message. The current message is in <current_turn> - respond ONLY to that.</instruction>
 <historical_note recorded="Mon, Jan 15, 2024" ago="2 weeks ago">User mentioned they prefer dark mode interfaces</historical_note>
 <historical_note recorded="Mon, Jan 15, 2024" ago="2 weeks ago">User is working on a Discord bot project</historical_note>
