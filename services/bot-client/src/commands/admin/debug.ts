@@ -5,6 +5,11 @@
  * Receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
  *
+ * Accepts multiple identifier formats:
+ * - Discord message ID (e.g., "1234567890123456789")
+ * - Discord message link (e.g., "https://discord.com/channels/123/456/789")
+ * - Request UUID (e.g., "a1b2c3d4-e5f6-7890-abcd-ef1234567890")
+ *
  * The diagnostic log contains the full "flight recorder" data:
  * - Input processing (user message, attachments, references)
  * - Memory retrieval (what memories were found, scores, which were included)
@@ -22,20 +27,61 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 
 const logger = createLogger('admin-debug');
 
+/** Discord message link regex - captures guild/channel/message IDs */
+const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+
+/** UUID v4 regex for request IDs */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Discord snowflake ID regex (numeric, 17-20 digits) */
+const SNOWFLAKE_REGEX = /^\d{17,20}$/;
+
+interface DiagnosticLog {
+  id: string;
+  requestId: string;
+  triggerMessageId?: string;
+  personalityId: string | null;
+  userId: string | null;
+  guildId: string | null;
+  channelId: string | null;
+  model: string;
+  provider: string;
+  durationMs: number;
+  createdAt: string;
+  data: DiagnosticPayload;
+}
+
 interface DiagnosticLogResponse {
-  log: {
-    id: string;
-    requestId: string;
-    personalityId: string | null;
-    userId: string | null;
-    guildId: string | null;
-    channelId: string | null;
-    model: string;
-    provider: string;
-    durationMs: number;
-    createdAt: string;
-    data: DiagnosticPayload;
-  };
+  log: DiagnosticLog;
+}
+
+interface DiagnosticLogsResponse {
+  logs: DiagnosticLog[];
+  count: number;
+}
+
+/**
+ * Parse identifier to extract message ID if it's a Discord link
+ */
+function parseIdentifier(identifier: string): { type: 'messageId' | 'requestId'; value: string } {
+  // Check if it's a Discord message link
+  const linkMatch = MESSAGE_LINK_REGEX.exec(identifier);
+  if (linkMatch !== null) {
+    return { type: 'messageId', value: linkMatch[3] };
+  }
+
+  // Check if it's a UUID (request ID)
+  if (UUID_REGEX.test(identifier)) {
+    return { type: 'requestId', value: identifier };
+  }
+
+  // Check if it's a snowflake (message ID)
+  if (SNOWFLAKE_REGEX.test(identifier)) {
+    return { type: 'messageId', value: identifier };
+  }
+
+  // Default to treating as request ID for backwards compatibility
+  return { type: 'requestId', value: identifier };
 }
 
 /**
@@ -124,39 +170,98 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
 }
 
 export async function handleDebug(context: DeferredCommandContext): Promise<void> {
-  const requestId = context.getOption<string>('request-id');
+  const identifier = context.getOption<string>('identifier');
 
-  if (requestId === null || requestId === undefined || requestId === '') {
+  if (identifier === null || identifier === undefined || identifier === '') {
     await context.editReply({
-      content: '❌ Request ID is required. You can find it in the bot logs or job result metadata.',
+      content: '❌ Identifier is required. Provide a message ID, message link, or request UUID.',
     });
     return;
   }
 
   try {
-    const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(requestId)}`);
+    const parsed = parseIdentifier(identifier);
 
-    if (!response.ok) {
-      if (response.status === 404) {
+    // Call appropriate endpoint based on identifier type
+    let log: DiagnosticLog;
+
+    if (parsed.type === 'messageId') {
+      // Lookup by Discord message ID
+      const response = await adminFetch(
+        `/admin/diagnostic/by-message/${encodeURIComponent(parsed.value)}`
+      );
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          await context.editReply({
+            content:
+              '❌ No diagnostic logs found for this message.\n' +
+              '• The log may have expired (24h retention)\n' +
+              '• The message may not have triggered an AI response\n' +
+              '• The message ID may be incorrect',
+          });
+          return;
+        }
+
+        const errorText = await response.text();
+        logger.error(
+          { status: response.status, error: errorText },
+          '[AdminDebug] Fetch by message failed'
+        );
         await context.editReply({
-          content:
-            '❌ Diagnostic log not found.\n' +
-            '• The log may have expired (24h retention)\n' +
-            '• The request ID may be incorrect\n' +
-            '• The request may not have completed successfully',
+          content: `❌ Failed to fetch diagnostic logs (HTTP ${response.status})`,
         });
         return;
       }
 
-      const errorText = await response.text();
-      logger.error({ status: response.status, error: errorText }, '[AdminDebug] Fetch failed');
-      await context.editReply({
-        content: `❌ Failed to fetch diagnostic log (HTTP ${response.status})`,
-      });
-      return;
-    }
+      const { logs } = (await response.json()) as DiagnosticLogsResponse;
 
-    const { log } = (await response.json()) as DiagnosticLogResponse;
+      if (logs.length === 0) {
+        await context.editReply({
+          content:
+            '❌ No diagnostic logs found for this message.\n' +
+            '• The log may have expired (24h retention)\n' +
+            '• The message may not have triggered an AI response',
+        });
+        return;
+      }
+
+      // Use the most recent log if multiple exist
+      log = logs[0];
+
+      if (logs.length > 1) {
+        logger.info(
+          { messageId: parsed.value, count: logs.length },
+          '[AdminDebug] Multiple logs found for message, using most recent'
+        );
+      }
+    } else {
+      // Lookup by request UUID
+      const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(parsed.value)}`);
+
+      if (!response.ok) {
+        if (response.status === 404) {
+          await context.editReply({
+            content:
+              '❌ Diagnostic log not found.\n' +
+              '• The log may have expired (24h retention)\n' +
+              '• The request ID may be incorrect\n' +
+              '• The request may not have completed successfully',
+          });
+          return;
+        }
+
+        const errorText = await response.text();
+        logger.error({ status: response.status, error: errorText }, '[AdminDebug] Fetch failed');
+        await context.editReply({
+          content: `❌ Failed to fetch diagnostic log (HTTP ${response.status})`,
+        });
+        return;
+      }
+
+      const result = (await response.json()) as DiagnosticLogResponse;
+      log = result.log;
+    }
 
     // Build summary embed
     const embed = buildDiagnosticEmbed(log.data);
@@ -164,7 +269,7 @@ export async function handleDebug(context: DeferredCommandContext): Promise<void
     // Attach full JSON for detailed analysis
     const jsonContent = JSON.stringify(log.data, null, 2);
     const attachment = new AttachmentBuilder(Buffer.from(jsonContent), {
-      name: `diagnostic-${requestId}.json`,
+      name: `diagnostic-${log.requestId}.json`,
       description: 'Full LLM diagnostic data for debugging',
     });
 
@@ -174,11 +279,11 @@ export async function handleDebug(context: DeferredCommandContext): Promise<void
     });
 
     logger.info(
-      { requestId, personalityId: log.personalityId },
+      { requestId: log.requestId, personalityId: log.personalityId },
       '[AdminDebug] Diagnostic log retrieved'
     );
   } catch (error) {
-    logger.error({ err: error, requestId }, '[AdminDebug] Error fetching diagnostic log');
+    logger.error({ err: error, identifier }, '[AdminDebug] Error fetching diagnostic log');
     await context.editReply({
       content: '❌ Error fetching diagnostic log. Please try again later.',
     });

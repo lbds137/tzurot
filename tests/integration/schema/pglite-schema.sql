@@ -355,6 +355,7 @@ CREATE TABLE "llm_diagnostic_logs" (
     "id" UUID NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "request_id" VARCHAR(255) NOT NULL,
+    "trigger_message_id" VARCHAR(20),
     "personality_id" UUID,
     "user_id" VARCHAR(20),
     "guild_id" VARCHAR(20),
@@ -570,6 +571,9 @@ CREATE UNIQUE INDEX "llm_diagnostic_logs_request_id_key" ON "llm_diagnostic_logs
 
 -- CreateIndex
 CREATE INDEX "llm_diagnostic_logs_created_at_idx" ON "llm_diagnostic_logs"("created_at");
+
+-- CreateIndex
+CREATE INDEX "llm_diagnostic_logs_trigger_message_id_idx" ON "llm_diagnostic_logs"("trigger_message_id");
 
 -- CreateIndex
 CREATE INDEX "llm_diagnostic_logs_personality_id_idx" ON "llm_diagnostic_logs"("personality_id");

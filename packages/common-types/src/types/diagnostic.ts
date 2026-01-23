@@ -47,6 +47,8 @@ export interface DiagnosticPayload {
 export interface DiagnosticMeta {
   /** Unique request identifier (used for lookup) */
   requestId: string;
+  /** Discord message ID that triggered this request (for lookup by message) */
+  triggerMessageId?: string;
   /** Personality UUID */
   personalityId: string;
   /** Personality display name */

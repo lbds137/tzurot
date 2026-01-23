@@ -254,6 +254,8 @@ export const requestContextSchema = z.object({
   userId: z.string(), // Discord ID (for BYOK API key resolution)
   userInternalId: z.string().optional(), // Internal UUID (for usage logging)
   userName: z.string().optional(),
+  // Discord message ID that triggered this request (for diagnostic lookup)
+  triggerMessageId: z.string().optional(),
   // Discord username (e.g., 'lbds137') - for disambiguation when persona name matches personality name
   discordUsername: z.string().optional(),
   // User's preferred timezone (IANA format, e.g., 'America/New_York')

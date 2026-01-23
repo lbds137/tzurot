@@ -249,8 +249,8 @@ export default defineCommand({
         .setDescription('Retrieve LLM diagnostic log for debugging')
         .addStringOption(option =>
           option
-            .setName('request-id')
-            .setDescription('The request ID from the job result metadata')
+            .setName('identifier')
+            .setDescription('Message ID, message link, or request UUID')
             .setRequired(true)
         )
     ),
