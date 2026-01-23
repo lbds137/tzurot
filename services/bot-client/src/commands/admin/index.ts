@@ -32,6 +32,7 @@ import { handleServers } from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
+import { handleDebug } from './debug.js';
 import {
   handleSettings,
   handleAdminSettingsSelectMenu,
@@ -54,6 +55,7 @@ const adminRouter = createSubcommandContextRouter(
     kick: handleKick,
     usage: handleUsage,
     cleanup: handleCleanup,
+    debug: handleDebug,
     settings: handleSettings,
   },
   { logger, logPrefix: '[Admin]' }
@@ -240,6 +242,17 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('settings').setDescription('Open global settings dashboard')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('debug')
+        .setDescription('Retrieve LLM diagnostic log for debugging')
+        .addStringOption(option =>
+          option
+            .setName('request-id')
+            .setDescription('The request ID from the job result metadata')
+            .setRequired(true)
+        )
     ),
   deferralMode: 'ephemeral',
   execute,

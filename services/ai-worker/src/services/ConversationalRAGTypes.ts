@@ -236,6 +236,8 @@ export interface ModelInvocationOptions {
   userApiKey?: string;
   /** Retry configuration for escalating duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
+  /** Diagnostic collector for the "flight recorder" system */
+  diagnosticCollector?: import('./DiagnosticCollector.js').DiagnosticCollector;
 }
 
 /**
@@ -281,4 +283,9 @@ export interface GenerateResponseOptions {
    * This prevents storing multiple memories when retry logic is used.
    */
   skipMemoryStorage?: boolean;
+  /**
+   * Diagnostic collector for the "flight recorder" system.
+   * If provided, pipeline stages will record their data for debugging.
+   */
+  diagnosticCollector?: import('./DiagnosticCollector.js').DiagnosticCollector;
 }

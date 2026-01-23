@@ -538,3 +538,35 @@ model ImageDescriptionCache {
 
   @@map("image_description_cache")
 }
+
+/// "Flight recorder" for LLM requests - captures full pipeline data for debugging.
+/// Ephemeral: auto-deleted after 24 hours via BullMQ cleanup job.
+/// NOTE: Uses @default(uuid()) instead of deterministic UUIDs since this is
+/// debug data that doesn't sync between environments.
+model LlmDiagnosticLog {
+  /// Auto-generated UUID (ephemeral data, no sync needed)
+  id            String   @id @default(uuid()) @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  /// Link to the request for lookup (e.g., from /admin debug command)
+  requestId     String   @unique @map("request_id") @db.VarChar(255)
+
+  /// Top-level indexed fields for filtering/queries
+  personalityId String?  @map("personality_id") @db.Uuid
+  userId        String?  @map("user_id") @db.VarChar(20)
+  guildId       String?  @map("guild_id") @db.VarChar(20)
+  channelId     String?  @map("channel_id") @db.VarChar(20)
+  model         String   @db.VarChar(255)
+  provider      String   @db.VarChar(50)
+  durationMs    Int      @map("duration_ms")
+
+  /// The full diagnostic payload - see DiagnosticPayload type in ai-worker
+  /// Contains: meta, inputContext, assembledPrompt, llmConfig, llmResponse, postProcessing
+  data          Json
+
+  @@index([createdAt])
+  @@index([personalityId])
+  @@index([userId])
+  @@index([channelId])
+  @@map("llm_diagnostic_logs")
+}

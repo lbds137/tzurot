@@ -21,6 +21,7 @@ import { createAdminLlmConfigRoutes } from './llm-config.js';
 import { createAdminUsageRoutes } from './usage.js';
 import { createCleanupRoute } from './cleanup.js';
 import { createAdminSettingsRoutes } from './settings.js';
+import { createDiagnosticRoutes } from './diagnostic.js';
 
 /**
  * Create admin router with injected dependencies
@@ -62,6 +63,9 @@ export function createAdminRouter(
   if (retentionService !== undefined) {
     router.use('/cleanup', createCleanupRoute(retentionService));
   }
+
+  // Diagnostic logs endpoint (flight recorder for LLM requests)
+  router.use('/diagnostic', createDiagnosticRoutes(prisma));
 
   return router;
 }

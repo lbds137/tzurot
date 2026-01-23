@@ -11,8 +11,20 @@
  * copied from loaded modules (fixed in c907942c).
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { CommandHandler } from './CommandHandler.js';
+
+// Mock redis since character/chat.ts imports it
+vi.mock('../redis.js', () => ({
+  redisService: {
+    get: vi.fn(),
+    set: vi.fn(),
+    del: vi.fn(),
+    exists: vi.fn(),
+    expire: vi.fn(),
+    setWithExpiry: vi.fn(),
+  },
+}));
 
 describe('CommandHandler (component)', () => {
   let handler: CommandHandler;
