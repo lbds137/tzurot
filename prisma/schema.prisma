@@ -159,18 +159,10 @@ model LlmConfig {
   provider                    String                     @default("openrouter") @db.VarChar(20)
   model                       String                     @db.VarChar(255)
   visionModel                 String?                    @map("vision_model") @db.VarChar(255)
-  /// New JSONB field for provider-specific parameters (temperature, reasoning, etc.)
+  /// JSONB field for provider-specific parameters (temperature, topP, topK, etc.)
   /// See AdvancedParamsSchema in common-types for validation
   advancedParameters          Json?                      @map("advanced_parameters")
   maxReferencedMessages       Int                        @default(100) @map("max_referenced_messages")
-  // Legacy columns - will be migrated to advancedParameters in Step B
-  temperature                 Decimal?                   @db.Decimal(3, 2)
-  topP                        Decimal?                   @map("top_p") @db.Decimal(3, 2)
-  topK                        Int?                       @map("top_k")
-  frequencyPenalty            Decimal?                   @map("frequency_penalty") @db.Decimal(3, 2)
-  presencePenalty             Decimal?                   @map("presence_penalty") @db.Decimal(3, 2)
-  repetitionPenalty           Decimal?                   @map("repetition_penalty") @db.Decimal(3, 2)
-  maxTokens                   Int?                       @map("max_tokens")
   memoryScoreThreshold        Decimal?                   @map("memory_score_threshold") @db.Decimal(3, 2)
   memoryLimit                 Int?                       @map("memory_limit")
   contextWindowTokens         Int                        @default(131072) @map("context_window_tokens")
@@ -199,54 +191,54 @@ model PersonalityDefaultConfig {
 }
 
 model Personality {
-  id                      String                     @id @db.Uuid
-  name                    String                     @db.VarChar(255)
-  displayName             String?                    @map("display_name") @db.VarChar(255)
-  slug                    String                     @unique @db.VarChar(255)
-  systemPromptId          String?                    @map("system_prompt_id") @db.Uuid
-  ownerId                 String?                    @map("owner_id") @db.Uuid
-  characterInfo           String                     @map("character_info")
-  personalityTraits       String                     @map("personality_traits")
-  personalityTone         String?                    @map("personality_tone")
-  personalityAge          String?                    @map("personality_age")
-  personalityAppearance   String?                    @map("personality_appearance")
-  personalityLikes        String?                    @map("personality_likes")
-  personalityDislikes     String?                    @map("personality_dislikes")
-  conversationalGoals     String?                    @map("conversational_goals")
-  conversationalExamples  String?                    @map("conversational_examples")
-  customFields            Json?                      @map("custom_fields")
-  errorMessage            String?                    @map("error_message")
-  birthMonth              Int?                       @map("birth_month")
-  birthDay                Int?                       @map("birth_day")
-  birthYear               Int?                       @map("birth_year")
-  isPublic                Boolean                    @default(true) @map("is_public")
-  voiceEnabled            Boolean                    @default(false) @map("voice_enabled")
-  voiceSettings           Json?                      @map("voice_settings")
-  imageEnabled            Boolean                    @default(false) @map("image_enabled")
-  imageSettings           Json?                      @map("image_settings")
-  avatarData              Bytes?                     @map("avatar_data")
+  id                         String   @id @db.Uuid
+  name                       String   @db.VarChar(255)
+  displayName                String?  @map("display_name") @db.VarChar(255)
+  slug                       String   @unique @db.VarChar(255)
+  systemPromptId             String?  @map("system_prompt_id") @db.Uuid
+  ownerId                    String?  @map("owner_id") @db.Uuid
+  characterInfo              String   @map("character_info")
+  personalityTraits          String   @map("personality_traits")
+  personalityTone            String?  @map("personality_tone")
+  personalityAge             String?  @map("personality_age")
+  personalityAppearance      String?  @map("personality_appearance")
+  personalityLikes           String?  @map("personality_likes")
+  personalityDislikes        String?  @map("personality_dislikes")
+  conversationalGoals        String?  @map("conversational_goals")
+  conversationalExamples     String?  @map("conversational_examples")
+  customFields               Json?    @map("custom_fields")
+  errorMessage               String?  @map("error_message")
+  birthMonth                 Int?     @map("birth_month")
+  birthDay                   Int?     @map("birth_day")
+  birthYear                  Int?     @map("birth_year")
+  isPublic                   Boolean  @default(true) @map("is_public")
+  voiceEnabled               Boolean  @default(false) @map("voice_enabled")
+  voiceSettings              Json?    @map("voice_settings")
+  imageEnabled               Boolean  @default(false) @map("image_enabled")
+  imageSettings              Json?    @map("image_settings")
+  avatarData                 Bytes?   @map("avatar_data")
   // Extended context settings (null = inherit from channel/global hierarchy)
   /// Tri-state: null=auto, true=on, false=off (see docs/standards/TRI_STATE_PATTERN.md)
-  extendedContext           Boolean?                   @map("extended_context")
+  extendedContext            Boolean? @map("extended_context")
   /// Max messages to fetch (null = follow channel/global)
-  extendedContextMaxMessages Int?                      @map("extended_context_max_messages")
+  extendedContextMaxMessages Int?     @map("extended_context_max_messages")
   /// Max age in seconds (null = follow channel/global)
-  extendedContextMaxAge      Int?                      @map("extended_context_max_age")
+  extendedContextMaxAge      Int?     @map("extended_context_max_age")
   /// Max images to process (null = follow channel/global)
-  extendedContextMaxImages   Int?                      @map("extended_context_max_images")
+  extendedContextMaxImages   Int?     @map("extended_context_max_images")
 
-  createdAt               DateTime                   @default(now()) @map("created_at")
-  updatedAt               DateTime                   @updatedAt @map("updated_at")
-  channelSettings         ChannelSettings[]
-  aliases                 PersonalityAlias[]
-  conversationHistory     ConversationHistory[]
-  memories                Memory[]
-  owner                   User?                      @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  systemPrompt            SystemPrompt?              @relation(fields: [systemPromptId], references: [id])
-  defaultConfigLink       PersonalityDefaultConfig?
-  owners                  PersonalityOwner[]
-  userConfigs             UserPersonalityConfig[]
-  personaHistoryConfigs   UserPersonaHistoryConfig[]
+  createdAt             DateTime                   @default(now()) @map("created_at")
+  updatedAt             DateTime                   @updatedAt @map("updated_at")
+  channelSettings       ChannelSettings[]
+  aliases               PersonalityAlias[]
+  conversationHistory   ConversationHistory[]
+  memories              Memory[]
+  owner                 User?                      @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  systemPrompt          SystemPrompt?              @relation(fields: [systemPromptId], references: [id])
+  defaultConfigLink     PersonalityDefaultConfig?
+  owners                PersonalityOwner[]
+  userConfigs           UserPersonalityConfig[]
+  personaHistoryConfigs UserPersonaHistoryConfig[]
 
   @@index([slug])
   @@index([ownerId])
@@ -416,13 +408,13 @@ model ChannelSettings {
 
   // Extended context settings (null = inherit from AdminSettings global defaults)
   /// Tri-state: null=auto (follow global), true=on, false=off
-  extendedContext           Boolean? @map("extended_context")
+  extendedContext            Boolean? @map("extended_context")
   /// Max messages to fetch (null = follow global)
-  extendedContextMaxMessages Int?    @map("extended_context_max_messages")
+  extendedContextMaxMessages Int?     @map("extended_context_max_messages")
   /// Max age in seconds (null = follow global)
-  extendedContextMaxAge      Int?    @map("extended_context_max_age")
+  extendedContextMaxAge      Int?     @map("extended_context_max_age")
   /// Max images to process (null = follow global)
-  extendedContextMaxImages   Int?    @map("extended_context_max_images")
+  extendedContextMaxImages   Int?     @map("extended_context_max_images")
 
   createdBy String?  @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
@@ -545,27 +537,27 @@ model ImageDescriptionCache {
 /// debug data that doesn't sync between environments.
 model LlmDiagnosticLog {
   /// Auto-generated UUID (ephemeral data, no sync needed)
-  id            String   @id @default(uuid()) @db.Uuid
-  createdAt     DateTime @default(now()) @map("created_at")
+  id        String   @id @default(uuid()) @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
 
   /// Link to the request for lookup (e.g., from /admin debug command)
-  requestId     String   @unique @map("request_id") @db.VarChar(255)
+  requestId String @unique @map("request_id") @db.VarChar(255)
 
   /// Discord message ID that triggered this request (for diagnostic lookup by message)
   triggerMessageId String? @map("trigger_message_id") @db.VarChar(20)
 
   /// Top-level indexed fields for filtering/queries
-  personalityId String?  @map("personality_id") @db.Uuid
-  userId        String?  @map("user_id") @db.VarChar(20)
-  guildId       String?  @map("guild_id") @db.VarChar(20)
-  channelId     String?  @map("channel_id") @db.VarChar(20)
-  model         String   @db.VarChar(255)
-  provider      String   @db.VarChar(50)
-  durationMs    Int      @map("duration_ms")
+  personalityId String? @map("personality_id") @db.Uuid
+  userId        String? @map("user_id") @db.VarChar(20)
+  guildId       String? @map("guild_id") @db.VarChar(20)
+  channelId     String? @map("channel_id") @db.VarChar(20)
+  model         String  @db.VarChar(255)
+  provider      String  @db.VarChar(50)
+  durationMs    Int     @map("duration_ms")
 
   /// The full diagnostic payload - see DiagnosticPayload type in ai-worker
   /// Contains: meta, inputContext, assembledPrompt, llmConfig, llmResponse, postProcessing
-  data          Json
+  data Json
 
   @@index([createdAt])
   @@index([triggerMessageId])

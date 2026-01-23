@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-22
-> **Current Version**: v3.0.0-beta.46
+> **Last Updated**: 2026-01-19
+> **Current Version**: v3.0.0-beta.43
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -19,7 +19,7 @@
 **Why**: Fix UX before adding complex features. Bundle system prompts into preset editor.
 
 - [x] Standardize modal/button patterns across commands (PR #482)
-- [ ] Redis-backed session storage (for horizontal scaling)
+- [x] Redis-backed session storage (PR #483) - enables horizontal scaling, sessions persist across restarts
 - [ ] `/preset edit` - dashboard with all LLM params (temperature, topP, etc.)
 - [ ] `/me profile` dashboard upgrade
 - [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
@@ -119,6 +119,7 @@ Not needed until post-beta when we care about semantic versioning again.
 - **Memory Management Phase 2**: LTM commands (`/memory list/search/stats/delete/purge/focus`), Focus Mode
 - **Memory Management Phase 3**: Incognito Mode (`/memory incognito enable/disable/status/forget`), 👻 indicator, fail-open design
 - **Slash Command Patterns**: Standardize modal/button custom ID parsing, `INTERACTION_PATTERNS.md` documentation
+- **Redis Session Storage**: DashboardSessionManager migrated to Redis (PR #483) - horizontal scaling, TTL expiration, O(1) messageId lookups
 
 ---
 

@@ -75,8 +75,10 @@ describe('PersonalityService Integration', () => {
         name: 'Global Default',
         model: 'anthropic/claude-sonnet-4',
         visionModel: 'anthropic/claude-sonnet-4',
-        temperature: 0.7,
-        maxTokens: 4000,
+        advancedParameters: {
+          temperature: 0.7,
+          maxTokens: 4000,
+        },
       },
       update: {},
     });
