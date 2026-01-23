@@ -187,8 +187,10 @@ describe('AIJobProcessor Component Test', () => {
         name: 'Global Default',
         model: 'anthropic/claude-sonnet-4',
         visionModel: 'anthropic/claude-sonnet-4',
-        temperature: 0.7,
-        maxTokens: 4000,
+        advancedParameters: {
+          temperature: 0.7,
+          maxTokens: 4000,
+        },
       },
     });
   }, 30000); // 30 second timeout for PGlite WASM initialization under parallel load

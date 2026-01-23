@@ -1,66 +1,18 @@
 # Current Work
 
-> Last updated: 2026-01-22
+> Last updated: 2026-01-19
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.46
+**Version**: v3.0.0-beta.43
 **Deployment**: Railway (stable)
-**Current Goal**: SafeCommandContext Migration
+**Current Goal**: Slash Command Dashboard Pattern (Redis sessions complete, next: `/preset edit`)
 
 ---
 
-## Active: SafeCommandContext Migration
+## Active: Duplicate Detection & OpenAI Eviction Epic
 
-**Reference**: [TECH_DEBT.md - InteractionAlreadyReplied Architectural Fix](docs/proposals/active/TECH_DEBT.md#interactionalreadyreplied-architectural-fix-hybrid-facade-pattern)
-
-**Problem**: Commands can still call `deferReply()` after it's already been called, causing `InteractionAlreadyReplied` errors. TypeScript doesn't prevent this - it's only caught at runtime.
-
-**Solution**: Commands declare `deferralMode` and receive a typed context that doesn't expose `deferReply()` for already-deferred commands.
-
-**Pattern**:
-
-```typescript
-// Command declares deferralMode
-export default defineCommand({
-  deferralMode: 'ephemeral', // Framework defers before calling execute
-  ...
-});
-
-// Handler receives DeferredCommandContext (no deferReply method!)
-async function execute(ctx: SafeCommandContext): Promise<void> {
-  const context = ctx as DeferredCommandContext;
-  await context.editReply({ content: 'Done!' }); // ✅ Works
-  // context.deferReply() // ❌ TypeScript error - method doesn't exist
-}
-```
-
-**Migrated Commands** (on `feat/safe-command-context` branch):
-
-- [x] `/help` - Initial proof of concept (commit f571db28)
-- [x] `/channel` - All subcommands (commit 43a0e056)
-- [x] `/history` - All subcommands (commit e59726b7)
-- [x] `/admin` - All 7 subcommands + `requireBotOwnerContext` (commit dc07ea65)
-
-**Remaining Commands**:
-
-- [ ] `/wallet` - Simple, good next candidate
-- [ ] `/me` - Multiple subcommand groups
-- [ ] `/character` - Has modal subcommands (deferralMode: 'modal')
-- [ ] `/memory` - Has modals + complex interactions
-- [ ] `/preset` - Has modals
-
-**Key Files**:
-
-- `services/bot-client/src/utils/commandContext/` - Types and factories
-- `services/bot-client/src/utils/subcommandContextRouter.ts` - Router for context-based handlers
-- `services/bot-client/src/index.ts` - Framework deferral logic
-
-**After migration**: Remove hardcoded `MODAL_COMMANDS` and `NON_EPHEMERAL_COMMANDS` sets from index.ts.
-
----
-
-## Completed: Duplicate Detection & OpenAI Eviction Epic
+**Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
 
 **Problem**: Users experience repetitive AI responses despite existing detection. Root cause: bigram Dice coefficient measures _spelling_ similarity, but free models have _semantic_ caching that returns identical content with minor variations.
 
@@ -175,6 +127,7 @@ _Naming changes deferred - do as part of a "UX consistency pass" after Phase 3._
 
 ## Deferred: DRY Message Extraction Refactor
 
+**Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)
 **Tech Debt Tracking**: [`docs/proposals/active/TECH_DEBT.md`](docs/proposals/active/TECH_DEBT.md)
 
 **Problem**: Two parallel message processing paths (main vs extended context) keep diverging.
@@ -216,6 +169,7 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **Redis Session Storage** (PR #483): DashboardSessionManager migrated from in-memory Map to Redis - enables horizontal scaling, sessions persist across restarts, O(1) messageId lookups via secondary index
 - **beta.43**: Memory Phase 3 (Incognito Mode) complete - `/memory incognito enable/disable/status/forget`, 👻 visual indicator, fail-open Redis design, dual-key pattern (per-personality or global), retroactive forget with locked memory protection
 - **Upcoming**: Swiss Cheese duplicate detection (4 layers: hash → Jaccard → bigram → semantic embedding), escalating retry strategy (temp 1.1, freq penalty, history reduction), local embedding service (bge-small-en-v1.5 via Worker Thread)
 - **beta.41**: Memory management Phase 2 complete - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, `/memory delete` (batch), `/memory purge` (typed confirmation), Focus Mode with visual indicator
