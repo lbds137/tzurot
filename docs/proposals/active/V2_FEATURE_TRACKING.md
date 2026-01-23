@@ -2,7 +2,7 @@
 
 This document tracks which features from Tzurot v2 have been ported to v3, which are planned, and which are intentionally avoided.
 
-**Last Updated:** 2025-12-11
+**Last Updated:** 2026-01-22
 
 ## Legend
 
@@ -55,24 +55,27 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 | Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing                            |
 | Reply detection       | ✅ Ported  | Reply to bot to continue conversation                                       |
 | Conversation history  | ✅ Ported  | ConversationPersistence service                                             |
-| Auto-response system  | 📋 Planned | v2 had activated channels (`/activate`, `/deactivate`)                      |
-| Reset conversation    | 📋 Planned | v2 had `/reset` command (clear history with personality)                    |
+| Auto-response system  | ✅ Ported  | `/channel activate` and `/channel deactivate` commands                      |
+| Reset conversation    | ✅ Ported  | `/history clear` command clears conversation with personality               |
 
 ### AI Integration
 
-| Feature                   | Status     | Notes                                 |
-| ------------------------- | ---------- | ------------------------------------- |
-| API Gateway communication | ✅ Ported  | HTTP client with job polling          |
-| Job polling               | ✅ Ported  | 1s interval, configurable timeout     |
-| Error handling            | ✅ Ported  | Try/catch with user-friendly messages |
-| Long-term memory          | ✅ Ported  | pgvector with semantic retrieval      |
-| Image support             | ✅ Ported  | Vision models for image analysis      |
-| Voice transcription       | ✅ Ported  | OpenAI Whisper integration            |
-| Model indicators          | ✅ Ported  | Shows which model generated response  |
-| BYOK (Bring Your Own Key) | ✅ Ported  | Users provide their own API keys      |
-| Guest mode                | ✅ Ported  | Free models for users without keys    |
-| Rate limiting             | 📋 Planned | v2 had token bucket                   |
-| Request deduplication     | 📋 Planned | v2 had message tracker                |
+| Feature                   | Status    | Notes                                                           |
+| ------------------------- | --------- | --------------------------------------------------------------- |
+| API Gateway communication | ✅ Ported | HTTP client with job polling                                    |
+| Job polling               | ✅ Ported | 1s interval, configurable timeout                               |
+| Error handling            | ✅ Ported | Try/catch with user-friendly messages                           |
+| Long-term memory          | ✅ Ported | pgvector with semantic retrieval                                |
+| Image support             | ✅ Ported | Vision models for image analysis                                |
+| Voice transcription       | ✅ Ported | OpenAI Whisper integration                                      |
+| Model indicators          | ✅ Ported | Shows which model generated response                            |
+| BYOK (Bring Your Own Key) | ✅ Ported | Users provide their own API keys                                |
+| Guest mode                | ✅ Ported | Free models for users without keys                              |
+| Rate limiting             | ✅ Ported | Redis-backed token bucket in api-gateway                        |
+| Request deduplication     | ✅ Ported | Multi-layer duplicate detection (Dice, Jaccard, embeddings)     |
+| Memory incognito mode     | ✅ Ported | `/memory incognito` - temporary disable memory storage (v3 new) |
+| Memory focus mode         | ✅ Ported | `/memory focus` - restrict RAG to specific timeframe (v3 new)   |
+| Memory management         | ✅ Ported | `/memory search/view/edit/delete/purge` commands (v3 new)       |
 
 ### User Management
 
@@ -135,27 +138,15 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
    - Falls back to regular bot messages (no webhooks in DMs)
    - **Requested multiple times by loyal beta user**
 
-2. **Auto-Response System** - Activated channels
-   - `/activate <personality>` - Enable in channel
-   - `/deactivate` - Disable in channel
-   - Personality responds to ALL messages in activated channel
-   - Requires NSFW channel + ManageMessages permission (v2 pattern)
+2. ~~**Auto-Response System**~~ ✅ COMPLETE - `/channel activate` and `/channel deactivate`
 
-3. **Reset Conversation** - Clear history command
-   - `/history clear <personality>` - Clear conversation with specific personality
-   - v2 had `/reset` command
+3. ~~**Reset Conversation**~~ ✅ COMPLETE - `/history clear` command
 
 ### Medium Priority 📋
 
-4. **Rate Limiting** - Token bucket algorithm
-   - Per-user rate limits
-   - Per-channel rate limits
-   - Graceful degradation
+4. ~~**Rate Limiting**~~ ✅ COMPLETE - Redis-backed token bucket in api-gateway
 
-5. **Request Deduplication** - Prevent duplicate processing
-   - Track recent message IDs
-   - Simple Map-based cache
-   - TTL-based cleanup
+5. ~~**Request Deduplication**~~ ✅ COMPLETE - Multi-layer duplicate detection with embeddings
 
 6. **NSFW Verification** - Age verification system
    - One-time verification per user (not per-channel like v2)
@@ -191,6 +182,13 @@ These are improvements over v2's architecture:
 - **Slash Commands** - Modern Discord interactions (v2 used text prefix !tz)
 - **BYOK** - Users bring their own API keys
 - **Guest Mode** - Free model access without API keys
+- **Memory Management** - Full CRUD for memories (`/memory search/view/edit/delete/purge`)
+- **Memory Incognito Mode** - Temporary disable memory storage per-personality
+- **Memory Focus Mode** - Restrict RAG retrieval to specific timeframe
+- **LLM Presets** - User-customizable LLM configurations (`/preset create/edit/list`)
+- **Extended Context** - Pull recent channel messages into prompt context
+- **Multi-layer Duplicate Detection** - Bigram, word, and semantic similarity checks
+- **LLM Diagnostic Flight Recorder** - Admin debug tool for prompt inspection (`/admin debug`)
 
 ---
 
@@ -231,12 +229,15 @@ These are improvements over v2's architecture:
 
 ### Phase 5: Polish & Enhancement 🚧 IN PROGRESS
 
-- [ ] Auto-response system
-- [ ] Rate limiting
-- [ ] Request deduplication
+- [x] Auto-response system (`/channel activate`)
+- [x] Rate limiting (Redis token bucket)
+- [x] Request deduplication (multi-layer detection)
 - [ ] NSFW verification
 - [ ] Personality aliases
-- [ ] Custom error messages
+- [ ] DM personality chat
+- [x] Memory management (`/memory` commands)
+- [x] LLM presets (`/preset` commands)
+- [x] Extended context mode
 
 ---
 
