@@ -8,6 +8,24 @@
  * Use SYNC_TABLE_ORDER for iteration, not Object.keys(SYNC_CONFIG).
  */
 
+/**
+ * Tables explicitly excluded from sync with reasons.
+ * These are documented exclusions that won't generate warnings during validation.
+ * Only tables not in SYNC_CONFIG AND not in EXCLUDED_TABLES will trigger warnings.
+ */
+export const EXCLUDED_TABLES: Record<string, string> = {
+  // Environment-specific data
+  admin_settings: 'Environment-specific admin configuration (different per bot instance)',
+  channel_settings: 'Environment-specific channel activations (different bot instances)',
+  user_api_keys: 'User API keys should not sync between environments (security)',
+
+  // Transient/ephemeral data
+  pending_memories: 'Transient queue data for memory processing',
+  image_description_cache: 'Cache data that can be regenerated',
+  llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 24h)',
+  usage_logs: 'Environment-specific usage tracking',
+};
+
 export interface TableSyncConfig {
   pk: string | string[]; // Primary key field(s)
   createdAt?: string; // Creation timestamp field (if exists)
