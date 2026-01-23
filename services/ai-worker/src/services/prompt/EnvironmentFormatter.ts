@@ -14,76 +14,71 @@ const logger = createLogger('EnvironmentFormatter');
 
 /**
  * Format Discord environment context for inclusion in system prompt.
- * Uses pure XML structure with semantic tags for clear LLM understanding.
+ * Returns a `<location>` XML element for embedding in the `<context>` section.
  *
  * DM output:
  * ```xml
- * <current_situation>
- *   <location type="dm">Direct Message (private one-on-one chat)</location>
- * </current_situation>
+ * <location type="dm">Direct Message (private one-on-one chat)</location>
  * ```
  *
  * Guild output:
  * ```xml
- * <current_situation>
- *   <location type="guild">
- *     <server name="Test Server"/>
- *     <category name="General"/>
- *     <channel name="chat" type="text"/>
- *     <thread name="discussion"/>
- *   </location>
- * </current_situation>
+ * <location type="guild">
+ *   <server name="Test Server"/>
+ *   <category name="General"/>
+ *   <channel name="chat" type="text"/>
+ *   <thread name="discussion"/>
+ * </location>
  * ```
+ *
+ * @param environment - Discord environment context (DM or guild)
+ * @returns XML location element string
  */
 export function formatEnvironmentContext(environment: DiscordEnvironment): string {
   logger.debug({ environment }, '[EnvironmentFormatter] Formatting environment context');
 
-  const parts: string[] = [];
-  parts.push('<current_situation>');
-
   if (environment.type === 'dm') {
     logger.info('[EnvironmentFormatter] Environment type: DM');
-    parts.push('<location type="dm">Direct Message (private one-on-one chat)</location>');
-  } else {
-    logger.info(
-      {
-        guildName: environment.guild?.name,
-        channelName: environment.channel.name,
-        channelType: environment.channel.type,
-      },
-      '[EnvironmentFormatter] Environment type: Guild'
-    );
-
-    parts.push('<location type="guild">');
-
-    // Guild name - escape to prevent prompt injection via malicious server names
-    if (environment.guild !== undefined && environment.guild !== null) {
-      parts.push(`<server name="${escapeXml(environment.guild.name)}"/>`);
-    }
-
-    // Category (if exists) - escape to prevent prompt injection
-    if (
-      environment.category !== undefined &&
-      environment.category !== null &&
-      environment.category.name.length > 0
-    ) {
-      parts.push(`<category name="${escapeXml(environment.category.name)}"/>`);
-    }
-
-    // Channel - escape to prevent prompt injection
-    parts.push(
-      `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"/>`
-    );
-
-    // Thread (if exists) - escape to prevent prompt injection
-    if (environment.thread !== undefined && environment.thread !== null) {
-      parts.push(`<thread name="${escapeXml(environment.thread.name)}"/>`);
-    }
-
-    parts.push('</location>');
+    return '<location type="dm">Direct Message (private one-on-one chat)</location>';
   }
 
-  parts.push('</current_situation>');
+  logger.info(
+    {
+      guildName: environment.guild?.name,
+      channelName: environment.channel.name,
+      channelType: environment.channel.type,
+    },
+    '[EnvironmentFormatter] Environment type: Guild'
+  );
+
+  const parts: string[] = [];
+  parts.push('<location type="guild">');
+
+  // Guild name - escape to prevent prompt injection via malicious server names
+  if (environment.guild !== undefined && environment.guild !== null) {
+    parts.push(`<server name="${escapeXml(environment.guild.name)}"/>`);
+  }
+
+  // Category (if exists) - escape to prevent prompt injection
+  if (
+    environment.category !== undefined &&
+    environment.category !== null &&
+    environment.category.name.length > 0
+  ) {
+    parts.push(`<category name="${escapeXml(environment.category.name)}"/>`);
+  }
+
+  // Channel - escape to prevent prompt injection
+  parts.push(
+    `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"/>`
+  );
+
+  // Thread (if exists) - escape to prevent prompt injection
+  if (environment.thread !== undefined && environment.thread !== null) {
+    parts.push(`<thread name="${escapeXml(environment.thread.name)}"/>`);
+  }
+
+  parts.push('</location>');
 
   return parts.join('\n');
 }

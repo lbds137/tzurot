@@ -521,7 +521,7 @@ describe('PromptBuilder', () => {
         // Get positions of each section - NEW structure
         const identityStart = content.indexOf('<system_identity>');
         const contextSection = content.indexOf('<context>');
-        const locationSection = content.indexOf('<location>');
+        const locationSection = content.indexOf('<location');
         const participantsPos = content.indexOf('<participants>');
         const memories_pos = content.indexOf('<memory_archive');
         const references = content.indexOf('<contextual_references>');
@@ -753,9 +753,9 @@ describe('PromptBuilder', () => {
 
       // NEW: Environment context is now in <context><location>
       expect(content).toContain('<context>');
-      expect(content).toContain('<location>');
+      expect(content).toContain('<location type="dm">');
       expect(content).toContain('Direct Message');
-      expect(content).toContain('private chat');
+      expect(content).toContain('private one-on-one chat');
     });
 
     it('should include guild environment context in location XML', () => {
@@ -790,12 +790,12 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      // NEW: Environment context is now in <context><location>
+      // NEW: Environment context uses pure XML structure
       expect(content).toContain('<context>');
-      expect(content).toContain('<location>');
-      expect(content).toContain('Server: Test Server');
-      expect(content).toContain('Category: Community');
-      expect(content).toContain('Channel: #general');
+      expect(content).toContain('<location type="guild">');
+      expect(content).toContain('<server name="Test Server"/>');
+      expect(content).toContain('<category name="Community"/>');
+      expect(content).toContain('<channel name="general" type="text"/>');
     });
 
     it('should include thread context when in thread', () => {
@@ -831,8 +831,8 @@ describe('PromptBuilder', () => {
       const content = result.content as string;
 
       // NEW: Thread context in location XML
-      expect(content).toContain('<location>');
-      expect(content).toContain('Thread: Discussion Thread');
+      expect(content).toContain('<location type="guild">');
+      expect(content).toContain('<thread name="Discussion Thread"/>');
     });
 
     describe('name collision disambiguation', () => {
