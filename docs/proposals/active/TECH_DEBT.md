@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-22 (added PII documentation for diagnostic logs)
+> Last updated: 2026-01-22 (added diagnostic log enhancement suggestions from PR #502)
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -253,6 +253,37 @@ With the 100-session limit, this could fire **100 parallel API calls**.
 - `packages/common-types/src/types/incognito.ts` - Update session type
 
 **Source**: PR #494 code review (2026-01-20)
+
+---
+
+### Admin Debug Command: Add Filtering by User/Personality
+
+**Problem**: The API supports filtering diagnostic logs by `personalityId`, `userId`, and `channelId` (`diagnostic.ts:82-95`), but the Discord command only supports lookup by message ID or request ID. This limits debugging patterns like "why does Alice always fail in #general?"
+
+**Current State**: `/admin debug <identifier>` - only accepts message ID, message link, or request UUID.
+
+**Solution**: Add `/admin debug recent` subcommand with optional filters:
+
+```
+/admin debug recent personality:Alice user:@someone channel:#general
+```
+
+**Implementation**:
+
+- [ ] Add `recent` subcommand to `/admin debug`
+- [ ] Add optional `personality`, `user`, `channel` options
+- [ ] Call `/admin/diagnostic/recent` API endpoint with filters
+- [ ] Display paginated list of recent logs matching filters
+- [ ] Allow selecting a log to view full details
+
+**Files to modify**:
+
+- `services/bot-client/src/commands/admin/debug.ts` - Add subcommand and filtering
+- `services/bot-client/src/commands/admin/index.ts` - Register subcommand options
+
+**Why MEDIUM**: Improves admin debugging workflow significantly, but current single-lookup works for targeted debugging.
+
+**Source**: PR #502 review (2026-01-22)
 
 ---
 
@@ -657,6 +688,65 @@ While this data is essential for debugging prompt construction issues, it should
 **Why low priority**: Current access controls and retention are adequate. This is a documentation task for future maintainers.
 
 **Source**: PR #502 code review (2026-01-22)
+
+---
+
+### Diagnostic Embed: Color-Code More Finish Reasons
+
+**Problem**: The `/admin debug` embed shows finish reason with orange for `length` (context overflow), but other problematic finish reasons aren't visually distinguished.
+
+**Current State**: Only `length` is highlighted (orange). Other values like `error`, `content_filter` appear without color coding.
+
+**Solution**: Extend color coding for clarity:
+
+| Finish Reason    | Color  | Meaning                        |
+| ---------------- | ------ | ------------------------------ |
+| `stop`           | Green  | Normal completion              |
+| `length`         | Orange | ✅ Already implemented         |
+| `error`          | Red    | LLM error during generation    |
+| `content_filter` | Red    | Content policy violation       |
+| `stop_sequence`  | Blue   | Stopped by configured sequence |
+
+**Files to modify**:
+
+- `services/bot-client/src/commands/admin/debug.ts` - Extend `formatFinishReason()` function
+
+**Why LOW**: Current implementation already handles the most common issue (`length`). Other finish reasons are rare.
+
+**Source**: PR #502 review (2026-01-22)
+
+---
+
+### Diagnostic Retention: Make Configurable via Environment
+
+**Problem**: The diagnostic log retention period is hardcoded to 24 hours in `CleanupDiagnosticLogs.ts:16`. Adjusting retention requires a code change and deploy.
+
+**Current State**:
+
+```typescript
+const RETENTION_HOURS = 24;
+```
+
+**Solution**: Make configurable via environment variable with sensible default:
+
+```typescript
+const RETENTION_HOURS = parseInt(process.env.DIAGNOSTIC_RETENTION_HOURS ?? '24', 10);
+```
+
+**Considerations**:
+
+- Shorter retention (12h) saves storage but may miss debugging window
+- Longer retention (48h) helps debug issues reported a day later
+- Environment variable allows per-environment configuration (dev vs prod)
+
+**Files to modify**:
+
+- `services/ai-worker/src/jobs/CleanupDiagnosticLogs.ts` - Read from env
+- `services/ai-worker/.env.example` - Document the variable
+
+**Why LOW**: Current 24h default is reasonable. Only worth changing if storage becomes an issue or debugging workflow requires longer retention.
+
+**Source**: PR #502 review (2026-01-22)
 
 ---
 
