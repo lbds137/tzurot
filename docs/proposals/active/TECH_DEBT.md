@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-22 (added dashboard race condition, logger magic number)
+> Last updated: 2026-01-22 (added PII documentation for diagnostic logs)
 
 Technical debt items prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -629,6 +629,34 @@ async function checkUserAccess(
 - [ ] Scaling consideration: If responses grow >10KB, consider MinHash/SimHash for O(1) checks
 
 **Why low priority**: Algorithm works correctly and is performant at current scale. Documentation is for future maintainers.
+
+---
+
+### Document PII in Diagnostic Logs
+
+**Problem**: The LLM diagnostic flight recorder (`llm_diagnostic_logs` table) captures sensitive data including:
+
+- Full user messages (`rawUserMessage`)
+- Complete assembled prompts (all messages sent to LLM)
+- Raw LLM responses before processing
+
+While this data is essential for debugging prompt construction issues, it should be documented as containing PII.
+
+**Current mitigations**:
+
+- 24-hour automatic retention (data auto-deleted via BullMQ cleanup job)
+- Admin-only access (`/admin debug` command requires bot owner)
+- No external API exposure (internal service only)
+
+**Documentation needed**:
+
+- [ ] Add note to `tzurot-security` skill about diagnostic logs containing PII
+- [ ] Document in `DiagnosticCollector.ts` header that data contains user content
+- [ ] Consider PII scrubbing if diagnostic data is ever exposed beyond local debugging
+
+**Why low priority**: Current access controls and retention are adequate. This is a documentation task for future maintainers.
+
+**Source**: PR #502 code review (2026-01-22)
 
 ---
 
