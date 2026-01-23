@@ -350,6 +350,23 @@ CREATE TABLE "image_description_cache" (
     CONSTRAINT "image_description_cache_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "llm_diagnostic_logs" (
+    "id" UUID NOT NULL,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "request_id" VARCHAR(255) NOT NULL,
+    "personality_id" UUID,
+    "user_id" VARCHAR(20),
+    "guild_id" VARCHAR(20),
+    "channel_id" VARCHAR(20),
+    "model" VARCHAR(255) NOT NULL,
+    "provider" VARCHAR(50) NOT NULL,
+    "duration_ms" INTEGER NOT NULL,
+    "data" JSONB NOT NULL,
+
+    CONSTRAINT "llm_diagnostic_logs_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_discord_id_key" ON "users"("discord_id");
 
@@ -547,6 +564,21 @@ CREATE INDEX "job_results_status_completed_at_idx" ON "job_results"("status", "c
 
 -- CreateIndex
 CREATE UNIQUE INDEX "image_description_cache_attachment_id_key" ON "image_description_cache"("attachment_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "llm_diagnostic_logs_request_id_key" ON "llm_diagnostic_logs"("request_id");
+
+-- CreateIndex
+CREATE INDEX "llm_diagnostic_logs_created_at_idx" ON "llm_diagnostic_logs"("created_at");
+
+-- CreateIndex
+CREATE INDEX "llm_diagnostic_logs_personality_id_idx" ON "llm_diagnostic_logs"("personality_id");
+
+-- CreateIndex
+CREATE INDEX "llm_diagnostic_logs_user_id_idx" ON "llm_diagnostic_logs"("user_id");
+
+-- CreateIndex
+CREATE INDEX "llm_diagnostic_logs_channel_id_idx" ON "llm_diagnostic_logs"("channel_id");
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;

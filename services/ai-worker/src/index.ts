@@ -15,6 +15,7 @@ import { PgvectorMemoryAdapter } from './services/PgvectorMemoryAdapter.js';
 import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
+import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import {
   createLogger,
   getConfig,
@@ -292,10 +293,11 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker<AnyJobData, AnyJ
 }
 
 /**
- * Set up scheduled jobs queue and worker for pending memory processing
+ * Set up scheduled jobs queue and worker for periodic maintenance tasks
  */
 async function setupScheduledJobs(
-  pendingMemoryProcessor: PendingMemoryProcessor
+  pendingMemoryProcessor: PendingMemoryProcessor,
+  prisma: PrismaClient
 ): Promise<ScheduledJobsResult> {
   const scheduledQueue = new Queue('scheduled-jobs', { connection: config.redis });
 
@@ -305,6 +307,10 @@ async function setupScheduledJobs(
       if (job.name === 'process-pending-memories') {
         logger.debug('[Scheduled] Running pending memory processor');
         return pendingMemoryProcessor.processPendingMemories();
+      }
+      if (job.name === 'cleanup-diagnostic-logs') {
+        logger.debug('[Scheduled] Running diagnostic log cleanup');
+        return cleanupDiagnosticLogs(prisma);
       }
       return null;
     },
@@ -323,14 +329,23 @@ async function setupScheduledJobs(
     logger.error({ err: error }, `[Scheduled] Job ${job?.name} failed`);
   });
 
-  // Add repeatable job (every 10 minutes)
+  // Add repeatable job for pending memories (every 10 minutes)
   await scheduledQueue.add(
     'process-pending-memories',
     {},
     { repeat: { pattern: '*/10 * * * *' }, jobId: 'process-pending-memories' }
   );
 
-  logger.info('[AIWorker] Scheduled jobs configured (pending memory retry every 10 minutes)');
+  // Add repeatable job for diagnostic log cleanup (hourly)
+  await scheduledQueue.add(
+    'cleanup-diagnostic-logs',
+    {},
+    { repeat: { pattern: '0 * * * *' }, jobId: 'cleanup-diagnostic-logs' }
+  );
+
+  logger.info(
+    '[AIWorker] Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly)'
+  );
 
   return { scheduledQueue, scheduledWorker };
 }
@@ -404,7 +419,10 @@ async function main(): Promise<void> {
   }
 
   // Set up scheduled jobs
-  const { scheduledQueue, scheduledWorker } = await setupScheduledJobs(pendingMemoryProcessor);
+  const { scheduledQueue, scheduledWorker } = await setupScheduledJobs(
+    pendingMemoryProcessor,
+    prisma
+  );
 
   // Start health server if enabled
   if (envConfig.ENABLE_HEALTH_SERVER) {
