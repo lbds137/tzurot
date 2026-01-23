@@ -25,6 +25,7 @@ import {
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
+import { sanitizeForJsonb } from '../../../../utils/jsonSanitizer.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';
 
 const logger = createLogger('GenerationStep');
@@ -133,6 +134,10 @@ export class GenerationStep implements IPipelineStep {
   ): void {
     const payload = collector.finalize();
 
+    // Sanitize payload for PostgreSQL JSONB storage
+    // Handles lone surrogates (from cut-off LLM streams) and null bytes
+    const sanitizedPayload = sanitizeForJsonb(payload);
+
     // Fire-and-forget: don't await, just log errors
     const prisma = getPrismaClient();
     prisma.llmDiagnosticLog
@@ -148,7 +153,7 @@ export class GenerationStep implements IPipelineStep {
           provider,
           durationMs: payload.timing.totalDurationMs,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment -- Prisma JSON field requires any cast
-          data: payload as any,
+          data: sanitizedPayload as any,
         },
       })
       .then(() => {
