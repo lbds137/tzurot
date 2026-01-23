@@ -24,6 +24,7 @@ import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
+import { extractContentDescriptions } from './RAGUtils.js';
 
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
@@ -75,10 +76,7 @@ export class PromptBuilder {
 
     // Add attachment descriptions (voice transcriptions, image descriptions)
     if (processedAttachments.length > 0) {
-      const descriptions = processedAttachments
-        .map(a => a.description)
-        .filter(d => d.length > 0 && !d.startsWith('['))
-        .join('\n\n');
+      const descriptions = extractContentDescriptions(processedAttachments);
 
       if (descriptions.length > 0) {
         parts.push(descriptions);
@@ -125,11 +123,8 @@ export class PromptBuilder {
     let messageContent = userMessage;
 
     if (processedAttachments.length > 0) {
-      // Get text descriptions for all attachments
-      const descriptions = processedAttachments
-        .map(a => a.description)
-        .filter(d => d.length > 0 && !d.startsWith('['))
-        .join('\n\n');
+      // Get text descriptions for all attachments (excluding placeholders)
+      const descriptions = extractContentDescriptions(processedAttachments);
 
       // For voice-only messages (no text), use transcription as primary message
       // For images or mixed content, combine with user message
@@ -568,15 +563,7 @@ NEVER output XML tags in your response.`;
    * Count tokens for processed attachments (from descriptions)
    */
   countAttachmentTokens(processedAttachments: ProcessedAttachment[]): number {
-    if (processedAttachments.length === 0) {
-      return 0;
-    }
-
-    const descriptions = processedAttachments
-      .map(a => a.description)
-      .filter(d => d.length > 0 && !d.startsWith('['))
-      .join('\n\n');
-
+    const descriptions = extractContentDescriptions(processedAttachments);
     return countTextTokens(descriptions);
   }
 }
