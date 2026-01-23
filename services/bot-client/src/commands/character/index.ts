@@ -32,9 +32,8 @@ import { handleTemplate } from './template.js';
 import { handleView } from './view.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
-import { handleDelete } from './delete.js';
 import { handleAvatar } from './avatar.js';
-import { handleList } from './list.js';
+import { handleBrowse, handleBrowsePagination, isCharacterBrowseInteraction } from './browse.js';
 import { handleChat } from './chat.js';
 import {
   handleSettings,
@@ -69,9 +68,8 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
       },
       deferred: {
         edit: (ctx: DeferredCommandContext) => handleEdit(ctx, config),
-        delete: (ctx: DeferredCommandContext) => handleDelete(ctx, config),
         view: (ctx: DeferredCommandContext) => handleView(ctx, config),
-        list: (ctx: DeferredCommandContext) => handleList(ctx, config),
+        browse: (ctx: DeferredCommandContext) => handleBrowse(ctx, config),
         avatar: (ctx: DeferredCommandContext) => handleAvatar(ctx, config),
         import: (ctx: DeferredCommandContext) => handleImport(ctx, config),
         export: (ctx: DeferredCommandContext) => handleExport(ctx, config),
@@ -115,14 +113,23 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
 
 /**
  * Handle button interactions for character commands
- * Routes to settings dashboard or edit dashboard based on customId prefix
+ * Routes to browse pagination, settings dashboard, or edit dashboard based on customId
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const config = getConfig();
+
+  // Handle browse pagination
+  if (isCharacterBrowseInteraction(interaction.customId)) {
+    await handleBrowsePagination(interaction, config);
+    return;
+  }
+
   // Check if it's a settings dashboard interaction
   if (isCharacterSettingsInteraction(interaction.customId)) {
     await handleCharacterSettingsButton(interaction);
     return;
   }
+
   // Otherwise route to character edit dashboard
   await handleDashboardButton(interaction);
 }
@@ -178,18 +185,6 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('delete')
-        .setDescription('Permanently delete a character and all its data')
-        .addStringOption(option =>
-          option
-            .setName('character')
-            .setDescription('Character to delete')
-            .setRequired(true)
-            .setAutocomplete(true)
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
         .setName('view')
         .setDescription('View character details')
         .addStringOption(option =>
@@ -200,7 +195,25 @@ export default defineCommand({
             .setAutocomplete(true)
         )
     )
-    .addSubcommand(subcommand => subcommand.setName('list').setDescription('List your characters'))
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('browse')
+        .setDescription('Browse and search characters')
+        .addStringOption(option =>
+          option.setName('query').setDescription('Search by name or description').setRequired(false)
+        )
+        .addStringOption(option =>
+          option
+            .setName('filter')
+            .setDescription('Filter characters by type')
+            .setRequired(false)
+            .addChoices(
+              { name: 'All Characters', value: 'all' },
+              { name: 'My Characters', value: 'mine' },
+              { name: 'Public Only', value: 'public' }
+            )
+        )
+    )
     .addSubcommand(subcommand =>
       subcommand
         .setName('avatar')

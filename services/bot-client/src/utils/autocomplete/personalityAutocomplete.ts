@@ -4,14 +4,19 @@
  * Provides consistent autocomplete for personality (AI character) selection
  * across all commands. Uses the gateway API for data access.
  *
- * Visibility indicators:
- * - 🌐 = Public and owned by user
- * - 🔒 = Private and owned by user
- * - 📖 = Public but not owned (read-only)
+ * Uses standardized badges from @tzurot/common-types:
+ * - 🌍 PUBLIC = User's public personality (can edit)
+ * - 🔒 OWNED = User's private personality (can edit)
+ * - 📖 READ_ONLY = Someone else's public personality
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  AUTOCOMPLETE_BADGES,
+  formatAutocompleteOption,
+} from '@tzurot/common-types';
 import { getCachedPersonalities } from './autocompleteCache.js';
 
 const logger = createLogger('personality-autocomplete');
@@ -99,32 +104,30 @@ export async function handlePersonalityAutocomplete(
       })
       .slice(0, DISCORD_LIMITS.AUTOCOMPLETE_MAX_CHOICES);
 
-    // Format choices
-    // Explicitly check for null/undefined/empty string (displayName could be '')
+    // Format choices using standardized autocomplete utility
     const choices = filtered.map(p => {
+      // Use displayName if set, otherwise fall back to name
       const displayName =
         p.displayName !== null && p.displayName !== undefined && p.displayName !== ''
           ? p.displayName
           : p.name;
 
-      // Build label: [visibility] DisplayName (slug)
-      let label = displayName;
-      if (mergedOptions.showVisibility) {
-        // Visibility icons based on permissions (not just ownership):
-        // 🔒 = Private, can edit (owned OR admin)
-        // 🌐 = Public, can edit (owned OR admin)
-        // 📖 = Public, read-only (not owned, not admin)
-        const canEdit = p.permissions.canEdit;
-        const visibility = canEdit ? (p.isPublic ? '🌐' : '🔒') : '📖';
-        label = `${visibility} ${displayName}`;
-      }
-      // Always append slug in parentheses for disambiguation
-      label = `${label} (${p.slug})`;
+      // Determine scope badge based on permissions
+      // 🌍 PUBLIC = can edit + public (user's shared personality)
+      // 🔒 OWNED = can edit + private (user's private personality)
+      // 📖 READ_ONLY = cannot edit (someone else's public personality)
+      const scopeBadge = p.permissions.canEdit
+        ? p.isPublic
+          ? AUTOCOMPLETE_BADGES.PUBLIC
+          : AUTOCOMPLETE_BADGES.OWNED
+        : AUTOCOMPLETE_BADGES.READ_ONLY;
 
-      return {
-        name: label,
+      return formatAutocompleteOption({
+        name: displayName,
         value: mergedOptions.valueField === 'id' ? p.id : p.slug,
-      };
+        scopeBadge: mergedOptions.showVisibility ? scopeBadge : undefined,
+        identifier: p.slug,
+      });
     });
 
     await interaction.respond(choices);
@@ -148,13 +151,18 @@ export async function handlePersonalityAutocomplete(
 /**
  * Get visibility icon for a personality
  *
+ * Uses standardized badges from AUTOCOMPLETE_BADGES:
+ * - 🌍 PUBLIC = can edit + public
+ * - 🔒 OWNED = can edit + private
+ * - 📖 READ_ONLY = cannot edit
+ *
  * @param canEdit - Whether the user can edit this personality (from permissions.canEdit)
  * @param isPublic - Whether the personality is public
- * @returns Emoji indicator
+ * @returns Emoji indicator from AUTOCOMPLETE_BADGES
  */
 export function getVisibilityIcon(canEdit: boolean, isPublic: boolean): string {
   if (canEdit) {
-    return isPublic ? '🌐' : '🔒';
+    return isPublic ? AUTOCOMPLETE_BADGES.PUBLIC : AUTOCOMPLETE_BADGES.OWNED;
   }
-  return '📖';
+  return AUTOCOMPLETE_BADGES.READ_ONLY;
 }

@@ -434,11 +434,12 @@ describe('Admin LLM Config Routes', () => {
   });
 
   describe('PUT /admin/llm-config/:id/set-free-default', () => {
-    it('should set a global config as free tier default', async () => {
+    it('should set a global config with free model as free tier default', async () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         name: 'Free Config',
         isGlobal: true,
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({
@@ -470,12 +471,30 @@ describe('Admin LLM Config Routes', () => {
       prisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-id',
         isGlobal: false,
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
       });
 
       const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
 
       expect(response.status).toBe(400);
       expect(response.body.message).toMatch(/only global/i);
+    });
+
+    it('should reject setting non-free model as free tier default', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Paid Config',
+        isGlobal: true,
+        model: 'anthropic/claude-sonnet-4', // Not a :free model
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id/set-free-default');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toMatch(/free models/i);
+      expect(response.body.message).toMatch(/:free/i);
+      // Should not proceed to update
+      expect(prisma.llmConfig.updateMany).not.toHaveBeenCalled();
     });
   });
 
@@ -678,6 +697,7 @@ describe('Admin LLM Config Routes', () => {
         id: 'config-id',
         name: 'Free Config',
         isGlobal: true,
+        model: 'meta-llama/llama-3.3-70b-instruct:free',
       });
       prisma.llmConfig.updateMany.mockResolvedValue({ count: 1 });
       prisma.llmConfig.update.mockResolvedValue({

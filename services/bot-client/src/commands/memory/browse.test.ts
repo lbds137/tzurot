@@ -1,9 +1,9 @@
 /**
- * Tests for Memory List Subcommand
+ * Tests for Memory Browse Subcommand
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleList } from './list.js';
+import { handleBrowse } from './browse.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -56,7 +56,7 @@ vi.mock('./detail.js', async importOriginal => {
   };
 });
 
-describe('handleList', () => {
+describe('handleBrowse', () => {
   const mockEditReply = vi.fn();
   const mockCreateMessageComponentCollector = vi.fn();
 
@@ -80,11 +80,11 @@ describe('handleList', () => {
             return null;
           },
         },
-        // Also needed for setupListCollector which uses interaction.editReply directly
+        // Also needed for setupBrowseCollector which uses interaction.editReply directly
         editReply: mockEditReply,
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleList>[0];
+    } as unknown as Parameters<typeof handleBrowse>[0];
   }
 
   it('should list memories successfully without filter', async () => {
@@ -110,7 +110,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       expect.stringContaining('/user/memory/list'),
@@ -139,7 +139,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext('lilith');
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockResolvePersonalityId).toHaveBeenCalledWith('123456789', 'lilith');
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -152,7 +152,7 @@ describe('handleList', () => {
     mockResolvePersonalityId.mockResolvedValue(null);
 
     const context = createMockContext('unknown-personality');
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('not found'),
@@ -167,7 +167,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Failed to load'),
@@ -187,7 +187,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -218,7 +218,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockCreateMessageComponentCollector).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -240,7 +240,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockCreateMessageComponentCollector).not.toHaveBeenCalled();
   });
@@ -249,7 +249,7 @@ describe('handleList', () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('unexpected error'),
@@ -279,7 +279,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -310,7 +310,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     // The embed should contain the lock emoji for locked memories
     expect(mockEditReply).toHaveBeenCalledWith(
@@ -344,9 +344,9 @@ describe('handleList', () => {
         },
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleList>[0];
+    } as unknown as Parameters<typeof handleBrowse>[0];
 
-    await handleList(context);
+    await handleBrowse(context);
 
     // Should NOT call resolvePersonalityId when personality is empty
     expect(mockResolvePersonalityId).not.toHaveBeenCalled();
@@ -397,7 +397,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -432,7 +432,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     // Should succeed - content is truncated and newlines removed
     expect(mockEditReply).toHaveBeenCalledWith(
@@ -465,7 +465,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -490,7 +490,7 @@ describe('handleList', () => {
     });
 
     const context = createMockContext('lilith');
-    await handleList(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
@@ -500,7 +500,7 @@ describe('handleList', () => {
   });
 });
 
-describe('handleList collector behavior', () => {
+describe('handleBrowse collector behavior', () => {
   const mockEditReply = vi.fn();
   const mockDeferUpdate = vi.fn();
   const mockFollowUp = vi.fn();
@@ -534,11 +534,11 @@ describe('handleList collector behavior', () => {
         options: {
           getString: () => null,
         },
-        // Also needed for setupListCollector which uses interaction.editReply directly
+        // Also needed for setupBrowseCollector which uses interaction.editReply directly
         editReply: mockEditReply,
       },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleList>[0];
+    } as unknown as Parameters<typeof handleBrowse>[0];
   }
 
   function createMockButtonInteraction(customId: string) {
@@ -577,7 +577,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     // Simulate pagination button click for page 1
     mockCallGatewayApi.mockResolvedValueOnce({
@@ -601,7 +601,7 @@ describe('handleList collector behavior', () => {
       },
     });
 
-    const buttonInteraction = createMockButtonInteraction('memory-list::list::1::date');
+    const buttonInteraction = createMockButtonInteraction('memory-browse::list::1::date');
     collectCallback(buttonInteraction);
 
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -633,12 +633,12 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     // API fails on page 2
     mockCallGatewayApi.mockResolvedValueOnce({ ok: false, error: 'Server error' });
 
-    const buttonInteraction = createMockButtonInteraction('memory-list::list::1::date');
+    const buttonInteraction = createMockButtonInteraction('memory-browse::list::1::date');
     collectCallback(buttonInteraction);
 
     await new Promise(resolve => setTimeout(resolve, 10));
@@ -674,7 +674,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const selectInteraction = {
       isButton: () => false,
@@ -716,7 +716,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     // Reset mock to track the end behavior
     mockEditReply.mockClear();
@@ -750,7 +750,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     // Simulate editReply failing (message deleted)
     mockEditReply.mockClear();
@@ -784,7 +784,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const buttonInteraction = createMockButtonInteraction('unknown-prefix::action');
     collectCallback(buttonInteraction);
@@ -818,7 +818,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::edit::memory-1');
     collectCallback(buttonInteraction);
@@ -851,7 +851,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::lock::memory-1');
     collectCallback(buttonInteraction);
@@ -884,7 +884,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::delete::memory-1');
     collectCallback(buttonInteraction);
@@ -917,7 +917,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const buttonInteraction = createMockButtonInteraction(
       'memory-detail::confirm-delete::memory-1'
@@ -952,7 +952,7 @@ describe('handleList collector behavior', () => {
     });
 
     const context = createMockContext();
-    await handleList(context);
+    await handleBrowse(context);
 
     const buttonInteraction = createMockButtonInteraction('memory-detail::back::memory-1');
     collectCallback(buttonInteraction);
