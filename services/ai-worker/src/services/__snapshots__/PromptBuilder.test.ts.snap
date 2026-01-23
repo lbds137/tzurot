@@ -23,7 +23,7 @@ NEVER output XML tags in your response.
 
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
-<location>Direct Message (private chat)</location>
+<location type="dm">Direct Message (private one-on-one chat)</location>
 <request_id>NORMALIZED</request_id>
 </context>
 
@@ -55,7 +55,11 @@ NEVER output XML tags in your response.
 
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
-<location>Server: Dev Community, Category: Development, Channel: #bot-testing (text)</location>
+<location type="guild">
+<server name="Dev Community"/>
+<category name="Development"/>
+<channel name="bot-testing" type="text"/>
+</location>
 <request_id>NORMALIZED</request_id>
 </context>
 
@@ -101,7 +105,7 @@ NEVER output XML tags in your response.
 
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
-<location>Direct Message (private chat)</location>
+<location type="dm">Direct Message (private one-on-one chat)</location>
 <request_id>NORMALIZED</request_id>
 </context>
 
@@ -170,7 +174,7 @@ NEVER output XML tags in your response.
 
 <context>
 <datetime>Saturday, June 15, 2024 at 10:30 AM EDT</datetime>
-<location>Direct Message (private chat)</location>
+<location type="dm">Direct Message (private one-on-one chat)</location>
 <request_id>NORMALIZED</request_id>
 </context>
 
