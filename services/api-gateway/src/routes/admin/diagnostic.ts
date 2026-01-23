@@ -137,6 +137,7 @@ function handleGetByMessage(prisma: PrismaClient): RequestHandler {
     const logs = await prisma.llmDiagnosticLog.findMany({
       where: { triggerMessageId: messageId },
       orderBy: { createdAt: 'desc' },
+      take: MAX_RECENT_LOGS,
     });
 
     if (logs.length === 0) {

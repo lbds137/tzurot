@@ -3,6 +3,7 @@
  *
  * Tests the LLM diagnostic log retrieval endpoints:
  * - GET /admin/diagnostic/recent - List recent logs with filtering
+ * - GET /admin/diagnostic/by-message/:messageId - Get logs by Discord message ID
  * - GET /admin/diagnostic/:requestId - Get full diagnostic payload
  */
 
@@ -123,6 +124,7 @@ describe('Admin Diagnostic Routes', () => {
         {
           id: 'log-1',
           requestId: 'req-1',
+          triggerMessageId: '1234567890123456789',
           personalityId: 'personality-1',
           userId: 'user-1',
           guildId: 'guild-1',
@@ -135,6 +137,7 @@ describe('Admin Diagnostic Routes', () => {
         {
           id: 'log-2',
           requestId: 'req-2',
+          triggerMessageId: '9876543210987654321',
           personalityId: 'personality-2',
           userId: 'user-2',
           guildId: 'guild-2',
@@ -245,11 +248,130 @@ describe('Admin Diagnostic Routes', () => {
     });
   });
 
+  describe('GET /admin/diagnostic/by-message/:messageId', () => {
+    it('should return logs for a valid message ID', async () => {
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([
+        {
+          id: 'log-1',
+          requestId: 'req-1',
+          triggerMessageId: '1234567890123456789',
+          personalityId: 'personality-1',
+          userId: 'user-1',
+          guildId: 'guild-1',
+          channelId: 'channel-1',
+          model: 'claude-3-5-sonnet',
+          provider: 'anthropic',
+          durationMs: 1000,
+          createdAt: new Date('2026-01-22T12:00:00Z'),
+          data: mockDiagnosticPayload,
+        },
+      ]);
+
+      const response = await request(app).get('/admin/diagnostic/by-message/1234567890123456789');
+
+      expect(response.status).toBe(200);
+      expect(response.body.logs).toHaveLength(1);
+      expect(response.body.count).toBe(1);
+      expect(response.body.logs[0].triggerMessageId).toBe('1234567890123456789');
+      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith({
+        where: { triggerMessageId: '1234567890123456789' },
+        orderBy: { createdAt: 'desc' },
+        take: 100,
+      });
+    });
+
+    it('should return multiple logs for the same message ID', async () => {
+      // A single Discord message might trigger multiple AI calls (e.g., retries)
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([
+        {
+          id: 'log-1',
+          requestId: 'req-1',
+          triggerMessageId: '1234567890123456789',
+          personalityId: 'personality-1',
+          userId: 'user-1',
+          guildId: 'guild-1',
+          channelId: 'channel-1',
+          model: 'claude-3-5-sonnet',
+          provider: 'anthropic',
+          durationMs: 1000,
+          createdAt: new Date('2026-01-22T12:00:00Z'),
+          data: mockDiagnosticPayload,
+        },
+        {
+          id: 'log-2',
+          requestId: 'req-2',
+          triggerMessageId: '1234567890123456789',
+          personalityId: 'personality-1',
+          userId: 'user-1',
+          guildId: 'guild-1',
+          channelId: 'channel-1',
+          model: 'claude-3-5-sonnet',
+          provider: 'anthropic',
+          durationMs: 800,
+          createdAt: new Date('2026-01-22T11:59:00Z'),
+          data: mockDiagnosticPayload,
+        },
+      ]);
+
+      const response = await request(app).get('/admin/diagnostic/by-message/1234567890123456789');
+
+      expect(response.status).toBe(200);
+      expect(response.body.logs).toHaveLength(2);
+      expect(response.body.count).toBe(2);
+    });
+
+    it('should return 404 when no logs exist for message ID', async () => {
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+
+      const response = await request(app).get('/admin/diagnostic/by-message/9999999999999999999');
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toContain('not found');
+    });
+
+    it('should include data payload in by-message response', async () => {
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([
+        {
+          id: 'log-uuid',
+          requestId: 'test-req',
+          triggerMessageId: '1234567890123456789',
+          personalityId: 'personality-uuid',
+          userId: '123456789',
+          guildId: '987654321',
+          channelId: '111222333',
+          model: 'claude-3-5-sonnet',
+          provider: 'anthropic',
+          durationMs: 1500,
+          createdAt: new Date('2026-01-22T12:00:00Z'),
+          data: mockDiagnosticPayload,
+        },
+      ]);
+
+      const response = await request(app).get('/admin/diagnostic/by-message/1234567890123456789');
+
+      expect(response.status).toBe(200);
+      expect(response.body.logs[0].data).toEqual(mockDiagnosticPayload);
+    });
+
+    it('should limit results to MAX_RECENT_LOGS', async () => {
+      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+
+      await request(app).get('/admin/diagnostic/by-message/1234567890123456789');
+
+      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+        })
+      );
+    });
+  });
+
   describe('GET /admin/diagnostic/:requestId', () => {
     it('should return full diagnostic log', async () => {
       mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
         id: 'log-uuid',
         requestId: 'test-req-123',
+        triggerMessageId: '1234567890123456789',
         personalityId: 'personality-uuid',
         userId: '123456789',
         guildId: '987654321',
@@ -291,6 +413,7 @@ describe('Admin Diagnostic Routes', () => {
       mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
         id: 'log-uuid',
         requestId: 'req-with-special/chars',
+        triggerMessageId: null,
         personalityId: null,
         userId: null,
         guildId: null,
@@ -313,6 +436,7 @@ describe('Admin Diagnostic Routes', () => {
       mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
         id: 'log-uuid',
         requestId: 'test-req',
+        triggerMessageId: '1111222233334444555',
         personalityId: 'p-uuid',
         userId: 'u-123',
         guildId: 'g-456',
@@ -329,6 +453,7 @@ describe('Admin Diagnostic Routes', () => {
       const log = response.body.log;
       expect(log).toHaveProperty('id');
       expect(log).toHaveProperty('requestId');
+      expect(log).toHaveProperty('triggerMessageId');
       expect(log).toHaveProperty('personalityId');
       expect(log).toHaveProperty('userId');
       expect(log).toHaveProperty('guildId');
@@ -344,6 +469,7 @@ describe('Admin Diagnostic Routes', () => {
       mockPrisma.llmDiagnosticLog.findUnique.mockResolvedValue({
         id: 'log-uuid',
         requestId: 'dm-req',
+        triggerMessageId: '5555666677778888999',
         personalityId: null, // DM could have null personality
         userId: 'user-123',
         guildId: null, // DM has no guild
