@@ -551,6 +551,9 @@ model LlmDiagnosticLog {
   /// Link to the request for lookup (e.g., from /admin debug command)
   requestId     String   @unique @map("request_id") @db.VarChar(255)
 
+  /// Discord message ID that triggered this request (for diagnostic lookup by message)
+  triggerMessageId String? @map("trigger_message_id") @db.VarChar(20)
+
   /// Top-level indexed fields for filtering/queries
   personalityId String?  @map("personality_id") @db.Uuid
   userId        String?  @map("user_id") @db.VarChar(20)
@@ -565,6 +568,7 @@ model LlmDiagnosticLog {
   data          Json
 
   @@index([createdAt])
+  @@index([triggerMessageId])
   @@index([personalityId])
   @@index([userId])
   @@index([channelId])

@@ -45,6 +45,7 @@ const MEMORY_PREVIEW_LENGTH = 100;
  */
 export interface DiagnosticCollectorOptions {
   requestId: string;
+  triggerMessageId?: string;
   personalityId: string;
   personalityName: string;
   userId: string;
@@ -155,6 +156,7 @@ export class DiagnosticCollector {
     this.startTime = Date.now();
     this.meta = {
       requestId: options.requestId,
+      triggerMessageId: options.triggerMessageId,
       personalityId: options.personalityId,
       personalityName: options.personalityName,
       userId: options.userId,
