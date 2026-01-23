@@ -582,6 +582,9 @@ CREATE INDEX "llm_diagnostic_logs_personality_id_idx" ON "llm_diagnostic_logs"("
 CREATE INDEX "llm_diagnostic_logs_user_id_idx" ON "llm_diagnostic_logs"("user_id");
 
 -- CreateIndex
+CREATE INDEX "llm_diagnostic_logs_guild_id_idx" ON "llm_diagnostic_logs"("guild_id");
+
+-- CreateIndex
 CREATE INDEX "llm_diagnostic_logs_channel_id_idx" ON "llm_diagnostic_logs"("channel_id");
 
 -- AddForeignKey

@@ -571,6 +571,7 @@ model LlmDiagnosticLog {
   @@index([triggerMessageId])
   @@index([personalityId])
   @@index([userId])
+  @@index([guildId])
   @@index([channelId])
   @@map("llm_diagnostic_logs")
 }
