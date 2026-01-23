@@ -7,13 +7,25 @@
  * - Modal submissions for section edits
  */
 
-import { MessageFlags } from 'discord.js';
+import {
+  MessageFlags,
+  EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+} from 'discord.js';
 import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, getConfig, isBotOwner, type EnvConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  getConfig,
+  isBotOwner,
+  DISCORD_COLORS,
+  type EnvConfig,
+} from '@tzurot/common-types';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -30,7 +42,7 @@ import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import type { CharacterSessionData } from './edit.js';
 import { fetchCharacter, updateCharacter, toggleVisibility } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
-import { handleListPagination } from './list.js';
+// Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
 
 const logger = createLogger('character-dashboard');
@@ -260,15 +272,7 @@ async function handleCharacterButtonAction(
   }
 
   switch (characterParsed.action) {
-    case 'list':
-    case 'sort': {
-      if (characterParsed.page === undefined) {
-        return true; // Info button is disabled, shouldn't be clickable
-      }
-      const page = characterParsed.action === 'sort' ? 0 : characterParsed.page;
-      await handleListPagination(interaction, page, characterParsed.sort, config);
-      return true;
-    }
+    // Note: 'list' and 'sort' cases removed - browse pagination handled in index.ts
 
     case 'view': {
       if (characterParsed.viewPage === undefined || characterParsed.characterId === undefined) {
@@ -387,11 +391,80 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
       showClose: true,
       showRefresh: true,
+      showDelete: character.canEdit, // Only show delete for owned characters
     });
 
     await interaction.editReply({ embeds: [embed], components });
     return;
   }
+
+  if (action === 'delete') {
+    await handleDeleteAction(interaction, entityId, config);
+    return;
+  }
+}
+
+/**
+ * Handle delete button click from dashboard - show confirmation dialog
+ */
+async function handleDeleteAction(
+  interaction: ButtonInteraction,
+  slug: string,
+  config: EnvConfig
+): Promise<void> {
+  // Re-fetch to verify current state and permissions
+  const character = await fetchCharacter(slug, config, interaction.user.id);
+  if (!character) {
+    await interaction.reply({
+      content: '❌ Character not found.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Verify user can delete
+  if (!character.canEdit) {
+    await interaction.reply({
+      content: '❌ You do not have permission to delete this character.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Build confirmation embed
+  const displayName = character.displayName ?? character.name;
+  const confirmEmbed = new EmbedBuilder()
+    .setTitle('⚠️ Delete Character')
+    .setDescription(
+      `Are you sure you want to **permanently delete** \`${displayName}\`?\n\n` +
+        '**This action is irreversible and will delete:**\n' +
+        '• All conversation history\n' +
+        '• All long-term memories\n' +
+        '• All pending memories\n' +
+        '• All activated channels\n' +
+        '• All aliases\n' +
+        '• Cached avatar'
+    )
+    .setColor(DISCORD_COLORS.ERROR);
+
+  // Build confirmation buttons using CharacterCustomIds
+  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(CharacterCustomIds.deleteConfirm(slug))
+      .setLabel('Delete Forever')
+      .setStyle(ButtonStyle.Danger),
+    new ButtonBuilder()
+      .setCustomId(CharacterCustomIds.deleteCancel(slug))
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Secondary)
+  );
+
+  await interaction.update({
+    embeds: [confirmEmbed],
+    components: [buttons],
+  });
+
+  logger.info({ userId: interaction.user.id, slug }, 'Showing delete confirmation from dashboard');
 }
 
 /**

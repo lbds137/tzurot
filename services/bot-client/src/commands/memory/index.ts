@@ -4,7 +4,7 @@
  *
  * Commands:
  * - /memory stats <personality> - View memory statistics
- * - /memory list [personality] - Browse memories with pagination
+ * - /memory browse [personality] - Browse memories with pagination
  * - /memory search <query> [personality] [limit] - Semantic search of memories
  * - /memory delete <personality> [timeframe] - Batch delete memories (skips locked)
  * - /memory purge <personality> - Delete ALL memories for personality (typed confirmation)
@@ -32,7 +32,7 @@ import type {
 } from '../../utils/commandContext/types.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { handleStats } from './stats.js';
-import { handleList, LIST_PAGINATION_CONFIG } from './list.js';
+import { handleBrowse, BROWSE_PAGINATION_CONFIG } from './browse.js';
 import { handleSearch, SEARCH_PAGINATION_CONFIG } from './search.js';
 import { handleFocusEnable, handleFocusDisable, handleFocusStatus } from './focus.js';
 import {
@@ -103,8 +103,8 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
     await incognitoRouter(context);
   } else if (subcommand === 'stats') {
     await handleStats(context);
-  } else if (subcommand === 'list') {
-    await handleList(context);
+  } else if (subcommand === 'browse') {
+    await handleBrowse(context);
   } else if (subcommand === 'search') {
     await handleSearch(context);
   } else if (subcommand === 'delete') {
@@ -305,7 +305,7 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('list')
+        .setName('browse')
         .setDescription('Browse your memories with pagination')
         .addStringOption(option =>
           option
@@ -492,7 +492,7 @@ export default defineCommand({
   handleModal,
   handleSelectMenu,
   componentPrefixes: [
-    LIST_PAGINATION_CONFIG.prefix,
+    BROWSE_PAGINATION_CONFIG.prefix,
     SEARCH_PAGINATION_CONFIG.prefix,
     MEMORY_DETAIL_PREFIX,
   ],

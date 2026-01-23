@@ -7,13 +7,20 @@
  * - Modal submissions for section edits
  */
 
-import { MessageFlags } from 'discord.js';
+import {
+  MessageFlags,
+  EmbedBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
+} from 'discord.js';
 import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -38,13 +45,14 @@ import { buildValidationEmbed, canProceed } from '../../utils/configValidation.j
 const logger = createLogger('preset-dashboard');
 
 /**
- * Build dashboard button options including toggle-global for owned presets.
- * The toggle button only appears if the user owns the preset.
+ * Build dashboard button options including toggle-global and delete for owned presets.
+ * The toggle and delete buttons only appear if the user owns the preset.
  */
 function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
   return {
     showClose: true,
     showRefresh: true,
+    showDelete: data.isOwned, // Only show delete for owned presets
     toggleGlobal: {
       isGlobal: data.isGlobal,
       isOwned: data.isOwned,
@@ -415,6 +423,152 @@ async function handleToggleGlobalButton(
 }
 
 /**
+ * Handle delete button - show confirmation dialog.
+ * @param interaction - The button interaction
+ * @param entityId - The preset ID to delete
+ */
+async function handleDeleteButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPresetData>(
+    interaction.user.id,
+    'preset',
+    entityId
+  );
+
+  if (!session) {
+    await interaction.reply({
+      content: '❌ Session expired. Please reopen the dashboard.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  if (!session.data.isOwned) {
+    await interaction.reply({
+      content: '❌ You can only delete presets you own.',
+      flags: MessageFlags.Ephemeral,
+    });
+    return;
+  }
+
+  // Show confirmation dialog
+  const confirmEmbed = new EmbedBuilder()
+    .setTitle('🗑️ Delete Preset?')
+    .setDescription(
+      `Are you sure you want to delete **${session.data.name}**?\n\nThis action cannot be undone.`
+    )
+    .setColor(DISCORD_COLORS.WARNING);
+
+  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
+    new ButtonBuilder()
+      .setCustomId(`preset::cancel-delete::${entityId}`)
+      .setLabel('Cancel')
+      .setStyle(ButtonStyle.Secondary),
+    new ButtonBuilder()
+      .setCustomId(`preset::confirm-delete::${entityId}`)
+      .setLabel('Delete')
+      .setStyle(ButtonStyle.Danger)
+      .setEmoji('🗑️')
+  );
+
+  await interaction.update({
+    embeds: [confirmEmbed],
+    components: [confirmRow],
+  });
+}
+
+/**
+ * Handle confirm-delete button - actually delete the preset.
+ * @param interaction - The button interaction
+ * @param entityId - The preset ID to delete
+ */
+async function handleConfirmDeleteButton(
+  interaction: ButtonInteraction,
+  entityId: string
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPresetData>(
+    interaction.user.id,
+    'preset',
+    entityId
+  );
+
+  const presetName = session?.data.name ?? 'Preset';
+
+  try {
+    const result = await callGatewayApi<void>(`/user/llm-config/${entityId}`, {
+      method: 'DELETE',
+      userId: interaction.user.id,
+    });
+
+    if (!result.ok) {
+      logger.warn(
+        { userId: interaction.user.id, status: result.status, entityId },
+        '[Preset] Failed to delete preset'
+      );
+      await interaction.editReply({
+        content: `❌ Failed to delete preset: ${result.error}`,
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // Clean up session
+    await sessionManager.delete(interaction.user.id, 'preset', entityId);
+
+    // Show success
+    await interaction.editReply({
+      content: `✅ **${presetName}** has been deleted.`,
+      embeds: [],
+      components: [],
+    });
+
+    logger.info({ userId: interaction.user.id, entityId, presetName }, '[Preset] Deleted preset');
+  } catch (error) {
+    logger.error({ err: error, entityId }, 'Failed to delete preset');
+    await interaction.editReply({
+      content: '❌ An error occurred while deleting the preset. Please try again.',
+      embeds: [],
+      components: [],
+    });
+  }
+}
+
+/**
+ * Handle cancel-delete button - return to dashboard.
+ * @param interaction - The button interaction
+ * @param entityId - The preset ID
+ */
+async function handleCancelDeleteButton(
+  interaction: ButtonInteraction,
+  entityId: string
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPresetData>(
+    interaction.user.id,
+    'preset',
+    entityId
+  );
+
+  if (!session) {
+    await interaction.editReply({
+      content: '❌ Session expired. Please reopen the dashboard.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  // Refresh dashboard to return from confirmation view
+  await refreshDashboardUI(interaction, entityId, session.data);
+}
+
+/**
  * Handle button interactions for dashboard
  */
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
@@ -426,12 +580,25 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   const entityId = parsed.entityId;
   const action = parsed.action;
 
-  if (action === 'close') {
-    await handleCloseButton(interaction, entityId);
-  } else if (action === 'refresh') {
-    await handleRefreshButton(interaction, entityId);
-  } else if (action === 'toggle-global') {
-    await handleToggleGlobalButton(interaction, entityId);
+  switch (action) {
+    case 'close':
+      await handleCloseButton(interaction, entityId);
+      break;
+    case 'refresh':
+      await handleRefreshButton(interaction, entityId);
+      break;
+    case 'toggle-global':
+      await handleToggleGlobalButton(interaction, entityId);
+      break;
+    case 'delete':
+      await handleDeleteButton(interaction, entityId);
+      break;
+    case 'confirm-delete':
+      await handleConfirmDeleteButton(interaction, entityId);
+      break;
+    case 'cancel-delete':
+      await handleCancelDeleteButton(interaction, entityId);
+      break;
   }
 }
 

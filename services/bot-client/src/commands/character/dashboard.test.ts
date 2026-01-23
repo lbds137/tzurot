@@ -11,7 +11,6 @@ import {
 } from './dashboard.js';
 import * as api from './api.js';
 import * as createModule from './create.js';
-import * as listModule from './list.js';
 import * as viewModule from './view.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
 import * as customIds from '../../utils/customIds.js';
@@ -34,9 +33,7 @@ vi.mock('./create.js', () => ({
   handleSeedModalSubmit: vi.fn(),
 }));
 
-vi.mock('./list.js', () => ({
-  handleListPagination: vi.fn(),
-}));
+// Note: Browse pagination is handled in index.ts, not dashboard.ts
 
 vi.mock('./view.js', () => ({
   handleViewPagination: vi.fn(),
@@ -277,44 +274,7 @@ describe('Character Dashboard', () => {
         editReply: vi.fn(),
       }) as unknown as ButtonInteraction;
 
-    it('should handle list pagination button', async () => {
-      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
-        action: 'list',
-        page: 2,
-        sort: 'date',
-      });
-
-      const mockInteraction = createMockButtonInteraction('character::list::2::date');
-
-      await handleButton(mockInteraction);
-
-      expect(listModule.handleListPagination).toHaveBeenCalledWith(
-        mockInteraction,
-        2,
-        'date',
-        expect.any(Object)
-      );
-    });
-
-    it('should handle sort toggle button and reset to page 0', async () => {
-      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
-        action: 'sort',
-        page: 3,
-        sort: 'name',
-      });
-
-      const mockInteraction = createMockButtonInteraction('character::sort::3::name');
-
-      await handleButton(mockInteraction);
-
-      // Sort action should reset to page 0
-      expect(listModule.handleListPagination).toHaveBeenCalledWith(
-        mockInteraction,
-        0,
-        'name',
-        expect.any(Object)
-      );
-    });
+    // Note: List/sort pagination tests removed - browse pagination is now handled in index.ts
 
     it('should handle view pagination button', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({

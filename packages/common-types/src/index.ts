@@ -39,6 +39,7 @@ export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export * from './utils/textChunker.js';
+export * from './utils/autocompleteFormat.js';
 export {
   Duration,
   DurationParseError,

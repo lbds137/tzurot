@@ -313,7 +313,7 @@ function createSetFreeDefaultHandler(
 
     const config = await prisma.llmConfig.findUnique({
       where: { id: configId },
-      select: { id: true, name: true, isGlobal: true },
+      select: { id: true, name: true, isGlobal: true, model: true },
     });
 
     if (config === null) {
@@ -323,6 +323,14 @@ function createSetFreeDefaultHandler(
       return sendError(
         res,
         ErrorResponses.validationError('Only global configs can be set as free tier default')
+      );
+    }
+    if (!config.model.endsWith(':free')) {
+      return sendError(
+        res,
+        ErrorResponses.validationError(
+          'Only presets using free models (model ID ending in :free) can be set as free tier default'
+        )
       );
     }
 
