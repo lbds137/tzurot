@@ -23,6 +23,7 @@ interface SyncResult {
   schemaVersion: string;
   stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }>;
   warnings: string[];
+  info: string[];
   changes?: unknown;
 }
 
@@ -112,10 +113,11 @@ export class DatabaseSyncService {
       logger.info({ schemaVersion }, '[Sync] Schema versions verified');
 
       // Validate SYNC_CONFIG matches actual schema
-      const configWarnings = await validateSyncConfig(this.devClient, SYNC_CONFIG);
+      const configValidation = await validateSyncConfig(this.devClient, SYNC_CONFIG);
 
       const stats: Record<string, { devToProd: number; prodToDev: number; conflicts: number }> = {};
-      const warnings: string[] = [...configWarnings];
+      const warnings: string[] = [...configValidation.warnings];
+      const info: string[] = [...configValidation.info];
 
       // Track tables with deferred FK columns for second pass
       const tablesWithDeferredFks: {
@@ -195,6 +197,7 @@ export class DatabaseSyncService {
         schemaVersion,
         stats,
         warnings,
+        info,
       };
     } finally {
       await this.devClient.$disconnect();

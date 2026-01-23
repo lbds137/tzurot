@@ -6,7 +6,12 @@
 
 import { type PrismaClient } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
-import { SYNC_CONFIG, type SyncTableName, type TableSyncConfig } from '../config/syncTables.js';
+import {
+  SYNC_CONFIG,
+  EXCLUDED_TABLES,
+  type SyncTableName,
+  type TableSyncConfig,
+} from '../config/syncTables.js';
 
 const logger = createLogger('db-sync');
 
@@ -46,15 +51,21 @@ export async function checkSchemaVersions(
   return devVersion;
 }
 
+export interface ValidationResult {
+  warnings: string[];
+  info: string[];
+}
+
 /**
  * Validate that SYNC_CONFIG matches actual database schema
- * @returns Array of validation warnings (empty if all validations pass)
+ * @returns Object with warnings (problems) and info (expected exclusions)
  */
 export async function validateSyncConfig(
   devClient: PrismaClient,
   syncConfig: Record<SyncTableName, TableSyncConfig>
-): Promise<string[]> {
+): Promise<ValidationResult> {
   const warnings: string[] = [];
+  const info: string[] = [];
 
   // Get actual UUID columns from database schema
   const actualUuidColumns = await devClient.$queryRaw<
@@ -118,19 +129,29 @@ export async function validateSyncConfig(
     }
 
     if (!syncedTables.has(tableName)) {
-      warnings.push(
-        `💡 Table '${tableName}' exists in database but is not in SYNC_CONFIG (will not be synced)`
-      );
+      // Check if it's an explicitly excluded table
+      const exclusionReason = EXCLUDED_TABLES[tableName];
+      if (exclusionReason !== undefined) {
+        info.push(`ℹ️  Table '${tableName}' excluded: ${exclusionReason}`);
+      } else {
+        warnings.push(
+          `⚠️  Table '${tableName}' exists in database but is not in SYNC_CONFIG or EXCLUDED_TABLES`
+        );
+      }
     }
   }
 
   if (warnings.length > 0) {
     logger.warn({ warnings }, '[Sync] SYNC_CONFIG validation warnings detected');
-  } else {
+  }
+  if (info.length > 0) {
+    logger.info({ excludedCount: info.length }, '[Sync] Excluded tables acknowledged');
+  }
+  if (warnings.length === 0 && info.length === 0) {
     logger.info('[Sync] SYNC_CONFIG validation passed - all UUID columns match schema');
   }
 
-  return warnings;
+  return { warnings, info };
 }
 
 /**

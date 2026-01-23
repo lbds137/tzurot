@@ -17,6 +17,7 @@ interface SyncResult {
   schemaVersion?: string;
   stats?: Record<string, { devToProd?: number; prodToDev?: number; conflicts?: number }>;
   warnings?: string[];
+  info?: string[];
   changes?: unknown;
   totalPoints?: number;
   totalCollections?: number;
@@ -97,6 +98,13 @@ export async function handleDbSync(context: DeferredCommandContext): Promise<voi
       embed.addFields({
         name: '⚠️ Warnings',
         value: result.warnings.join('\n').slice(0, TEXT_LIMITS.DISCORD_EMBED_FIELD),
+      });
+    }
+
+    if (result.info && result.info.length > 0) {
+      embed.addFields({
+        name: 'ℹ️ Excluded Tables',
+        value: result.info.join('\n').slice(0, TEXT_LIMITS.DISCORD_EMBED_FIELD),
       });
     }
 
