@@ -1,52 +1,50 @@
 # Current Work
 
-> Last updated: 2026-01-19
+> Last updated: 2026-01-23
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.43
+**Version**: v3.0.0-beta.47
 **Deployment**: Railway (stable)
-**Current Goal**: Slash Command Dashboard Pattern (Redis sessions complete, next: `/preset edit`)
+**Current Goal**: Slash Command UX Epic (standardize CRUD patterns, autocomplete consistency)
 
 ---
 
-## Active: Duplicate Detection & OpenAI Eviction Epic
+## Completed: Duplicate Detection & OpenAI Eviction Epic ✅
 
 **Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md)
 
-**Problem**: Users experience repetitive AI responses despite existing detection. Root cause: bigram Dice coefficient measures _spelling_ similarity, but free models have _semantic_ caching that returns identical content with minor variations.
+Multi-layer "Swiss Cheese" detection + escalating retry strategy + LTM embedding migration.
 
-**Solution**: Multi-layer "Swiss Cheese" detection + escalating retry strategy.
+**All Phases Complete:**
 
-**Phases 1-5 (COMPLETE)**:
+- [x] **Phase 1-5**: Word Jaccard, local embeddings (bge-small-en-v1.5), semantic layer, escalating retry
+- [x] **Phase 6**: LTM Embedding Migration - `@tzurot/embeddings` package, backfill, cleanup migration
 
-- [x] **Phase 1**: Word Jaccard similarity (Layer 2) - Catches same words with different formatting
-- [x] **Phase 2**: Local embedding service (bge-small-en-v1.5 via Worker Thread)
-- [x] **Phase 3**: Semantic embedding layer (Layer 4) - Catches meaning equivalence at 0.88 cosine threshold
-- [x] **Phase 4**: Escalating retry strategy ("Ladder of Desperation"):
-  - Attempt 1: Normal generation
-  - Attempt 2: Temperature 1.1, frequency penalty 0.5
-  - Attempt 3: Also reduce history by 30%
-- [x] **Phase 5**: Comprehensive tests (31 new tests for retry config and embedding service)
+**Result**: 50% OpenAI eviction complete (embeddings now local). Voice transcription (Whisper) remains a future epic.
 
-**Phase 6 (DEV COMPLETE - PENDING PROD DEPLOY)**: LTM Embedding Migration (OpenAI Eviction)
+---
 
-- [x] Created `@tzurot/embeddings` package (shared between ai-worker and api-gateway)
-- [x] Database migration: added `embedding_local` column (384-dim BGE)
-- [x] Backfill script with column detection, auto-index creation, VACUUM ANALYZE
-- [x] Updated PgvectorMemoryAdapter, PgvectorQueryBuilder, memorySearch.ts
-- [x] Cleanup migration: renamed `embedding_local` → `embedding`, dropped OpenAI column
-- [x] Development environment fully migrated and tested
+## Completed: LLM Diagnostic Flight Recorder ✅
 
-**Production Deployment** (staggered release required):
+**Reference**: [`.claude/plans/snug-beaming-quilt.md`](.claude/plans/snug-beaming-quilt.md) (diagnostic section)
 
-1. **Deploy commit `c633ded2`** (pre-cleanup) → Adds `embedding_local`, code switches to it
-   - LTM storage works, LTM retrieval broken (~1 hour)
-2. **Run backfill**: `pnpm ops run --env prod pnpm --filter @tzurot/scripts run db:backfill-local-embeddings`
-   - Script auto-creates index CONCURRENTLY and runs VACUUM ANALYZE
-3. **Deploy current develop** (cleanup migration) → Renames column, everything works
+Full pipeline capture for debugging prompt construction issues:
 
-**Result**: 50% OpenAI eviction (embeddings). Voice transcription (Whisper) remains a future epic.
+- [x] `LlmDiagnosticLog` table with 24-hour retention
+- [x] `DiagnosticCollector` class captures all pipeline stages
+- [x] `/admin debug <message-id|request-id>` command
+- [x] Sanitized JSONB payloads (handles NaN/Infinity)
+- [x] Message ID lookup for user-friendly debugging
+
+---
+
+## Completed: LLM Config JSONB Consolidation ✅
+
+Migrated individual LLM config columns to `advancedParameters` JSONB:
+
+- [x] Step A: Added JSONB column, migrated data, updated code to read from JSONB
+- [x] Step B: Dropped 7 legacy columns (temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty, maxTokens)
 
 ---
 
@@ -125,6 +123,34 @@ _Naming changes deferred - do as part of a "UX consistency pass" after Phase 3._
 
 ---
 
+## In Progress: Slash Command UX Epic ⬅️ CURRENT
+
+**Reference**: [docs/proposals/active/SLASH_COMMAND_UX_EPIC.md](docs/proposals/active/SLASH_COMMAND_UX_EPIC.md)
+
+Standardize CRUD UX patterns across all commands. Commands become **gateways** to dashboards.
+
+**Key Patterns**:
+
+- **Gateway & Dashboard**: `/preset create` → Modal → Dashboard (all editing happens in dashboards)
+- **Browse Pattern**: `/resource browse [query?]` combines list + search
+- **Autocomplete**: Consistent emoji format `[Scope Emoji] [Name] · [Metadata]`
+
+**Phase 1 (Preset Prototype)**:
+
+- [ ] Create `/preset browse [query] [filter]` command
+- [ ] Implement paginated list with emoji formatting
+- [ ] Add select menu → dashboard flow
+- [ ] Move deletion into dashboard
+- [ ] Fix: Global free default not filtering to free models
+
+**Phase 2 (Autocomplete)**:
+
+- [ ] Create `formatAutocompleteOption()` utility
+- [ ] Audit all autocomplete implementations
+- [ ] Standardize emoji usage (🌍 Global, 👤 Personal, 🔒 Locked)
+
+---
+
 ## Deferred: DRY Message Extraction Refactor
 
 **Plan**: [`.claude/plans/rustling-churning-pike.md`](.claude/plans/rustling-churning-pike.md)
@@ -156,12 +182,13 @@ Key areas remaining:
 
 ## Next Up
 
-| #   | Feature                         | Why                                                     |
-| --- | ------------------------------- | ------------------------------------------------------- |
-| 1   | **Dashboard + User Prompts** ⬅️ | Session manager, preset editing, sidecar system prompts |
-| 2   | **Channel Allowlist/Denylist**  | User-requested - prevents unwanted channel responses    |
-| 3   | **DM Personality Chat**         | User-requested - chat with personalities in DMs         |
-| 4   | **v2 Parity** (deprioritized)   | NSFW verification, Shapes import                        |
+| #   | Feature                        | Why                                                  |
+| --- | ------------------------------ | ---------------------------------------------------- |
+| 1   | **Slash Command UX Epic** ⬅️   | Standardize CRUD UX patterns, autocomplete           |
+| 2   | **User System Prompts**        | Sidecar prompt appended to system message per-user   |
+| 3   | **Channel Allowlist/Denylist** | User-requested - prevents unwanted channel responses |
+| 4   | **DM Personality Chat**        | User-requested - chat with personalities in DMs      |
+| 5   | **v2 Parity** (deprioritized)  | NSFW verification, Shapes import                     |
 
 See [ROADMAP.md](ROADMAP.md) for full details.
 
@@ -169,18 +196,13 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
-- **Redis Session Storage** (PR #483): DashboardSessionManager migrated from in-memory Map to Redis - enables horizontal scaling, sessions persist across restarts, O(1) messageId lookups via secondary index
-- **beta.43**: Memory Phase 3 (Incognito Mode) complete - `/memory incognito enable/disable/status/forget`, 👻 visual indicator, fail-open Redis design, dual-key pattern (per-personality or global), retroactive forget with locked memory protection
-- **Upcoming**: Swiss Cheese duplicate detection (4 layers: hash → Jaccard → bigram → semantic embedding), escalating retry strategy (temp 1.1, freq penalty, history reduction), local embedding service (bge-small-en-v1.5 via Worker Thread)
-- **beta.41**: Memory management Phase 2 complete - `/memory list`, `/memory search`, `/memory stats`, detail view with edit/delete/lock, `/memory delete` (batch), `/memory purge` (typed confirmation), Focus Mode with visual indicator
-- **beta.40**: Enhanced duplicate detection diagnostics (near-miss logging, similarity metrics, hash tracking), integration test for full duplicate detection data flow, Persona resolver improvements
-- **beta.39**: SafeInteraction wrapper to prevent InteractionAlreadyReplied errors, discord: format personaIds to UUIDs, stale job cleanup fixes
-- **beta.38**: Ordered response delivery (responses appear in message order), hallucinated turn prevention via prioritized stop sequences, finish_reason diagnostic logging
-- **beta.37**: BYOK API key leak fix, multi-turn duplicate check (last 5 messages), voice transcript fixes, GitGuardian integration
-- **beta.36**: Chunked message sync fix, DRY duplicate detection refactor, dependency updates (Node 25 types, Zod 4.3)
-- **beta.35**: Cross-turn duplication detection (entropy injection + Dice coefficient), 2-retry strategy for cached responses
-- **beta.34**: Documentation restructure, LTM/STM confusion prevention
-- **beta.33**: Identity/memory bug fixes, pretest clean hooks for CJS/ESM conflicts
+- **beta.47**: LLM Config JSONB cleanup (dropped 7 legacy columns), DB sync excluded tables (info vs warnings)
+- **beta.46**: PromptBuilder refactor (complexity reduction, `usage="context_only_do_not_repeat"` for memory_archive), attachment description consolidation
+- **beta.45**: LLM Diagnostic Flight Recorder complete - full pipeline capture, `/admin debug` command, message ID lookup
+- **beta.44**: Diagnostic log JSONB sanitization (handles NaN/Infinity), bounded queries with take limits
+- **beta.43**: Memory Phase 3 (Incognito Mode) complete - `/memory incognito enable/disable/status/forget`, 👻 visual indicator
+- **Redis Session Storage** (PR #483): DashboardSessionManager migrated to Redis - enables horizontal scaling
+- **LTM Embedding Migration**: OpenAI eviction complete - now using local bge-small-en-v1.5 embeddings
 
 Full release history: [GitHub Releases](https://github.com/lbds137/tzurot/releases)
 

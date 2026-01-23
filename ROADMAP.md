@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-19
-> **Current Version**: v3.0.0-beta.43
+> **Last Updated**: 2026-01-23
+> **Current Version**: v3.0.0-beta.47
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -14,17 +14,27 @@
 
 ## Next Up (In Order)
 
-### 1. Slash Command Dashboard Pattern + User System Prompts ⬅️ CURRENT
+### 1. Slash Command UX Epic ⬅️ CURRENT
 
-**Why**: Fix UX before adding complex features. Bundle system prompts into preset editor.
+**Why**: Standardize CRUD UX patterns before adding more features.
+
+**Reference**: [docs/proposals/active/SLASH_COMMAND_UX_EPIC.md](docs/proposals/active/SLASH_COMMAND_UX_EPIC.md)
 
 - [x] Standardize modal/button patterns across commands (PR #482)
-- [x] Redis-backed session storage (PR #483) - enables horizontal scaling, sessions persist across restarts
-- [ ] `/preset edit` - dashboard with all LLM params (temperature, topP, etc.)
-- [ ] `/me profile` dashboard upgrade
-- [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
+- [x] Redis-backed session storage (PR #483) - enables horizontal scaling
+- [ ] **Gateway & Dashboard Pattern** - commands open dashboards, not CLI-style args
+- [ ] **Browse Pattern** - `/resource browse [query?]` combines list + search
+- [ ] **Autocomplete Standardization** - consistent emoji format across all commands
+- [ ] Fix: Global free default not filtering to free models
 
-### 2. Channel Allowlist/Denylist
+### 2. User System Prompts
+
+**Why**: User-requested feature to customize AI behavior per-user.
+
+- [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
+- [ ] `/me profile` dashboard upgrade to edit system prompt
+
+### 3. Channel Allowlist/Denylist
 
 **Why**: User-requested. Prevents bot from spamming unwanted channels, reduces server kicks.
 
@@ -33,7 +43,7 @@
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### 3. DM Personality Chat
+### 4. DM Personality Chat
 
 **Why**: User-requested. Multiple requests for this feature.
 
@@ -120,6 +130,10 @@ Not needed until post-beta when we care about semantic versioning again.
 - **Memory Management Phase 3**: Incognito Mode (`/memory incognito enable/disable/status/forget`), 👻 indicator, fail-open design
 - **Slash Command Patterns**: Standardize modal/button custom ID parsing, `INTERACTION_PATTERNS.md` documentation
 - **Redis Session Storage**: DashboardSessionManager migrated to Redis (PR #483) - horizontal scaling, TTL expiration, O(1) messageId lookups
+- **Duplicate Detection Epic**: Multi-layer "Swiss Cheese" detection (hash → Jaccard → bigram → semantic), escalating retry strategy
+- **LTM Embedding Migration**: OpenAI eviction - local bge-small-en-v1.5 embeddings via `@tzurot/embeddings` package
+- **LLM Diagnostic Flight Recorder**: Full pipeline capture, `/admin debug` command, 24-hour retention
+- **LLM Config JSONB Consolidation**: Migrated params to `advancedParameters` JSONB, dropped 7 legacy columns
 
 ---
 
