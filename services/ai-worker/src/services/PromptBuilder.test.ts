@@ -523,7 +523,7 @@ describe('PromptBuilder', () => {
         const contextSection = content.indexOf('<context>');
         const locationSection = content.indexOf('<location>');
         const participantsPos = content.indexOf('<participants>');
-        const memories_pos = content.indexOf('<memory_archive>');
+        const memories_pos = content.indexOf('<memory_archive');
         const references = content.indexOf('<contextual_references>');
         const protocolPos = content.indexOf('<protocol>');
 
@@ -704,8 +704,8 @@ describe('PromptBuilder', () => {
 
       const content = result.content as string;
 
-      // Now uses XML format
-      expect(content).toContain('<memory_archive>');
+      // Now uses XML format with usage attribute
+      expect(content).toContain('<memory_archive usage="context_only_do_not_repeat">');
       expect(content).toContain('<instruction>');
       expect(content).toContain('User likes pizza');
       expect(content).toContain('User dislikes spam');

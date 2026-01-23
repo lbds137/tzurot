@@ -49,7 +49,7 @@ describe('MemoryFormatter', () => {
 
         const result = formatMemoriesContext(memories);
 
-        expect(result).toContain('<memory_archive>');
+        expect(result).toContain('<memory_archive usage="context_only_do_not_repeat">');
         expect(result).toContain('</memory_archive>');
       });
 
@@ -73,7 +73,7 @@ describe('MemoryFormatter', () => {
         const result = formatMemoriesContext([]);
 
         expect(result).toBe('');
-        expect(result).not.toContain('<memory_archive>');
+        expect(result).not.toContain('<memory_archive');
       });
 
       it('should have properly closed XML tags', () => {
@@ -85,7 +85,7 @@ describe('MemoryFormatter', () => {
         const result = formatMemoriesContext(memories);
 
         // Count opening and closing tags
-        const openTags = (result.match(/<memory_archive>/g) || []).length;
+        const openTags = (result.match(/<memory_archive[^>]*>/g) || []).length;
         const closeTags = (result.match(/<\/memory_archive>/g) || []).length;
         expect(openTags).toBe(1);
         expect(closeTags).toBe(1);
@@ -340,10 +340,10 @@ describe('MemoryFormatter', () => {
   });
 
   describe('getMemoryWrapperOverheadText', () => {
-    it('should return XML wrapper with instruction', () => {
+    it('should return XML wrapper with instruction and usage attribute', () => {
       const result = getMemoryWrapperOverheadText();
 
-      expect(result).toContain('<memory_archive>');
+      expect(result).toContain('<memory_archive usage="context_only_do_not_repeat">');
       expect(result).toContain('</memory_archive>');
       expect(result).toContain('<instruction>');
       expect(result).toContain('</instruction>');

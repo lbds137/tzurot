@@ -30,6 +30,31 @@ export const MEMORY_ARCHIVE_INSTRUCTION =
   'The current message is in <current_turn> - respond ONLY to that.';
 
 /**
+ * Build the memory archive XML wrapper.
+ * Single source of truth for memory archive structure.
+ *
+ * The usage attribute signals to the LLM that this content is background context
+ * that should not be parroted back or treated as current conversation.
+ *
+ * @param content - Optional content to include (formatted memories)
+ * @returns The complete memory archive XML
+ */
+function buildMemoryArchiveXml(content?: string): string {
+  const parts = [
+    '<memory_archive usage="context_only_do_not_repeat">',
+    `<instruction>${MEMORY_ARCHIVE_INSTRUCTION}</instruction>`,
+  ];
+
+  if (content !== undefined && content.length > 0) {
+    parts.push(content);
+  }
+
+  parts.push('</memory_archive>');
+
+  return parts.join('\n');
+}
+
+/**
  * Get the wrapper text used around memory content (for token counting)
  *
  * This returns the exact wrapper that formatMemoriesContext uses, minus the actual
@@ -38,11 +63,7 @@ export const MEMORY_ARCHIVE_INSTRUCTION =
  * @returns The memory archive wrapper text (opening + instruction + closing)
  */
 export function getMemoryWrapperOverheadText(): string {
-  return (
-    '<memory_archive>\n' +
-    `<instruction>${MEMORY_ARCHIVE_INSTRUCTION}</instruction>\n` +
-    '</memory_archive>'
-  );
+  return buildMemoryArchiveXml();
 }
 
 /**
@@ -110,11 +131,5 @@ export function formatMemoriesContext(
     .map(doc => formatSingleMemory(doc, timezone))
     .join('\n');
 
-  // Pure XML structure: <memory_archive> wraps <instruction> and <historical_note> elements
-  return (
-    '\n\n<memory_archive>\n' +
-    `<instruction>${MEMORY_ARCHIVE_INSTRUCTION}</instruction>\n` +
-    `${formattedMemories}\n` +
-    '</memory_archive>'
-  );
+  return '\n\n' + buildMemoryArchiveXml(formattedMemories);
 }
