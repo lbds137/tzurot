@@ -5,7 +5,7 @@
  * Reads from local .env file and sets variables via Railway CLI.
  */
 
-import { execFileSync, execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
@@ -187,7 +187,7 @@ function validateRailwayEnvironment(): void {
   console.log(chalk.green('✓') + ' Railway CLI authenticated');
 
   try {
-    const status = execSync('railway status', { stdio: 'pipe', encoding: 'utf-8' });
+    const status = execFileSync('railway', ['status'], { stdio: 'pipe', encoding: 'utf-8' });
     console.log(chalk.green('✓') + ' Linked to Railway project');
     console.log(chalk.dim(status.trim()));
   } catch {

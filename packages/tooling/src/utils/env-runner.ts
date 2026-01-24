@@ -7,7 +7,7 @@
  * - 'prod': Fetches DATABASE_PUBLIC_URL from Railway prod environment
  */
 
-import { spawn, execSync, execFileSync } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 
 export type Environment = 'local' | 'dev' | 'prod';
@@ -17,7 +17,7 @@ export type Environment = 'local' | 'dev' | 'prod';
  */
 export function checkRailwayCli(): boolean {
   try {
-    execSync('railway whoami', { stdio: 'pipe' });
+    execFileSync('railway', ['whoami'], { stdio: 'pipe' });
     return true;
   } catch {
     return false;
