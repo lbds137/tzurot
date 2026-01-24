@@ -96,6 +96,48 @@ date +%Y-%m-%d
 git commit -m "wip: feature-name - progress description"
 ```
 
+## Documentation Triage (Periodic Cleanup)
+
+Run this process quarterly or when docs feel stale.
+
+### 1. Audit Raw AI Consultation Files
+
+If files accumulate in `docs/gemini_chats/` or similar:
+
+- Extract actionable items → ROADMAP.md (Icebox or appropriate section)
+- Create distilled research notes in `docs/research/`
+- Delete raw transcripts (git history preserves them)
+
+### 2. Check for Completed Work Documentation
+
+**Philosophy**: Don't keep docs about _building_ features. Keep docs about what features _do_.
+
+- Search for "shipped", "complete", "done" in `proposals/`
+- If feature is shipped → verify feature docs exist, then delete planning docs
+- If feature docs don't exist → create them, THEN delete planning docs
+
+### 3. Verify ROADMAP.md and CURRENT_WORK.md
+
+- Completed items moved to Completed section
+- No stale "in progress" items
+- Update dates/versions
+
+### 4. Check CLAUDE.md for Gaps
+
+Common gaps to look for:
+
+- New CLI commands not documented
+- Patterns buried in skills that should be surfaced
+- Post-mortems not reflected in rules
+
+### 5. Skills Consistency Check
+
+- Verify skills match CLAUDE.md (no contradictions)
+- Check command examples use consistent formatting
+- Ensure skill descriptions match actual content
+
+**📚 See**: [docs/reference/DOCUMENTATION_PHILOSOPHY.md](docs/reference/DOCUMENTATION_PHILOSOPHY.md) for what to keep vs delete
+
 ## Best Practices
 
 ### ✅ Do
