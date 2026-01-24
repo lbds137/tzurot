@@ -96,24 +96,24 @@ When making changes that affect multiple files:
 
 **Trigger Keywords → Skills**:
 
-| Keywords                                      | Skill                   |
-| --------------------------------------------- | ----------------------- |
-| `.test.ts`, `vitest`, `mock`, `coverage`      | tzurot-testing          |
-| `BullMQ`, `job`, `async`, `deferral`          | tzurot-async-flow       |
-| `Prisma`, `pgvector`, `database`, `migration` | tzurot-db-vector        |
-| `Railway`, `deploy`, `logs`, `service`        | tzurot-deployment       |
-| `slash command`, `button`, `pagination`       | tzurot-slash-command-ux |
-| `logging`, `debugging`, `operations`          | tzurot-observability    |
-| `types`, `Zod`, `schema`, `constants`         | tzurot-types            |
-| `secret`, `security`, `PII`, `injection`      | tzurot-security         |
-| `git`, `commit`, `PR`, `branch`               | tzurot-git-workflow     |
-| `cache`, `invalidation`, `TTL`                | tzurot-caching          |
-| `refactor`, `lint`, `complexity`              | tzurot-code-quality     |
-| `architecture`, `service boundary`            | tzurot-architecture     |
-| `CURRENT_WORK.md`, `documentation`            | tzurot-docs             |
-| `skill`, `SKILL.md`                           | tzurot-skills-guide     |
-| `CLI`, `ops`, `script`                        | tzurot-tooling          |
-| `MCP`, `council`, `second opinion`            | tzurot-council-mcp      |
+| Keywords                                         | Skill                   |
+| ------------------------------------------------ | ----------------------- |
+| `.test.ts`, `vitest`, `mock`, `coverage`         | tzurot-testing          |
+| `BullMQ`, `job`, `async`, `deferral`             | tzurot-async-flow       |
+| `Prisma`, `pgvector`, `database`, `migration`    | tzurot-db-vector        |
+| `Railway`, `deploy`, `logs`, `service`           | tzurot-deployment       |
+| `slash command`, `button`, `pagination`          | tzurot-slash-command-ux |
+| `logging`, `debugging`, `operations`             | tzurot-observability    |
+| `types`, `Zod`, `schema`, `constants`            | tzurot-types            |
+| `secret`, `security`, `PII`, `execSync`, `shell` | tzurot-security         |
+| `git`, `commit`, `PR`, `branch`                  | tzurot-git-workflow     |
+| `cache`, `invalidation`, `TTL`                   | tzurot-caching          |
+| `refactor`, `lint`, `complexity`                 | tzurot-code-quality     |
+| `architecture`, `service boundary`               | tzurot-architecture     |
+| `CURRENT_WORK.md`, `documentation`               | tzurot-docs             |
+| `skill`, `SKILL.md`                              | tzurot-skills-guide     |
+| `CLI`, `ops`, `script`                           | tzurot-tooling          |
+| `MCP`, `council`, `second opinion`               | tzurot-council-mcp      |
 
 **Why This Matters**: Skills contain project-specific patterns that override general knowledge. The tzurot-testing skill specifies `.component.test.ts` naming - ignoring it caused a misnamed test file.
 
@@ -438,15 +438,28 @@ pnpm ops gh:pr-all <number>        # Get everything
 git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redis://)'
 ```
 
-**🚨 SHELL COMMANDS - USE `execFileSync` WITH ARRAYS:**
+**🚨 SHELL COMMANDS - RECURRING ISSUE - ALWAYS USE `execFileSync` WITH ARRAYS:**
+
+This pattern has been violated multiple times. Before writing ANY shell execution code, read this:
 
 ```typescript
-// ❌ WRONG - Command injection vulnerability
+import { execFileSync } from 'node:child_process';
+
+// ❌ WRONG - Command injection vulnerability (even with "trusted" data)
+execSync(`npx prisma migrate diff --to-schema "${schemaPath}"`);
 execSync(`railway variables --set "${key}=${value}"`);
+execSync(`git commit -m "${message}"`);
 
 // ✅ CORRECT - Arguments passed directly, no shell interpretation
+execFileSync('npx', ['prisma', 'migrate', 'diff', '--to-schema', schemaPath]);
 execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
+execFileSync('git', ['commit', '-m', message]);
+
+// ✅ OK - Fully static commands (no variables)
+execSync('git log --oneline -5');
 ```
+
+**Rule:** If ANY variable is interpolated into a command, use `execFileSync` with an array.
 
 **📚 See**: `tzurot-security` for comprehensive security patterns
 
@@ -477,6 +490,7 @@ execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
 
 | Date       | Incident                      | Rule                               |
 | ---------- | ----------------------------- | ---------------------------------- |
+| 2026-01-24 | execSync with string commands | Use execFileSync with arrays       |
 | 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch |
 | 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files  |
 | 2026-01-07 | PR merged without approval    | Never merge PRs without user okay  |
