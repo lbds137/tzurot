@@ -7,7 +7,6 @@ import { setupRailwayVariables } from './setup-railway-variables.js';
 
 // Mock node modules
 vi.mock('node:child_process', () => ({
-  execSync: vi.fn(),
   execFileSync: vi.fn(),
 }));
 
@@ -40,12 +39,12 @@ vi.mock('../utils/env-runner.js', () => ({
   getRailwayEnvName: vi.fn((env: string) => (env === 'dev' ? 'development' : 'production')),
 }));
 
-import { execSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { checkRailwayCli } from '../utils/env-runner.js';
 
 describe('setupRailwayVariables', () => {
-  const mockExecSync = vi.mocked(execSync);
+  const mockExecFileSync = vi.mocked(execFileSync);
   const mockReadFileSync = vi.mocked(readFileSync);
   const mockExistsSync = vi.mocked(existsSync);
   const mockCheckRailwayCli = vi.mocked(checkRailwayCli);
@@ -70,8 +69,9 @@ describe('setupRailwayVariables', () => {
 
     // Default mocks
     mockCheckRailwayCli.mockReturnValue(true);
-    mockExecSync.mockImplementation((cmd: string) => {
-      if (cmd === 'railway status') {
+    mockExecFileSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+      // Handle 'railway status' call
+      if (cmd === 'railway' && args?.[0] === 'status') {
         return 'Project: test-project\nEnvironment: development';
       }
       return '';
@@ -96,9 +96,9 @@ BOT_OWNER_ID=987654321
     it('should not call railway variables --set in dry run mode', async () => {
       await setupRailwayVariables({ env: 'dev', dryRun: true, yes: true });
 
-      // Should not have called any --set commands
-      const setCalls = mockExecSync.mock.calls.filter(
-        call => typeof call[0] === 'string' && call[0].includes('--set')
+      // Should not have called any --set commands (execFileSync uses args array)
+      const setCalls = mockExecFileSync.mock.calls.filter(
+        call => Array.isArray(call[1]) && call[1].includes('--set')
       );
       expect(setCalls).toHaveLength(0);
     });
@@ -129,8 +129,8 @@ BOT_OWNER_ID=987654321
     });
 
     it('should exit if not linked to Railway project', async () => {
-      mockExecSync.mockImplementation((cmd: string) => {
-        if (cmd === 'railway status') {
+      mockExecFileSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+        if (cmd === 'railway' && args?.[0] === 'status') {
           throw new Error('Not linked');
         }
         return '';
@@ -274,8 +274,6 @@ AI_WORKER_PORT=3001
   });
 
   describe('shell safety', () => {
-    const mockExecFileSync = vi.mocked(execFileSync);
-
     it('should safely handle values with shell metacharacters', async () => {
       // Values with shell metacharacters that could cause injection
       mockReadFileSync.mockReturnValue(`
@@ -284,8 +282,13 @@ DISCORD_TOKEN=test-token"; rm -rf /; echo "injected
 DISCORD_CLIENT_ID=123456789
 `);
 
-      // Mock execFileSync to not throw (simulate successful railway call)
-      mockExecFileSync.mockReturnValue(Buffer.from(''));
+      // Mock execFileSync - handle status call and variable sets
+      mockExecFileSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+        if (cmd === 'railway' && args?.[0] === 'status') {
+          return 'Project: test-project\nEnvironment: development';
+        }
+        return '';
+      });
 
       await setupRailwayVariables({ env: 'dev', dryRun: false, yes: true });
 
@@ -312,8 +315,13 @@ DISCORD_TOKEN=token-with-\`whoami\`-and-$(id)
 DISCORD_CLIENT_ID=123456789
 `);
 
-      // Mock execFileSync to not throw (simulate successful railway call)
-      mockExecFileSync.mockReturnValue(Buffer.from(''));
+      // Mock execFileSync - handle status call and variable sets
+      mockExecFileSync.mockImplementation((cmd: string, args?: readonly string[]) => {
+        if (cmd === 'railway' && args?.[0] === 'status') {
+          return 'Project: test-project\nEnvironment: development';
+        }
+        return '';
+      });
 
       await setupRailwayVariables({ env: 'dev', dryRun: false, yes: true });
 
