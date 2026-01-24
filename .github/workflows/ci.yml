@@ -74,10 +74,10 @@ jobs:
           echo "✓ pglite-schema.sql is in sync with Prisma schema"
 
       - name: Audit contract test coverage
-        run: npx tsx scripts/testing/audit-contract-coverage.ts
+        run: pnpm ops test:audit-contracts
 
       - name: Audit service integration test coverage
-        run: npx tsx scripts/testing/audit-service-integration.ts
+        run: pnpm ops test:audit-services
 
   test:
     runs-on: ubuntu-latest

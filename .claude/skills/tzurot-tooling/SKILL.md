@@ -1,7 +1,7 @@
 ---
 name: tzurot-tooling
 description: Use when adding CLI commands, dev scripts, or tooling utilities. Covers the ops CLI structure, where scripts belong, and standardized commands for linting/testing.
-lastUpdated: '2026-01-21'
+lastUpdated: '2026-01-24'
 ---
 
 # Tooling & CLI Commands
@@ -45,7 +45,8 @@ packages/tooling/src/
 │   ├── db.ts
 │   ├── deploy.ts
 │   ├── dev.ts             # Dev workflow commands
-│   └── gh.ts              # GitHub API commands
+│   ├── gh.ts              # GitHub API commands
+│   └── test.ts            # Test audit commands
 ├── cache/                 # Cache utilities
 ├── data/                  # Data import/export
 ├── db/                    # Database operations
@@ -53,6 +54,7 @@ packages/tooling/src/
 ├── dev/                   # Dev workflow (focus-runner)
 ├── eslint/                # Custom ESLint rules
 ├── gh/                    # GitHub API utilities
+├── test/                  # Test audit utilities
 └── utils/                 # Shared utilities
 ```
 
@@ -199,6 +201,28 @@ Test examples exist at:
 | `pnpm ops gh:pr-all <n>`                   | Get all PR info at once        |
 
 These use `gh api` directly, bypassing the broken GraphQL calls.
+
+## Test Audit Commands Reference
+
+**Ratchet audits** to enforce test coverage (CI runs these automatically):
+
+| Command                                  | Description                                  |
+| ---------------------------------------- | -------------------------------------------- |
+| `pnpm ops test:audit`                    | Run both contract and service audits         |
+| `pnpm ops test:audit-contracts`          | Audit API schema contract test coverage      |
+| `pnpm ops test:audit-services`           | Audit service component test coverage        |
+| `pnpm ops test:audit --strict`           | Fail on ANY gap (not just new ones)          |
+| `pnpm ops test:audit-contracts --update` | Update baseline after adding contract tests  |
+| `pnpm ops test:audit-services --update`  | Update baseline after adding component tests |
+
+**How ratchets work:**
+
+- Baselines track known gaps (`contract-coverage-baseline.json`, `service-integration-baseline.json`)
+- CI passes if no NEW gaps are introduced
+- Use `--update` to accept current state after closing gaps
+- Use `--strict` to see ALL gaps (existing + new)
+
+See `tzurot-testing` skill for chip-away workflow details.
 
 ## Why This Structure?
 

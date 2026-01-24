@@ -41,6 +41,27 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 - When solving a problem, implement the proper solution—not documentation describing the limitation
 - This is a monorepo: changes often ripple across packages. Check impact in `services/`, `packages/`, and infrastructure files
 
+### Use MCP Council When Stuck
+
+**When stuck on a problem, consult MCP council instead of taking shortcuts.**
+
+Signs you're stuck and should consult council:
+
+- Same approach failing multiple times
+- About to simplify/skip something that should work
+- Unsure why mocks, tests, or code aren't behaving as expected
+- Tempted to say "this is good enough" when it isn't
+
+```bash
+# Debug help
+mcp__council__debug({ error_message: "...", code_context: "..." })
+
+# Second opinion on approach
+mcp__council__ask({ question: "Why might X not be working?" })
+```
+
+**📚 See**: `tzurot-council-mcp` skill for full usage patterns
+
 ### Mandatory Global Discovery ("Grep Rule")
 
 **Before modifying ANY configuration, infrastructure, or shared pattern:**
@@ -337,6 +358,19 @@ pnpm ops dev:test --all            # Test changed packages
 pnpm focus:lint                    # Turbo-cached lint
 pnpm focus:test                    # Turbo-cached test
 ```
+
+### Test Coverage Audits (Ratchet System)
+
+```bash
+pnpm ops test:audit                # Run both audits (contract + services)
+pnpm ops test:audit-contracts      # API schema contract test coverage
+pnpm ops test:audit-services       # Service component test coverage
+pnpm ops test:audit --strict       # Fail on ANY gap (not just new ones)
+pnpm ops test:audit-contracts --update  # Update baseline after closing gaps
+pnpm ops test:audit-services --update   # Update baseline after closing gaps
+```
+
+**📚 See**: `tzurot-testing` skill for chip-away workflow and Definition of Done
 
 ### Integration Testing (PGLite)
 
