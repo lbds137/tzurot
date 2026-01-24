@@ -282,7 +282,7 @@ describe('handleAutocomplete', () => {
 
       expect(callGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: 'user-123' });
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Claude Config (claude-sonnet-4)', value: 'c1' },
+        { name: '🌐⭐ Claude Config · claude-sonnet-4', value: 'c1' },
       ]);
     });
 
@@ -314,7 +314,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'GPT Config (gpt-4)', value: 'c2' },
+        { name: '🌐⭐ GPT Config · gpt-4', value: 'c2' },
       ]);
     });
 
@@ -348,7 +348,7 @@ describe('handleAutocomplete', () => {
       await handleAutocomplete(mockInteraction);
 
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: 'Claude Config (claude-sonnet-4)', value: 'c1' },
+        { name: '🌐⭐ Claude Config · claude-sonnet-4', value: 'c1' },
       ]);
     });
 
@@ -403,7 +403,9 @@ describe('handleAutocomplete', () => {
       }[];
       // Should only have the free model + upsell option
       expect(choices).toHaveLength(2);
-      expect(choices[0]).toEqual({ name: '🆓 Grok Free (grok-4.1-fast:free)', value: 'c2' });
+      // New standardized format: [scopeBadge][statusBadges] name · metadata
+      // Factory defaults isDefault to true, so we get the ⭐ badge
+      expect(choices[0]).toEqual({ name: '🌐🆓⭐ Grok Free · grok-4.1-fast:free', value: 'c2' });
       expect(choices[1]).toEqual({ name: '✨ Unlock All Models...', value: UNLOCK_MODELS_VALUE });
     });
 

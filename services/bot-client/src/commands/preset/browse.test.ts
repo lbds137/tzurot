@@ -7,9 +7,12 @@ import type { ButtonInteraction } from 'discord.js';
 import {
   handleBrowse,
   handleBrowsePagination,
+  handleBrowseSelect,
   parseBrowseCustomId,
   isPresetBrowseInteraction,
+  isPresetBrowseSelectInteraction,
 } from './browse.js';
+import type { StringSelectMenuInteraction } from 'discord.js';
 import { mockListLlmConfigsResponse, mockListWalletKeysResponse } from '@tzurot/common-types';
 
 // Mock common-types
@@ -30,6 +33,30 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+}));
+
+// Mock dashboard utilities
+const mockBuildDashboardEmbed = vi.fn(() => ({ toJSON: () => ({ title: 'Dashboard' }) }));
+const mockBuildDashboardComponents = vi.fn(() => []);
+const mockSessionManagerSet = vi.fn();
+vi.mock('../../utils/dashboard/index.js', () => ({
+  buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
+  buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
+  getSessionManager: () => ({
+    set: mockSessionManagerSet,
+  }),
+}));
+
+// Mock preset api
+const mockFetchPreset = vi.fn();
+vi.mock('./api.js', () => ({
+  fetchPreset: (...args: unknown[]) => mockFetchPreset(...args),
+}));
+
+// Mock preset config
+vi.mock('./config.js', () => ({
+  PRESET_DASHBOARD_CONFIG: { sections: [] },
+  flattenPresetData: (data: Record<string, unknown>) => ({ ...data, isOwned: data.isOwned }),
 }));
 
 describe('handleBrowse', () => {
@@ -108,8 +135,13 @@ describe('handleBrowse', () => {
           }),
         }),
       ],
-      components: [], // No pagination for small lists
+      components: expect.any(Array), // Select menu for choosing preset
     });
+
+    // Verify components include select menu (no pagination buttons for small lists)
+    const components = mockEditReply.mock.calls[0][0].components;
+    expect(components).toHaveLength(1); // Just select menu, no pagination
+    expect(components[0].components[0].data.custom_id).toBe('preset::browse-select');
   });
 
   it('should filter by global presets', async () => {
@@ -445,5 +477,94 @@ describe('isPresetBrowseInteraction', () => {
 
   it('should return false for non-browse custom IDs', () => {
     expect(isPresetBrowseInteraction('preset::menu::123')).toBe(false);
+  });
+});
+
+describe('isPresetBrowseSelectInteraction', () => {
+  it('should return true for browse-select custom ID', () => {
+    expect(isPresetBrowseSelectInteraction('preset::browse-select')).toBe(true);
+  });
+
+  it('should return false for browse pagination custom IDs', () => {
+    expect(isPresetBrowseSelectInteraction('preset::browse::0::all::')).toBe(false);
+  });
+
+  it('should return false for other custom IDs', () => {
+    expect(isPresetBrowseSelectInteraction('preset::menu::123')).toBe(false);
+  });
+});
+
+describe('handleBrowseSelect', () => {
+  const mockDeferUpdate = vi.fn();
+  const mockEditReply = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function createMockSelectInteraction(presetId: string) {
+    return {
+      customId: 'preset::browse-select',
+      values: [presetId],
+      user: { id: '123456789' },
+      deferUpdate: mockDeferUpdate,
+      editReply: mockEditReply,
+      message: { id: 'message-123' },
+      channelId: 'channel-123',
+    } as unknown as StringSelectMenuInteraction;
+  }
+
+  it('should open dashboard for selected preset', async () => {
+    mockFetchPreset.mockResolvedValue({
+      id: 'preset-123',
+      name: 'Test Preset',
+      model: 'anthropic/claude-sonnet-4',
+      isOwned: true,
+      isGlobal: false,
+    });
+
+    const mockInteraction = createMockSelectInteraction('preset-123');
+    await handleBrowseSelect(mockInteraction);
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', '123456789');
+    expect(mockBuildDashboardEmbed).toHaveBeenCalled();
+    expect(mockBuildDashboardComponents).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalled();
+    expect(mockSessionManagerSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: '123456789',
+        entityType: 'preset',
+        entityId: 'preset-123',
+      })
+    );
+  });
+
+  it('should handle preset not found', async () => {
+    mockFetchPreset.mockResolvedValue(null);
+
+    const mockInteraction = createMockSelectInteraction('nonexistent');
+    await handleBrowseSelect(mockInteraction);
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Preset not found.',
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should handle fetch errors', async () => {
+    mockFetchPreset.mockRejectedValue(new Error('Network error'));
+
+    const mockInteraction = createMockSelectInteraction('preset-123');
+    await handleBrowseSelect(mockInteraction);
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: '❌ Failed to load preset. Please try again.',
+      embeds: [],
+      components: [],
+    });
   });
 });

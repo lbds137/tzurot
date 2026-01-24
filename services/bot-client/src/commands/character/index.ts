@@ -33,7 +33,13 @@ import { handleView } from './view.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAvatar } from './avatar.js';
-import { handleBrowse, handleBrowsePagination, isCharacterBrowseInteraction } from './browse.js';
+import {
+  handleBrowse,
+  handleBrowsePagination,
+  handleBrowseSelect,
+  isCharacterBrowseInteraction,
+  isCharacterBrowseSelectInteraction,
+} from './browse.js';
 import { handleChat } from './chat.js';
 import {
   handleSettings,
@@ -99,14 +105,23 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 
 /**
  * Handle select menu interactions for character commands
- * Routes to settings dashboard or edit dashboard based on customId prefix
+ * Routes to browse select, settings dashboard, or edit dashboard based on customId prefix
  */
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  const config = getConfig();
+
+  // Check if it's a browse select interaction (user selected character from browse list)
+  if (isCharacterBrowseSelectInteraction(interaction.customId)) {
+    await handleBrowseSelect(interaction, config);
+    return;
+  }
+
   // Check if it's a settings dashboard interaction
   if (isCharacterSettingsInteraction(interaction.customId)) {
     await handleCharacterSettingsSelectMenu(interaction);
     return;
   }
+
   // Otherwise route to character edit dashboard
   await handleDashboardSelectMenu(interaction);
 }

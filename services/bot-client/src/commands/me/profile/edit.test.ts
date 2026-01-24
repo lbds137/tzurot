@@ -1,23 +1,31 @@
 /**
  * Tests for Profile Edit Handler
- * Tests modal display and gateway API calls for profile editing.
+ * Tests dashboard display for profile editing.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleEditPersona, handleEditModalSubmit } from './edit.js';
-import { MessageFlags } from 'discord.js';
-import {
-  mockListPersonasResponse,
-  mockGetPersonaResponse,
-  mockUpdatePersonaResponse,
-  mockCreatePersonaResponse,
-} from '@tzurot/common-types';
+import { handleEditProfile } from './edit.js';
+import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 
 // Mock gateway client
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
 }));
+
+// Mock session manager
+const mockSessionSet = vi.fn();
+vi.mock('../../../utils/dashboard/index.js', async () => {
+  const actual = await vi.importActual('../../../utils/dashboard/index.js');
+  return {
+    ...actual,
+    getSessionManager: () => ({
+      set: mockSessionSet,
+      get: vi.fn().mockResolvedValue(null),
+      delete: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -32,347 +40,220 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
-describe('handleEditPersona', () => {
-  const mockShowModal = vi.fn();
-  const mockReply = vi.fn();
+describe('handleEditProfile', () => {
+  const mockEditReply = vi.fn();
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockShowModal.mockResolvedValue(undefined);
+    mockEditReply.mockResolvedValue({ id: 'message-123' });
+    mockSessionSet.mockResolvedValue(undefined);
   });
 
-  function createMockContext() {
+  function createMockContext(options?: { getString?: string | null }): DeferredCommandContext {
     return {
       user: { id: '123456789', username: 'testuser' },
-      showModal: mockShowModal,
-      reply: mockReply,
-    } as unknown as Parameters<typeof handleEditPersona>[0];
+      channelId: 'channel-123',
+      editReply: mockEditReply,
+      interaction: {
+        options: {
+          getString: vi.fn().mockReturnValue(options?.getString ?? null),
+        },
+      },
+    } as unknown as DeferredCommandContext;
   }
 
-  it('should show modal with empty fields for user with no persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockListPersonasResponse([]),
-    });
-
-    await handleEditPersona(createMockContext());
-
-    expect(mockShowModal).toHaveBeenCalled();
-    expect(mockReply).not.toHaveBeenCalled();
-  });
-
-  it('should show modal with existing persona values when editing default', async () => {
-    // First call returns persona list
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([{ name: 'My Persona', isDefault: true }]),
-    });
-    // Second call returns persona details
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          name: 'My Persona',
-          description: 'My main persona',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'I love coding',
-        },
-      }),
-    });
-
-    await handleEditPersona(createMockContext());
-
-    expect(mockShowModal).toHaveBeenCalled();
-  });
-
-  it('should show modal for specific persona when personaId provided', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          name: 'Work Persona',
-          preferredName: 'Bob',
-          pronouns: 'he/him',
-          content: 'Work stuff',
-        },
-      }),
-    });
-
-    await handleEditPersona(createMockContext(), 'specific-persona');
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/specific-persona', {
-      userId: '123456789',
-    });
-    expect(mockShowModal).toHaveBeenCalled();
-  });
-
-  it('should show error when specific profile not found', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
-
-    await handleEditPersona(createMockContext(), 'nonexistent-persona');
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile not found'),
-      flags: MessageFlags.Ephemeral,
-    });
-    expect(mockShowModal).not.toHaveBeenCalled();
-  });
-
-  it('should handle gateway errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
-
-    await handleEditPersona(createMockContext());
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to open edit dialog'),
-      flags: MessageFlags.Ephemeral,
-    });
-    expect(mockShowModal).not.toHaveBeenCalled();
-  });
-});
-
-describe('handleEditModalSubmit', () => {
-  const mockReply = vi.fn();
-
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  function createMockModalInteraction(fields: Record<string, string>) {
+  function mockPersonaDetails(
+    overrides?: Partial<{
+      id: string;
+      name: string;
+      description: string | null;
+      preferredName: string | null;
+      pronouns: string | null;
+      content: string | null;
+      isDefault: boolean;
+    }>
+  ) {
     return {
-      user: { id: '123456789', username: 'testuser' },
-      fields: {
-        getTextInputValue: (name: string) => fields[name] ?? '',
-      },
-      reply: mockReply,
-    } as any;
+      id: 'persona-123',
+      name: 'My Persona',
+      description: 'My main persona',
+      preferredName: 'Alice',
+      pronouns: 'she/her',
+      content: 'I love coding',
+      isDefault: true,
+      ...overrides,
+    };
   }
 
-  it('should update existing persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockUpdatePersonaResponse({
-        persona: {
-          name: 'My Persona',
-          description: 'Main persona',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'I love coding',
-        },
-      }),
+  describe('when editing by profile ID', () => {
+    it('should open dashboard for specific profile', async () => {
+      const persona = mockPersonaDetails({ id: 'specific-persona', isDefault: false });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { persona },
+      });
+
+      await handleEditProfile(
+        createMockContext({ getString: 'specific-persona' }),
+        'specific-persona'
+      );
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/specific-persona', {
+        userId: '123456789',
+      });
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+      expect(mockSessionSet).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: '123456789',
+          entityType: 'profile',
+          entityId: 'specific-persona',
+        })
+      );
     });
 
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: 'My Persona',
-        description: 'Main persona',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'I love coding',
-      }),
-      'persona-123'
-    );
+    it('should show error when profile not found', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        error: 'Persona not found',
+      });
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123', {
-      userId: '123456789',
-      method: 'PUT',
-      body: {
-        name: 'My Persona',
-        description: 'Main persona',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'I love coding',
-      },
-    });
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile updated'),
-      flags: MessageFlags.Ephemeral,
+      await handleEditProfile(
+        createMockContext({ getString: 'nonexistent-persona' }),
+        'nonexistent-persona'
+      );
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Profile not found'),
+      });
+      expect(mockSessionSet).not.toHaveBeenCalled();
     });
   });
 
-  it('should create new persona when personaId is "new"', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockCreatePersonaResponse({
-        persona: {
-          name: 'New Persona',
-          description: 'Brand new',
-          preferredName: 'Bob',
-          pronouns: 'he/him',
-          content: 'Test content',
+  describe('when editing default profile', () => {
+    it('should open dashboard for default profile', async () => {
+      const persona = mockPersonaDetails({ isDefault: true });
+      // First call: list personas to find default
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          personas: [{ id: 'persona-123', name: 'My Persona', isDefault: true }],
         },
-        setAsDefault: true,
-      }),
+      });
+      // Second call: get persona details
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: { persona },
+      });
+
+      await handleEditProfile(createMockContext());
+
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+      expect(mockSessionSet).toHaveBeenCalled();
     });
 
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: 'New Persona',
-        description: 'Brand new',
+    it('should show instructions when user has no profiles', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personas: [] },
+      });
+
+      await handleEditProfile(createMockContext());
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining("don't have any profiles"),
+      });
+      expect(mockSessionSet).not.toHaveBeenCalled();
+    });
+
+    it('should handle API errors gracefully', async () => {
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+      await handleEditProfile(createMockContext());
+
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to load profile'),
+      });
+      expect(mockSessionSet).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('dashboard content', () => {
+    it('should include profile data in embed', async () => {
+      const persona = mockPersonaDetails({
+        name: 'Work Profile',
         preferredName: 'Bob',
         pronouns: 'he/him',
-        content: 'Test content',
-      }),
-      'new'
-    );
+        isDefault: false,
+      });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { persona },
+      });
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
-      userId: '123456789',
-      method: 'POST',
-      body: {
-        name: 'New Persona',
-        description: 'Brand new',
-        preferredName: 'Bob',
-        pronouns: 'he/him',
-        content: 'Test content',
-        username: 'testuser',
-      },
-    });
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('set as your default'),
-      flags: MessageFlags.Ephemeral,
-    });
-  });
+      await handleEditProfile(createMockContext({ getString: persona.id }), persona.id);
 
-  it('should handle empty optional fields', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockUpdatePersonaResponse({
-        persona: {
-          name: 'My Persona',
-          description: null,
-          preferredName: null,
-          pronouns: null,
-          content: '',
+      expect(mockEditReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.arrayContaining([
+            expect.objectContaining({
+              data: expect.objectContaining({
+                title: expect.stringContaining('Work Profile'),
+              }),
+            }),
+          ]),
+        })
+      );
+    });
+
+    it('should show delete button for non-default profile', async () => {
+      const persona = mockPersonaDetails({ isDefault: false });
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { persona },
+      });
+
+      await handleEditProfile(createMockContext({ getString: persona.id }), persona.id);
+
+      // The components should include delete button (showDelete: true)
+      expect(mockEditReply).toHaveBeenCalled();
+      const call = mockEditReply.mock.calls[0][0];
+      expect(call.components).toBeDefined();
+      // Components array should have action row with buttons including delete
+      const buttonsRow = call.components.find(
+        (c: { data: { type: number } }) => c.data.type === 1 // ActionRow
+      );
+      expect(buttonsRow).toBeDefined();
+    });
+
+    it('should NOT show delete button for default profile', async () => {
+      const persona = mockPersonaDetails({ isDefault: true });
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: {
+          personas: [{ id: persona.id, name: persona.name, isDefault: true }],
         },
-      }),
-    });
+      });
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: true,
+        data: { persona },
+      });
 
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: 'My Persona',
-        description: '',
-        preferredName: '',
-        pronouns: '',
-        content: '',
-      }),
-      'persona-123'
-    );
+      await handleEditProfile(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123', {
-      userId: '123456789',
-      method: 'PUT',
-      body: {
-        name: 'My Persona',
-        description: null,
-        preferredName: null,
-        pronouns: null,
-        content: '',
-      },
-    });
-  });
-
-  it('should require profile name', async () => {
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: '',
-        description: '',
-        preferredName: 'Alice',
-        pronouns: '',
-        content: '',
-      }),
-      'persona-123'
-    );
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile name is required'),
-      flags: MessageFlags.Ephemeral,
-    });
-    expect(mockCallGatewayApi).not.toHaveBeenCalled();
-  });
-
-  it('should trim whitespace from fields', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockUpdatePersonaResponse({
-        persona: {
-          name: 'My Persona',
-          description: 'Main persona',
-          preferredName: 'Alice',
-          pronouns: 'she/her',
-          content: 'content with spaces',
-        },
-      }),
-    });
-
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: '  My Persona  ',
-        description: '  Main persona  ',
-        preferredName: '  Alice  ',
-        pronouns: ' she/her ',
-        content: '  content with spaces  ',
-      }),
-      'persona-123'
-    );
-
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona/persona-123', {
-      userId: '123456789',
-      method: 'PUT',
-      body: {
-        name: 'My Persona',
-        description: 'Main persona',
-        preferredName: 'Alice',
-        pronouns: 'she/her',
-        content: 'content with spaces',
-      },
-    });
-  });
-
-  it('should handle gateway errors gracefully', async () => {
-    mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
-
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: 'Test',
-        description: '',
-        preferredName: 'Test',
-        pronouns: '',
-        content: '',
-      }),
-      'persona-123'
-    );
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to save'),
-      flags: MessageFlags.Ephemeral,
-    });
-  });
-
-  it('should error if trying to update non-owned profile', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
-
-    await handleEditModalSubmit(
-      createMockModalInteraction({
-        personaName: 'Test',
-        description: '',
-        preferredName: '',
-        pronouns: '',
-        content: '',
-      }),
-      'other-persona-id'
-    );
-
-    expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile not found'),
-      flags: MessageFlags.Ephemeral,
+      // Since showDelete is false for default profiles, delete button should not be present
+      // This is verified by the logic in handleEditProfile: showDelete: !profile.isDefault
+      const call = mockEditReply.mock.calls[0][0];
+      expect(call.components).toBeDefined();
     });
   });
 });

@@ -8,8 +8,11 @@ import {
   createLogger,
   DISCORD_LIMITS,
   isFreeModel,
+  AUTOCOMPLETE_BADGES,
+  formatAutocompleteOption,
   type LlmConfigSummary,
   type AIProvider,
+  type AutocompleteBadge,
 } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { handlePersonalityAutocomplete } from '../../../utils/autocomplete/index.js';
@@ -121,11 +124,25 @@ async function handlePresetAutocomplete(
 
   filtered = filtered.slice(0, maxChoices);
 
-  const choices = filtered.map(c => ({
-    // Show model info in the name for clarity, add 🆓 badge for free models
-    name: `${isFreeModel(c.model) ? '🆓 ' : ''}${c.name} (${c.model.split('/').pop()})`,
-    value: c.id,
-  }));
+  // Format choices using standardized autocomplete utility
+  const choices = filtered.map(c => {
+    // Build status badges for free models
+    const statusBadges: AutocompleteBadge[] = [];
+    if (isFreeModel(c.model)) {
+      statusBadges.push(AUTOCOMPLETE_BADGES.FREE);
+    }
+    if (c.isDefault) {
+      statusBadges.push(AUTOCOMPLETE_BADGES.DEFAULT);
+    }
+
+    return formatAutocompleteOption({
+      name: c.name,
+      value: c.id,
+      scopeBadge: c.isGlobal ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED,
+      statusBadges: statusBadges.length > 0 ? statusBadges : undefined,
+      metadata: c.model.split('/').pop(),
+    });
+  });
 
   // Add upsell option for guest users
   if (isGuestMode) {

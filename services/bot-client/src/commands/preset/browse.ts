@@ -14,8 +14,10 @@ import {
   ActionRowBuilder,
   ButtonBuilder,
   ButtonStyle,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
 } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
@@ -25,6 +27,13 @@ import {
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import {
+  buildDashboardEmbed,
+  buildDashboardComponents,
+  getSessionManager,
+} from '../../utils/dashboard/index.js';
+import { PRESET_DASHBOARD_CONFIG, flattenPresetData, type FlattenedPresetData } from './config.js';
+import { fetchPreset } from './api.js';
 
 const logger = createLogger('preset-browse');
 
@@ -36,6 +45,12 @@ export type PresetBrowseFilter = 'all' | 'global' | 'mine' | 'free';
 
 /** Custom ID prefix for browse pagination */
 const BROWSE_PREFIX = 'preset::browse';
+
+/** Custom ID prefix for browse select menu */
+const BROWSE_SELECT_PREFIX = 'preset::browse-select';
+
+/** Maximum length for select menu option labels */
+const MAX_SELECT_LABEL_LENGTH = 100;
 
 interface ListResponse {
   configs: LlmConfigSummary[];
@@ -92,6 +107,76 @@ export function parseBrowseCustomId(
  */
 export function isPresetBrowseInteraction(customId: string): boolean {
   return customId.startsWith(BROWSE_PREFIX);
+}
+
+/**
+ * Check if custom ID is a preset browse select interaction
+ */
+export function isPresetBrowseSelectInteraction(customId: string): boolean {
+  return customId.startsWith(BROWSE_SELECT_PREFIX);
+}
+
+/**
+ * Truncate text for select menu label
+ */
+function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Build select menu for choosing a preset from the list
+ */
+function buildBrowseSelectMenu(
+  pageItems: LlmConfigSummary[],
+  startIdx: number,
+  isGuestMode: boolean
+): ActionRowBuilder<StringSelectMenuBuilder> {
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId(BROWSE_SELECT_PREFIX)
+    .setPlaceholder('Select a preset to view...')
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  pageItems.forEach((preset, index) => {
+    const num = startIdx + index + 1;
+
+    // Build badges
+    const badges: string[] = [];
+    if (preset.isGlobal) {
+      badges.push('🌐');
+    } else if (preset.isOwned) {
+      badges.push('🔒');
+    }
+    if (preset.isDefault) {
+      badges.push('⭐');
+    }
+    if (isFreeModel(preset.model)) {
+      badges.push('🆓');
+    }
+    const badgeStr = badges.length > 0 ? badges.join('') + ' ' : '';
+
+    // Label: "1. 🌐⭐ Preset Name"
+    const label = truncateForSelect(`${num}. ${badgeStr}${preset.name}`);
+
+    // Description: model + optional "unavailable in guest mode"
+    const shortModel = preset.model.includes('/') ? preset.model.split('/').pop() : preset.model;
+    let description = shortModel ?? preset.model;
+    if (isGuestMode && !isFreeModel(preset.model)) {
+      description += ' (requires API key)';
+    }
+
+    selectMenu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(label)
+        .setValue(preset.id)
+        .setDescription(truncateForSelect(description))
+    );
+  });
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 }
 
 /**
@@ -203,6 +288,9 @@ function buildBrowseButtons(
   return row;
 }
 
+/** Union type for action rows that can contain buttons or select menus */
+type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
+
 /**
  * Build the browse embed and components
  */
@@ -212,7 +300,7 @@ function buildBrowsePage(
   query: string | null,
   page: number,
   isGuestMode: boolean
-): { embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] } {
+): { embed: EmbedBuilder; components: BrowseActionRow[] } {
   const filtered = filterPresets(allPresets, filter, query);
   const totalPages = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
@@ -270,7 +358,14 @@ function buildBrowsePage(
   embed.setFooter({ text: footerParts.join(' • ') });
 
   // Build components
-  const components: ActionRowBuilder<ButtonBuilder>[] = [];
+  const components: BrowseActionRow[] = [];
+
+  // Add select menu if there are items on this page
+  if (pageItems.length > 0) {
+    components.push(buildBrowseSelectMenu(pageItems, startIdx, isGuestMode));
+  }
+
+  // Add pagination buttons if multiple pages
   if (totalPages > 1) {
     components.push(buildBrowseButtons(safePage, totalPages, filter, query));
   }
@@ -363,5 +458,67 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   } catch (error) {
     logger.error({ err: error, userId, page }, '[Preset] Error during browse pagination');
     // Keep existing content on error
+  }
+}
+
+/**
+ * Handle browse select menu - open preset dashboard
+ */
+export async function handleBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const presetId = interaction.values[0];
+  const userId = interaction.user.id;
+
+  await interaction.deferUpdate();
+
+  try {
+    // Fetch the preset
+    const preset = await fetchPreset(presetId, userId);
+
+    if (!preset) {
+      await interaction.editReply({
+        content: '❌ Preset not found.',
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // Flatten the data for dashboard display
+    const flattenedData = flattenPresetData(preset);
+
+    // Build dashboard embed and components
+    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
+    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, presetId, flattenedData, {
+      showClose: true,
+      showRefresh: true,
+      showDelete: flattenedData.isOwned,
+      toggleGlobal: {
+        isGlobal: flattenedData.isGlobal,
+        isOwned: flattenedData.isOwned,
+      },
+    });
+
+    // Update the message with the dashboard
+    await interaction.editReply({ embeds: [embed], components });
+
+    // Create session for tracking
+    const sessionManager = getSessionManager();
+    await sessionManager.set<FlattenedPresetData>({
+      userId,
+      entityType: 'preset',
+      entityId: presetId,
+      data: flattenedData,
+      messageId: interaction.message.id,
+      channelId: interaction.channelId,
+    });
+
+    logger.info({ userId, presetId, name: preset.name }, '[Preset] Opened dashboard from browse');
+  } catch (error) {
+    logger.error({ err: error, presetId }, '[Preset] Failed to open dashboard from browse');
+    await interaction.editReply({
+      content: '❌ Failed to load preset. Please try again.',
+      embeds: [],
+      components: [],
+    });
   }
 }
