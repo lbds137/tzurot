@@ -292,7 +292,7 @@ describe('modelAutocomplete', () => {
   });
 
   describe('formatModelChoice', () => {
-    it('should format model with context length', () => {
+    it('should format paid model with context length metadata', () => {
       const model: ModelAutocompleteOption = {
         id: 'anthropic/claude-sonnet-4',
         name: 'Anthropic: Claude Sonnet 4',
@@ -307,8 +307,29 @@ describe('modelAutocomplete', () => {
 
       const choice = formatModelChoice(model);
 
-      expect(choice.name).toBe('Anthropic: Claude Sonnet 4 (200K)');
+      // Paid models: no badge, just name and context
+      expect(choice.name).toBe('Anthropic: Claude Sonnet 4 · 200K');
       expect(choice.value).toBe('anthropic/claude-sonnet-4');
+    });
+
+    it('should format free model with FREE badge', () => {
+      const model: ModelAutocompleteOption = {
+        id: 'meta-llama/llama-3.3-70b-instruct:free',
+        name: 'Meta: Llama 3.3 70B Instruct',
+        contextLength: 128000,
+        supportsVision: false,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        promptPricePerMillion: 0,
+        completionPricePerMillion: 0,
+      };
+
+      const choice = formatModelChoice(model);
+
+      // Free models: 🆓 badge prefix
+      expect(choice.name).toBe('🆓 Meta: Llama 3.3 70B Instruct · 128K');
+      expect(choice.value).toBe('meta-llama/llama-3.3-70b-instruct:free');
     });
 
     it('should format context length in millions', () => {
@@ -326,10 +347,10 @@ describe('modelAutocomplete', () => {
 
       const choice = formatModelChoice(model);
 
-      expect(choice.name).toBe('Google: Gemini 2.5 Pro (1M)');
+      expect(choice.name).toBe('Google: Gemini 2.5 Pro · 1M');
     });
 
-    it('should truncate long names', () => {
+    it('should truncate long names while preserving metadata', () => {
       const model: ModelAutocompleteOption = {
         id: 'some-provider/very-long-model-name-that-exceeds-the-limit',
         name: 'Some Provider: Very Long Model Name That Exceeds The Discord Limit And Should Be Truncated For Display',
@@ -345,7 +366,9 @@ describe('modelAutocomplete', () => {
       const choice = formatModelChoice(model);
 
       expect(choice.name.length).toBeLessThanOrEqual(100);
-      expect(choice.name.endsWith('...')).toBe(true);
+      // formatAutocompleteOption preserves metadata suffix, truncates name portion with "..."
+      expect(choice.name).toContain('...');
+      expect(choice.name).toContain('· 128K');
     });
   });
 });
