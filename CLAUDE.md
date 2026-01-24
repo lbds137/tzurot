@@ -193,6 +193,18 @@ if (!result.ok) {
 // result.data is typed correctly here
 ```
 
+### Discord 3-Second Rule
+
+Discord interactions have a 3-second timeout. For AI operations:
+
+```typescript
+await interaction.deferReply(); // MUST be called within 3 seconds
+// ... async work (AI generation, DB queries) ...
+await interaction.editReply({ content: result });
+```
+
+**📚 See**: `tzurot-async-flow` skill for BullMQ deferral patterns
+
 ### Bounded Data Access
 
 **All queries returning arrays must be bounded.**
@@ -292,6 +304,48 @@ pnpm ops run --env dev <cmd>     # Run any command with Railway DB credentials
 **Note**: Use pnpm, NOT npm. ESLint uses flat config (`eslint.config.js`), NOT `.eslintrc.*`.
 
 **📚 See**: `tzurot-deployment` skill for full ops CLI reference, `tzurot-db-vector` for database patterns
+
+## CLI Quick Reference (pnpm ops)
+
+### Database Operations
+
+```bash
+pnpm ops db:status --env dev       # Migration status
+pnpm ops db:migrate --env dev      # Run migrations
+pnpm ops db:safe-migrate --env dev # Auto-sanitizes Prisma drift
+pnpm ops db:check-drift            # Check for migration checksum issues
+pnpm ops db:fix-drift              # Fix checksum mismatches
+pnpm ops db:inspect                # Local database inspection
+```
+
+### GitHub Operations (use instead of flaky `gh` commands)
+
+```bash
+pnpm ops gh:pr-info <n>            # PR summary
+pnpm ops gh:pr-reviews <n>         # All reviews
+pnpm ops gh:pr-comments <n>        # All comments
+pnpm ops gh:pr-conversation <n>    # Full conversation
+pnpm ops gh:pr-all <n>             # Everything
+pnpm ops gh:pr-edit <n> --title "..." # Edit PR (replaces broken gh pr edit)
+```
+
+### Development Shortcuts
+
+```bash
+pnpm ops dev:lint --errors-only    # Lint changed packages
+pnpm ops dev:test --all            # Test changed packages
+pnpm focus:lint                    # Turbo-cached lint
+pnpm focus:test                    # Turbo-cached test
+```
+
+### Integration Testing (PGLite)
+
+```bash
+pnpm test:integration                              # Run integration tests
+./scripts/testing/regenerate-pglite-schema.sh      # Regenerate PGLite schema after migrations
+```
+
+**📚 See**: `tzurot-testing` skill for PGLite setup and when to use integration vs unit tests
 
 ## Git Workflow
 

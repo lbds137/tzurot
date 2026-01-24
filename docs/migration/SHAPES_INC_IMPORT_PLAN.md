@@ -4,6 +4,10 @@
 **Status**: Design Phase
 **Target**: Import personalities from tzurot-legacy/data/personalities
 
+> **Note**: This uses local JSON backup files. Shapes.inc's _developer API_ is dead, but the
+> platform is still alive. For data not in backups, consider using internal APIs via
+> authenticated `appSession` cookie from an active user session.
+
 ## Problem Statement
 
 We have 68 personalities backed up from shapes.inc with:

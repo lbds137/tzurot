@@ -256,7 +256,7 @@ See `.env.example` for all available environment variables.
 2. **Implement bot-client** - Discord message handling
 3. **Test end-to-end** - Discord → gateway → worker → response
 4. **Add BYOK credential system** - Encrypted user API keys in PostgreSQL
-5. **Create data ingestion** - Import Shapes.inc/SpicyChat backups
+5. **Create data ingestion** - Import Shapes.inc backups (via local JSON files; internal APIs available via appSession cookie for missing data)
 
 ### Future Enhancements
 

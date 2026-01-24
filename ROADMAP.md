@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-23
-> **Current Version**: v3.0.0-beta.47
+> **Last Updated**: 2026-01-24
+> **Current Version**: v3.0.0-beta.48
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -104,12 +104,20 @@ Big architecture change for LTM. Waypoint graph with multi-sector storage (episo
 
 Reference: [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
 
-### Image Generation + Voice Synthesis
+### Voice Synthesis (Open Source)
 
-Nice-to-have features. High cost, high complexity. Can wait.
+Open-source voice cloning is now CPU-capable. Two-tier approach: free users get open-source, premium BYOK ElevenLabs.
 
-- ElevenLabs voice cloning integration
-- Image generation via DALL-E/Midjourney/etc.
+- [ ] Python microservice: `services/voice-engine/`
+- [ ] TTS: Kyutai Pocket TTS (zero-shot cloning, 100M params, CPU-capable)
+- [ ] STT: SenseVoice (emotion detection + punctuation, replaces Whisper)
+- [ ] ElevenLabs BYOK for premium users
+
+**Reference**: [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md)
+
+### Image Generation
+
+- [ ] Image generation via DALL-E/Midjourney/etc.
 
 ### Release Notifications
 
@@ -185,15 +193,39 @@ Not needed until post-beta when we care about semantic versioning again.
 
 Ideas for later. Resist the shiny object.
 
-- Character Card Import (V2/V3 PNG metadata)
-- Streaming responses
-- Local/OpenRouter Embeddings
-- Lorebooks / Sticky Context
-- Multi-personality per channel (activate multiple personalities in one channel, each responds based on trigger patterns or probability)
+### Character & Prompt Features
+
+- Character Card Import (V2/V3 PNG metadata) - Parse community cards
+- Lorebooks / Sticky Context - Keyword-triggered lore injection with TTL
+- Author's Note Depth Injection - Insert instructions at configurable context depth
+- Logic Gates for Context - AND/NOT secondary keywords for precise triggers
+
+### Multi-Entity Features
+
+- Multi-personality per channel (activate multiple, each responds based on triggers or probability)
+- Natural Order speaker selection (deterministic heuristics vs LLM routing)
 - Dream sequences (self-reflection)
 - Relationship graphs
+
+### Agentic & Dynamic Features
+
+- Contrastive Retrieval for RAG - Avoid echo chamber loop in memory retrieval
+- Dynamic Directive Injection - Inject prompts based on conversation patterns (anti-sycophancy)
+- Analysis Step - Detect user engagement/sentiment before generation
+- Claude Thinking Tokens - Extended reasoning support (`thinking.budget_tokens`)
+
+### Infrastructure
+
+- Streaming responses
+- Local/OpenRouter Embeddings (beyond bge-small)
+- Free-Tier Model Strategy - 8+ free model configs, fallback chains
 - Metrics & monitoring (Prometheus)
 - Smart git hooks (skip checks for doc-only changes)
+
+**Research References**:
+
+- [docs/research/sillytavern-features.md](docs/research/sillytavern-features.md) - Character cards, lorebooks, Author's Note
+- [docs/research/free-tier-models-2026.md](docs/research/free-tier-models-2026.md) - Free model configs
 
 ---
 
