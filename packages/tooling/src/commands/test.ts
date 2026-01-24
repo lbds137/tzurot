@@ -8,6 +8,16 @@
 import type { CAC } from 'cac';
 
 export function registerTestCommands(cli: CAC): void {
+  // Generate PGLite schema
+  cli
+    .command('test:generate-schema', 'Regenerate PGLite schema SQL from Prisma')
+    .option('--output <path>', 'Output file path')
+    .example('pnpm ops test:generate-schema')
+    .action(async (options: { output?: string }) => {
+      const { generateSchema } = await import('../test/generate-schema.js');
+      await generateSchema(options);
+    });
+
   cli
     .command('test:audit-contracts', 'Audit API contract test coverage')
     .option('--update', 'Update baseline with current gaps')
