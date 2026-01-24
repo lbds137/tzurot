@@ -37,10 +37,13 @@ const logger = createLogger('preset-dashboard-buttons');
 
 /**
  * Build dashboard button options including toggle-global and delete for owned presets.
+ * Shows back button when opened from browse, close button when opened directly.
  */
 export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
+  const hasBrowseContext = data.browseContext !== undefined;
   return {
-    showClose: true,
+    showBack: hasBrowseContext,
+    showClose: !hasBrowseContext,
     showRefresh: true,
     showClone: true,
     showDelete: data.isOwned,
@@ -88,6 +91,7 @@ export async function handleCloseButton(
 
 /**
  * Handle refresh button - fetch fresh data and update dashboard.
+ * Preserves browseContext from existing session for back navigation.
  */
 export async function handleRefreshButton(
   interaction: ButtonInteraction,
@@ -95,13 +99,15 @@ export async function handleRefreshButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
+  // Get existing session to preserve browseContext
   const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPresetData>(
+  const existingSession = await sessionManager.get<FlattenedPresetData>(
     interaction.user.id,
     'preset',
     entityId
   );
-  const isGlobal = session?.data.isGlobal ?? false;
+  const isGlobal = existingSession?.data.isGlobal ?? false;
+  const existingBrowseContext = existingSession?.data.browseContext;
 
   const preset = isGlobal
     ? await fetchGlobalPreset(entityId)
@@ -116,7 +122,11 @@ export async function handleRefreshButton(
     return;
   }
 
-  const flattenedData = flattenPresetData(preset);
+  // Preserve browseContext from existing session
+  const flattenedData: FlattenedPresetData = {
+    ...flattenPresetData(preset),
+    browseContext: existingBrowseContext,
+  };
 
   await sessionManager.set({
     userId: interaction.user.id,

@@ -13,6 +13,7 @@ import {
   handleConfirmDeleteButton,
   handleCancelDeleteButton,
   handleCloneButton,
+  handleBackButton,
 } from './dashboardButtons.js';
 import type { FlattenedPresetData } from './config.js';
 
@@ -27,6 +28,11 @@ vi.mock('./api.js', () => ({
   fetchGlobalPreset: (...args: unknown[]) => mockFetchGlobalPreset(...args),
   updatePreset: (...args: unknown[]) => mockUpdatePreset(...args),
   createPreset: (...args: unknown[]) => mockCreatePreset(...args),
+}));
+
+const mockBuildBrowseResponse = vi.fn();
+vi.mock('./browse.js', () => ({
+  buildBrowseResponse: (...args: unknown[]) => mockBuildBrowseResponse(...args),
 }));
 
 const mockCallGatewayApi = vi.fn();
@@ -127,6 +133,24 @@ describe('Preset Dashboard Buttons', () => {
 
       expect(options.toggleGlobal?.isGlobal).toBe(true);
     });
+
+    it('should show close button when no browseContext', () => {
+      const data = createMockFlattenedPreset({ browseContext: undefined });
+      const options = buildPresetDashboardOptions(data);
+
+      expect(options.showClose).toBe(true);
+      expect(options.showBack).toBe(false);
+    });
+
+    it('should show back button when browseContext exists', () => {
+      const data = createMockFlattenedPreset({
+        browseContext: { source: 'browse', page: 1, filter: 'all' },
+      });
+      const options = buildPresetDashboardOptions(data);
+
+      expect(options.showBack).toBe(true);
+      expect(options.showClose).toBe(false);
+    });
   });
 
   describe('handleCloseButton', () => {
@@ -222,6 +246,47 @@ describe('Preset Dashboard Buttons', () => {
         embeds: [],
         components: [],
       });
+    });
+
+    it('should preserve browseContext when refreshing', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::refresh::preset-123');
+      const browseContext = { source: 'browse' as const, page: 2, filter: 'owned' };
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ isGlobal: false, browseContext }),
+      });
+      mockFetchPreset.mockResolvedValue(createMockPresetResponse({ isGlobal: false }));
+
+      await handleRefreshButton(mockInteraction, 'preset-123');
+
+      // Verify session was set with preserved browseContext
+      expect(mockSessionManager.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            browseContext,
+          }),
+        })
+      );
+    });
+
+    it('should not include browseContext when original session had none', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::refresh::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ isGlobal: false, browseContext: undefined }),
+      });
+      mockFetchPreset.mockResolvedValue(createMockPresetResponse({ isGlobal: false }));
+
+      await handleRefreshButton(mockInteraction, 'preset-123');
+
+      // Verify session was set without browseContext
+      expect(mockSessionManager.set).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            browseContext: undefined,
+          }),
+        })
+      );
     });
   });
 
@@ -378,6 +443,105 @@ describe('Preset Dashboard Buttons', () => {
         content: expect.stringContaining('Session expired'),
         embeds: [],
         components: [],
+      });
+    });
+  });
+
+  describe('handleBackButton', () => {
+    it('should return to browse list with saved context', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
+      const browseContext = { source: 'browse' as const, page: 1, filter: 'owned' };
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ browseContext }),
+      });
+      mockBuildBrowseResponse.mockResolvedValue({
+        embed: { data: { title: 'Browse Presets' } },
+        components: [],
+      });
+
+      await handleBackButton(mockInteraction, 'preset-123');
+
+      expect(mockInteraction.deferUpdate).toHaveBeenCalled();
+      expect(mockBuildBrowseResponse).toHaveBeenCalledWith('user-123', {
+        page: 1,
+        filter: 'owned',
+        query: null,
+      });
+      expect(mockSessionManager.delete).toHaveBeenCalledWith('user-123', 'preset', 'preset-123');
+    });
+
+    it('should show expired message when no browseContext', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ browseContext: undefined }),
+      });
+
+      await handleBackButton(mockInteraction, 'preset-123');
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Session expired'),
+        embeds: [],
+        components: [],
+      });
+    });
+
+    it('should show expired message when session is null', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
+
+      mockSessionManager.get.mockResolvedValue(null);
+
+      await handleBackButton(mockInteraction, 'preset-123');
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Session expired'),
+        embeds: [],
+        components: [],
+      });
+    });
+
+    it('should show error when buildBrowseResponse fails', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
+      const browseContext = { source: 'browse' as const, page: 1, filter: 'all' };
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ browseContext }),
+      });
+      mockBuildBrowseResponse.mockResolvedValue(null);
+
+      await handleBackButton(mockInteraction, 'preset-123');
+
+      expect(mockInteraction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('Failed to load browse list'),
+        embeds: [],
+        components: [],
+      });
+    });
+
+    it('should include query from browseContext', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::back::preset-123');
+      const browseContext = {
+        source: 'browse' as const,
+        page: 0,
+        filter: 'all',
+        query: 'gpt',
+      };
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ browseContext }),
+      });
+      mockBuildBrowseResponse.mockResolvedValue({
+        embed: { data: { title: 'Browse Presets' } },
+        components: [],
+      });
+
+      await handleBackButton(mockInteraction, 'preset-123');
+
+      expect(mockBuildBrowseResponse).toHaveBeenCalledWith('user-123', {
+        page: 0,
+        filter: 'all',
+        query: 'gpt',
       });
     });
   });
