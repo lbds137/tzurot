@@ -1,6 +1,6 @@
 ---
 name: tzurot-observability
-description: Contains MANDATORY logging and debugging patterns for Tzurot v3. MUST be consulted before adding logs or debugging production. Covers structured logging, correlation IDs, and Railway log analysis.
+description: Logging and debugging patterns for Tzurot v3. Use when adding logs, debugging production, or analyzing Railway logs. Covers structured logging and correlation IDs.
 lastUpdated: '2026-01-21'
 ---
 
