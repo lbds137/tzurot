@@ -81,7 +81,7 @@ export async function handleBackButton(
 }
 
 /**
- * Handle refresh button - reload character data
+ * Handle refresh button - reload character data while preserving browseContext
  */
 export async function handleRefreshButton(
   interaction: ButtonInteraction,
@@ -89,6 +89,15 @@ export async function handleRefreshButton(
 ): Promise<void> {
   const config = getConfig();
   await interaction.deferUpdate();
+
+  // Get existing session to preserve browseContext
+  const sessionManager = getSessionManager();
+  const existingSession = await sessionManager.get<CharacterData>(
+    interaction.user.id,
+    'character',
+    entityId
+  );
+  const existingBrowseContext = existingSession?.data.browseContext;
 
   const character = await fetchCharacter(entityId, config, interaction.user.id);
   if (!character) {
@@ -98,8 +107,13 @@ export async function handleRefreshButton(
 
   const isAdmin = isBotOwner(interaction.user.id);
   const dashboardConfig = getCharacterDashboardConfig(isAdmin);
-  const sessionManager = getSessionManager();
-  const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
+
+  // Preserve browseContext from existing session
+  const sessionData: CharacterSessionData = {
+    ...character,
+    _isAdmin: isAdmin,
+    browseContext: existingBrowseContext,
+  };
 
   await sessionManager.set({
     userId: interaction.user.id,
@@ -112,7 +126,8 @@ export async function handleRefreshButton(
 
   const embed = buildDashboardEmbed(dashboardConfig, character);
   const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
-    showClose: true,
+    showBack: existingBrowseContext !== undefined, // Show back if came from browse
+    showClose: existingBrowseContext === undefined, // Show close if opened directly
     showRefresh: true,
     showDelete: character.canEdit,
   });

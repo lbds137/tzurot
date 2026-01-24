@@ -17,10 +17,11 @@ import {
 
 /**
  * Character data structure (from API)
- * Index signature allows usage with generic Record<string, unknown> types
+ * Index signature uses `unknown` for Record<string, unknown> compatibility
+ * while preserving strict types for known properties.
  */
 export interface CharacterData {
-  [key: string]: string | number | boolean | null | undefined | BrowseContext;
+  [key: string]: unknown;
   id: string;
   name: string;
   displayName: string | null;
