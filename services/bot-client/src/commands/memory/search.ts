@@ -24,6 +24,7 @@ import {
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
+  handleViewFullButton,
   type MemoryItem,
   type ListContext,
 } from './detail.js';
@@ -56,7 +57,6 @@ interface SearchResult extends MemoryItem {
 interface SearchResponse {
   results: SearchResult[];
   count: number;
-  total?: number; // Total matching results (for pagination)
   hasMore: boolean;
   searchType?: 'semantic' | 'text'; // undefined for backwards compatibility
 }
@@ -265,6 +265,11 @@ async function handleSearchDetailAction(
           // Refresh the search results after deletion
           await refreshSearch();
         }
+      }
+      return true;
+    case 'view-full':
+      if (memoryId !== undefined) {
+        await handleViewFullButton(buttonInteraction, memoryId);
       }
       return true;
     case 'back':
@@ -486,12 +491,13 @@ export async function handleSearch(context: DeferredCommandContext): Promise<voi
 
     const { results, hasMore, searchType } = data;
 
-    // Calculate pages: when hasMore is true, we know there's at least one more page
-    // Use currentPage + 2 consistently so UX remains stable as user navigates
+    // Calculate pages using rolling window approach (API doesn't return total count)
+    // When hasMore is true: show "Page X of X+1+" indicating more pages exist
+    // When hasMore is false: current page is the last page
     const currentPage = 0;
     const totalPages = hasMore
       ? currentPage + 2
-      : Math.max(1, Math.ceil(results.length / RESULTS_PER_PAGE));
+      : Math.max(1, currentPage + (results.length > 0 ? 1 : 0));
 
     // Build initial embed
     const embed = buildSearchEmbed({

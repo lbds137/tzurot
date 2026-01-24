@@ -25,6 +25,7 @@ import {
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
+  handleViewFullButton,
   type MemoryItem,
   type ListContext,
 } from './detail.js';
@@ -244,6 +245,11 @@ async function handleDetailAction(
           // Refresh the list after deletion
           await refreshList();
         }
+      }
+      return true;
+    case 'view-full':
+      if (memoryId !== undefined) {
+        await handleViewFullButton(buttonInteraction, memoryId);
       }
       return true;
     case 'back':
