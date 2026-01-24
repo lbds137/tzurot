@@ -1,10 +1,10 @@
 /**
- * Tests for Wallet List Subcommand
+ * Tests for Wallet Browse Subcommand
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { handleListKeys } from './list.js';
+import { handleBrowse } from './browse.js';
 import { mockListWalletKeysResponse, AIProvider } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -38,7 +38,7 @@ vi.mock('../../utils/providers.js', () => ({
   },
 }));
 
-describe('handleListKeys', () => {
+describe('handleBrowse', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -66,12 +66,12 @@ describe('handleListKeys', () => {
       deleteReply: vi.fn(),
       getOption: vi.fn(),
       getRequiredOption: vi.fn(),
-      getSubcommand: vi.fn().mockReturnValue('list'),
+      getSubcommand: vi.fn().mockReturnValue('browse'),
       getSubcommandGroup: vi.fn().mockReturnValue(null),
     } as unknown as DeferredCommandContext;
   }
 
-  it('should list keys successfully', async () => {
+  it('should browse keys successfully', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: mockListWalletKeysResponse([
@@ -85,15 +85,14 @@ describe('handleListKeys', () => {
     });
 
     const context = createMockContext();
-    await handleListKeys(context);
+    await handleBrowse(context);
 
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/list', { userId: '123456789' });
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '💳 Your API Wallet',
-            description: expect.stringContaining('1'),
+            title: '💳 API Wallet Browser',
           }),
         }),
       ],
@@ -107,13 +106,13 @@ describe('handleListKeys', () => {
     });
 
     const context = createMockContext();
-    await handleListKeys(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '💳 Your API Wallet',
+            title: '💳 API Wallet Browser',
             description: expect.stringContaining('no API keys configured'),
           }),
         }),
@@ -129,7 +128,7 @@ describe('handleListKeys', () => {
     });
 
     const context = createMockContext();
-    await handleListKeys(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ Failed to retrieve wallet info: Server error',
@@ -141,14 +140,14 @@ describe('handleListKeys', () => {
     mockCallGatewayApi.mockRejectedValue(error);
 
     const context = createMockContext();
-    await handleListKeys(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       content: '❌ An unexpected error occurred. Please try again.',
     });
   });
 
-  it('should handle single key with correct pluralization', async () => {
+  it('should show active badge for active keys', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: mockListWalletKeysResponse([
@@ -162,13 +161,14 @@ describe('handleListKeys', () => {
     });
 
     const context = createMockContext();
-    await handleListKeys(context);
+    await handleBrowse(context);
 
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            description: expect.stringContaining('1'),
+            // Description should contain the active badge (⭐)
+            description: expect.stringContaining('⭐'),
           }),
         }),
       ],
