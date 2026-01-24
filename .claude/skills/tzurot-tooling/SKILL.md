@@ -164,15 +164,19 @@ All CI-like commands should use Turbo for caching:
 
 ## Dev Commands Reference
 
-| Command                           | Description                            |
-| --------------------------------- | -------------------------------------- |
-| `pnpm ops dev:lint`               | Lint changed packages                  |
-| `pnpm ops dev:lint --all`         | Lint all packages                      |
-| `pnpm ops dev:lint --errors-only` | Lint with only errors shown            |
-| `pnpm ops dev:test`               | Test changed packages                  |
-| `pnpm ops dev:test --all`         | Test all packages                      |
-| `pnpm ops dev:typecheck`          | Typecheck changed packages             |
-| `pnpm ops dev:focus <task>`       | Run any turbo task on changed packages |
+| Command                               | Description                            |
+| ------------------------------------- | -------------------------------------- |
+| `pnpm ops dev:lint`                   | Lint changed packages                  |
+| `pnpm ops dev:lint --all`             | Lint all packages                      |
+| `pnpm ops dev:lint --errors-only`     | Lint with only errors shown            |
+| `pnpm ops dev:test`                   | Test changed packages                  |
+| `pnpm ops dev:test --all`             | Test all packages                      |
+| `pnpm ops dev:typecheck`              | Typecheck changed packages             |
+| `pnpm ops dev:focus <task>`           | Run any turbo task on changed packages |
+| `pnpm ops dev:update-deps`            | Update all dependencies to latest      |
+| `pnpm ops dev:update-deps --dry-run`  | Preview dependency updates             |
+| `pnpm ops guard:boundaries`           | Check for architecture violations      |
+| `pnpm ops guard:boundaries --verbose` | Detailed boundary check output         |
 
 ## Testing Requirements
 
@@ -252,21 +256,28 @@ pnpm ops run --env <env> <command> [args...]
 
 **Quick codebase state for AI session startup:**
 
-| Command                              | Description                   |
-| ------------------------------------ | ----------------------------- |
-| `pnpm ops context`                   | Show full session context     |
-| `pnpm ops context --verbose`         | Include detailed file lists   |
-| `pnpm ops context --skip-migrations` | Skip migration check (faster) |
+| Command                              | Description                    |
+| ------------------------------------ | ------------------------------ |
+| `pnpm ops context`                   | Show full session context      |
+| `pnpm ops context --verbose`         | Include detailed file lists    |
+| `pnpm ops context --skip-migrations` | Skip migration check (faster)  |
+| `pnpm ops session:save`              | Save current state for later   |
+| `pnpm ops session:save --notes "x"`  | Save with notes                |
+| `pnpm ops session:load`              | Restore previous session state |
+| `pnpm ops session:clear`             | Clear saved session            |
 
-**Output includes:**
+**Context output includes:**
 
 - Git branch and recent commits
+- CI status (pass/fail/pending)
 - Uncommitted changes summary
 - CURRENT_WORK.md excerpt
 - Next ROADMAP.md items
 - Pending migrations (optional)
 
-**Use case:** Run at start of AI session to quickly understand project state.
+**Session save/load:** Captures state to `.claude-session.json` for continuity across sessions. Useful when context is compacted or session ends.
+
+**Use case:** Run `pnpm ops context` at start of AI session. Use `session:save` before ending a session.
 
 ## Inspect Commands Reference
 
@@ -286,6 +297,28 @@ pnpm ops run --env <env> <command> [args...]
 - Active job details (in verbose mode)
 
 **Use case:** Debug BullMQ/async issues, check for stuck or failed jobs.
+
+## Logs Commands Reference
+
+**Fetch and analyze Railway service logs:**
+
+| Command                               | Description                      |
+| ------------------------------------- | -------------------------------- |
+| `pnpm ops logs --env dev`             | Fetch logs from all dev services |
+| `pnpm ops logs --env prod`            | Fetch logs from production       |
+| `pnpm ops logs --service api-gateway` | Logs from specific service       |
+| `pnpm ops logs --filter error`        | Filter by log level              |
+| `pnpm ops logs --filter "keyword"`    | Filter by text content           |
+| `pnpm ops logs --lines 200`           | Fetch more lines (default: 100)  |
+| `pnpm ops logs --follow`              | Stream logs in real-time         |
+
+**Output includes:**
+
+- Colorized output (errors=red, warnings=yellow)
+- Service and environment context
+- Tips for common queries
+
+**Use case:** Debug production issues, check for errors across services, monitor logs in real-time.
 
 ## Release Commands Reference
 

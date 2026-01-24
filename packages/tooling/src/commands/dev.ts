@@ -65,4 +65,26 @@ export function registerDevCommands(cli: CAC): void {
     const { runTestSummary } = await import('../dev/test-summary.js');
     runTestSummary();
   });
+
+  cli
+    .command('dev:update-deps', 'Update all dependencies to latest versions')
+    .option('--skip-build', 'Skip build verification after updating')
+    .option('--dry-run', 'Show what would be changed without making changes')
+    .example('ops dev:update-deps')
+    .example('ops dev:update-deps --skip-build')
+    .example('ops dev:update-deps --dry-run')
+    .action(async (options: { skipBuild?: boolean; dryRun?: boolean }) => {
+      const { updateDeps } = await import('../dev/update-deps.js');
+      await updateDeps(options);
+    });
+
+  cli
+    .command('guard:boundaries', 'Check for architecture boundary violations')
+    .option('--verbose', 'Show detailed output')
+    .example('ops guard:boundaries')
+    .example('ops guard:boundaries --verbose')
+    .action(async (options: { verbose?: boolean }) => {
+      const { checkBoundaries } = await import('../dev/check-boundaries.js');
+      await checkBoundaries(options);
+    });
 }

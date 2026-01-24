@@ -226,4 +226,119 @@ describe('getSessionContext', () => {
       expect(output).toContain('CURRENT_WORK.md found');
     });
   });
+
+  describe('CI status', () => {
+    it('should show CI status when gh CLI is available', async () => {
+      execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === 'git' && args.includes('rev-parse')) return 'develop';
+        if (cmd === 'git' && args.includes('status')) return '';
+        if (cmd === 'git' && args.includes('log')) return 'abc123 Commit';
+        if (cmd === 'gh' && args.includes('--version')) return 'gh version 2.0.0';
+        if (cmd === 'gh' && args.includes('run')) {
+          return JSON.stringify([
+            {
+              conclusion: 'success',
+              name: 'CI',
+              url: 'https://github.com/run/1',
+              status: 'completed',
+            },
+          ]);
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({ skipMigrations: true });
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('CI Status');
+      expect(output).toContain('CI');
+      expect(output).toContain('success');
+    });
+
+    it('should show failure warning in summary when CI is failing', async () => {
+      execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === 'git' && args.includes('rev-parse')) return 'develop';
+        if (cmd === 'git' && args.includes('status')) return '';
+        if (cmd === 'git' && args.includes('log')) return 'abc123 Commit';
+        if (cmd === 'gh' && args.includes('--version')) return 'gh version 2.0.0';
+        if (cmd === 'gh' && args.includes('run')) {
+          return JSON.stringify([
+            {
+              conclusion: 'failure',
+              name: 'CI',
+              url: 'https://github.com/run/1',
+              status: 'completed',
+            },
+          ]);
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({ skipMigrations: true });
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('CI is failing');
+    });
+
+    it('should show pending warning when CI is in progress', async () => {
+      execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === 'git' && args.includes('rev-parse')) return 'develop';
+        if (cmd === 'git' && args.includes('status')) return '';
+        if (cmd === 'git' && args.includes('log')) return 'abc123 Commit';
+        if (cmd === 'gh' && args.includes('--version')) return 'gh version 2.0.0';
+        if (cmd === 'gh' && args.includes('run')) {
+          return JSON.stringify([
+            {
+              conclusion: null,
+              name: 'CI',
+              url: 'https://github.com/run/1',
+              status: 'in_progress',
+            },
+          ]);
+        }
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({ skipMigrations: true });
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).toContain('CI is running');
+    });
+
+    it('should skip CI status when gh CLI is not available', async () => {
+      execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === 'git' && args.includes('rev-parse')) return 'develop';
+        if (cmd === 'git' && args.includes('status')) return '';
+        if (cmd === 'git' && args.includes('log')) return 'abc123 Commit';
+        if (cmd === 'gh') throw new Error('gh not found');
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({ skipMigrations: true });
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).not.toContain('CI Status');
+    });
+
+    it('should skip CI status when no runs found', async () => {
+      execFileSyncMock.mockImplementation((cmd: string, args: string[]) => {
+        if (cmd === 'git' && args.includes('rev-parse')) return 'develop';
+        if (cmd === 'git' && args.includes('status')) return '';
+        if (cmd === 'git' && args.includes('log')) return 'abc123 Commit';
+        if (cmd === 'gh' && args.includes('--version')) return 'gh version 2.0.0';
+        if (cmd === 'gh' && args.includes('run')) return '[]';
+        return '';
+      });
+
+      const { getSessionContext } = await import('./session-context.js');
+      await getSessionContext({ skipMigrations: true });
+
+      const output = consoleLogSpy.mock.calls.flat().join(' ');
+      expect(output).not.toContain('CI Status');
+    });
+  });
 });
