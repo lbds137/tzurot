@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Contains MANDATORY Vitest testing patterns for Tzurot v3. MUST be consulted before creating any `.test.ts` file. Covers mock factories, fake timers, and promise rejection handling.
-lastUpdated: '2026-01-21'
+lastUpdated: '2026-01-24'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -279,20 +279,41 @@ afterAll(async () => {
 });
 ```
 
-## Contract Coverage Audit
+## Definition of Done
 
-The project uses a ratchet system to prevent new APIs from being added without contract tests:
+Before marking a feature complete:
+
+- [ ] New service files have `.component.test.ts`
+- [ ] New API schemas have `.contract.test.ts` (if crossing service boundary)
+- [ ] Complex DB operations have integration test coverage
+- [ ] Coverage doesn't drop (Codecov enforces 80% threshold)
+- [ ] Run `pnpm ops test:audit` to verify no new test gaps
+
+## Test Coverage Audits (Ratchet System)
+
+The project uses ratchets to prevent new untested code:
 
 ```bash
-# Check coverage (fails if NEW gaps detected)
-npx tsx scripts/testing/audit-contract-coverage.ts
+# Run both audits (CI does this automatically)
+pnpm ops test:audit
 
-# Update baseline (after adding contract tests)
-npx tsx scripts/testing/audit-contract-coverage.ts --update-baseline
+# Contract coverage only
+pnpm ops test:audit-contracts
 
-# Strict mode (fails on ANY gap)
-npx tsx scripts/testing/audit-contract-coverage.ts --strict
+# Service integration coverage only
+pnpm ops test:audit-services
+
+# Update baseline (after closing gaps)
+pnpm ops test:audit-contracts --update
+pnpm ops test:audit-services --update
+
+# Strict mode (fails on ANY gap, not just new ones)
+pnpm ops test:audit --strict
 ```
+
+### Contract Coverage Audit
+
+Prevents new API schemas from being added without contract tests.
 
 **How It Works**:
 
@@ -320,7 +341,43 @@ describe('MyFeature API Contract', () => {
 });
 ```
 
-**After Adding Tests**: Update baseline if needed to remove fixed gaps
+### Service Integration Coverage Audit
+
+Prevents new `*Service.ts` files from being added without component tests.
+
+**How It Works**:
+
+1. Finds all `*Service.ts` files in services/ and packages/
+2. Checks which have `.component.test.ts` files
+3. Compares against `service-integration-baseline.json`
+4. **Fails CI** if NEW services are added without component tests
+
+**Exemptions**: Some services don't need component tests (re-exports, thin wrappers). Add to `exempt` array in baseline.
+
+## Chip-Away Workflow (Closing Test Gaps)
+
+Existing gaps are tracked in baselines. Close them incrementally:
+
+```bash
+# 1. View current gaps
+pnpm ops test:audit-contracts    # Contract test gaps
+pnpm ops test:audit-services     # Component test gaps
+
+# 2. Pick a gap and write tests
+# Example: Close gap for PersonalityService
+# Create: services/api-gateway/src/services/PersonalityService.component.test.ts
+
+# 3. Update baseline to record progress
+pnpm ops test:audit-services --update
+```
+
+**Target**: Close 2-3 gaps per week during maintenance sessions.
+
+**Priority Order** (from `service-integration-baseline.json`):
+
+1. `services/ai-worker/src/services/LongTermMemoryService.ts` - core memory ops
+2. `services/ai-worker/src/services/ConversationalRAGService.ts` - AI generation flow
+3. `services/api-gateway/src/services/PersonalityService.ts` - used everywhere
 
 ## Anti-Patterns
 
@@ -386,5 +443,7 @@ Structure: `{"total": {"lines": {"pct": 84.78}}, "/path/file.ts": {"lines": {...
 - Mock factories: `services/*/src/test/mocks/`
 - Global philosophy: `~/.claude/CLAUDE.md#universal-testing-philosophy`
 - PGLite setup: `tests/integration/setup.ts`
-- Contract audit: `scripts/testing/audit-contract-coverage.ts`
-- Schema regeneration: `scripts/testing/regenerate-pglite-schema.sh`
+- Test audit commands: `pnpm ops test:audit-*`
+- Schema regeneration: `./scripts/testing/regenerate-pglite-schema.sh`
+- Contract baseline: `contract-coverage-baseline.json`
+- Service baseline: `service-integration-baseline.json`
