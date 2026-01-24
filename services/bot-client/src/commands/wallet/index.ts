@@ -4,7 +4,7 @@
  *
  * Commands:
  * - /wallet set <provider> - Set API key via secure modal
- * - /wallet list - List configured providers
+ * - /wallet browse - Browse configured providers
  * - /wallet remove <provider> - Remove an API key
  * - /wallet test <provider> - Test API key validity
  */
@@ -16,7 +16,7 @@ import { defineCommand } from '../../utils/defineCommand.js';
 import type { SafeCommandContext } from '../../utils/commandContext/types.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 import { handleSetKey } from './set.js';
-import { handleListKeys } from './list.js';
+import { handleBrowse } from './browse.js';
 import { handleRemoveKey } from './remove.js';
 import { handleTestKey } from './test.js';
 import { handleWalletModalSubmit } from './modal.js';
@@ -27,12 +27,12 @@ const logger = createLogger('wallet-command');
  * Mixed-mode subcommand router for wallet commands
  *
  * - 'set' shows a modal (receives ModalCommandContext)
- * - 'list', 'remove', 'test' are deferred (receive DeferredCommandContext)
+ * - 'browse', 'remove', 'test' are deferred (receive DeferredCommandContext)
  */
 const walletRouter = createMixedModeSubcommandRouter(
   {
     deferred: {
-      list: handleListKeys,
+      browse: handleBrowse,
       remove: handleRemoveKey,
       test: handleTestKey,
     },
@@ -86,7 +86,7 @@ export default defineCommand({
         )
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('list').setDescription('List your configured API key providers')
+      subcommand.setName('browse').setDescription('Browse your configured API keys')
     )
     .addSubcommand(subcommand =>
       subcommand

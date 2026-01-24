@@ -28,8 +28,8 @@ vi.mock('./set.js', () => ({
   handleSetKey: vi.fn(),
 }));
 
-vi.mock('./list.js', () => ({
-  handleListKeys: vi.fn(),
+vi.mock('./browse.js', () => ({
+  handleBrowse: vi.fn(),
 }));
 
 vi.mock('./remove.js', () => ({
@@ -49,7 +49,7 @@ import walletCommand from './index.js';
 // Destructure from default export
 const { data, execute, handleModal, deferralMode, subcommandDeferralModes } = walletCommand;
 import { handleSetKey } from './set.js';
-import { handleListKeys } from './list.js';
+import { handleBrowse } from './browse.js';
 import { handleRemoveKey } from './remove.js';
 import { handleTestKey } from './test.js';
 import { handleWalletModalSubmit } from './modal.js';
@@ -79,12 +79,12 @@ describe('Wallet Command', () => {
       expect(setSubcommand.options[0].required).toBe(true);
     });
 
-    it('should have list subcommand', () => {
+    it('should have browse subcommand', () => {
       const jsonData = data.toJSON();
       const subcommands = jsonData.options?.filter((opt: { type: number }) => opt.type === 1) ?? [];
-      const listSubcommand = subcommands.find((sub: { name: string }) => sub.name === 'list');
+      const browseSubcommand = subcommands.find((sub: { name: string }) => sub.name === 'browse');
 
-      expect(listSubcommand).toBeDefined();
+      expect(browseSubcommand).toBeDefined();
     });
 
     it('should have remove subcommand with provider option', () => {
@@ -173,11 +173,11 @@ describe('Wallet Command', () => {
       expect(handleSetKey).toHaveBeenCalledWith(context);
     });
 
-    it('should route list subcommand to handleListKeys', async () => {
-      const context = createMockContext('list');
+    it('should route browse subcommand to handleBrowse', async () => {
+      const context = createMockContext('browse');
       await execute(context);
 
-      expect(handleListKeys).toHaveBeenCalledWith(context);
+      expect(handleBrowse).toHaveBeenCalledWith(context);
     });
 
     it('should route remove subcommand to handleRemoveKey', async () => {
