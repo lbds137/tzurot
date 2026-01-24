@@ -40,13 +40,13 @@ vi.mock('./create.js', () => ({ handleCreate: vi.fn() }));
 // Mock global subcommand handlers
 vi.mock('./global/create.js', () => ({ handleGlobalCreate: vi.fn() }));
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
-vi.mock('./global/set-free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
+vi.mock('./global/free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
 import { handleBrowse } from './browse.js';
 import { handleCreate } from './create.js';
 import { handleGlobalCreate } from './global/create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
-import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
+import { handleGlobalSetFreeDefault } from './global/free-default.js';
 
 describe('Preset Command', () => {
   const mockEditReply = vi.fn();

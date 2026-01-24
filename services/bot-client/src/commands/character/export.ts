@@ -142,7 +142,9 @@ export async function handleExport(
 
     const character = result.data.personality;
     const canEdit = result.data.canEdit;
-    const displayName = String(character.displayName ?? character.name);
+    // Type assertion needed due to index signature on CharacterData
+    const displayName: string =
+      (character.displayName as string | null) ?? (character.name as string);
 
     // Check ownership - only character owner or bot owner can export
     if (!canEdit && !isBotOwner(userId)) {

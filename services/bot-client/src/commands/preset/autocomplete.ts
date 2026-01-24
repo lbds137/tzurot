@@ -11,6 +11,7 @@ import {
   TTLCache,
   AUTOCOMPLETE_BADGES,
   formatAutocompleteOption,
+  isFreeModel,
   type LlmConfigSummary,
   type AutocompleteBadge,
 } from '@tzurot/common-types';
@@ -71,7 +72,7 @@ export async function handleAutocomplete(interaction: AutocompleteInteraction): 
       // Global config autocomplete (for owner-only commands)
       // Note: 'config' option is currently only used in the 'global' subcommand group.
       // If future subcommands also use 'config', this condition will need updating.
-      const freeOnly = subcommand === 'set-free-default';
+      const freeOnly = subcommand === 'free-default';
       await handleGlobalConfigAutocomplete(interaction, focusedOption.value, freeOnly);
     } else {
       await interaction.respond([]);
@@ -275,8 +276,8 @@ async function handleGlobalConfigAutocomplete(
         if (!c.isGlobal) {
           return false;
         }
-        // If freeOnly, must have :free in model name
-        if (freeOnly && !c.model.includes(':free')) {
+        // If freeOnly, model must be a free model (ending in :free)
+        if (freeOnly && !isFreeModel(c.model)) {
           return false;
         }
         // Must match query

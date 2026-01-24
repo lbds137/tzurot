@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-24 (reorganized by epic, moved resolved items)
+> Last updated: 2026-01-24 (added browse file size issues from PR #506)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -218,15 +218,20 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 
 ### Large File Reduction
 
-Target: <400 lines. Lower priority since AI-only impact.
+Target: <500 lines (error), <400 lines (ideal). Lower priority since AI-only impact.
 
-| File                       | Current | Approach                      |
-| -------------------------- | ------- | ----------------------------- |
-| `PgvectorMemoryAdapter.ts` | 529     | Extract batch fetching        |
-| `DiscordChannelFetcher.ts` | ~550    | Extract message conversion    |
-| `conversationUtils.ts`     | ~530    | Extract formatting helpers    |
-| `MessageContextBuilder.ts` | ~520    | Extract attachment processing |
-| `user/history.ts`          | 516     | Handler factory pattern       |
+| File                       | Current | Approach                                 |
+| -------------------------- | ------- | ---------------------------------------- |
+| `character/browse.ts`      | 794     | Extract buildBrowsePage to browseBuilder |
+| `character/dashboard.ts`   | 692     | Extract back handler to dashboardButtons |
+| `preset/browse.ts`         | 610     | Extract buildBrowsePage to browseBuilder |
+| `PgvectorMemoryAdapter.ts` | 529     | Extract batch fetching                   |
+| `DiscordChannelFetcher.ts` | ~550    | Extract message conversion               |
+| `conversationUtils.ts`     | ~530    | Extract formatting helpers               |
+| `MessageContextBuilder.ts` | ~520    | Extract attachment processing            |
+| `user/history.ts`          | 516     | Handler factory pattern                  |
+
+**Source**: PR #506 browse UX improvements (2026-01-24)
 
 ### Testing
 

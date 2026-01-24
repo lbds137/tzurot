@@ -127,15 +127,67 @@ function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LE
 }
 
 /**
+ * Build custom ID for browse select menu with context
+ * Format: preset::browse-select::page::filter::query
+ */
+function buildBrowseSelectCustomId(
+  page: number,
+  filter: PresetBrowseFilter,
+  query: string | null
+): string {
+  // Truncate query to fit within Discord's 100-char customId limit
+  const truncatedQuery = query !== null && query.length > 50 ? query.slice(0, 50) : (query ?? '');
+  return `${BROWSE_SELECT_PREFIX}::${page}::${filter}::${truncatedQuery}`;
+}
+
+/**
+ * Parse browse select custom ID to extract context
+ */
+export function parseBrowseSelectCustomId(customId: string): {
+  page: number;
+  filter: PresetBrowseFilter;
+  query: string | null;
+} | null {
+  if (!customId.startsWith(BROWSE_SELECT_PREFIX)) {
+    return null;
+  }
+
+  const parts = customId.split('::');
+  if (parts.length < 4) {
+    // Legacy format without context - return defaults
+    return { page: 0, filter: 'all', query: null };
+  }
+
+  const page = parseInt(parts[2], 10);
+  const filter = parts[3] as PresetBrowseFilter;
+  const query = parts[4] !== '' ? parts[4] : null;
+
+  if (isNaN(page)) {
+    return { page: 0, filter: 'all', query: null };
+  }
+
+  return { page, filter, query };
+}
+
+/** Options for buildBrowseSelectMenu */
+interface BrowseSelectMenuOptions {
+  pageItems: LlmConfigSummary[];
+  startIdx: number;
+  isGuestMode: boolean;
+  page: number;
+  filter: PresetBrowseFilter;
+  query: string | null;
+}
+
+/**
  * Build select menu for choosing a preset from the list
  */
 function buildBrowseSelectMenu(
-  pageItems: LlmConfigSummary[],
-  startIdx: number,
-  isGuestMode: boolean
+  options: BrowseSelectMenuOptions
 ): ActionRowBuilder<StringSelectMenuBuilder> {
+  const { pageItems, startIdx, isGuestMode, page, filter, query } = options;
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(BROWSE_SELECT_PREFIX)
+    .setCustomId(buildBrowseSelectCustomId(page, filter, query))
     .setPlaceholder('Select a preset to view...')
     .setMinValues(1)
     .setMaxValues(1);
@@ -362,7 +414,16 @@ function buildBrowsePage(
 
   // Add select menu if there are items on this page
   if (pageItems.length > 0) {
-    components.push(buildBrowseSelectMenu(pageItems, startIdx, isGuestMode));
+    components.push(
+      buildBrowseSelectMenu({
+        pageItems,
+        startIdx,
+        isGuestMode,
+        page: safePage,
+        filter,
+        query,
+      })
+    );
   }
 
   // Add pagination buttons if multiple pages
@@ -419,6 +480,35 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 }
 
 /**
+ * Build browse response for a given context
+ * Reusable for pagination and back-from-dashboard navigation
+ */
+export async function buildBrowseResponse(
+  userId: string,
+  browseContext: {
+    page: number;
+    filter: PresetBrowseFilter;
+    query: string | null;
+  }
+): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
+  const { page, filter, query } = browseContext;
+
+  // Re-fetch data
+  const [presetResult, walletResult] = await Promise.all([
+    callGatewayApi<ListResponse>('/user/llm-config', { userId }),
+    callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
+  ]);
+
+  if (!presetResult.ok) {
+    return null;
+  }
+
+  const isGuestMode = !(walletResult.ok && walletResult.data.keys.some(k => k.isActive === true));
+
+  return buildBrowsePage(presetResult.data.configs, filter, query, page, isGuestMode);
+}
+
+/**
  * Handle browse pagination button clicks
  */
 export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
@@ -429,34 +519,23 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
   await interaction.deferUpdate();
 
-  const { page, filter, query } = parsed;
-  const userId = interaction.user.id;
-
   try {
-    // Re-fetch data
-    const [presetResult, walletResult] = await Promise.all([
-      callGatewayApi<ListResponse>('/user/llm-config', { userId }),
-      callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
-    ]);
+    const result = await buildBrowseResponse(interaction.user.id, parsed);
 
-    if (!presetResult.ok) {
-      logger.warn({ userId }, '[Preset] Failed to fetch presets for pagination');
+    if (result === null) {
+      logger.warn(
+        { userId: interaction.user.id },
+        '[Preset] Failed to fetch presets for pagination'
+      );
       return;
     }
 
-    const isGuestMode = !(walletResult.ok && walletResult.data.keys.some(k => k.isActive === true));
-
-    const { embed, components } = buildBrowsePage(
-      presetResult.data.configs,
-      filter,
-      query,
-      page,
-      isGuestMode
-    );
-
-    await interaction.editReply({ embeds: [embed], components });
+    await interaction.editReply({ embeds: [result.embed], components: result.components });
   } catch (error) {
-    logger.error({ err: error, userId, page }, '[Preset] Error during browse pagination');
+    logger.error(
+      { err: error, userId: interaction.user.id, ...parsed },
+      '[Preset] Error during browse pagination'
+    );
     // Keep existing content on error
   }
 }
@@ -467,6 +546,9 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 export async function handleBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
   const presetId = interaction.values[0];
   const userId = interaction.user.id;
+
+  // Parse browse context from customId
+  const browseContext = parseBrowseSelectCustomId(interaction.customId);
 
   await interaction.deferUpdate();
 
@@ -486,10 +568,10 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
     // Flatten the data for dashboard display
     const flattenedData = flattenPresetData(preset);
 
-    // Build dashboard embed and components
+    // Build dashboard embed and components - show back button since we're coming from browse
     const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
     const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, presetId, flattenedData, {
-      showClose: true,
+      showBack: true, // Show "Back to Browse" instead of close
       showRefresh: true,
       showDelete: flattenedData.isOwned,
       toggleGlobal: {
@@ -501,13 +583,25 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
     // Update the message with the dashboard
     await interaction.editReply({ embeds: [embed], components });
 
-    // Create session for tracking
+    // Create session for tracking - include browse context for back navigation
     const sessionManager = getSessionManager();
+    const sessionData: FlattenedPresetData = {
+      ...flattenedData,
+      browseContext: browseContext
+        ? {
+            source: 'browse',
+            page: browseContext.page,
+            filter: browseContext.filter,
+            query: browseContext.query,
+          }
+        : undefined,
+    };
+
     await sessionManager.set<FlattenedPresetData>({
       userId,
       entityType: 'preset',
       entityId: presetId,
-      data: flattenedData,
+      data: sessionData,
       messageId: interaction.message.id,
       channelId: interaction.channelId,
     });

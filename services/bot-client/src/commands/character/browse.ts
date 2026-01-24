@@ -14,14 +14,12 @@ import {
   ButtonStyle,
   EmbedBuilder,
   ActionRowBuilder,
-  escapeMarkdown,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { createListComparator } from '../../utils/listSorting.js';
 import {
   fetchUserCharacters,
   fetchPublicCharacters,
@@ -34,6 +32,15 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
+import {
+  type ListItem,
+  filterCharacters,
+  createListItems,
+  buildFilterLine,
+  buildEmptyStateLines,
+  renderPageItems,
+  FILTER_LABELS,
+} from './browseHelpers.js';
 
 const logger = createLogger('character-browse');
 
@@ -57,26 +64,6 @@ const BROWSE_SELECT_PREFIX = 'character::browse-select';
 
 /** Maximum length for select menu option labels */
 const MAX_SELECT_LABEL_LENGTH = 100;
-
-/**
- * List item with group markers for rendering.
- * The isGroupStart flag indicates where to render section headers.
- */
-interface ListItem {
-  char: CharacterData;
-  isOwn: boolean;
-  isGroupStart: boolean;
-  groupHeader?: string;
-}
-
-/**
- * Create a character comparator for sorting.
- * Uses shared listSorting utility for consistent sort behavior.
- */
-const characterComparator = createListComparator<CharacterData>(
-  c => c.displayName ?? c.name,
-  c => c.updatedAt
-);
 
 /**
  * Build custom ID for browse pagination
@@ -144,15 +131,6 @@ export function isCharacterBrowseSelectInteraction(customId: string): boolean {
 }
 
 /**
- * Format a character line for the list
- */
-function formatCharacterLine(c: CharacterData): string {
-  const visibility = c.isPublic ? '🌐' : '🔒';
-  const displayName = escapeMarkdown(c.displayName ?? c.name);
-  return `${visibility} **${displayName}** (\`${c.slug}\`)`;
-}
-
-/**
  * Truncate text for select menu label
  */
 function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
@@ -163,14 +141,72 @@ function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LE
 }
 
 /**
+ * Build custom ID for browse select menu with context
+ * Format: character::browse-select::page::filter::sort::query
+ */
+function buildBrowseSelectCustomId(
+  page: number,
+  filter: CharacterBrowseFilter,
+  sort: CharacterBrowseSortType,
+  query: string | null
+): string {
+  // Truncate query to fit within Discord's 100-char customId limit
+  // Base format is ~40 chars, leaving ~60 for query
+  const truncatedQuery = query !== null && query.length > 50 ? query.slice(0, 50) : (query ?? '');
+  return `${BROWSE_SELECT_PREFIX}::${page}::${filter}::${sort}::${truncatedQuery}`;
+}
+
+/**
+ * Parse browse select custom ID to extract context
+ */
+export function parseBrowseSelectCustomId(customId: string): {
+  page: number;
+  filter: CharacterBrowseFilter;
+  sort: CharacterBrowseSortType;
+  query: string | null;
+} | null {
+  if (!customId.startsWith(BROWSE_SELECT_PREFIX)) {
+    return null;
+  }
+
+  const parts = customId.split('::');
+  if (parts.length < 5) {
+    // Legacy format without context - return defaults
+    return { page: 0, filter: 'all', sort: 'date', query: null };
+  }
+
+  const page = parseInt(parts[2], 10);
+  const filter = parts[3] as CharacterBrowseFilter;
+  const sort = parts[4] as CharacterBrowseSortType;
+  const query = parts[5] !== '' ? parts[5] : null;
+
+  if (isNaN(page)) {
+    return { page: 0, filter: 'all', sort: 'date', query: null };
+  }
+
+  return { page, filter, sort, query };
+}
+
+/** Options for buildBrowseSelectMenu */
+interface BrowseSelectMenuOptions {
+  pageItems: ListItem[];
+  startIdx: number;
+  page: number;
+  filter: CharacterBrowseFilter;
+  sort: CharacterBrowseSortType;
+  query: string | null;
+}
+
+/**
  * Build select menu for choosing a character from the list
  */
 function buildBrowseSelectMenu(
-  pageItems: ListItem[],
-  startIdx: number
+  options: BrowseSelectMenuOptions
 ): ActionRowBuilder<StringSelectMenuBuilder> {
+  const { pageItems, startIdx, page, filter, sort, query } = options;
+
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(BROWSE_SELECT_PREFIX)
+    .setCustomId(buildBrowseSelectCustomId(page, filter, sort, query))
     .setPlaceholder('Select a character to view/edit...')
     .setMinValues(1)
     .setMaxValues(1);
@@ -203,132 +239,6 @@ function buildBrowseSelectMenu(
   });
 
   return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
-}
-
-/**
- * Filter characters by filter type and query
- */
-function filterCharacters(
-  ownCharacters: CharacterData[],
-  publicCharacters: CharacterData[],
-  userId: string,
-  filter: CharacterBrowseFilter,
-  query: string | null
-): { own: CharacterData[]; others: CharacterData[] } {
-  let own = ownCharacters;
-  let others = publicCharacters.filter(c => c.ownerId !== userId);
-
-  // Apply filter
-  switch (filter) {
-    case 'mine':
-      others = []; // Only show owned characters
-      break;
-    case 'public':
-      // Only show public characters (both own public and others' public)
-      own = own.filter(c => c.isPublic);
-      break;
-    case 'all':
-    default:
-      // Show all accessible
-      break;
-  }
-
-  // Apply search query
-  if (query !== null && query.length > 0) {
-    const lowerQuery = query.toLowerCase();
-    const matchesQuery = (c: CharacterData): boolean =>
-      (c.displayName ?? c.name).toLowerCase().includes(lowerQuery) ||
-      c.slug.toLowerCase().includes(lowerQuery) ||
-      (c.characterInfo?.toLowerCase().includes(lowerQuery) ?? false);
-
-    own = own.filter(matchesQuery);
-    others = others.filter(matchesQuery);
-  }
-
-  return { own, others };
-}
-
-/**
- * Create sorted, grouped list items ready for pagination.
- * Groups are sorted by owner name, characters within groups by sort type.
- * This ensures owner groups stay together across page boundaries.
- */
-function createListItems(
-  ownCharacters: CharacterData[],
-  othersPublic: CharacterData[],
-  creatorNames: Map<string, string>,
-  sortType: CharacterBrowseSortType
-): ListItem[] {
-  const items: ListItem[] = [];
-
-  // Sort own characters
-  const sortedOwn = [...ownCharacters].sort(characterComparator(sortType));
-
-  // Add own characters (first group)
-  for (let i = 0; i < sortedOwn.length; i++) {
-    items.push({
-      char: sortedOwn[i],
-      isOwn: true,
-      isGroupStart: i === 0,
-      groupHeader: i === 0 ? `**📝 Your Characters (${ownCharacters.length})**` : undefined,
-    });
-  }
-
-  if (othersPublic.length === 0) {
-    return items;
-  }
-
-  // Group by owner
-  const byOwner = new Map<string, CharacterData[]>();
-  for (const char of othersPublic) {
-    const ownerId = char.ownerId ?? 'system';
-    const existing = byOwner.get(ownerId) ?? [];
-    existing.push(char);
-    byOwner.set(ownerId, existing);
-  }
-
-  // Sort characters within each owner group
-  for (const chars of byOwner.values()) {
-    chars.sort(characterComparator(sortType));
-  }
-
-  // Sort owner groups by owner name
-  const sortedOwnerGroups = [...byOwner.entries()]
-    .map(([ownerId, chars]) => ({
-      ownerId,
-      ownerName: ownerId === 'system' ? 'System' : (creatorNames.get(ownerId) ?? 'Unknown'),
-      chars,
-    }))
-    .sort((a, b) => a.ownerName.localeCompare(b.ownerName));
-
-  // Add section header for "Other Users' Characters"
-  let isFirstOthersGroup = true;
-  for (const group of sortedOwnerGroups) {
-    for (let i = 0; i < group.chars.length; i++) {
-      const isGroupStart = i === 0;
-      let groupHeader: string | undefined;
-
-      if (isGroupStart) {
-        if (isFirstOthersGroup) {
-          // First group of others gets the section header
-          groupHeader = `**🌍 Other Users' Characters (${othersPublic.length})**\n\n__${escapeMarkdown(group.ownerName)}__`;
-          isFirstOthersGroup = false;
-        } else {
-          // Subsequent groups just get owner subheader
-          groupHeader = `\n__${escapeMarkdown(group.ownerName)}__`;
-        }
-      }
-
-      items.push({
-        char: group.chars[i],
-        isOwn: false,
-        isGroupStart,
-        groupHeader,
-      });
-    }
-  }
-
-  return items;
 }
 
 /**
@@ -381,67 +291,6 @@ function buildBrowseButtons(
   );
 
   return row;
-}
-
-/** Filter labels for display */
-const FILTER_LABELS: Record<CharacterBrowseFilter, string> = {
-  all: 'All',
-  mine: 'My Characters',
-  public: 'Public Only',
-};
-
-/**
- * Build the search/filter info line for the embed description
- */
-function buildFilterLine(query: string | null, filter: CharacterBrowseFilter): string | null {
-  if (query !== null) {
-    return `🔍 Searching: "${query}" • Filter: ${FILTER_LABELS[filter]}\n`;
-  }
-  if (filter !== 'all') {
-    return `Filter: ${FILTER_LABELS[filter]}\n`;
-  }
-  return null;
-}
-
-/**
- * Build empty state lines when user has no own characters
- */
-function buildEmptyStateLines(
-  safePage: number,
-  ownCount: number,
-  filter: CharacterBrowseFilter,
-  hasOthersOnPage: boolean
-): string[] {
-  const lines: string[] = [];
-  if (safePage === 0 && ownCount === 0 && filter !== 'public') {
-    lines.push(`**📝 Your Characters (0)**`);
-    lines.push("_You don't have any characters yet._");
-    lines.push('Use `/character create` to create your first one!');
-    if (hasOthersOnPage) {
-      lines.push('');
-    }
-  }
-  return lines;
-}
-
-/**
- * Render page items with their group headers
- */
-function renderPageItems(pageItems: ListItem[], existingLinesLength: number): string[] {
-  const lines: string[] = [];
-  for (const item of pageItems) {
-    if (item.groupHeader !== undefined) {
-      // Add separator before "Other Users" section if coming from own chars
-      const totalLines = existingLinesLength + lines.length;
-      const lastLine = lines.length > 0 ? lines[lines.length - 1] : '';
-      if (!item.isOwn && totalLines > 0 && !lastLine.startsWith('**🌍')) {
-        lines.push('');
-      }
-      lines.push(item.groupHeader);
-    }
-    lines.push(formatCharacterLine(item.char));
-  }
-  return lines;
 }
 
 /** Union type for action rows that can contain buttons or select menus */
@@ -515,7 +364,9 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
 
   // Add select menu if there are items on this page
   if (pageItems.length > 0) {
-    components.push(buildBrowseSelectMenu(pageItems, startIdx));
+    components.push(
+      buildBrowseSelectMenu({ pageItems, startIdx, page: safePage, filter, sort: sortType, query })
+    );
   }
 
   // Add pagination buttons if multiple pages or items exist
@@ -584,6 +435,53 @@ export async function handleBrowse(
 }
 
 /**
+ * Build browse response for a given context
+ * Reusable for pagination and back-from-dashboard navigation
+ */
+export async function buildBrowseResponse(
+  userId: string,
+  client: ButtonInteraction['client'],
+  config: EnvConfig,
+  browseContext: {
+    page: number;
+    filter: CharacterBrowseFilter;
+    sort: CharacterBrowseSortType;
+    query: string | null;
+  }
+): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] }> {
+  const { page, filter, sort, query } = browseContext;
+
+  // Re-fetch character data
+  const [ownCharacters, publicCharacters] = await Promise.all([
+    fetchUserCharacters(userId, config),
+    fetchPublicCharacters(userId, config),
+  ]);
+
+  // Apply filter and query
+  const { own, others } = filterCharacters(ownCharacters, publicCharacters, userId, filter, query);
+
+  // Fetch creator usernames
+  const creatorIds = [...new Set(others.map(c => c.ownerId).filter(Boolean))] as string[];
+  const creatorNames = await fetchUsernames(client, creatorIds);
+
+  // Create sorted, grouped items with the specified sort
+  const allItems = createListItems(own, others, creatorNames, sort);
+
+  // Build requested page (with bounds checking)
+  const totalPages = Math.max(1, Math.ceil(allItems.length / CHARACTERS_PER_PAGE));
+  const safePage = Math.min(Math.max(0, page), totalPages - 1);
+
+  return buildBrowsePage({
+    allItems,
+    ownCount: own.length,
+    page: safePage,
+    filter,
+    sortType: sort,
+    query,
+  });
+}
+
+/**
  * Handle browse pagination button clicks
  */
 export async function handleBrowsePagination(
@@ -597,46 +495,18 @@ export async function handleBrowsePagination(
 
   await interaction.deferUpdate();
 
-  const { page, filter, sort, query } = parsed;
-  const userId = interaction.user.id;
-
   try {
-    // Re-fetch character data
-    const [ownCharacters, publicCharacters] = await Promise.all([
-      fetchUserCharacters(userId, config),
-      fetchPublicCharacters(userId, config),
-    ]);
-
-    // Apply filter and query
-    const { own, others } = filterCharacters(
-      ownCharacters,
-      publicCharacters,
-      userId,
-      filter,
-      query
+    const { embed, components } = await buildBrowseResponse(
+      interaction.user.id,
+      interaction.client,
+      config,
+      parsed
     );
-
-    // Fetch creator usernames
-    const creatorIds = [...new Set(others.map(c => c.ownerId).filter(Boolean))] as string[];
-    const creatorNames = await fetchUsernames(interaction.client, creatorIds);
-
-    // Create sorted, grouped items with the specified sort
-    const allItems = createListItems(own, others, creatorNames, sort);
-
-    // Build requested page
-    const { embed, components } = buildBrowsePage({
-      allItems,
-      ownCount: own.length,
-      page,
-      filter,
-      sortType: sort,
-      query,
-    });
 
     await interaction.editReply({ embeds: [embed], components });
   } catch (error) {
     logger.error(
-      { err: error, userId, page, filter, sort },
+      { err: error, userId: interaction.user.id, ...parsed },
       '[Character] Failed to load browse page'
     );
     // Keep existing content on error
@@ -652,6 +522,9 @@ export async function handleBrowseSelect(
 ): Promise<void> {
   const slug = interaction.values[0];
   const userId = interaction.user.id;
+
+  // Parse browse context from customId
+  const browseContext = parseBrowseSelectCustomId(interaction.customId);
 
   await interaction.deferUpdate();
 
@@ -671,10 +544,10 @@ export async function handleBrowseSelect(
     // Get dashboard config based on edit permissions
     const dashboardConfig = getCharacterDashboardConfig(character.canEdit);
 
-    // Build dashboard embed and components
+    // Build dashboard embed and components - show back button since we're coming from browse
     const embed = buildDashboardEmbed(dashboardConfig, character);
     const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
-      showClose: true,
+      showBack: true, // Show "Back to Browse" instead of close
       showRefresh: true,
       showDelete: character.canEdit && character.ownerId === userId,
     });
@@ -682,13 +555,26 @@ export async function handleBrowseSelect(
     // Update the message with the dashboard
     await interaction.editReply({ embeds: [embed], components });
 
-    // Create session for tracking
+    // Create session for tracking - include browse context for back navigation
     const sessionManager = getSessionManager();
+    const sessionData: CharacterData = {
+      ...character,
+      browseContext: browseContext
+        ? {
+            source: 'browse',
+            page: browseContext.page,
+            filter: browseContext.filter,
+            sort: browseContext.sort,
+            query: browseContext.query,
+          }
+        : undefined,
+    };
+
     await sessionManager.set<CharacterData>({
       userId,
       entityType: 'character',
       entityId: character.slug,
-      data: character,
+      data: sessionData,
       messageId: interaction.message.id,
       channelId: interaction.channelId,
     });

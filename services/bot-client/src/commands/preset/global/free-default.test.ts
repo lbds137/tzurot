@@ -1,13 +1,13 @@
 /**
- * Tests for Preset Global Set Free Default Handler
+ * Tests for Preset Global Free Default Handler
  *
- * Tests /preset global set-free-default subcommand:
+ * Tests /preset global free-default subcommand:
  * - Successful free tier default setting
  * - API error handling
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleGlobalSetFreeDefault } from './set-free-default.js';
+import { handleGlobalSetFreeDefault } from './free-default.js';
 import * as adminApiClient from '../../../utils/adminApiClient.js';
 import { EmbedBuilder } from 'discord.js';
 
