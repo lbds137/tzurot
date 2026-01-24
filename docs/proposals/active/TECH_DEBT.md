@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-24 (added browse file size issues from PR #506)
+> Last updated: 2026-01-24 (added tooling suggestions from PR #510 code review)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -200,12 +200,18 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 
 ### DX/Tooling
 
-| Item                     | Description                                   | Workaround       |
-| ------------------------ | --------------------------------------------- | ---------------- |
-| Unsafe xargs in script   | `regenerate-pglite-schema.sh` shell injection | Use safe parsing |
-| Monorepo script inherit  | `pnpm --filter` fails if no script defined    | Run from root    |
-| Commitlint scope auto    | Hardcoded scopes in `commitlint.config.cjs`   | Add manually     |
-| Singleton export cleanup | 18 module-level singletons detected by ESLint | Warning only     |
+| Item                        | Description                                                       | Workaround       |
+| --------------------------- | ----------------------------------------------------------------- | ---------------- |
+| Unsafe xargs in script      | `regenerate-pglite-schema.sh` shell injection                     | Use safe parsing |
+| Monorepo script inherit     | `pnpm --filter` fails if no script defined                        | Run from root    |
+| Commitlint scope auto       | Hardcoded scopes in `commitlint.config.cjs`                       | Add manually     |
+| Singleton export cleanup    | 18 module-level singletons detected by ESLint                     | Warning only     |
+| update-deps regex constants | `update-deps.ts:94,104` - complex regex inline, extract as consts | Works as-is      |
+| update-deps YAML fragility  | `update-deps.ts` manual YAML parsing - fragile if format changes  | Works for now    |
+| boundaries depth limit      | `check-boundaries.ts` findTypeScriptFiles has no recursion depth  | Low risk         |
+| logs follow mode tests      | `logs.ts` streaming mode (spawn) lacks test coverage              | Core path tested |
+
+**Source**: PR #510 code review (2026-01-24)
 
 ### Edge Cases
 
