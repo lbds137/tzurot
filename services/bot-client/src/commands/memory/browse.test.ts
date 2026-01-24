@@ -43,6 +43,7 @@ const mockHandleEditButton = vi.fn().mockResolvedValue(undefined);
 const mockHandleLockButton = vi.fn().mockResolvedValue(undefined);
 const mockHandleDeleteButton = vi.fn().mockResolvedValue(undefined);
 const mockHandleDeleteConfirm = vi.fn().mockResolvedValue(true);
+const mockHandleViewFullButton = vi.fn().mockResolvedValue(undefined);
 
 vi.mock('./detail.js', async importOriginal => {
   const actual = await importOriginal<typeof import('./detail.js')>();
@@ -53,6 +54,7 @@ vi.mock('./detail.js', async importOriginal => {
     handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
     handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
     handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
+    handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
   };
 });
 
@@ -961,5 +963,38 @@ describe('handleBrowse collector behavior', () => {
 
     // Back button defers update before refreshing
     expect(mockDeferUpdate).toHaveBeenCalled();
+  });
+
+  it('should handle view-full button action', async () => {
+    mockCallGatewayApi.mockResolvedValueOnce({
+      ok: true,
+      data: {
+        memories: [
+          {
+            id: 'memory-1',
+            content: 'Test memory with full content',
+            createdAt: '2025-06-15T12:00:00.000Z',
+            updatedAt: '2025-06-15T12:00:00.000Z',
+            personalityId: 'p1',
+            personalityName: 'Test',
+            isLocked: false,
+          },
+        ],
+        total: 1,
+        limit: 10,
+        offset: 0,
+        hasMore: false,
+      },
+    });
+
+    const context = createMockContext();
+    await handleBrowse(context);
+
+    const buttonInteraction = createMockButtonInteraction('memory-detail::view-full::memory-1');
+    collectCallback(buttonInteraction);
+
+    await new Promise(resolve => setTimeout(resolve, 10));
+
+    expect(mockHandleViewFullButton).toHaveBeenCalledWith(buttonInteraction, 'memory-1');
   });
 });
