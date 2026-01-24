@@ -1,6 +1,6 @@
 # Slash Command UX Improvement Epic
 
-> **Status**: Planning
+> **Status**: Complete (Phase 2 deferred)
 > **Created**: 2026-01-23
 > **Priority**: High (UX consistency)
 > **Estimated Sessions**: 4-6
@@ -284,42 +284,44 @@ const session = await sessionManager.getByMessageId(interaction.message.id);
 
 ## Implementation Phases
 
-### Phase 1: `/preset browse` Prototype (FIRST)
+### Phase 1: `/preset browse` Prototype (FIRST) ✅
 
 Implement the full pattern on presets first:
 
-- [ ] Create `/preset browse [query] [filter]` command
-- [ ] Implement paginated list with emoji formatting
-- [ ] Add select menu → dashboard flow
-- [ ] Move deletion into dashboard
-- [ ] Add "Clone" functionality
-- [ ] Audit and fix autocomplete in `/me preset`
+- [x] Create `/preset browse [query] [filter]` command
+- [x] Implement paginated list with emoji formatting
+- [x] Add select menu → dashboard flow
+- [x] Move deletion into dashboard
+- [x] Add "Clone" functionality
+- [x] Audit and fix autocomplete in `/me preset`
 
-### Phase 2: Autocomplete Utility
+### Phase 2: Autocomplete Utility (Deferred)
+
+> **Note**: Deferred to separate epic. Current autocomplete works, standardization is a polish task.
 
 - [ ] Create `formatAutocompleteOption()` in common-types
 - [ ] Audit all 63 autocomplete implementations
 - [ ] Standardize emoji usage across commands
 - [ ] Fix: Global free default not filtering to free models
 
-### Phase 3: Character Commands
+### Phase 3: Character Commands ✅
 
-- [ ] Create `/character browse [query]`
-- [ ] Migrate `/character list` → browse
-- [ ] Integrate deletion into character dashboard
-- [ ] Standardize character autocomplete
+- [x] Create `/character browse [query]` (already existed)
+- [x] Add select menu → dashboard flow
+- [x] Integrate deletion into character dashboard (already existed)
+- [x] Standardize character autocomplete (uses visibility icons)
 
-### Phase 4: Persona Commands
+### Phase 4: Persona/Profile Commands ✅
 
-- [ ] Create `/persona browse [query]`
-- [ ] Standardize persona autocomplete
-- [ ] Integrate deletion into persona dashboard
+- [x] Convert `/me profile edit` to dashboard pattern
+- [x] Integrate deletion into profile dashboard
+- [x] Profile autocomplete working
 
-### Phase 5: Documentation & Cleanup
+### Phase 5: Documentation & Cleanup ✅
 
-- [ ] Update INTERACTION_PATTERNS.md with new patterns
-- [ ] Remove deprecated list/search commands (if any)
-- [ ] Update tzurot-slash-command-ux skill
+- [x] Update INTERACTION_PATTERNS.md with new patterns
+- [x] Remove deprecated list/search commands (none needed)
+- [x] Update tzurot-slash-command-ux skill
 
 ---
 
