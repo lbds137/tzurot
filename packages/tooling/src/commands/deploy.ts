@@ -38,4 +38,39 @@ export function registerDeployCommands(cli: CAC): void {
         yes: options.yes,
       });
     });
+
+  cli
+    .command('logs', 'Fetch logs from Railway services')
+    .option('--env <env>', 'Environment (dev or prod)', { default: 'dev' })
+    .option('--service <service>', 'Service name (bot-client, api-gateway, ai-worker)')
+    .option('--lines <n>', 'Number of lines to fetch', { default: 100 })
+    .option('--filter <text>', 'Filter logs by text or level (error, warn, info, debug)')
+    .option('--follow', 'Follow logs in real-time')
+    .example('ops logs --env dev')
+    .example('ops logs --env dev --service api-gateway')
+    .example('ops logs --env dev --filter error')
+    .example('ops logs --env dev --follow')
+    .action(
+      async (options: {
+        env: string;
+        service?: string;
+        lines: number;
+        filter?: string;
+        follow?: boolean;
+      }) => {
+        if (options.env !== 'dev' && options.env !== 'prod') {
+          console.error('Error: --env must be "dev" or "prod"');
+          process.exit(1);
+        }
+
+        const { fetchLogs } = await import('../deployment/logs.js');
+        await fetchLogs({
+          env: options.env,
+          service: options.service,
+          lines: options.lines,
+          filter: options.filter,
+          follow: options.follow,
+        });
+      }
+    );
 }

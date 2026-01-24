@@ -1,23 +1,28 @@
 # Deployment Scripts
 
-Scripts for deploying to Railway and managing environment variables.
+**Note:** Most deployment tasks are now handled by the ops CLI. See `tzurot-deployment` skill for full reference.
 
-## Scripts
-
-- **deploy-railway-dev.sh** - Deploy to Railway development environment
-- **update-gateway-url.sh** - Update GATEWAY_URL environment variable
-- **verify-build.sh** - Verify all services build successfully before deployment
-
-## Usage
+## Ops CLI Commands (Preferred)
 
 ```bash
-# Deploy to Railway dev
-./scripts/deployment/deploy-railway-dev.sh
+# Verify build before deployment
+pnpm ops deploy:verify
 
-# Setup Railway variables (use pnpm ops instead)
+# Update gateway URL
+pnpm ops deploy:update-gateway <url>
+
+# Setup Railway variables
 pnpm ops deploy:setup-vars --env dev --dry-run
 pnpm ops deploy:setup-vars --env dev
 ```
+
+## Legacy Scripts
+
+The following scripts have been migrated to ops CLI and removed:
+
+- ~~deploy-railway-dev.sh~~ → `pnpm ops deploy:setup-vars`
+- ~~update-gateway-url.sh~~ → `pnpm ops deploy:update-gateway`
+- ~~verify-build.sh~~ → `pnpm ops deploy:verify`
 
 ## Creating Releases
 
@@ -29,4 +34,4 @@ gh release create v3.0.0-alpha.50 \
   --notes "Release notes here..."
 ```
 
-**⚠️ See:** `tzurot-deployment` skill for Railway-specific commands and troubleshooting
+**See:** `tzurot-deployment` skill for Railway-specific commands and troubleshooting
