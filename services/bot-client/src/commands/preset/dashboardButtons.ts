@@ -371,10 +371,10 @@ export async function handleCloneButton(
     const config = getConfig();
     const sourceData = session.data;
 
-    // Generate cloned name (append "(Copy)" or increment if already exists)
-    const clonedName = sourceData.name.includes('(Copy)')
+    // Generate cloned name (append "(Copy)" or increment if already exists at end)
+    const clonedName = (/\(Copy( \d+)?\)$/.exec(sourceData.name))
       ? sourceData.name.replace(
-          /\(Copy( \d+)?\)/,
+          /\(Copy( \d+)?\)$/,
           (_match: string, capturedNum: string | undefined) => {
             const n =
               capturedNum !== undefined && capturedNum.length > 0
