@@ -1,6 +1,6 @@
 ---
 name: tzurot-docs
-description: Contains MANDATORY documentation procedures. MUST be consulted at session end or when updating CURRENT_WORK.md. Covers folder structure and knowledge continuity.
+description: Documentation procedures for Tzurot v3. Use at session end or when updating CURRENT_WORK.md. Covers folder structure and knowledge continuity.
 lastUpdated: '2026-01-21'
 ---
 
