@@ -307,3 +307,20 @@ export const StoredSessionSchema = z.object({
  * Type for stored session data (before Date conversion)
  */
 export type StoredSession = z.infer<typeof StoredSessionSchema>;
+
+/**
+ * Context stored when opening a dashboard from browse view
+ * Allows returning to the browse list at the same position
+ */
+export interface BrowseContext {
+  /** Browse source identifier */
+  source: 'browse';
+  /** Current page (0-indexed) */
+  page: number;
+  /** Filter applied (e.g., 'all', 'global', 'mine', 'free') */
+  filter: string;
+  /** Sort order (e.g., 'name', 'date') */
+  sort?: string;
+  /** Search query if any */
+  query?: string | null;
+}

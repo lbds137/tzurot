@@ -46,6 +46,7 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { handleSeedModalSubmit } from './create.js';
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
+import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -344,57 +345,17 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   const action = parsed.action;
 
   if (action === 'close') {
-    // Delete the session and message
-    const sessionManager = getSessionManager();
-    await sessionManager.delete(interaction.user.id, 'character', entityId);
+    await handleCloseButton(interaction, entityId);
+    return;
+  }
 
-    await interaction.update({
-      content: '✅ Dashboard closed.',
-      embeds: [],
-      components: [],
-    });
+  if (action === 'back') {
+    await handleBackButton(interaction, entityId);
     return;
   }
 
   if (action === 'refresh') {
-    await interaction.deferUpdate();
-
-    // Fetch fresh data (entityId is the slug)
-    const character = await fetchCharacter(entityId, config, interaction.user.id);
-    if (!character) {
-      await interaction.editReply({
-        content: '❌ Character not found.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    // Determine admin status for dashboard config
-    const isAdmin = isBotOwner(interaction.user.id);
-    const dashboardConfig = getCharacterDashboardConfig(isAdmin);
-
-    // Update session (with admin flag)
-    const sessionManager = getSessionManager();
-    const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
-    await sessionManager.set({
-      userId: interaction.user.id,
-      entityType: 'character',
-      entityId,
-      data: sessionData,
-      messageId: interaction.message.id,
-      channelId: interaction.channelId,
-    });
-
-    // Refresh dashboard (use slug as entityId)
-    const embed = buildDashboardEmbed(dashboardConfig, character);
-    const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
-      showClose: true,
-      showRefresh: true,
-      showDelete: character.canEdit, // Only show delete for owned characters
-    });
-
-    await interaction.editReply({ embeds: [embed], components });
+    await handleRefreshButton(interaction, entityId);
     return;
   }
 

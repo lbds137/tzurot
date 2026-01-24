@@ -1,6 +1,6 @@
 /**
- * Preset Global Set Free Default Handler
- * Handles /preset global set-free-default subcommand
+ * Preset Global Free Default Handler
+ * Handles /preset global free-default subcommand
  * Sets a global config as the free tier default for guest users (owner only)
  */
 
@@ -9,10 +9,10 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { adminPutJson } from '../../../utils/adminApiClient.js';
 
-const logger = createLogger('preset-global-set-free-default');
+const logger = createLogger('preset-global-free-default');
 
 /**
- * Handle /preset global set-free-default
+ * Handle /preset global free-default
  */
 export async function handleGlobalSetFreeDefault(context: DeferredCommandContext): Promise<void> {
   const configId = context.interaction.options.getString('config', true);

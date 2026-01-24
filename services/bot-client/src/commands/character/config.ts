@@ -11,6 +11,7 @@ import {
   type DashboardConfig,
   type SectionDefinition,
   type DashboardContext,
+  type BrowseContext,
   SectionStatus,
 } from '../../utils/dashboard/index.js';
 
@@ -19,7 +20,7 @@ import {
  * Index signature allows usage with generic Record<string, unknown> types
  */
 export interface CharacterData {
-  [key: string]: string | number | boolean | null | undefined;
+  [key: string]: string | number | boolean | null | undefined | BrowseContext;
   id: string;
   name: string;
   displayName: string | null;
@@ -44,6 +45,8 @@ export interface CharacterData {
   avatarData: string | null; // Base64-encoded
   createdAt: string;
   updatedAt: string;
+  /** Browse context when opened from browse (for back navigation) */
+  browseContext?: BrowseContext;
 }
 
 /**

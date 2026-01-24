@@ -36,6 +36,7 @@ export {
   type ModalSubmitHandler,
   type ActionHandler,
   type DashboardRepository,
+  type BrowseContext,
   isDashboardInteraction,
   parseDashboardCustomId,
   buildDashboardCustomId,
