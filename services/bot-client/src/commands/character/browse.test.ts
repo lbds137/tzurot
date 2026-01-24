@@ -6,12 +6,14 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   handleBrowse,
   handleBrowsePagination,
+  handleBrowseSelect,
   parseBrowseCustomId,
   isCharacterBrowseInteraction,
+  isCharacterBrowseSelectInteraction,
 } from './browse.js';
 import * as api from './api.js';
 import type { EnvConfig } from '@tzurot/common-types';
-import type { ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -32,6 +34,29 @@ vi.mock('./api.js', () => ({
   fetchUserCharacters: vi.fn(),
   fetchPublicCharacters: vi.fn(),
   fetchUsernames: vi.fn(),
+  fetchCharacter: vi.fn(),
+}));
+
+// Mock dashboard utilities
+const mockSessionSet = vi.fn();
+vi.mock('../../utils/dashboard/index.js', () => ({
+  buildDashboardEmbed: vi.fn().mockReturnValue({
+    data: { title: 'Mock Dashboard' },
+  }),
+  buildDashboardComponents: vi.fn().mockReturnValue([]),
+  getSessionManager: () => ({
+    set: mockSessionSet,
+    get: vi.fn(),
+    delete: vi.fn(),
+  }),
+}));
+
+// Mock config module
+vi.mock('./config.js', () => ({
+  getCharacterDashboardConfig: vi.fn().mockReturnValue({
+    entityType: 'character',
+    sections: [],
+  }),
 }));
 
 describe('handleBrowse', () => {
@@ -731,5 +756,140 @@ describe('isCharacterBrowseInteraction', () => {
 
   it('should return false for non-browse custom IDs', () => {
     expect(isCharacterBrowseInteraction('character::menu::123')).toBe(false);
+  });
+});
+
+describe('isCharacterBrowseSelectInteraction', () => {
+  it('should return true for browse-select custom IDs', () => {
+    expect(isCharacterBrowseSelectInteraction('character::browse-select')).toBe(true);
+  });
+
+  it('should return false for browse pagination custom IDs', () => {
+    expect(isCharacterBrowseSelectInteraction('character::browse::0::all::date::')).toBe(false);
+  });
+
+  it('should return false for non-browse custom IDs', () => {
+    expect(isCharacterBrowseSelectInteraction('character::menu::123')).toBe(false);
+  });
+});
+
+describe('handleBrowseSelect', () => {
+  const mockConfig = { GATEWAY_URL: 'http://localhost:3000' } as EnvConfig;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSessionSet.mockResolvedValue(undefined);
+  });
+
+  function createMockSelectInteraction(slug: string) {
+    return {
+      customId: 'character::browse-select',
+      values: [slug],
+      user: { id: '123456789' },
+      message: { id: 'message-123' },
+      channelId: 'channel-123',
+      deferUpdate: vi.fn(),
+      editReply: vi.fn(),
+    } as unknown as StringSelectMenuInteraction;
+  }
+
+  function createMockCharacter(overrides = {}) {
+    return {
+      id: 'char-123',
+      name: 'Luna',
+      slug: 'luna',
+      displayName: 'Luna the Cat',
+      isPublic: true,
+      ownerId: '123456789',
+      canEdit: true,
+      characterInfo: 'A friendly cat',
+      personalityTraits: 'playful, curious',
+      personalityTone: null,
+      personalityAge: null,
+      personalityAppearance: null,
+      personalityLikes: null,
+      personalityDislikes: null,
+      conversationalGoals: null,
+      conversationalExamples: null,
+      errorMessage: null,
+      birthMonth: null,
+      birthDay: null,
+      birthYear: null,
+      voiceEnabled: false,
+      imageEnabled: false,
+      avatarData: null,
+      createdAt: '2025-01-01',
+      updatedAt: '2025-01-01',
+      ...overrides,
+    };
+  }
+
+  it('should defer update and fetch character', async () => {
+    const mockCharacter = createMockCharacter();
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(interaction.deferUpdate).toHaveBeenCalled();
+    expect(api.fetchCharacter).toHaveBeenCalledWith('luna', mockConfig, '123456789');
+  });
+
+  it('should open dashboard when character is found', async () => {
+    const mockCharacter = createMockCharacter();
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    });
+  });
+
+  it('should create session for dashboard tracking', async () => {
+    const mockCharacter = createMockCharacter();
+    vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(mockSessionSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: '123456789',
+        entityType: 'character',
+        entityId: 'luna',
+        messageId: 'message-123',
+        channelId: 'channel-123',
+      })
+    );
+  });
+
+  it('should show error when character not found', async () => {
+    vi.mocked(api.fetchCharacter).mockResolvedValue(null);
+
+    const interaction = createMockSelectInteraction('nonexistent');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '❌ Character not found or you do not have access.',
+      embeds: [],
+      components: [],
+    });
+    expect(mockSessionSet).not.toHaveBeenCalled();
+  });
+
+  it('should handle API errors gracefully', async () => {
+    vi.mocked(api.fetchCharacter).mockRejectedValue(new Error('API error'));
+
+    const interaction = createMockSelectInteraction('luna');
+    await handleBrowseSelect(interaction, mockConfig);
+
+    expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '❌ Failed to load character. Please try again.',
+      embeds: [],
+      components: [],
+    });
   });
 });

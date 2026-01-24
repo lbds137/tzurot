@@ -16,8 +16,16 @@ vi.mock('./profile/view.js', () => ({
 }));
 
 vi.mock('./profile/edit.js', () => ({
-  handleEditPersona: vi.fn().mockResolvedValue(undefined),
-  handleEditModalSubmit: vi.fn().mockResolvedValue(undefined),
+  handleEditProfile: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('./profile/dashboard.js', () => ({
+  handleButton: vi.fn().mockResolvedValue(undefined),
+  handleSelectMenu: vi.fn().mockResolvedValue(undefined),
+  handleModalSubmit: vi.fn().mockResolvedValue(undefined),
+  isProfileDashboardInteraction: vi
+    .fn()
+    .mockImplementation((customId: string) => customId.startsWith('profile::')),
 }));
 
 vi.mock('./profile/create.js', () => ({
@@ -168,23 +176,23 @@ describe('Me Command Index', () => {
     });
 
     it('should route to edit handler for /me profile edit', async () => {
-      const { handleEditPersona } = await import('./profile/edit.js');
+      const { handleEditProfile } = await import('./profile/edit.js');
       const context = createMockContext('profile', 'edit');
 
       await execute(context);
 
-      expect(handleEditPersona).toHaveBeenCalledWith(context, null);
+      expect(handleEditProfile).toHaveBeenCalledWith(context, null);
     });
 
     it('should pass profile ID to edit handler when specified', async () => {
-      const { handleEditPersona } = await import('./profile/edit.js');
+      const { handleEditProfile } = await import('./profile/edit.js');
       const context = createMockContext('profile', 'edit', {
         getString: () => 'persona-123',
       });
 
       await execute(context);
 
-      expect(handleEditPersona).toHaveBeenCalledWith(context, 'persona-123');
+      expect(handleEditProfile).toHaveBeenCalledWith(context, 'persona-123');
     });
 
     it('should route to create handler for /me profile create', async () => {
@@ -255,32 +263,18 @@ describe('Me Command Index', () => {
       expect(handleCreateModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
-    it('should route me::profile::edit::new modal to edit handler', async () => {
-      const { handleEditModalSubmit } = await import('./profile/edit.js');
+    it('should route profile dashboard modals to dashboard handler', async () => {
+      const { handleModalSubmit: handleProfileDashboardModalSubmit } =
+        await import('./profile/dashboard.js');
 
+      // Profile dashboard modals have format: profile::modal::{entityId}::{sectionId}
       const interaction = {
-        customId: 'me::profile::edit::new',
+        customId: 'profile::modal::a1b2c3d4-e5f6-7890-abcd-ef1234567890::identity',
       } as any;
 
       await handleModal(interaction);
 
-      expect(handleEditModalSubmit).toHaveBeenCalledWith(interaction, 'new');
-    });
-
-    it('should route me::profile::edit::{id} modal to edit handler with ID', async () => {
-      const { handleEditModalSubmit } = await import('./profile/edit.js');
-
-      // UUID can contain hyphens - the :: delimiter allows proper parsing
-      const interaction = {
-        customId: 'me::profile::edit::a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      } as any;
-
-      await handleModal(interaction);
-
-      expect(handleEditModalSubmit).toHaveBeenCalledWith(
-        interaction,
-        'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
-      );
+      expect(handleProfileDashboardModalSubmit).toHaveBeenCalledWith(interaction);
     });
 
     it('should route me::override::create modal to override create handler', async () => {
