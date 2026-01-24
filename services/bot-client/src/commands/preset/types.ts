@@ -51,10 +51,11 @@ export interface PresetData {
 /**
  * Flattened preset data for modal editing
  * Converts nested params to flat string values for Discord modals
- * Index signature allows usage with generic Record<string, unknown> types
+ * Index signature uses `unknown` for Record<string, unknown> compatibility
+ * while preserving strict types for known properties.
  */
 export interface FlattenedPresetData {
-  [key: string]: string | boolean | BrowseContext | undefined;
+  [key: string]: unknown;
   id: string;
   name: string;
   description: string;
