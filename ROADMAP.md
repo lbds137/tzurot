@@ -170,6 +170,24 @@ Not needed until post-beta when we care about semantic versioning again.
 - [ ] Increase test coverage for `WebhookManager`
 - [ ] Document `advancedParameters` JSONB structures
 
+### Testing Debt (Chip-Away Targets)
+
+**Component test gaps** - services without `.component.test.ts` (use `pnpm ops test:audit-services` to see current list):
+
+**High Priority** (core functionality):
+
+- [ ] `services/ai-worker/src/services/LongTermMemoryService.ts` - core memory operations
+- [ ] `services/ai-worker/src/services/ConversationalRAGService.ts` - AI generation flow
+- [ ] `services/api-gateway/src/services/PersonalityService.ts` - used everywhere
+
+**Medium Priority** (important features):
+
+- [ ] `services/ai-worker/src/services/ShortTermMemoryService.ts` - conversation history
+- [ ] `services/api-gateway/src/services/SystemPromptService.ts` - prompt management
+- [ ] `services/api-gateway/src/services/UserService.ts` - user management
+
+**Workflow**: Pick 2-3 per week, write component tests, update baseline with `pnpm ops test:audit-services --update`. See `tzurot-testing` skill for patterns.
+
 ### Reliability & Architecture Review (from Gemini consultation 2025-12-18)
 
 **High Priority:**

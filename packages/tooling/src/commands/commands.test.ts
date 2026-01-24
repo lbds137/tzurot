@@ -42,6 +42,14 @@ vi.mock('../deployment/update-gateway-url.js', () => ({
   updateGatewayUrl: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../test/audit-contracts.js', () => ({
+  auditContracts: vi.fn().mockReturnValue(true),
+}));
+
+vi.mock('../test/audit-services.js', () => ({
+  auditServices: vi.fn().mockReturnValue(true),
+}));
+
 describe('command handlers', () => {
   let consoleLogSpy: ReturnType<typeof vi.spyOn>;
 
@@ -196,6 +204,75 @@ describe('command handlers', () => {
 
       await vi.waitFor(() => {
         expect(updateGatewayUrl).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe('test commands', () => {
+    it('should call audit-contracts handler', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { auditContracts } = await import('../test/audit-contracts.js');
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      cli.parse(['node', 'test', 'test:audit-contracts'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditContracts).toHaveBeenCalledWith(expect.objectContaining({}));
+      });
+    });
+
+    it('should call audit-contracts handler with --update flag', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { auditContracts } = await import('../test/audit-contracts.js');
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      cli.parse(['node', 'test', 'test:audit-contracts', '--update'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditContracts).toHaveBeenCalledWith(expect.objectContaining({ update: true }));
+      });
+    });
+
+    it('should call audit-services handler', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { auditServices } = await import('../test/audit-services.js');
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      cli.parse(['node', 'test', 'test:audit-services'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditServices).toHaveBeenCalledWith(expect.objectContaining({}));
+      });
+    });
+
+    it('should call audit-services handler with --strict flag', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { auditServices } = await import('../test/audit-services.js');
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      cli.parse(['node', 'test', 'test:audit-services', '--strict'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditServices).toHaveBeenCalledWith(expect.objectContaining({ strict: true }));
+      });
+    });
+
+    it('should call both audits for test:audit command', async () => {
+      const { registerTestCommands } = await import('./test.js');
+      const { auditContracts } = await import('../test/audit-contracts.js');
+      const { auditServices } = await import('../test/audit-services.js');
+      const cli = cac('test');
+      registerTestCommands(cli);
+
+      cli.parse(['node', 'test', 'test:audit'], { run: true });
+
+      await vi.waitFor(() => {
+        expect(auditContracts).toHaveBeenCalled();
+        expect(auditServices).toHaveBeenCalled();
       });
     });
   });
