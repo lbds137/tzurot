@@ -178,15 +178,16 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 
 ### Code Quality
 
-| Item                             | Location                            | Fix                                             |
-| -------------------------------- | ----------------------------------- | ----------------------------------------------- |
-| Autocomplete badge magic number  | `autocompleteFormat.ts:117`         | Extract `MAX_STATUS_BADGES = 2`                 |
-| Autocomplete truncation complex  | `autocompleteFormat.ts:139-152`     | Extract helper function                         |
-| Error serializer magic number    | `logger.ts:187`                     | Extract `MAX_RAW_ERROR_LENGTH = 500`            |
-| Use MessageRole enum             | `duplicateDetection.ts:552`         | `MessageRole.Assistant` not `'assistant'`       |
-| DRY role distribution            | GenerationStep + duplicateDetection | Extract `getRoleDistribution()` helper          |
-| MessageContentBuilder complexity | complexity 37                       | Extract helpers (well-tested, low priority)     |
-| Shared auth helpers              | personality routes                  | Extract `checkUserAccess()` to `authHelpers.ts` |
+| Item                                | Location                            | Fix                                             |
+| ----------------------------------- | ----------------------------------- | ----------------------------------------------- |
+| **Audit eslint-disable directives** | 91 across codebase                  | Review each, remove lazy suppressions           |
+| Autocomplete badge magic number     | `autocompleteFormat.ts:117`         | Extract `MAX_STATUS_BADGES = 2`                 |
+| Autocomplete truncation complex     | `autocompleteFormat.ts:139-152`     | Extract helper function                         |
+| Error serializer magic number       | `logger.ts:187`                     | Extract `MAX_RAW_ERROR_LENGTH = 500`            |
+| Use MessageRole enum                | `duplicateDetection.ts:552`         | `MessageRole.Assistant` not `'assistant'`       |
+| DRY role distribution               | GenerationStep + duplicateDetection | Extract `getRoleDistribution()` helper          |
+| MessageContentBuilder complexity    | complexity 30                       | Extract helpers (well-tested, low priority)     |
+| Shared auth helpers                 | personality routes                  | Extract `checkUserAccess()` to `authHelpers.ts` |
 
 ### Documentation
 
@@ -252,8 +253,16 @@ Target: <400 lines. Lower priority since AI-only impact.
 
 ## ESLint Status
 
-**Current**: 72 warnings
+**Current**: 46 warnings (14 bot-client, 28 api-gateway, 4 ai-worker)
 
-High-complexity functions (acceptable):
+**91 eslint-disable directives** - needs audit to ensure none are masking real issues:
 
-- `MessageContentBuilder.ts:buildMessageContent()` - complexity 37 (inherent)
+```bash
+grep -r "eslint-disable" services packages --include="*.ts" | wc -l
+```
+
+High-complexity functions (acceptable, inherent complexity):
+
+- `MessageContentBuilder.ts:buildMessageContent()` - complexity 30
+- `EmbedParser.ts:parseEmbed()` - complexity 33
+- `MessageContextBuilder.ts:buildContext()` - complexity 41
