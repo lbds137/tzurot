@@ -124,12 +124,88 @@ function displayFooter(): void {
 }
 
 /**
+ * Stream logs in follow mode using spawn
+ */
+async function streamLogsWithFollow(args: string[], filter: string | undefined): Promise<void> {
+  const { spawn } = await import('node:child_process');
+  const proc = spawn('railway', args, {
+    stdio: ['inherit', 'pipe', 'pipe'],
+    shell: false,
+  });
+
+  proc.stdout?.on('data', (data: Buffer) => {
+    let output = data.toString();
+    if (filter) {
+      output = filterLogs(output, filter);
+    }
+    if (output.trim()) {
+      process.stdout.write(colorizeLogs(output));
+    }
+  });
+
+  proc.stderr?.on('data', (data: Buffer) => {
+    process.stderr.write(chalk.red(data.toString()));
+  });
+
+  proc.on('error', err => {
+    console.error(chalk.red(`❌ Failed to fetch logs: ${err.message}`));
+    process.exitCode = 1;
+  });
+
+  // Handle Ctrl+C gracefully
+  process.once('SIGINT', () => {
+    proc.kill();
+    console.log(chalk.dim('\n\nLog streaming stopped.'));
+    process.exit(0);
+  });
+}
+
+/**
+ * Fetch logs synchronously (non-follow mode)
+ */
+function fetchLogsSync(args: string[], filter: string | undefined): void {
+  const result = execFileSync('railway', args, {
+    encoding: 'utf-8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+    maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large log output
+  });
+
+  let output = result;
+  if (filter) {
+    output = filterLogs(output, filter);
+  }
+
+  if (output.trim()) {
+    console.log(colorizeLogs(output));
+  } else {
+    console.log(chalk.dim('No logs found matching the criteria.'));
+  }
+}
+
+/**
+ * Handle Railway CLI errors with helpful messages
+ */
+function handleLogsError(error: unknown, validatedService: string | undefined): void {
+  if (error instanceof Error) {
+    if (error.message.includes('service not found')) {
+      console.error(chalk.red(`❌ Service not found: ${validatedService}`));
+      console.error(chalk.dim(`   Available services: ${KNOWN_SERVICES.join(', ')}`));
+    } else if (error.message.includes('not linked')) {
+      console.error(chalk.red('❌ Railway project not linked'));
+      console.error(chalk.dim('   Run: railway link'));
+    } else {
+      console.error(chalk.red(`❌ Failed to fetch logs: ${error.message}`));
+    }
+  }
+  process.exitCode = 1;
+}
+
+/**
  * Fetch logs from Railway service
  */
 export async function fetchLogs(options: LogsOptions): Promise<void> {
   const { env, service, lines = 100, filter, follow = false } = options;
 
-  // Validate Railway CLI
   if (!checkRailwayCli()) {
     console.error(chalk.red('❌ Railway CLI not authenticated'));
     console.error(chalk.dim('   Run: railway login'));
@@ -144,86 +220,22 @@ export async function fetchLogs(options: LogsOptions): Promise<void> {
 
   // Build Railway logs command arguments
   const args = ['logs', '--environment', railwayEnv];
-
   if (validatedService) {
     args.push('--service', validatedService);
   }
-
-  // Railway logs doesn't have a --lines option, we'll fetch and limit
-  // Actually, railway logs has -n for number of lines
   args.push('-n', String(lines));
-
   if (follow) {
     args.push('--follow');
   }
 
   try {
     if (follow) {
-      // For follow mode, use spawn to stream output
-      const { spawn } = await import('node:child_process');
-      const proc = spawn('railway', args, {
-        stdio: ['inherit', 'pipe', 'pipe'],
-        shell: false,
-      });
-
-      proc.stdout?.on('data', (data: Buffer) => {
-        let output = data.toString();
-        if (filter) {
-          output = filterLogs(output, filter);
-        }
-        if (output.trim()) {
-          process.stdout.write(colorizeLogs(output));
-        }
-      });
-
-      proc.stderr?.on('data', (data: Buffer) => {
-        process.stderr.write(chalk.red(data.toString()));
-      });
-
-      proc.on('error', err => {
-        console.error(chalk.red(`❌ Failed to fetch logs: ${err.message}`));
-        process.exitCode = 1;
-      });
-
-      // Handle Ctrl+C gracefully
-      process.on('SIGINT', () => {
-        proc.kill();
-        console.log(chalk.dim('\n\nLog streaming stopped.'));
-        process.exit(0);
-      });
+      await streamLogsWithFollow(args, filter);
     } else {
-      // Fetch logs synchronously for non-follow mode
-      const result = execFileSync('railway', args, {
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-        maxBuffer: 10 * 1024 * 1024, // 10MB buffer for large log output
-      });
-
-      let output = result;
-      if (filter) {
-        output = filterLogs(output, filter);
-      }
-
-      if (output.trim()) {
-        console.log(colorizeLogs(output));
-      } else {
-        console.log(chalk.dim('No logs found matching the criteria.'));
-      }
+      fetchLogsSync(args, filter);
     }
   } catch (error) {
-    if (error instanceof Error) {
-      // Check for common Railway CLI errors
-      if (error.message.includes('service not found')) {
-        console.error(chalk.red(`❌ Service not found: ${validatedService}`));
-        console.error(chalk.dim(`   Available services: ${KNOWN_SERVICES.join(', ')}`));
-      } else if (error.message.includes('not linked')) {
-        console.error(chalk.red('❌ Railway project not linked'));
-        console.error(chalk.dim('   Run: railway link'));
-      } else {
-        console.error(chalk.red(`❌ Failed to fetch logs: ${error.message}`));
-      }
-    }
-    process.exitCode = 1;
+    handleLogsError(error, validatedService);
   }
 
   displayFooter();
