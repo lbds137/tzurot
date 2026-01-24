@@ -211,6 +211,9 @@ importers:
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../common-types
+      bullmq:
+        specifier: ^5.66.5
+        version: 5.66.5
       cac:
         specifier: ^6.7.14
         version: 6.7.14
