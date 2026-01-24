@@ -289,16 +289,14 @@ export function auditServices(options: AuditServicesOptions = {}): boolean {
 
   printGapAnalysis(result);
 
-  // Determine pass/fail
+  // Determine pass/fail (caller handles exit codes for flexibility)
   if (strict && result.untestedServices.length > 0) {
     console.log('❌ STRICT MODE: All services must have component tests\n');
-    process.exitCode = 1;
     return false;
   }
 
   if (!strict && result.newGaps.length > 0) {
     console.log('❌ RATCHET FAILED: New services added without component tests\n');
-    process.exitCode = 1;
     return false;
   }
 

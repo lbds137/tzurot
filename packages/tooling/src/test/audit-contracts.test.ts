@@ -114,8 +114,8 @@ describe('audit-contracts', () => {
       const { auditContracts } = await import('./audit-contracts.js');
       const result = auditContracts();
 
+      // Returns false on failure; caller handles exit code
       expect(result).toBe(false);
-      expect(process.exitCode).toBe(1);
     });
 
     it('should update baseline when --update flag is passed', async () => {
@@ -191,8 +191,8 @@ describe('audit-contracts', () => {
       const { auditContracts } = await import('./audit-contracts.js');
       const result = auditContracts({ strict: true });
 
+      // Returns false on failure; caller handles exit code
       expect(result).toBe(false);
-      expect(process.exitCode).toBe(1);
     });
 
     it('should handle missing schemas directory gracefully', async () => {

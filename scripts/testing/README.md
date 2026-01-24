@@ -2,7 +2,26 @@
 
 Scripts for analyzing test suite quality, performance, and patterns.
 
-## Scripts
+## Test Coverage Audits
+
+The test coverage audit scripts have been migrated to the ops CLI:
+
+```bash
+# Contract coverage audit (schemas with contract tests)
+pnpm ops test:audit-contracts
+pnpm ops test:audit-contracts --update   # Update baseline
+pnpm ops test:audit-contracts --strict   # Zero tolerance mode
+
+# Service integration audit (services with component tests)
+pnpm ops test:audit-services
+pnpm ops test:audit-services --update    # Update baseline
+pnpm ops test:audit-services --strict    # Zero tolerance mode
+
+# Run both audits
+pnpm ops test:audit
+```
+
+## Analysis Scripts
 
 - **check-test-antipatterns.js** - Detect common testing anti-patterns
 - **check-test-mocking-patterns.js** - Verify mock consistency across tests
@@ -25,6 +44,9 @@ node scripts/testing/identify-slow-tests.js
 
 # Analyze test timing
 node scripts/testing/comprehensive-test-timing-analysis.js
+
+# Regenerate PGLite schema for tests
+./scripts/testing/regenerate-pglite-schema.sh
 ```
 
-**⚠️ See:** `tzurot-testing` skill for comprehensive testing patterns and best practices
+**See:** `tzurot-testing` skill for comprehensive testing patterns and best practices
