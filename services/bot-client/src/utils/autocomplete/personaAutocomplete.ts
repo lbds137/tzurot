@@ -6,7 +6,12 @@
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  AUTOCOMPLETE_BADGES,
+  formatAutocompleteOption,
+} from '@tzurot/common-types';
 import { getCachedPersonas } from './autocompleteCache.js';
 
 const logger = createLogger('persona-autocomplete');
@@ -78,13 +83,17 @@ export async function handlePersonaAutocomplete(
 
     const choices: { name: string; value: string }[] = [];
 
-    // Add user's personas
+    // Add user's personas with standardized formatting
     for (const persona of filtered) {
       const displayName = persona.preferredName ?? persona.name;
-      choices.push({
-        name: persona.isDefault ? `${displayName} ⭐ (default)` : displayName,
-        value: persona.id,
-      });
+      choices.push(
+        formatAutocompleteOption({
+          name: displayName,
+          value: persona.id,
+          scopeBadge: AUTOCOMPLETE_BADGES.OWNED,
+          statusBadges: persona.isDefault ? [AUTOCOMPLETE_BADGES.DEFAULT] : undefined,
+        })
+      );
     }
 
     // Add "Create new profile" option at the end if requested and query matches

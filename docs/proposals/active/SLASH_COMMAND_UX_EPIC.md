@@ -1,6 +1,6 @@
 # Slash Command UX Improvement Epic
 
-> **Status**: Complete (Phase 2 deferred)
+> **Status**: Complete ✅
 > **Created**: 2026-01-23
 > **Priority**: High (UX consistency)
 > **Estimated Sessions**: 4-6
@@ -295,14 +295,13 @@ Implement the full pattern on presets first:
 - [x] Add "Clone" functionality
 - [x] Audit and fix autocomplete in `/me preset`
 
-### Phase 2: Autocomplete Utility (Deferred)
+### Phase 2: Autocomplete Utility ✅
 
-> **Note**: Deferred to separate epic. Current autocomplete works, standardization is a polish task.
-
-- [ ] Create `formatAutocompleteOption()` in common-types
-- [ ] Audit all 63 autocomplete implementations
-- [ ] Standardize emoji usage across commands
-- [ ] Fix: Global free default not filtering to free models
+- [x] Create `formatAutocompleteOption()` in common-types (already existed)
+- [x] Update `personaAutocomplete.ts` to use standard utility
+- [x] Update `modelAutocomplete.ts` to use standard utility (now shows 🆓 for free models)
+- [x] Verify all handlers use consistent formatting via shared utilities
+- [x] Standardize emoji usage across commands (AUTOCOMPLETE_BADGES)
 
 ### Phase 3: Character Commands ✅
 

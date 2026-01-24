@@ -150,7 +150,10 @@ describe('handlePersonaAutocomplete', () => {
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
 
-      expect(mockRespond).toHaveBeenCalledWith([{ name: 'Professional Me', value: PERSONA_ID_1 }]);
+      // Uses standardized format: 🔒 (OWNED badge) + name
+      expect(mockRespond).toHaveBeenCalledWith([
+        { name: '🔒 Professional Me', value: PERSONA_ID_1 },
+      ]);
     });
 
     it('should fall back to name when preferredName is null', async () => {
@@ -166,7 +169,8 @@ describe('handlePersonaAutocomplete', () => {
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
 
-      expect(mockRespond).toHaveBeenCalledWith([{ name: 'WorkProfile', value: PERSONA_ID_1 }]);
+      // Uses standardized format: 🔒 (OWNED badge) + name
+      expect(mockRespond).toHaveBeenCalledWith([{ name: '🔒 WorkProfile', value: PERSONA_ID_1 }]);
     });
 
     it('should mark default profile with star indicator', async () => {
@@ -188,9 +192,10 @@ describe('handlePersonaAutocomplete', () => {
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction);
 
+      // Uses standardized format: 🔒⭐ (OWNED + DEFAULT badges) for default, 🔒 for others
       expect(mockRespond).toHaveBeenCalledWith([
-        { name: 'My Default ⭐ (default)', value: PERSONA_ID_1 },
-        { name: 'Other', value: PERSONA_ID_2 },
+        { name: '🔒⭐ My Default', value: PERSONA_ID_1 },
+        { name: '🔒 Other', value: PERSONA_ID_2 },
       ]);
     });
   });
@@ -280,8 +285,9 @@ describe('handlePersonaAutocomplete', () => {
       const interaction = createMockInteraction('profile', '');
       await handlePersonaAutocomplete(interaction, { includeCreateNew: true });
 
+      // Uses standardized format: 🔒 (OWNED badge) for existing personas
       expect(mockRespond).toHaveBeenCalledWith([
-        { name: 'Existing', value: PERSONA_ID_1 },
+        { name: '🔒 Existing', value: PERSONA_ID_1 },
         { name: '➕ Create new profile...', value: CREATE_NEW_PERSONA_VALUE },
       ]);
     });
