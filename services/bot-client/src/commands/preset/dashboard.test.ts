@@ -31,11 +31,13 @@ const mockFetchPreset = vi.fn();
 const mockUpdatePreset = vi.fn();
 const mockFetchGlobalPreset = vi.fn();
 const mockUpdateGlobalPreset = vi.fn();
+const mockCreatePreset = vi.fn();
 vi.mock('./api.js', () => ({
   fetchPreset: (...args: unknown[]) => mockFetchPreset(...args),
   updatePreset: (...args: unknown[]) => mockUpdatePreset(...args),
   fetchGlobalPreset: (...args: unknown[]) => mockFetchGlobalPreset(...args),
   updateGlobalPreset: (...args: unknown[]) => mockUpdateGlobalPreset(...args),
+  createPreset: (...args: unknown[]) => mockCreatePreset(...args),
 }));
 
 // Mock dashboard utilities
@@ -520,6 +522,184 @@ describe('handleButton', () => {
 
       expect(mockFollowUp).toHaveBeenCalledWith({
         content: '❌ Failed to update preset visibility. Please try again.',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+  });
+
+  describe('clone button', () => {
+    const mockFollowUp = vi.fn();
+
+    function createCloneButtonInteraction(customId: string) {
+      return {
+        customId,
+        user: { id: 'user-456' },
+        channelId: 'channel-999',
+        message: { id: 'message-789' },
+        update: mockUpdate,
+        deferUpdate: mockDeferUpdate,
+        editReply: mockEditReply,
+        followUp: mockFollowUp,
+      } as unknown as Parameters<typeof handleButton>[0];
+    }
+
+    beforeEach(() => {
+      mockFollowUp.mockClear();
+      mockCreatePreset.mockClear();
+    });
+
+    it('should clone a preset with "(Copy)" suffix', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          description: 'A test preset',
+          maxReferencedMessages: '10',
+          temperature: '0.7',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+      const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy)' };
+      mockCreatePreset.mockResolvedValue(clonedPreset);
+      mockUpdatePreset.mockResolvedValue(clonedPreset); // For copying advanced params
+      mockFetchPreset.mockResolvedValue(clonedPreset);
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      expect(mockDeferUpdate).toHaveBeenCalled();
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Test Preset (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+        }),
+        'user-456',
+        expect.anything()
+      );
+      expect(mockSessionManagerSet).toHaveBeenCalled();
+      expect(mockSessionManagerDelete).toHaveBeenCalledWith('user-456', 'preset', 'preset-123');
+      expect(mockEditReply).toHaveBeenCalled();
+    });
+
+    it('should increment copy number for already-copied presets', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      // Note: no advanced params here, so updatePreset won't be called
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset (Copy)',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+      const clonedPreset = { ...mockPresetData, id: 'preset-456', name: 'Test Preset (Copy 2)' };
+      mockCreatePreset.mockResolvedValue(clonedPreset);
+      mockFetchPreset.mockResolvedValue(clonedPreset);
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: 'Test Preset (Copy 2)',
+        }),
+        'user-456',
+        expect.anything()
+      );
+    });
+
+    it('should copy advanced parameters to cloned preset', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          temperature: '0.8',
+          top_p: '0.9',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+      const clonedPreset = { ...mockPresetData, id: 'preset-456' };
+      mockCreatePreset.mockResolvedValue(clonedPreset);
+      mockUpdatePreset.mockResolvedValue(clonedPreset);
+      mockFetchPreset.mockResolvedValue(clonedPreset);
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      // Should call updatePreset to copy advanced params
+      expect(mockUpdatePreset).toHaveBeenCalledWith(
+        'preset-456',
+        expect.objectContaining({
+          advancedParameters: expect.objectContaining({
+            temperature: 0.8,
+            top_p: 0.9,
+          }),
+        }),
+        'user-456'
+      );
+    });
+
+    it('should show error when session expired', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue(null);
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      expect(mockDeferUpdate).toHaveBeenCalled();
+      expect(mockEditReply).toHaveBeenCalledWith({
+        content: '❌ Session expired. Please reopen the dashboard.',
+        embeds: [],
+        components: [],
+      });
+      expect(mockCreatePreset).not.toHaveBeenCalled();
+    });
+
+    it('should show error on API failure', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'clone',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: {
+          id: 'preset-123',
+          name: 'Test Preset',
+          model: 'anthropic/claude-sonnet-4',
+          provider: 'openrouter',
+          isGlobal: false,
+          isOwned: true,
+        },
+      });
+      mockCreatePreset.mockRejectedValue(new Error('API Error'));
+
+      await handleButton(createCloneButtonInteraction('preset::clone::preset-123'));
+
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: '❌ Failed to clone preset. Please try again.',
         flags: MessageFlags.Ephemeral,
       });
     });
