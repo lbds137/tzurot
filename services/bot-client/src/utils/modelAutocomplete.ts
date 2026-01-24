@@ -5,7 +5,13 @@
  * Used by autocomplete handlers for model selection in /llm-config and /model commands.
  */
 
-import { getConfig, createLogger, type ModelAutocompleteOption } from '@tzurot/common-types';
+import {
+  getConfig,
+  createLogger,
+  AUTOCOMPLETE_BADGES,
+  formatAutocompleteOption,
+  type ModelAutocompleteOption,
+} from '@tzurot/common-types';
 
 const logger = createLogger('model-autocomplete-client');
 
@@ -149,33 +155,34 @@ export async function fetchVisionModels(
 }
 
 /**
+ * Check if a model is free (no cost for prompt or completion)
+ */
+function isModelFree(model: ModelAutocompleteOption): boolean {
+  return model.promptPricePerMillion === 0 && model.completionPricePerMillion === 0;
+}
+
+/**
  * Format model for Discord autocomplete choice
  *
- * Discord limits:
- * - name: max 100 characters
- * - value: max 100 characters
+ * Uses standardized formatAutocompleteOption for consistency across bot.
+ * Format: "[🆓] Model Name · context"
  *
- * Format: "Provider: Model Name (128K context)"
+ * @example
+ * // Free model
+ * { name: "🆓 Llama 3.3 70B · 128K", value: "meta-llama/llama-3.3-70b-instruct:free" }
+ *
+ * // Paid model
+ * { name: "Claude Sonnet 4 · 200K", value: "anthropic/claude-sonnet-4" }
  */
 export function formatModelChoice(model: ModelAutocompleteOption): { name: string; value: string } {
-  // Format context length nicely
   const contextStr = formatContextLength(model.contextLength);
 
-  // Build the display name
-  let displayName = model.name;
-  if (contextStr.length > 0) {
-    displayName = `${model.name} (${contextStr})`;
-  }
-
-  // Truncate if too long (Discord limit is 100 chars)
-  if (displayName.length > 100) {
-    displayName = displayName.substring(0, 97) + '...';
-  }
-
-  return {
-    name: displayName,
-    value: model.id, // The model slug (e.g., "anthropic/claude-sonnet-4")
-  };
+  return formatAutocompleteOption({
+    name: model.name,
+    value: model.id,
+    statusBadges: isModelFree(model) ? [AUTOCOMPLETE_BADGES.FREE] : undefined,
+    metadata: contextStr.length > 0 ? contextStr : undefined,
+  });
 }
 
 /**
