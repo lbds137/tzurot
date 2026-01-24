@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
 // Mock child_process
 vi.mock('node:child_process', () => ({
-  execSync: vi.fn(),
+  execFileSync: vi.fn(),
   spawn: vi.fn(),
 }));
 
@@ -27,15 +27,15 @@ describe('env-runner', () => {
     });
 
     it('should return true when Railway CLI is authenticated', async () => {
-      vi.mocked(execSync).mockReturnValue(Buffer.from('user@example.com'));
+      vi.mocked(execFileSync).mockReturnValue(Buffer.from('user@example.com'));
 
       const { checkRailwayCli } = await import('./env-runner.js');
       expect(checkRailwayCli()).toBe(true);
-      expect(execSync).toHaveBeenCalledWith('railway whoami', { stdio: 'pipe' });
+      expect(execFileSync).toHaveBeenCalledWith('railway', ['whoami'], { stdio: 'pipe' });
     });
 
     it('should return false when Railway CLI is not authenticated', async () => {
-      vi.mocked(execSync).mockImplementation(() => {
+      vi.mocked(execFileSync).mockImplementation(() => {
         throw new Error('Not logged in');
       });
 
@@ -106,17 +106,17 @@ describe('env-runner', () => {
     });
 
     it('should check Railway CLI for dev environment', async () => {
-      vi.mocked(execSync).mockReturnValue(Buffer.from('user@example.com'));
+      vi.mocked(execFileSync).mockReturnValue(Buffer.from('user@example.com'));
 
       vi.resetModules();
       const { validateEnvironment } = await import('./env-runner.js');
       validateEnvironment('dev');
 
-      expect(execSync).toHaveBeenCalledWith('railway whoami', { stdio: 'pipe' });
+      expect(execFileSync).toHaveBeenCalledWith('railway', ['whoami'], { stdio: 'pipe' });
     });
 
     it('should exit if Railway CLI not authenticated for dev', async () => {
-      vi.mocked(execSync).mockImplementation(() => {
+      vi.mocked(execFileSync).mockImplementation(() => {
         throw new Error('Not logged in');
       });
 
