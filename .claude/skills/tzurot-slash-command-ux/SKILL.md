@@ -1,7 +1,7 @@
 ---
 name: tzurot-slash-command-ux
 description: Use when implementing Discord slash commands, building list/browse UX, adding buttons or pagination, or creating dashboard patterns. Covers standard naming, shared utilities, and confirmation flows.
-lastUpdated: '2026-01-21'
+lastUpdated: '2026-01-23'
 ---
 
 # Slash Command UX Patterns
@@ -17,26 +17,29 @@ lastUpdated: '2026-01-21'
 
 ### Standard Subcommand Names
 
-| Subcommand | Purpose            | Example                 |
-| ---------- | ------------------ | ----------------------- |
-| `list`     | Show all items     | `/memory list`          |
-| `view`     | Single item detail | `/character view`       |
-| `create`   | Create new item    | `/preset create`        |
-| `edit`     | Modify item        | `/character edit`       |
-| `delete`   | Remove item        | `/preset delete`        |
-| `set`      | Set a value        | `/me settings timezone` |
-| `clear`    | Remove/reset value | `/me overrides clear`   |
+| Subcommand | Purpose            | Example                 | Notes                              |
+| ---------- | ------------------ | ----------------------- | ---------------------------------- |
+| `browse`   | Paginated list     | `/preset browse`        | **Preferred** - has select menu    |
+| `list`     | Simple list        | `/memory list`          | Legacy - use `browse` for new cmds |
+| `view`     | Single item detail | `/character view`       |                                    |
+| `create`   | Create new item    | `/preset create`        |                                    |
+| `edit`     | Modify item        | `/character edit`       | Opens dashboard                    |
+| `delete`   | Remove item        | `/me profile delete`    | Must confirm                       |
+| `set`      | Set a value        | `/me settings timezone` |                                    |
+| `clear`    | Remove/reset value | `/me overrides clear`   |                                    |
 
 ### Key Files
 
-| File                                               | Purpose                             |
-| -------------------------------------------------- | ----------------------------------- |
-| `src/utils/listSorting.ts`                         | Shared sorting comparators          |
-| `src/utils/paginationBuilder.ts`                   | Shared pagination buttons (TODO)    |
-| `src/utils/customIds.ts`                           | Custom ID parsing/generation        |
-| `src/utils/dashboard/settings/types.ts`            | Settings custom ID builders/parsers |
-| `docs/reference/standards/SLASH_COMMAND_UX.md`     | Full UX documentation               |
-| `docs/reference/standards/INTERACTION_PATTERNS.md` | State passing patterns guide        |
+| File                                                    | Purpose                             |
+| ------------------------------------------------------- | ----------------------------------- |
+| `src/commands/preset/browse.ts`                         | **Browse → Dashboard reference**    |
+| `src/utils/autocomplete/personalityAutocomplete.ts`     | Shared personality autocomplete     |
+| `packages/common-types/src/utils/autocompleteFormat.ts` | Autocomplete formatting utility     |
+| `src/utils/listSorting.ts`                              | Shared sorting comparators          |
+| `src/utils/customIds.ts`                                | Custom ID parsing/generation        |
+| `src/utils/dashboard/settings/types.ts`                 | Settings custom ID builders/parsers |
+| `docs/reference/standards/SLASH_COMMAND_UX.md`          | Full UX documentation               |
+| `docs/reference/standards/INTERACTION_PATTERNS.md`      | State passing patterns guide        |
 
 ## Pagination Pattern
 
@@ -87,6 +90,65 @@ collector.on('collect', (interaction: ButtonInteraction) => {
   await interaction.update({ embeds: [newEmbed], components: [newButtons] });
 });
 ```
+
+## Browse → Dashboard Pattern (NEW)
+
+**Standard flow for list commands.** Select menu lets users pick an item to view/edit.
+
+### Layout
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  📚 Preset Browser                                           │
+│  1. 🌐⭐ Global Default · claude-sonnet-4                    │
+│  2. 🔒 My Preset · gpt-4o                                    │
+├──────────────────────────────────────────────────────────────┤
+│  [▼ Select a preset to view...]                              │
+│  [◀ Prev]  Page 1 of 3  [Next ▶]  [🔤 Sort A-Z]             │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Implementation
+
+```typescript
+// 1. Build select menu for current page items
+function buildBrowseSelectMenu(
+  pageItems: Preset[],
+  startIdx: number
+): ActionRowBuilder<StringSelectMenuBuilder> {
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId('preset::browse-select')
+    .setPlaceholder('Select a preset to view...');
+
+  pageItems.forEach((preset, index) => {
+    selectMenu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(`${startIdx + index + 1}. ${preset.name}`)
+        .setValue(preset.id)
+        .setDescription(preset.model)
+    );
+  });
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
+}
+
+// 2. Handle select menu interaction
+export async function handleBrowseSelect(interaction: StringSelectMenuInteraction): Promise<void> {
+  const presetId = interaction.values[0];
+  await interaction.deferUpdate();
+
+  // Fetch and open dashboard (same as /preset edit)
+  const preset = await fetchPreset(presetId, interaction.user.id);
+  const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, preset);
+  const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, presetId, preset);
+
+  await interaction.editReply({ embeds: [embed], components });
+}
+```
+
+### Reference Implementation
+
+- `services/bot-client/src/commands/preset/browse.ts` - Full pattern
 
 ## Dashboard Pattern
 
@@ -188,19 +250,48 @@ await interaction.reply({
 
 Use for **entity selection** (characters, presets, personalities) and **large lists** (>10 items).
 
+### Standard Formatting (REQUIRED)
+
+Use the shared `formatAutocompleteOption` utility for consistent badge formatting:
+
 ```typescript
-export async function autocomplete(interaction: AutocompleteInteraction) {
-  const query = interaction.options.getFocused().toLowerCase();
+import { formatAutocompleteOption, AUTOCOMPLETE_BADGES } from '@tzurot/common-types';
 
-  const results = allItems.filter(item => item.name.toLowerCase().includes(query)).slice(0, 25); // Discord limit
+const choices = items.map(item =>
+  formatAutocompleteOption({
+    name: item.name,
+    value: item.id,
+    scopeBadge: item.isGlobal ? AUTOCOMPLETE_BADGES.GLOBAL : AUTOCOMPLETE_BADGES.OWNED,
+    statusBadges: item.isDefault ? [AUTOCOMPLETE_BADGES.DEFAULT] : undefined,
+    metadata: item.model?.split('/').pop(), // Short model name
+  })
+);
+// Result: "🌐⭐ Global Default · claude-sonnet-4"
+```
 
-  await interaction.respond(
-    results.map(item => ({
-      name: item.displayName, // What user sees
-      value: item.id, // What gets submitted
-    }))
-  );
-}
+### Badge Reference
+
+| Badge | Constant                      | Use For                    |
+| ----- | ----------------------------- | -------------------------- |
+| 🌐    | `AUTOCOMPLETE_BADGES.GLOBAL`  | System-provided resource   |
+| 🔒    | `AUTOCOMPLETE_BADGES.OWNED`   | User-created private       |
+| 🌍    | `AUTOCOMPLETE_BADGES.PUBLIC`  | User-created shared        |
+| ⭐    | `AUTOCOMPLETE_BADGES.DEFAULT` | Currently active selection |
+| 🆓    | `AUTOCOMPLETE_BADGES.FREE`    | Free tier model            |
+
+### Shared Utilities
+
+For personality/character autocomplete, use the shared handlers:
+
+```typescript
+import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
+
+// Handles filtering, caching, and badge formatting
+await handlePersonalityAutocomplete(interaction, {
+  optionName: 'personality',
+  ownedOnly: false,
+  showVisibility: true,
+});
 ```
 
 ## Anti-Patterns

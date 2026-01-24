@@ -15,13 +15,25 @@ import {
   EmbedBuilder,
   ActionRowBuilder,
   escapeMarkdown,
+  StringSelectMenuBuilder,
+  StringSelectMenuOptionBuilder,
 } from 'discord.js';
-import type { ButtonInteraction } from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { createListComparator } from '../../utils/listSorting.js';
-import { fetchUserCharacters, fetchPublicCharacters, fetchUsernames } from './api.js';
-import type { CharacterData } from './config.js';
+import {
+  fetchUserCharacters,
+  fetchPublicCharacters,
+  fetchUsernames,
+  fetchCharacter,
+} from './api.js';
+import { getCharacterDashboardConfig, type CharacterData } from './config.js';
+import {
+  buildDashboardEmbed,
+  buildDashboardComponents,
+  getSessionManager,
+} from '../../utils/dashboard/index.js';
 
 const logger = createLogger('character-browse');
 
@@ -39,6 +51,12 @@ const DEFAULT_SORT: CharacterBrowseSortType = 'date';
 
 /** Custom ID prefix for browse pagination */
 const BROWSE_PREFIX = 'character::browse';
+
+/** Custom ID prefix for browse select menu */
+const BROWSE_SELECT_PREFIX = 'character::browse-select';
+
+/** Maximum length for select menu option labels */
+const MAX_SELECT_LABEL_LENGTH = 100;
 
 /**
  * List item with group markers for rendering.
@@ -119,12 +137,72 @@ export function isCharacterBrowseInteraction(customId: string): boolean {
 }
 
 /**
+ * Check if custom ID is a character browse select interaction
+ */
+export function isCharacterBrowseSelectInteraction(customId: string): boolean {
+  return customId.startsWith(BROWSE_SELECT_PREFIX);
+}
+
+/**
  * Format a character line for the list
  */
 function formatCharacterLine(c: CharacterData): string {
   const visibility = c.isPublic ? '🌐' : '🔒';
   const displayName = escapeMarkdown(c.displayName ?? c.name);
   return `${visibility} **${displayName}** (\`${c.slug}\`)`;
+}
+
+/**
+ * Truncate text for select menu label
+ */
+function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return text.substring(0, maxLength - 3) + '...';
+}
+
+/**
+ * Build select menu for choosing a character from the list
+ */
+function buildBrowseSelectMenu(
+  pageItems: ListItem[],
+  startIdx: number
+): ActionRowBuilder<StringSelectMenuBuilder> {
+  const selectMenu = new StringSelectMenuBuilder()
+    .setCustomId(BROWSE_SELECT_PREFIX)
+    .setPlaceholder('Select a character to view/edit...')
+    .setMinValues(1)
+    .setMaxValues(1);
+
+  pageItems.forEach((item, index) => {
+    const num = startIdx + index + 1;
+    const char = item.char;
+
+    // Build badges
+    const visibility = char.isPublic ? '🌐' : '🔒';
+    const ownBadge = item.isOwn ? '✏️' : '';
+
+    // Label: "1. 🌐✏️ Character Name"
+    const label = truncateForSelect(
+      `${num}. ${visibility}${ownBadge} ${char.displayName ?? char.name}`
+    );
+
+    // Description: slug + owner indicator
+    let description = `/${char.slug}`;
+    if (item.isOwn) {
+      description += ' (yours)';
+    }
+
+    selectMenu.addOptions(
+      new StringSelectMenuOptionBuilder()
+        .setLabel(label)
+        .setValue(char.slug) // Use slug as value to fetch full data
+        .setDescription(truncateForSelect(description))
+    );
+  });
+
+  return new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(selectMenu);
 }
 
 /**
@@ -366,6 +444,9 @@ function renderPageItems(pageItems: ListItem[], existingLinesLength: number): st
   return lines;
 }
 
+/** Union type for action rows that can contain buttons or select menus */
+type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<StringSelectMenuBuilder>;
+
 /** Options for buildBrowsePage */
 interface BuildBrowsePageOptions {
   allItems: ListItem[];
@@ -381,7 +462,7 @@ interface BuildBrowsePageOptions {
  */
 function buildBrowsePage(options: BuildBrowsePageOptions): {
   embed: EmbedBuilder;
-  components: ActionRowBuilder<ButtonBuilder>[];
+  components: BrowseActionRow[];
 } {
   const { allItems, ownCount, page, filter, sortType, query } = options;
 
@@ -430,7 +511,14 @@ function buildBrowsePage(options: BuildBrowsePageOptions): {
   embed.setFooter({ text: footerParts.join(' • ') });
 
   // Build components
-  const components: ActionRowBuilder<ButtonBuilder>[] = [];
+  const components: BrowseActionRow[] = [];
+
+  // Add select menu if there are items on this page
+  if (pageItems.length > 0) {
+    components.push(buildBrowseSelectMenu(pageItems, startIdx));
+  }
+
+  // Add pagination buttons if multiple pages or items exist
   if (totalPages > 1 || allItems.length > 0) {
     components.push(buildBrowseButtons(safePage, totalPages, filter, sortType, query));
   }
@@ -552,5 +640,69 @@ export async function handleBrowsePagination(
       '[Character] Failed to load browse page'
     );
     // Keep existing content on error
+  }
+}
+
+/**
+ * Handle browse select menu - open character dashboard
+ */
+export async function handleBrowseSelect(
+  interaction: StringSelectMenuInteraction,
+  config: EnvConfig
+): Promise<void> {
+  const slug = interaction.values[0];
+  const userId = interaction.user.id;
+
+  await interaction.deferUpdate();
+
+  try {
+    // Fetch the character with full data
+    const character = await fetchCharacter(slug, config, userId);
+
+    if (!character) {
+      await interaction.editReply({
+        content: '❌ Character not found or you do not have access.',
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // Get dashboard config based on edit permissions
+    const dashboardConfig = getCharacterDashboardConfig(character.canEdit);
+
+    // Build dashboard embed and components
+    const embed = buildDashboardEmbed(dashboardConfig, character);
+    const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
+      showClose: true,
+      showRefresh: true,
+      showDelete: character.canEdit && character.ownerId === userId,
+    });
+
+    // Update the message with the dashboard
+    await interaction.editReply({ embeds: [embed], components });
+
+    // Create session for tracking
+    const sessionManager = getSessionManager();
+    await sessionManager.set<CharacterData>({
+      userId,
+      entityType: 'character',
+      entityId: character.slug,
+      data: character,
+      messageId: interaction.message.id,
+      channelId: interaction.channelId,
+    });
+
+    logger.info(
+      { userId, slug, name: character.displayName ?? character.name, canEdit: character.canEdit },
+      '[Character] Opened dashboard from browse'
+    );
+  } catch (error) {
+    logger.error({ err: error, slug }, '[Character] Failed to open dashboard from browse');
+    await interaction.editReply({
+      content: '❌ Failed to load character. Please try again.',
+      embeds: [],
+      components: [],
+    });
   }
 }

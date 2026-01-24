@@ -4,7 +4,7 @@
  *
  * Commands:
  * - /me profile view - View your current profile
- * - /me profile edit [profile] - Edit a profile via modal (default: your default profile)
+ * - /me profile edit [profile] - Edit a profile via dashboard (default: your default profile)
  * - /me profile create - Create a new profile
  * - /me profile list - List all your profiles
  * - /me profile default <profile> - Set a profile as your default
@@ -18,6 +18,8 @@
  * - /me preset reset <personality> - Remove preset override
  * - /me preset default <preset> - Set your global default preset
  * - /me preset clear-default - Clear your global default preset
+ *
+ * Note: Profile deletion is available via the dashboard delete button
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -25,25 +27,32 @@ import type {
   ModalSubmitInteraction,
   AutocompleteInteraction,
   ButtonInteraction,
+  StringSelectMenuInteraction,
 } from 'discord.js';
 import { createLogger, DISCORD_LIMITS, TIMEZONE_OPTIONS } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
   SafeCommandContext,
   DeferredCommandContext,
-  ModalCommandContext,
 } from '../../utils/commandContext/types.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 // Profile subcommand handlers
 import { handleViewPersona, handleExpandContent } from './profile/view.js';
-import { handleEditPersona, handleEditModalSubmit } from './profile/edit.js';
+import { handleEditProfile } from './profile/edit.js';
 import { handleCreatePersona, handleCreateModalSubmit } from './profile/create.js';
 import { handleListPersonas } from './profile/list.js';
 import { handleSetDefaultPersona } from './profile/default.js';
 import { handleShareLtmSetting } from './profile/share-ltm.js';
 import { handleOverrideSet, handleOverrideCreateModalSubmit } from './profile/override-set.js';
 import { handleOverrideClear } from './profile/override-clear.js';
+// Profile dashboard handlers
+import {
+  handleButton as handleProfileDashboardButton,
+  handleSelectMenu as handleProfileDashboardSelectMenu,
+  handleModalSubmit as handleProfileDashboardModalSubmit,
+  isProfileDashboardInteraction,
+} from './profile/dashboard.js';
 // Timezone subcommand handlers
 import { handleTimezoneSet } from './timezone/set.js';
 import { handleTimezoneGet } from './timezone/get.js';
@@ -62,7 +71,7 @@ const logger = createLogger('me-command');
 
 /**
  * Profile subcommand router (mixed mode)
- * - create, edit, override-set show modals
+ * - create, override-set show modals
  * - view, list, share-ltm, override-clear are deferred
  * Note: edit and default are handled separately due to parameter passing
  */
@@ -117,9 +126,9 @@ async function execute(context: SafeCommandContext): Promise<void> {
   if (group === 'profile') {
     // Profile management subcommands
     if (subcommand === 'edit') {
-      // Edit needs special handling to pass profile ID (modal command)
+      // Edit opens the profile dashboard (deferred command)
       const personaId = context.interaction.options.getString('profile');
-      await handleEditPersona(context as ModalCommandContext, personaId);
+      await handleEditProfile(context as DeferredCommandContext, personaId);
     } else if (subcommand === 'default') {
       // Default needs the profile ID (deferred command)
       await handleSetDefaultPersona(context as DeferredCommandContext);
@@ -142,6 +151,12 @@ async function execute(context: SafeCommandContext): Promise<void> {
 async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const customId = interaction.customId;
 
+  // Check for profile dashboard modal submissions first
+  if (isProfileDashboardInteraction(customId)) {
+    await handleProfileDashboardModalSubmit(interaction);
+    return;
+  }
+
   // Parse using centralized customId utilities
   const parsed = MeCustomIds.parse(customId);
   if (parsed === null) {
@@ -153,10 +168,6 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     if (parsed.action === 'create') {
       // Create new profile modal
       await handleCreateModalSubmit(interaction);
-    } else if (parsed.action === 'edit') {
-      // Edit profile modal - entityId is personaId or 'new'
-      const personaId = parsed.entityId ?? 'new';
-      await handleEditModalSubmit(interaction, personaId);
     } else {
       logger.warn({ customId, parsed }, '[Me] Unknown profile action');
     }
@@ -222,6 +233,13 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
+
+  // Check for profile dashboard button interactions
+  if (isProfileDashboardInteraction(customId)) {
+    await handleProfileDashboardButton(interaction);
+    return;
+  }
+
   const parsed = MeCustomIds.parse(customId);
 
   if (parsed === null) {
@@ -241,18 +259,33 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
 }
 
 /**
+ * Handle select menu interactions for the me command
+ */
+async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  const customId = interaction.customId;
+
+  // Check for profile dashboard select menu interactions
+  if (isProfileDashboardInteraction(customId)) {
+    await handleProfileDashboardSelectMenu(interaction);
+    return;
+  }
+
+  logger.warn({ customId }, '[Me] Unknown select menu customId');
+}
+
+/**
  * Export command definition using defineCommand for type safety
  * Category is injected by CommandHandler based on folder structure
  *
  * Uses mixed deferral modes:
  * - Most subcommands use ephemeral deferral
- * - 'profile create', 'profile edit', 'profile override-set' show modals
+ * - 'profile create', 'profile override-set' show modals
+ * - 'profile edit' opens a dashboard (ephemeral deferred)
  */
 export default defineCommand({
   deferralMode: 'ephemeral', // Default for most subcommands
   subcommandDeferralModes: {
     'profile create': 'modal',
-    'profile edit': 'modal',
     'profile override-set': 'modal',
   },
   data: new SlashCommandBuilder()
@@ -420,4 +453,5 @@ export default defineCommand({
   autocomplete,
   handleModal,
   handleButton,
+  handleSelectMenu,
 });

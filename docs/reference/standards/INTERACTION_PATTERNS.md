@@ -242,6 +242,93 @@ Many features use multiple patterns together:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+## Browse Pattern: Select Menu → Dashboard
+
+**New in v3**: The browse pattern provides a standardized way to navigate from a list to a detail view.
+
+### Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. User runs /preset browse                                     │
+│    → Paginated list with select menu and buttons                │
+│                                                                  │
+│ 2. User selects item from dropdown                              │
+│    → Select menu value is entity ID                             │
+│    → Dashboard opens for selected item                          │
+│    → SessionManager tracks dashboard state                      │
+│                                                                  │
+│ 3. User interacts with dashboard                                │
+│    → Same dashboard behavior as /preset edit                    │
+│    → Can edit, delete, refresh, close                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Components
+
+1. **Paginated Embed** - Shows list items with emojis/badges
+2. **Select Menu** - Allows picking any item on current page
+3. **Pagination Buttons** - Next/Previous/Sort toggle
+4. **Dashboard Integration** - Same dashboard as edit command
+
+### Custom ID Format
+
+```
+// Browse pagination
+{resource}::browse::{page}::{filter}::{query}
+
+// Browse select menu (static - value is the entity ID)
+{resource}::browse-select
+```
+
+### Implementation Files
+
+- `services/bot-client/src/commands/preset/browse.ts` - Reference implementation
+- `services/bot-client/src/commands/character/browse.ts` - Similar pattern
+
+## Autocomplete Formatting Standard
+
+All autocomplete across the bot uses the shared `formatAutocompleteOption` utility for consistency.
+
+### Format
+
+```
+[ScopeBadge][StatusBadges] Name (identifier) · metadata
+```
+
+### Badges
+
+| Badge | Constant                        | Meaning                             |
+| ----- | ------------------------------- | ----------------------------------- |
+| 🌐    | `AUTOCOMPLETE_BADGES.GLOBAL`    | System-provided resource            |
+| 🔒    | `AUTOCOMPLETE_BADGES.OWNED`     | User-created, only visible to owner |
+| 🌍    | `AUTOCOMPLETE_BADGES.PUBLIC`    | User-created but shared publicly    |
+| 📖    | `AUTOCOMPLETE_BADGES.READ_ONLY` | Visible but not editable            |
+| ⭐    | `AUTOCOMPLETE_BADGES.DEFAULT`   | Currently active/default            |
+| 🆓    | `AUTOCOMPLETE_BADGES.FREE`      | Uses free tier model                |
+| 🔐    | `AUTOCOMPLETE_BADGES.LOCKED`    | Admin-locked                        |
+
+### Example Usage
+
+```typescript
+import { formatAutocompleteOption, AUTOCOMPLETE_BADGES } from '@tzurot/common-types';
+
+const choice = formatAutocompleteOption({
+  name: 'Global Default',
+  value: 'config-id-123',
+  scopeBadge: AUTOCOMPLETE_BADGES.GLOBAL,
+  statusBadges: [AUTOCOMPLETE_BADGES.DEFAULT],
+  metadata: 'claude-sonnet-4',
+});
+// Result: { name: "🌐⭐ Global Default · claude-sonnet-4", value: "config-id-123" }
+```
+
+### Implementation Files
+
+- `packages/common-types/src/utils/autocompleteFormat.ts` - Utility implementation
+- `services/bot-client/src/utils/autocomplete/personalityAutocomplete.ts` - Main personality autocomplete
+- `services/bot-client/src/commands/preset/autocomplete.ts` - Preset autocomplete
+
 ## Best Practices
 
 ### Custom ID Guidelines

@@ -30,7 +30,13 @@ import type {
   SafeCommandContext,
 } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/factories.js';
-import { handleBrowse, handleBrowsePagination, isPresetBrowseInteraction } from './browse.js';
+import {
+  handleBrowse,
+  handleBrowsePagination,
+  isPresetBrowseInteraction,
+  handleBrowseSelect,
+  isPresetBrowseSelectInteraction,
+} from './browse.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAutocomplete } from './autocomplete.js';
@@ -100,13 +106,20 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 }
 
 /**
- * Select menu interaction handler for preset dashboard
+ * Select menu interaction handler for preset dashboard and browse
  */
 async function selectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
-  if (!isPresetDashboardInteraction(interaction.customId)) {
+  // Handle browse select - opens dashboard from browse list
+  if (isPresetBrowseSelectInteraction(interaction.customId)) {
+    await handleBrowseSelect(interaction);
     return;
   }
-  await handleSelectMenu(interaction);
+
+  // Handle dashboard select - edit sections
+  if (isPresetDashboardInteraction(interaction.customId)) {
+    await handleSelectMenu(interaction);
+    return;
+  }
 }
 
 /**
