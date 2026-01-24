@@ -133,6 +133,7 @@ export interface ActionButtonOptions {
   showDelete?: boolean;
   showClose?: boolean;
   showRefresh?: boolean;
+  showClone?: boolean;
   /** If defined, shows a toggle button with state-appropriate label */
   toggleGlobal?: {
     /** Current global state */
@@ -159,6 +160,16 @@ export function buildActionButtons<T>(
         .setLabel('Refresh')
         .setStyle(ButtonStyle.Secondary)
         .setEmoji('🔄')
+    );
+  }
+
+  if (options?.showClone === true) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(buildDashboardCustomId(config.entityType, 'clone', entityId))
+        .setLabel('Clone')
+        .setStyle(ButtonStyle.Primary)
+        .setEmoji('📋')
     );
   }
 
