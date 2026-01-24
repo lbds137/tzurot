@@ -6,6 +6,7 @@
  */
 
 import type { EntityPermissions } from '@tzurot/common-types';
+import type { BrowseContext } from '../../utils/dashboard/types.js';
 
 /**
  * Preset data structure returned by API
@@ -53,7 +54,7 @@ export interface PresetData {
  * Index signature allows usage with generic Record<string, unknown> types
  */
 export interface FlattenedPresetData {
-  [key: string]: string | boolean;
+  [key: string]: string | boolean | BrowseContext | undefined;
   id: string;
   name: string;
   description: string;
@@ -83,4 +84,6 @@ export interface FlattenedPresetData {
   reasoning_enabled: string;
   // Output params
   show_thinking: string;
+  /** Browse context when opened from browse (for back navigation) */
+  browseContext?: BrowseContext;
 }

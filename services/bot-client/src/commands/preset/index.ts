@@ -42,7 +42,7 @@ import { handleEdit } from './edit.js';
 import { handleAutocomplete } from './autocomplete.js';
 import { handleGlobalCreate } from './global/create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
-import { handleGlobalSetFreeDefault } from './global/set-free-default.js';
+import { handleGlobalSetFreeDefault } from './global/free-default.js';
 import {
   handleModalSubmit,
   handleSelectMenu,

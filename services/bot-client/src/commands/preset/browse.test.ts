@@ -141,7 +141,8 @@ describe('handleBrowse', () => {
     // Verify components include select menu (no pagination buttons for small lists)
     const components = mockEditReply.mock.calls[0][0].components;
     expect(components).toHaveLength(1); // Just select menu, no pagination
-    expect(components[0].components[0].data.custom_id).toBe('preset::browse-select');
+    // Custom ID now includes browse context: preset::browse-select::page::filter::query
+    expect(components[0].components[0].data.custom_id).toBe('preset::browse-select::0::all::');
   });
 
   it('should filter by global presets', async () => {

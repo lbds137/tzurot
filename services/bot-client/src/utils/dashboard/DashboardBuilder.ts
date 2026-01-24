@@ -134,6 +134,8 @@ export interface ActionButtonOptions {
   showClose?: boolean;
   showRefresh?: boolean;
   showClone?: boolean;
+  /** Show "Back to Browse" button instead of close (when opened from browse) */
+  showBack?: boolean;
   /** If defined, shows a toggle button with state-appropriate label */
   toggleGlobal?: {
     /** Current global state */
@@ -185,6 +187,17 @@ export function buildActionButtons<T>(
     );
   }
 
+  // Back to Browse button - shown when opened from browse view
+  if (options?.showBack === true) {
+    row.addComponents(
+      new ButtonBuilder()
+        .setCustomId(buildDashboardCustomId(config.entityType, 'back', entityId))
+        .setLabel('Back to Browse')
+        .setStyle(ButtonStyle.Secondary)
+        .setEmoji('◀️')
+    );
+  }
+
   if (options?.showClose === true) {
     row.addComponents(
       new ButtonBuilder()
@@ -227,6 +240,8 @@ export function buildDashboardComponents<T>(
     options?.showDelete === true ||
     options?.showClose === true ||
     options?.showRefresh === true ||
+    options?.showBack === true ||
+    options?.showClone === true ||
     options?.toggleGlobal !== undefined;
 
   if (hasButtonOptions) {

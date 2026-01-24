@@ -31,6 +31,7 @@ import {
   unflattenPresetData,
 } from './config.js';
 import { fetchPreset, updatePreset, fetchGlobalPreset, createPreset } from './api.js';
+import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 
 const logger = createLogger('preset-dashboard-buttons');
 
@@ -437,6 +438,68 @@ export async function handleCloneButton(
     await interaction.followUp({
       content: '❌ Failed to clone preset. Please try again.',
       flags: MessageFlags.Ephemeral,
+    });
+  }
+}
+
+/**
+ * Handle back button - return to browse list using saved context.
+ */
+export async function handleBackButton(
+  interaction: ButtonInteraction,
+  entityId: string
+): Promise<void> {
+  await interaction.deferUpdate();
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPresetData>(
+    interaction.user.id,
+    'preset',
+    entityId
+  );
+
+  const browseContext = session?.data.browseContext;
+  if (!browseContext) {
+    // Session expired or no browse context - show expired message
+    await interaction.editReply({
+      content: '⏰ Session expired. Please run `/preset browse` again.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  try {
+    const result = await buildBrowseResponse(interaction.user.id, {
+      page: browseContext.page,
+      filter: browseContext.filter as PresetBrowseFilter,
+      query: browseContext.query ?? null,
+    });
+
+    if (result === null) {
+      await interaction.editReply({
+        content: '❌ Failed to load browse list. Please try again.',
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // Clear the session since we're leaving the dashboard
+    await sessionManager.delete(interaction.user.id, 'preset', entityId);
+
+    await interaction.editReply({ embeds: [result.embed], components: result.components });
+
+    logger.info(
+      { userId: interaction.user.id, entityId, page: browseContext.page },
+      '[Preset] Returned to browse from dashboard'
+    );
+  } catch (error) {
+    logger.error({ err: error, entityId }, '[Preset] Failed to return to browse');
+    await interaction.editReply({
+      content: '❌ Failed to load browse list. Please try again.',
+      embeds: [],
+      components: [],
     });
   }
 }

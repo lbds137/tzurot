@@ -46,6 +46,7 @@ import {
   handleConfirmDeleteButton,
   handleCancelDeleteButton,
   handleCloneButton,
+  handleBackButton,
 } from './dashboardButtons.js';
 
 const logger = createLogger('preset-dashboard');
@@ -293,6 +294,9 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   switch (action) {
     case 'close':
       await handleCloseButton(interaction, entityId);
+      break;
+    case 'back':
+      await handleBackButton(interaction, entityId);
       break;
     case 'refresh':
       await handleRefreshButton(interaction, entityId);
