@@ -17,7 +17,10 @@ export function registerTestCommands(cli: CAC): void {
     .example('ops test:audit-contracts --strict')
     .action(async (options: { update?: boolean; strict?: boolean }) => {
       const { auditContracts } = await import('../test/audit-contracts.js');
-      auditContracts(options);
+      const passed = auditContracts(options);
+      if (!passed) {
+        process.exitCode = 1;
+      }
     });
 
   cli
@@ -29,7 +32,10 @@ export function registerTestCommands(cli: CAC): void {
     .example('ops test:audit-services --strict')
     .action(async (options: { update?: boolean; strict?: boolean }) => {
       const { auditServices } = await import('../test/audit-services.js');
-      auditServices(options);
+      const passed = auditServices(options);
+      if (!passed) {
+        process.exitCode = 1;
+      }
     });
 
   cli

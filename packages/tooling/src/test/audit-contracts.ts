@@ -249,16 +249,14 @@ export function auditContracts(options: AuditContractsOptions = {}): boolean {
 
   printGapAnalysis(result);
 
-  // Determine pass/fail
+  // Determine pass/fail (caller handles exit codes for flexibility)
   if (strict && result.untestedSchemas.length > 0) {
     console.log('❌ STRICT MODE: All schemas must have contract tests\n');
-    process.exitCode = 1;
     return false;
   }
 
   if (!strict && result.newGaps.length > 0) {
     console.log('❌ RATCHET FAILED: New APIs added without contract tests\n');
-    process.exitCode = 1;
     return false;
   }
 

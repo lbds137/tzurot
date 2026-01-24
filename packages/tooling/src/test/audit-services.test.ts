@@ -136,8 +136,8 @@ describe('audit-services', () => {
       const { auditServices } = await import('./audit-services.js');
       const result = auditServices();
 
+      // Returns false on failure; caller handles exit code
       expect(result).toBe(false);
-      expect(process.exitCode).toBe(1);
     });
 
     it('should update baseline when --update flag is passed', async () => {
@@ -238,8 +238,8 @@ describe('audit-services', () => {
       const { auditServices } = await import('./audit-services.js');
       const result = auditServices({ strict: true });
 
+      // Returns false on failure; caller handles exit code
       expect(result).toBe(false);
-      expect(process.exitCode).toBe(1);
     });
 
     it('should skip re-export files', async () => {
