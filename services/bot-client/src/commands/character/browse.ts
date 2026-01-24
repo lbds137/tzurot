@@ -549,7 +549,7 @@ export async function handleBrowseSelect(
     const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
       showBack: true, // Show "Back to Browse" instead of close
       showRefresh: true,
-      showDelete: character.canEdit && character.ownerId === userId,
+      showDelete: character.canEdit, // canEdit is server-side authoritative permission
     });
 
     // Update the message with the dashboard
