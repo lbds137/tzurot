@@ -428,7 +428,76 @@ describe('Preset Dashboard Buttons', () => {
       await handleCloneButton(mockInteraction, 'preset-123');
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockCreatePreset).toHaveBeenCalled();
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Original Preset (Copy)' }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('should increment copy number when cloning a copy', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ name: 'My Preset (Copy)' }),
+      });
+      mockCreatePreset.mockResolvedValue({
+        id: 'cloned-preset',
+        name: 'My Preset (Copy 2)',
+        slug: 'my-preset-copy-2',
+      });
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'My Preset (Copy 2)' }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('should increment existing copy number', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ name: 'My Preset (Copy 5)' }),
+      });
+      mockCreatePreset.mockResolvedValue({
+        id: 'cloned-preset',
+        name: 'My Preset (Copy 6)',
+        slug: 'my-preset-copy-6',
+      });
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'My Preset (Copy 6)' }),
+        expect.anything(),
+        expect.anything()
+      );
+    });
+
+    it('should append (Copy) when name contains (Copy) not at end', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+
+      // Edge case: "(Copy)" in the middle of name should NOT be matched
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ name: 'Preset (Copy) Edition' }),
+      });
+      mockCreatePreset.mockResolvedValue({
+        id: 'cloned-preset',
+        name: 'Preset (Copy) Edition (Copy)',
+        slug: 'preset-copy-edition-copy',
+      });
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      // Should append (Copy) since (Copy) is not at the end
+      expect(mockCreatePreset).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'Preset (Copy) Edition (Copy)' }),
+        expect.anything(),
+        expect.anything()
+      );
     });
 
     it('should show error if session expired', async () => {
