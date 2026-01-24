@@ -496,3 +496,278 @@ describe('handleBrowsePagination', () => {
     expect(mockEditReply).not.toHaveBeenCalled();
   });
 });
+
+describe('backfillMissingGuildIds', () => {
+  const mockEditReply = vi.fn();
+  const mockChannelsFetch = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { isBotOwner } = await import('@tzurot/common-types');
+    vi.mocked(isBotOwner).mockReturnValue(false);
+    mockRequireManageMessagesContext.mockResolvedValue(true);
+  });
+
+  function createMockContextWithFetch(channelFetchFn: typeof mockChannelsFetch) {
+    return {
+      user: { id: '123456789' },
+      guildId: 'guild-123',
+      interaction: {
+        client: {
+          channels: {
+            cache: new Map(),
+            fetch: channelFetchFn,
+          },
+          guilds: { cache: new Map() },
+        },
+      },
+      getOption: vi.fn(() => null),
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleBrowse>[0];
+  }
+
+  it('should backfill missing guildId for channels', async () => {
+    // API returns activation with null guildId
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        settings: [
+          {
+            channelId: 'channel-1',
+            guildId: null, // Missing guildId triggers backfill
+            personalityId: 'personality-1',
+            personalityName: 'Test',
+            personalitySlug: 'test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    // Mock channel fetch to return channel with guild
+    mockChannelsFetch.mockResolvedValue({
+      guild: { id: 'backfilled-guild-123' },
+    });
+
+    const context = createMockContextWithFetch(mockChannelsFetch);
+    await handleBrowse(context);
+
+    // Verify backfill API was called
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/channel/update-guild',
+      expect.objectContaining({
+        userId: '123456789',
+        method: 'PATCH',
+        body: {
+          channelId: 'channel-1',
+          guildId: 'backfilled-guild-123',
+        },
+      })
+    );
+  });
+
+  it('should skip backfill when channel fetch returns null', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        settings: [
+          {
+            channelId: 'deleted-channel',
+            guildId: null,
+            personalityId: 'personality-1',
+            personalityName: 'Test',
+            personalitySlug: 'test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    // Channel doesn't exist anymore
+    mockChannelsFetch.mockResolvedValue(null);
+
+    const context = createMockContextWithFetch(mockChannelsFetch);
+    await handleBrowse(context);
+
+    // Should still complete without error
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    });
+
+    // Backfill API should NOT be called (channel was null)
+    const updateGuildCalls = mockCallGatewayApi.mock.calls.filter(
+      call => call[0] === '/user/channel/update-guild'
+    );
+    expect(updateGuildCalls).toHaveLength(0);
+  });
+
+  it('should handle backfill errors gracefully', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        settings: [
+          {
+            channelId: 'error-channel',
+            guildId: null,
+            personalityId: 'personality-1',
+            personalityName: 'Test',
+            personalitySlug: 'test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    // Channel fetch throws error
+    mockChannelsFetch.mockRejectedValue(new Error('Channel not accessible'));
+
+    const context = createMockContextWithFetch(mockChannelsFetch);
+    await handleBrowse(context);
+
+    // Should still complete and show results (even empty)
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: expect.any(Array),
+      components: expect.any(Array),
+    });
+  });
+
+  it('should skip channels without guild property during backfill', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        settings: [
+          {
+            channelId: 'dm-channel',
+            guildId: null,
+            personalityId: 'personality-1',
+            personalityName: 'Test',
+            personalitySlug: 'test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    // DM channel has no guild property
+    mockChannelsFetch.mockResolvedValue({
+      id: 'dm-channel',
+      // No guild property - simulating DM channel
+    });
+
+    const context = createMockContextWithFetch(mockChannelsFetch);
+    await handleBrowse(context);
+
+    // Backfill API should NOT be called (no guild property)
+    const updateGuildCalls = mockCallGatewayApi.mock.calls.filter(
+      call => call[0] === '/user/channel/update-guild'
+    );
+    expect(updateGuildCalls).toHaveLength(0);
+  });
+});
+
+describe('buildGuildPages (all-servers view)', () => {
+  const mockEditReply = vi.fn();
+
+  beforeEach(async () => {
+    vi.clearAllMocks();
+    const { isBotOwner } = await import('@tzurot/common-types');
+    vi.mocked(isBotOwner).mockReturnValue(true); // Bot owner for all-servers
+    mockRequireManageMessagesContext.mockResolvedValue(true);
+  });
+
+  function createMockContext(filter: string | null = 'all') {
+    return {
+      user: { id: '123456789' },
+      guildId: 'guild-123',
+      interaction: {
+        client: {
+          channels: { cache: new Map() },
+          guilds: {
+            cache: new Map([
+              ['guild-1', { name: 'Server Alpha' }],
+              ['guild-2', { name: 'Server Beta' }],
+            ]),
+          },
+        },
+      },
+      getOption: vi.fn(<T>(name: string): T | null => {
+        if (name === 'filter') return filter as T;
+        return null;
+      }),
+      editReply: mockEditReply,
+    } as unknown as Parameters<typeof handleBrowse>[0];
+  }
+
+  it('should group channels by guild in all-servers view', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        settings: [
+          {
+            channelId: 'channel-1',
+            guildId: 'guild-1',
+            personalityId: 'p1',
+            personalityName: 'Luna',
+            personalitySlug: 'luna',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+          {
+            channelId: 'channel-2',
+            guildId: 'guild-2',
+            personalityId: 'p2',
+            personalityName: 'Nova',
+            personalitySlug: 'nova',
+            createdAt: '2025-06-16T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    const context = createMockContext('all');
+    await handleBrowse(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: expect.stringContaining('Server'),
+          }),
+        }),
+      ]),
+      components: expect.any(Array),
+    });
+  });
+
+  it('should handle unknown guildId in all-servers view', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        settings: [
+          {
+            channelId: 'channel-orphan',
+            guildId: null, // Unknown guild
+            personalityId: 'p1',
+            personalityName: 'Test',
+            personalitySlug: 'test',
+            createdAt: '2025-06-15T12:00:00.000Z',
+          },
+        ],
+      },
+    });
+
+    const context = createMockContext('all');
+    await handleBrowse(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: expect.arrayContaining([
+        expect.objectContaining({
+          data: expect.objectContaining({
+            title: expect.stringContaining('Unknown Server'),
+          }),
+        }),
+      ]),
+      components: expect.any(Array),
+    });
+  });
+});
