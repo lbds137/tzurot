@@ -17,16 +17,24 @@ lastUpdated: '2026-01-21'
 
 ## Size Limits
 
-| Metric       | Target | Maximum | Action if Exceeded         |
-| ------------ | ------ | ------- | -------------------------- |
-| Skill lines  | <300   | 400     | Split or reference docs    |
-| Total skills | 10-12  | 15      | Consolidate related skills |
-| CLAUDE.md    | <400   | 500     | Move content to skills     |
+| Metric           | Target | Maximum | Action if Exceeded      |
+| ---------------- | ------ | ------- | ----------------------- |
+| Skill lines      | <300   | 400     | Split or reference docs |
+| CLAUDE.md        | <400   | 500     | Move content to skills  |
+| Description char | N/A    | 15,000  | Trim descriptions       |
 
-**Current skill sizes should be monitored:**
+**Note**: Skill count doesn't matter if total descriptions stay under budget. The "15 skill limit" is a heuristic, not a hard constraint - the real limit is description character budget.
+
+**Monitor sizes:**
 
 ```bash
-wc -l .claude/skills/**/SKILL.md | sort -n
+# Check skill file sizes
+wc -l .claude/skills/*/SKILL.md | sort -n
+
+# Check description budget usage (should be <15000)
+for f in .claude/skills/*/SKILL.md; do
+  grep -A1 "^description:" "$f" | tail -1
+done | wc -c
 ```
 
 ## Skill Structure Template

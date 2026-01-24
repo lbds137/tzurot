@@ -1,6 +1,6 @@
 ---
 name: tzurot-deployment
-description: Contains MANDATORY Railway deployment procedures for Tzurot v3. MUST be consulted before deploying, running migrations, or debugging production. Covers service management, log analysis, and health checks.
+description: Railway deployment procedures for Tzurot v3. Use when deploying, running migrations, or debugging production. Covers service management, log analysis, and health checks.
 lastUpdated: '2026-01-21'
 ---
 

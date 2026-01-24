@@ -1,6 +1,6 @@
 ---
 name: tzurot-testing
-description: Contains MANDATORY Vitest testing patterns for Tzurot v3. MUST be consulted before creating any `.test.ts` file. Covers mock factories, fake timers, and promise rejection handling.
+description: Vitest testing patterns for Tzurot v3. Use when writing tests, debugging test failures, or mocking dependencies. Covers mock factories, fake timers, and promise rejection handling.
 lastUpdated: '2026-01-24'
 ---
 
@@ -237,47 +237,15 @@ describe('AI generation flow', () => {
 
 ### PGLite for Local Integration Tests
 
-Integration tests use PGLite (in-memory PostgreSQL with pgvector) for zero-setup database testing:
-
 ```bash
 # Run integration tests (no DATABASE_URL needed)
 pnpm test:integration
 
-# Schema is auto-generated from Prisma
+# Regenerate schema after Prisma migrations
 ./scripts/testing/regenerate-pglite-schema.sh
 ```
 
-**Schema Management** (CRITICAL):
-
-- Schema SQL is auto-generated from `prisma/schema.prisma`
-- Stored in `tests/integration/schema/pglite-schema.sql`
-- **Regenerate after Prisma migrations**: `./scripts/testing/regenerate-pglite-schema.sh`
-- Uses `prisma migrate diff --from-empty --to-schema` - never write SQL manually
-
-**Environment Detection**:
-
-| Environment               | Database         | Redis |
-| ------------------------- | ---------------- | ----- |
-| Local (no DATABASE_URL)   | PGLite           | Mock  |
-| Local (with DATABASE_URL) | Real Postgres    | Mock  |
-| CI (GITHUB_ACTIONS=true)  | Service Postgres | Real  |
-
-**Setup in Tests**:
-
-```typescript
-import { setupTestEnvironment, type TestEnvironment } from './setup';
-
-let testEnv: TestEnvironment;
-
-beforeAll(async () => {
-  testEnv = await setupTestEnvironment();
-  // testEnv.prisma, testEnv.redis available
-});
-
-afterAll(async () => {
-  await testEnv.cleanup();
-});
-```
+**📚 See**: `docs/reference/testing/PGLITE_SETUP.md` for full setup, environment detection, and test patterns.
 
 ## Definition of Done
 
@@ -311,73 +279,7 @@ pnpm ops test:audit-services --update
 pnpm ops test:audit --strict
 ```
 
-### Contract Coverage Audit
-
-Prevents new API schemas from being added without contract tests.
-
-**How It Works**:
-
-1. Finds all Zod schemas in `packages/common-types/src/schemas/api/`
-2. Checks which have `.safeParse()` calls in contract tests
-3. Compares against `contract-coverage-baseline.json`
-4. **Fails CI** if NEW untested schemas are added
-
-**Adding Contract Tests**:
-
-```typescript
-// packages/common-types/src/types/MyFeature.contract.test.ts
-import { MyResponseSchema } from '../schemas/api/myFeature.js';
-
-describe('MyFeature API Contract', () => {
-  it('should validate response structure', () => {
-    const response = { id: '123', name: 'Test' };
-    expect(MyResponseSchema.safeParse(response).success).toBe(true);
-  });
-
-  it('should reject invalid response', () => {
-    const invalid = { id: 123 }; // Wrong type
-    expect(MyResponseSchema.safeParse(invalid).success).toBe(false);
-  });
-});
-```
-
-### Service Integration Coverage Audit
-
-Prevents new `*Service.ts` files from being added without component tests.
-
-**How It Works**:
-
-1. Finds all `*Service.ts` files in services/ and packages/
-2. Checks which have `.component.test.ts` files
-3. Compares against `service-integration-baseline.json`
-4. **Fails CI** if NEW services are added without component tests
-
-**Exemptions**: Some services don't need component tests (re-exports, thin wrappers). Add to `exempt` array in baseline.
-
-## Chip-Away Workflow (Closing Test Gaps)
-
-Existing gaps are tracked in baselines. Close them incrementally:
-
-```bash
-# 1. View current gaps
-pnpm ops test:audit-contracts    # Contract test gaps
-pnpm ops test:audit-services     # Component test gaps
-
-# 2. Pick a gap and write tests
-# Example: Close gap for PersonalityService
-# Create: services/api-gateway/src/services/PersonalityService.component.test.ts
-
-# 3. Update baseline to record progress
-pnpm ops test:audit-services --update
-```
-
-**Target**: Close 2-3 gaps per week during maintenance sessions.
-
-**Priority Order** (from `service-integration-baseline.json`):
-
-1. `services/ai-worker/src/services/LongTermMemoryService.ts` - core memory ops
-2. `services/ai-worker/src/services/ConversationalRAGService.ts` - AI generation flow
-3. `services/api-gateway/src/services/PersonalityService.ts` - used everywhere
+**📚 See**: `docs/reference/testing/COVERAGE_AUDIT_SYSTEM.md` for detailed audit workflows, chip-away process, and priority order.
 
 ## Anti-Patterns
 
@@ -395,40 +297,16 @@ console.log('Debug:', value);
 it.skip('broken test', () => {});
 ```
 
-## Coverage Requirements (CI Enforced)
+## Coverage Requirements
+
+**Threshold**: 80% project-wide and per-patch. Codecov blocks if coverage drops >2%.
 
 ```bash
-# Check coverage locally
-pnpm test:coverage
-
-# Specific service
-pnpm --filter @tzurot/api-gateway test:coverage
+pnpm test:coverage                                  # Check coverage locally
+pnpm --filter @tzurot/api-gateway test:coverage     # Specific service
 ```
 
-### Reading Coverage Data (json-summary)
-
-Coverage runs generate `coverage/coverage-summary.json` with structured data:
-
-```bash
-# Read total or file-specific coverage (no grep chains!)
-cat services/bot-client/coverage/coverage-summary.json | \
-  python3 -c "import json,sys; d=json.load(sys.stdin); print(d['total']['lines']['pct'])"
-```
-
-Structure: `{"total": {"lines": {"pct": 84.78}}, "/path/file.ts": {"lines": {...}}}`
-
-| Target   | Threshold | Enforcement                                              |
-| -------- | --------- | -------------------------------------------------------- |
-| Project  | 80%       | Codecov blocks if drops >2%                              |
-| Patch    | 80%       | New code must be 80%+ covered                            |
-| Services | 80%       | Tracked per-service (ai-worker, api-gateway, bot-client) |
-| Utils    | 90%       | Higher bar for shared utilities                          |
-
-**CI Gate**: Codecov runs on every PR. Coverage report shows:
-
-- Overall project coverage change
-- Per-file coverage for changed files
-- Patch coverage (new/modified lines only)
+**📚 See**: `docs/reference/testing/COVERAGE_AUDIT_SYSTEM.md` for detailed thresholds and reading coverage data.
 
 ## Related Skills
 

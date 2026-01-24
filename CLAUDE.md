@@ -170,19 +170,9 @@ await prisma.userPersonalityConfig.upsert({
 
 ### Code Quality Limits (ESLint Enforced)
 
-| Metric                | Limit     | Level | Why                         |
-| --------------------- | --------- | ----- | --------------------------- |
-| File length           | 500 lines | Error | Prevents monolithic modules |
-| Function length       | 100 lines | Warn  | SRP enforcement             |
-| Cyclomatic complexity | 15        | Warn  | Readable branching          |
-| Nesting depth         | 4         | Warn  | Prevents arrow code         |
-| Parameters            | 5         | Warn  | Use options objects         |
-| Statements/function   | 30        | Warn  | Extract helpers             |
-| Nested callbacks      | 3         | Warn  | Use async/await             |
+**Key limits**: 500 lines/file (error), 100 lines/function, 15 complexity, 4 nesting depth.
 
-**When hitting limits**: Extract helpers, use options objects, split files.
-
-**📚 See**: `tzurot-code-quality` skill for refactoring patterns, `docs/reference/standards/HANDLER_FACTORY_PATTERN.md` for route handler structure
+**📚 See**: `tzurot-code-quality` skill for full limits table, refactoring patterns, and extraction techniques.
 
 ### Type Safety (TypeScript Strict Mode)
 
@@ -193,12 +183,9 @@ await prisma.userPersonalityConfig.upsert({
 
 ### Coverage Requirements (Codecov Enforced)
 
-| Target  | Threshold | Enforcement                     |
-| ------- | --------- | ------------------------------- |
-| Project | 80%       | CI blocks if coverage drops >2% |
-| Patch   | 80%       | New code must be 80%+ covered   |
+**Threshold**: 80% project-wide and per-patch. Codecov blocks if coverage drops >2%.
 
-Services tracked separately: ai-worker, api-gateway, bot-client, common-types
+**📚 See**: `tzurot-testing` skill for coverage details and ratchet audits.
 
 ### Error Handling Strategy
 
@@ -324,62 +311,7 @@ pnpm ops run --env dev <cmd>     # Run any command with Railway DB credentials
 
 **Note**: Use pnpm, NOT npm. ESLint uses flat config (`eslint.config.js`), NOT `.eslintrc.*`.
 
-**📚 See**: `tzurot-deployment` skill for full ops CLI reference, `tzurot-db-vector` for database patterns
-
-## CLI Quick Reference (pnpm ops)
-
-### Database Operations
-
-```bash
-pnpm ops db:status --env dev       # Migration status
-pnpm ops db:migrate --env dev      # Run migrations
-pnpm ops db:safe-migrate --env dev # Auto-sanitizes Prisma drift
-pnpm ops db:check-drift            # Check for migration checksum issues
-pnpm ops db:fix-drift              # Fix checksum mismatches
-pnpm ops db:inspect                # Local database inspection
-```
-
-### GitHub Operations (use instead of flaky `gh` commands)
-
-```bash
-pnpm ops gh:pr-info <n>            # PR summary
-pnpm ops gh:pr-reviews <n>         # All reviews
-pnpm ops gh:pr-comments <n>        # All comments
-pnpm ops gh:pr-conversation <n>    # Full conversation
-pnpm ops gh:pr-all <n>             # Everything
-pnpm ops gh:pr-edit <n> --title "..." # Edit PR (replaces broken gh pr edit)
-```
-
-### Development Shortcuts
-
-```bash
-pnpm ops dev:lint --errors-only    # Lint changed packages
-pnpm ops dev:test --all            # Test changed packages
-pnpm focus:lint                    # Turbo-cached lint
-pnpm focus:test                    # Turbo-cached test
-```
-
-### Test Coverage Audits (Ratchet System)
-
-```bash
-pnpm ops test:audit                # Run both audits (contract + services)
-pnpm ops test:audit-contracts      # API schema contract test coverage
-pnpm ops test:audit-services       # Service component test coverage
-pnpm ops test:audit --strict       # Fail on ANY gap (not just new ones)
-pnpm ops test:audit-contracts --update  # Update baseline after closing gaps
-pnpm ops test:audit-services --update   # Update baseline after closing gaps
-```
-
-**📚 See**: `tzurot-testing` skill for chip-away workflow and Definition of Done
-
-### Integration Testing (PGLite)
-
-```bash
-pnpm test:integration                              # Run integration tests
-./scripts/testing/regenerate-pglite-schema.sh      # Regenerate PGLite schema after migrations
-```
-
-**📚 See**: `tzurot-testing` skill for PGLite setup and when to use integration vs unit tests
+**📚 See**: `tzurot-tooling` skill for full CLI reference, `tzurot-deployment` for Railway ops, `tzurot-db-vector` for database patterns
 
 ## Git Workflow
 
