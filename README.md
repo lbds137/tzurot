@@ -168,20 +168,24 @@ const provider = AIProviderFactory.create('openai', {
 - **Guest Mode**: Free model access for users without API keys
 - **Channel Activation**: Personalities can auto-respond to all messages in a channel
 - **Slash Commands**:
-  - `/wallet set/list/remove` - Manage your API keys (BYOK)
-  - `/character create/edit/view/list/delete` - Manage personalities
-  - `/character import/export` - Import/export personality configurations
-  - `/character config` - Configure per-personality settings (model, persona)
-  - `/character chat` - Direct chat with a personality
-  - `/character avatar/dashboard/template` - Avatar management and utilities
-  - `/preset create/list/delete` - Custom LLM presets (model + parameters)
-  - `/channel activate/deactivate/list` - Channel auto-response activation
+  - `/wallet set/browse/remove/test` - Manage your API keys (BYOK)
+  - `/character create/edit/view/browse` - Manage AI characters
+  - `/character import/export` - Import/export character configurations
+  - `/character settings` - Configure per-character settings (model, persona)
+  - `/character chat` - Direct chat with a character
+  - `/character avatar/template` - Avatar management and utilities
+  - `/preset create/edit/browse` - Custom LLM presets (model + parameters)
+  - `/preset global default/free-default` - View/set global default presets
+  - `/channel activate/deactivate/browse/settings` - Channel auto-response management
   - `/history clear/stats/undo/hard-delete` - Conversation history management
-  - `/me timezone set/get` - Timezone settings for timestamps
+  - `/memory browse/search/stats` - Browse and search long-term memories
+  - `/memory focus/forget/purge/delete` - Memory management operations
+  - `/memory incognito enable/disable/status` - Temporary privacy mode
   - `/me profile view/edit/create/list/default` - User persona management
-  - `/me profile override-set/override-clear` - Per-personality persona overrides
   - `/me profile share-ltm` - Share long-term memory between personas
-  - `/admin servers/kick/usage/cleanup/db-sync/ping` - Bot administration (owner only)
+  - `/me timezone set/get` - Timezone settings for timestamps
+  - `/me overrides list/set/override-set/override-clear/clear-default` - Per-character preset overrides
+  - `/admin ping/servers/kick/usage/cleanup/db-sync/settings` - Bot administration (owner only)
   - `/help` - Show available commands
 
 ### 📋 Planned Features
