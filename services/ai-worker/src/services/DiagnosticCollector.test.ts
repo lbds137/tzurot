@@ -466,9 +466,10 @@ describe('DiagnosticCollector', () => {
       vi.useRealTimers(); // Need real timers for this test
 
       const startCollector = new DiagnosticCollector(defaultOptions);
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise(resolve => setTimeout(resolve, 15));
       const payload = startCollector.finalize();
 
+      // Use slightly lower threshold than sleep time to account for timer imprecision
       expect(payload.timing.totalDurationMs).toBeGreaterThanOrEqual(10);
     });
 
