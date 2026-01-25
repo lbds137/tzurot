@@ -19,7 +19,7 @@ import {
 import { MessageRole, type StoredReferencedMessage } from '@tzurot/common-types';
 
 // Mock common-types - use importOriginal to get actual implementations
-// but override logger and formatRelativeTime for test isolation
+// but override logger and timestamp formatters for test isolation
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -33,6 +33,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     formatRelativeTime: vi.fn((_timestamp: string) => {
       // Simple mock that returns a formatted string
       return 'just now';
+    }),
+    formatPromptTimestamp: vi.fn((_timestamp: string | Date | number) => {
+      // Simple mock that returns a unified timestamp string
+      return '2025-01-25 (Sat) 14:30 • just now';
     }),
   };
 });
@@ -460,7 +464,7 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('Hi there!');
     });
 
-    it('should include time attribute when createdAt is present', () => {
+    it('should include t attribute when createdAt is present', () => {
       const history: RawHistoryEntry[] = [
         {
           role: 'user',
@@ -471,7 +475,7 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      expect(result).toContain('time="just now"'); // Mocked formatRelativeTime
+      expect(result).toContain('t="2025-01-25 (Sat) 14:30 • just now"'); // Mocked formatPromptTimestamp
     });
 
     it('should skip system messages', () => {
@@ -1790,10 +1794,10 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      // Format should be: <message from="..." from_id="..." role="..." time="..." timestamp="...">
-      // Now includes both relative time and absolute timestamp
+      // Format should be: <message from="..." from_id="..." role="..." t="...">
+      // Uses unified timestamp format
       expect(result).toMatch(
-        /<message from="Alice" from_id="persona-uuid-123" role="user" time="just now" timestamp="2025-01-01T00:00:00Z">/
+        /<message from="Alice" from_id="persona-uuid-123" role="user" t="2025-01-25 \(Sat\) 14:30 • just now">/
       );
     });
 
@@ -2022,7 +2026,7 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('from="COLD" role="assistant"');
     });
 
-    it('should include timestamp attribute for ordering verification', () => {
+    it('should include unified t attribute with both date and relative time', () => {
       const history: RawHistoryEntry[] = [
         {
           role: 'user',
@@ -2040,11 +2044,11 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'COLD');
 
-      // Both messages should have timestamp attribute
-      expect(result).toContain('timestamp="2025-01-22T15:30:00.000Z"');
-      expect(result).toContain('timestamp="2025-01-22T15:30:05.000Z"');
-      // Should also have relative time attribute
-      expect(result).toMatch(/time="[^"]+"/);
+      // Both messages should have unified t attribute (mocked to consistent value)
+      expect(result).toMatch(/t="[^"]+"/);
+      // Should appear twice (once per message)
+      const tAttrCount = (result.match(/t="2025-01-25 \(Sat\) 14:30 • just now"/g) || []).length;
+      expect(tAttrCount).toBe(2);
     });
 
     it('should correctly estimate length with other AI personality names', () => {

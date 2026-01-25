@@ -6,6 +6,7 @@ import {
   formatMemoryTimestamp,
   formatRelativeTimeDelta,
   formatTimestampWithDelta,
+  formatPromptTimestamp,
 } from './dateFormatting.js';
 
 describe('dateFormatting', () => {
@@ -230,6 +231,97 @@ describe('dateFormatting', () => {
 
       expect(result.absolute).toBe('Sat, Jan 27, 2024');
       expect(result.relative).toBe('1 year ago');
+    });
+  });
+
+  describe('formatPromptTimestamp', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date('2025-01-27T12:00:00Z'));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should format recent timestamp with time included', () => {
+      const date = new Date('2025-01-27T10:30:00Z'); // 1.5 hours ago
+      const result = formatPromptTimestamp(date, 'UTC');
+
+      // Format: "YYYY-MM-DD (Day) HH:MM • relative"
+      expect(result).toBe('2025-01-27 (Mon) 10:30 • 1 hour ago');
+    });
+
+    it('should format timestamp from earlier today', () => {
+      const date = new Date('2025-01-27T08:15:00Z'); // ~4 hours ago
+      const result = formatPromptTimestamp(date, 'UTC');
+
+      expect(result).toContain('2025-01-27 (Mon)');
+      expect(result).toContain('08:15');
+      expect(result).toContain('3 hours ago');
+    });
+
+    it('should format timestamp from yesterday', () => {
+      const date = new Date('2025-01-26T12:00:00Z'); // 1 day ago
+      const result = formatPromptTimestamp(date, 'UTC');
+
+      expect(result).toContain('2025-01-26 (Sun)');
+      expect(result).toContain('12:00');
+      expect(result).toContain('yesterday');
+    });
+
+    it('should format timestamp from a few days ago with time', () => {
+      const date = new Date('2025-01-24T12:00:00Z'); // 3 days ago (same time as "now")
+      const result = formatPromptTimestamp(date, 'UTC');
+
+      expect(result).toContain('2025-01-24 (Fri)');
+      expect(result).toContain('12:00');
+      expect(result).toContain('3 days ago');
+    });
+
+    it('should format old timestamp without time (>7 days)', () => {
+      const date = new Date('2025-01-15T10:30:00Z'); // 12 days ago
+      const result = formatPromptTimestamp(date, 'UTC');
+
+      // Older timestamps omit time for brevity
+      expect(result).toBe('2025-01-15 (Wed) • 1 week ago');
+      expect(result).not.toContain('10:30');
+    });
+
+    it('should format very old timestamp without time', () => {
+      const date = new Date('2024-10-27T12:00:00Z'); // ~3 months ago
+      const result = formatPromptTimestamp(date, 'UTC');
+
+      expect(result).toBe('2024-10-27 (Sun) • 3 months ago');
+    });
+
+    it('should return empty string for invalid date', () => {
+      expect(formatPromptTimestamp('not-a-date')).toBe('');
+      expect(formatPromptTimestamp(NaN)).toBe('');
+    });
+
+    it('should handle string input', () => {
+      const result = formatPromptTimestamp('2025-01-27T11:00:00Z', 'UTC');
+
+      expect(result).toContain('2025-01-27 (Mon)');
+      expect(result).toContain('11:00');
+      expect(result).toContain('1 hour ago');
+    });
+
+    it('should handle numeric timestamp input', () => {
+      const timestamp = new Date('2025-01-27T11:00:00Z').getTime();
+      const result = formatPromptTimestamp(timestamp, 'UTC');
+
+      expect(result).toContain('2025-01-27 (Mon)');
+      expect(result).toContain('11:00');
+    });
+
+    it('should respect timezone parameter', () => {
+      // 12:00 UTC = 07:00 EST (America/New_York)
+      const date = new Date('2025-01-27T12:00:00Z');
+      const result = formatPromptTimestamp(date, 'America/New_York');
+
+      expect(result).toContain('07:00');
     });
   });
 });

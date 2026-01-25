@@ -11,7 +11,7 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { formatTimestampWithDelta, escapeXml, escapeXmlContent } from '@tzurot/common-types';
+import { formatPromptTimestamp, escapeXml, escapeXmlContent } from '@tzurot/common-types';
 import type { MemoryDocument } from '../ConversationalRAGService.js';
 
 /**
@@ -72,15 +72,16 @@ export function getMemoryWrapperOverheadText(): string {
  * Used by both MemoryFormatter (for prompt generation) and
  * ContextWindowManager (for token counting).
  *
- * Format: `<historical_note recorded="absolute" ago="relative">content</historical_note>`
- * Example: `<historical_note recorded="Mon, Jan 15, 2025" ago="2 weeks ago">content</historical_note>`
+ * Format: `<historical_note t="YYYY-MM-DD (Day) HH:MM • relative">content</historical_note>`
+ * Example: `<historical_note t="2025-01-15 (Wed) 14:30 • 2 weeks ago">content</historical_note>`
+ * For older memories (>7 days): `<historical_note t="2024-11-15 (Fri) • 2 months ago">content</historical_note>`
  *
  * IMPORTANT: We use <historical_note> instead of <memory> or <message> to create
  * "structural distancing" from the conversation. This prevents the LLM from treating
  * archived content as part of the active dialogue thread.
  *
- * The relative time attribute helps LLMs understand temporal distance viscerally,
- * reducing temporal confusion where old memories are treated as recent events.
+ * The unified timestamp format helps LLMs understand both absolute date and temporal
+ * distance in a token-efficient single attribute.
  *
  * @param doc - Memory document to format
  * @param timezone - Optional IANA timezone for timestamp formatting. Defaults to server timezone.
@@ -94,18 +95,17 @@ export function formatSingleMemory(doc: MemoryDocument, timezone?: string): stri
     return `<historical_note>${safeContent}</historical_note>`;
   }
 
-  const { absolute, relative } = formatTimestampWithDelta(doc.metadata.createdAt, timezone);
+  const formattedTime = formatPromptTimestamp(doc.metadata.createdAt, timezone);
 
-  // If either is empty (invalid date), just return content without timestamps
-  if (absolute.length === 0 || relative.length === 0) {
+  // If empty (invalid date), just return content without timestamp
+  if (formattedTime.length === 0) {
     return `<historical_note>${safeContent}</historical_note>`;
   }
 
-  // Escape attribute values to prevent XML injection
-  const safeAbsolute = escapeXml(absolute);
-  const safeRelative = escapeXml(relative);
+  // Escape attribute value to prevent XML injection
+  const safeTime = escapeXml(formattedTime);
 
-  return `<historical_note recorded="${safeAbsolute}" ago="${safeRelative}">${safeContent}</historical_note>`;
+  return `<historical_note t="${safeTime}">${safeContent}</historical_note>`;
 }
 
 /**
