@@ -264,11 +264,15 @@ function formatStoredReferencedMessage(
 
 /**
  * Resolve speaker name and role from a history entry
+ * @param msg - The message to resolve
+ * @param personalityName - Current AI personality name (fallback for assistant messages)
+ * @param allPersonalityNames - Set of all AI personality names in the conversation (for collision detection)
  * @returns Speaker name and role, or null if message should be skipped
  */
 function resolveSpeakerInfo(
   msg: RawHistoryEntry,
-  personalityName: string
+  personalityName: string,
+  allPersonalityNames?: Set<string>
 ): { speakerName: string; role: 'user' | 'assistant'; normalizedRole: string } | null {
   const normalizedRole = String(msg.role).toLowerCase();
 
@@ -277,10 +281,17 @@ function resolveSpeakerInfo(
     let speakerName =
       msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
 
-    // Disambiguate when persona name matches personality name (e.g., both "Lila")
+    // Disambiguate when persona name matches ANY AI personality name in the conversation
+    // This handles multi-AI channels where user "Lila" could be confused with "Lila AI"
     // Format: "Lila (@lbds137)" to make it clear who is who
+    const speakerLower = speakerName.toLowerCase();
+    const needsDisambiguation =
+      speakerLower === personalityName.toLowerCase() ||
+      (allPersonalityNames !== undefined &&
+        Array.from(allPersonalityNames).some(name => name.toLowerCase() === speakerLower));
+
     if (
-      speakerName.toLowerCase() === personalityName.toLowerCase() &&
+      needsDisambiguation &&
       msg.discordUsername !== undefined &&
       msg.discordUsername.length > 0
     ) {
@@ -314,20 +325,23 @@ function resolveSpeakerInfo(
  *
  * Format: <message from="Name" role="user|assistant" time="2m ago">content</message>
  *
- * When a user's persona name matches the AI personality name (e.g., both "Lila"),
- * the user's name is disambiguated as "Lila (@discordUsername)" to prevent confusion.
+ * When a user's persona name matches ANY AI personality name in the conversation
+ * (e.g., user "Lila" in a channel with "Lila AI"), the user's name is disambiguated
+ * as "Lila (@discordUsername)" to prevent confusion.
  *
  * @param msg - Raw history entry to format
  * @param personalityName - Name of the AI personality (for marking its own messages)
  * @param historyMessageIds - Optional set of Discord message IDs already in history (for quote deduplication)
+ * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
  * @returns Formatted XML string, or empty string if message should be skipped
  */
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
-  historyMessageIds?: Set<string>
+  historyMessageIds?: Set<string>,
+  allPersonalityNames?: Set<string>
 ): string {
-  const speakerInfo = resolveSpeakerInfo(msg, personalityName);
+  const speakerInfo = resolveSpeakerInfo(msg, personalityName, allPersonalityNames);
   if (speakerInfo === null) {
     return '';
   }
@@ -448,6 +462,20 @@ export function formatConversationHistoryAsXml(
     }
   }
 
+  // Collect all AI personality names from assistant messages
+  // This enables multi-AI name collision detection (e.g., user "Lila" vs "Lila AI")
+  const allPersonalityNames = new Set<string>();
+  allPersonalityNames.add(personalityName); // Always include current personality
+  for (const msg of history) {
+    if (
+      String(msg.role).toLowerCase() === 'assistant' &&
+      msg.personalityName !== undefined &&
+      msg.personalityName.length > 0
+    ) {
+      allPersonalityNames.add(msg.personalityName);
+    }
+  }
+
   const messages: string[] = [];
   let previousTimestamp: string | undefined;
 
@@ -464,7 +492,12 @@ export function formatConversationHistoryAsXml(
       }
     }
 
-    const formatted = formatSingleHistoryEntryAsXml(msg, personalityName, historyMessageIds);
+    const formatted = formatSingleHistoryEntryAsXml(
+      msg,
+      personalityName,
+      historyMessageIds,
+      allPersonalityNames
+    );
     if (formatted.length > 0) {
       messages.push(formatted);
       // Update previous timestamp for next iteration
