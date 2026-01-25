@@ -72,11 +72,8 @@ export function formatEnvironmentContext(environment: DiscordEnvironment): strin
 
   // Channel - escape to prevent prompt injection
   // Include topic if available (provides context about the channel's purpose)
-  const channelTopic = environment.channel.topic;
-  const topicAttr =
-    channelTopic !== undefined && channelTopic !== null && channelTopic.length > 0
-      ? ` topic="${escapeXml(channelTopic)}"`
-      : '';
+  const topic = environment.channel.topic;
+  const topicAttr = topic !== undefined && topic.length > 0 ? ` topic="${escapeXml(topic)}"` : '';
   parts.push(
     `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"${topicAttr}/>`
   );
