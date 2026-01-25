@@ -1026,5 +1026,132 @@ describe('MessageContextBuilder', () => {
       // Note: buildContext returns { context, ... } so access via context property
       expect(result.context.extendedContextAttachments).toBeUndefined();
     });
+
+    it('should resolve discord:XXXX personaIds to actual UUIDs when users are created', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+
+      // Mock batch user creation to return a mapping
+      const userMap = new Map([
+        ['user-alice', 'alice-uuid-123'],
+        ['user-bob', 'bob-uuid-456'],
+      ]);
+      vi.mocked(mockUserService.getOrCreateUsersInBatch).mockResolvedValue(userMap);
+
+      // Mock PersonaResolver.resolve to return different persona IDs
+      mockPersonaResolver.resolve
+        .mockResolvedValueOnce({
+          config: { personaId: 'persona-123', preferredName: 'Test Persona', pronouns: null },
+          source: 'user-default',
+        })
+        .mockResolvedValueOnce({
+          config: {
+            personaId: 'alice-persona-uuid',
+            preferredName: 'Alice Display',
+            pronouns: null,
+          },
+          source: 'user-default',
+        })
+        .mockResolvedValueOnce({
+          config: { personaId: 'bob-persona-uuid', preferredName: 'Bob Display', pronouns: null },
+          source: 'user-default',
+        });
+
+      // Extended context messages with discord:XXXX format personaIds
+      const extendedMessages = [
+        {
+          id: 'ext-msg-1',
+          role: MessageRole.User,
+          content: 'Hello from Alice',
+          createdAt: new Date('2025-01-01T01:00:00Z'),
+          personaId: 'discord:user-alice',
+          personaName: 'Alice',
+          discordMessageId: ['discord-ext-1'],
+        },
+        {
+          id: 'ext-msg-2',
+          role: MessageRole.User,
+          content: 'Hello from Bob',
+          createdAt: new Date('2025-01-01T01:05:00Z'),
+          personaId: 'discord:user-bob',
+          personaName: 'Bob',
+          discordMessageId: ['discord-ext-2'],
+        },
+      ];
+
+      // Mock fetch result with extendedContextUsers
+      mockFetchRecentMessages.mockResolvedValue({
+        messages: extendedMessages,
+        fetchedCount: 10,
+        filteredCount: 2,
+        extendedContextUsers: [
+          { discordId: 'user-alice', username: 'alice', isBot: false },
+          { discordId: 'user-bob', username: 'bob', isBot: false },
+        ],
+        participantGuildInfo: {
+          'discord:user-alice': { roles: ['Member'], displayColor: '#FF0000' },
+          'discord:user-bob': { roles: ['Admin'], displayColor: '#00FF00' },
+        },
+      });
+
+      mockMergeWithHistory.mockReturnValue(extendedMessages);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        extendedContext: {
+          enabled: true,
+          maxMessages: 20,
+          maxAge: null,
+          maxImages: 0,
+          sources: {
+            enabled: 'global',
+            maxMessages: 'global',
+            maxAge: 'global',
+            maxImages: 'global',
+          },
+        },
+        botUserId: 'bot-123',
+      });
+
+      // Verify batch user creation was called
+      expect(mockUserService.getOrCreateUsersInBatch).toHaveBeenCalledWith([
+        { discordId: 'user-alice', username: 'alice', isBot: false },
+        { discordId: 'user-bob', username: 'bob', isBot: false },
+      ]);
+
+      // Verify PersonaResolver.resolve was called for each extended context user
+      // First call is for the current user, then for alice, then for bob
+      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-alice', 'personality-123');
+      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-bob', 'personality-123');
+
+      // Verify personaIds were resolved to UUIDs in the messages
+      expect(extendedMessages[0].personaId).toBe('alice-persona-uuid');
+      expect(extendedMessages[0].personaName).toBe('Alice Display');
+      expect(extendedMessages[1].personaId).toBe('bob-persona-uuid');
+      expect(extendedMessages[1].personaName).toBe('Bob Display');
+
+      // Verify participantGuildInfo keys were remapped
+      expect(result.context.participantGuildInfo).toBeDefined();
+      expect(result.context.participantGuildInfo?.['alice-persona-uuid']).toEqual({
+        roles: ['Member'],
+        displayColor: '#FF0000',
+      });
+      expect(result.context.participantGuildInfo?.['bob-persona-uuid']).toEqual({
+        roles: ['Admin'],
+        displayColor: '#00FF00',
+      });
+      // Old keys should be gone
+      expect(result.context.participantGuildInfo?.['discord:user-alice']).toBeUndefined();
+      expect(result.context.participantGuildInfo?.['discord:user-bob']).toBeUndefined();
+    });
   });
 });

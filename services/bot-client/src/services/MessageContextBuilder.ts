@@ -6,6 +6,8 @@
  * Supports extended context: fetching recent Discord channel messages.
  */
 
+/* eslint-disable max-lines -- Cohesive service handling message context building, extended context, and persona resolution */
+
 import type {
   PrismaClient,
   PersonaResolver,
@@ -143,6 +145,69 @@ export class MessageContextBuilder {
     this.personaResolver = personaResolver;
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever(this.conversationHistory);
+  }
+
+  /**
+   * Resolve discord:XXXX format personaIds to actual UUIDs.
+   * Also remaps participantGuildInfo keys to use the new UUIDs.
+   *
+   * @param messages - Messages to update (modified in place)
+   * @param userMap - Map of discordId -> userId from batch creation
+   * @param personalityId - Personality ID for persona resolution
+   * @param participantGuildInfo - Guild info map to remap (modified in place)
+   * @returns Number of resolved personaIds
+   */
+  private async resolveExtendedContextPersonaIds(
+    messages: import('@tzurot/common-types').ConversationMessage[],
+    userMap: Map<string, string>,
+    personalityId: string,
+    participantGuildInfo?: Record<
+      string,
+      { roles: string[]; displayColor?: string; joinedAt?: string }
+    >
+  ): Promise<number> {
+    if (userMap.size === 0) {
+      return 0;
+    }
+
+    let resolvedCount = 0;
+    const guildInfoRemap = new Map<string, string>(); // discord:XXXX -> resolved UUID
+
+    for (const msg of messages) {
+      if (!msg.personaId?.startsWith('discord:')) {
+        continue;
+      }
+      const discordId = msg.personaId.slice(8);
+      if (!userMap.has(discordId)) {
+        continue;
+      }
+      // Resolve to actual persona ID using PersonaResolver
+      const resolved = await this.personaResolver.resolve(discordId, personalityId);
+      if (resolved.config.personaId.length === 0) {
+        continue;
+      }
+      const oldPersonaId = msg.personaId;
+      msg.personaId = resolved.config.personaId;
+      // Update personaName to match resolved persona (if available)
+      if (resolved.config.preferredName !== undefined && resolved.config.preferredName !== null) {
+        msg.personaName = resolved.config.preferredName;
+      }
+      // Track mapping for participantGuildInfo remap
+      guildInfoRemap.set(oldPersonaId, resolved.config.personaId);
+      resolvedCount++;
+    }
+
+    // Remap participantGuildInfo keys from discord:XXXX to resolved UUIDs
+    if (participantGuildInfo !== undefined && guildInfoRemap.size > 0) {
+      for (const [oldKey, newKey] of guildInfoRemap) {
+        if (oldKey in participantGuildInfo) {
+          participantGuildInfo[newKey] = participantGuildInfo[oldKey];
+          delete participantGuildInfo[oldKey];
+        }
+      }
+    }
+
+    return resolvedCount;
   }
 
   /**
@@ -323,7 +388,7 @@ export class MessageContextBuilder {
       }
     );
 
-    // Create personas for extended context users (for consistent UUID-based identity)
+    // Create personas for extended context users and resolve discord:XXXX personaIds to UUIDs
     if (
       fetchResult.extendedContextUsers !== undefined &&
       fetchResult.extendedContextUsers.length > 0
@@ -335,6 +400,21 @@ export class MessageContextBuilder {
         { requested: fetchResult.extendedContextUsers.length, created: userMap.size },
         '[MessageContextBuilder] Batch created personas for extended context users'
       );
+
+      // Resolve personaIds and remap participantGuildInfo keys
+      const resolvedCount = await this.resolveExtendedContextPersonaIds(
+        fetchResult.messages,
+        userMap,
+        personality.id,
+        fetchResult.participantGuildInfo
+      );
+
+      if (resolvedCount > 0) {
+        logger.debug(
+          { resolved: resolvedCount, total: fetchResult.messages.length },
+          '[MessageContextBuilder] Resolved extended context personaIds to UUIDs'
+        );
+      }
     }
 
     if (fetchResult.messages.length === 0) {
