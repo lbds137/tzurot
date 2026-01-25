@@ -6,7 +6,11 @@
 
 import { Router } from 'express';
 import { access, writeFile } from 'fs/promises';
-import { getSafeAvatarPath, isValidSlug } from '../../utils/avatarPaths.js';
+import {
+  getSafeAvatarPath,
+  isValidSlug,
+  extractSlugFromFilename,
+} from '../../utils/avatarPaths.js';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -28,12 +32,24 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
   // Serve personality avatars with DB fallback
   // Avatars are primarily served from filesystem (/data/avatars)
   // If not found on filesystem, fall back to database and cache to filesystem
-  router.get('/:slug.png', (req, res) => {
+  //
+  // Supports two URL formats for cache-busting:
+  // 1. Legacy: /avatars/{slug}.png
+  // 2. Path-versioned: /avatars/{slug}-{timestamp}.png (Discord CDN cache-busting)
+  //
+  // The timestamp suffix is stripped to get the actual slug for file lookup.
+  // Discord's CDN ignores query params, so we embed timestamp in the path instead.
+  router.get('/:filename', (req, res) => {
     void (async () => {
-      const slug = req.params.slug;
+      const filename = req.params.filename;
+
+      // Extract slug from filename, handling both formats:
+      // - "cold.png" -> "cold"
+      // - "cold-1705827727111.png" -> "cold"
+      const slug = extractSlugFromFilename(filename);
 
       // Validate slug and construct safe path (prevents path traversal attacks)
-      if (!slug || !isValidSlug(slug)) {
+      if (slug === null || !isValidSlug(slug)) {
         const errorResponse = ErrorResponses.validationError('Invalid personality slug');
         res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
         return;

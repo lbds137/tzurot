@@ -23,6 +23,53 @@ export const AVATAR_ROOT = '/data/avatars';
 const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 /**
+ * Regex pattern for path-versioned avatar filenames
+ * Matches: {slug}-{timestamp}.png where timestamp is 13+ digits (milliseconds)
+ * Examples:
+ * - "cold-1705827727111.png" -> captures "cold"
+ * - "my-personality-1705827727111.png" -> captures "my-personality"
+ */
+const VERSIONED_FILENAME_PATTERN = /^(.+)-(\d{13,})\.png$/;
+
+/**
+ * Regex pattern for legacy avatar filenames (no timestamp)
+ * Matches: {slug}.png
+ * Examples:
+ * - "cold.png" -> captures "cold"
+ * - "my-personality.png" -> captures "my-personality"
+ */
+const LEGACY_FILENAME_PATTERN = /^(.+)\.png$/;
+
+/**
+ * Extracts the personality slug from an avatar filename
+ *
+ * Supports two formats for Discord CDN cache-busting:
+ * 1. Path-versioned: "{slug}-{timestamp}.png" -> returns "{slug}"
+ * 2. Legacy: "{slug}.png" -> returns "{slug}"
+ *
+ * The timestamp is a 13+ digit number (milliseconds since epoch).
+ * We match the longest possible timestamp to handle slugs containing hyphens.
+ *
+ * @param filename - The avatar filename (e.g., "cold-1705827727111.png" or "cold.png")
+ * @returns The extracted slug, or null if the filename is invalid
+ */
+export function extractSlugFromFilename(filename: string): string | null {
+  // Try path-versioned format first (with timestamp)
+  const versionedMatch = VERSIONED_FILENAME_PATTERN.exec(filename);
+  if (versionedMatch) {
+    return versionedMatch[1];
+  }
+
+  // Fall back to legacy format (no timestamp)
+  const legacyMatch = LEGACY_FILENAME_PATTERN.exec(filename);
+  if (legacyMatch) {
+    return legacyMatch[1];
+  }
+
+  return null;
+}
+
+/**
  * Validates a slug is safe for use in file paths
  */
 export function isValidSlug(slug: string): boolean {

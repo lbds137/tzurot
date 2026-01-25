@@ -99,10 +99,11 @@ function createMockWebhook(id: string, ownerId?: string): Webhook {
 }
 
 // Helper to create mock LoadedPersonality
+// Note: avatarUrl now includes path-based cache-busting (timestamp in filename)
+// e.g., /avatars/cold-1705827727111.png - no need for separate avatarUpdatedAt
 function createMockPersonality(
   displayName: string,
   avatarUrl?: string,
-  avatarUpdatedAt?: Date,
   name?: string
 ): LoadedPersonality {
   return {
@@ -111,7 +112,6 @@ function createMockPersonality(
     displayName,
     systemPrompt: 'Test personality',
     avatarUrl,
-    avatarUpdatedAt,
     llmConfig: {
       model: 'test-model',
       temperature: 0.7,
@@ -527,16 +527,19 @@ describe('WebhookManager', () => {
       });
     });
 
-    describe('avatar cache-busting', () => {
-      it('should append timestamp query param when avatarUpdatedAt exists', async () => {
+    describe('avatar URL handling', () => {
+      // Note: Cache-busting is now path-based (timestamp in filename) and handled
+      // by deriveAvatarUrl() in PersonalityDefaults.ts, not by WebhookManager.
+      // WebhookManager simply passes the URL through to Discord.
+
+      it('should pass through avatarURL with path-based cache-busting', async () => {
         const client = createMockClient('TestBot#1234');
         manager = new WebhookManager(client);
 
-        const avatarUpdatedAt = new Date('2024-01-01T00:00:00Z');
+        // URL already includes timestamp in path (from deriveAvatarUrl)
         const personality = createMockPersonality(
           'Lilith',
-          'https://example.com/avatar.png',
-          avatarUpdatedAt
+          'https://example.com/avatars/lilith-1704067200000.png'
         );
         const channel = createMockTextChannel('channel-123', 'bot-123');
 
@@ -545,50 +548,16 @@ describe('WebhookManager', () => {
         const webhook = await manager.getWebhook(channel);
         expect(webhook.send).toHaveBeenCalledWith(
           expect.objectContaining({
-            avatarURL: `https://example.com/avatar.png?v=${avatarUpdatedAt.getTime()}`,
+            avatarURL: 'https://example.com/avatars/lilith-1704067200000.png',
           })
         );
       });
 
-      it('should not modify avatarURL when avatarUpdatedAt is missing', async () => {
+      it('should pass through undefined avatarURL when personality has no avatar', async () => {
         const client = createMockClient('TestBot#1234');
         manager = new WebhookManager(client);
 
-        const personality = createMockPersonality('Lilith', 'https://example.com/avatar.png');
-        const channel = createMockTextChannel('channel-123', 'bot-123');
-
-        await manager.sendAsPersonality(channel, personality, 'Test');
-
-        const webhook = await manager.getWebhook(channel);
-        expect(webhook.send).toHaveBeenCalledWith(
-          expect.objectContaining({
-            avatarURL: 'https://example.com/avatar.png',
-          })
-        );
-      });
-
-      it('should not modify avatarURL when avatarUrl is empty', async () => {
-        const client = createMockClient('TestBot#1234');
-        manager = new WebhookManager(client);
-
-        const personality = createMockPersonality('Lilith', '', new Date());
-        const channel = createMockTextChannel('channel-123', 'bot-123');
-
-        await manager.sendAsPersonality(channel, personality, 'Test');
-
-        const webhook = await manager.getWebhook(channel);
-        expect(webhook.send).toHaveBeenCalledWith(
-          expect.objectContaining({
-            avatarURL: '',
-          })
-        );
-      });
-
-      it('should not modify avatarURL when avatarUrl is undefined', async () => {
-        const client = createMockClient('TestBot#1234');
-        manager = new WebhookManager(client);
-
-        const personality = createMockPersonality('Lilith', undefined, new Date());
+        const personality = createMockPersonality('Lilith');
         const channel = createMockTextChannel('channel-123', 'bot-123');
 
         await manager.sendAsPersonality(channel, personality, 'Test');

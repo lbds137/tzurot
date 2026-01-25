@@ -187,9 +187,9 @@ export const loadedPersonalitySchema = z.object({
   memoryScoreThreshold: z.number().optional(),
   memoryLimit: z.number().optional(),
 
-  // Avatar
+  // Avatar URL with path-based cache-busting (timestamp embedded in filename)
+  // e.g., /avatars/cold-1705827727111.png
   avatarUrl: z.string().optional(),
-  avatarUpdatedAt: z.coerce.date().optional(), // For cache-busting Discord's CDN (coerce handles JSON string dates)
 
   // Character definition fields
   characterInfo: z.string(),
