@@ -25,6 +25,7 @@ export const conversationHistorySelect = {
   tokenCount: true,
   createdAt: true,
   personaId: true,
+  personalityId: true,
   discordMessageId: true,
   messageMetadata: true,
   persona: {
@@ -36,6 +37,13 @@ export const conversationHistorySelect = {
           username: true,
         },
       },
+    },
+  },
+  // Include personality relation for assistant message attribution in multi-AI channels
+  personality: {
+    select: {
+      name: true,
+      displayName: true,
     },
   },
 } as const satisfies Prisma.ConversationHistorySelect;
@@ -83,6 +91,9 @@ export function mapToConversationMessage(
     discordUsername: record.persona.owner.username,
     discordMessageId: record.discordMessageId,
     messageMetadata: parseMessageMetadata(record.messageMetadata),
+    // AI personality info for multi-AI channel attribution
+    personalityId: record.personalityId,
+    personalityName: record.personality.displayName ?? record.personality.name,
   };
 }
 

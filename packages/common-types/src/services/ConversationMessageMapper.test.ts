@@ -27,6 +27,7 @@ describe('ConversationMessageMapper', () => {
       expect(conversationHistorySelect.tokenCount).toBe(true);
       expect(conversationHistorySelect.createdAt).toBe(true);
       expect(conversationHistorySelect.personaId).toBe(true);
+      expect(conversationHistorySelect.personalityId).toBe(true);
       expect(conversationHistorySelect.discordMessageId).toBe(true);
       expect(conversationHistorySelect.messageMetadata).toBe(true);
     });
@@ -36,6 +37,12 @@ describe('ConversationMessageMapper', () => {
       expect(conversationHistorySelect.persona.select.name).toBe(true);
       expect(conversationHistorySelect.persona.select.preferredName).toBe(true);
       expect(conversationHistorySelect.persona.select.owner.select.username).toBe(true);
+    });
+
+    it('includes personality relation for multi-AI attribution', () => {
+      expect(conversationHistorySelect.personality).toBeDefined();
+      expect(conversationHistorySelect.personality.select.name).toBe(true);
+      expect(conversationHistorySelect.personality.select.displayName).toBe(true);
     });
   });
 
@@ -108,6 +115,7 @@ describe('ConversationMessageMapper', () => {
       tokenCount: 5,
       createdAt: new Date('2024-01-15T10:30:00Z'),
       personaId: 'persona-uuid-456',
+      personalityId: 'personality-uuid-789',
       discordMessageId: ['discord-123'],
       messageMetadata: null,
       persona: {
@@ -116,6 +124,10 @@ describe('ConversationMessageMapper', () => {
         owner: {
           username: 'testuser',
         },
+      },
+      personality: {
+        name: 'TestBot',
+        displayName: 'Test Bot Display',
       },
       ...overrides,
     });
@@ -235,6 +247,7 @@ describe('ConversationMessageMapper', () => {
           tokenCount: 3,
           createdAt: new Date('2024-01-15T10:00:00Z'),
           personaId: 'persona-1',
+          personalityId: 'personality-1',
           discordMessageId: ['d-1'],
           messageMetadata: null,
           persona: {
@@ -242,6 +255,7 @@ describe('ConversationMessageMapper', () => {
             preferredName: null,
             owner: { username: 'user1' },
           },
+          personality: { name: 'TestBot', displayName: 'Test Bot' },
         },
         {
           id: 'msg-2',
@@ -250,6 +264,7 @@ describe('ConversationMessageMapper', () => {
           tokenCount: 4,
           createdAt: new Date('2024-01-15T10:01:00Z'),
           personaId: 'persona-2',
+          personalityId: 'personality-1',
           discordMessageId: ['d-2'],
           messageMetadata: null,
           persona: {
@@ -257,6 +272,7 @@ describe('ConversationMessageMapper', () => {
             preferredName: 'AI',
             owner: { username: 'system' },
           },
+          personality: { name: 'TestBot', displayName: 'Test Bot' },
         },
       ];
 
@@ -278,9 +294,11 @@ describe('ConversationMessageMapper', () => {
           tokenCount: 1,
           createdAt: new Date(),
           personaId: 'p1',
+          personalityId: 'personality-1',
           discordMessageId: [],
           messageMetadata: null,
           persona: { name: 'N', preferredName: null, owner: { username: 'u' } },
+          personality: { name: 'TestBot', displayName: null },
         },
         {
           id: 'second',
@@ -289,9 +307,11 @@ describe('ConversationMessageMapper', () => {
           tokenCount: 1,
           createdAt: new Date(),
           personaId: 'p2',
+          personalityId: 'personality-1',
           discordMessageId: [],
           messageMetadata: null,
           persona: { name: 'N', preferredName: null, owner: { username: 'u' } },
+          personality: { name: 'TestBot', displayName: null },
         },
       ];
 
