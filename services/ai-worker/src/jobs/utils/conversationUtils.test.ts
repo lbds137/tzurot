@@ -560,8 +560,9 @@ describe('Conversation Utilities', () => {
 
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('</quoted_messages>');
-      expect(result).toContain('<quote number="1"');
-      expect(result).toContain('author="Bob"');
+      // Uses same <message> structure as regular messages, with quoted="true" attribute
+      expect(result).toContain('<message from="Bob" role="user"');
+      expect(result).toContain('quoted="true"');
       expect(result).toContain('Original message');
     });
 
@@ -650,6 +651,185 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('<attachments>');
       expect(result).toContain('application/pdf');
       expect(result).toContain('document.pdf');
+    });
+
+    it('should deduplicate quoted messages that are already in conversation history', () => {
+      // The quoted message has the same Discord ID as a message in the history
+      const quotedMessageId = 'msg-already-in-history';
+
+      const referencedMessage: StoredReferencedMessage = {
+        discordMessageId: quotedMessageId,
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob',
+        content: 'Original message that was already shown',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '#general',
+      };
+
+      const history: RawHistoryEntry[] = [
+        // First message is in history with the same Discord ID as the quoted message
+        {
+          id: quotedMessageId,
+          role: 'user',
+          content: 'Original message that was already shown',
+          personaName: 'Bob',
+        },
+        // Second message is a reply that quotes the first message
+        {
+          role: 'user',
+          content: 'Replying to your earlier message',
+          personaName: 'Alice',
+          messageMetadata: {
+            referencedMessages: [referencedMessage],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // The message content should appear only once (from the original)
+      // Not duplicated in the quoted_messages section
+      expect(result).not.toContain('<quoted_messages>');
+      expect(result).not.toContain('quoted="true"');
+      // Both messages should still be present
+      expect(result).toContain('from="Bob"');
+      expect(result).toContain('from="Alice"');
+      expect(result).toContain('Replying to your earlier message');
+    });
+
+    it('should keep quoted messages that are NOT in conversation history', () => {
+      const quotedMessageId = 'msg-not-in-history';
+
+      const referencedMessage: StoredReferencedMessage = {
+        discordMessageId: quotedMessageId,
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob',
+        content: 'Message from a different conversation',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '#other-channel',
+      };
+
+      const history: RawHistoryEntry[] = [
+        {
+          id: 'some-other-id',
+          role: 'user',
+          content: 'Check this out',
+          personaName: 'Alice',
+          messageMetadata: {
+            referencedMessages: [referencedMessage],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Quoted messages section should be present since the quoted message is NOT in history
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('quoted="true"');
+      expect(result).toContain('Message from a different conversation');
+    });
+
+    it('should partially deduplicate when some quoted messages are in history', () => {
+      const history: RawHistoryEntry[] = [
+        // First message - in history
+        {
+          id: 'msg-in-history',
+          role: 'user',
+          content: 'Already shown message',
+          personaName: 'Bob',
+        },
+        // Reply that quotes both an in-history message and an out-of-history message
+        {
+          role: 'user',
+          content: 'Replying to both',
+          personaName: 'Alice',
+          messageMetadata: {
+            referencedMessages: [
+              {
+                discordMessageId: 'msg-in-history',
+                authorUsername: 'bob',
+                authorDisplayName: 'Bob',
+                content: 'Already shown message',
+                timestamp: '2025-01-01T00:00:00Z',
+                locationContext: '#general',
+              },
+              {
+                discordMessageId: 'msg-not-in-history',
+                authorUsername: 'charlie',
+                authorDisplayName: 'Charlie',
+                content: 'Message from elsewhere',
+                timestamp: '2025-01-01T00:00:00Z',
+                locationContext: '#other-channel',
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Should have quoted_messages section with only the out-of-history message
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('from="Charlie"');
+      expect(result).toContain('Message from elsewhere');
+      // Should NOT have Bob's message duplicated in quotes
+      expect(result.match(/Already shown message/g)?.length).toBe(1);
+    });
+
+    it('should infer role="assistant" for quoted messages from the personality', () => {
+      const referencedMessage: StoredReferencedMessage = {
+        discordMessageId: '123456',
+        authorUsername: 'testbot',
+        authorDisplayName: 'TestBot', // Same as personality name
+        content: 'My previous response',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '#general',
+      };
+
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'What did you say earlier?',
+          personaName: 'Alice',
+          messageMetadata: {
+            referencedMessages: [referencedMessage],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // The quoted message should have role="assistant" since it's from TestBot
+      expect(result).toContain('<message from="TestBot" role="assistant"');
+      expect(result).toContain('quoted="true"');
+    });
+
+    it('should infer role="user" for quoted messages from other users', () => {
+      const referencedMessage: StoredReferencedMessage = {
+        discordMessageId: '123456',
+        authorUsername: 'bob',
+        authorDisplayName: 'Bob', // Different from personality name
+        content: 'Some user message',
+        timestamp: '2025-01-01T00:00:00Z',
+        locationContext: '#general',
+      };
+
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Replying to Bob',
+          personaName: 'Alice',
+          messageMetadata: {
+            referencedMessages: [referencedMessage],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // The quoted message should have role="user" since it's from Bob (not TestBot)
+      expect(result).toContain('<message from="Bob" role="user"');
+      expect(result).toContain('quoted="true"');
     });
 
     it('should format multiple messages in order', () => {

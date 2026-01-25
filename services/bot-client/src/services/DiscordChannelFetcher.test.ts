@@ -663,6 +663,51 @@ describe('DiscordChannelFetcher', () => {
       expect(mockSyncService.updateMessageContent).not.toHaveBeenCalled();
     });
 
+    it('should NOT overwrite DB content with empty Discord content (voice message protection)', async () => {
+      // Scenario: Voice messages have empty text content in Discord but transcripts in DB
+      // The sync should NOT wipe the transcript
+      const discordMessages = new Collection<string, Message>();
+      discordMessages.set(
+        'discord1',
+        createMockMessage({
+          id: 'discord1',
+          content: '', // Voice message has empty content in Discord
+        })
+      );
+
+      const mockSyncService = {
+        getMessagesByDiscordIds: vi.fn().mockResolvedValue(
+          new Map([
+            [
+              'discord1',
+              {
+                id: 'db-msg-1',
+                // DB has the voice transcript - this should NOT be overwritten
+                content: 'Voice transcript: Hello this is a test message',
+                discordMessageId: ['discord1'],
+                deletedAt: null,
+                createdAt: new Date(),
+              },
+            ],
+          ])
+        ),
+        updateMessageContent: vi.fn(),
+        softDeleteMessages: vi.fn(),
+        getMessagesInTimeWindow: vi.fn().mockResolvedValue([]),
+      };
+
+      const result = await fetcher.syncWithDatabase(
+        discordMessages,
+        'channel123',
+        'personality123',
+        mockSyncService as never
+      );
+
+      // Should NOT update - empty Discord content should not overwrite non-empty DB content
+      expect(result.updated).toBe(0);
+      expect(mockSyncService.updateMessageContent).not.toHaveBeenCalled();
+    });
+
     it('should detect and soft-delete missing messages', async () => {
       const discordMessages = new Collection<string, Message>();
       // Only one message in Discord

@@ -377,10 +377,13 @@ describe('ParticipantFormatter', () => {
         const result = formatParticipantsContext(participants, 'Alice');
 
         expect(result).toContain('<guild_info');
-        expect(result).toContain('roles="Admin, Developer"');
+        expect(result).toContain('<roles>');
+        expect(result).toContain('<role>Admin</role>');
+        expect(result).toContain('<role>Developer</role>');
+        expect(result).toContain('</roles>');
         expect(result).toContain('color="#FF00FF"');
         expect(result).toContain('joined="2023-05-15"');
-        expect(result).toContain('/>');
+        expect(result).toContain('</guild_info>');
       });
 
       it('should format join date as date only (no time)', () => {
@@ -444,7 +447,12 @@ describe('ParticipantFormatter', () => {
 
         const result = formatParticipantsContext(participants, 'Alice');
 
-        expect(result).toContain('<guild_info roles="Member, Tester"/>');
+        expect(result).toContain('<guild_info>');
+        expect(result).toContain('<roles>');
+        expect(result).toContain('<role>Member</role>');
+        expect(result).toContain('<role>Tester</role>');
+        expect(result).toContain('</roles>');
+        expect(result).toContain('</guild_info>');
       });
 
       it('should include guild_info with only color', () => {
@@ -503,9 +511,9 @@ describe('ParticipantFormatter', () => {
 
         const result = formatParticipantsContext(participants, 'Alice');
 
-        // Roles should be escaped
-        expect(result).toContain('Admin &amp; Manager');
-        expect(result).toContain('Dev &quot;Expert&quot;');
+        // Roles should be escaped within <role> elements
+        expect(result).toContain('<role>Admin &amp; Manager</role>');
+        expect(result).toContain('<role>Dev &quot;Expert&quot;</role>');
       });
     });
 

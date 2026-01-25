@@ -673,6 +673,12 @@ export class DiscordChannelFetcher {
       return false;
     }
 
+    // Never overwrite non-empty DB content with empty Discord content
+    // This protects voice message transcripts (Discord shows empty, DB has transcript)
+    if (discordContent.length === 0 && dbContent.length > 0) {
+      return false;
+    }
+
     // Check if DB content is the Discord content with a [Name]: prefix
     // Pattern: [DisplayName]: <actual content>
     const prefixRegex = /^\[.+?\]: (.*)$/s;

@@ -27,7 +27,12 @@ import type { ParticipantInfo } from '../ConversationalRAGService.js';
  *   <participant id="persona-uuid-123" active="true">
  *     <name>Lila</name>
  *     <pronouns>she/her, they/them</pronouns>
- *     <guild_info roles="Admin, Developer" color="#FF00FF" joined="2023-05-15"/>
+ *     <guild_info color="#FF00FF" joined="2023-05-15">
+ *       <roles>
+ *         <role>Admin</role>
+ *         <role>Developer</role>
+ *       </roles>
+ *     </guild_info>
  *     <about source="user_input"><![CDATA[A transgender demon-angel in human form...]]></about>
  *   </participant>
  * </participants>
@@ -65,13 +70,9 @@ export function formatParticipantsContext(
       parts.push(`<pronouns>${escapeXml(info.pronouns)}</pronouns>`);
     }
 
-    // Guild info (if available) - compact attribute format
+    // Guild info (if available) - attributes for metadata, child element for roles
     if (info.guildInfo) {
       const guildAttrs: string[] = [];
-
-      if (info.guildInfo.roles.length > 0) {
-        guildAttrs.push(`roles="${escapeXml(info.guildInfo.roles.join(', '))}"`);
-      }
 
       if (info.guildInfo.displayColor !== undefined && info.guildInfo.displayColor !== '') {
         guildAttrs.push(`color="${escapeXml(info.guildInfo.displayColor)}"`);
@@ -83,8 +84,21 @@ export function formatParticipantsContext(
         guildAttrs.push(`joined="${escapeXml(dateOnly)}"`);
       }
 
-      if (guildAttrs.length > 0) {
-        parts.push(`<guild_info ${guildAttrs.join(' ')}/>`);
+      const hasRoles = info.guildInfo.roles.length > 0;
+      const attrsStr = guildAttrs.length > 0 ? ` ${guildAttrs.join(' ')}` : '';
+
+      if (hasRoles) {
+        // Roles as child elements
+        parts.push(`<guild_info${attrsStr}>`);
+        parts.push('<roles>');
+        for (const role of info.guildInfo.roles) {
+          parts.push(`<role>${escapeXml(role)}</role>`);
+        }
+        parts.push('</roles>');
+        parts.push('</guild_info>');
+      } else if (guildAttrs.length > 0) {
+        // Self-closing if only attributes, no roles
+        parts.push(`<guild_info${attrsStr}/>`);
       }
     }
 
