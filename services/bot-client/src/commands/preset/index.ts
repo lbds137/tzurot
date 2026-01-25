@@ -4,13 +4,12 @@
  *
  * Commands:
  * - /preset browse - Browse presets with search and filtering
- * - /preset create - Create a new preset
+ * - /preset create - Create a new preset (toggle global via dashboard)
  * - /preset edit - Edit your preset (opens dashboard, includes delete)
- * - /preset global create - Create global preset (owner only)
  * - /preset global default - Set system default (owner only)
  * - /preset global free-default - Set free tier default (owner only)
  *
- * Note: Global presets can be edited via /preset edit (dashboard handles both)
+ * Note: Global presets are created via /preset create + toggle in dashboard
  * Note: Delete functionality is integrated into the dashboard (Edit command)
  */
 
@@ -21,7 +20,7 @@ import type {
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, DISCORD_PROVIDER_CHOICES } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
@@ -40,7 +39,6 @@ import {
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
 import { handleAutocomplete } from './autocomplete.js';
-import { handleGlobalCreate } from './global/create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
 import {
@@ -71,7 +69,6 @@ const userRouter = createMixedModeSubcommandRouter(
  */
 const globalRouter = createTypedSubcommandRouter(
   {
-    create: handleGlobalCreate,
     default: handleGlobalSetDefault,
     'free-default': handleGlobalSetFreeDefault,
   },
@@ -196,39 +193,6 @@ export default defineCommand({
       group
         .setName('global')
         .setDescription('Manage global presets (Owner only)')
-        .addSubcommand(subcommand =>
-          subcommand
-            .setName('create')
-            .setDescription('Create a new global preset (Owner only)')
-            .addStringOption(option =>
-              option.setName('name').setDescription('Preset name').setRequired(true)
-            )
-            .addStringOption(option =>
-              option
-                .setName('model')
-                .setDescription('Model ID (e.g., anthropic/claude-sonnet-4)')
-                .setRequired(true)
-            )
-            .addStringOption(option =>
-              option
-                .setName('provider')
-                .setDescription('AI provider')
-                .setRequired(false)
-                .addChoices(...DISCORD_PROVIDER_CHOICES)
-            )
-            .addStringOption(option =>
-              option
-                .setName('description')
-                .setDescription('Optional description')
-                .setRequired(false)
-            )
-            .addStringOption(option =>
-              option
-                .setName('vision-model')
-                .setDescription('Vision model (optional)')
-                .setRequired(false)
-            )
-        )
         .addSubcommand(subcommand =>
           subcommand
             .setName('default')

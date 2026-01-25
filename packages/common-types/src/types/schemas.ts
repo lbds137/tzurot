@@ -30,6 +30,7 @@ export const discordEnvironmentSchema = z.object({
     id: z.string(),
     name: z.string(),
     type: z.string(),
+    topic: z.string().optional(),
   }),
   thread: z
     .object({

@@ -73,6 +73,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildWebhooks,
     GatewayIntentBits.DirectMessages,
+    GatewayIntentBits.GuildMembers, // Required for message.member (roles, join date, etc.)
   ],
 });
 

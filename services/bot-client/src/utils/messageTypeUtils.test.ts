@@ -8,7 +8,11 @@
 import { describe, it, expect } from 'vitest';
 import type { Message, MessageSnapshot, Collection } from 'discord.js';
 import { MessageType, MessageReferenceType } from 'discord.js';
-import { isUserContentMessage } from './messageTypeUtils.js';
+import {
+  isUserContentMessage,
+  isForwardedMessage,
+  getEffectiveContent,
+} from './messageTypeUtils.js';
 
 /**
  * Create a minimal mock message for testing message type filtering
@@ -18,13 +22,37 @@ function createMockMessage(
   options: {
     reference?: Message['reference'];
     messageSnapshots?: Collection<string, MessageSnapshot>;
+    content?: string;
   } = {}
 ): Message {
   return {
     type,
     reference: options.reference ?? null,
     messageSnapshots: options.messageSnapshots,
+    content: options.content ?? '',
   } as unknown as Message;
+}
+
+/**
+ * Create a mock message snapshot with content
+ */
+function createMockSnapshot(content: string): MessageSnapshot {
+  return {
+    message: { content },
+  } as unknown as MessageSnapshot;
+}
+
+/**
+ * Create a mock Collection with snapshots
+ */
+function createMockSnapshotCollection(
+  snapshots: MessageSnapshot[]
+): Collection<string, MessageSnapshot> {
+  return {
+    size: snapshots.length,
+    values: () => snapshots.values(),
+    first: () => snapshots[0],
+  } as unknown as Collection<string, MessageSnapshot>;
 }
 
 describe('messageTypeUtils', () => {
@@ -149,6 +177,114 @@ describe('messageTypeUtils', () => {
 
         expect(isUserContentMessage(message)).toBe(true);
       });
+    });
+  });
+
+  describe('isForwardedMessage', () => {
+    it('should return true for forwarded message with snapshots', () => {
+      const messageSnapshots = createMockSnapshotCollection([createMockSnapshot('forwarded')]);
+      const message = createMockMessage(MessageType.Default, {
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      expect(isForwardedMessage(message)).toBe(true);
+    });
+
+    it('should return false for regular message', () => {
+      const message = createMockMessage(MessageType.Default, {
+        content: 'regular message',
+      });
+
+      expect(isForwardedMessage(message)).toBe(false);
+    });
+
+    it('should return false for reply message', () => {
+      const message = createMockMessage(MessageType.Reply, {
+        reference: { type: MessageReferenceType.Default } as Message['reference'],
+        content: 'reply message',
+      });
+
+      expect(isForwardedMessage(message)).toBe(false);
+    });
+
+    it('should return false for forward without snapshots', () => {
+      const message = createMockMessage(MessageType.Default, {
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots: undefined,
+      });
+
+      expect(isForwardedMessage(message)).toBe(false);
+    });
+
+    it('should return false for forward with empty snapshots', () => {
+      const messageSnapshots = createMockSnapshotCollection([]);
+      const message = createMockMessage(MessageType.Default, {
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      expect(isForwardedMessage(message)).toBe(false);
+    });
+  });
+
+  describe('getEffectiveContent', () => {
+    it('should return message.content for regular messages', () => {
+      const message = createMockMessage(MessageType.Default, {
+        content: 'Hello world!',
+      });
+
+      expect(getEffectiveContent(message)).toBe('Hello world!');
+    });
+
+    it('should return snapshot content for forwarded messages', () => {
+      const messageSnapshots = createMockSnapshotCollection([
+        createMockSnapshot('Forwarded content here'),
+      ]);
+      const message = createMockMessage(MessageType.Default, {
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+        content: '', // Forwarded messages often have empty content
+      });
+
+      expect(getEffectiveContent(message)).toBe('Forwarded content here');
+    });
+
+    it('should return first snapshot content when multiple snapshots exist', () => {
+      const messageSnapshots = createMockSnapshotCollection([
+        createMockSnapshot('First message'),
+        createMockSnapshot('Second message'),
+      ]);
+      const message = createMockMessage(MessageType.Default, {
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+        content: '',
+      });
+
+      expect(getEffectiveContent(message)).toBe('First message');
+    });
+
+    it('should return message.content for forwarded message without snapshot content', () => {
+      const messageSnapshots = createMockSnapshotCollection([
+        { message: { content: '' } } as unknown as MessageSnapshot,
+      ]);
+      const message = createMockMessage(MessageType.Default, {
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+        content: 'fallback content',
+      });
+
+      // Falls back to message.content when snapshot has empty content
+      expect(getEffectiveContent(message)).toBe('fallback content');
+    });
+
+    it('should handle reply messages (return message.content)', () => {
+      const message = createMockMessage(MessageType.Reply, {
+        reference: { type: MessageReferenceType.Default } as Message['reference'],
+        content: 'My reply',
+      });
+
+      expect(getEffectiveContent(message)).toBe('My reply');
     });
   });
 });
