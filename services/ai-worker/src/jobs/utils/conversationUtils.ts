@@ -278,9 +278,14 @@ function formatStoredReferencedMessage(
     attachmentsSection = `\n<attachments>${escapeXmlContent(attachmentItems)}</attachments>`;
   }
 
+  // Format location if present (already formatted as XML by bot-client using shared formatLocationAsXml)
+  let locationSection = '';
+  if (ref.locationContext !== undefined && ref.locationContext.length > 0) {
+    locationSection = `\n${ref.locationContext}`;
+  }
+
   // Use same <message> structure as regular messages, with quoted="true" attribute
-  // Omit location (already in environment) and from_id (not available for historical refs)
-  return `<message from="${safeAuthor}" role="${role}"${timeAttr}${forwardedAttr} quoted="true">${safeContent}${embedsSection}${attachmentsSection}</message>`;
+  return `<message from="${safeAuthor}" role="${role}"${timeAttr}${forwardedAttr} quoted="true">${safeContent}${embedsSection}${attachmentsSection}${locationSection}</message>`;
 }
 
 /**

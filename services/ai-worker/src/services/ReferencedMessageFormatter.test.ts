@@ -69,7 +69,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Test content',
           embeds: '',
           timestamp: '2025-12-06T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -97,7 +98,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'First message',
           embeds: '',
           timestamp: '2025-12-06T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
         {
           referenceNumber: 2,
@@ -138,7 +140,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Unique test content XYZ123',
           embeds: '',
           timestamp: '2025-12-06T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -164,7 +167,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Test content',
           embeds: '',
           timestamp: '2025-12-06T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -187,7 +191,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Hello world!',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -196,9 +201,10 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('<quote number="1">');
       expect(result).toContain('</quote>');
       expect(result).toContain('<author display_name="Test User" username="testuser"/>');
-      // Note: > is NOT escaped because escapeXmlContent uses targeted escaping
-      // (only escapes protected XML tags, not regular content like "Guild > #general")
-      expect(result).toContain('<location>Test Guild > #general</location>');
+      // Location is now pre-formatted XML from bot-client (DRY with current message context)
+      expect(result).toContain('<location type="guild">');
+      expect(result).toContain('<server name="Test Guild"/>');
+      expect(result).toContain('<channel name="general" type="text"/>');
       // Time now includes both absolute date and relative time (mocked)
       expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
       expect(result).toContain('<content>Hello world!</content>');
@@ -215,7 +221,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Check this out',
           embeds: 'Title: Cool Embed\nDescription: Embed content',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -236,7 +243,8 @@ describe('ReferencedMessageFormatter', () => {
           content: '',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -259,7 +267,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'First message',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
         {
           referenceNumber: 2,
@@ -304,7 +313,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Check these images',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image1.png',
@@ -357,7 +367,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Image',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/broken.png',
@@ -401,7 +412,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Images',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image1.png',
@@ -451,7 +463,8 @@ describe('ReferencedMessageFormatter', () => {
           content: '',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/voice1.ogg',
@@ -499,7 +512,8 @@ describe('ReferencedMessageFormatter', () => {
           content: '',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/voice.ogg',
@@ -535,7 +549,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Mixed attachments',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image.png',
@@ -585,7 +600,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Audio file',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/music.mp3',
@@ -626,7 +642,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Just text',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [],
         },
       ];
@@ -649,7 +666,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Just text',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
       ];
 
@@ -698,7 +716,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'This is a regular message',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           isForwarded: false,
         },
       ];
@@ -723,7 +742,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Regular message',
           embeds: '',
           timestamp: '2025-11-04T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         },
         {
           referenceNumber: 2,
@@ -767,7 +787,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Check this image',
           embeds: '',
           timestamp: '2025-11-30T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image.png',
@@ -823,7 +844,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Listen to this',
           embeds: '',
           timestamp: '2025-11-30T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/voice.ogg',
@@ -886,7 +908,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Check this',
           embeds: '',
           timestamp: '2025-11-30T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image.png',
@@ -925,7 +948,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Check this',
           embeds: '',
           timestamp: '2025-11-30T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/actual-image.png',
@@ -979,7 +1003,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'First image',
           embeds: '',
           timestamp: '2025-11-30T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image1.png',
@@ -998,7 +1023,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Second image',
           embeds: '',
           timestamp: '2025-11-30T00:01:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image2.png',
@@ -1069,7 +1095,8 @@ describe('ReferencedMessageFormatter', () => {
           content: 'Image',
           embeds: '',
           timestamp: '2025-11-30T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image.png',
@@ -1278,7 +1305,8 @@ Line three`;
           content: 'Check out this image and voice message!',
           embeds: 'Some embed content',
           timestamp: '2025-11-21T00:00:00Z',
-          locationContext: 'Test Guild > #general',
+          locationContext:
+            '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
           attachments: [
             {
               url: 'https://example.com/image.png',
