@@ -204,7 +204,7 @@ describe('SnapshotFormatter', () => {
 
       const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
 
-      expect(result.embeds).toBe('### Embed\n\nEmbed Title\nEmbed Description');
+      expect(result.embeds).toBe('<embed>\nEmbed Title\nEmbed Description\n</embed>');
     });
 
     it('should format multiple embeds with numbers', () => {
@@ -226,7 +226,7 @@ describe('SnapshotFormatter', () => {
       const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
 
       expect(result.embeds).toBe(
-        '### Embed 1\n\nFirst Embed\nFirst Description\n\n---\n\n### Embed 2\n\nSecond Embed\nSecond Description'
+        '<embed number="1">\nFirst Embed\nFirst Description\n</embed>\n<embed number="2">\nSecond Embed\nSecond Description\n</embed>'
       );
     });
 
@@ -247,7 +247,7 @@ describe('SnapshotFormatter', () => {
 
       const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
 
-      expect(result.embeds).toBe('### Embed\n\nJSON Embed\nJSON Description');
+      expect(result.embeds).toBe('<embed>\nJSON Embed\nJSON Description\n</embed>');
     });
 
     it('should handle empty embeds array', () => {

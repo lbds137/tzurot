@@ -138,7 +138,7 @@ describe('MessageContentBuilder', () => {
       const result = await buildMessageContent(message, { includeEmbeds: true });
 
       expect(result.content).toContain('Check this embed');
-      expect(result.content).toContain('### Embed');
+      expect(result.content).toContain('<embed>');
     });
 
     it('should not include embed content when includeEmbeds is false', async () => {
@@ -148,7 +148,7 @@ describe('MessageContentBuilder', () => {
       const result = await buildMessageContent(message, { includeEmbeds: false });
 
       expect(result.content).toBe('Check this embed');
-      expect(result.content).not.toContain('### Embed');
+      expect(result.content).not.toContain('<embed>');
     });
 
     it('should detect voice messages and set hasVoiceMessage flag', async () => {
@@ -466,7 +466,7 @@ describe('MessageContentBuilder', () => {
 
       expect(result.content).toContain('Look at this!');
       expect(result.content).toContain('[Attachments:');
-      expect(result.content).toContain('### Embed');
+      expect(result.content).toContain('<embed>');
       expect(result.attachments.length).toBeGreaterThan(0);
     });
   });

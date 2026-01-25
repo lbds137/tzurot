@@ -1,103 +1,128 @@
 /**
  * Embed Parser
  *
- * Extracts and formats Discord embeds in an LLM-friendly way
+ * Extracts and formats Discord embeds as XML for LLM prompts.
+ * Uses consistent XML format to match the rest of the prompt structure.
  */
 
-import { APIEmbed, Message } from 'discord.js';
+import { APIEmbed, APIEmbedField, Message } from 'discord.js';
+import { escapeXml } from '@tzurot/common-types';
 
 /**
- * Format a single embed field
- * @param name - Field name
- * @param value - Field value
- * @param inline - Whether field is inline
- * @returns Formatted field string
+ * Check if a string value is present and non-empty
  */
-function formatEmbedField(name: string, value: string, inline: boolean): string {
-  const inlineIndicator = inline ? ' (inline)' : '';
-  return `**${name}**${inlineIndicator}: ${value}`;
+function hasValue(val: string | null | undefined): val is string {
+  return val !== undefined && val !== null && val.length > 0;
+}
+
+/**
+ * Format a URL attribute if the URL is present
+ */
+function formatUrlAttr(url: string | null | undefined): string {
+  if (hasValue(url)) {
+    return ` url="${escapeXml(url)}"`;
+  }
+  return '';
+}
+
+/**
+ * Format the title element with optional URL
+ */
+function formatTitle(embed: APIEmbed): string | null {
+  if (!hasValue(embed.title)) {
+    return null;
+  }
+  const urlAttr = formatUrlAttr(embed.url);
+  return `<title${urlAttr}>${escapeXml(embed.title)}</title>`;
+}
+
+/**
+ * Format the author element with optional URL
+ */
+function formatAuthor(embed: APIEmbed): string | null {
+  if (embed.author === undefined || embed.author === null || !hasValue(embed.author.name)) {
+    return null;
+  }
+  const urlAttr = formatUrlAttr(embed.author.url);
+  return `<author${urlAttr}>${escapeXml(embed.author.name)}</author>`;
+}
+
+/**
+ * Format the fields section
+ */
+function formatFields(fields: APIEmbedField[] | undefined): string[] {
+  if (fields === undefined || fields.length === 0) {
+    return [];
+  }
+
+  const parts: string[] = ['<fields>'];
+  for (const field of fields) {
+    const inlineAttr = field.inline === true ? ' inline="true"' : '';
+    parts.push(
+      `<field name="${escapeXml(field.name)}"${inlineAttr}>${escapeXml(field.value)}</field>`
+    );
+  }
+  parts.push('</fields>');
+  return parts;
 }
 
 /**
  * Embed Parser
- * Handles extraction and formatting of Discord embeds
+ * Handles extraction and formatting of Discord embeds as XML
  */
 export class EmbedParser {
   /**
-   * Parse a single embed into LLM-friendly format
+   * Parse a single embed into XML format
    * @param embed - Discord embed object
-   * @returns Formatted embed string
+   * @returns Formatted embed XML string
    */
   static parseEmbed(embed: APIEmbed): string {
     const parts: string[] = [];
 
-    // Add title
-    if (embed.title !== undefined && embed.title !== null && embed.title.length > 0) {
-      const titleText =
-        embed.url !== undefined && embed.url !== null && embed.url.length > 0
-          ? `[${embed.title}](${embed.url})`
-          : embed.title;
-      parts.push(`## ${titleText}`);
+    // Add title with optional URL
+    const title = formatTitle(embed);
+    if (title !== null) {
+      parts.push(title);
     }
 
-    // Add author
-    if (embed.author !== undefined && embed.author !== null) {
-      const authorText =
-        embed.author.url !== undefined && embed.author.url !== null && embed.author.url.length > 0
-          ? `[${embed.author.name}](${embed.author.url})`
-          : embed.author.name;
-      parts.push(`Author: ${authorText}`);
+    // Add author with optional URL
+    const author = formatAuthor(embed);
+    if (author !== null) {
+      parts.push(author);
     }
 
     // Add description
-    if (
-      embed.description !== undefined &&
-      embed.description !== null &&
-      embed.description.length > 0
-    ) {
-      parts.push(embed.description);
+    if (hasValue(embed.description)) {
+      parts.push(`<description>${escapeXml(embed.description)}</description>`);
     }
 
     // Add fields
-    if (embed.fields && embed.fields.length > 0) {
-      const fieldStrings = embed.fields.map(field =>
-        formatEmbedField(field.name, field.value, field.inline ?? false)
-      );
-      parts.push('', ...fieldStrings);
-    }
+    parts.push(...formatFields(embed.fields));
 
     // Add image
-    if (embed.image?.url !== undefined && embed.image.url !== null && embed.image.url.length > 0) {
-      parts.push(``, `Image: ${embed.image.url}`);
+    if (hasValue(embed.image?.url)) {
+      parts.push(`<image url="${escapeXml(embed.image.url)}"/>`);
     }
 
     // Add thumbnail
-    if (
-      embed.thumbnail?.url !== undefined &&
-      embed.thumbnail.url !== null &&
-      embed.thumbnail.url.length > 0
-    ) {
-      parts.push(`Thumbnail: ${embed.thumbnail.url}`);
+    if (hasValue(embed.thumbnail?.url)) {
+      parts.push(`<thumbnail url="${escapeXml(embed.thumbnail.url)}"/>`);
     }
 
     // Add footer
-    if (
-      embed.footer?.text !== undefined &&
-      embed.footer.text !== null &&
-      embed.footer.text.length > 0
-    ) {
-      parts.push(``, `_${embed.footer.text}_`);
+    if (hasValue(embed.footer?.text)) {
+      parts.push(`<footer>${escapeXml(embed.footer.text)}</footer>`);
     }
 
     // Add timestamp
-    if (embed.timestamp !== undefined && embed.timestamp !== null && embed.timestamp.length > 0) {
-      parts.push(`Timestamp: ${embed.timestamp}`);
+    if (hasValue(embed.timestamp)) {
+      parts.push(`<timestamp>${escapeXml(embed.timestamp)}</timestamp>`);
     }
 
     // Add color (as hex)
     if (embed.color !== undefined) {
       const hexColor = `#${embed.color.toString(16).padStart(6, '0')}`;
-      parts.push(`Color: ${hexColor}`);
+      parts.push(`<color>${hexColor}</color>`);
     }
 
     return parts.join('\n');
@@ -106,7 +131,7 @@ export class EmbedParser {
   /**
    * Parse all embeds from a Discord message
    * @param message - Discord message
-   * @returns Formatted embeds string, or empty string if no embeds
+   * @returns Formatted embeds XML string, or empty string if no embeds
    */
   static parseMessageEmbeds(message: Message): string {
     if (message.embeds === undefined || message.embeds === null || message.embeds.length === 0) {
@@ -114,11 +139,11 @@ export class EmbedParser {
     }
 
     const embedStrings = message.embeds.map((embed, index) => {
-      const embedNumber = message.embeds.length > 1 ? ` ${index + 1}` : '';
-      return `### Embed${embedNumber}\n\n${this.parseEmbed(embed.toJSON())}`;
+      const numAttr = message.embeds.length > 1 ? ` number="${index + 1}"` : '';
+      return `<embed${numAttr}>\n${this.parseEmbed(embed.toJSON())}\n</embed>`;
     });
 
-    return embedStrings.join('\n\n---\n\n');
+    return embedStrings.join('\n');
   }
 
   /**
