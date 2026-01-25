@@ -29,11 +29,14 @@ export interface ConversationMessage {
   tokenCount?: number; // Cached token count (computed once, reused on every request)
   createdAt: Date;
   personaId: string;
-  personaName?: string; // The persona's name for display in context
+  personaName?: string; // The user's persona name for display in context
   discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
   discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
   isForwarded?: boolean; // Whether this message was forwarded from another channel
   messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
+  // AI personality info (for multi-AI channel attribution)
+  personalityId?: string; // The AI personality this message belongs to
+  personalityName?: string; // The AI personality's display name (for assistant messages)
 }
 
 /**

@@ -188,7 +188,9 @@ export interface RawHistoryEntry {
   role: MessageRole | string;
   content: string;
   createdAt?: string;
+  /** User's persona ID */
   personaId?: string;
+  /** User's persona display name */
   personaName?: string;
   /** Discord username for disambiguation when persona name matches personality name */
   discordUsername?: string;
@@ -201,6 +203,11 @@ export interface RawHistoryEntry {
     /** Image descriptions from extended context preprocessing */
     imageDescriptions?: InlineImageDescription[];
   };
+  // AI personality info (for multi-AI channel attribution)
+  /** The AI personality ID this message belongs to */
+  personalityId?: string;
+  /** The AI personality's display name (for assistant message attribution) */
+  personalityName?: string;
 }
 
 /**
@@ -284,11 +291,12 @@ function resolveSpeakerInfo(
   }
 
   if (normalizedRole === 'assistant') {
-    // For assistant messages, use personaName if available (for messages from OTHER AI personalities)
-    // Fall back to the current personalityName (for self-messages or legacy data without personaName)
+    // For assistant messages, use the AI personality's name from the message
+    // This enables correct attribution in multi-AI channels (e.g., COLD seeing Lila AI's messages)
+    // Fall back to the current personalityName for legacy data without personalityName
     const speakerName =
-      msg.personaName !== undefined && msg.personaName.length > 0
-        ? msg.personaName
+      msg.personalityName !== undefined && msg.personalityName.length > 0
+        ? msg.personalityName
         : personalityName;
     return { speakerName, role: 'assistant', normalizedRole };
   }
@@ -535,11 +543,11 @@ export function getFormattedMessageCharLength(
       speakerName = `${speakerName} (@${msg.discordUsername})`;
     }
   } else {
-    // For assistant messages, use personaName if available (for messages from OTHER AI personalities)
-    // Fall back to the current personalityName (for self-messages or legacy data)
+    // For assistant messages, use the AI personality's name from the message
+    // This enables correct attribution in multi-AI channels
     speakerName =
-      msg.personaName !== undefined && msg.personaName.length > 0
-        ? msg.personaName
+      msg.personalityName !== undefined && msg.personalityName.length > 0
+        ? msg.personalityName
         : personalityName;
   }
 

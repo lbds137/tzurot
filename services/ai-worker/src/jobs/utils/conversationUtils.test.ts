@@ -1710,7 +1710,7 @@ describe('Conversation Utilities', () => {
         {
           role: 'assistant',
           content: 'I think it is interesting.',
-          personaName: 'COLD', // COLD's own response
+          personalityName: 'COLD', // COLD's own response (AI personality name)
         },
         {
           role: 'user',
@@ -1720,7 +1720,7 @@ describe('Conversation Utilities', () => {
         {
           role: 'assistant',
           content: 'I find this fascinating!',
-          personaName: 'Lila | תשב', // Another AI personality's response
+          personalityName: 'Lila | תשב', // Another AI personality's response
         },
       ];
 
@@ -1736,13 +1736,13 @@ describe('Conversation Utilities', () => {
       expect(coldAssistantCount).toBe(1);
     });
 
-    it('should fall back to personalityName when personaName is missing for assistant', () => {
-      // Legacy messages or self-messages might not have personaName
+    it('should fall back to current personalityName when message has no personalityName', () => {
+      // Legacy messages might not have personalityName field
       const history: RawHistoryEntry[] = [
         {
           role: 'assistant',
-          content: 'Response without personaName',
-          // No personaName - should fall back to the current personality
+          content: 'Response without personalityName',
+          // No personalityName - should fall back to the current personality
         },
       ];
 
@@ -1761,7 +1761,7 @@ describe('Conversation Utilities', () => {
         {
           role: 'assistant',
           content: 'Hi there!',
-          personaName: 'COLD',
+          personalityName: 'COLD', // AI personality name for assistant
           createdAt: '2025-01-22T15:30:05.000Z',
         },
       ];
@@ -1779,14 +1779,14 @@ describe('Conversation Utilities', () => {
       const msgFromOtherAI: RawHistoryEntry = {
         role: 'assistant',
         content: 'Response from other AI',
-        personaName: 'Lila | תשב',
+        personalityName: 'Lila | תשב', // AI personality name
         createdAt: '2025-01-01T00:00:00Z',
       };
 
       const msgFromSelf: RawHistoryEntry = {
         role: 'assistant',
         content: 'Response from other AI',
-        personaName: 'COLD',
+        personalityName: 'COLD', // AI personality name
         createdAt: '2025-01-01T00:00:00Z',
       };
 
