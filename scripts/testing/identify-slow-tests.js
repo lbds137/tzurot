@@ -5,7 +5,7 @@
  * Runs each test file individually and measures execution time
  */
 
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const glob = require('glob');
@@ -15,7 +15,7 @@ async function measureTestFile(testFile) {
     const start = Date.now();
 
     // Run test with no coverage to speed it up
-    execSync(`npx jest ${testFile} --no-coverage --silent`, {
+    execFileSync('npx', ['jest', testFile, '--no-coverage', '--silent'], {
       stdio: 'pipe',
       cwd: process.cwd(),
     });

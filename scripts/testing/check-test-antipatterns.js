@@ -7,7 +7,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execFileSync } = require('child_process');
 
 // Anti-patterns we've encountered and fixed multiple times
 const TEST_ANTI_PATTERNS = {
@@ -660,7 +660,7 @@ function getTestFiles() {
 
   try {
     // Get staged test files
-    const stagedFiles = execSync('git diff --cached --name-only --diff-filter=ACM', {
+    const stagedFiles = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'], {
       encoding: 'utf8',
     })
       .split('\n')

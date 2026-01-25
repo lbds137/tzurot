@@ -206,9 +206,9 @@ function main() {
     console.log(`Checking ${files.length} specific files...\n`);
   } else if (checkStagedOnly) {
     // Get staged files from git
-    const { execSync } = require('child_process');
+    const { execFileSync } = require('child_process');
     try {
-      const stagedFiles = execSync('git diff --cached --name-only --diff-filter=ACM', {
+      const stagedFiles = execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACM'], {
         encoding: 'utf8',
       })
         .split('\n')

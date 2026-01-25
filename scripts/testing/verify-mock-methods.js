@@ -211,8 +211,8 @@ const args = process.argv.slice(2);
 
 if (args.length === 0) {
   // No specific files provided, check all test files
-  const { execSync } = require('child_process');
-  const testFiles = execSync('find tests -name "*.test.js" -type f', { encoding: 'utf8' })
+  const { execFileSync } = require('child_process');
+  const testFiles = execFileSync('find', ['tests', '-name', '*.test.js', '-type', 'f'], { encoding: 'utf8' })
     .split('\n')
     .filter(Boolean);
 

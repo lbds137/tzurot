@@ -79,11 +79,11 @@ function validateSyntax(filePath) {
  * Run Jest on a single file to validate it actually works
  */
 function validateWithJest(filePath) {
-  const { execSync } = require('child_process');
+  const { execFileSync } = require('child_process');
 
   try {
     // Run jest with no coverage and silent output
-    execSync(`npx jest "${filePath}" --no-coverage --silent`, {
+    execFileSync('npx', ['jest', filePath, '--no-coverage', '--silent'], {
       stdio: 'pipe',
       encoding: 'utf8',
     });
