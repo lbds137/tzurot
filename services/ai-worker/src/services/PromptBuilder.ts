@@ -25,6 +25,11 @@ import { formatMemoriesContext } from './prompt/MemoryFormatter.js';
 import { formatPersonalityFields } from './prompt/PersonalityFieldsFormatter.js';
 import { formatEnvironmentContext } from './prompt/EnvironmentFormatter.js';
 import { extractContentDescriptions } from './RAGUtils.js';
+import {
+  PLATFORM_CONSTRAINTS,
+  OUTPUT_CONSTRAINTS,
+  buildIdentityConstraints,
+} from './prompt/HardcodedConstraints.js';
 
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
@@ -219,26 +224,24 @@ export class PromptBuilder {
       `[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
     );
 
-    // Build <system_identity> section with identity AND constraints
-    // This is the START of the prompt - primacy effect
+    // Build <system_identity> section (simplified - just role and character)
+    // Constraints are now separate sections using the Sandwich Method
+    const identitySection = `<system_identity>
+<role>You are ${personality.name}.</role>
+<character>
+${escapeXmlContent(persona)}
+</character>
+</system_identity>`;
+
+    // Identity constraints - prevent identity bleeding
+    // Uses imported buildIdentityConstraints from HardcodedConstraints
     const collisionInfo = this.detectNameCollision(
       context.activePersonaName,
       context.discordUsername,
       personality.name,
       personality.id
     );
-    const identityConstraints = this.buildIdentityConstraints(personality.name, collisionInfo);
-    const identitySection = `<system_identity>
-<role>
-You are ${personality.name}.
-</role>
-<character>
-${escapeXmlContent(persona)}
-</character>
-<constraints>
-${identityConstraints}
-</constraints>
-</system_identity>`;
+    const identityConstraintsSection = buildIdentityConstraints(personality.name, collisionInfo);
 
     // Current date/time and environment context wrapped in <context>
     const datetime = formatFullDateTime(new Date(), context.userTimezone);
@@ -298,19 +301,33 @@ ${serializedHistory}
 </chat_log>`
         : '';
 
-    // Wrap protocol in XML tags (END of prompt - recency bias for highest impact)
-    // Escape user-generated content to prevent prompt injection via XML tag breaking
+    // Wrap protocol in XML tags (near END of prompt - recency bias for highest impact)
+    // Protocol content is already escaped during JSON->XML conversion in PersonalityFieldsFormatter
+    // For legacy XML format, we still escape to prevent prompt injection
     const protocolSection =
       protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 
-    // Assemble in correct order for U-shaped attention optimization
-    // Note: Image descriptions are now inline in chatLogSection (via <image_descriptions> tags)
-    const fullSystemPrompt = `${identitySection}${contextSection}${participantsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}`;
+    // Output constraints go at the VERY END (recency bias for format compliance)
+    // These are hardcoded in code, not user-configurable
+    const outputConstraintsSection = `\n\n${OUTPUT_CONSTRAINTS}`;
+
+    // Assemble in correct order using Sandwich Method:
+    // 1. System identity (who you are)
+    // 2. Identity constraints (prevent identity bleeding)
+    // 3. Platform constraints (legal/safety limits)
+    // 4. Context (when and where)
+    // 5. Participants (who else is involved)
+    // 6. Memory archive (middle = less attention = good for archives)
+    // 7. Referenced messages (contextual links)
+    // 8. Chat log (conversation history)
+    // 9. Protocol (user-configurable behavior rules)
+    // 10. Output constraints (recency bias for format compliance)
+    const fullSystemPrompt = `${identitySection}\n\n${identityConstraintsSection}\n\n${PLATFORM_CONSTRAINTS}${contextSection}${participantsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}${outputConstraintsSection}`;
 
     // Basic prompt composition logging (always)
     const historyLength = serializedHistory?.length ?? 0;
     logger.info(
-      `[PromptBuilder] Prompt composition: identity=${identitySection.length} context=${contextSection.length} references=${referencesContext.length} participants=${participantsContext.length} memories=${memoryContext.length} history=${historyLength} protocol=${protocolSection.length} total=${fullSystemPrompt.length} chars`
+      `[PromptBuilder] Prompt composition: identity=${identitySection.length} identityConstraints=${identityConstraintsSection.length} platformConstraints=${PLATFORM_CONSTRAINTS.length} context=${contextSection.length} participants=${participantsContext.length} memories=${memoryContext.length} references=${referencesContext.length} history=${historyLength} protocol=${protocolSection.length} outputConstraints=${outputConstraintsSection.length} total=${fullSystemPrompt.length} chars`
     );
 
     // Detailed prompt assembly logging (development only)
@@ -328,35 +345,6 @@ ${serializedHistory}
     });
 
     return new SystemMessage(fullSystemPrompt);
-  }
-
-  /**
-   * Build identity constraints for the system_identity section
-   *
-   * These constraints are critical for preventing identity bleeding
-   * where the AI responds as another participant instead of itself.
-   *
-   * @param personalityName - The AI character's name
-   * @param collisionInfo - Optional info when a user shares the AI's name
-   */
-  private buildIdentityConstraints(
-    personalityName: string,
-    collisionInfo?: { userName: string; discordUsername: string }
-  ): string {
-    let constraints = `You are ONE participant in this conversation.
-You are ${personalityName}. You are NEVER any other participant.
-Do not generate dialogue for other users.
-If you see messages from others, reply TO them, do not simulate them.
-Output ONLY your response text.
-NEVER prefix your response with "${personalityName}:" or any name.
-NEVER output XML tags in your response.`;
-
-    // Add explicit instruction when a user shares the AI's name
-    if (collisionInfo !== undefined) {
-      constraints += `\nNote: A user named "${collisionInfo.userName}" shares your name. They appear as "${collisionInfo.userName} (@${collisionInfo.discordUsername})" in the chat log. This is a different person - address them naturally.`;
-    }
-
-    return constraints;
   }
 
   /**
