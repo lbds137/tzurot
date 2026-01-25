@@ -295,3 +295,63 @@ export function formatTimestampWithDelta(
     relative: formatRelativeTimeDelta(timestamp),
   };
 }
+
+/**
+ * Format a timestamp for prompt display with unified format
+ *
+ * Format: "YYYY-MM-DD (Day) HH:MM • relative"
+ * Example: "2025-12-02 (Tue) 21:12 • 2h ago"
+ *
+ * For older timestamps (>7 days), omits time:
+ * Example: "2025-11-15 (Fri) • 2 months ago"
+ *
+ * Used for:
+ * - Message timestamps in chat_log
+ * - Referenced message timestamps
+ * - Memory timestamps in memory_archive
+ *
+ * @param timestamp - Timestamp to format
+ * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE
+ * @returns Unified timestamp string, or empty string for invalid date
+ */
+export function formatPromptTimestamp(
+  timestamp: Date | string | number,
+  timezone?: string
+): string {
+  const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
+
+  if (isNaN(date.getTime())) {
+    return '';
+  }
+
+  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+
+  // Get day of week abbreviation
+  const dayOfWeek = date.toLocaleDateString('en-US', {
+    weekday: 'short',
+    timeZone: tz,
+  });
+
+  // Get date in YYYY-MM-DD format
+  const datePart = formatDateOnly(date, tz);
+
+  // Get relative time
+  const relative = formatRelativeTimeDelta(timestamp);
+
+  // For recent messages (< 7 days), include time
+  if (diffDays < 7) {
+    const time = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: tz,
+    });
+    return `${datePart} (${dayOfWeek}) ${time} • ${relative}`;
+  }
+
+  // For older messages, omit time (less relevant)
+  return `${datePart} (${dayOfWeek}) • ${relative}`;
+}

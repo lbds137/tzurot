@@ -11,23 +11,19 @@ import {
 } from './MemoryFormatter.js';
 import type { MemoryDocument } from '../ConversationalRAGService.js';
 
-// Mock formatTimestampWithDelta
+// Mock formatPromptTimestamp
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    formatTimestampWithDelta: vi.fn((date: Date) => {
-      // Mock format: absolute "Mon, Jan 15, 2024", relative "2 weeks ago"
+    formatPromptTimestamp: vi.fn((date: Date) => {
+      // Mock format: "2024-01-15 (Mon) • 2 weeks ago"
       const options: Intl.DateTimeFormatOptions = {
         weekday: 'short',
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
       };
-      return {
-        absolute: date.toLocaleDateString('en-US', options),
-        relative: '2 weeks ago', // Fixed mock value for testing
-      };
+      const day = date.toLocaleDateString('en-US', options);
+      const dateStr = date.toISOString().split('T')[0];
+      return `${dateStr} (${day}) • 2 weeks ago`; // Fixed mock value for testing
     }),
   };
 });
@@ -109,7 +105,7 @@ describe('MemoryFormatter', () => {
       expect(result).toBe('');
     });
 
-    it('should format single memory with timestamp and relative time as XML attributes', () => {
+    it('should format single memory with unified timestamp as XML attribute', () => {
       const memories: MemoryDocument[] = [
         {
           pageContent: 'User likes pizza',
@@ -122,15 +118,14 @@ describe('MemoryFormatter', () => {
 
       const result = formatMemoriesContext(memories);
 
-      // Uses <historical_note> tag with recorded= and ago= attributes
+      // Uses <historical_note> tag with unified t= attribute
       expect(result).toContain('<historical_note');
-      expect(result).toContain('recorded="');
-      expect(result).toContain('ago="');
+      expect(result).toContain('t="');
       expect(result).toContain('User likes pizza');
       expect(result).toContain('</historical_note>');
     });
 
-    it('should include relative time as XML attribute', () => {
+    it('should include date and relative time in unified t attribute', () => {
       const memories: MemoryDocument[] = [
         {
           pageContent: 'Test memory',
@@ -142,8 +137,9 @@ describe('MemoryFormatter', () => {
 
       const result = formatMemoriesContext(memories);
 
-      // Should contain relative time as "ago" attribute
-      expect(result).toContain('ago="2 weeks ago"'); // Mock returns "2 weeks ago"
+      // Should contain unified format with both date and relative time
+      expect(result).toContain('t="2024-01-15'); // Date part
+      expect(result).toContain('2 weeks ago"'); // Relative part from mock
     });
 
     it('should format multiple memories as XML elements', () => {
@@ -185,9 +181,9 @@ describe('MemoryFormatter', () => {
       const result = formatMemoriesContext(memories);
 
       expect(result).toContain('<instruction>');
-      // No recorded/ago attributes when no timestamp
+      // No t= attribute when no timestamp
       expect(result).toContain('<historical_note>Memory without timestamp</historical_note>');
-      expect(result).not.toContain('recorded="');
+      expect(result).not.toContain('t="');
     });
 
     it('should handle memory with null createdAt', () => {
@@ -204,7 +200,7 @@ describe('MemoryFormatter', () => {
 
       expect(result).toContain('<instruction>');
       expect(result).toContain('<historical_note>Memory with null timestamp</historical_note>');
-      expect(result).not.toContain('recorded="');
+      expect(result).not.toContain('t="');
     });
 
     it('should handle memory with undefined createdAt', () => {
@@ -223,7 +219,7 @@ describe('MemoryFormatter', () => {
       expect(result).toContain(
         '<historical_note>Memory with undefined timestamp</historical_note>'
       );
-      expect(result).not.toContain('recorded="');
+      expect(result).not.toContain('t="');
     });
 
     it('should preserve memory order', () => {
@@ -295,7 +291,7 @@ describe('MemoryFormatter', () => {
   });
 
   describe('formatSingleMemory', () => {
-    it('should format memory with timestamp as XML with recorded/ago attributes', () => {
+    it('should format memory with timestamp as XML with unified t attribute', () => {
       const doc: MemoryDocument = {
         pageContent: 'Test memory content',
         metadata: { createdAt: new Date('2024-01-15') },
@@ -303,10 +299,10 @@ describe('MemoryFormatter', () => {
 
       const result = formatSingleMemory(doc);
 
-      // Uses <historical_note> with recorded= and ago= attributes
+      // Uses <historical_note> with unified t= attribute
       expect(result).toContain('<historical_note');
-      expect(result).toContain('recorded="');
-      expect(result).toContain('ago="');
+      expect(result).toContain('t="2024-01-15');
+      expect(result).toContain('2 weeks ago"');
       expect(result).toContain('Test memory content');
       expect(result).toContain('</historical_note>');
     });
