@@ -348,6 +348,7 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 
 | Item                            | Description                                                    |
 | ------------------------------- | -------------------------------------------------------------- |
+| Avatar filesystem cache stale   | `/data/avatars/{slug}.png` not invalidated on direct DB update |
 | Voice transcript race           | Forwarded voice before transcription completes                 |
 | Redis health check              | No programmatic way to check session manager health            |
 | Diagnostic retention config     | Hardcoded 24h, make env var `DIAGNOSTIC_RETENTION_HOURS`       |
