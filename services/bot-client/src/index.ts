@@ -66,6 +66,9 @@ const config = {
 };
 
 // Initialize Discord client
+// Note: GuildMembers is a privileged intent requiring Discord Portal approval for 100+ servers.
+// It's required because without it, message.member is null and we can't access user roles,
+// display color, or join date for the AI context (activePersonaGuildInfo).
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -73,7 +76,7 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildWebhooks,
     GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.GuildMembers, // Required for message.member (roles, join date, etc.)
+    GatewayIntentBits.GuildMembers,
   ],
 });
 
