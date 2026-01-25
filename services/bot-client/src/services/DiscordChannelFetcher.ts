@@ -454,12 +454,16 @@ export class DiscordChannelFetcher {
       // - Used as key for participantGuildInfo lookup
       // DB history participants use proper UUID persona IDs from the database.
       personaId: role === MessageRole.User ? `discord:${msg.author.id}` : 'assistant',
-      personaName: role === MessageRole.User ? authorName : options.personalityName,
+      personaName: role === MessageRole.User ? authorName : undefined,
       discordUsername: msg.author.username,
       discordMessageId: [msg.id],
       // Forwarded messages use XML attribute instead of content prefix
       isForwarded: isForwarded || undefined,
       // No token count - will be computed if needed
+      // AI personality info - for assistant messages, use the webhook name as the personality name
+      // This enables correct attribution in multi-AI channels (e.g., "Lila | תשב" instead of "COLD")
+      // Note: personalityId is not set because we can't determine it from the webhook name alone
+      personalityName: role === MessageRole.Assistant ? authorName : undefined,
     };
 
     return this.convertMessageResult(message, attachments);

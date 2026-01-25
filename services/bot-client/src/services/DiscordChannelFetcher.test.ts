@@ -213,7 +213,9 @@ describe('DiscordChannelFetcher', () => {
 
       expect(assistantMsg).toBeDefined();
       expect(assistantMsg!.content).toBe('Bot response');
-      expect(assistantMsg!.personaName).toBe('TestPersonality');
+      // Assistant messages use the webhook username as personalityName for multi-AI attribution
+      expect(assistantMsg!.personalityName).toBe('TestBot');
+      expect(assistantMsg!.personaName).toBeUndefined();
     });
 
     it('should filter out system messages', async () => {
