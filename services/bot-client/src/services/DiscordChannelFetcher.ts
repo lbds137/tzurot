@@ -8,6 +8,8 @@
  * (used for referenced messages like message links).
  */
 
+/* eslint-disable max-lines -- Cohesive fetcher class handling channel fetch, message conversion, and context merging */
+
 import type { Message, TextChannel, DMChannel, NewsChannel, Collection } from 'discord.js';
 import {
   createLogger,
@@ -46,6 +48,16 @@ export interface ParticipantGuildInfo {
 }
 
 /**
+ * Extended context user info for batch user creation
+ */
+export interface ExtendedContextUser {
+  discordId: string;
+  username: string;
+  displayName?: string;
+  isBot: boolean;
+}
+
+/**
  * Result of fetching channel messages
  */
 export interface FetchResult {
@@ -61,6 +73,8 @@ export interface FetchResult {
   imageAttachments?: AttachmentMetadata[];
   /** Guild info for participants (keyed by personaId, e.g., 'discord:123456789') */
   participantGuildInfo?: Record<string, ParticipantGuildInfo>;
+  /** Unique users from extended context for batch persona creation */
+  extendedContextUsers?: ExtendedContextUser[];
 }
 
 /**
@@ -159,6 +173,7 @@ export class DiscordChannelFetcher {
       const processResult = await this.processMessages(messagesToProcess, options);
 
       const participantCount = Object.keys(processResult.participantGuildInfo).length;
+      const userCount = processResult.extendedContextUsers.length;
       logger.info(
         {
           channelId: channel.id,
@@ -166,6 +181,7 @@ export class DiscordChannelFetcher {
           filteredCount: processResult.messages.length,
           imageAttachmentCount: processResult.imageAttachments.length,
           participantGuildInfoCount: participantCount,
+          extendedContextUserCount: userCount,
         },
         '[DiscordChannelFetcher] Fetched and processed channel messages'
       );
@@ -178,6 +194,7 @@ export class DiscordChannelFetcher {
         imageAttachments:
           processResult.imageAttachments.length > 0 ? processResult.imageAttachments : undefined,
         participantGuildInfo: participantCount > 0 ? processResult.participantGuildInfo : undefined,
+        extendedContextUsers: userCount > 0 ? processResult.extendedContextUsers : undefined,
       };
     } catch (error) {
       logger.error(
@@ -203,13 +220,15 @@ export class DiscordChannelFetcher {
   private processMessagesResult(
     messages: ConversationMessage[],
     imageAttachments: AttachmentMetadata[],
-    participantGuildInfo: Record<string, ParticipantGuildInfo>
+    participantGuildInfo: Record<string, ParticipantGuildInfo>,
+    extendedContextUsers: ExtendedContextUser[]
   ): {
     messages: ConversationMessage[];
     imageAttachments: AttachmentMetadata[];
     participantGuildInfo: Record<string, ParticipantGuildInfo>;
+    extendedContextUsers: ExtendedContextUser[];
   } {
-    return { messages, imageAttachments, participantGuildInfo };
+    return { messages, imageAttachments, participantGuildInfo, extendedContextUsers };
   }
 
   /**
@@ -278,7 +297,9 @@ export class DiscordChannelFetcher {
    * Converts to ConversationMessage format with proper role assignment.
    * Uses shared MessageContentBuilder for consistent message processing.
    * Collects image attachments for extended context processing.
+   * Collects unique users for batch persona creation.
    */
+  // eslint-disable-next-line complexity, max-lines-per-function -- Cohesive message processing with user collection
   private async processMessages(
     messages: Message[],
     options: FetchOptions
@@ -286,10 +307,13 @@ export class DiscordChannelFetcher {
     messages: ConversationMessage[];
     imageAttachments: AttachmentMetadata[];
     participantGuildInfo: Record<string, ParticipantGuildInfo>;
+    extendedContextUsers: ExtendedContextUser[];
   }> {
     const result: ConversationMessage[] = [];
     const collectedImageAttachments: AttachmentMetadata[] = [];
     const participantGuildInfo: Record<string, ParticipantGuildInfo> = {};
+    // Collect unique users for batch persona creation
+    const uniqueUsers = new Map<string, ExtendedContextUser>();
 
     // Build fallback map: voiceMessageId → bot reply transcript
     // Used when DB lookup fails (corrupted/missing records, old messages not in DB)
@@ -398,11 +422,28 @@ export class DiscordChannelFetcher {
           delete participantGuildInfo[personaId];
           participantGuildInfo[personaId] = this.extractGuildInfo(msg);
         }
+
+        // Collect unique user info for batch persona creation
+        // This allows extended context participants to have proper personas
+        if (conversionResult.message.role === MessageRole.User) {
+          const discordId = msg.author.id;
+          if (!uniqueUsers.has(discordId)) {
+            uniqueUsers.set(discordId, {
+              discordId,
+              username: msg.author.username,
+              displayName: msg.member?.displayName ?? msg.author.globalName ?? undefined,
+              isBot: msg.author.bot,
+            });
+          }
+        }
       }
     }
 
     // Limit to most recent N participants (last entries in object are most recent)
     const limitedParticipantGuildInfo = this.limitParticipants(participantGuildInfo);
+
+    // Convert unique users map to array
+    const extendedContextUsers = Array.from(uniqueUsers.values());
 
     // Return messages in reverse order (newest first) - these get re-sorted chronologically
     // by mergeWithHistory() to optimize for LLM recency bias (newest messages at end of prompt).
@@ -411,7 +452,8 @@ export class DiscordChannelFetcher {
     return this.processMessagesResult(
       result.reverse(),
       collectedImageAttachments,
-      limitedParticipantGuildInfo
+      limitedParticipantGuildInfo,
+      extendedContextUsers
     );
   }
 
@@ -484,6 +526,8 @@ export class DiscordChannelFetcher {
       content: rawContent,
       isForwarded,
       attachments,
+      embedsXml,
+      voiceTranscripts,
     } = await buildMessageContent(msg, {
       includeEmbeds: true,
       includeAttachments: false,
@@ -499,6 +543,16 @@ export class DiscordChannelFetcher {
     // Build final content - no prefix needed since XML format uses from="Name" attribute
     // isForwarded flag is passed separately for XML attribute formatting
     const content = rawContent;
+
+    // Build messageMetadata if we have embeds or voice transcripts
+    // These are used by formatSingleHistoryEntryAsXml for clean XML formatting
+    const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
+    const messageMetadata = hasMetadata
+      ? {
+          embedsXml,
+          voiceTranscripts,
+        }
+      : undefined;
 
     const message: ConversationMessage = {
       // Use Discord message ID as the conversation ID
@@ -519,6 +573,8 @@ export class DiscordChannelFetcher {
       discordMessageId: [msg.id],
       // Forwarded messages use XML attribute instead of content prefix
       isForwarded: isForwarded || undefined,
+      // Structured metadata for embeds and voice transcripts (extended context)
+      messageMetadata,
       // No token count - will be computed if needed
       // AI personality info - for assistant messages, extract the personality name from webhook
       // Webhook format: "Lila | תשב" -> extract "Lila" for clean attribution

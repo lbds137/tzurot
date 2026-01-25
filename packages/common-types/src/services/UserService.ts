@@ -15,6 +15,7 @@ import { createLogger } from '../utils/logger.js';
 import { TTLCache } from '../utils/TTLCache.js';
 import { generateUserUuid, generatePersonaUuid } from '../utils/deterministicUuid.js';
 import { isBotOwner } from '../utils/ownerMiddleware.js';
+import { UNKNOWN_USER_DISCORD_ID } from '../constants/message.js';
 
 /** User record with fields needed for backfill checks */
 interface UserWithBackfillFields {
@@ -358,5 +359,77 @@ export class UserService {
       logger.error({ err: error }, `Failed to get persona name for ${personaId}`);
       return null;
     }
+  }
+
+  /**
+   * Get or create multiple users in batch
+   * Used for extended context participants to ensure proper personas exist
+   *
+   * Filters out:
+   * - Bots (isBot: true)
+   * - Unknown users (discordId === UNKNOWN_USER_DISCORD_ID) from forwarded messages
+   *
+   * @param users - Array of user info from extended context
+   * @returns Map of discordId to userId (UUID), excluding filtered users
+   */
+  async getOrCreateUsersInBatch(
+    users: {
+      discordId: string;
+      username: string;
+      displayName?: string;
+      isBot: boolean;
+    }[]
+  ): Promise<Map<string, string>> {
+    const result = new Map<string, string>();
+
+    // Filter out bots and unknown users
+    const validUsers = users.filter(u => !u.isBot && u.discordId !== UNKNOWN_USER_DISCORD_ID);
+
+    if (validUsers.length === 0) {
+      return result;
+    }
+
+    // Process in batches of 10 to avoid overwhelming the database
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < validUsers.length; i += BATCH_SIZE) {
+      const batch = validUsers.slice(i, i + BATCH_SIZE);
+
+      // Process batch in parallel
+      const batchResults = await Promise.all(
+        batch.map(async user => {
+          try {
+            const userId = await this.getOrCreateUser(
+              user.discordId,
+              user.username,
+              user.displayName,
+              undefined, // bio
+              user.isBot
+            );
+            return { discordId: user.discordId, userId };
+          } catch (error) {
+            // Log but don't fail the entire batch for one user
+            logger.warn(
+              { err: error, discordId: user.discordId },
+              'Failed to get/create user in batch, continuing with others'
+            );
+            return { discordId: user.discordId, userId: null };
+          }
+        })
+      );
+
+      // Collect successful results
+      for (const { discordId, userId } of batchResults) {
+        if (userId !== null) {
+          result.set(discordId, userId);
+        }
+      }
+    }
+
+    logger.debug(
+      { requested: validUsers.length, created: result.size },
+      'Batch user creation completed'
+    );
+
+    return result;
   }
 }
