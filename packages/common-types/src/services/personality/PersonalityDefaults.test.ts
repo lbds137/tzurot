@@ -68,6 +68,9 @@ describe('PersonalityDefaults', () => {
     const mockLogger = {
       warn: vi.fn(),
     };
+    // Fixed timestamp for deterministic tests
+    const testDate = new Date('2024-01-21T12:00:00.000Z');
+    const expectedTimestamp = testDate.getTime(); // 1705838400000
 
     beforeEach(() => {
       vi.resetModules();
@@ -79,25 +82,38 @@ describe('PersonalityDefaults', () => {
       vi.clearAllMocks();
     });
 
-    it('should derive avatar URL from PUBLIC_GATEWAY_URL', () => {
+    it('should derive avatar URL with path-based cache-busting from PUBLIC_GATEWAY_URL', () => {
       process.env.PUBLIC_GATEWAY_URL = 'https://public.example.com';
-      const result = deriveAvatarUrl('test-bot', mockLogger);
-      expect(result).toBe('https://public.example.com/avatars/test-bot.png');
+      const result = deriveAvatarUrl('test-bot', testDate, mockLogger);
+      expect(result).toBe(`https://public.example.com/avatars/test-bot-${expectedTimestamp}.png`);
     });
 
     it('should fallback to GATEWAY_URL if PUBLIC_GATEWAY_URL not set', () => {
       delete process.env.PUBLIC_GATEWAY_URL;
       process.env.GATEWAY_URL = 'http://localhost:3000';
-      const result = deriveAvatarUrl('test-bot', mockLogger);
-      expect(result).toBe('http://localhost:3000/avatars/test-bot.png');
+      const result = deriveAvatarUrl('test-bot', testDate, mockLogger);
+      expect(result).toBe(`http://localhost:3000/avatars/test-bot-${expectedTimestamp}.png`);
     });
 
     it('should return undefined and log warning if no URL configured', () => {
       delete process.env.PUBLIC_GATEWAY_URL;
       delete process.env.GATEWAY_URL;
-      const result = deriveAvatarUrl('test-bot', mockLogger);
+      const result = deriveAvatarUrl('test-bot', testDate, mockLogger);
       expect(result).toBeUndefined();
       expect(mockLogger.warn).toHaveBeenCalled();
+    });
+
+    it('should include different timestamps for different update times', () => {
+      process.env.PUBLIC_GATEWAY_URL = 'https://example.com';
+      const date1 = new Date('2024-01-01T00:00:00.000Z');
+      const date2 = new Date('2024-06-15T00:00:00.000Z');
+
+      const result1 = deriveAvatarUrl('cold', date1, mockLogger);
+      const result2 = deriveAvatarUrl('cold', date2, mockLogger);
+
+      expect(result1).not.toBe(result2);
+      expect(result1).toContain(`cold-${date1.getTime()}.png`);
+      expect(result2).toContain(`cold-${date2.getTime()}.png`);
     });
   });
 
@@ -105,6 +121,9 @@ describe('PersonalityDefaults', () => {
     const mockLogger = {
       warn: vi.fn(),
     };
+    // Fixed timestamp for deterministic tests
+    const testDate = new Date('2024-01-21T12:00:00.000Z');
+    const expectedTimestamp = testDate.getTime();
 
     beforeEach(() => {
       process.env.GATEWAY_URL = 'http://localhost:3000';
@@ -117,6 +136,7 @@ describe('PersonalityDefaults', () => {
         name: 'TestBot',
         displayName: 'Test Bot',
         slug: 'test-bot',
+        updatedAt: testDate,
         systemPrompt: {
           content: 'You are a helpful assistant named {assistant}',
         },
@@ -157,7 +177,10 @@ describe('PersonalityDefaults', () => {
       expect(result.visionModel).toBe('anthropic/claude-sonnet-4.5');
       expect(result.temperature).toBe(0.7);
       expect(result.maxTokens).toBe(4096);
-      expect(result.avatarUrl).toBe('http://localhost:3000/avatars/test-bot.png');
+      // Avatar URL includes path-based cache-busting (timestamp in filename)
+      expect(result.avatarUrl).toBe(
+        `http://localhost:3000/avatars/test-bot-${expectedTimestamp}.png`
+      );
     });
 
     it('should use global default config when personality has no specific config', () => {
@@ -166,6 +189,7 @@ describe('PersonalityDefaults', () => {
         name: 'TestBot',
         displayName: null,
         slug: 'test-bot',
+        updatedAt: testDate,
         systemPrompt: null,
         defaultConfigLink: null,
         characterInfo: 'A helpful AI assistant',
@@ -211,6 +235,7 @@ describe('PersonalityDefaults', () => {
         name: 'persephone',
         displayName: unicodeDisplayName,
         slug: 'persephone',
+        updatedAt: testDate,
         systemPrompt: null,
         defaultConfigLink: null,
         characterInfo: null,
@@ -241,6 +266,7 @@ describe('PersonalityDefaults', () => {
         name: 'FallbackBot',
         displayName: null,
         slug: 'fallback-bot',
+        updatedAt: testDate,
         systemPrompt: null,
         defaultConfigLink: null,
         characterInfo: null,
@@ -265,6 +291,7 @@ describe('PersonalityDefaults', () => {
         name: 'TestBot',
         displayName: null,
         slug: 'test-bot',
+        updatedAt: testDate,
         systemPrompt: {
           content: 'I am {assistant}',
         },

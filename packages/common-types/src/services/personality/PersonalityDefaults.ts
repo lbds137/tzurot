@@ -160,13 +160,19 @@ export function replacePlaceholders(
 }
 
 /**
- * Derive avatar URL from personality slug
- * Avatar files are named by slug: ${slug}.png
+ * Derive avatar URL from personality slug with cache-busting timestamp
+ *
+ * Uses path-based versioning for Discord CDN cache-busting:
+ * - Format: /avatars/{slug}-{timestamp}.png
+ * - Discord's CDN ignores query params (?v=...) but treats different paths as new resources
+ * - The API gateway extracts the slug from the path using regex
+ *
  * Uses PUBLIC_GATEWAY_URL if available (for external access like Discord avatars),
  * falls back to GATEWAY_URL for local development
  */
 export function deriveAvatarUrl(
   slug: string,
+  updatedAt: Date,
   logger: { warn: (obj: object, msg: string) => void }
 ): string | undefined {
   const publicUrl = process.env.PUBLIC_GATEWAY_URL ?? process.env.GATEWAY_URL;
@@ -178,7 +184,9 @@ export function deriveAvatarUrl(
     return undefined;
   }
 
-  return `${publicUrl}/avatars/${slug}.png`;
+  // Path-based versioning: timestamp in filename forces Discord CDN to fetch fresh image
+  const timestamp = updatedAt.getTime();
+  return `${publicUrl}/avatars/${slug}-${timestamp}.png`;
 }
 
 /**
@@ -210,8 +218,9 @@ export function mapToPersonality(
     name: db.name,
     displayName: db.displayName ?? db.name,
     slug: db.slug,
-    avatarUrl: deriveAvatarUrl(db.slug, logger),
-    avatarUpdatedAt: db.updatedAt,
+    // Avatar URL with path-based cache-busting (timestamp in filename)
+    // Discord CDN ignores query params, so we embed the timestamp in the path
+    avatarUrl: deriveAvatarUrl(db.slug, db.updatedAt, logger),
 
     // LLM configuration (cascaded from personality > global > defaults)
     ...getRequiredLlmConfig(personalityConfig, globalDefaultConfig),
