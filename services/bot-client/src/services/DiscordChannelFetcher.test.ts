@@ -1291,6 +1291,308 @@ describe('DiscordChannelFetcher', () => {
     });
   });
 
+  describe('voice transcript fallback', () => {
+    it('should use DB transcript when available', async () => {
+      // Voice message with a bot transcript reply in channel
+      const voiceMessageId = 'voice-msg-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5, // Has duration = voice message
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+        // Bot transcript reply
+        createMockMessage({
+          id: 'transcript-reply-1',
+          content: 'Fallback transcript from bot reply',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+          reference: { messageId: voiceMessageId },
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      // DB returns transcript - should use DB, not fallback
+      const getTranscript = vi.fn().mockResolvedValue('DB transcript content');
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        getTranscript,
+      });
+
+      // Should have 1 message (voice message with transcript, bot reply filtered)
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages[0].content).toContain('DB transcript content');
+      expect(result.messages[0].content).not.toContain('Fallback transcript');
+    });
+
+    it('should fall back to bot reply when DB returns null', async () => {
+      const voiceMessageId = 'voice-msg-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5,
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+        // Bot transcript reply
+        createMockMessage({
+          id: 'transcript-reply-1',
+          content: 'Fallback transcript from bot reply',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+          reference: { messageId: voiceMessageId },
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      // DB returns null - should fall back to bot reply
+      const getTranscript = vi.fn().mockResolvedValue(null);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        getTranscript,
+      });
+
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages[0].content).toContain('Fallback transcript from bot reply');
+    });
+
+    it('should fall back to bot reply when DB returns empty string', async () => {
+      const voiceMessageId = 'voice-msg-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5,
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+        // Bot transcript reply
+        createMockMessage({
+          id: 'transcript-reply-1',
+          content: 'Fallback from empty DB',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+          reference: { messageId: voiceMessageId },
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      // DB returns empty string (corrupted data) - should fall back to bot reply
+      const getTranscript = vi.fn().mockResolvedValue('');
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        getTranscript,
+      });
+
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages[0].content).toContain('Fallback from empty DB');
+    });
+
+    it('should return null transcript when neither DB nor fallback available', async () => {
+      const voiceMessageId = 'voice-msg-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5,
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+        // NO bot transcript reply in channel
+      ];
+
+      const channel = createMockChannel(messages);
+
+      // DB returns null, no bot reply available
+      const getTranscript = vi.fn().mockResolvedValue(null);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        getTranscript,
+      });
+
+      // Message should still be included (has attachment) but content may be empty/minimal
+      expect(result.filteredCount).toBe(1);
+      // The voice message attachment is processed but has no transcript
+      expect(result.messages[0].content).not.toContain('transcript');
+    });
+
+    it('should use fallback when no getTranscript function provided', async () => {
+      const voiceMessageId = 'voice-msg-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5,
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+        // Bot transcript reply
+        createMockMessage({
+          id: 'transcript-reply-1',
+          content: 'Fallback when no DB function',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+          reference: { messageId: voiceMessageId },
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      // No getTranscript provided - should use fallback
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        // No getTranscript option
+      });
+
+      expect(result.filteredCount).toBe(1);
+      expect(result.messages[0].content).toContain('Fallback when no DB function');
+    });
+
+    it('should not use empty bot reply as fallback', async () => {
+      const voiceMessageId = 'voice-msg-1';
+      const messages = [
+        createMockMessage({
+          id: voiceMessageId,
+          content: '',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/voice-message.ogg',
+                contentType: 'audio/ogg',
+                name: 'voice-message.ogg',
+                duration: 5,
+                waveform: 'abc',
+              },
+            ],
+          ]),
+        }),
+        // Bot reply with empty content (shouldn't be used as fallback)
+        createMockMessage({
+          id: 'bot-reply-empty',
+          content: '',
+          authorId: 'bot123',
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:01Z'),
+          reference: { messageId: voiceMessageId },
+          attachments: new Map([
+            [
+              'img1',
+              {
+                id: 'img1',
+                url: 'https://cdn.discord.com/image.png',
+                contentType: 'image/png',
+                name: 'image.png',
+                duration: null,
+              },
+            ],
+          ]),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const getTranscript = vi.fn().mockResolvedValue(null);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+        getTranscript,
+      });
+
+      // Voice message included (has attachment), bot reply with image also included
+      // but no transcript should be in the content
+      expect(result.filteredCount).toBe(2);
+    });
+  });
+
   describe('bot transcript reply filtering', () => {
     it('should filter out bot transcript replies from extended context', async () => {
       // Bot transcript replies are: bot message + reply reference + has text content
