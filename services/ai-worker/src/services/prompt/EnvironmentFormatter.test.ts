@@ -1,16 +1,16 @@
 /**
  * Tests for EnvironmentFormatter
  *
- * Tests the pure XML environment formatting with:
- * - <location type="dm"> for direct messages
- * - <location type="guild"> with semantic elements for server channels
+ * Tests the ai-worker wrapper around formatLocationAsXml.
+ * The core formatting logic is tested in common-types/environmentFormatter.test.ts.
+ * This file tests the wrapper adds logging and delegates correctly.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { formatEnvironmentContext } from './EnvironmentFormatter.js';
-import type { DiscordEnvironment } from '../ConversationalRAGService.js';
+import type { DiscordEnvironment } from '@tzurot/common-types';
 
-// Mock the logger
+// Mock the logger but keep formatLocationAsXml as real implementation
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {

@@ -84,6 +84,7 @@ export {
   xmlSelfClosing,
   XML_TAGS,
 } from './utils/xmlBuilder.js';
+export { formatLocationAsXml } from './utils/environmentFormatter.js';
 export {
   normalizeRole,
   isRoleMatch,

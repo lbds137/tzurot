@@ -149,8 +149,8 @@ export class ReferencedMessageFormatter {
         );
       }
 
-      // Location
-      refLines.push(`<location>${escapeXmlContent(ref.locationContext)}</location>`);
+      // Location (already formatted as XML by bot-client using shared formatLocationAsXml)
+      refLines.push(ref.locationContext);
 
       // Timestamp with both absolute date and relative time
       const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
@@ -176,14 +176,14 @@ export class ReferencedMessageFormatter {
       if (ref.attachments && ref.attachments.length > 0) {
         const preprocessedForRef = preprocessedAttachments?.[ref.referenceNumber];
 
-        const attachmentLines = await this.processAttachmentsParallel(
-          ref.attachments,
-          ref.referenceNumber,
+        const attachmentLines = await this.processAttachmentsParallel({
+          attachments: ref.attachments,
+          referenceNumber: ref.referenceNumber,
           personality,
           isGuestMode,
-          preprocessedForRef,
-          userApiKey
-        );
+          preprocessedAttachments: preprocessedForRef,
+          userApiKey,
+        });
 
         if (attachmentLines.length > 0) {
           refLines.push('<attachments>');
@@ -221,23 +221,23 @@ export class ReferencedMessageFormatter {
    * Uses Promise.allSettled to process images and voice messages concurrently,
    * significantly reducing latency when multiple attachments are present.
    * If preprocessed attachments are provided, uses them instead of making API calls.
-   *
-   * @param attachments - Attachments to process
-   * @param referenceNumber - Reference number for logging
-   * @param personality - Personality configuration
-   * @param isGuestMode - Whether the user is in guest mode (no BYOK API key)
-   * @param preprocessedAttachments - Pre-processed attachments for this reference (optional)
-   * @param userApiKey - User's BYOK API key (for BYOK users)
-   * @returns Array of formatted attachment lines
    */
-  private async processAttachmentsParallel(
-    attachments: ReferencedMessage['attachments'],
-    referenceNumber: number,
-    personality: LoadedPersonality,
-    isGuestMode: boolean,
-    preprocessedAttachments?: ProcessedAttachment[],
-    userApiKey?: string
-  ): Promise<string[]> {
+  private async processAttachmentsParallel(options: {
+    attachments: ReferencedMessage['attachments'];
+    referenceNumber: number;
+    personality: LoadedPersonality;
+    isGuestMode: boolean;
+    preprocessedAttachments?: ProcessedAttachment[];
+    userApiKey?: string;
+  }): Promise<string[]> {
+    const {
+      attachments,
+      referenceNumber,
+      personality,
+      isGuestMode,
+      preprocessedAttachments,
+      userApiKey,
+    } = options;
     if (!attachments || attachments.length === 0) {
       return [];
     }
