@@ -10,6 +10,7 @@
  */
 
 import type { PrismaClient } from '@tzurot/common-types';
+import { UNKNOWN_USER_NAME } from '@tzurot/common-types';
 import type { UUIDMapping } from './types.js';
 
 export interface UserResolutionResult {
@@ -179,7 +180,7 @@ export class UUIDMapper {
         description: 'Memories from shapes.inc import that could not be linked to specific users',
         content:
           'This persona contains memories from the shapes.inc import where the original user could not be identified.',
-        preferredName: 'Unknown User',
+        preferredName: UNKNOWN_USER_NAME,
         ownerId: ownerId, // Bot owner or system user
       },
     });

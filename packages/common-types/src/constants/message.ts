@@ -57,3 +57,15 @@ export const MESSAGE_LIMITS = {
    */
   MAX_EXTENDED_CONTEXT_PARTICIPANTS: 20,
 } as const;
+
+/**
+ * Unknown User Constants
+ * Used for forwarded messages where author information is unavailable
+ * These must be used consistently to allow filtering during batch user creation
+ */
+
+/** Placeholder Discord user ID for messages with unknown authors (forwarded messages) */
+export const UNKNOWN_USER_DISCORD_ID = 'unknown';
+
+/** Placeholder display name for messages with unknown authors (forwarded messages) */
+export const UNKNOWN_USER_NAME = 'Unknown User';

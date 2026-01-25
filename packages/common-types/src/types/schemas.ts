@@ -148,6 +148,12 @@ export const messageMetadataSchema = z.object({
       })
     )
     .optional(),
+  // Extended context fields (not persisted to DB, used for prompt formatting)
+  // These are populated by DiscordChannelFetcher for extended context messages
+  /** Embed XML strings for extended context messages (already formatted by EmbedParser) */
+  embedsXml: z.array(z.string()).optional(),
+  /** Voice transcripts for extended context messages */
+  voiceTranscripts: z.array(z.string()).optional(),
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 

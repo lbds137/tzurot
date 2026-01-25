@@ -1,3 +1,4 @@
+/* eslint-disable complexity, max-depth -- Inherent complexity from handling multiple content types (attachments, embeds, voice, forwarded) */
 /**
  * Message Content Builder
  *
@@ -171,7 +172,7 @@ export interface BuildContentOptions {
  * Result of building message content
  */
 export interface BuildContentResult {
-  /** The comprehensive text content */
+  /** The plain text content (message text, NO markdown prefixes like [Forwarded message]:) */
   content: string;
   /** Extracted attachment metadata (for vision processing) */
   attachments: AttachmentMetadata[];
@@ -179,6 +180,10 @@ export interface BuildContentResult {
   hasVoiceMessage: boolean;
   /** Whether the message is a forwarded message */
   isForwarded: boolean;
+  /** Voice transcripts (separate for structured XML formatting) */
+  voiceTranscripts?: string[];
+  /** Embed XML strings (already formatted by EmbedParser, for <embeds> section) */
+  embedsXml?: string[];
 }
 
 /**
@@ -207,6 +212,9 @@ export async function buildMessageContent(
   // Collect attachments from forwarded message snapshots
   const snapshotAttachments: AttachmentMetadata[] = [];
 
+  // Collect embeds separately (for structured XML formatting, not markdown mess)
+  const embedsXml: string[] = [];
+
   // Check if this is a forwarded message
   if (
     message.reference?.type === MessageReferenceType.Forward &&
@@ -216,8 +224,10 @@ export async function buildMessageContent(
     isForwarded = true;
     // For forwarded messages, extract content from snapshots
     for (const snapshot of message.messageSnapshots.values()) {
+      // Add content directly - no [Forwarded message]: prefix
+      // The isForwarded flag is used for XML attribute formatting instead
       if (snapshot.content) {
-        contentParts.push(`[Forwarded message]: ${snapshot.content}`);
+        contentParts.push(snapshot.content);
       }
 
       // Extract attachments from snapshot (critical for forwarded images!)
@@ -242,21 +252,18 @@ export async function buildMessageContent(
         );
       }
 
-      // Process snapshot embeds
+      // Process snapshot embeds - collect as XML for structured formatting
+      // No markdown headers like "### Forwarded Embed" - use clean XML format
       if (includeEmbeds && snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
-        const embedText = snapshot.embeds
-          .map((embed, index) => {
-            const embedNumber = snapshot.embeds.length > 1 ? ` ${index + 1}` : '';
-            // Snapshot embeds are already APIEmbed format (or have toJSON method)
-            const apiEmbed: APIEmbed =
-              'toJSON' in embed && typeof embed.toJSON === 'function'
-                ? embed.toJSON()
-                : (embed as unknown as APIEmbed);
-            return `### Forwarded Embed${embedNumber}\n\n${EmbedParser.parseEmbed(apiEmbed)}`;
-          })
-          .join('\n\n---\n\n');
-        if (embedText) {
-          contentParts.push(embedText);
+        for (let index = 0; index < snapshot.embeds.length; index++) {
+          const embed = snapshot.embeds[index];
+          const numAttr = snapshot.embeds.length > 1 ? ` number="${index + 1}"` : '';
+          // Snapshot embeds are already APIEmbed format (or have toJSON method)
+          const apiEmbed: APIEmbed =
+            'toJSON' in embed && typeof embed.toJSON === 'function'
+              ? embed.toJSON()
+              : (embed as unknown as APIEmbed);
+          embedsXml.push(`<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed)}\n</embed>`);
         }
       }
     }
@@ -280,6 +287,7 @@ export async function buildMessageContent(
   ];
 
   // Process voice messages and categorize attachments
+  // Voice transcripts are collected separately for structured XML formatting
   const { hasVoiceMessage, voiceTranscripts, nonVoiceAttachments } = await processVoiceAttachments({
     messageId: message.id,
     originalMessageId: message.reference?.messageId,
@@ -290,11 +298,8 @@ export async function buildMessageContent(
     getTranscript,
   });
 
-  // Add voice transcripts to content
-  if (voiceTranscripts.length > 0) {
-    const transcriptText = voiceTranscripts.join('\n\n');
-    contentParts.push(`[Voice transcript]: ${transcriptText}`);
-  }
+  // Voice transcripts are returned separately - no [Voice transcript]: prefix
+  // The XML formatter will add proper <voice_transcripts> section
 
   // Add attachment descriptions for non-voice attachments
   if (includeAttachments && nonVoiceAttachments.length > 0) {
@@ -306,11 +311,12 @@ export async function buildMessageContent(
     contentParts.push(`[Attachments: ${attachmentDescriptions.join(', ')}]`);
   }
 
-  // Add embed content
+  // Process main message embeds - collect as XML for structured formatting
   if (includeEmbeds && message.embeds !== undefined && message.embeds.length > 0) {
-    const embedText = EmbedParser.parseMessageEmbeds(message);
-    if (embedText) {
-      contentParts.push(embedText);
+    for (let index = 0; index < message.embeds.length; index++) {
+      const embed = message.embeds[index];
+      const numAttr = message.embeds.length > 1 ? ` number="${index + 1}"` : '';
+      embedsXml.push(`<embed${numAttr}>\n${EmbedParser.parseEmbed(embed.toJSON())}\n</embed>`);
     }
   }
 
@@ -321,6 +327,9 @@ export async function buildMessageContent(
     attachments: allAttachments,
     hasVoiceMessage,
     isForwarded,
+    // Return voice transcripts and embeds separately for structured XML formatting
+    voiceTranscripts: voiceTranscripts.length > 0 ? voiceTranscripts : undefined,
+    embedsXml: embedsXml.length > 0 ? embedsXml : undefined,
   };
 }
 

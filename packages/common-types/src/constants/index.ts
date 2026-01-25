@@ -88,7 +88,13 @@ export {
 } from './media.js';
 
 // Message constants
-export { MessageRole, PLACEHOLDERS, MESSAGE_LIMITS } from './message.js';
+export {
+  MessageRole,
+  PLACEHOLDERS,
+  MESSAGE_LIMITS,
+  UNKNOWN_USER_DISCORD_ID,
+  UNKNOWN_USER_NAME,
+} from './message.js';
 
 // Service constants
 export {
