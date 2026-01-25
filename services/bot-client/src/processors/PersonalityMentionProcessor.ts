@@ -12,6 +12,7 @@ import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
+import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 
 const logger = createLogger('PersonalityMentionProcessor');
 
@@ -24,10 +25,12 @@ export class PersonalityMentionProcessor implements IMessageProcessor {
   async process(message: Message): Promise<boolean> {
     // Check for personality mentions (e.g., "@personality hello")
     // Pass userId for access control - only matches accessible personalities
+    // For forwarded messages, getEffectiveContent extracts content from the snapshot
     const config = getConfig();
     const userId = message.author.id;
+    const effectiveContent = getEffectiveContent(message);
     const mentionMatch = await findPersonalityMention(
-      message.content,
+      effectiveContent,
       config.BOT_MENTION_CHAR,
       this.personalityService,
       userId
