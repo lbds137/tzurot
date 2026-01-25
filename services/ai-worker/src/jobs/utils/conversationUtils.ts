@@ -183,8 +183,15 @@ export interface InlineImageDescription {
  * Raw conversation history entry (before BaseMessage conversion)
  */
 export interface RawHistoryEntry {
-  /** Message ID - for extended context messages this IS the Discord message ID */
+  /** Internal message ID (database UUID) */
   id?: string;
+  /**
+   * Discord message IDs (snowflakes) for this message.
+   * Array because long messages may be split into multiple Discord messages (chunks).
+   * Used for quote deduplication: if a referenced message's Discord ID is in history,
+   * we don't need to repeat it in quoted_messages.
+   */
+  discordMessageId?: string[];
   role: MessageRole | string;
   content: string;
   createdAt?: string;
@@ -218,20 +225,34 @@ export interface RawHistoryEntry {
  *
  * @param ref - The stored referenced message
  * @param personalityName - Name of the active AI personality (to infer role)
+ * @param allPersonalityNames - Optional set of all AI personality names in the conversation
  * @returns Formatted XML string
  */
 function formatStoredReferencedMessage(
   ref: StoredReferencedMessage,
-  personalityName: string
+  personalityName: string,
+  allPersonalityNames?: Set<string>
 ): string {
   const authorName = ref.authorDisplayName || ref.authorUsername;
   const safeAuthor = escapeXml(authorName);
   const safeContent = escapeXmlContent(ref.content);
 
-  // Infer role from author name - if it matches personality name, it's assistant
-  const role = authorName.toLowerCase().startsWith(personalityName.toLowerCase())
-    ? 'assistant'
-    : 'user';
+  // Infer role from author name - if it matches ANY personality name, it's assistant
+  // This ensures multi-AI channel messages are correctly attributed
+  const authorLower = authorName.toLowerCase();
+  let isAssistant = authorLower.startsWith(personalityName.toLowerCase());
+
+  // Check against all personality names if provided
+  if (!isAssistant && allPersonalityNames !== undefined) {
+    for (const name of allPersonalityNames) {
+      if (authorLower.startsWith(name.toLowerCase())) {
+        isAssistant = true;
+        break;
+      }
+    }
+  }
+
+  const role = isAssistant ? 'assistant' : 'user';
 
   // Format timestamp with both relative and absolute for consistency
   const timeAttr =
@@ -389,7 +410,7 @@ export function formatSingleHistoryEntryAsXml(
 
     if (refsToFormat.length > 0) {
       const formattedRefs = refsToFormat
-        .map(ref => formatStoredReferencedMessage(ref, personalityName))
+        .map(ref => formatStoredReferencedMessage(ref, personalityName, allPersonalityNames))
         .join('\n');
       quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
     }
@@ -453,12 +474,19 @@ export function formatConversationHistoryAsXml(
     return '';
   }
 
-  // Build set of message IDs for quote deduplication
-  // This prevents duplicating quoted content that's already in the conversation
+  // Build set of Discord message IDs for quote deduplication
+  // This prevents duplicating quoted content that's already in the conversation.
+  // Uses discordMessageId (Discord snowflakes) NOT id (internal database UUIDs) because
+  // referenced messages are identified by their Discord message ID.
   const historyMessageIds = new Set<string>();
   for (const msg of history) {
-    if (msg.id !== undefined && msg.id.length > 0) {
-      historyMessageIds.add(msg.id);
+    // Each message may have multiple Discord IDs (for chunked messages)
+    if (msg.discordMessageId !== undefined) {
+      for (const discordId of msg.discordMessageId) {
+        if (discordId.length > 0) {
+          historyMessageIds.add(discordId);
+        }
+      }
     }
   }
 
