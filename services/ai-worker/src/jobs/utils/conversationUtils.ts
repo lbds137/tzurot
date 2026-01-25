@@ -205,13 +205,35 @@ export interface RawHistoryEntry {
 
 /**
  * Format a single stored reference as XML
+ *
+ * Uses the same <message> structure as regular messages for consistency.
+ * Adds quoted="true" attribute to distinguish from regular messages.
+ *
+ * @param ref - The stored referenced message
+ * @param personalityName - Name of the active AI personality (to infer role)
+ * @returns Formatted XML string
  */
-function formatStoredReferencedMessage(ref: StoredReferencedMessage, index: number): string {
+function formatStoredReferencedMessage(
+  ref: StoredReferencedMessage,
+  personalityName: string
+): string {
   const authorName = ref.authorDisplayName || ref.authorUsername;
-  // Use escapeXml for attributes (escapes quotes), escapeXmlContent for content
   const safeAuthor = escapeXml(authorName);
   const safeContent = escapeXmlContent(ref.content);
-  const safeLocation = escapeXml(ref.locationContext);
+
+  // Infer role from author name - if it matches personality name, it's assistant
+  const role = authorName.toLowerCase().startsWith(personalityName.toLowerCase())
+    ? 'assistant'
+    : 'user';
+
+  // Format timestamp as relative time
+  const timeAttr =
+    ref.timestamp !== undefined && ref.timestamp.length > 0
+      ? ` time="${escapeXml(formatRelativeTime(ref.timestamp))}"`
+      : '';
+
+  // Forwarded messages have limited author info
+  const forwardedAttr = ref.isForwarded === true ? ' forwarded="true"' : '';
 
   // Format embeds if present
   let embedsSection = '';
@@ -228,12 +250,9 @@ function formatStoredReferencedMessage(ref: StoredReferencedMessage, index: numb
     attachmentsSection = `\n<attachments>${escapeXmlContent(attachmentItems)}</attachments>`;
   }
 
-  // Forwarded messages have limited author info
-  const forwardedAttr = ref.isForwarded === true ? ' forwarded="true"' : '';
-
-  return `<quote number="${index + 1}" author="${safeAuthor}" location="${safeLocation}"${forwardedAttr}>
-${safeContent}${embedsSection}${attachmentsSection}
-</quote>`;
+  // Use same <message> structure as regular messages, with quoted="true" attribute
+  // Omit location (already in environment) and from_id (not available for historical refs)
+  return `<message from="${safeAuthor}" role="${role}"${timeAttr}${forwardedAttr} quoted="true">${safeContent}${embedsSection}${attachmentsSection}</message>`;
 }
 
 /**
@@ -286,11 +305,13 @@ function resolveSpeakerInfo(
  *
  * @param msg - Raw history entry to format
  * @param personalityName - Name of the AI personality (for marking its own messages)
+ * @param historyMessageIds - Optional set of Discord message IDs already in history (for quote deduplication)
  * @returns Formatted XML string, or empty string if message should be skipped
  */
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
-  personalityName: string
+  personalityName: string,
+  historyMessageIds?: Set<string>
 ): string {
   const speakerInfo = resolveSpeakerInfo(msg, personalityName);
   if (speakerInfo === null) {
@@ -321,16 +342,27 @@ export function formatSingleHistoryEntryAsXml(
       : '';
 
   // Format referenced messages from messageMetadata (user messages only)
+  // Skip quotes for messages already in conversation history (deduplication)
   let quotedSection = '';
   if (
     normalizedRole === 'user' &&
     msg.messageMetadata?.referencedMessages !== undefined &&
     msg.messageMetadata.referencedMessages.length > 0
   ) {
-    const formattedRefs = msg.messageMetadata.referencedMessages
-      .map((ref, idx) => formatStoredReferencedMessage(ref, idx))
-      .join('\n');
-    quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
+    // Filter out referenced messages that are already in conversation history
+    const refsToFormat =
+      historyMessageIds !== undefined
+        ? msg.messageMetadata.referencedMessages.filter(
+            ref => !historyMessageIds.has(ref.discordMessageId)
+          )
+        : msg.messageMetadata.referencedMessages;
+
+    if (refsToFormat.length > 0) {
+      const formattedRefs = refsToFormat
+        .map(ref => formatStoredReferencedMessage(ref, personalityName))
+        .join('\n');
+      quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
+    }
   }
 
   // Format image descriptions inline (from extended context preprocessing)
@@ -370,6 +402,8 @@ export interface FormatConversationHistoryOptions {
  *
  * For user messages with referenced messages (replies, message links), the references
  * are included as nested <quoted_messages> elements within the message.
+ * Quoted messages are deduplicated: if the quoted message is already in the
+ * conversation history, it won't be repeated as a quote.
  *
  * When timeGapConfig is provided, significant time gaps between messages are marked
  * with <time_gap duration="X hours" /> elements to help the AI understand
@@ -389,6 +423,15 @@ export function formatConversationHistoryAsXml(
     return '';
   }
 
+  // Build set of message IDs for quote deduplication
+  // This prevents duplicating quoted content that's already in the conversation
+  const historyMessageIds = new Set<string>();
+  for (const msg of history) {
+    if (msg.id !== undefined && msg.id.length > 0) {
+      historyMessageIds.add(msg.id);
+    }
+  }
+
   const messages: string[] = [];
   let previousTimestamp: string | undefined;
 
@@ -405,7 +448,7 @@ export function formatConversationHistoryAsXml(
       }
     }
 
-    const formatted = formatSingleHistoryEntryAsXml(msg, personalityName);
+    const formatted = formatSingleHistoryEntryAsXml(msg, personalityName, historyMessageIds);
     if (formatted.length > 0) {
       messages.push(formatted);
       // Update previous timestamp for next iteration

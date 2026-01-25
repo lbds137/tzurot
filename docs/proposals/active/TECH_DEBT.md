@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25 (added unused \_activePersonaName param)
+> Last updated: 2026-01-25 (added voice transcript sync bug fix + recovery script)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -21,18 +21,6 @@ Technical debt prioritized by ROI: bug prevention, maintainability, and scaling 
 3. Add personality IDs as participants with short blurbs (similar to user personas)
 
 **Related**: Need `quickSummary` field in character cards for conversational context without overwhelming the context window.
-
-**Source**: Prompt review (2026-01-24)
-
----
-
-### Quoted Messages Duplicate Detection
-
-**Problem**: Replies that are already in the conversation history still appear as `<quoted_messages>`, wasting tokens by duplicating content.
-
-**Impact**: Token waste, especially in long conversations where users frequently reply to recent messages.
-
-**Solution**: Before including a quoted message, check if its ID already exists in the conversation history. Skip quotes for messages that are already present in the context.
 
 **Source**: Prompt review (2026-01-24)
 
@@ -98,6 +86,30 @@ Technical debt prioritized by ROI: bug prevention, maintainability, and scaling 
 **Recommended Solution**: Hybrid Facade Pattern - pass `SafeCommandContext` that doesn't have `deferReply()` method at all (compile-time safety).
 
 **Source**: MCP council analysis (2026-01-20)
+
+---
+
+### Voice Message Transcripts Corrupted by Sync Bug
+
+**Problem**: The opportunistic sync in `DiscordChannelFetcher.contentsDiffer()` was overwriting voice message transcripts with empty strings. Voice messages have empty text content in Discord but transcripts stored in `conversation_history.content`. The sync saw them as "edited" and wiped the transcripts.
+
+**Impact**: Unknown number of voice message records now have `content: ""` but the transcripts exist in associated memories (since memories were created before the sync ran).
+
+**Fix Applied**: Added check in `contentsDiffer()` to never overwrite non-empty DB content with empty Discord content (PR pending).
+
+**Recovery Script Needed**:
+
+1. Find conversation_history records where:
+   - `content = ''` (empty)
+   - `edited_at IS NOT NULL` (was modified by sync)
+   - Has associated memory in `memories` table with non-empty content
+2. Parse the memory content to extract the transcript (format: `{user}: [transcript]\n\n{assistant}: [response]`)
+3. Update conversation_history.content with the extracted transcript
+4. Reset `edited_at` to `NULL` or set to a marker value
+
+**Files**: `scripts/data/fix-voice-transcripts.ts` (to be created)
+
+**Source**: Production data corruption discovered 2026-01-25
 
 ---
 

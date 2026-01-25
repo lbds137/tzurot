@@ -1,12 +1,44 @@
 # Current Work
 
-> Last updated: 2026-01-23
+> Last updated: 2026-01-25
 
 ## Status: Public Beta Live
 
-**Version**: v3.0.0-beta.47
+**Version**: v3.0.0-beta.49
 **Deployment**: Railway (stable)
-**Current Goal**: Slash Command UX Epic (standardize CRUD patterns, autocomplete consistency)
+**Current Goal**: Prompt XML Cleanup & Chat Log Improvements
+
+---
+
+## In Progress: Prompt XML Cleanup ⬅️ CURRENT
+
+**Branch**: `develop` (direct commits for small fixes)
+**Context**: Debug output analysis revealed several prompt formatting issues
+
+### This PR (beta.49)
+
+**Completed:**
+
+- [x] Remove `<current_turn>` XML wrapper from user messages (redundant - LLM API role is sufficient)
+- [x] Update memory archive instruction to not reference `<current_turn>`
+- [x] Fix voice message transcript sync bug (empty Discord content was overwriting transcripts)
+- [x] Add `<roles>` as child element with individual `<role>` tags in participant context
+- [x] Add pronouns field to participant context
+- [x] DRY quoted message format (use same `<message>` structure as regular messages with `quoted="true"`)
+- [x] Quote deduplication (skip quotes already in conversation history)
+
+### Fast-Follow PR (after this release)
+
+**Documented in TECH_DEBT.md:**
+
+- [ ] User auto-creation for bystanders in extended context
+- [ ] Resolve `discord:` IDs to proper UUIDs (both human users and other AI personalities)
+- [ ] Mark messages from other AI personalities with `source="ai_personality"`
+
+**Related Issues:**
+
+- Multi-AI conversation role attribution (already in TECH_DEBT.md Priority 1)
+- Voice transcript recovery script (added to TECH_DEBT.md Priority 1)
 
 ---
 
@@ -123,7 +155,7 @@ _Naming changes deferred - do as part of a "UX consistency pass" after Phase 3._
 
 ---
 
-## In Progress: Slash Command UX Epic ⬅️ CURRENT
+## Paused: Slash Command UX Epic
 
 **Reference**: [docs/proposals/active/SLASH_COMMAND_UX_EPIC.md](docs/proposals/active/SLASH_COMMAND_UX_EPIC.md)
 **Branch**: `feature/slash-command-ux-epic`
@@ -214,11 +246,11 @@ See [ROADMAP.md](ROADMAP.md) for full details.
 
 ## Recent Highlights
 
+- **beta.49** (pending): Prompt XML cleanup - removed `<current_turn>` wrapper, fixed voice transcript sync bug, improved participant context with `<roles>` tags and pronouns, DRY quoted message format with deduplication
+- **beta.48**: Avatar cache-busting fix (Discord CDN path-based versioning)
 - **beta.47**: LLM Config JSONB cleanup (dropped 7 legacy columns), DB sync excluded tables (info vs warnings)
 - **beta.46**: PromptBuilder refactor (complexity reduction, `usage="context_only_do_not_repeat"` for memory_archive), attachment description consolidation
 - **beta.45**: LLM Diagnostic Flight Recorder complete - full pipeline capture, `/admin debug` command, message ID lookup
-- **beta.44**: Diagnostic log JSONB sanitization (handles NaN/Infinity), bounded queries with take limits
-- **beta.43**: Memory Phase 3 (Incognito Mode) complete - `/memory incognito enable/disable/status/forget`, 👻 visual indicator
 - **Redis Session Storage** (PR #483): DashboardSessionManager migrated to Redis - enables horizontal scaling
 - **LTM Embedding Migration**: OpenAI eviction complete - now using local bge-small-en-v1.5 embeddings
 
