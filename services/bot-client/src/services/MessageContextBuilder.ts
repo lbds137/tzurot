@@ -489,6 +489,17 @@ export class MessageContextBuilder {
     const displayName = member?.displayName ?? message.author.globalName ?? message.author.username;
     const guildMemberInfo = this.extractGuildMemberInfo(member, message.guild?.id);
 
+    logger.debug(
+      {
+        hasCachedMember: message.member !== null && message.member !== undefined,
+        hasFetchedMember: member !== null && member !== undefined,
+        hasGuildInfo: guildMemberInfo !== undefined,
+        roleCount: guildMemberInfo?.roles?.length ?? 0,
+        guildId: message.guild?.id,
+      },
+      '[MessageContextBuilder] Guild member info extraction'
+    );
+
     // Step 2: Resolve user identity, persona, and fetch history
     const userContext = await this.resolveUserContext(message, personality, displayName);
     const { internalUserId, discordUserId, personaId, personaName, userTimezone, contextEpoch } =

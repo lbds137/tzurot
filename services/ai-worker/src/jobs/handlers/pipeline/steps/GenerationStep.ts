@@ -59,6 +59,9 @@ function buildConversationContext(
     isProxyMessage: jobContext.isProxyMessage,
     activePersonaId: jobContext.activePersonaId,
     activePersonaName: jobContext.activePersonaName,
+    // Guild-specific info for participants (roles, color, join date)
+    activePersonaGuildInfo: jobContext.activePersonaGuildInfo,
+    participantGuildInfo: jobContext.participantGuildInfo,
     conversationHistory: preparedContext.conversationHistory,
     rawConversationHistory: preparedContext.rawConversationHistory,
     oldestHistoryTimestamp: preparedContext.oldestHistoryTimestamp,

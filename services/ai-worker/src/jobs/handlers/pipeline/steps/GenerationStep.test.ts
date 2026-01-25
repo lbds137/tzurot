@@ -384,6 +384,58 @@ describe('GenerationStep', () => {
       expect(result.result?.metadata?.providerUsed).toBe('gemini');
     });
 
+    it('should pass guild info from job context to RAG service', async () => {
+      // This test prevents regression of the bug where activePersonaGuildInfo
+      // and participantGuildInfo were not being passed from job context to
+      // the ConversationContext used by the RAG service
+      const ragResponse: RAGResponse = {
+        content: 'Response with guild context',
+        retrievedMemories: 0,
+        tokensIn: 10,
+        tokensOut: 5,
+      };
+
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+      const guildInfo = {
+        roles: ['Admin', 'Moderator', 'Member'],
+        displayColor: '#FF5500',
+        joinedAt: '2023-01-15T10:00:00.000Z',
+      };
+
+      const participantGuildInfo = {
+        'discord:123456': {
+          roles: ['VIP', 'Supporter'],
+          displayColor: '#00FF00',
+        },
+      };
+
+      const jobData = createValidJobData();
+      jobData.context.activePersonaGuildInfo = guildInfo;
+      jobData.context.participantGuildInfo = participantGuildInfo;
+
+      const context: GenerationContext = {
+        job: createMockJob(jobData),
+        startTime: Date.now(),
+        config: baseConfig,
+        auth: baseAuth,
+        preparedContext: basePreparedContext,
+      };
+
+      await step.process(context);
+
+      // Verify guild info was passed to RAG service
+      expect(mockRAGService.generateResponse).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.anything(),
+        expect.objectContaining({
+          activePersonaGuildInfo: guildInfo,
+          participantGuildInfo: participantGuildInfo,
+        }),
+        expect.anything()
+      );
+    });
+
     describe('RetryError unwrapping', () => {
       it('should unwrap RetryError to classify underlying API error', async () => {
         // Create an underlying authentication error
