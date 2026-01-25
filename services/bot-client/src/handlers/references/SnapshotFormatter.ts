@@ -6,6 +6,7 @@
 
 import type { Message, APIEmbed, MessageSnapshot } from 'discord.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
+import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types';
 import {
   extractDiscordEnvironment,
   formatEnvironmentForPrompt,
@@ -66,9 +67,9 @@ export class SnapshotFormatter {
       referenceNumber,
       discordMessageId: forwardedFrom.id, // Use forward message ID (snapshot doesn't have its own)
       webhookId: undefined,
-      discordUserId: 'unknown', // Snapshots don't include author info
-      authorUsername: 'Unknown User',
-      authorDisplayName: 'Unknown User',
+      discordUserId: UNKNOWN_USER_DISCORD_ID, // Snapshots don't include author info
+      authorUsername: UNKNOWN_USER_NAME,
+      authorDisplayName: UNKNOWN_USER_NAME,
       content: snapshot.content || '',
       embeds: embedString,
       timestamp: snapshot.createdTimestamp

@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25 (fixed quote deduplication bug)
+> Last updated: 2026-01-25 (added large file split trigger)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -192,6 +192,24 @@ Add `/admin debug recent` with personality/user/channel filters. API already sup
 
 ### Other Medium Items
 
+#### Split Large Fetcher/Formatter Files (Next Touch)
+
+**Problem**: These files and their tests have grown too large, hurting maintainability:
+
+| Source File                | Lines | Test File                       | Lines |
+| -------------------------- | ----- | ------------------------------- | ----- |
+| `DiscordChannelFetcher.ts` | ~600  | `DiscordChannelFetcher.test.ts` | ~1900 |
+| `conversationUtils.ts`     | ~720  | `conversationUtils.test.ts`     | ~1900 |
+
+**Trigger**: Next time either file is touched, split BOTH the source and test files.
+
+**Suggested splits**:
+
+- `DiscordChannelFetcher.ts` → Extract `MessageConverter.ts` (message transformation), `SyncService.ts` (DB sync logic)
+- `conversationUtils.ts` → Extract `XmlFormatter.ts` (message XML formatting), `LengthCalculator.ts` (budget estimation)
+
+**Source**: Extended context consistency fixes (2026-01-25)
+
 #### Incomplete XML Prompt Migration
 
 Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageContextBuilder.ts`.
@@ -276,10 +294,10 @@ Target: <500 lines (error), <400 lines (ideal). Lower priority since AI-only imp
 | `character/dashboard.ts`   | 692     | Extract back handler to dashboardButtons |
 | `preset/browse.ts`         | 610     | Extract buildBrowsePage to browseBuilder |
 | `PgvectorMemoryAdapter.ts` | 529     | Extract batch fetching                   |
-| `DiscordChannelFetcher.ts` | ~550    | Extract message conversion               |
-| `conversationUtils.ts`     | ~530    | Extract formatting helpers               |
 | `MessageContextBuilder.ts` | ~520    | Extract attachment processing            |
 | `user/history.ts`          | 516     | Handler factory pattern                  |
+
+**Note**: `DiscordChannelFetcher.ts` and `conversationUtils.ts` moved to Priority 2 (Medium) - see "Split Large Fetcher/Formatter Files".
 
 **Source**: PR #506 browse UX improvements (2026-01-24)
 

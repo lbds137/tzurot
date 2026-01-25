@@ -138,7 +138,9 @@ describe('MessageContentBuilder', () => {
       const result = await buildMessageContent(message, { includeEmbeds: true });
 
       expect(result.content).toContain('Check this embed');
-      expect(result.content).toContain('<embed>');
+      // Embeds are now returned separately for structured XML formatting
+      expect(result.embedsXml).toBeDefined();
+      expect(result.embedsXml![0]).toContain('<embed>');
     });
 
     it('should not include embed content when includeEmbeds is false', async () => {
@@ -184,7 +186,9 @@ describe('MessageContentBuilder', () => {
       const result = await buildMessageContent(message, { getTranscript });
 
       expect(getTranscript).toHaveBeenCalledWith('msg-123', expect.any(String));
-      expect(result.content).toContain('[Voice transcript]: Hello from voice message');
+      // Voice transcripts are now returned separately for structured XML formatting
+      expect(result.voiceTranscripts).toBeDefined();
+      expect(result.voiceTranscripts).toContain('Hello from voice message');
       expect(result.hasVoiceMessage).toBe(true);
     });
 
@@ -206,7 +210,9 @@ describe('MessageContentBuilder', () => {
       const result = await buildMessageContent(message);
 
       expect(result.isForwarded).toBe(true);
-      expect(result.content).toContain('[Forwarded message]: Original forwarded content');
+      // Content no longer has [Forwarded message]: prefix - isForwarded flag is used for XML attribute
+      expect(result.content).toContain('Original forwarded content');
+      expect(result.content).not.toContain('[Forwarded message]:');
     });
 
     it('should extract attachments from forwarded message snapshots', async () => {
@@ -346,7 +352,9 @@ describe('MessageContentBuilder', () => {
       );
       expect(getTranscript).not.toHaveBeenCalledWith('forwarded-msg-999', expect.any(String));
 
-      expect(result.content).toContain('[Voice transcript]: Hello from the voice message');
+      // Voice transcripts are now returned separately for structured XML formatting
+      expect(result.voiceTranscripts).toBeDefined();
+      expect(result.voiceTranscripts).toContain('Hello from the voice message');
       expect(result.hasVoiceMessage).toBe(true);
       expect(result.isForwarded).toBe(true);
     });
@@ -466,7 +474,9 @@ describe('MessageContentBuilder', () => {
 
       expect(result.content).toContain('Look at this!');
       expect(result.content).toContain('[Attachments:');
-      expect(result.content).toContain('<embed>');
+      // Embeds are now returned separately for structured XML formatting
+      expect(result.embedsXml).toBeDefined();
+      expect(result.embedsXml![0]).toContain('<embed>');
       expect(result.attachments.length).toBeGreaterThan(0);
     });
   });

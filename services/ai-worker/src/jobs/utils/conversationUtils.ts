@@ -209,6 +209,10 @@ export interface RawHistoryEntry {
     referencedMessages?: StoredReferencedMessage[];
     /** Image descriptions from extended context preprocessing */
     imageDescriptions?: InlineImageDescription[];
+    /** Embed XML strings for extended context messages (already formatted by EmbedParser) */
+    embedsXml?: string[];
+    /** Voice transcripts for extended context messages */
+    voiceTranscripts?: string[];
   };
   // AI personality info (for multi-AI channel attribution)
   /** The AI personality ID this message belongs to */
@@ -361,6 +365,7 @@ function resolveSpeakerInfo(
  * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
  * @returns Formatted XML string, or empty string if message should be skipped
  */
+// eslint-disable-next-line complexity -- Inherent complexity from multiple optional sections (embeds, voice, images, quotes)
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
@@ -436,9 +441,28 @@ export function formatSingleHistoryEntryAsXml(
     imageSection = `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
   }
 
+  // Format embeds from messageMetadata (extended context messages)
+  // These are already formatted as XML by EmbedParser
+  let embedsSection = '';
+  if (msg.messageMetadata?.embedsXml !== undefined && msg.messageMetadata.embedsXml.length > 0) {
+    embedsSection = `\n<embeds>\n${msg.messageMetadata.embedsXml.join('\n')}\n</embeds>`;
+  }
+
+  // Format voice transcripts from messageMetadata (extended context messages)
+  let voiceSection = '';
+  if (
+    msg.messageMetadata?.voiceTranscripts !== undefined &&
+    msg.messageMetadata.voiceTranscripts.length > 0
+  ) {
+    const transcripts = msg.messageMetadata.voiceTranscripts
+      .map(t => `<transcript>${escapeXmlContent(t)}</transcript>`)
+      .join('\n');
+    voiceSection = `\n<voice_transcripts>\n${transcripts}\n</voice_transcripts>`;
+  }
+
   // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago" forwarded="true">content</message>
   // from_id links to <participant id="..."> for identity binding
-  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}</message>`;
+  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}</message>`;
 }
 
 /**
@@ -660,6 +684,31 @@ export function getFormattedMessageCharLength(
     // Add length for each image
     for (const img of msg.messageMetadata.imageDescriptions) {
       totalLength += `<image filename="${img.filename}">${img.description}</image>\n`.length;
+    }
+  }
+
+  // Add length for embeds if present (extended context)
+  if (msg.messageMetadata?.embedsXml !== undefined && msg.messageMetadata.embedsXml.length > 0) {
+    // Account for <embeds> wrapper
+    totalLength += '\n<embeds>\n</embeds>'.length;
+
+    // Add length for each embed XML
+    for (const embedXml of msg.messageMetadata.embedsXml) {
+      totalLength += embedXml.length + 1; // +1 for newline
+    }
+  }
+
+  // Add length for voice transcripts if present (extended context)
+  if (
+    msg.messageMetadata?.voiceTranscripts !== undefined &&
+    msg.messageMetadata.voiceTranscripts.length > 0
+  ) {
+    // Account for <voice_transcripts> wrapper
+    totalLength += '\n<voice_transcripts>\n</voice_transcripts>'.length;
+
+    // Add length for each transcript
+    for (const transcript of msg.messageMetadata.voiceTranscripts) {
+      totalLength += `<transcript>${transcript}</transcript>\n`.length;
     }
   }
 

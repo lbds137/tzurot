@@ -564,6 +564,165 @@ describe('UserService', () => {
     });
   });
 
+  describe('getOrCreateUsersInBatch', () => {
+    it('should filter out bots', async () => {
+      // Mock getOrCreateUser via the service's dependency
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      const users = [
+        { discordId: 'user1', username: 'alice', isBot: false },
+        { discordId: 'bot1', username: 'testbot', isBot: true },
+        { discordId: 'user2', username: 'bob', isBot: false },
+      ];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      // Only 2 users (not the bot)
+      expect(result.size).toBe(2);
+      expect(result.has('user1')).toBe(true);
+      expect(result.has('user2')).toBe(true);
+      expect(result.has('bot1')).toBe(false);
+    });
+
+    it('should filter out unknown user placeholder', async () => {
+      mockPrisma.user.findUnique.mockResolvedValue({
+        id: 'user-uuid',
+        isSuperuser: false,
+        username: 'testuser',
+        defaultPersonaId: 'persona-uuid',
+      });
+
+      const users = [
+        { discordId: 'user1', username: 'alice', isBot: false },
+        { discordId: 'unknown', username: 'Unknown User', isBot: false }, // UNKNOWN_USER_DISCORD_ID
+        { discordId: 'user2', username: 'bob', isBot: false },
+      ];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      // Only 2 users (not the unknown placeholder)
+      expect(result.size).toBe(2);
+      expect(result.has('user1')).toBe(true);
+      expect(result.has('user2')).toBe(true);
+      expect(result.has('unknown')).toBe(false);
+    });
+
+    it('should return empty map when all users are filtered', async () => {
+      const users = [
+        { discordId: 'bot1', username: 'bot1', isBot: true },
+        { discordId: 'unknown', username: 'Unknown User', isBot: false },
+      ];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      expect(result.size).toBe(0);
+      // Should not call database at all
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should return map of discordId to userId', async () => {
+      // Mock different user IDs for different Discord IDs
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'uuid-for-alice',
+          isSuperuser: false,
+          username: 'alice',
+          defaultPersonaId: 'persona-uuid',
+        })
+        .mockResolvedValueOnce({
+          id: 'uuid-for-bob',
+          isSuperuser: false,
+          username: 'bob',
+          defaultPersonaId: 'persona-uuid',
+        });
+
+      const users = [
+        { discordId: 'discord-alice', username: 'alice', isBot: false },
+        { discordId: 'discord-bob', username: 'bob', isBot: false },
+      ];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      expect(result.get('discord-alice')).toBe('uuid-for-alice');
+      expect(result.get('discord-bob')).toBe('uuid-for-bob');
+    });
+
+    it('should handle partial failures gracefully', async () => {
+      // First user succeeds, second fails, third succeeds
+      mockPrisma.user.findUnique
+        .mockResolvedValueOnce({
+          id: 'uuid-for-alice',
+          isSuperuser: false,
+          username: 'alice',
+          defaultPersonaId: 'persona-uuid',
+        })
+        .mockRejectedValueOnce(new Error('Database error for bob'))
+        .mockResolvedValueOnce({
+          id: 'uuid-for-charlie',
+          isSuperuser: false,
+          username: 'charlie',
+          defaultPersonaId: 'persona-uuid',
+        });
+
+      const users = [
+        { discordId: 'alice-id', username: 'alice', isBot: false },
+        { discordId: 'bob-id', username: 'bob', isBot: false },
+        { discordId: 'charlie-id', username: 'charlie', isBot: false },
+      ];
+
+      const result = await userService.getOrCreateUsersInBatch(users);
+
+      // Should have 2 successful users, bob failed silently
+      expect(result.size).toBe(2);
+      expect(result.has('alice-id')).toBe(true);
+      expect(result.has('bob-id')).toBe(false);
+      expect(result.has('charlie-id')).toBe(true);
+    });
+
+    it('should pass displayName to getOrCreateUser', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+
+      let capturedPersonaData: { preferredName?: string } | undefined;
+      mockPrisma.$transaction.mockImplementation(
+        async (callback: (tx: unknown) => Promise<void>) => {
+          const mockTx = {
+            user: {
+              create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+              update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
+            },
+            persona: {
+              create: vi.fn().mockImplementation(({ data }) => {
+                capturedPersonaData = data;
+                return Promise.resolve({ id: 'test-persona-uuid' });
+              }),
+            },
+          };
+          await callback(mockTx);
+        }
+      );
+
+      const users = [
+        { discordId: 'user1', username: 'alice', displayName: 'Alice Display', isBot: false },
+      ];
+
+      await userService.getOrCreateUsersInBatch(users);
+
+      expect(capturedPersonaData?.preferredName).toBe('Alice Display');
+    });
+
+    it('should return empty map for empty input', async () => {
+      const result = await userService.getOrCreateUsersInBatch([]);
+
+      expect(result.size).toBe(0);
+      expect(mockPrisma.user.findUnique).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getPersonaName', () => {
     it('should return preferredName when set', async () => {
       mockPrisma.persona.findUnique.mockResolvedValue({

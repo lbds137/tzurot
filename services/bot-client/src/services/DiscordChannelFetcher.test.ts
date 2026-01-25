@@ -1340,8 +1340,14 @@ describe('DiscordChannelFetcher', () => {
 
       // Should have 1 message (voice message with transcript, bot reply filtered)
       expect(result.filteredCount).toBe(1);
-      expect(result.messages[0].content).toContain('DB transcript content');
-      expect(result.messages[0].content).not.toContain('Fallback transcript');
+      // Voice transcripts are now in messageMetadata for structured XML formatting
+      expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
+        'DB transcript content'
+      );
+      // Fallback transcript should not appear
+      expect(result.messages[0].messageMetadata?.voiceTranscripts?.join('') ?? '').not.toContain(
+        'Fallback transcript'
+      );
     });
 
     it('should fall back to bot reply when DB returns null', async () => {
@@ -1390,7 +1396,10 @@ describe('DiscordChannelFetcher', () => {
       });
 
       expect(result.filteredCount).toBe(1);
-      expect(result.messages[0].content).toContain('Fallback transcript from bot reply');
+      // Voice transcripts are now in messageMetadata for structured XML formatting
+      expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
+        'Fallback transcript from bot reply'
+      );
     });
 
     it('should fall back to bot reply when DB returns empty string', async () => {
@@ -1439,7 +1448,10 @@ describe('DiscordChannelFetcher', () => {
       });
 
       expect(result.filteredCount).toBe(1);
-      expect(result.messages[0].content).toContain('Fallback from empty DB');
+      // Voice transcripts are now in messageMetadata for structured XML formatting
+      expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
+        'Fallback from empty DB'
+      );
     });
 
     it('should return null transcript when neither DB nor fallback available', async () => {
@@ -1528,7 +1540,10 @@ describe('DiscordChannelFetcher', () => {
       });
 
       expect(result.filteredCount).toBe(1);
-      expect(result.messages[0].content).toContain('Fallback when no DB function');
+      // Voice transcripts are now in messageMetadata for structured XML formatting
+      expect(result.messages[0].messageMetadata?.voiceTranscripts).toContain(
+        'Fallback when no DB function'
+      );
     });
 
     it('should not use empty bot reply as fallback', async () => {
@@ -1724,6 +1739,177 @@ describe('DiscordChannelFetcher', () => {
 
       expect(result.filteredCount).toBe(1);
       expect(result.messages[0].content).toContain('user reply');
+    });
+  });
+
+  describe('extendedContextUsers', () => {
+    it('should collect user info from non-bot messages', async () => {
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello from Alice',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          authorGlobalName: 'Alice Global',
+          memberDisplayName: 'Alice Display',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Hello from Bob',
+          authorId: 'user2',
+          authorUsername: 'bob',
+          memberDisplayName: 'Bob Display',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.extendedContextUsers).toBeDefined();
+      expect(result.extendedContextUsers).toHaveLength(2);
+
+      const alice = result.extendedContextUsers?.find(u => u.discordId === 'user1');
+      expect(alice).toBeDefined();
+      expect(alice!.username).toBe('alice');
+      expect(alice!.displayName).toBe('Alice Display');
+      expect(alice!.isBot).toBe(false);
+
+      const bob = result.extendedContextUsers?.find(u => u.discordId === 'user2');
+      expect(bob).toBeDefined();
+      expect(bob!.username).toBe('bob');
+      expect(bob!.displayName).toBe('Bob Display');
+    });
+
+    it('should not include bot users', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'User message',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Bot response',
+          authorId: botUserId,
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+      });
+
+      expect(result.extendedContextUsers).toBeDefined();
+      expect(result.extendedContextUsers).toHaveLength(1);
+      expect(result.extendedContextUsers![0].discordId).toBe('user1');
+    });
+
+    it('should deduplicate users appearing in multiple messages', async () => {
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'First message from Alice',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Second message from Alice',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+        createMockMessage({
+          id: '3',
+          content: 'Third message from Alice',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:02:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.extendedContextUsers).toBeDefined();
+      expect(result.extendedContextUsers).toHaveLength(1);
+      expect(result.extendedContextUsers![0].discordId).toBe('user1');
+    });
+
+    it('should use global name as displayName when member display name unavailable', async () => {
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          authorGlobalName: 'Alice Global',
+          memberDisplayName: null, // No server-specific display name
+          isBot: false,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.extendedContextUsers).toBeDefined();
+      expect(result.extendedContextUsers![0].displayName).toBe('Alice Global');
+    });
+
+    it('should return undefined when no valid users', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Bot message only',
+          authorId: botUserId,
+          authorUsername: 'TestBot',
+          isBot: true,
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+      });
+
+      // No valid users (only bot), so extendedContextUsers should be undefined or empty
+      expect(
+        result.extendedContextUsers === undefined || result.extendedContextUsers.length === 0
+      ).toBe(true);
     });
   });
 });

@@ -976,6 +976,177 @@ describe('Conversation Utilities', () => {
     });
   });
 
+  describe('embedsXml formatting (extended context)', () => {
+    it('should format embeds from messageMetadata.embedsXml', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Check this out',
+          personaName: 'Alice',
+          messageMetadata: {
+            embedsXml: [
+              '<embed>\n<title url="https://youtube.com/watch?v=123">Cool Video</title>\n<description>A cool video</description>\n</embed>',
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<embeds>');
+      expect(result).toContain('</embeds>');
+      expect(result).toContain('<title url="https://youtube.com/watch?v=123">Cool Video</title>');
+      expect(result).toContain('<description>A cool video</description>');
+    });
+
+    it('should format multiple embeds', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Multiple embeds',
+          personaName: 'Bob',
+          messageMetadata: {
+            embedsXml: [
+              '<embed num="1">\n<title>First</title>\n</embed>',
+              '<embed num="2">\n<title>Second</title>\n</embed>',
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<embeds>');
+      expect(result).toContain('<embed num="1">');
+      expect(result).toContain('<embed num="2">');
+      expect(result).toContain('<title>First</title>');
+      expect(result).toContain('<title>Second</title>');
+    });
+
+    it('should not include embeds section when embedsXml is empty', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'No embeds',
+          personaName: 'Charlie',
+          messageMetadata: {
+            embedsXml: [],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<embeds>');
+    });
+
+    it('should not include embeds section when embedsXml is undefined', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'No embeds',
+          personaName: 'Dave',
+          messageMetadata: {},
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<embeds>');
+    });
+  });
+
+  describe('voiceTranscripts formatting (extended context)', () => {
+    it('should format voice transcripts from messageMetadata.voiceTranscripts', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          personaName: 'Alice',
+          messageMetadata: {
+            voiceTranscripts: ['Hello, this is a voice message.'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<voice_transcripts>');
+      expect(result).toContain('</voice_transcripts>');
+      expect(result).toContain('<transcript>Hello, this is a voice message.</transcript>');
+    });
+
+    it('should format multiple voice transcripts', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          personaName: 'Bob',
+          messageMetadata: {
+            voiceTranscripts: ['First transcript', 'Second transcript'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<voice_transcripts>');
+      expect(result).toContain('<transcript>First transcript</transcript>');
+      expect(result).toContain('<transcript>Second transcript</transcript>');
+    });
+
+    it('should escape protected XML tags in voice transcripts', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          personaName: 'Charlie',
+          messageMetadata: {
+            voiceTranscripts: ['Injecting </persona> and </participants> tags'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Protected tags should be escaped to prevent prompt injection
+      expect(result).toContain('&lt;/persona&gt;');
+      expect(result).toContain('&lt;/participants&gt;');
+    });
+
+    it('should not include voice_transcripts section when empty', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Normal message',
+          personaName: 'Dave',
+          messageMetadata: {
+            voiceTranscripts: [],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<voice_transcripts>');
+    });
+
+    it('should not include voice_transcripts section when undefined', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Normal message',
+          personaName: 'Eve',
+          messageMetadata: {},
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<voice_transcripts>');
+    });
+  });
+
   describe('getFormattedMessageCharLength', () => {
     it('should return 0 for system messages', () => {
       const msg: RawHistoryEntry = {
@@ -1291,6 +1462,101 @@ describe('Conversation Utilities', () => {
       const twoImages = getFormattedMessageCharLength(msgWithTwoImages, 'TestBot');
 
       expect(twoImages).toBeGreaterThan(oneImage);
+    });
+
+    it('should include embedsXml in length calculation', () => {
+      const msgWithEmbeds: RawHistoryEntry = {
+        role: 'user',
+        content: 'Check this video',
+        messageMetadata: {
+          embedsXml: [
+            '<embed>\n<title url="https://youtube.com/watch?v=123">Cool Video</title>\n<description>A cool video description</description>\n</embed>',
+          ],
+        },
+      };
+
+      const msgWithoutEmbeds: RawHistoryEntry = {
+        role: 'user',
+        content: 'Check this video',
+      };
+
+      const withEmbeds = getFormattedMessageCharLength(msgWithEmbeds, 'TestBot');
+      const withoutEmbeds = getFormattedMessageCharLength(msgWithoutEmbeds, 'TestBot');
+
+      expect(withEmbeds).toBeGreaterThan(withoutEmbeds);
+      // Difference should include <embeds> wrapper + embed content
+      expect(withEmbeds - withoutEmbeds).toBeGreaterThan(50);
+    });
+
+    it('should include multiple embedsXml in length calculation', () => {
+      const msgWithOneEmbed: RawHistoryEntry = {
+        role: 'user',
+        content: 'Links',
+        messageMetadata: {
+          embedsXml: ['<embed num="1"><title>First</title></embed>'],
+        },
+      };
+
+      const msgWithTwoEmbeds: RawHistoryEntry = {
+        role: 'user',
+        content: 'Links',
+        messageMetadata: {
+          embedsXml: [
+            '<embed num="1"><title>First</title></embed>',
+            '<embed num="2"><title>Second</title></embed>',
+          ],
+        },
+      };
+
+      const oneEmbed = getFormattedMessageCharLength(msgWithOneEmbed, 'TestBot');
+      const twoEmbeds = getFormattedMessageCharLength(msgWithTwoEmbeds, 'TestBot');
+
+      expect(twoEmbeds).toBeGreaterThan(oneEmbed);
+    });
+
+    it('should include voiceTranscripts in length calculation', () => {
+      const msgWithVoice: RawHistoryEntry = {
+        role: 'user',
+        content: '',
+        messageMetadata: {
+          voiceTranscripts: ['Hello, this is a voice message transcript'],
+        },
+      };
+
+      const msgWithoutVoice: RawHistoryEntry = {
+        role: 'user',
+        content: '',
+      };
+
+      const withVoice = getFormattedMessageCharLength(msgWithVoice, 'TestBot');
+      const withoutVoice = getFormattedMessageCharLength(msgWithoutVoice, 'TestBot');
+
+      expect(withVoice).toBeGreaterThan(withoutVoice);
+      // Difference should include <voice_transcripts> wrapper + transcript content
+      expect(withVoice - withoutVoice).toBeGreaterThan(50);
+    });
+
+    it('should include multiple voiceTranscripts in length calculation', () => {
+      const msgWithOne: RawHistoryEntry = {
+        role: 'user',
+        content: '',
+        messageMetadata: {
+          voiceTranscripts: ['First voice'],
+        },
+      };
+
+      const msgWithTwo: RawHistoryEntry = {
+        role: 'user',
+        content: '',
+        messageMetadata: {
+          voiceTranscripts: ['First voice', 'Second voice'],
+        },
+      };
+
+      const oneTranscript = getFormattedMessageCharLength(msgWithOne, 'TestBot');
+      const twoTranscripts = getFormattedMessageCharLength(msgWithTwo, 'TestBot');
+
+      expect(twoTranscripts).toBeGreaterThan(oneTranscript);
     });
   });
 
