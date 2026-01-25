@@ -226,10 +226,10 @@ function formatStoredReferencedMessage(
     ? 'assistant'
     : 'user';
 
-  // Format timestamp as relative time
+  // Format timestamp with both relative and absolute for consistency
   const timeAttr =
     ref.timestamp !== undefined && ref.timestamp.length > 0
-      ? ` time="${escapeXml(formatRelativeTime(ref.timestamp))}"`
+      ? ` time="${escapeXml(formatRelativeTime(ref.timestamp))}" timestamp="${escapeXml(ref.timestamp)}"`
       : '';
 
   // Forwarded messages have limited author info
@@ -284,7 +284,13 @@ function resolveSpeakerInfo(
   }
 
   if (normalizedRole === 'assistant') {
-    return { speakerName: personalityName, role: 'assistant', normalizedRole };
+    // For assistant messages, use personaName if available (for messages from OTHER AI personalities)
+    // Fall back to the current personalityName (for self-messages or legacy data without personaName)
+    const speakerName =
+      msg.personaName !== undefined && msg.personaName.length > 0
+        ? msg.personaName
+        : personalityName;
+    return { speakerName, role: 'assistant', normalizedRole };
   }
 
   // System or unknown - skip
@@ -320,10 +326,12 @@ export function formatSingleHistoryEntryAsXml(
 
   const { speakerName, role, normalizedRole } = speakerInfo;
 
-  // Format the timestamp (escape for use in attribute)
+  // Format the timestamp with both relative and absolute (escape for use in attribute)
+  // Relative: "3d ago" - easy for AI to understand temporal distance
+  // Absolute: "2025-01-22T15:30:00.000Z" - precise for ordering verification
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}"`
+      ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}" timestamp="${escapeXml(msg.createdAt)}"`
       : '';
 
   // Format forwarded attribute (for messages forwarded from another channel)
@@ -527,14 +535,19 @@ export function getFormattedMessageCharLength(
       speakerName = `${speakerName} (@${msg.discordUsername})`;
     }
   } else {
-    speakerName = personalityName;
+    // For assistant messages, use personaName if available (for messages from OTHER AI personalities)
+    // Fall back to the current personalityName (for self-messages or legacy data)
+    speakerName =
+      msg.personaName !== undefined && msg.personaName.length > 0
+        ? msg.personaName
+        : personalityName;
   }
 
   // Approximate the formatted length
-  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago">content</message>
+  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago" timestamp="...">content</message>
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` time="${formatRelativeTime(msg.createdAt)}"`
+      ? ` time="${formatRelativeTime(msg.createdAt)}" timestamp="${msg.createdAt}"`
       : '';
 
   // Account for from_id attribute (user messages with personaId)
