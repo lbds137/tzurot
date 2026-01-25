@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25 (elevated Zod schema/interface mismatch to CRITICAL)
+> Last updated: 2026-01-25 (cleanup: marked fixed items, reprioritized Zod schema)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -37,133 +37,59 @@ When a user replies to a message that's old enough to be outside one boundary bu
 
 ---
 
-### Multi-AI Conversations: Role Attribution
+### Cross-Guild Location Context for Referenced Messages
 
-**Problem**: Messages from other AI personalities show as `role="user"` in the chat log, which confuses the responding AI. When one personality (e.g., Lilith) sends a message, and another personality (e.g., COLD) responds, the original message from Lilith appears as `role="user"` because Discord webhooks are treated as user messages.
+**Problem**: Referenced messages no longer include location info (regression from format standardization). When a user references a message from a different guild, the AI has no context about where that message came from.
 
-**Impact**: The responding AI may incorrectly interpret AI-generated messages as human input, leading to confusion about who said what in group conversations.
+**Solution**: Add `<location>` element to referenced messages, but ONLY when the source guild differs from the current conversation's guild. No need for redundant location info when same guild.
 
-**Solution Options**:
+**Files involved**:
 
-1. Add `source="personality:{slug}"` attribute to identify AI-generated messages
-2. Track which messages were sent via bot webhooks and mark them as assistant
-3. Add personality IDs as participants with short blurbs (similar to user personas)
+- `services/bot-client/src/handlers/MessageReferenceExtractor.ts`
+- `services/ai-worker/src/services/prompt/EnvironmentFormatter.ts` (reuse formatting)
 
-**Related**: Need `quickSummary` field in character cards for conversational context without overwhelming the context window.
-
-**Source**: Prompt review (2026-01-24)
-
----
-
-### Location Format Inconsistency in Quoted Messages
-
-**Problem**: The `location` attribute in `<quote>` elements uses a different format than `<location>` elsewhere:
-
-- Quote location: Plain text like "Server: X, Category: Y, Channel: #Z"
-- Environment location: Proper XML with `<server name="..."/>` etc.
-
-**Impact**: Inconsistent formatting for the LLM, potential confusion.
-
-**Solution**: Create shared `formatLocationContext()` helper used by both EnvironmentFormatter and quoted message location formatting.
-
-**Source**: Prompt review (2026-01-24)
-
----
-
-### 🚨 Zod Schema/TypeScript Interface Mismatch (CRITICAL - Multiple Incidents)
-
-**Problem**: Zod schemas and TypeScript interfaces get out of sync. By default, Zod **strips fields not in the schema** during parsing. When we add fields to TS interfaces but forget the Zod schema, data silently disappears at validation boundaries.
-
-**Incidents**:
-
-- **2026-01-25**: `personalityId` and `personalityName` added to `JobContext.conversationHistory` TS interface but not `apiConversationMessageSchema`. Multi-AI attribution broken for WEEKS because fields were stripped during validation.
-- **2026-01-24**: `avatarUpdatedAt` defined in schema but `.optional()` let it pass when never populated from DB.
-- Multiple similar incidents in the past.
-
-**Impact**: Features appear to work in unit tests (which may not go through Zod) but fail in production when data crosses service boundaries. Debugging is extremely difficult because the fields simply vanish.
-
-**Solution** (HIGH PRIORITY):
-
-1. **Enforce schema-type sync with tests**:
-
-   ```typescript
-   // Contract test: every field in TS interface must be in Zod schema
-   it('apiConversationMessageSchema matches JobContext.conversationHistory type', () => {
-     const schemaKeys = Object.keys(apiConversationMessageSchema.shape);
-     const interfaceKeys = ['id', 'role', 'content', ...]; // from interface
-     expect(schemaKeys.sort()).toEqual(interfaceKeys.sort());
-   });
-   ```
-
-2. **Use `.passthrough()` or `.strict()` during development**:
-   - `.passthrough()` - keeps unknown fields (safer)
-   - `.strict()` - throws on unknown fields (catches sync issues early)
-   - Change to neither for production (current default strips)
-
-3. **Audit all schema/interface pairs**:
-   - `apiConversationMessageSchema` ↔ `JobContext.conversationHistory`
-   - `generateRequestSchema` ↔ `GenerateRequest`
-   - All route request/response schemas
-
-4. **Consider code generation**: Use a tool to generate TS types from Zod schemas (single source of truth) instead of maintaining both manually.
-
-**Files to audit**: `packages/common-types/src/types/schemas.ts`, `jobs.ts`, all route schemas
-
-**Source**: Multi-AI attribution bug (2026-01-25), Avatar bug (2026-01-24)
-
----
-
-### Timer Patterns Blocking Horizontal Scaling
-
-**Problem**: `setInterval` patterns prevent running multiple instances (race conditions).
-
-| File                              | Pattern                | Migration             |
-| --------------------------------- | ---------------------- | --------------------- |
-| `LlmConfigResolver.ts`            | Cache cleanup interval | BullMQ repeatable job |
-| `WebhookManager.ts`               | Webhook cleanup        | BullMQ repeatable job |
-| `DatabaseNotificationListener.ts` | Reconnection timeout   | Redis coordination    |
-
-**Solution**: Create "SystemQueue" in BullMQ with repeatable jobs and deterministic job IDs.
-
----
-
-### InteractionAlreadyReplied Architectural Fix
-
-**Problem**: Commands receive raw interaction with `deferReply()` available, but calling it crashes if top-level already deferred. Has caused multiple production incidents.
-
-**Current Workaround**: Runtime shim in `safeInteraction.ts` makes `deferReply()` idempotent.
-
-**Recommended Solution**: Hybrid Facade Pattern - pass `SafeCommandContext` that doesn't have `deferReply()` method at all (compile-time safety).
-
-**Source**: MCP council analysis (2026-01-20)
-
----
-
-### Voice Message Transcripts Corrupted by Sync Bug
-
-**Problem**: The opportunistic sync in `DiscordChannelFetcher.contentsDiffer()` was overwriting voice message transcripts with empty strings. Voice messages have empty text content in Discord but transcripts stored in `conversation_history.content`. The sync saw them as "edited" and wiped the transcripts.
-
-**Impact**: Unknown number of voice message records now have `content: ""` but the transcripts exist in associated memories (since memories were created before the sync ran).
-
-**Fix Applied**: Added check in `contentsDiffer()` to never overwrite non-empty DB content with empty Discord content (PR pending).
-
-**Recovery Script Needed**:
-
-1. Find conversation_history records where:
-   - `content = ''` (empty)
-   - `edited_at IS NOT NULL` (was modified by sync)
-   - Has associated memory in `memories` table with non-empty content
-2. Parse the memory content to extract the transcript (format: `{user}: [transcript]\n\n{assistant}: [response]`)
-3. Update conversation_history.content with the extracted transcript
-4. Reset `edited_at` to `NULL` or set to a marker value
-
-**Files**: `scripts/data/fix-voice-transcripts.ts` (to be created)
-
-**Source**: Production data corruption discovered 2026-01-25
+**Source**: Prompt review (2026-01-24), format standardization (2026-01-25)
 
 ---
 
 ## Priority 2: MEDIUM
+
+### Voice Message Transcript Recovery (Optional)
+
+**Problem**: The opportunistic sync bug (now fixed) overwrote some voice message transcripts with empty strings.
+
+**Status**: Mitigated. Extended context now has fallback logic:
+
+1. Try DB lookup (authoritative)
+2. If DB fails → extract transcript from bot's reply message in Discord history
+
+This ensures voice transcripts are recovered even when DB records are corrupted.
+
+**Remaining impact**: Only affects messages where bot reply is also outside the extended context window. These age out in 30 days anyway.
+
+**Source**: Production data corruption discovered 2026-01-25, fallback implemented 2026-01-25
+
+### Zod Schema/TypeScript Interface Mismatch (Preventive)
+
+**Problem**: Zod schemas and TypeScript interfaces get out of sync. By default, Zod **strips fields not in the schema** during parsing. When we add fields to TS interfaces but forget the Zod schema, data silently disappears at validation boundaries.
+
+**Status**: Currently working after 2026-01-25 fix. This is preventive to avoid future incidents.
+
+**Past Incidents**:
+
+- **2026-01-25**: `personalityId` and `personalityName` stripped - Multi-AI attribution broken for weeks
+- **2026-01-24**: `avatarUpdatedAt` never populated from DB
+
+**Solution**:
+
+1. **Enforce schema-type sync with tests** - Contract tests ensuring Zod schema keys match interface fields
+2. **Use `.passthrough()` or `.strict()` during development** to catch issues early
+3. **Audit schema/interface pairs**: `apiConversationMessageSchema`, `generateRequestSchema`, route schemas
+4. **Consider code generation**: Generate TS types from Zod schemas (single source of truth)
+
+**Files to audit**: `packages/common-types/src/types/schemas.ts`, `jobs.ts`, all route schemas
+
+---
 
 ### Epic: API Validation & Response Consistency
 
@@ -304,6 +230,21 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 ---
 
 ## Priority 3: LOW (Polish & Documentation)
+
+### Scaling Preparation (Epic)
+
+Timer patterns that would block horizontal scaling. Not urgent since single-instance is sufficient for current traffic.
+
+| File                         | Pattern                  | Migration             |
+| ---------------------------- | ------------------------ | --------------------- |
+| `LlmConfigResolver.ts`       | Cache cleanup interval   | BullMQ repeatable job |
+| `WebhookManager.ts`          | Webhook cleanup interval | BullMQ repeatable job |
+| `ResponseOrderingService.ts` | Cleanup interval         | BullMQ repeatable job |
+| `notificationCache.ts`       | Module-level interval    | Injectable or BullMQ  |
+
+**Solution**: Create "SystemQueue" in BullMQ with repeatable jobs and deterministic job IDs.
+
+---
 
 ### Code Quality
 
