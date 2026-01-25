@@ -472,8 +472,8 @@ export class DiscordChannelFetcher {
    * Priority: DB history (more complete metadata) > Discord fetch
    *
    * @param extendedMessages - Messages from Discord channel fetch
-   * @param dbHistory - Messages from database conversation history
-   * @returns Merged and deduplicated message list (newest first)
+   * @param dbHistory - Messages from database conversation history (chronological order)
+   * @returns Merged and deduplicated message list in chronological order (oldest first)
    */
   mergeWithHistory(
     extendedMessages: ConversationMessage[],
@@ -503,17 +503,18 @@ export class DiscordChannelFetcher {
       '[DiscordChannelFetcher] Merged extended context with DB history'
     );
 
-    // Combine: DB history first (these have richer metadata), then unique extended
-    // Both are already sorted newest-first, so we merge by timestamp
+    // Combine: DB history (chronological, richer metadata) + unique extended messages
     const merged = [...dbHistory, ...uniqueExtendedMessages];
 
-    // Sort by timestamp descending (newest first)
+    // Sort by timestamp ascending (oldest first = chronological order)
+    // This ensures newest messages appear last in the prompt, getting
+    // more attention from LLMs due to recency bias in attention mechanisms
     merged.sort((a, b) => {
       const timeA =
         a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
       const timeB =
         b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
-      return timeB - timeA;
+      return timeA - timeB;
     });
 
     return merged;
