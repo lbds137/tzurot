@@ -332,6 +332,7 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 
 | Item                        | Description                                                       | Workaround       |
 | --------------------------- | ----------------------------------------------------------------- | ---------------- |
+| Legacy testing scripts      | `scripts/testing/*.js` - Jest-era scripts, may be obsolete        | Review/remove    |
 | Unsafe xargs in script      | `regenerate-pglite-schema.sh` shell injection                     | Use safe parsing |
 | Monorepo script inherit     | `pnpm --filter` fails if no script defined                        | Run from root    |
 | Commitlint scope auto       | Hardcoded scopes in `commitlint.config.cjs`                       | Add manually     |
