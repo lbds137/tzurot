@@ -417,31 +417,28 @@ export class DiscordChannelFetcher {
       msg.member?.displayName ?? msg.author.globalName ?? msg.author.username ?? 'Unknown';
 
     // Build comprehensive content using shared utility
-    // This includes: text, attachments, embeds, voice transcripts, forwarded content
+    // This includes: text, embeds, voice transcripts, forwarded content
+    // Note: includeAttachments is false because image descriptions are added via XML
+    // <image_descriptions> element after preprocessing - no need to duplicate metadata
     const {
       content: rawContent,
       isForwarded,
       attachments,
     } = await buildMessageContent(msg, {
       includeEmbeds: true,
-      includeAttachments: true,
+      includeAttachments: false,
       getTranscript: options.getTranscript,
     });
 
-    // Skip if no content could be extracted
-    if (!rawContent) {
+    // Skip if no content and no attachments (nothing to process)
+    // Messages with only attachments are kept for vision processing
+    if (!rawContent && attachments.length === 0) {
       return null;
     }
 
-    // Build final content with author prefix for user messages
-    let content: string;
-    if (role === MessageRole.User) {
-      // Prefix user messages with display name for context
-      const forwardedIndicator = isForwarded ? ' (forwarded)' : '';
-      content = `[${authorName}${forwardedIndicator}]: ${rawContent}`;
-    } else {
-      content = rawContent;
-    }
+    // Build final content - no prefix needed since XML format uses from="Name" attribute
+    // isForwarded flag is passed separately for XML attribute formatting
+    const content = rawContent;
 
     const message: ConversationMessage = {
       // Use Discord message ID as the conversation ID
@@ -460,6 +457,8 @@ export class DiscordChannelFetcher {
       personaName: role === MessageRole.User ? authorName : options.personalityName,
       discordUsername: msg.author.username,
       discordMessageId: [msg.id],
+      // Forwarded messages use XML attribute instead of content prefix
+      isForwarded: isForwarded || undefined,
       // No token count - will be computed if needed
     };
 

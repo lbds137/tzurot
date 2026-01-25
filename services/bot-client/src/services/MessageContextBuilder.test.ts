@@ -740,14 +740,15 @@ describe('MessageContextBuilder', () => {
       ];
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue(dbHistory);
 
-      // Extended context messages from Discord
+      // Extended context messages from Discord (no [Name]: prefix - uses personaName for XML)
       const extendedMessages = [
         {
           id: 'ext-msg-1',
           role: MessageRole.User,
-          content: '[Alice]: Hello from Discord',
+          content: 'Hello from Discord',
           createdAt: new Date('2025-01-01T01:00:00Z'),
           personaId: 'discord:user-alice',
+          personaName: 'Alice',
           discordMessageId: ['discord-ext-1'],
         },
       ];
@@ -906,9 +907,10 @@ describe('MessageContextBuilder', () => {
         {
           id: 'ext-msg-1',
           role: MessageRole.User,
-          content: '[Alice]: Hello',
+          content: 'Hello',
           createdAt: new Date('2025-01-01T01:00:00Z'),
           personaId: 'discord:user-alice',
+          personaName: 'Alice',
           discordMessageId: ['discord-ext-1'],
         },
       ];
@@ -967,9 +969,10 @@ describe('MessageContextBuilder', () => {
         {
           id: 'ext-msg-1',
           role: MessageRole.User,
-          content: '[Alice]: Hello',
+          content: 'Hello',
           createdAt: new Date('2025-01-01T01:00:00Z'),
           personaId: 'discord:user-alice',
+          personaName: 'Alice',
           discordMessageId: ['discord-ext-1'],
         },
       ];

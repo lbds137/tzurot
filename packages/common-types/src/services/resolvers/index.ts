@@ -9,6 +9,7 @@ export {
   PersonaResolver,
   type ResolvedPersona,
   type PersonaMemoryInfo,
+  type PersonaPromptData,
 } from './PersonaResolver.js';
 export {
   resolveExtendedContextSettings,

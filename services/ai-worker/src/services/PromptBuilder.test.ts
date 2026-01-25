@@ -269,16 +269,13 @@ describe('PromptBuilder', () => {
   });
 
   describe('buildHumanMessage', () => {
-    it('should create simple text message wrapped in current_turn XML', () => {
+    it('should create simple text message without wrapper', () => {
       const result = promptBuilder.buildHumanMessage('Hello world', []);
 
       expect(result.message).toBeInstanceOf(HumanMessage);
-      // NEW: Message is now wrapped in XML structure
-      expect(result.message.content).toContain('<current_turn>');
-      expect(result.message.content).toContain('<incoming_message');
-      expect(result.message.content).toContain('Hello world');
-      expect(result.message.content).toContain('</current_turn>');
-      // Storage remains unwrapped
+      // User message is sent as-is (XML-escaped but no wrapper)
+      // The LLM API already distinguishes system vs user messages via role
+      expect(result.message.content).toBe('Hello world');
       expect(result.contentForStorage).toBe('Hello world');
     });
 
@@ -293,9 +290,8 @@ describe('PromptBuilder', () => {
 
       const result = promptBuilder.buildHumanMessage('Hello', attachments);
 
-      // Message contains transcription in XML wrapper
-      expect(result.message.content).toContain('Voice transcription here');
-      expect(result.message.content).toContain('<current_turn>');
+      // Message contains only the transcription (text ignored for voice)
+      expect(result.message.content).toBe('Voice transcription here');
       expect(result.contentForStorage).toBe('Voice transcription here');
     });
 
@@ -310,10 +306,9 @@ describe('PromptBuilder', () => {
 
       const result = promptBuilder.buildHumanMessage('Look at this', attachments);
 
-      // Message contains both in XML wrapper
+      // Message contains both text and attachment description
       expect(result.message.content).toContain('Look at this');
       expect(result.message.content).toContain('Image description');
-      expect(result.message.content).toContain('<current_turn>');
       expect(result.contentForStorage).toBe('Look at this\n\nImage description');
     });
 
@@ -321,40 +316,30 @@ describe('PromptBuilder', () => {
       const references = '**Referenced Message**: Some earlier message';
       const result = promptBuilder.buildHumanMessage('Reply text', [], undefined, references);
 
-      // Message contains references in XML wrapper for the LLM
+      // Message contains references for the LLM
       expect(result.message.content).toContain('Reply text');
       expect(result.message.content).toContain('**Referenced Message**: Some earlier message');
-      expect(result.message.content).toContain('<current_turn>');
 
       // Storage has ONLY semantic content (references stored in messageMetadata)
       expect(result.contentForStorage).toBe('Reply text');
       expect(result.contentForStorage).not.toContain('**Referenced Message**');
     });
 
-    it('should add sender attribute in incoming_message when activePersonaName provided', () => {
+    it('should work with activePersonaName (name only used for storage)', () => {
       const result = promptBuilder.buildHumanMessage('Hello', [], 'Alice');
 
-      // NEW: Message uses sender attribute in XML instead of header
-      expect(result.message.content).toContain('<current_turn>');
-      expect(result.message.content).toContain('sender="Alice"');
-      expect(result.message.content).toContain('<instruction>');
-      // Strengthened instruction explicitly mentions memory_archive is background only
-      expect(result.message.content).toContain("RESPOND ONLY to Alice's message above");
-      expect(result.message.content).toContain('memory_archive');
-      expect(result.message.content).toContain('background context only');
-      expect(result.message.content).toContain('Hello');
+      // User message is sent as-is without XML wrapper
+      // ActivePersonaName does not affect the prompt content (used elsewhere)
+      expect(result.message.content).toBe('Hello');
 
       // Storage should NOT have XML wrapper
       expect(result.contentForStorage).toBe('Hello');
-      expect(result.contentForStorage).not.toContain('<current_turn>');
     });
 
-    it('should use default sender when activePersonaName is empty', () => {
+    it('should work when activePersonaName is empty', () => {
       const result = promptBuilder.buildHumanMessage('Hello', [], '');
 
-      expect(result.message.content).toContain('<current_turn>');
-      expect(result.message.content).toContain('sender="User"');
-      expect(result.message.content).toContain('Hello');
+      expect(result.message.content).toBe('Hello');
     });
 
     it('should handle complex combination: attachments + references + activePersona', () => {
@@ -369,14 +354,14 @@ describe('PromptBuilder', () => {
 
       const result = promptBuilder.buildHumanMessage('My text', attachments, 'Bob', references);
 
-      // Message has XML structure with sender
-      expect(result.message.content).toContain('<current_turn>');
-      expect(result.message.content).toContain('sender="Bob"');
+      // Message has user content + attachments + references
+      expect(result.message.content).toContain('My text');
+      expect(result.message.content).toContain('An image');
+      expect(result.message.content).toContain('**Ref**: Earlier message');
 
       // Storage has user message + attachments ONLY (references go in messageMetadata)
       // This is the storage philosophy: content = semantic text, metadata = contextual data
       expect(result.contentForStorage).toBe('My text\n\nAn image');
-      expect(result.contentForStorage).not.toContain('<current_turn>');
       expect(result.contentForStorage).not.toContain('**Ref**'); // References stored structurally, not in content
     });
   });

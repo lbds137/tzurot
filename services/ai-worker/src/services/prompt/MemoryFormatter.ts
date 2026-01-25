@@ -26,8 +26,7 @@ import type { MemoryDocument } from '../ConversationalRAGService.js';
  */
 export const MEMORY_ARCHIVE_INSTRUCTION =
   'These are SUMMARIZED NOTES from past interactions, not current conversation. ' +
-  'Use ONLY as background context to inform your response to the CURRENT message. ' +
-  'The current message is in <current_turn> - respond ONLY to that.';
+  'Use ONLY as background context to inform your response to the user message.';
 
 /**
  * Build the memory archive XML wrapper.

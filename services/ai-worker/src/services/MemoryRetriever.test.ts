@@ -15,6 +15,7 @@ import type { PersonaResolver } from './resolvers/index.js';
 // Mock PersonaResolver
 const mockPersonaResolver = {
   resolveForMemory: vi.fn(),
+  getPersonaForPrompt: vi.fn(),
   getPersonaContentForPrompt: vi.fn(),
   resolveToUuid: vi.fn(),
 };
@@ -173,9 +174,17 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('persona-1')
         .mockResolvedValueOnce('persona-2');
-      mockPersonaResolver.getPersonaContentForPrompt
-        .mockResolvedValueOnce('Persona 1 content')
-        .mockResolvedValueOnce('Persona 2 content');
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Persona 1 content',
+        })
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Persona 2 content',
+        });
 
       const context: ConversationContext = {
         userId: 'user-123',
@@ -205,9 +214,13 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('resolved-uuid-1')
         .mockResolvedValueOnce('resolved-uuid-2');
-      mockPersonaResolver.getPersonaContentForPrompt
-        .mockResolvedValueOnce('Grace content')
-        .mockResolvedValueOnce('Other user content');
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Grace content' })
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Other user content',
+        });
 
       const context: ConversationContext = {
         userId: 'user-123',
@@ -242,9 +255,11 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('resolved-uuid') // First user is registered
         .mockResolvedValueOnce(null); // Second user is NOT registered
-      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce(
-        'Registered user content'
-      );
+      mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+        preferredName: null,
+        pronouns: null,
+        content: 'Registered user content',
+      });
 
       const context: ConversationContext = {
         userId: 'user-123',
@@ -265,8 +280,8 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('persona-1')
         .mockResolvedValueOnce('persona-2');
-      mockPersonaResolver.getPersonaContentForPrompt
-        .mockResolvedValueOnce('Has content')
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({ preferredName: null, pronouns: null, content: 'Has content' })
         .mockResolvedValueOnce(null);
 
       const context: ConversationContext = {
@@ -290,7 +305,11 @@ describe('MemoryRetriever', () => {
 
     it('should apply activePersonaGuildInfo to active participant', async () => {
       mockPersonaResolver.resolveToUuid.mockResolvedValueOnce('persona-1');
-      mockPersonaResolver.getPersonaContentForPrompt.mockResolvedValueOnce('Persona content');
+      mockPersonaResolver.getPersonaForPrompt.mockResolvedValueOnce({
+        preferredName: 'User',
+        pronouns: 'they/them',
+        content: 'Persona content',
+      });
 
       const context: ConversationContext = {
         userId: 'user-123',
@@ -306,6 +325,8 @@ describe('MemoryRetriever', () => {
 
       expect(result.size).toBe(1);
       expect(result.get('User One')).toEqual({
+        preferredName: 'User',
+        pronouns: 'they/them',
         content: 'Persona content',
         isActive: true,
         personaId: 'persona-1',
@@ -321,9 +342,17 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('resolved-uuid-1')
         .mockResolvedValueOnce('resolved-uuid-2');
-      mockPersonaResolver.getPersonaContentForPrompt
-        .mockResolvedValueOnce('Active user content')
-        .mockResolvedValueOnce('Inactive user content');
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Active user content',
+        })
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Inactive user content',
+        });
 
       const context: ConversationContext = {
         userId: 'user-123',
@@ -362,9 +391,17 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('resolved-uuid-1')
         .mockResolvedValueOnce('db-persona-uuid');
-      mockPersonaResolver.getPersonaContentForPrompt
-        .mockResolvedValueOnce('Active user content')
-        .mockResolvedValueOnce('Inactive user content');
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Active user content',
+        })
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Inactive user content',
+        });
 
       const context: ConversationContext = {
         userId: 'user-123',
@@ -393,9 +430,17 @@ describe('MemoryRetriever', () => {
       mockPersonaResolver.resolveToUuid
         .mockResolvedValueOnce('resolved-uuid-1')
         .mockResolvedValueOnce('resolved-uuid-2');
-      mockPersonaResolver.getPersonaContentForPrompt
-        .mockResolvedValueOnce('Active user content')
-        .mockResolvedValueOnce('Inactive user content');
+      mockPersonaResolver.getPersonaForPrompt
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Active user content',
+        })
+        .mockResolvedValueOnce({
+          preferredName: null,
+          pronouns: null,
+          content: 'Inactive user content',
+        });
 
       const context: ConversationContext = {
         userId: 'user-123',

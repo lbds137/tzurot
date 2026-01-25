@@ -193,6 +193,8 @@ export interface RawHistoryEntry {
   /** Discord username for disambiguation when persona name matches personality name */
   discordUsername?: string;
   tokenCount?: number;
+  /** Whether this message was forwarded from another channel */
+  isForwarded?: boolean;
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
   messageMetadata?: {
     referencedMessages?: StoredReferencedMessage[];
@@ -235,6 +237,42 @@ ${safeContent}${embedsSection}${attachmentsSection}
 }
 
 /**
+ * Resolve speaker name and role from a history entry
+ * @returns Speaker name and role, or null if message should be skipped
+ */
+function resolveSpeakerInfo(
+  msg: RawHistoryEntry,
+  personalityName: string
+): { speakerName: string; role: 'user' | 'assistant'; normalizedRole: string } | null {
+  const normalizedRole = String(msg.role).toLowerCase();
+
+  if (normalizedRole === 'user') {
+    // User message - use persona name if available
+    let speakerName =
+      msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
+
+    // Disambiguate when persona name matches personality name (e.g., both "Lila")
+    // Format: "Lila (@lbds137)" to make it clear who is who
+    if (
+      speakerName.toLowerCase() === personalityName.toLowerCase() &&
+      msg.discordUsername !== undefined &&
+      msg.discordUsername.length > 0
+    ) {
+      speakerName = `${speakerName} (@${msg.discordUsername})`;
+    }
+
+    return { speakerName, role: 'user', normalizedRole };
+  }
+
+  if (normalizedRole === 'assistant') {
+    return { speakerName: personalityName, role: 'assistant', normalizedRole };
+  }
+
+  // System or unknown - skip
+  return null;
+}
+
+/**
  * Format a single history entry as XML
  *
  * This is the single source of truth for history message formatting.
@@ -254,42 +292,21 @@ export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string
 ): string {
-  // Determine the speaker name
-  let speakerName: string;
-  let role: 'user' | 'assistant';
-
-  // Use case-insensitive matching to handle legacy capitalized roles ("User", "Assistant")
-  const normalizedRole = String(msg.role).toLowerCase();
-  if (normalizedRole === 'user') {
-    // User message - use persona name if available
-    speakerName =
-      msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
-
-    // Disambiguate when persona name matches personality name (e.g., both "Lila")
-    // Format: "Lila (@lbds137)" to make it clear who is who
-    if (
-      speakerName.toLowerCase() === personalityName.toLowerCase() &&
-      msg.discordUsername !== undefined &&
-      msg.discordUsername.length > 0
-    ) {
-      speakerName = `${speakerName} (@${msg.discordUsername})`;
-    }
-
-    role = 'user';
-  } else if (normalizedRole === 'assistant') {
-    // Assistant message - use personality name
-    speakerName = personalityName;
-    role = 'assistant';
-  } else {
-    // System or unknown - skip
+  const speakerInfo = resolveSpeakerInfo(msg, personalityName);
+  if (speakerInfo === null) {
     return '';
   }
+
+  const { speakerName, role, normalizedRole } = speakerInfo;
 
   // Format the timestamp (escape for use in attribute)
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
       ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}"`
       : '';
+
+  // Format forwarded attribute (for messages forwarded from another channel)
+  const forwardedAttr = msg.isForwarded === true ? ' forwarded="true"' : '';
 
   // Escape content to prevent XML injection
   const safeContent = escapeXmlContent(msg.content);
@@ -331,9 +348,9 @@ export function formatSingleHistoryEntryAsXml(
     imageSection = `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
   }
 
-  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago">content</message>
+  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago" forwarded="true">content</message>
   // from_id links to <participant id="..."> for identity binding
-  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${safeContent}${quotedSection}${imageSection}</message>`;
+  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}</message>`;
 }
 
 /**

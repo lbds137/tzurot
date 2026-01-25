@@ -2,12 +2,11 @@
  * Response Artifacts Cleanup
  *
  * Defensive cleaning of AI-generated responses to handle cases where the model
- * learns patterns from the conversation history and adds unwanted artifacts.
+ * learns patterns from conversation history or training data and adds unwanted artifacts.
  *
  * With XML-formatted prompts, models may:
  * - Append </message> tags (learning from chat_log structure)
- * - Append </current_turn> tags (learning from prompt structure)
- * - Append </incoming_message> tags (learning from current_turn structure)
+ * - Append </current_turn> or </incoming_message> tags (from training data)
  * - Add <message speaker="Name"> prefixes
  * - Still occasionally add "Name:" prefixes
  */

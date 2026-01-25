@@ -55,6 +55,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'lbds137',
             preferredName: 'Lila',
+            pronouns: 'she/her',
             content: 'A magical being',
           },
         });
@@ -66,6 +67,8 @@ describe('UserReferenceResolver', () => {
         expect(result.resolvedPersonas[0]).toEqual({
           personaId: 'persona-uuid',
           personaName: 'Lila',
+          preferredName: 'Lila',
+          pronouns: 'she/her',
           content: 'A magical being',
         });
         expect(mockPrisma.shapesPersonaMapping.findUnique).toHaveBeenCalledWith({
@@ -76,6 +79,7 @@ describe('UserReferenceResolver', () => {
                 id: true,
                 name: true,
                 preferredName: true,
+                pronouns: true,
                 content: true,
               },
             },
@@ -94,6 +98,7 @@ describe('UserReferenceResolver', () => {
               id: 'persona-1',
               name: 'user1',
               preferredName: 'Alice',
+              pronouns: null,
               content: 'First user',
             },
           })
@@ -102,6 +107,7 @@ describe('UserReferenceResolver', () => {
               id: 'persona-2',
               name: 'user2',
               preferredName: 'Bob',
+              pronouns: null,
               content: 'Second user',
             },
           });
@@ -121,6 +127,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'fallback_name',
             preferredName: null,
+            pronouns: null,
             content: 'Some content',
           },
         });
@@ -167,6 +174,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'lbds137',
             preferredName: 'Lila',
+            pronouns: 'she/her',
             content: 'User persona',
           },
         });
@@ -183,6 +191,7 @@ describe('UserReferenceResolver', () => {
                 id: true,
                 name: true,
                 preferredName: true,
+                pronouns: true,
                 content: true,
               },
             },
@@ -198,6 +207,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'testuser',
             preferredName: 'Test User',
+            pronouns: null,
             content: '',
           },
         });
@@ -228,6 +238,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'lbds137',
             preferredName: 'Lila',
+            pronouns: 'she/her',
             content: 'User bio',
           },
         });
@@ -244,6 +255,7 @@ describe('UserReferenceResolver', () => {
                 id: true,
                 name: true,
                 preferredName: true,
+                pronouns: true,
                 content: true,
               },
             },
@@ -288,6 +300,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'lbds137',
             preferredName: 'Lila',
+            pronouns: null,
             content: 'User content',
           },
         });
@@ -310,6 +323,7 @@ describe('UserReferenceResolver', () => {
             id: 'same-persona-uuid',
             name: 'lbds137',
             preferredName: 'Lila',
+            pronouns: null,
             content: 'User content',
           },
         });
@@ -319,6 +333,7 @@ describe('UserReferenceResolver', () => {
             id: 'same-persona-uuid',
             name: 'lbds137',
             preferredName: 'Lila',
+            pronouns: null,
             content: 'User content',
           },
         });
@@ -341,6 +356,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-1',
             name: 'shapes_user',
             preferredName: 'Alice',
+            pronouns: null,
             content: 'Shapes user',
           },
         });
@@ -350,6 +366,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-2',
             name: 'discord_user',
             preferredName: 'Bob',
+            pronouns: null,
             content: 'Discord user',
           },
         });
@@ -359,6 +376,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-3',
             name: 'simple_user',
             preferredName: 'Charlie',
+            pronouns: null,
             content: 'Simple user',
           },
         });
@@ -430,6 +448,7 @@ describe('UserReferenceResolver', () => {
             id: selfPersonaId,
             name: 'myself',
             preferredName: 'Lilith',
+            pronouns: null,
             content: 'A magical being',
           },
         });
@@ -455,6 +474,7 @@ describe('UserReferenceResolver', () => {
               id: selfPersonaId,
               name: 'myself',
               preferredName: 'Lilith',
+              pronouns: null,
               content: 'Self content',
             },
           })
@@ -463,6 +483,7 @@ describe('UserReferenceResolver', () => {
               id: 'friend-persona-uuid',
               name: 'friend',
               preferredName: 'Alice',
+              pronouns: null,
               content: 'Friend content',
             },
           });
@@ -487,6 +508,7 @@ describe('UserReferenceResolver', () => {
             id: selfPersonaId,
             name: 'myself',
             preferredName: 'Lilith',
+            pronouns: null,
             content: 'Self content',
           },
         });
@@ -506,6 +528,7 @@ describe('UserReferenceResolver', () => {
             id: selfPersonaId,
             name: 'lilith',
             preferredName: 'Lilith',
+            pronouns: null,
             content: 'Self content',
           },
         });
@@ -525,6 +548,7 @@ describe('UserReferenceResolver', () => {
             id: 'persona-uuid',
             name: 'user',
             preferredName: 'Alice',
+            pronouns: null,
             content: 'User content',
           },
         });
