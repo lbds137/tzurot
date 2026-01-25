@@ -418,7 +418,7 @@ describe('DiscordChannelFetcher', () => {
       expect(merged.some(m => m.content === '[Alice]: Hello from Discord')).toBe(false);
     });
 
-    it('should sort merged messages by timestamp (newest first)', () => {
+    it('should sort merged messages by timestamp (oldest first = chronological)', () => {
       const extendedMessages = [
         {
           id: 'ext1',
@@ -451,9 +451,10 @@ describe('DiscordChannelFetcher', () => {
 
       const merged = fetcher.mergeWithHistory(extendedMessages, dbHistory);
 
-      expect(merged[0].content).toBe('[Charlie]: Newest');
+      // Chronological order: oldest first, newest last (LLM recency bias optimization)
+      expect(merged[0].content).toBe('[Alice]: Oldest');
       expect(merged[1].content).toBe('[Bob]: Middle');
-      expect(merged[2].content).toBe('[Alice]: Oldest');
+      expect(merged[2].content).toBe('[Charlie]: Newest');
     });
 
     it('should handle empty extended messages', () => {

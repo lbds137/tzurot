@@ -90,7 +90,6 @@
       "Bash(psql:*)",
 
       "mcp__ide__getDiagnostics",
-      "mcp__gemini-collab__*",
       "mcp__council__*",
 
       "WebFetch(domain:blog.platformatic.dev)",
