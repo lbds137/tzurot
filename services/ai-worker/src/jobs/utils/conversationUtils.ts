@@ -8,6 +8,7 @@ import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
 import {
   MessageRole,
   formatRelativeTime,
+  formatPromptTimestamp,
   createLogger,
   escapeXml,
   escapeXmlContent,
@@ -258,10 +259,10 @@ function formatStoredReferencedMessage(
 
   const role = isAssistant ? 'assistant' : 'user';
 
-  // Format timestamp with both relative and absolute for consistency
+  // Format timestamp with unified format
   const timeAttr =
     ref.timestamp !== undefined && ref.timestamp.length > 0
-      ? ` time="${escapeXml(formatRelativeTime(ref.timestamp))}" timestamp="${escapeXml(ref.timestamp)}"`
+      ? ` t="${escapeXml(formatPromptTimestamp(ref.timestamp))}"`
       : '';
 
   // Forwarded messages have limited author info
@@ -379,12 +380,11 @@ export function formatSingleHistoryEntryAsXml(
 
   const { speakerName, role, normalizedRole } = speakerInfo;
 
-  // Format the timestamp with both relative and absolute (escape for use in attribute)
-  // Relative: "3d ago" - easy for AI to understand temporal distance
-  // Absolute: "2025-01-22T15:30:00.000Z" - precise for ordering verification
+  // Format the timestamp with unified format (escape for use in attribute)
+  // Format: "YYYY-MM-DD (Day) HH:MM • relative" - combines date, time, and relative in one token-efficient attribute
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` time="${escapeXml(formatRelativeTime(msg.createdAt))}" timestamp="${escapeXml(msg.createdAt)}"`
+      ? ` t="${escapeXml(formatPromptTimestamp(msg.createdAt))}"`
       : '';
 
   // Format forwarded attribute (for messages forwarded from another channel)
@@ -642,10 +642,10 @@ export function getFormattedMessageCharLength(
   }
 
   // Approximate the formatted length
-  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago" timestamp="...">content</message>
+  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" t="YYYY-MM-DD (Day) HH:MM • relative">content</message>
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
-      ? ` time="${formatRelativeTime(msg.createdAt)}" timestamp="${msg.createdAt}"`
+      ? ` t="${formatPromptTimestamp(msg.createdAt)}"`
       : '';
 
   // Account for from_id attribute (user messages with personaId)
