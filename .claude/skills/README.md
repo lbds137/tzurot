@@ -1,6 +1,6 @@
 # Tzurot v3 Skills Index
 
-> **Quick Navigation**: 14 project-specific Claude Code Skills that codify Tzurot v3 development best practices.
+> **Quick Navigation**: 16 project-specific Claude Code Skills that codify Tzurot v3 development best practices.
 
 ## 📋 All Skills
 
@@ -12,6 +12,7 @@
 | [tzurot-git-workflow](./tzurot-git-workflow/SKILL.md)         | Core Dev | Commits, PRs, rebasing              |
 | [tzurot-security](./tzurot-security/SKILL.md)                 | Core Dev | Secrets, user input, security       |
 | [tzurot-observability](./tzurot-observability/SKILL.md)       | Core Dev | Logging, debugging, operations      |
+| [tzurot-tooling](./tzurot-tooling/SKILL.md)                   | Core Dev | CLI commands, dev scripts, ops CLI  |
 | [tzurot-architecture](./tzurot-architecture/SKILL.md)         | Design   | Service design, error patterns      |
 | [tzurot-docs](./tzurot-docs/SKILL.md)                         | Design   | Documentation, session handoff      |
 | [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)           | Design   | Consulting external AI              |
@@ -33,6 +34,7 @@
 | Committing/pushing       | tzurot-git-workflow     |
 | Handling secrets         | tzurot-security         |
 | Adding logging           | tzurot-observability    |
+| CLI/dev scripts          | tzurot-tooling          |
 | Designing features       | tzurot-architecture     |
 | Database work            | tzurot-db-vector        |
 | BullMQ jobs              | tzurot-async-flow       |
@@ -57,8 +59,8 @@
 
 ## 📊 Statistics
 
-- **Total Skills**: 15
-- **Total Lines**: ~3,300 lines
+- **Total Skills**: 16
+- **Total Lines**: ~3,600 lines
 - **All skills**: Under 350 lines (target: <300, max: 400)
 - **Pattern**: Progressive disclosure - essential info with references
 
@@ -72,4 +74,4 @@ See [tzurot-skills-guide](./tzurot-skills-guide/SKILL.md) for:
 
 ---
 
-**Last Updated**: 2026-01-10
+**Last Updated**: 2026-01-25
