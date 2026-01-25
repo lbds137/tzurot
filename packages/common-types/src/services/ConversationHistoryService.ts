@@ -398,6 +398,54 @@ export class ConversationHistoryService {
   }
 
   /**
+   * Get recent conversation history for a channel across ALL personalities.
+   * Returns messages in chronological order (oldest first).
+   *
+   * Unlike getRecentHistory(), this method does NOT filter by personalityId.
+   * Use this when you need complete channel context (e.g., extended context scenarios).
+   *
+   * @param channelId Channel ID
+   * @param limit Number of messages to fetch (default: 20)
+   * @param contextEpoch Optional epoch timestamp - messages before this time are excluded
+   */
+  async getChannelHistory(
+    channelId: string,
+    limit = 20,
+    contextEpoch?: Date
+  ): Promise<ConversationMessage[]> {
+    try {
+      const messages = await this.prisma.conversationHistory.findMany({
+        where: {
+          channelId,
+          // NO personalityId filter - fetch ALL channel messages
+          deletedAt: null,
+          ...(contextEpoch !== undefined && {
+            createdAt: {
+              gt: contextEpoch,
+            },
+          }),
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: limit,
+        select: conversationHistorySelect,
+      });
+
+      // Reverse to get chronological order (oldest first) and map to domain objects
+      const history = mapToConversationMessages(messages.reverse());
+
+      logger.debug(
+        `Retrieved ${history.length} messages from channel history (channel: ${channelId}, all personalities)`
+      );
+      return history;
+    } catch (error) {
+      logger.error({ err: error }, `Failed to get channel conversation history`);
+      return [];
+    }
+  }
+
+  /**
    * Get conversation history statistics for a channel + personality
    * Used for /history stats command
    *

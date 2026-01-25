@@ -908,6 +908,102 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
+  describe('getChannelHistory - Cross-Personality Channel History', () => {
+    it('should fetch messages without personality filter', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getChannelHistory('channel-123', 20);
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            channelId: 'channel-123',
+            deletedAt: null,
+            // Note: NO personalityId filter - that's the key difference from getRecentHistory
+          }),
+        })
+      );
+
+      // Verify personalityId is NOT in the where clause
+      const callArg = mockPrismaClient.conversationHistory.findMany.mock.calls[0][0];
+      expect(callArg.where.personalityId).toBeUndefined();
+    });
+
+    it('should return messages in chronological order', async () => {
+      // Mock messages must match the structure expected by mapToConversationMessages
+      const mockMessages = [
+        {
+          id: 'msg-2',
+          role: MessageRole.Assistant,
+          content: 'Response',
+          tokenCount: 5,
+          createdAt: new Date('2025-01-01T01:00:00Z'),
+          personaId: 'persona-1',
+          persona: {
+            name: 'User',
+            preferredName: 'User Persona',
+            owner: { username: 'user123' },
+          },
+          discordMessageId: ['discord-2'],
+          messageMetadata: null,
+        },
+        {
+          id: 'msg-1',
+          role: MessageRole.User,
+          content: 'Hello',
+          tokenCount: 3,
+          createdAt: new Date('2025-01-01T00:00:00Z'),
+          personaId: 'persona-1',
+          persona: {
+            name: 'User',
+            preferredName: 'User Persona',
+            owner: { username: 'user123' },
+          },
+          discordMessageId: ['discord-1'],
+          messageMetadata: null,
+        },
+      ];
+
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
+
+      const result = await service.getChannelHistory('channel-123', 20);
+
+      expect(result).toHaveLength(2);
+      // Service reverses to chronological order (oldest first)
+      expect(result[0].id).toBe('msg-1');
+      expect(result[1].id).toBe('msg-2');
+    });
+
+    it('should apply context epoch filter when provided', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+      const contextEpoch = new Date('2025-01-01T00:00:00Z');
+
+      await service.getChannelHistory('channel-123', 20, contextEpoch);
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            channelId: 'channel-123',
+            deletedAt: null,
+            createdAt: {
+              gt: contextEpoch,
+            },
+          }),
+        })
+      );
+    });
+
+    it('should return empty array on error', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(
+        new Error('Database query failed')
+      );
+
+      const result = await service.getChannelHistory('channel-123', 20);
+
+      expect(result).toEqual([]);
+    });
+  });
+
   describe('Error Handling', () => {
     it('should throw error when addMessage fails', async () => {
       const error = new Error('Database connection failed');

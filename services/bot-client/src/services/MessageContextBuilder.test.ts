@@ -34,6 +34,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     ...actual,
     ConversationHistoryService: class {
       getRecentHistory = vi.fn();
+      getChannelHistory = vi.fn();
     },
     UserService: class {
       getOrCreateUser = vi.fn();
@@ -726,7 +727,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
 
-      // DB history
+      // DB history (when extended context is enabled, getChannelHistory is used)
       const dbHistory = [
         {
           id: 'db-msg-1',
@@ -738,7 +739,7 @@ describe('MessageContextBuilder', () => {
           discordMessageId: ['discord-1'],
         },
       ];
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue(dbHistory);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue(dbHistory);
 
       // Extended context messages from Discord (no [Name]: prefix - uses personaName for XML)
       const extendedMessages = [
@@ -844,7 +845,8 @@ describe('MessageContextBuilder', () => {
     it('should not fetch extended context when botUserId is not provided', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -878,7 +880,8 @@ describe('MessageContextBuilder', () => {
     it('should collect image attachments when maxImages > 0', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
       // Extended context with image attachments
       const imageAttachments = [
@@ -962,7 +965,8 @@ describe('MessageContextBuilder', () => {
     it('should not collect images when maxImages is 0', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
       // Need messages so the extended context block executes
       const extendedMessages = [
