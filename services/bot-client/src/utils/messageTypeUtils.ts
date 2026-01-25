@@ -69,6 +69,26 @@ export function isForwardedMessage(message: Message): boolean {
 }
 
 /**
+ * Type guard to safely extract content from a message snapshot.
+ * Snapshots have a nested message.content structure that needs careful access.
+ */
+function getSnapshotContent(snapshot: unknown): string | undefined {
+  if (
+    snapshot !== null &&
+    typeof snapshot === 'object' &&
+    'message' in snapshot &&
+    snapshot.message !== null &&
+    typeof snapshot.message === 'object' &&
+    'content' in snapshot.message &&
+    typeof snapshot.message.content === 'string' &&
+    snapshot.message.content.length > 0
+  ) {
+    return snapshot.message.content;
+  }
+  return undefined;
+}
+
+/**
  * Get the effective content from a message.
  *
  * For regular messages: returns message.content
@@ -78,27 +98,12 @@ export function isForwardedMessage(message: Message): boolean {
  * to ensure forwarded messages are handled correctly.
  */
 export function getEffectiveContent(message: Message): string {
-  // For forwarded messages, the content is in the snapshot
+  // For forwarded messages, extract content from the first snapshot
   if (isForwardedMessage(message)) {
-    // messageSnapshots is guaranteed to exist and have items (checked by isForwardedMessage)
-    const snapshots = message.messageSnapshots;
-    if (snapshots !== undefined) {
-      const firstSnapshot = snapshots.first();
-      // Access content from the snapshot's message property
-      const snapshotContent =
-        firstSnapshot !== undefined &&
-        'message' in firstSnapshot &&
-        firstSnapshot.message !== undefined &&
-        typeof firstSnapshot.message === 'object' &&
-        firstSnapshot.message !== null &&
-        'content' in firstSnapshot.message &&
-        typeof firstSnapshot.message.content === 'string'
-          ? firstSnapshot.message.content
-          : undefined;
-
-      if (snapshotContent !== undefined && snapshotContent.length > 0) {
-        return snapshotContent;
-      }
+    const firstSnapshot = message.messageSnapshots?.first();
+    const snapshotContent = getSnapshotContent(firstSnapshot);
+    if (snapshotContent !== undefined) {
+      return snapshotContent;
     }
   }
 
