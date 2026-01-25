@@ -567,6 +567,10 @@ export class MessageContextBuilder {
       personaId: msg.personaId,
       personaName: msg.personaName,
       discordUsername: msg.discordUsername, // For collision detection in prompt building
+      // AI personality info for multi-AI channel attribution
+      // Allows correct attribution when multiple AI personalities respond in the same channel
+      personalityId: msg.personalityId,
+      personalityName: msg.personalityName,
       messageMetadata: msg.messageMetadata,
     }));
 
