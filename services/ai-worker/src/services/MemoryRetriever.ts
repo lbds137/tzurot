@@ -223,6 +223,11 @@ export class MemoryRetriever {
       `[MemoryRetriever] Fetching content for ${context.participants.length} participant(s)`
     );
 
+    // Track resolved personaIds to deduplicate participants
+    // Same user may appear with different names (persona name vs Discord display name)
+    // e.g., "Lila" from DB history vs "Lila Shabbat Nachiel" from extended context
+    const resolvedIdToName = new Map<string, string>();
+
     // Fetch content for each participant
     for (const participant of context.participants) {
       // Resolve personaId - handles both UUID and 'discord:XXXX' formats
@@ -239,6 +244,39 @@ export class MemoryRetriever {
           `[MemoryRetriever] Could not resolve personaId - user may not be registered`
         );
         continue;
+      }
+
+      // Check if we already have a participant with this resolved personaId
+      // Prefer: active speaker's name > persona name (from DB) > Discord display name
+      const existingName = resolvedIdToName.get(resolvedPersonaId);
+      if (existingName !== undefined) {
+        // Skip if existing entry is from active speaker or is shorter (likely persona name)
+        // Active speaker's name is authoritative
+        const existingEntry = personaMap.get(existingName);
+        if (existingEntry?.isActive === true) {
+          logger.debug(
+            { resolvedPersonaId, skippedName: participant.personaName, keptName: existingName },
+            `[MemoryRetriever] Skipping duplicate participant - active speaker takes precedence`
+          );
+          continue;
+        }
+
+        // Prefer shorter name (persona name "Lila" vs Discord display name "Lila Shabbat Nachiel")
+        // This heuristic works because persona names are typically short
+        if (existingName.length <= participant.personaName.length && !participant.isActive) {
+          logger.debug(
+            { resolvedPersonaId, skippedName: participant.personaName, keptName: existingName },
+            `[MemoryRetriever] Skipping duplicate participant - preferring shorter name`
+          );
+          continue;
+        }
+
+        // New entry is better - remove old entry
+        personaMap.delete(existingName);
+        logger.debug(
+          { resolvedPersonaId, removedName: existingName, newName: participant.personaName },
+          `[MemoryRetriever] Replacing duplicate participant with better name`
+        );
       }
 
       const content = await this.getPersonaContent(resolvedPersonaId);
@@ -260,6 +298,7 @@ export class MemoryRetriever {
           personaId: resolvedPersonaId, // Use resolved UUID for ID binding
           guildInfo,
         });
+        resolvedIdToName.set(resolvedPersonaId, participant.personaName);
 
         logger.debug(
           `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
