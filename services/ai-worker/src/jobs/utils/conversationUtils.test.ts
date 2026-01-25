@@ -1518,9 +1518,10 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      // Format should be: <message from="..." from_id="..." role="..." time="...">
+      // Format should be: <message from="..." from_id="..." role="..." time="..." timestamp="...">
+      // Now includes both relative time and absolute timestamp
       expect(result).toMatch(
-        /<message from="Alice" from_id="persona-uuid-123" role="user" time="just now">/
+        /<message from="Alice" from_id="persona-uuid-123" role="user" time="just now" timestamp="2025-01-01T00:00:00Z">/
       );
     });
 
@@ -1693,6 +1694,107 @@ describe('Conversation Utilities', () => {
       // Verify both user messages are disambiguated
       const userOccurrences = (result.match(/from="Lila \(@lbds137\)" role="user"/g) || []).length;
       expect(userOccurrences).toBe(2);
+    });
+  });
+
+  describe('Multi-AI Personality Attribution', () => {
+    it('should attribute assistant messages from OTHER AI personalities correctly', () => {
+      // When COLD is processing a channel where Lila AI also responded,
+      // Lila AI's messages should show as "Lila | תשב", not "COLD"
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hey COLD, what do you think?',
+          personaName: 'Alice',
+        },
+        {
+          role: 'assistant',
+          content: 'I think it is interesting.',
+          personaName: 'COLD', // COLD's own response
+        },
+        {
+          role: 'user',
+          content: 'Lila, your thoughts?',
+          personaName: 'Alice',
+        },
+        {
+          role: 'assistant',
+          content: 'I find this fascinating!',
+          personaName: 'Lila | תשב', // Another AI personality's response
+        },
+      ];
+
+      // When COLD processes this, it should correctly attribute Lila AI's message
+      const result = formatConversationHistoryAsXml(history, 'COLD');
+
+      // COLD's message should be attributed to COLD
+      expect(result).toContain('from="COLD" role="assistant"');
+      // Lila AI's message should be attributed to Lila, not COLD
+      expect(result).toContain('from="Lila | תשב" role="assistant"');
+      // Verify we don't have COLD appearing twice for assistant messages
+      const coldAssistantCount = (result.match(/from="COLD" role="assistant"/g) || []).length;
+      expect(coldAssistantCount).toBe(1);
+    });
+
+    it('should fall back to personalityName when personaName is missing for assistant', () => {
+      // Legacy messages or self-messages might not have personaName
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Response without personaName',
+          // No personaName - should fall back to the current personality
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'COLD');
+      expect(result).toContain('from="COLD" role="assistant"');
+    });
+
+    it('should include timestamp attribute for ordering verification', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Hello',
+          personaName: 'Alice',
+          createdAt: '2025-01-22T15:30:00.000Z',
+        },
+        {
+          role: 'assistant',
+          content: 'Hi there!',
+          personaName: 'COLD',
+          createdAt: '2025-01-22T15:30:05.000Z',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'COLD');
+
+      // Both messages should have timestamp attribute
+      expect(result).toContain('timestamp="2025-01-22T15:30:00.000Z"');
+      expect(result).toContain('timestamp="2025-01-22T15:30:05.000Z"');
+      // Should also have relative time attribute
+      expect(result).toMatch(/time="[^"]+"/);
+    });
+
+    it('should correctly estimate length with other AI personality names', () => {
+      const msgFromOtherAI: RawHistoryEntry = {
+        role: 'assistant',
+        content: 'Response from other AI',
+        personaName: 'Lila | תשב',
+        createdAt: '2025-01-01T00:00:00Z',
+      };
+
+      const msgFromSelf: RawHistoryEntry = {
+        role: 'assistant',
+        content: 'Response from other AI',
+        personaName: 'COLD',
+        createdAt: '2025-01-01T00:00:00Z',
+      };
+
+      const lengthOtherAI = getFormattedMessageCharLength(msgFromOtherAI, 'COLD');
+      const lengthSelf = getFormattedMessageCharLength(msgFromSelf, 'COLD');
+
+      // Length should be different because "Lila | תשב" is longer than "COLD"
+      expect(lengthOtherAI).toBeGreaterThan(lengthSelf);
     });
   });
 });
