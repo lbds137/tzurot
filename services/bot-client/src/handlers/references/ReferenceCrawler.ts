@@ -139,16 +139,15 @@ export class ReferenceCrawler {
           continue;
         }
 
-        // Check deduplication - but NEVER deduplicate direct replies (depth 0)
-        // Direct replies indicate explicit user intent to reference that specific message,
-        // even if it's already in conversation history. The user is saying "I'm responding to THIS".
-        // Link references (URLs) can be deduplicated since they're just incidental mentions.
-        const isDirectReply = refResult.type === ReferenceType.REPLY && depth === 0;
-        if (!isDirectReply && !this.shouldIncludeReference(referencedMessage)) {
+        // Check deduplication - skip if already in conversation history
+        // Now that chat_log is chronologically ordered (oldest first, newest last),
+        // LLMs properly attend to recent messages. No need to duplicate content.
+        if (!this.shouldIncludeReference(referencedMessage)) {
           logger.debug(
             {
               messageId: referencedMessage.id,
               reason: 'found in conversation history',
+              isReply: refResult.type === ReferenceType.REPLY,
             },
             '[ReferenceCrawler] Skipping reference - already in conversation'
           );

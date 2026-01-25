@@ -46,20 +46,20 @@ export class SnapshotFormatter {
     // Combine both types of attachments
     const allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
 
-    // Process embeds from snapshot
+    // Process embeds from snapshot (XML format)
     const embedString =
       snapshot.embeds !== undefined && snapshot.embeds !== null && snapshot.embeds.length > 0
         ? snapshot.embeds
             .map((embed: APIEmbed | { toJSON(): APIEmbed }, index: number) => {
-              const embedNumber = snapshot.embeds.length > 1 ? ` ${index + 1}` : '';
+              const numAttr = snapshot.embeds.length > 1 ? ` number="${index + 1}"` : '';
               // Convert embed to APIEmbed format (some embeds need .toJSON(), snapshots already have it as plain object)
               const apiEmbed: APIEmbed =
                 'toJSON' in embed && typeof embed.toJSON === 'function'
                   ? embed.toJSON()
                   : (embed as APIEmbed);
-              return `### Embed${embedNumber}\n\n${EmbedParser.parseEmbed(apiEmbed)}`;
+              return `<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed)}\n</embed>`;
             })
-            .join('\n\n---\n\n')
+            .join('\n')
         : '';
 
     return {
