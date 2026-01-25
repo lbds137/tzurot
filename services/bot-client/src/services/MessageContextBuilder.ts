@@ -277,6 +277,7 @@ export class MessageContextBuilder {
   /**
    * Fetch extended context from Discord channel and merge with history.
    */
+  // eslint-disable-next-line max-lines-per-function -- Cohesive extended context workflow
   private async fetchExtendedContext(
     params: ExtendedContextParams
   ): Promise<ExtendedContextResult> {
@@ -321,6 +322,20 @@ export class MessageContextBuilder {
         maxAge: options.extendedContext.maxAge,
       }
     );
+
+    // Create personas for extended context users (for consistent UUID-based identity)
+    if (
+      fetchResult.extendedContextUsers !== undefined &&
+      fetchResult.extendedContextUsers.length > 0
+    ) {
+      const userMap = await this.userService.getOrCreateUsersInBatch(
+        fetchResult.extendedContextUsers
+      );
+      logger.debug(
+        { requested: fetchResult.extendedContextUsers.length, created: userMap.size },
+        '[MessageContextBuilder] Batch created personas for extended context users'
+      );
+    }
 
     if (fetchResult.messages.length === 0) {
       return { history: mergedHistory };

@@ -38,6 +38,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     },
     UserService: class {
       getOrCreateUser = vi.fn();
+      getOrCreateUsersInBatch = vi.fn().mockResolvedValue(new Map());
       getPersonaName = vi.fn();
       getUserTimezone = vi.fn();
     },
