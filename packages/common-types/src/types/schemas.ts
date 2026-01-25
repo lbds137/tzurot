@@ -75,11 +75,16 @@ export const apiConversationMessageSchema = z.object({
   role: z.nativeEnum(MessageRole),
   content: z.string(),
   createdAt: z.string().optional(),
+  tokenCount: z.number().optional(),
   // Persona info for multi-participant conversations
   personaId: z.string().optional(),
   personaName: z.string().optional(),
   // Discord username for disambiguation when persona name matches personality name
   discordUsername: z.string().optional(),
+  // AI personality info for multi-AI channel attribution
+  // Allows correct attribution when multiple AI personalities respond in the same channel
+  personalityId: z.string().optional(),
+  personalityName: z.string().optional(),
   // Structured metadata (referenced messages, attachments, etc.)
   // Separates semantic content from contextual data
   messageMetadata: z.record(z.string(), z.unknown()).optional(), // Flexible JSON, validated when needed
