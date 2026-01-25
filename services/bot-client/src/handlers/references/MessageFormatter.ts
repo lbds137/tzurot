@@ -5,11 +5,8 @@
  */
 
 import type { Message } from 'discord.js';
-import type { ReferencedMessage } from '@tzurot/common-types';
-import {
-  extractDiscordEnvironment,
-  formatEnvironmentForPrompt,
-} from '../../utils/discordContext.js';
+import { type ReferencedMessage, formatLocationAsXml } from '@tzurot/common-types';
+import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
@@ -36,8 +33,8 @@ export class MessageFormatter {
     // Extract full Discord environment context (server, category, channel, thread)
     const environment = extractDiscordEnvironment(message);
 
-    // Format location context using the same rich formatter as current messages
-    const locationContext = formatEnvironmentForPrompt(environment);
+    // Format location context as XML using the shared formatter (DRY with current message context)
+    const locationContext = formatLocationAsXml(environment);
 
     // Extract regular attachments (files, images, audio, etc.)
     const regularAttachments = extractAttachments(message.attachments);

@@ -10,13 +10,24 @@ import type { TranscriptRetriever } from './TranscriptRetriever.js';
 // Mock the utility functions
 vi.mock('../../utils/discordContext.js', () => ({
   extractDiscordEnvironment: vi.fn().mockReturnValue({
-    guildId: 'guild-123',
-    guildName: 'Test Guild',
-    channelId: 'channel-456',
-    channelName: 'general',
+    type: 'guild',
+    guild: { id: 'guild-123', name: 'Test Guild' },
+    channel: { id: 'channel-456', name: 'general', type: 'text' },
   }),
-  formatEnvironmentForPrompt: vi.fn().mockReturnValue('Server: Test Guild | Channel: #general'),
 }));
+
+// Mock the shared location formatter from common-types
+vi.mock('@tzurot/common-types', async () => {
+  const actual = await vi.importActual('@tzurot/common-types');
+  return {
+    ...actual,
+    formatLocationAsXml: vi
+      .fn()
+      .mockReturnValue(
+        '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>'
+      ),
+  };
+});
 
 vi.mock('../../utils/attachmentExtractor.js', () => ({
   extractAttachments: vi.fn().mockReturnValue(null),
@@ -74,7 +85,8 @@ describe('MessageFormatter', () => {
         content: 'Hello world',
         embeds: [],
         timestamp: '2025-01-01T12:00:00.000Z',
-        locationContext: 'Server: Test Guild | Channel: #general',
+        locationContext:
+          '<location type="guild">\n<server name="Test Guild"/>\n<channel name="general" type="text"/>\n</location>',
         attachments: undefined,
         isForwarded: undefined,
       });
