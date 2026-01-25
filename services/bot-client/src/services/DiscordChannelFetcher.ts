@@ -291,6 +291,49 @@ export class DiscordChannelFetcher {
     const collectedImageAttachments: AttachmentMetadata[] = [];
     const participantGuildInfo: Record<string, ParticipantGuildInfo> = {};
 
+    // Build fallback map: voiceMessageId → bot reply transcript
+    // Used when DB lookup fails (corrupted/missing records, old messages not in DB)
+    const botTranscriptFallback = new Map<string, string>();
+    for (const msg of messages) {
+      if (this.isBotTranscriptReply(msg, options.botUserId)) {
+        const voiceMessageId = msg.reference?.messageId;
+        if (voiceMessageId !== undefined && msg.content.length > 0) {
+          botTranscriptFallback.set(voiceMessageId, msg.content);
+        }
+      }
+    }
+
+    if (botTranscriptFallback.size > 0) {
+      logger.debug(
+        { count: botTranscriptFallback.size },
+        '[DiscordChannelFetcher] Built bot transcript fallback map for voice messages'
+      );
+    }
+
+    // Create wrapped getTranscript that tries DB first, then falls back to bot replies
+    const getTranscriptWithFallback = async (
+      discordMessageId: string,
+      attachmentUrl: string
+    ): Promise<string | null> => {
+      // Tier 1: Try DB lookup (authoritative source)
+      if (options.getTranscript) {
+        const dbTranscript = await options.getTranscript(discordMessageId, attachmentUrl);
+        if (dbTranscript !== null && dbTranscript.length > 0) {
+          return dbTranscript;
+        }
+      }
+      // Tier 2: Fall back to bot reply content (for corrupted/missing DB records)
+      const fallbackTranscript = botTranscriptFallback.get(discordMessageId);
+      if (fallbackTranscript !== undefined) {
+        logger.info(
+          { messageId: discordMessageId },
+          '[DiscordChannelFetcher] Using bot reply fallback for voice transcript (DB lookup failed)'
+        );
+        return fallbackTranscript;
+      }
+      return null;
+    };
+
     // Sort by timestamp ascending (oldest first), then reverse for newest first
     const sortedMessages = [...messages].sort((a, b) => a.createdTimestamp - b.createdTimestamp);
 
@@ -328,7 +371,11 @@ export class DiscordChannelFetcher {
       }
 
       // Convert to ConversationMessage (async for transcript retrieval)
-      const conversionResult = await this.convertMessage(msg, options);
+      // Use wrapped getTranscript that includes bot reply fallback
+      const conversionResult = await this.convertMessage(msg, {
+        ...options,
+        getTranscript: getTranscriptWithFallback,
+      });
       if (conversionResult) {
         result.push(conversionResult.message);
         // Collect image attachments (only images, not voice messages)
