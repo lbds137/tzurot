@@ -38,13 +38,11 @@ vi.mock('./create.js', () => ({ handleCreate: vi.fn() }));
 // Note: delete is now handled via the dashboard, not a standalone command
 
 // Mock global subcommand handlers
-vi.mock('./global/create.js', () => ({ handleGlobalCreate: vi.fn() }));
 vi.mock('./global/set-default.js', () => ({ handleGlobalSetDefault: vi.fn() }));
 vi.mock('./global/free-default.js', () => ({ handleGlobalSetFreeDefault: vi.fn() }));
 
 import { handleBrowse } from './browse.js';
 import { handleCreate } from './create.js';
-import { handleGlobalCreate } from './global/create.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
 
@@ -91,9 +89,9 @@ describe('Preset Command', () => {
 
       // Check global group has expected subcommands
       const globalSubcommands = (globalGroup?.options ?? []).map((s: { name: string }) => s.name);
-      expect(globalSubcommands).toContain('create');
       expect(globalSubcommands).toContain('default');
       expect(globalSubcommands).toContain('free-default');
+      // Note: 'create' was removed - global presets are created via /preset create + toggle
       // Note: 'edit' was removed - global presets can be edited via /preset edit
     });
   });
@@ -124,23 +122,14 @@ describe('Preset Command', () => {
   });
 
   describe('global preset routing (owner only)', () => {
-    it('should check owner permission for global create', async () => {
+    it('should check owner permission for global subcommands', async () => {
       mockRequireBotOwnerContext.mockResolvedValue(false);
-      const context = createMockContext('create', 'global');
+      const context = createMockContext('default', 'global');
 
       await execute(context);
 
       expect(mockRequireBotOwnerContext).toHaveBeenCalledWith(context);
-      expect(handleGlobalCreate).not.toHaveBeenCalled();
-    });
-
-    it('should route to handleGlobalCreate when owner check passes', async () => {
-      mockRequireBotOwnerContext.mockResolvedValue(true);
-      const context = createMockContext('create', 'global');
-
-      await execute(context);
-
-      expect(handleGlobalCreate).toHaveBeenCalledWith(context);
+      expect(handleGlobalSetDefault).not.toHaveBeenCalled();
     });
 
     it('should route to handleGlobalSetDefault when owner check passes', async () => {

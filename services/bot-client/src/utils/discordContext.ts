@@ -5,11 +5,79 @@
  * This helps the AI understand the environment of the conversation.
  */
 
-import type { Message } from 'discord.js';
+import type { Message, GuildBasedChannel, AnyThreadChannel } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import { createLogger, type DiscordEnvironment } from '@tzurot/common-types';
 
 const logger = createLogger('DiscordContext');
+
+/**
+ * Extract topic from a channel if available
+ * Only text-based channels have topics
+ */
+function extractChannelTopic(channel: GuildBasedChannel): string | undefined {
+  if ('topic' in channel && channel.topic !== undefined && channel.topic !== null) {
+    return channel.topic.length > 0 ? channel.topic : undefined;
+  }
+  return undefined;
+}
+
+/**
+ * Get channel name safely with fallback
+ */
+function getChannelName(channel: GuildBasedChannel): string {
+  return 'name' in channel ? (channel.name ?? 'Unknown') : 'Unknown';
+}
+
+/**
+ * Build environment context for thread channels
+ */
+function handleThreadChannel(channel: AnyThreadChannel, context: DiscordEnvironment): void {
+  const parent = channel.parent;
+  if (parent === null) {
+    return;
+  }
+
+  const parentTopic = extractChannelTopic(parent);
+
+  context.thread = {
+    id: channel.id,
+    name: channel.name,
+    parentChannel: {
+      id: parent.id,
+      name: parent.name,
+      type: getChannelTypeName(parent.type),
+    },
+  };
+
+  // Update main channel to be the parent (including its topic)
+  context.channel = {
+    id: parent.id,
+    name: parent.name,
+    type: getChannelTypeName(parent.type),
+    topic: parentTopic,
+  };
+
+  // Check if parent has a category
+  if ('parent' in parent && parent.parent !== null) {
+    context.category = {
+      id: parent.parent.id,
+      name: parent.parent.name,
+    };
+  }
+}
+
+/**
+ * Build environment context for regular (non-thread) channels
+ */
+function handleRegularChannel(channel: GuildBasedChannel, context: DiscordEnvironment): void {
+  if ('parent' in channel && channel.parent !== null) {
+    context.category = {
+      id: channel.parent.id,
+      name: channel.parent.name,
+    };
+  }
+}
 
 /**
  * Extract environment context from a Discord message
@@ -17,14 +85,8 @@ const logger = createLogger('DiscordContext');
 export function extractDiscordEnvironment(message: Message): DiscordEnvironment {
   const channel = message.channel;
 
-  // Debug logging to diagnose DM vs guild detection
   logger.debug(
-    {
-      channelType: channel.type,
-      hasGuild: !!message.guild,
-      guildName: message.guild?.name,
-      channelId: channel.id,
-    },
+    { channelType: channel.type, hasGuild: message.guild !== null, channelId: channel.id },
     'Extracting Discord environment'
   );
 
@@ -33,91 +95,41 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
     logger.info('Detected as DM');
     return {
       type: 'dm',
-      channel: {
-        id: channel.id,
-        name: 'Direct Message',
-        type: 'dm',
-      },
+      channel: { id: channel.id, name: 'Direct Message', type: 'dm' },
     };
   }
 
-  // Guild-based channels
-  if (!message.guild) {
-    // Shouldn't happen, but handle gracefully
-    logger.warn(
-      {
-        channelType: channel.type,
-        channelId: channel.id,
-      },
-      'No guild found for non-DM channel (fallback to DM)'
-    );
+  // Guild-based channels require a guild
+  if (message.guild === null) {
+    logger.warn({ channelType: channel.type, channelId: channel.id }, 'No guild found (fallback)');
     return {
       type: 'dm',
-      channel: {
-        id: channel.id,
-        name: 'Unknown',
-        type: 'unknown',
-      },
+      channel: { id: channel.id, name: 'Unknown', type: 'unknown' },
     };
   }
 
+  const guildChannel = channel as GuildBasedChannel;
   logger.info(
-    {
-      guildName: message.guild.name,
-      channelName: 'name' in channel ? (channel.name ?? 'Unknown') : 'Unknown',
-    },
-    'Detected as guild channel'
+    { guildName: message.guild.name, channelName: getChannelName(guildChannel) },
+    'Guild channel'
   );
 
   const context: DiscordEnvironment = {
     type: 'guild',
-    guild: {
-      id: message.guild.id,
-      name: message.guild.name,
-    },
+    guild: { id: message.guild.id, name: message.guild.name },
     channel: {
-      id: channel.id,
-      name: 'name' in channel ? (channel.name ?? 'Unknown') : 'Unknown',
-      type: getChannelTypeName(channel.type),
+      id: guildChannel.id,
+      name: getChannelName(guildChannel),
+      type: getChannelTypeName(guildChannel.type),
+      topic: extractChannelTopic(guildChannel),
     },
   };
 
-  // Thread Channel
-  if (channel.isThread()) {
-    const parent = channel.parent;
-    if (parent) {
-      context.thread = {
-        id: channel.id,
-        name: channel.name,
-        parentChannel: {
-          id: parent.id,
-          name: parent.name,
-          type: getChannelTypeName(parent.type),
-        },
-      };
-
-      // Update main channel to be the parent
-      context.channel = {
-        id: parent.id,
-        name: parent.name,
-        type: getChannelTypeName(parent.type),
-      };
-
-      // Check if parent has a category
-      if ('parent' in parent && parent.parent) {
-        context.category = {
-          id: parent.parent.id,
-          name: parent.parent.name,
-        };
-      }
-    }
-  }
-  // Regular channel (text, voice, announcement, etc.)
-  else if ('parent' in channel && channel.parent) {
-    context.category = {
-      id: channel.parent.id,
-      name: channel.parent.name,
-    };
+  // Handle thread vs regular channel
+  if (guildChannel.isThread()) {
+    handleThreadChannel(guildChannel, context);
+  } else {
+    handleRegularChannel(guildChannel, context);
   }
 
   return context;
@@ -127,36 +139,23 @@ export function extractDiscordEnvironment(message: Message): DiscordEnvironment 
  * Convert Discord channel type enum to human-readable name
  */
 function getChannelTypeName(type: ChannelType): string {
-  switch (type) {
-    case ChannelType.GuildText:
-      return 'text';
-    case ChannelType.DM:
-      return 'dm';
-    case ChannelType.GuildVoice:
-      return 'voice';
-    case ChannelType.GroupDM:
-      return 'group-dm';
-    case ChannelType.GuildCategory:
-      return 'category';
-    case ChannelType.GuildAnnouncement:
-      return 'announcement';
-    case ChannelType.AnnouncementThread:
-      return 'announcement-thread';
-    case ChannelType.PublicThread:
-      return 'public-thread';
-    case ChannelType.PrivateThread:
-      return 'private-thread';
-    case ChannelType.GuildStageVoice:
-      return 'stage';
-    case ChannelType.GuildDirectory:
-      return 'directory';
-    case ChannelType.GuildForum:
-      return 'forum';
-    case ChannelType.GuildMedia:
-      return 'media';
-    default:
-      return 'unknown';
-  }
+  const typeNames: Record<ChannelType, string> = {
+    [ChannelType.GuildText]: 'text',
+    [ChannelType.DM]: 'dm',
+    [ChannelType.GuildVoice]: 'voice',
+    [ChannelType.GroupDM]: 'group-dm',
+    [ChannelType.GuildCategory]: 'category',
+    [ChannelType.GuildAnnouncement]: 'announcement',
+    [ChannelType.AnnouncementThread]: 'announcement-thread',
+    [ChannelType.PublicThread]: 'public-thread',
+    [ChannelType.PrivateThread]: 'private-thread',
+    [ChannelType.GuildStageVoice]: 'stage',
+    [ChannelType.GuildDirectory]: 'directory',
+    [ChannelType.GuildForum]: 'forum',
+    [ChannelType.GuildMedia]: 'media',
+  };
+
+  return typeNames[type] ?? 'unknown';
 }
 
 /**
@@ -177,7 +176,7 @@ export function formatEnvironmentForPrompt(context: DiscordEnvironment): string 
   parts.push(`Server: ${guildName}`);
 
   // Category (if exists)
-  if (context.category) {
+  if (context.category !== undefined) {
     parts.push(`Category: ${context.category.name}`);
   }
 
@@ -185,7 +184,7 @@ export function formatEnvironmentForPrompt(context: DiscordEnvironment): string 
   parts.push(`Channel: #${context.channel.name} (${context.channel.type})`);
 
   // Thread (if exists)
-  if (context.thread) {
+  if (context.thread !== undefined) {
     parts.push(`Thread: ${context.thread.name}`);
   }
 

@@ -17,6 +17,7 @@ import { GatewayClient } from '../utils/GatewayClient.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import { shouldNotifyUser } from './notificationCache.js';
+import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 
 const logger = createLogger('ActivatedChannelProcessor');
 
@@ -81,8 +82,9 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
     }
 
     // Get voice transcript if available (set by VoiceMessageProcessor earlier in chain)
+    // For forwarded messages, getEffectiveContent extracts content from the snapshot
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript ?? message.content;
+    const content = voiceTranscript ?? getEffectiveContent(message);
 
     // Handle the message with isAutoResponse flag
     await this.personalityHandler.handleMessage(message, personality, content, {

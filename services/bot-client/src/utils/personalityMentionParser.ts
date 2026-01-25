@@ -78,7 +78,8 @@ export async function findPersonalityMention(
 
   const escapedChar = mentionChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const mentionCharRegex = new RegExp(`^${escapedChar}`);
-  const trailingPunctuationRegex = /[.,!?;:)"']+$/; // No 'g' flag needed - replace() doesn't use lastIndex
+  // Discord markdown chars (*_~|) plus standard punctuation - used to strip after extraction
+  const trailingPunctuationRegex = /[.,!?;:)"'*_~|]+$/; // No 'g' flag needed - replace() doesn't use lastIndex
 
   // Step 1: Extract all potential personality names from the message
   const potentialMentions = extractPotentialMentions(
@@ -148,8 +149,9 @@ export async function findPersonalityMention(
   );
 
   // Step 5: Clean the content by removing the matched personality mention
+  // Include Discord markdown chars (*_~|) as valid word boundaries
   const matchRegex = new RegExp(
-    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"']|\\s|$)`,
+    `${escapedChar}${bestMatch.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[.,!?;:)"'*_~|]|\\s|$)`,
     'gi' // Note: 'gi' flag removes ALL occurrences of the mention
   );
   const cleanContent = content.replace(matchRegex, '').trim();
@@ -233,7 +235,8 @@ function extractPotentialMentions(
   }
 
   // Extract single-word mentions (e.g., @Lilith, @Ha-Shem)
-  const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"']|\\s|$)`, 'gi');
+  // Include Discord markdown chars (*_~|) as valid word boundaries
+  const singleWordRegex = new RegExp(`${escapedChar}([\\w-]+)(?:[.,!?;:)"'*_~|]|\\s|$)`, 'gi');
   const singleWordMatches = content.match(singleWordRegex);
 
   if (singleWordMatches) {

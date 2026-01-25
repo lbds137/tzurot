@@ -50,3 +50,57 @@ export function isUserContentMessage(message: Message): boolean {
 
   return false;
 }
+
+/**
+ * Check if a message is a forwarded message.
+ *
+ * Forwarded messages have:
+ * - message.reference.type === MessageReferenceType.Forward
+ * - message.messageSnapshots with at least one snapshot
+ *
+ * The actual content is in the snapshot, not in message.content.
+ */
+export function isForwardedMessage(message: Message): boolean {
+  return (
+    message.reference?.type === MessageReferenceType.Forward &&
+    message.messageSnapshots !== undefined &&
+    message.messageSnapshots.size > 0
+  );
+}
+
+/**
+ * Get the effective content from a message.
+ *
+ * For regular messages: returns message.content
+ * For forwarded messages: returns the content from the first snapshot
+ *
+ * This should be used by processors instead of directly accessing message.content
+ * to ensure forwarded messages are handled correctly.
+ */
+export function getEffectiveContent(message: Message): string {
+  // For forwarded messages, the content is in the snapshot
+  if (isForwardedMessage(message)) {
+    // messageSnapshots is guaranteed to exist and have items (checked by isForwardedMessage)
+    const snapshots = message.messageSnapshots;
+    if (snapshots !== undefined) {
+      const firstSnapshot = snapshots.first();
+      // Access content from the snapshot's message property
+      const snapshotContent =
+        firstSnapshot !== undefined &&
+        'message' in firstSnapshot &&
+        firstSnapshot.message !== undefined &&
+        typeof firstSnapshot.message === 'object' &&
+        firstSnapshot.message !== null &&
+        'content' in firstSnapshot.message &&
+        typeof firstSnapshot.message.content === 'string'
+          ? firstSnapshot.message.content
+          : undefined;
+
+      if (snapshotContent !== undefined && snapshotContent.length > 0) {
+        return snapshotContent;
+      }
+    }
+  }
+
+  return message.content;
+}

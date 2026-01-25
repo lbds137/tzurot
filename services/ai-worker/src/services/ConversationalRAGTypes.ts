@@ -35,7 +35,7 @@ export interface DiscordEnvironment {
   type: 'dm' | 'guild';
   guild?: { id: string; name: string };
   category?: { id: string; name: string };
-  channel: { id: string; name: string; type: string };
+  channel: { id: string; name: string; type: string; topic?: string };
   thread?: {
     id: string;
     name: string;

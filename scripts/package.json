@@ -6,7 +6,7 @@
   "description": "Utility scripts for Tzurot development and operations",
   "scripts": {
     "db:fix-phantom": "tsx src/db/fix-phantom-migration.ts",
-    "test": "vitest run",
+    "test": "echo \"No tests yet\"",
     "test:watch": "vitest"
   },
   "dependencies": {

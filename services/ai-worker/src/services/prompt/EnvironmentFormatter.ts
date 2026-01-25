@@ -26,10 +26,12 @@ const logger = createLogger('EnvironmentFormatter');
  * <location type="guild">
  *   <server name="Test Server"/>
  *   <category name="General"/>
- *   <channel name="chat" type="text"/>
+ *   <channel name="chat" type="text" topic="Channel description here"/>
  *   <thread name="discussion"/>
  * </location>
  * ```
+ *
+ * The channel topic provides context about the channel's purpose (if set by server admins).
  *
  * @param environment - Discord environment context (DM or guild)
  * @returns XML location element string
@@ -69,8 +71,14 @@ export function formatEnvironmentContext(environment: DiscordEnvironment): strin
   }
 
   // Channel - escape to prevent prompt injection
+  // Include topic if available (provides context about the channel's purpose)
+  const channelTopic = environment.channel.topic;
+  const topicAttr =
+    channelTopic !== undefined && channelTopic !== null && channelTopic.length > 0
+      ? ` topic="${escapeXml(channelTopic)}"`
+      : '';
   parts.push(
-    `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"/>`
+    `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"${topicAttr}/>`
   );
 
   // Thread (if exists) - escape to prevent prompt injection

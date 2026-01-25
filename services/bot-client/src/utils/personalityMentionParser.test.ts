@@ -193,6 +193,55 @@ describe('personalityMentionParser', () => {
       // Trailing punctuation is part of the regex match pattern and gets removed
       expect(result?.cleanContent).toBe('are you there');
     });
+
+    it('should handle mention with asterisk (Discord italic/bold markdown)', async () => {
+      // User scenario: *action text with @Mention* more text
+      const result = await findPersonalityMention(
+        '*grabs the blankets and brings them over to @Lilith* yep, sure thing',
+        '@',
+        mockPersonalityService
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+      // Note: Internal whitespace is preserved, so there are two spaces where the mention was
+      expect(result?.cleanContent).toBe(
+        '*grabs the blankets and brings them over to  yep, sure thing'
+      );
+    });
+
+    it('should handle mention with underscore (Discord italic markdown)', async () => {
+      const result = await findPersonalityMention(
+        '_whispers to @Lilith_ hello there',
+        '@',
+        mockPersonalityService
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
+
+    it('should handle mention with tilde (Discord strikethrough markdown)', async () => {
+      const result = await findPersonalityMention(
+        '~~deleted message to @Lilith~~ oops',
+        '@',
+        mockPersonalityService
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
+
+    it('should handle mention with pipe (Discord spoiler markdown)', async () => {
+      const result = await findPersonalityMention(
+        '||spoiler for @Lilith|| surprise!',
+        '@',
+        mockPersonalityService
+      );
+
+      expect(result).not.toBeNull();
+      expect(result?.personalityName).toBe('Lilith');
+    });
   });
 
   describe('Edge Cases', () => {

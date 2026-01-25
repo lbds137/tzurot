@@ -11,6 +11,7 @@ import type { IMessageProcessor } from './IMessageProcessor.js';
 import { ReplyResolutionService } from '../services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler.js';
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
+import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 
 const logger = createLogger('ReplyMessageProcessor');
 
@@ -40,8 +41,9 @@ export class ReplyMessageProcessor implements IMessageProcessor {
     }
 
     // Get voice transcript if available (set by VoiceMessageProcessor)
+    // For forwarded messages, getEffectiveContent extracts content from the snapshot
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
-    const content = voiceTranscript ?? message.content;
+    const content = voiceTranscript ?? getEffectiveContent(message);
 
     // Handle the personality message
     await this.personalityHandler.handleMessage(message, personality, content);
