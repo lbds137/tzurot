@@ -344,7 +344,8 @@ export class DiscordChannelFetcher {
     // Limit to most recent N participants (last entries in object are most recent)
     const limitedParticipantGuildInfo = this.limitParticipants(participantGuildInfo);
 
-    // Return messages in reverse order (newest first) to match conversation history format
+    // Return messages in reverse order (newest first) - these get re-sorted chronologically
+    // by mergeWithHistory() to optimize for LLM recency bias (newest messages at end of prompt).
     // Image attachments stay in chronological order (oldest message's images first, preserving
     // attachment order within each message) so Image 1 = first attachment, not last
     return this.processMessagesResult(
