@@ -15,8 +15,17 @@ vi.mock('../../utils/discordContext.js', () => ({
     channelId: 'channel-456',
     channelName: 'general',
   }),
-  formatEnvironmentForPrompt: vi.fn().mockReturnValue('Server: Test Guild | Channel: #general'),
 }));
+
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const original = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...original,
+    formatLocationAsXml: vi
+      .fn()
+      .mockReturnValue('<location type="guild"><server name="Test Guild"/></location>'),
+  };
+});
 
 vi.mock('../../utils/attachmentExtractor.js', () => ({
   extractAttachments: vi.fn().mockReturnValue(null),
@@ -76,7 +85,8 @@ describe('SnapshotFormatter', () => {
         content: 'Forwarded message content',
         embeds: '',
         timestamp: '2024-01-01T12:00:00.000Z',
-        locationContext: 'Server: Test Guild | Channel: #general (forwarded message)',
+        locationContext:
+          '<location type="guild"><server name="Test Guild"/></location> (forwarded message)',
         attachments: undefined,
         isForwarded: true,
       });
@@ -283,7 +293,7 @@ describe('SnapshotFormatter', () => {
       const result = formatter.formatSnapshot(snapshot, 1, forwardedFrom);
 
       expect(result.locationContext).toBe(
-        'Server: Test Guild | Channel: #general (forwarded message)'
+        '<location type="guild"><server name="Test Guild"/></location> (forwarded message)'
       );
     });
   });

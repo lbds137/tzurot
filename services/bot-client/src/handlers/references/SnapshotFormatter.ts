@@ -5,12 +5,13 @@
  */
 
 import type { Message, APIEmbed, MessageSnapshot } from 'discord.js';
-import type { ReferencedMessage } from '@tzurot/common-types';
-import { UNKNOWN_USER_DISCORD_ID, UNKNOWN_USER_NAME } from '@tzurot/common-types';
 import {
-  extractDiscordEnvironment,
-  formatEnvironmentForPrompt,
-} from '../../utils/discordContext.js';
+  type ReferencedMessage,
+  formatLocationAsXml,
+  UNKNOWN_USER_DISCORD_ID,
+  UNKNOWN_USER_NAME,
+} from '@tzurot/common-types';
+import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
 import { EmbedParser } from '../../utils/EmbedParser.js';
@@ -32,8 +33,9 @@ export class SnapshotFormatter {
     forwardedFrom: Message
   ): ReferencedMessage {
     // Extract location context from the forwarding message (since snapshot doesn't have it)
+    // Use XML format consistent with MessageFormatter for unified formatting
     const environment = extractDiscordEnvironment(forwardedFrom);
-    const locationContext = formatEnvironmentForPrompt(environment);
+    const locationContext = formatLocationAsXml(environment);
 
     // Process regular attachments from snapshot
     const regularAttachments =

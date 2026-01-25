@@ -157,36 +157,3 @@ function getChannelTypeName(type: ChannelType): string {
 
   return typeNames[type] ?? 'unknown';
 }
-
-/**
- * Format environment context for display in system prompt (plain text)
- *
- * Uses simple labeled format that works well inside XML tags.
- * No markdown since this gets embedded in XML structure.
- */
-export function formatEnvironmentForPrompt(context: DiscordEnvironment): string {
-  if (context.type === 'dm') {
-    return 'Direct Message (private one-on-one chat)';
-  }
-
-  const parts: string[] = [];
-
-  // Guild name (should always exist if not DM, but handle gracefully)
-  const guildName = context.guild?.name ?? 'Unknown Server';
-  parts.push(`Server: ${guildName}`);
-
-  // Category (if exists)
-  if (context.category !== undefined) {
-    parts.push(`Category: ${context.category.name}`);
-  }
-
-  // Channel
-  parts.push(`Channel: #${context.channel.name} (${context.channel.type})`);
-
-  // Thread (if exists)
-  if (context.thread !== undefined) {
-    parts.push(`Thread: ${context.thread.name}`);
-  }
-
-  return parts.join(', ');
-}
