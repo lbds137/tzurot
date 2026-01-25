@@ -24,6 +24,19 @@ import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
 const logger = createLogger('DiscordChannelFetcher');
 
 /**
+ * Extract personality display name from webhook username.
+ * Webhook format: "DisplayName | Suffix" -> "DisplayName"
+ * Falls back to full name if no delimiter found.
+ */
+function extractPersonalityName(webhookName: string): string {
+  const delimiterIndex = webhookName.indexOf(' | ');
+  if (delimiterIndex > 0) {
+    return webhookName.substring(0, delimiterIndex);
+  }
+  return webhookName;
+}
+
+/**
  * Guild member info for participant context
  */
 export interface ParticipantGuildInfo {
@@ -460,10 +473,11 @@ export class DiscordChannelFetcher {
       // Forwarded messages use XML attribute instead of content prefix
       isForwarded: isForwarded || undefined,
       // No token count - will be computed if needed
-      // AI personality info - for assistant messages, use the webhook name as the personality name
-      // This enables correct attribution in multi-AI channels (e.g., "Lila | תשב" instead of "COLD")
+      // AI personality info - for assistant messages, extract the personality name from webhook
+      // Webhook format: "Lila | תשב" -> extract "Lila" for clean attribution
       // Note: personalityId is not set because we can't determine it from the webhook name alone
-      personalityName: role === MessageRole.Assistant ? authorName : undefined,
+      personalityName:
+        role === MessageRole.Assistant ? extractPersonalityName(authorName) : undefined,
     };
 
     return this.convertMessageResult(message, attachments);

@@ -218,6 +218,33 @@ describe('DiscordChannelFetcher', () => {
       expect(assistantMsg!.personaName).toBeUndefined();
     });
 
+    it('should extract personality name from webhook with suffix', async () => {
+      const botUserId = 'bot123';
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Bot response from webhook',
+          authorId: botUserId,
+          // Webhook name format: "DisplayName | Suffix"
+          authorUsername: 'Lila | תשב',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId,
+        personalityName: 'CurrentPersonality', // Different from webhook name
+      });
+
+      const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
+      expect(assistantMsg).toBeDefined();
+      // Should extract "Lila" from "Lila | תשב", not use "CurrentPersonality"
+      expect(assistantMsg!.personalityName).toBe('Lila');
+    });
+
     it('should filter out system messages', async () => {
       const messages = [
         createMockMessage({
