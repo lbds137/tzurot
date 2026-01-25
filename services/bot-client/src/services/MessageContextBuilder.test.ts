@@ -171,7 +171,11 @@ describe('MessageContextBuilder', () => {
     const mockGuild = {
       id: 'guild-123',
       name: 'Test Guild',
-    } as Guild;
+      members: {
+        // Fetch returns the mockMember by default; tests can override
+        fetch: vi.fn().mockResolvedValue(mockMember),
+      },
+    } as unknown as Guild;
 
     const mockChannel = {
       id: 'channel-123',
@@ -292,6 +296,8 @@ describe('MessageContextBuilder', () => {
     it('should handle user without display name', async () => {
       mockMessage.member = null;
       (mockMessage.author as any).globalName = null;
+      // Mock fetch to also return null (simulates member not fetchable)
+      vi.mocked(mockMessage.guild!.members.fetch).mockResolvedValue(null as any);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // Override to return null preferredName

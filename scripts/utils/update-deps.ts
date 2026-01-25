@@ -9,7 +9,7 @@
  * 3. Verifies builds still work
  */
 
-import { execSync } from 'child_process';
+import { execFileSync, type StdioOptions } from 'child_process';
 import { readFileSync, writeFileSync, readdirSync, statSync } from 'fs';
 import { join } from 'path';
 
@@ -28,12 +28,17 @@ interface LockfilePackages {
   };
 }
 
-function exec(command: string, options: { stdio?: 'inherit' | 'pipe' } = {}): string {
+/**
+ * Execute a pnpm command safely using execFileSync with argument arrays.
+ * This prevents command injection even though all commands here are static.
+ */
+function execPnpm(args: string[], options: { stdio?: StdioOptions } = {}): string {
+  const command = `pnpm ${args.join(' ')}`;
   console.log(`\n📦 ${command}`);
-  return execSync(command, {
+  return execFileSync('pnpm', args, {
     cwd: ROOT_DIR,
     encoding: 'utf-8',
-    stdio: options.stdio || 'inherit',
+    stdio: options.stdio ?? 'inherit',
   });
 }
 
@@ -190,7 +195,7 @@ async function main() {
 
   // Step 1: Update dependencies
   console.log('📋 Step 1: Running pnpm update --latest');
-  exec('pnpm update --latest');
+  execPnpm(['update', '--latest']);
 
   // Step 2: Parse lockfile
   console.log('\n📋 Step 2: Parsing lockfile to sync package.json files');
@@ -215,14 +220,14 @@ async function main() {
   if (totalChanged > 0) {
     console.log(`\n📦 Updated ${totalChanged} package.json file(s)`);
     console.log('\n📋 Step 4: Running pnpm install to update lockfile');
-    exec('pnpm install');
+    execPnpm(['install']);
   } else {
     console.log('\n✓ All package.json files already in sync');
   }
 
   // Step 5: Build to verify
   console.log('\n📋 Step 5: Building to verify everything works');
-  exec('pnpm build');
+  execPnpm(['build']);
 
   console.log('\n✅ Dependencies updated and verified!');
   console.log('\n📝 Next steps:');
