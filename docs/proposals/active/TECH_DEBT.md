@@ -1,12 +1,41 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25 (added voice transcript sync bug fix + recovery script)
+> Last updated: 2026-01-25 (added context window cutoff mismatch investigation)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
 ---
 
 ## Priority 1: HIGH (Blocking Issues)
+
+### Context Window Cutoff Mismatch (Quoted Messages Duplication)
+
+**Problem**: Quoted/referenced messages sometimes appear duplicated in prompts - once in extended context and again as a `<quote>` element. This happens for older messages due to mismatched timestamp cutoffs between:
+
+1. **Extended context** (Discord fetch): Uses `maxAge` and `maxMessages` limits
+2. **DB conversation history**: Uses `contextEpoch` (STM reset) + `MAX_HISTORY_FETCH` limit
+
+When a user replies to a message that's old enough to be outside one boundary but inside another, it gets included twice.
+
+**Partial Fix Applied** (2026-01-25): Added `getChannelHistory()` that fetches ALL channel messages (not filtered by personality) when extended context is enabled. This fixed the case where messages to other AIs were missing from DB history.
+
+**Remaining Issue**: Timestamp cutoffs still don't align. Need to:
+
+1. Audit how `maxAge`, `maxMessages`, and `contextEpoch` interact
+2. Ensure the deduplication logic in `MessageReferenceExtractor` accounts for both sources
+3. Consider aligning the DB history fetch timestamp with the oldest extended context message
+4. Add logging to track when duplication occurs for debugging
+
+**Files involved**:
+
+- `services/bot-client/src/services/MessageContextBuilder.ts` - Fetches both sources
+- `services/bot-client/src/services/DiscordChannelFetcher.ts` - Extended context fetch
+- `packages/common-types/src/services/ConversationHistoryService.ts` - DB history fetch
+- `services/bot-client/src/handlers/MessageReferenceExtractor.ts` - Deduplication logic
+
+**Source**: Production observation (2026-01-25)
+
+---
 
 ### Multi-AI Conversations: Role Attribution
 

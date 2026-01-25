@@ -226,13 +226,10 @@ export class MessageContextBuilder {
       );
     }
 
-    // Get conversation history from PostgreSQL
-    const history = await this.conversationHistory.getRecentHistory(
-      message.channel.id,
-      personality.id,
-      MESSAGE_LIMITS.MAX_HISTORY_FETCH,
-      contextEpoch
-    );
+    // Note: History fetching is deferred to buildContext which has access to options
+    // This allows choosing between personality-filtered or full channel history
+    // based on whether extended context is enabled.
+    const history: ConversationMessage[] = [];
 
     return {
       internalUserId,
@@ -243,6 +240,38 @@ export class MessageContextBuilder {
       contextEpoch,
       history,
     };
+  }
+
+  /**
+   * Fetch conversation history from database.
+   * When extended context is enabled, fetches ALL channel messages (not filtered by personality)
+   * to align with Discord extended context and prevent duplication issues.
+   */
+  private async fetchDbHistory(
+    channelId: string,
+    personalityId: string,
+    contextEpoch: Date | undefined,
+    useChannelHistory: boolean
+  ): Promise<ConversationMessage[]> {
+    const history = useChannelHistory
+      ? await this.conversationHistory.getChannelHistory(
+          channelId,
+          MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+          contextEpoch
+        )
+      : await this.conversationHistory.getRecentHistory(
+          channelId,
+          personalityId,
+          MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+          contextEpoch
+        );
+
+    logger.debug(
+      { channelId, personalityId, useChannelHistory, dbHistoryCount: history.length },
+      '[MessageContextBuilder] Fetched conversation history from database'
+    );
+
+    return history;
   }
 
   /**
@@ -489,27 +518,25 @@ export class MessageContextBuilder {
     const displayName = member?.displayName ?? message.author.globalName ?? message.author.username;
     const guildMemberInfo = this.extractGuildMemberInfo(member, message.guild?.id);
 
-    logger.debug(
-      {
-        hasCachedMember: message.member !== null && message.member !== undefined,
-        hasFetchedMember: member !== null && member !== undefined,
-        hasGuildInfo: guildMemberInfo !== undefined,
-        roleCount: guildMemberInfo?.roles?.length ?? 0,
-        guildId: message.guild?.id,
-      },
-      '[MessageContextBuilder] Guild member info extraction'
-    );
-
-    // Step 2: Resolve user identity, persona, and fetch history
+    // Step 2: Resolve user identity, persona, and context epoch
     const userContext = await this.resolveUserContext(message, personality, displayName);
     const { internalUserId, discordUserId, personaId, personaName, userTimezone, contextEpoch } =
       userContext;
 
-    // Step 3: Fetch extended context from Discord (if enabled)
+    // Step 3: Fetch conversation history from PostgreSQL
+    const useChannelHistory = options.extendedContext?.enabled === true;
+    const dbHistory = await this.fetchDbHistory(
+      message.channel.id,
+      personality.id,
+      contextEpoch,
+      useChannelHistory
+    );
+
+    // Step 4: Fetch extended context from Discord (if enabled) and merge with DB history
     const extendedContext = await this.fetchExtendedContext({
       message,
       personality,
-      history: userContext.history,
+      history: dbHistory,
       contextEpoch,
       options,
     });
@@ -517,7 +544,7 @@ export class MessageContextBuilder {
     const extendedContextAttachments = extendedContext.attachments;
     const participantGuildInfo = extendedContext.participantGuildInfo;
 
-    // Step 4: Extract references and resolve mentions
+    // Step 5: Extract references and resolve mentions
     const refsAndMentions = await this.extractReferencesAndMentions(
       message,
       content,
@@ -527,7 +554,7 @@ export class MessageContextBuilder {
     const { messageContent, referencedMessages, mentionedPersonas, referencedChannels } =
       refsAndMentions;
 
-    // Step 5: Convert conversation history to API format
+    // Step 6: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
     // Include discordUsername for disambiguation when persona name matches personality name
