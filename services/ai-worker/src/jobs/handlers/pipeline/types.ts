@@ -19,8 +19,16 @@ export interface ConversationHistoryEntry {
   content: string;
   createdAt?: string;
   tokenCount?: number;
+  /** User's persona ID */
   personaId?: string;
+  /** User's persona display name */
   personaName?: string;
+  /** Discord username for disambiguation when persona name matches personality name */
+  discordUsername?: string;
+  /** AI personality ID (for multi-AI channel attribution) */
+  personalityId?: string;
+  /** AI personality's display name (for multi-AI channel attribution) */
+  personalityName?: string;
   /** Structured metadata (referenced messages, attachments) - formatted at prompt time */
   messageMetadata?: {
     referencedMessages?: {

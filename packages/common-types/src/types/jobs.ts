@@ -78,8 +78,16 @@ export interface JobContext {
     content: string;
     tokenCount?: number;
     createdAt?: string;
+    /** User's persona ID */
     personaId?: string;
+    /** User's persona display name */
     personaName?: string;
+    /** Discord username for disambiguation when persona name matches personality name */
+    discordUsername?: string;
+    /** AI personality ID (for multi-AI channel attribution) */
+    personalityId?: string;
+    /** AI personality's display name (for multi-AI channel attribution) */
+    personalityName?: string;
   }[];
   /** Attachments from triggering message */
   attachments?: AttachmentMetadata[];
