@@ -14,7 +14,6 @@ vi.mock('chalk', () => ({
 // Mock child_process - use vi.fn() inside factory
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn().mockReturnValue(''),
-  execSync: vi.fn().mockReturnValue('authenticated'),
   spawn: vi.fn(),
 }));
 

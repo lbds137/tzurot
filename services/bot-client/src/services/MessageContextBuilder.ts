@@ -30,7 +30,9 @@ import type {
   ReferencedMessage,
   ConversationMessage,
   AttachmentMetadata,
+  GuildMemberInfo,
 } from '@tzurot/common-types';
+import type { GuildMember } from 'discord.js';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
@@ -77,6 +79,47 @@ export interface ContextBuildResult {
   conversationHistory: ConversationMessage[];
 }
 
+/** Result of fetching extended context from Discord */
+interface ExtendedContextResult {
+  /** Merged conversation history (DB + Discord messages) */
+  history: ConversationMessage[];
+  /** Image attachments from extended context for proactive processing */
+  attachments?: AttachmentMetadata[];
+  /** Guild info for participants in extended context */
+  participantGuildInfo?: Record<
+    string,
+    { roles: string[]; displayColor?: string; joinedAt?: string }
+  >;
+}
+
+/** Parameters for extended context fetching */
+interface ExtendedContextParams {
+  message: Message;
+  personality: LoadedPersonality;
+  history: ConversationMessage[];
+  contextEpoch: Date | undefined;
+  options: ContextBuildOptions;
+}
+
+/** Result of resolving user, persona, and history */
+interface UserContextResult {
+  internalUserId: string;
+  discordUserId: string;
+  personaId: string;
+  personaName: string | null;
+  userTimezone: string | undefined;
+  contextEpoch: Date | undefined;
+  history: ConversationMessage[];
+}
+
+/** Result of extracting references and resolving mentions */
+interface ReferencesAndMentionsResult {
+  messageContent: string;
+  referencedMessages: ReferencedMessage[];
+  mentionedPersonas?: MentionedPersona[];
+  referencedChannels?: ReferencedChannel[];
+}
+
 /**
  * Builds AI context from Discord messages
  */
@@ -103,93 +146,67 @@ export class MessageContextBuilder {
   }
 
   /**
-   * Build complete AI context from a Discord message
-   *
-   * Handles:
-   * - User/persona lookup
-   * - Conversation history retrieval
-   * - Extended context (optional): fetches recent Discord channel messages
-   * - Reference extraction (with deduplication)
-   * - Attachment extraction
-   * - Environment context
-   *
-   * @param message - The Discord message to process
-   * @param personality - The target personality
-   * @param content - Message content (may be voice transcript)
-   * @param options - Additional options including extended context
+   * Extract guild member info (roles, color, join date) from a Discord member.
+   * Returns undefined if member is null/undefined.
    */
-  async buildContext(
+  private extractGuildMemberInfo(
+    member: GuildMember | null | undefined,
+    guildId: string | undefined
+  ): GuildMemberInfo | undefined {
+    if (!member) {
+      return undefined;
+    }
+    return {
+      // Get role names (excluding @everyone which has same ID as guild)
+      // Sort by position (highest first), limit per MESSAGE_LIMITS.MAX_GUILD_ROLES
+      roles:
+        member.roles !== undefined
+          ? Array.from(member.roles.cache.values())
+              .filter(r => r.id !== guildId)
+              .sort((a, b) => b.position - a.position)
+              .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
+              .map(r => r.name)
+          : [],
+      // Display color from highest colored role (#000000 is treated as transparent)
+      displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
+      // When user joined the server
+      joinedAt: member.joinedAt?.toISOString(),
+    };
+  }
+
+  /**
+   * Resolve user identity, persona, and fetch conversation history.
+   */
+  private async resolveUserContext(
     message: Message,
     personality: LoadedPersonality,
-    content: string,
-    options: ContextBuildOptions = {}
-  ): Promise<ContextBuildResult> {
-    // Get or create user record (needed for conversation history query)
-    const displayName =
-      message.member?.displayName ?? message.author.globalName ?? message.author.username;
-
-    // Extract guild member info for enriched participant context
-    // Includes server roles, display color, and join date
-    const member = message.member;
-    const guildMemberInfo = member
-      ? {
-          // Get role names (excluding @everyone which has same ID as guild)
-          // Sort by position (highest first), limit per MESSAGE_LIMITS.MAX_GUILD_ROLES
-          roles:
-            member.roles !== undefined
-              ? Array.from(member.roles.cache.values())
-                  .filter(r => r.id !== message.guild?.id)
-                  .sort((a, b) => b.position - a.position)
-                  .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
-                  .map(r => r.name)
-              : [],
-          // Display color from highest colored role (#000000 is treated as transparent)
-          displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
-          // When user joined the server
-          joinedAt: member.joinedAt?.toISOString(),
-        }
-      : undefined;
-
-    // Get internal user ID for database operations (persona, history queries)
-    // Pass isBot flag to prevent creating user records for bots
+    displayName: string
+  ): Promise<UserContextResult> {
+    // Get internal user ID for database operations
     const internalUserId = await this.userService.getOrCreateUser(
       message.author.id,
       message.author.username,
       displayName,
-      undefined, // bio
-      message.author.bot // isBot - bots return null
+      undefined,
+      message.author.bot
     );
 
-    // Safety check: if user is a bot (shouldn't happen due to BotMessageFilter, but defense in depth)
     if (internalUserId === null) {
       throw new Error('Cannot process messages from bots');
     }
 
-    // Discord ID is used for API context (BYOK resolution, etc.)
     const discordUserId = message.author.id;
-
-    // Get persona for this user + personality combination
-    // Uses PersonaResolver with proper cache invalidation via Redis pub/sub
     const personaResult = await this.personaResolver.resolve(discordUserId, personality.id);
     const personaId = personaResult.config.personaId;
     const personaName = personaResult.config.preferredName;
-
-    // Get user's timezone preference
     const userTimezone = await this.userService.getUserTimezone(internalUserId);
 
     logger.debug(
-      {
-        personaId,
-        personaName,
-        internalUserId,
-        discordUserId,
-        personalityId: personality.id,
-      },
+      { personaId, personaName, internalUserId, discordUserId, personalityId: personality.id },
       '[MessageContextBuilder] User persona lookup complete'
     );
 
-    // Look up user's context epoch for this persona (STM clear feature)
-    // Messages before this timestamp are excluded from AI context
+    // Look up context epoch (STM clear feature)
     const historyConfig = await this.prisma.userPersonaHistoryConfig.findUnique({
       where: {
         userId_personalityId_personaId: {
@@ -198,9 +215,7 @@ export class MessageContextBuilder {
           personaId,
         },
       },
-      select: {
-        lastContextReset: true,
-      },
+      select: { lastContextReset: true },
     });
     const contextEpoch = historyConfig?.lastContextReset ?? undefined;
 
@@ -212,131 +227,148 @@ export class MessageContextBuilder {
     }
 
     // Get conversation history from PostgreSQL
-    // Retrieve more than needed - AI worker will trim based on token budget
-    // Apply context epoch filter if user has cleared history
-    let history = await this.conversationHistory.getRecentHistory(
+    const history = await this.conversationHistory.getRecentHistory(
       message.channel.id,
       personality.id,
       MESSAGE_LIMITS.MAX_HISTORY_FETCH,
       contextEpoch
     );
 
-    // Extended context: fetch recent messages from Discord channel
-    // This provides broader context beyond just bot conversations stored in DB
-    let extendedContextAttachments: AttachmentMetadata[] | undefined;
-    let participantGuildInfo:
-      | Record<string, { roles: string[]; displayColor?: string; joinedAt?: string }>
-      | undefined;
+    return {
+      internalUserId,
+      discordUserId,
+      personaId,
+      personaName,
+      userTimezone,
+      contextEpoch,
+      history,
+    };
+  }
 
-    if (options.extendedContext?.enabled === true && options.botUserId !== undefined) {
-      // Check if channel supports message fetching
-      if (isTypingChannel(message.channel)) {
-        logger.debug(
-          {
-            channelId: message.channel.id,
-            maxMessages: options.extendedContext.maxMessages,
-            maxAge: options.extendedContext.maxAge,
-            maxImages: options.extendedContext.maxImages,
-          },
-          '[MessageContextBuilder] Fetching extended context from Discord'
-        );
+  /**
+   * Fetch extended context from Discord channel and merge with history.
+   */
+  private async fetchExtendedContext(
+    params: ExtendedContextParams
+  ): Promise<ExtendedContextResult> {
+    const { message, personality, history, contextEpoch, options } = params;
+    let mergedHistory = history;
+    let attachments: AttachmentMetadata[] | undefined;
+    let participantGuildInfo: ExtendedContextResult['participantGuildInfo'];
 
-        const fetchResult = await this.channelFetcher.fetchRecentMessages(
-          message.channel as FetchableChannel,
-          {
-            limit: options.extendedContext.maxMessages, // Use resolved limit instead of constant
-            before: message.id, // Exclude the triggering message
-            botUserId: options.botUserId,
-            personalityName: personality.displayName,
-            personalityId: personality.id,
-            // Provide transcript retriever for voice messages in extended context
-            getTranscript: (discordMessageId, attachmentUrl) =>
-              this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl),
-            // Apply context epoch filter (from /history clear)
-            contextEpoch,
-            // Apply max age filter if configured
-            maxAge: options.extendedContext.maxAge,
-          }
-        );
-
-        if (fetchResult.messages.length > 0) {
-          // Merge Discord messages with DB history (deduplicated)
-          history = this.channelFetcher.mergeWithHistory(fetchResult.messages, history);
-
-          logger.info(
-            {
-              channelId: message.channel.id,
-              discordMessages: fetchResult.filteredCount,
-              dbMessages: history.length - fetchResult.messages.length + 1, // Approximate after dedup
-              totalMerged: history.length,
-            },
-            '[MessageContextBuilder] Extended context merged with conversation history'
-          );
-
-          // Collect image attachments for proactive processing (maxImages limit)
-          // Images are already sorted newest-first from DiscordChannelFetcher
-          const maxImages = options.extendedContext.maxImages ?? 0;
-          if (
-            maxImages > 0 &&
-            fetchResult.imageAttachments &&
-            fetchResult.imageAttachments.length > 0
-          ) {
-            // Take top N newest images for proactive description
-            extendedContextAttachments = fetchResult.imageAttachments.slice(0, maxImages);
-            logger.debug(
-              {
-                channelId: message.channel.id,
-                availableImages: fetchResult.imageAttachments.length,
-                maxImages,
-                selectedImages: extendedContextAttachments.length,
-              },
-              '[MessageContextBuilder] Collected extended context images for processing'
-            );
-          }
-
-          // Capture guild info for extended context participants
-          if (fetchResult.participantGuildInfo) {
-            participantGuildInfo = fetchResult.participantGuildInfo;
-            logger.debug(
-              {
-                channelId: message.channel.id,
-                participantCount: Object.keys(participantGuildInfo).length,
-              },
-              '[MessageContextBuilder] Collected participant guild info from extended context'
-            );
-          }
-
-          // Opportunistic sync: detect edits and deletes in the background
-          // This doesn't block message processing - fire and forget
-          if (fetchResult.rawMessages) {
-            this.channelFetcher
-              .syncWithDatabase(
-                fetchResult.rawMessages,
-                message.channel.id,
-                personality.id,
-                this.conversationSync
-              )
-              .catch(err => {
-                logger.warn(
-                  { err, channelId: message.channel.id },
-                  '[MessageContextBuilder] Opportunistic sync failed (non-blocking)'
-                );
-              });
-          }
-        }
-      } else {
-        logger.debug(
-          { channelId: message.channel.id, channelType: message.channel.type },
-          '[MessageContextBuilder] Channel does not support extended context fetching'
-        );
-      }
+    if (options.extendedContext?.enabled !== true || options.botUserId === undefined) {
+      return { history: mergedHistory };
     }
 
-    // Extract Discord message IDs and timestamps for deduplication
+    if (!isTypingChannel(message.channel)) {
+      logger.debug(
+        { channelId: message.channel.id, channelType: message.channel.type },
+        '[MessageContextBuilder] Channel does not support extended context fetching'
+      );
+      return { history: mergedHistory };
+    }
+
+    logger.debug(
+      {
+        channelId: message.channel.id,
+        maxMessages: options.extendedContext.maxMessages,
+        maxAge: options.extendedContext.maxAge,
+        maxImages: options.extendedContext.maxImages,
+      },
+      '[MessageContextBuilder] Fetching extended context from Discord'
+    );
+
+    const fetchResult = await this.channelFetcher.fetchRecentMessages(
+      message.channel as FetchableChannel,
+      {
+        limit: options.extendedContext.maxMessages,
+        before: message.id,
+        botUserId: options.botUserId,
+        personalityName: personality.displayName,
+        personalityId: personality.id,
+        getTranscript: (discordMessageId, attachmentUrl) =>
+          this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl),
+        contextEpoch,
+        maxAge: options.extendedContext.maxAge,
+      }
+    );
+
+    if (fetchResult.messages.length === 0) {
+      return { history: mergedHistory };
+    }
+
+    // Merge Discord messages with DB history
+    mergedHistory = this.channelFetcher.mergeWithHistory(fetchResult.messages, history);
+
+    logger.info(
+      {
+        channelId: message.channel.id,
+        discordMessages: fetchResult.filteredCount,
+        dbMessages: history.length - fetchResult.messages.length + 1,
+        totalMerged: mergedHistory.length,
+      },
+      '[MessageContextBuilder] Extended context merged with conversation history'
+    );
+
+    // Collect image attachments
+    const maxImages = options.extendedContext.maxImages ?? 0;
+    if (maxImages > 0 && fetchResult.imageAttachments && fetchResult.imageAttachments.length > 0) {
+      attachments = fetchResult.imageAttachments.slice(0, maxImages);
+      logger.debug(
+        {
+          channelId: message.channel.id,
+          availableImages: fetchResult.imageAttachments.length,
+          maxImages,
+          selectedImages: attachments.length,
+        },
+        '[MessageContextBuilder] Collected extended context images for processing'
+      );
+    }
+
+    // Capture participant guild info
+    if (fetchResult.participantGuildInfo) {
+      participantGuildInfo = fetchResult.participantGuildInfo;
+      logger.debug(
+        {
+          channelId: message.channel.id,
+          participantCount: Object.keys(participantGuildInfo).length,
+        },
+        '[MessageContextBuilder] Collected participant guild info from extended context'
+      );
+    }
+
+    // Opportunistic sync (fire and forget)
+    if (fetchResult.rawMessages) {
+      this.channelFetcher
+        .syncWithDatabase(
+          fetchResult.rawMessages,
+          message.channel.id,
+          personality.id,
+          this.conversationSync
+        )
+        .catch(err => {
+          logger.warn(
+            { err, channelId: message.channel.id },
+            '[MessageContextBuilder] Opportunistic sync failed (non-blocking)'
+          );
+        });
+    }
+
+    return { history: mergedHistory, attachments, participantGuildInfo };
+  }
+
+  /**
+   * Extract referenced messages and resolve mentions.
+   */
+  private async extractReferencesAndMentions(
+    message: Message,
+    content: string,
+    personality: LoadedPersonality,
+    history: ConversationMessage[]
+  ): Promise<ReferencesAndMentionsResult> {
     const conversationHistoryMessageIds = history
       .flatMap(msg => msg.discordMessageId ?? [])
       .filter((id): id is string => id !== undefined && id !== null);
-
     const conversationHistoryTimestamps = history.map(msg => msg.createdAt);
 
     // Debug logging for voice message replies
@@ -366,8 +398,7 @@ export class MessageContextBuilder {
       );
     }
 
-    // Extract referenced messages (from replies and message links)
-    // Uses conversation history for deduplication
+    // Extract referenced messages
     logger.debug('[MessageContextBuilder] Extracting referenced messages with deduplication');
     const referenceExtractor = new MessageReferenceExtractor({
       prisma: this.prisma,
@@ -380,7 +411,6 @@ export class MessageContextBuilder {
     const { references: referencedMessages, updatedContent } =
       await referenceExtractor.extractReferencesWithReplacement(message);
 
-    // Log reference extraction results
     if (referencedMessages.length > 0) {
       logger.info(
         {
@@ -391,14 +421,9 @@ export class MessageContextBuilder {
       );
     }
 
-    // Use updatedContent (with Discord links replaced by [Reference N])
     let messageContent = updatedContent ?? content ?? '[no text content]';
 
-    // Resolve all mentions (users, channels, roles)
-    let mentionedPersonas: MentionedPersona[] | undefined;
-    let referencedChannels: ReferencedChannel[] | undefined;
-
-    // Use resolveAllMentions to handle users, channels, and roles in one pass
+    // Resolve all mentions
     const mentionResult = await this.mentionResolver.resolveAllMentions(
       messageContent,
       message,
@@ -406,7 +431,9 @@ export class MessageContextBuilder {
     );
     messageContent = mentionResult.processedContent;
 
-    // Extract mentioned users as personas
+    let mentionedPersonas: MentionedPersona[] | undefined;
+    let referencedChannels: ReferencedChannel[] | undefined;
+
     if (mentionResult.mentionedUsers.length > 0) {
       mentionedPersonas = mentionResult.mentionedUsers.map(u => ({
         personaId: u.personaId,
@@ -418,7 +445,6 @@ export class MessageContextBuilder {
       );
     }
 
-    // Extract referenced channels (for LTM scoping)
     if (mentionResult.mentionedChannels.length > 0) {
       referencedChannels = mentionResult.mentionedChannels.map(c => ({
         channelId: c.channelId,
@@ -432,10 +458,65 @@ export class MessageContextBuilder {
       );
     }
 
-    // Note: Role mentions are resolved in processedContent but not tracked separately
-    // (they don't affect LTM scoping or context in the same way as channels)
+    return { messageContent, referencedMessages, mentionedPersonas, referencedChannels };
+  }
 
-    // Convert conversation history to API format
+  /**
+   * Build complete AI context from a Discord message
+   *
+   * Handles:
+   * - User/persona lookup
+   * - Conversation history retrieval
+   * - Extended context (optional): fetches recent Discord channel messages
+   * - Reference extraction (with deduplication)
+   * - Attachment extraction
+   * - Environment context
+   *
+   * @param message - The Discord message to process
+   * @param personality - The target personality
+   * @param content - Message content (may be voice transcript)
+   * @param options - Additional options including extended context
+   */
+  async buildContext(
+    message: Message,
+    personality: LoadedPersonality,
+    content: string,
+    options: ContextBuildOptions = {}
+  ): Promise<ContextBuildResult> {
+    // Step 1: Fetch guild member for enriched participant context
+    const member =
+      message.member ?? (await message.guild?.members.fetch(message.author.id).catch(() => null));
+    const displayName = member?.displayName ?? message.author.globalName ?? message.author.username;
+    const guildMemberInfo = this.extractGuildMemberInfo(member, message.guild?.id);
+
+    // Step 2: Resolve user identity, persona, and fetch history
+    const userContext = await this.resolveUserContext(message, personality, displayName);
+    const { internalUserId, discordUserId, personaId, personaName, userTimezone, contextEpoch } =
+      userContext;
+
+    // Step 3: Fetch extended context from Discord (if enabled)
+    const extendedContext = await this.fetchExtendedContext({
+      message,
+      personality,
+      history: userContext.history,
+      contextEpoch,
+      options,
+    });
+    const history = extendedContext.history;
+    const extendedContextAttachments = extendedContext.attachments;
+    const participantGuildInfo = extendedContext.participantGuildInfo;
+
+    // Step 4: Extract references and resolve mentions
+    const refsAndMentions = await this.extractReferencesAndMentions(
+      message,
+      content,
+      personality,
+      history
+    );
+    const { messageContent, referencedMessages, mentionedPersonas, referencedChannels } =
+      refsAndMentions;
+
+    // Step 5: Convert conversation history to API format
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
     // Include discordUsername for disambiguation when persona name matches personality name
