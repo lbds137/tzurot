@@ -397,15 +397,20 @@ describe('PromptBuilder', () => {
 
         const content = result.content as string;
 
-        // NEW: Uses <system_identity> with <role>, <character>, and <constraints>
+        // System identity contains role and character (constraints are now separate sections)
         expect(content).toContain('<system_identity>');
         expect(content).toContain('</system_identity>');
         expect(content).toContain('<role>');
         expect(content).toContain('</role>');
         expect(content).toContain('<character>');
         expect(content).toContain('</character>');
-        expect(content).toContain('<constraints>');
-        expect(content).toContain('</constraints>');
+        // Constraints are now separate: identity_constraints, platform_constraints, output_constraints
+        expect(content).toContain('<identity_constraints>');
+        expect(content).toContain('</identity_constraints>');
+        expect(content).toContain('<platform_constraints>');
+        expect(content).toContain('</platform_constraints>');
+        expect(content).toContain('<output_constraints>');
+        expect(content).toContain('</output_constraints>');
       });
 
       it('should wrap protocol in <protocol> tags when systemPrompt exists', () => {
@@ -456,7 +461,7 @@ describe('PromptBuilder', () => {
         expect(content.startsWith('<system_identity>')).toBe(true);
       });
 
-      it('should place protocol at the END of the prompt (recency bias)', () => {
+      it('should place output_constraints at the END of the prompt (recency bias)', () => {
         const result = promptBuilder.buildFullSystemPrompt({
           personality: minimalPersonality,
           participantPersonas: new Map(),
@@ -466,8 +471,8 @@ describe('PromptBuilder', () => {
 
         const content = result.content as string;
 
-        // Protocol should be at the very end
-        expect(content.endsWith('</protocol>')).toBe(true);
+        // Output constraints should be at the very end (after protocol)
+        expect(content.endsWith('</output_constraints>')).toBe(true);
       });
 
       it('should order sections correctly for U-shaped attention', () => {

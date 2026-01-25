@@ -153,5 +153,107 @@ describe('PersonalityFieldsFormatter', () => {
       expect(persona).not.toContain('<personality_traits>');
       expect(persona).toContain('<personality_tone>Casual</personality_tone>');
     });
+
+    describe('JSON protocol format', () => {
+      it('should parse valid JSON systemPrompt', () => {
+        const jsonProtocol = JSON.stringify({
+          permissions: ['Allow explicit content'],
+          characterDirectives: ['Be authentic'],
+          formattingRules: ['Use asterisks for actions'],
+        });
+        const personality = createMinimalPersonality({ systemPrompt: jsonProtocol });
+
+        const { protocol } = formatPersonalityFields(personality, 'User', 'TestBot');
+
+        expect(protocol).toContain('<permissions>');
+        expect(protocol).toContain('<permitted>Allow explicit content</permitted>');
+        expect(protocol).toContain('<character_directives>');
+        expect(protocol).toContain('<directive>Be authentic</directive>');
+        expect(protocol).toContain('<formatting_rules>');
+        expect(protocol).toContain('<rule>Use asterisks for actions</rule>');
+      });
+
+      it('should handle JSON with empty arrays', () => {
+        const jsonProtocol = JSON.stringify({
+          permissions: [],
+          characterDirectives: ['Be authentic'],
+          formattingRules: [],
+        });
+        const personality = createMinimalPersonality({ systemPrompt: jsonProtocol });
+
+        const { protocol } = formatPersonalityFields(personality, 'User', 'TestBot');
+
+        expect(protocol).not.toContain('<permissions>');
+        expect(protocol).toContain('<character_directives>');
+        expect(protocol).not.toContain('<formatting_rules>');
+      });
+
+      it('should escape XML in JSON content', () => {
+        const jsonProtocol = JSON.stringify({
+          permissions: ['Allow <protocol> breaking'],
+          characterDirectives: [],
+          formattingRules: [],
+        });
+        const personality = createMinimalPersonality({ systemPrompt: jsonProtocol });
+
+        const { protocol } = formatPersonalityFields(personality, 'User', 'TestBot');
+
+        expect(protocol).toContain('&lt;protocol&gt;');
+        expect(protocol).not.toContain('<protocol>');
+      });
+
+      it('should handle multiple items per section', () => {
+        const jsonProtocol = JSON.stringify({
+          permissions: ['First permission', 'Second permission'],
+          characterDirectives: ['Directive 1', 'Directive 2', 'Directive 3'],
+          formattingRules: ['Rule A'],
+        });
+        const personality = createMinimalPersonality({ systemPrompt: jsonProtocol });
+
+        const { protocol } = formatPersonalityFields(personality, 'User', 'TestBot');
+
+        expect(protocol).toContain('<permitted>First permission</permitted>');
+        expect(protocol).toContain('<permitted>Second permission</permitted>');
+        expect(protocol).toContain('<directive>Directive 1</directive>');
+        expect(protocol).toContain('<directive>Directive 2</directive>');
+        expect(protocol).toContain('<directive>Directive 3</directive>');
+        expect(protocol).toContain('<rule>Rule A</rule>');
+      });
+
+      it('should fall back to legacy format for invalid JSON', () => {
+        const personality = createMinimalPersonality({
+          systemPrompt: 'Not JSON - just a plain string with {user}',
+        });
+
+        const { protocol } = formatPersonalityFields(personality, 'Alice', 'TestBot');
+
+        // Legacy format should replace placeholders
+        expect(protocol).toContain('Not JSON - just a plain string with Alice');
+      });
+
+      it('should fall back to legacy format for malformed JSON object', () => {
+        const invalidJson = JSON.stringify({ wrongField: 'value' });
+        const personality = createMinimalPersonality({ systemPrompt: invalidJson });
+
+        const { protocol } = formatPersonalityFields(personality, 'User', 'TestBot');
+
+        // Should fall back to legacy (no XML sections added)
+        expect(protocol).toBe(invalidJson);
+      });
+
+      it('should reject JSON with non-string array elements', () => {
+        const invalidJson = JSON.stringify({
+          permissions: [123, 'valid'],
+          characterDirectives: [],
+          formattingRules: [],
+        });
+        const personality = createMinimalPersonality({ systemPrompt: invalidJson });
+
+        const { protocol } = formatPersonalityFields(personality, 'User', 'TestBot');
+
+        // Should fall back to legacy
+        expect(protocol).toBe(invalidJson);
+      });
+    });
   });
 });
