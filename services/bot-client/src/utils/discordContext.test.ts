@@ -367,9 +367,7 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toBe(
-        'This conversation is taking place in a **Direct Message** (private one-on-one chat).'
-      );
+      expect(result).toBe('Direct Message (private one-on-one chat)');
     });
   });
 
@@ -390,8 +388,8 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toContain('**Server**: Test Server');
-      expect(result).toContain('**Channel**: #general (text)');
+      expect(result).toContain('Server: Test Server');
+      expect(result).toContain('Channel: #general (text)');
     });
 
     it('should include category when present', () => {
@@ -414,9 +412,9 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toContain('**Server**: Test Server');
-      expect(result).toContain('**Category**: Community');
-      expect(result).toContain('**Channel**: #chat (text)');
+      expect(result).toContain('Server: Test Server');
+      expect(result).toContain('Category: Community');
+      expect(result).toContain('Channel: #chat (text)');
     });
 
     it('should include thread when present', () => {
@@ -444,9 +442,9 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toContain('**Server**: Test Server');
-      expect(result).toContain('**Channel**: #announcements (text)');
-      expect(result).toContain('**Thread**: Update Discussion');
+      expect(result).toContain('Server: Test Server');
+      expect(result).toContain('Channel: #announcements (text)');
+      expect(result).toContain('Thread: Update Discussion');
     });
 
     it('should format complete context with all fields', () => {
@@ -478,26 +476,13 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toContain('**Server**: Amazing Server');
-      expect(result).toContain('**Category**: Staff Only');
-      expect(result).toContain('**Channel**: #admin-chat (text)');
-      expect(result).toContain('**Thread**: Planning Thread');
-    });
-  });
-
-  describe('Format Structure', () => {
-    it('should start with appropriate intro text for DM', () => {
-      const context = {
-        type: 'dm' as const,
-        channel: { id: '123', name: 'Direct Message', type: 'dm' },
-      };
-
-      const result = formatEnvironmentForPrompt(context);
-
-      expect(result).toMatch(/^This conversation is taking place in a \*\*Direct Message\*\*/);
+      expect(result).toContain('Server: Amazing Server');
+      expect(result).toContain('Category: Staff Only');
+      expect(result).toContain('Channel: #admin-chat (text)');
+      expect(result).toContain('Thread: Planning Thread');
     });
 
-    it('should start with appropriate intro text for guild', () => {
+    it('should use comma-separated format', () => {
       const context = {
         type: 'guild' as const,
         guild: { id: '123', name: 'Test' },
@@ -506,7 +491,7 @@ describe('formatEnvironmentForPrompt', () => {
 
       const result = formatEnvironmentForPrompt(context);
 
-      expect(result).toMatch(/^This conversation is taking place in a Discord server:/);
+      expect(result).toBe('Server: Test, Channel: #general (text)');
     });
   });
 });

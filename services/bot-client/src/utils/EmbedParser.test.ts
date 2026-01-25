@@ -14,7 +14,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('## Test Title');
+      expect(result).toContain('<title>Test Title</title>');
     });
 
     it('should parse embed with title and URL', () => {
@@ -25,7 +25,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('[Click Here](https://example.com)');
+      expect(result).toContain('<title url="https://example.com">Click Here</title>');
     });
 
     it('should parse embed with description', () => {
@@ -35,7 +35,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('This is a test description');
+      expect(result).toContain('<description>This is a test description</description>');
     });
 
     it('should parse embed with author', () => {
@@ -47,7 +47,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Author: Test Author');
+      expect(result).toContain('<author>Test Author</author>');
     });
 
     it('should parse embed with author and URL', () => {
@@ -60,7 +60,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Author: [Test Author](https://author.example.com)');
+      expect(result).toContain('<author url="https://author.example.com">Test Author</author>');
     });
 
     it('should parse embed with single field', () => {
@@ -76,7 +76,9 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('**Field Name**: Field Value');
+      expect(result).toContain('<fields>');
+      expect(result).toContain('<field name="Field Name">Field Value</field>');
+      expect(result).toContain('</fields>');
     });
 
     it('should parse embed with inline field', () => {
@@ -92,7 +94,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('**Inline Field** (inline): Inline Value');
+      expect(result).toContain('<field name="Inline Field" inline="true">Inline Value</field>');
     });
 
     it('should parse embed with multiple fields', () => {
@@ -118,9 +120,9 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('**Field 1**: Value 1');
-      expect(result).toContain('**Field 2** (inline): Value 2');
-      expect(result).toContain('**Field 3**: Value 3');
+      expect(result).toContain('<field name="Field 1">Value 1</field>');
+      expect(result).toContain('<field name="Field 2" inline="true">Value 2</field>');
+      expect(result).toContain('<field name="Field 3">Value 3</field>');
     });
 
     it('should parse embed with image', () => {
@@ -132,7 +134,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Image: https://example.com/image.png');
+      expect(result).toContain('<image url="https://example.com/image.png"/>');
     });
 
     it('should parse embed with thumbnail', () => {
@@ -144,7 +146,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Thumbnail: https://example.com/thumbnail.png');
+      expect(result).toContain('<thumbnail url="https://example.com/thumbnail.png"/>');
     });
 
     it('should parse embed with footer', () => {
@@ -156,7 +158,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('_Footer text here_');
+      expect(result).toContain('<footer>Footer text here</footer>');
     });
 
     it('should parse embed with timestamp', () => {
@@ -166,7 +168,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Timestamp: 2025-11-02T12:00:00.000Z');
+      expect(result).toContain('<timestamp>2025-11-02T12:00:00.000Z</timestamp>');
     });
 
     it('should parse embed with color', () => {
@@ -176,7 +178,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Color: #ff0000');
+      expect(result).toContain('<color>#ff0000</color>');
     });
 
     it('should parse embed with color padding', () => {
@@ -186,7 +188,7 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('Color: #000001');
+      expect(result).toContain('<color>#000001</color>');
     });
 
     it('should parse complete embed with all fields', () => {
@@ -225,16 +227,16 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseEmbed(embed);
 
-      expect(result).toContain('## [Complete Embed](https://example.com)');
-      expect(result).toContain('Author: [Author Name](https://author.example.com)');
-      expect(result).toContain('Full description here');
-      expect(result).toContain('**Field 1** (inline): Value 1');
-      expect(result).toContain('**Field 2**: Value 2');
-      expect(result).toContain('Image: https://example.com/image.png');
-      expect(result).toContain('Thumbnail: https://example.com/thumb.png');
-      expect(result).toContain('_Footer text_');
-      expect(result).toContain('Timestamp: 2025-11-02T12:00:00.000Z');
-      expect(result).toContain('Color: #00ff00');
+      expect(result).toContain('<title url="https://example.com">Complete Embed</title>');
+      expect(result).toContain('<author url="https://author.example.com">Author Name</author>');
+      expect(result).toContain('<description>Full description here</description>');
+      expect(result).toContain('<field name="Field 1" inline="true">Value 1</field>');
+      expect(result).toContain('<field name="Field 2">Value 2</field>');
+      expect(result).toContain('<image url="https://example.com/image.png"/>');
+      expect(result).toContain('<thumbnail url="https://example.com/thumb.png"/>');
+      expect(result).toContain('<footer>Footer text</footer>');
+      expect(result).toContain('<timestamp>2025-11-02T12:00:00.000Z</timestamp>');
+      expect(result).toContain('<color>#00ff00</color>');
     });
 
     it('should handle empty embed', () => {
@@ -254,6 +256,27 @@ describe('EmbedParser', () => {
 
       expect(result).toBe('');
     });
+
+    it('should escape XML special characters in title', () => {
+      const embed: APIEmbed = {
+        title: 'Test <script> & "quotes"',
+      };
+
+      const result = EmbedParser.parseEmbed(embed);
+
+      expect(result).toContain('<title>Test &lt;script&gt; &amp; &quot;quotes&quot;</title>');
+    });
+
+    it('should escape XML special characters in URL attributes', () => {
+      const embed: APIEmbed = {
+        title: 'Link',
+        url: 'https://example.com?a=1&b=2',
+      };
+
+      const result = EmbedParser.parseEmbed(embed);
+
+      expect(result).toContain('url="https://example.com?a=1&amp;b=2"');
+    });
   });
 
   describe('parseMessageEmbeds', () => {
@@ -271,9 +294,10 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseMessageEmbeds(mockMessage);
 
-      expect(result).toContain('### Embed');
-      expect(result).toContain('## Test Title');
-      expect(result).toContain('Test Description');
+      expect(result).toContain('<embed>');
+      expect(result).toContain('<title>Test Title</title>');
+      expect(result).toContain('<description>Test Description</description>');
+      expect(result).toContain('</embed>');
     });
 
     it('should parse message with multiple embeds', () => {
@@ -297,13 +321,12 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseMessageEmbeds(mockMessage);
 
-      expect(result).toContain('### Embed 1');
-      expect(result).toContain('## Embed 1');
-      expect(result).toContain('Description 1');
-      expect(result).toContain('---');
-      expect(result).toContain('### Embed 2');
-      expect(result).toContain('## Embed 2');
-      expect(result).toContain('Description 2');
+      expect(result).toContain('<embed number="1">');
+      expect(result).toContain('<title>Embed 1</title>');
+      expect(result).toContain('<description>Description 1</description>');
+      expect(result).toContain('<embed number="2">');
+      expect(result).toContain('<title>Embed 2</title>');
+      expect(result).toContain('<description>Description 2</description>');
     });
 
     it('should return empty string for message with no embeds', () => {
@@ -337,9 +360,9 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseMessageEmbeds(mockMessage);
 
-      expect(result).toContain('### Embed 1');
-      expect(result).toContain('### Embed 2');
-      expect(result).toContain('### Embed 3');
+      expect(result).toContain('<embed number="1">');
+      expect(result).toContain('<embed number="2">');
+      expect(result).toContain('<embed number="3">');
     });
 
     it('should not number embed when only one exists', () => {
@@ -353,8 +376,8 @@ describe('EmbedParser', () => {
 
       const result = EmbedParser.parseMessageEmbeds(mockMessage);
 
-      expect(result).toContain('### Embed\n');
-      expect(result).not.toContain('### Embed 1');
+      expect(result).toContain('<embed>');
+      expect(result).not.toContain('number=');
     });
   });
 
