@@ -66,7 +66,7 @@ describe('MemoryFormatter', () => {
         // Positive framing (what to do) instead of negative (what not to do)
         expect(result).toContain('SUMMARIZED NOTES from past interactions');
         expect(result).toContain('Use ONLY as background context');
-        expect(result).toContain('respond ONLY to that');
+        expect(result).toContain('user message');
       });
 
       it('should not add XML wrapper when no memories', () => {
@@ -361,8 +361,7 @@ describe('MemoryFormatter', () => {
       // Positive framing works better for LLMs than negative constraints
       expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('SUMMARIZED NOTES from past interactions');
       expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('Use ONLY as background context');
-      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('respond ONLY to that');
-      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('<current_turn>');
+      expect(MEMORY_ARCHIVE_INSTRUCTION).toContain('user message');
     });
   });
 });

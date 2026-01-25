@@ -269,8 +269,8 @@ export async function handleDebug(context: DeferredCommandContext): Promise<void
     // Attach full JSON for detailed analysis
     const jsonContent = JSON.stringify(log.data, null, 2);
     const attachment = new AttachmentBuilder(Buffer.from(jsonContent), {
-      name: `diagnostic-${log.requestId}.json`,
-      description: 'Full LLM diagnostic data for debugging',
+      name: `debug-${log.requestId}.json`,
+      description: 'Full LLM debug data for prompt analysis',
     });
 
     await context.editReply({

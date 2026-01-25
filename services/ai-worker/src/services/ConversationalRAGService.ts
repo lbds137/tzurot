@@ -22,6 +22,7 @@ import {
   TEXT_LIMITS,
   getPrismaClient,
   type LoadedPersonality,
+  type ReferencedMessage,
 } from '@tzurot/common-types';
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripResponseArtifacts } from '../utils/responseArtifacts.js';
@@ -140,12 +141,19 @@ export class ConversationalRAGService {
     // Format the user's message
     const userMessage = this.promptBuilder.formatUserMessage(message, context);
 
+    // Filter out referenced messages that are already in conversation history
+    // This prevents token waste from duplicating content that's already in context
+    const filteredReferences = this.filterDuplicateReferences(
+      context.referencedMessages,
+      context.rawConversationHistory
+    );
+
     // Format referenced messages (with vision/transcription)
     // Pass userApiKey for BYOK support in inline fallback processing
     const referencedMessagesDescriptions =
-      context.referencedMessages && context.referencedMessages.length > 0
+      filteredReferences.length > 0
         ? await this.referencedMessageFormatter.formatReferencedMessages(
-            context.referencedMessages,
+            filteredReferences,
             personality,
             isGuestMode,
             context.preprocessedReferenceAttachments,
@@ -221,6 +229,8 @@ export class ConversationalRAGService {
         for (const persona of resolvedPersonas) {
           if (!participantPersonas.has(persona.personaName)) {
             participantPersonas.set(persona.personaName, {
+              preferredName: persona.preferredName ?? undefined,
+              pronouns: persona.pronouns ?? undefined,
               content: persona.content,
               isActive: false,
               personaId: persona.personaId,
@@ -693,5 +703,54 @@ export class ConversationalRAGService {
       { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
       '[RAG] Stored deferred memory to LTM'
     );
+  }
+
+  /**
+   * Filter out referenced messages that are already in conversation history
+   *
+   * This prevents token waste from duplicating content. When a user replies to
+   * a recent message, that message is likely already in the conversation history.
+   * Including it again as a quoted message wastes tokens.
+   *
+   * @param referencedMessages - Messages being quoted/replied to
+   * @param conversationHistory - Current conversation history (raw format with optional id)
+   * @returns Filtered list of referenced messages not in history
+   */
+  private filterDuplicateReferences(
+    referencedMessages: ReferencedMessage[] | undefined,
+    conversationHistory: { id?: string }[] | undefined
+  ): ReferencedMessage[] {
+    if (!referencedMessages || referencedMessages.length === 0) {
+      return [];
+    }
+
+    if (!conversationHistory || conversationHistory.length === 0) {
+      return referencedMessages;
+    }
+
+    // Build set of message IDs from conversation history
+    const historyIds = new Set<string>();
+    for (const msg of conversationHistory) {
+      if (msg.id !== undefined && msg.id.length > 0) {
+        historyIds.add(msg.id);
+      }
+    }
+
+    // Filter out referenced messages that are already in history
+    const filtered = referencedMessages.filter(ref => !historyIds.has(ref.discordMessageId));
+
+    if (filtered.length < referencedMessages.length) {
+      const removed = referencedMessages.length - filtered.length;
+      logger.debug(
+        {
+          originalCount: referencedMessages.length,
+          filteredCount: filtered.length,
+          removedCount: removed,
+        },
+        '[RAG] Filtered out referenced messages already in conversation history'
+      );
+    }
+
+    return filtered;
   }
 }

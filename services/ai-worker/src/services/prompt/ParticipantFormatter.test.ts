@@ -3,6 +3,7 @@
  *
  * Tests the pure XML participant formatting with:
  * - ID binding via <participant id="...">
+ * - Structured fields (<name>, <pronouns>)
  * - CDATA wrapping for user content
  * - source="user_input" attribution
  * - Optional guild info (roles, color, join date)
@@ -212,6 +213,147 @@ describe('ParticipantFormatter', () => {
 
       // ID should be escaped in attribute
       expect(result).toContain('id="persona-123&amp;456"');
+    });
+
+    describe('pronouns and preferredName', () => {
+      it('should include pronouns element when pronouns are provided', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'Lila',
+            {
+              content: 'A software developer',
+              isActive: true,
+              personaId: 'persona-1',
+              pronouns: 'she/her, they/them',
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Lila');
+
+        expect(result).toContain('<pronouns>she/her, they/them</pronouns>');
+      });
+
+      it('should not include pronouns element when pronouns are undefined', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'Alice',
+            {
+              content: 'A developer',
+              isActive: true,
+              personaId: 'persona-1',
+              // pronouns not set
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Alice');
+
+        expect(result).not.toContain('<pronouns>');
+      });
+
+      it('should not include pronouns element when pronouns are empty string', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'Alice',
+            {
+              content: 'A developer',
+              isActive: true,
+              personaId: 'persona-1',
+              pronouns: '',
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Alice');
+
+        expect(result).not.toContain('<pronouns>');
+      });
+
+      it('should use preferredName for display name when provided', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'lila', // Map key (persona name from DB)
+            {
+              preferredName: 'Lila ☠',
+              content: 'A developer',
+              isActive: true,
+              personaId: 'persona-1',
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Lila ☠');
+
+        // Should use preferredName, not the map key
+        expect(result).toContain('<name>Lila ☠</name>');
+        expect(result).not.toContain('<name>lila</name>');
+      });
+
+      it('should fall back to map key when preferredName is undefined', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'Alice',
+            {
+              content: 'A developer',
+              isActive: true,
+              personaId: 'persona-1',
+              // preferredName not set
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Alice');
+
+        expect(result).toContain('<name>Alice</name>');
+      });
+
+      it('should escape special characters in pronouns', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'Alice',
+            {
+              content: 'A developer',
+              isActive: true,
+              personaId: 'persona-1',
+              pronouns: 'she/her & they/them',
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Alice');
+
+        expect(result).toContain('<pronouns>she/her &amp; they/them</pronouns>');
+      });
+
+      it('should order elements correctly: name, pronouns, guild_info, about', () => {
+        const participants = new Map<string, ParticipantInfo>([
+          [
+            'Lila',
+            {
+              preferredName: 'Lila',
+              pronouns: 'she/her',
+              content: 'A developer',
+              isActive: true,
+              personaId: 'persona-1',
+              guildInfo: {
+                roles: ['Admin'],
+              },
+            },
+          ],
+        ]);
+
+        const result = formatParticipantsContext(participants, 'Lila');
+
+        const nameIndex = result.indexOf('<name>Lila</name>');
+        const pronounsIndex = result.indexOf('<pronouns>she/her</pronouns>');
+        const guildInfoIndex = result.indexOf('<guild_info');
+        const aboutIndex = result.indexOf('<about');
+
+        expect(nameIndex).toBeLessThan(pronounsIndex);
+        expect(pronounsIndex).toBeLessThan(guildInfoIndex);
+        expect(guildInfoIndex).toBeLessThan(aboutIndex);
+      });
     });
 
     describe('guild info', () => {

@@ -35,6 +35,17 @@ interface MockRole {
 }
 
 // Helper to create mock Discord messages
+// Mock attachment properties needed by extractAttachments
+interface MockAttachment {
+  id?: string;
+  url?: string;
+  contentType: string | null;
+  name: string | null;
+  size?: number;
+  duration?: number | null; // null = not a voice message, undefined = treated as voice message (bug)
+  waveform?: string;
+}
+
 function createMockMessage(
   overrides: Partial<{
     id: string;
@@ -50,7 +61,7 @@ function createMockMessage(
     isBot: boolean;
     type: MessageType;
     createdAt: Date;
-    attachments: Map<string, { contentType: string | null; name: string | null }>;
+    attachments: Map<string, MockAttachment>;
     reference: { messageId: string } | null;
   }>
 ): Message {
@@ -163,9 +174,9 @@ describe('DiscordChannelFetcher', () => {
       expect(result.filteredCount).toBe(2);
       expect(result.messages).toHaveLength(2);
 
-      // Should be newest first
-      expect(result.messages[0].content).toBe('[bob]: Hi there');
-      expect(result.messages[1].content).toBe('[alice]: Hello world');
+      // Should be newest first - content no longer has [Name]: prefix (uses from attribute in XML)
+      expect(result.messages[0].content).toBe('Hi there');
+      expect(result.messages[1].content).toBe('Hello world');
     });
 
     it('should identify bot messages as assistant role', async () => {
@@ -198,7 +209,7 @@ describe('DiscordChannelFetcher', () => {
       const assistantMsg = result.messages.find(m => m.role === MessageRole.Assistant);
 
       expect(userMsg).toBeDefined();
-      expect(userMsg!.content).toBe('[alice]: User message');
+      expect(userMsg!.content).toBe('User message');
 
       expect(assistantMsg).toBeDefined();
       expect(assistantMsg!.content).toBe('Bot response');
@@ -287,7 +298,18 @@ describe('DiscordChannelFetcher', () => {
           id: '1',
           content: '',
           authorUsername: 'alice',
-          attachments: new Map([['att1', { contentType: 'image/png', name: 'photo.png' }]]),
+          attachments: new Map([
+            [
+              'att1',
+              {
+                id: 'att1',
+                url: 'https://cdn.discord.com/attachments/photo.png',
+                contentType: 'image/png',
+                name: 'photo.png',
+                duration: null, // Not a voice message
+              },
+            ],
+          ]),
         }),
       ];
 
@@ -297,8 +319,13 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
+      // Message should be included even with empty content
       expect(result.messages).toHaveLength(1);
-      expect(result.messages[0].content).toContain('[image/png: photo.png]');
+      // Content is empty because attachment descriptions are now handled via imageAttachments
+      expect(result.messages[0].content).toBe('');
+      // Attachment should be in imageAttachments (for vision processing)
+      expect(result.imageAttachments).toHaveLength(1);
+      expect(result.imageAttachments?.[0].name).toBe('photo.png');
     });
 
     it('should use display name for user messages', async () => {
@@ -317,7 +344,7 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
-      expect(result.messages[0].content).toBe('[Alice]: Hello');
+      expect(result.messages[0].content).toBe('Hello');
     });
 
     it('should use global name when display name is not available', async () => {
@@ -337,7 +364,9 @@ describe('DiscordChannelFetcher', () => {
         botUserId: 'bot123',
       });
 
-      expect(result.messages[0].content).toBe('[AliceG]: Hello');
+      // Content has no prefix - personaName has the display name for XML formatting
+      expect(result.messages[0].content).toBe('Hello');
+      expect(result.messages[0].personaName).toBe('AliceG');
     });
 
     it('should respect before parameter', async () => {
@@ -376,25 +405,29 @@ describe('DiscordChannelFetcher', () => {
 
   describe('mergeWithHistory', () => {
     it('should deduplicate messages by Discord ID', () => {
+      // Extended messages from Discord no longer have [Name]: prefix
       const extendedMessages = [
         {
           id: 'msg1',
           role: MessageRole.User,
-          content: '[Alice]: Hello from Discord',
+          content: 'Hello from Discord',
           createdAt: new Date('2024-01-01T12:00:00Z'),
           personaId: 'discord:user1',
+          personaName: 'Alice',
           discordMessageId: ['discord1'],
         },
         {
           id: 'msg2',
           role: MessageRole.User,
-          content: '[Bob]: Also from Discord',
+          content: 'Also from Discord',
           createdAt: new Date('2024-01-01T12:01:00Z'),
           personaId: 'discord:user2',
+          personaName: 'Bob',
           discordMessageId: ['discord2'],
         },
       ];
 
+      // DB history may have old format with [Name]: prefix (backward compatibility)
       const dbHistory = [
         {
           id: 'db1',
@@ -413,23 +446,26 @@ describe('DiscordChannelFetcher', () => {
       // DB message should be present (has priority)
       expect(merged.some(m => m.content === '[Alice]: Hello from DB')).toBe(true);
       // Unique extended message should be present
-      expect(merged.some(m => m.content === '[Bob]: Also from Discord')).toBe(true);
+      expect(merged.some(m => m.content === 'Also from Discord')).toBe(true);
       // Duplicate from extended should NOT be present
-      expect(merged.some(m => m.content === '[Alice]: Hello from Discord')).toBe(false);
+      expect(merged.some(m => m.content === 'Hello from Discord')).toBe(false);
     });
 
     it('should sort merged messages by timestamp (oldest first = chronological)', () => {
+      // Extended message from Discord (no prefix)
       const extendedMessages = [
         {
           id: 'ext1',
           role: MessageRole.User,
-          content: '[Charlie]: Newest',
+          content: 'Newest',
           createdAt: new Date('2024-01-01T12:05:00Z'),
           personaId: 'discord:user3',
+          personaName: 'Charlie',
           discordMessageId: ['discord3'],
         },
       ];
 
+      // DB history (may have old format with prefix)
       const dbHistory = [
         {
           id: 'db1',
@@ -454,7 +490,7 @@ describe('DiscordChannelFetcher', () => {
       // Chronological order: oldest first, newest last (LLM recency bias optimization)
       expect(merged[0].content).toBe('[Alice]: Oldest');
       expect(merged[1].content).toBe('[Bob]: Middle');
-      expect(merged[2].content).toBe('[Charlie]: Newest');
+      expect(merged[2].content).toBe('Newest');
     });
 
     it('should handle empty extended messages', () => {
@@ -476,13 +512,15 @@ describe('DiscordChannelFetcher', () => {
     });
 
     it('should handle empty DB history', () => {
+      // Extended message from Discord (no prefix)
       const extendedMessages = [
         {
           id: 'ext1',
           role: MessageRole.User,
-          content: '[Alice]: From Discord',
+          content: 'From Discord',
           createdAt: new Date('2024-01-01T12:00:00Z'),
           personaId: 'discord:user1',
+          personaName: 'Alice',
           discordMessageId: ['discord1'],
         },
       ];
@@ -490,7 +528,7 @@ describe('DiscordChannelFetcher', () => {
       const merged = fetcher.mergeWithHistory(extendedMessages, []);
 
       expect(merged).toHaveLength(1);
-      expect(merged[0].content).toBe('[Alice]: From Discord');
+      expect(merged[0].content).toBe('From Discord');
     });
   });
 
@@ -1263,7 +1301,18 @@ describe('DiscordChannelFetcher', () => {
           isBot: true,
           createdAt: new Date('2024-01-01T12:00:00Z'),
           reference: { messageId: 'some-msg' },
-          attachments: new Map([['1', { contentType: 'image/png', name: 'image.png' }]]),
+          attachments: new Map([
+            [
+              '1',
+              {
+                id: '1',
+                url: 'https://cdn.discord.com/attachments/image.png',
+                contentType: 'image/png',
+                name: 'image.png',
+                duration: null, // Not a voice message
+              },
+            ],
+          ]),
         }),
       ];
 

@@ -116,7 +116,7 @@ export class PromptBuilder {
   buildHumanMessage(
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
-    activePersonaName?: string,
+    _activePersonaName?: string, // Preserved for API compatibility; persona info is in system prompt
     referencedMessagesDescriptions?: string
   ): { message: HumanMessage; contentForStorage: string } {
     // Build the message content
@@ -166,28 +166,16 @@ export class PromptBuilder {
       );
     }
 
-    // Wrap in <current_turn> XML for clear semantic structure
-    // This is the "trigger" that tells the AI to respond
-    // NOTE: This wrapper is ONLY for the LLM prompt, NOT for storage
-    const senderName =
-      activePersonaName !== undefined && activePersonaName.length > 0 ? activePersonaName : 'User';
-
-    // Escape the message content to prevent XML injection
+    // User message is sent as-is without XML wrapper
+    // The LLM API already distinguishes system vs user messages via role
+    // Any behavioral instructions (don't simulate users, etc.) go in system prompt
+    //
+    // Note: We still escape content to prevent accidental XML-like patterns from
+    // being interpreted as structure, since system prompt uses XML
     const safeContent = escapeXmlContent(messageContent);
 
-    // Instruction explicitly directs attention to incoming_message and away from memory_archive
-    // This prevents the AI from responding to LTM content instead of the current conversation
-    const wrappedMessage = `<current_turn>
-<incoming_message sender="${senderName}">
-${safeContent}
-</incoming_message>
-<instruction>
-RESPOND ONLY to ${senderName}'s message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless ${senderName} explicitly asks about the past. Do not simulate other users. Stop after your response.
-</instruction>
-</current_turn>`;
-
     return {
-      message: new HumanMessage(wrappedMessage),
+      message: new HumanMessage(safeContent),
       contentForStorage,
     };
   }

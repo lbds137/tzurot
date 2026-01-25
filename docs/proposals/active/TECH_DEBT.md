@@ -1,12 +1,79 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-24 (added tooling suggestions from PR #510 code review)
+> Last updated: 2026-01-25 (added unused \_activePersonaName param)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
 ---
 
 ## Priority 1: HIGH (Blocking Issues)
+
+### Multi-AI Conversations: Role Attribution
+
+**Problem**: Messages from other AI personalities show as `role="user"` in the chat log, which confuses the responding AI. When one personality (e.g., Lilith) sends a message, and another personality (e.g., COLD) responds, the original message from Lilith appears as `role="user"` because Discord webhooks are treated as user messages.
+
+**Impact**: The responding AI may incorrectly interpret AI-generated messages as human input, leading to confusion about who said what in group conversations.
+
+**Solution Options**:
+
+1. Add `source="personality:{slug}"` attribute to identify AI-generated messages
+2. Track which messages were sent via bot webhooks and mark them as assistant
+3. Add personality IDs as participants with short blurbs (similar to user personas)
+
+**Related**: Need `quickSummary` field in character cards for conversational context without overwhelming the context window.
+
+**Source**: Prompt review (2026-01-24)
+
+---
+
+### Quoted Messages Duplicate Detection
+
+**Problem**: Replies that are already in the conversation history still appear as `<quoted_messages>`, wasting tokens by duplicating content.
+
+**Impact**: Token waste, especially in long conversations where users frequently reply to recent messages.
+
+**Solution**: Before including a quoted message, check if its ID already exists in the conversation history. Skip quotes for messages that are already present in the context.
+
+**Source**: Prompt review (2026-01-24)
+
+---
+
+### Location Format Inconsistency in Quoted Messages
+
+**Problem**: The `location` attribute in `<quote>` elements uses a different format than `<location>` elsewhere:
+
+- Quote location: Plain text like "Server: X, Category: Y, Channel: #Z"
+- Environment location: Proper XML with `<server name="..."/>` etc.
+
+**Impact**: Inconsistent formatting for the LLM, potential confusion.
+
+**Solution**: Create shared `formatLocationContext()` helper used by both EnvironmentFormatter and quoted message location formatting.
+
+**Source**: Prompt review (2026-01-24)
+
+---
+
+### Audit Zod `.optional()` Usage (Bug-Hiding Pattern)
+
+**Problem**: Excessive use of `.optional()` in Zod schemas silently accepts missing fields that should exist. This caused the avatar cache-busting bug: `avatarUpdatedAt` was defined in the schema but never populated from the database, and the optional marker let it pass silently.
+
+**Impact**: Bugs hide until runtime - the code checks for a field that's always undefined, condition fails silently, feature never works.
+
+**Solution**:
+
+1. Audit ALL `.optional()` uses in `schemas.ts` and other Zod schemas
+2. For each optional field, verify:
+   - Is this field actually optional in the data source (DB, API)?
+   - Is there a default value that should be used instead (`.default()`)?
+   - Should this throw if missing (remove `.optional()`)?
+3. Add tests verifying schema fields match database columns
+4. Consider `.nullish()` only when field can be explicitly null vs missing
+
+**Files to audit**: `packages/common-types/src/types/schemas.ts`, all route request schemas
+
+**Source**: Avatar cache-busting bug - PR #XXX (2026-01-24)
+
+---
 
 ### Timer Patterns Blocking Horizontal Scaling
 
@@ -181,6 +248,7 @@ Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageConte
 | Item                                | Location                            | Fix                                             |
 | ----------------------------------- | ----------------------------------- | ----------------------------------------------- |
 | **Audit eslint-disable directives** | 91 across codebase                  | Review each, remove lazy suppressions           |
+| Unused `_activePersonaName` param   | `PromptBuilder.ts:119`              | Remove parameter after verifying no callers use |
 | Autocomplete badge magic number     | `autocompleteFormat.ts:117`         | Extract `MAX_STATUS_BADGES = 2`                 |
 | Autocomplete truncation complex     | `autocompleteFormat.ts:139-152`     | Extract helper function                         |
 | Error serializer magic number       | `logger.ts:187`                     | Extract `MAX_RAW_ERROR_LENGTH = 500`            |

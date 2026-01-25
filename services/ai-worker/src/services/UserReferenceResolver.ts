@@ -25,6 +25,10 @@ export interface ResolvedPersona {
   personaId: string;
   /** Display name (preferredName or name) */
   personaName: string;
+  /** User's preferred name (may be null if not set) */
+  preferredName: string | null;
+  /** User's pronouns (may be null if not set) */
+  pronouns: string | null;
   /** Persona content/description for participants section */
   content: string;
 }
@@ -253,6 +257,7 @@ export class UserReferenceResolver {
               id: true,
               name: true,
               preferredName: true,
+              pronouns: true,
               content: true,
             },
           },
@@ -270,6 +275,8 @@ export class UserReferenceResolver {
       return {
         personaId: mapping.persona.id,
         personaName: mapping.persona.preferredName ?? mapping.persona.name,
+        preferredName: mapping.persona.preferredName,
+        pronouns: mapping.persona.pronouns,
         content: mapping.persona.content ?? '',
       };
     } catch (error) {
@@ -296,6 +303,7 @@ export class UserReferenceResolver {
               id: true,
               name: true,
               preferredName: true,
+              pronouns: true,
               content: true,
             },
           },
@@ -310,6 +318,8 @@ export class UserReferenceResolver {
       return {
         personaId: user.defaultPersona.id,
         personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
+        preferredName: user.defaultPersona.preferredName,
+        pronouns: user.defaultPersona.pronouns,
         content: user.defaultPersona.content ?? '',
       };
     } catch (error) {
@@ -333,6 +343,7 @@ export class UserReferenceResolver {
               id: true,
               name: true,
               preferredName: true,
+              pronouns: true,
               content: true,
             },
           },
@@ -349,6 +360,8 @@ export class UserReferenceResolver {
       return {
         personaId: user.defaultPersona.id,
         personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
+        preferredName: user.defaultPersona.preferredName,
+        pronouns: user.defaultPersona.pronouns,
         content: user.defaultPersona.content ?? '',
       };
     } catch (error) {

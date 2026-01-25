@@ -72,7 +72,7 @@ NEVER output XML tags in your response.
 </participants>
 
 <memory_archive usage="context_only_do_not_repeat">
-<instruction>These are SUMMARIZED NOTES from past interactions, not current conversation. Use ONLY as background context to inform your response to the CURRENT message. The current message is in <current_turn> - respond ONLY to that.</instruction>
+<instruction>These are SUMMARIZED NOTES from past interactions, not current conversation. Use ONLY as background context to inform your response to the user message.</instruction>
 <historical_note recorded="Mon, Jan 15, 2024" ago="2 weeks ago">User mentioned they prefer dark mode interfaces</historical_note>
 <historical_note recorded="Mon, Jan 15, 2024" ago="2 weeks ago">User is working on a Discord bot project</historical_note>
 </memory_archive>
@@ -189,23 +189,12 @@ You are a helpful assistant. Always be kind and helpful.
 </protocol>"
 `;
 
-exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot for simple message 1`] = `
-"<current_turn>
-<incoming_message sender="User">
-Hello, how are you today?
-</incoming_message>
-<instruction>
-RESPOND ONLY to User's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless User explicitly asks about the past. Do not simulate other users. Stop after your response.
-</instruction>
-</current_turn>"
-`;
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot for simple message 1`] = `"Hello, how are you today?"`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot for simple message 2`] = `"Hello, how are you today?"`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 1`] = `
-"<current_turn>
-<incoming_message sender="ImplementerUser">
-Here is my updated implementation based on your feedback
+"Here is my updated implementation based on your feedback
 
 A flowchart showing the message processing pipeline
 
@@ -213,12 +202,7 @@ A flowchart showing the message processing pipeline
 <referenced_message type="reply" author="PreviousUser">
 I tried implementing this but got stuck on the async handling
 </referenced_message>
-&lt;/contextual_references&gt;
-</incoming_message>
-<instruction>
-RESPOND ONLY to ImplementerUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless ImplementerUser explicitly asks about the past. Do not simulate other users. Stop after your response.
-</instruction>
-</current_turn>"
+&lt;/contextual_references&gt;"
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 2`] = `
@@ -228,36 +212,22 @@ A flowchart showing the message processing pipeline"
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with forwarded/referenced message context 1`] = `
-"<current_turn>
-<incoming_message sender="ForwardUser">
-What do you think about this?
+"What do you think about this?
 
 **Forwarded from Alice:**
 This is the original message that was forwarded. It contains important context about the discussion.
 
-**Attached Image:** [Screenshot of a code snippet showing a TypeScript interface]
-</incoming_message>
-<instruction>
-RESPOND ONLY to ForwardUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless ForwardUser explicitly asks about the past. Do not simulate other users. Stop after your response.
-</instruction>
-</current_turn>"
+**Attached Image:** [Screenshot of a code snippet showing a TypeScript interface]"
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with forwarded/referenced message context 2`] = `"What do you think about this?"`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with image attachments 1`] = `
-"<current_turn>
-<incoming_message sender="DebugUser">
-Can you explain what went wrong here?
+"Can you explain what went wrong here?
 
 A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.
 
-A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker".
-</incoming_message>
-<instruction>
-RESPOND ONLY to DebugUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless DebugUser explicitly asks about the past. Do not simulate other users. Stop after your response.
-</instruction>
-</current_turn>"
+A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker"."
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with image attachments 2`] = `
@@ -268,16 +238,7 @@ A screenshot showing an error message in the Discord bot. The error says "Rate l
 A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker"."
 `;
 
-exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 1`] = `
-"<current_turn>
-<incoming_message sender="VoiceUser">
-Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.
-</incoming_message>
-<instruction>
-RESPOND ONLY to VoiceUser's message above. The <memory_archive> section (if present) is background context only - do not reply to topics in memory unless VoiceUser explicitly asks about the past. Do not simulate other users. Stop after your response.
-</instruction>
-</current_turn>"
-`;
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 1`] = `"Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 2`] = `"Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."`;
 

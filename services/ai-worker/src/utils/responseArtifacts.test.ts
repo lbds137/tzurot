@@ -232,13 +232,13 @@ describe('stripResponseArtifacts', () => {
       expect(cleaned).not.toContain('</message>');
     });
 
-    it('should strip </current_turn> learned from prompt structure', () => {
-      // LLM sees <current_turn>...</current_turn> wrapper in prompts and learns to append the closing tag
+    it('should strip </current_turn> learned from training data', () => {
+      // LLM may have learned XML closing patterns from training data
       const content = '*waves enthusiastically* Hey there!</current_turn>';
       expect(stripResponseArtifacts(content, 'Emily')).toBe('*waves enthusiastically* Hey there!');
     });
 
-    it('should clean mixed artifacts from prompt structure', () => {
+    it('should clean mixed artifacts from training data', () => {
       // LLM might combine multiple learned artifacts
       const rawResponse = 'Emily: How are you today?</current_turn>';
       const cleaned = stripResponseArtifacts(rawResponse, 'Emily');

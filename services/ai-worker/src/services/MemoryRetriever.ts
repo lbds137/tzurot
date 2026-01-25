@@ -21,7 +21,7 @@ import type {
   ConversationContext,
   ParticipantInfo,
 } from './ConversationalRAGService.js';
-import { PersonaResolver } from './resolvers/index.js';
+import { PersonaResolver, type PersonaPromptData } from './resolvers/index.js';
 
 const logger = createLogger('MemoryRetriever');
 
@@ -279,8 +279,8 @@ export class MemoryRetriever {
         );
       }
 
-      const content = await this.getPersonaContent(resolvedPersonaId);
-      if (content !== null && content.length > 0) {
+      const personaData = await this.getPersonaData(resolvedPersonaId);
+      if (personaData !== null && personaData.content.length > 0) {
         // Include guild info:
         // - For active speaker: use activePersonaGuildInfo (from triggering message)
         // - For other participants: look up in participantGuildInfo (from extended context)
@@ -293,7 +293,9 @@ export class MemoryRetriever {
         }
 
         personaMap.set(participant.personaName, {
-          content,
+          preferredName: personaData.preferredName ?? undefined,
+          pronouns: personaData.pronouns ?? undefined,
+          content: personaData.content,
           isActive: participant.isActive,
           personaId: resolvedPersonaId, // Use resolved UUID for ID binding
           guildInfo,
@@ -301,7 +303,7 @@ export class MemoryRetriever {
         resolvedIdToName.set(resolvedPersonaId, participant.personaName);
 
         logger.debug(
-          `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
+          `[MemoryRetriever] Loaded persona ${participant.personaName} (${resolvedPersonaId.substring(0, 8)}...): ${personaData.content.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW)}...`
         );
       } else {
         logger.warn(
@@ -315,7 +317,16 @@ export class MemoryRetriever {
   }
 
   /**
-   * Get persona content by personaId
+   * Get structured persona data by personaId
+   * Delegates to PersonaResolver for consistent data lookup
+   */
+  async getPersonaData(personaId: string): Promise<PersonaPromptData | null> {
+    return this.personaResolver.getPersonaForPrompt(personaId);
+  }
+
+  /**
+   * Get persona content by personaId (legacy - flattened string)
+   * @deprecated Use getPersonaData for structured data
    * Delegates to PersonaResolver for consistent content formatting
    */
   async getPersonaContent(personaId: string): Promise<string | null> {

@@ -32,6 +32,7 @@ export interface ConversationMessage {
   personaName?: string; // The persona's name for display in context
   discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
   discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
+  isForwarded?: boolean; // Whether this message was forwarded from another channel
   messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
 }
 

@@ -50,6 +50,19 @@ export interface PersonaMemoryInfo {
 }
 
 /**
+ * Structured persona data for prompt inclusion
+ * Each field is kept separate for proper XML formatting
+ */
+export interface PersonaPromptData {
+  /** User's preferred display name */
+  preferredName: string | null;
+  /** User's pronouns */
+  pronouns: string | null;
+  /** User's persona content/about text */
+  content: string;
+}
+
+/**
  * System default when no persona exists (should rarely happen)
  */
 const SYSTEM_DEFAULT_PERSONA: ResolvedPersona = {
@@ -290,12 +303,47 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   }
 
   /**
-   * Get persona content formatted for prompt injection
+   * Get persona content formatted for prompt injection (legacy - flattened string)
+   *
+   * @deprecated Use getPersonaForPrompt for structured data
    *
    * Accepts either a UUID personaId or a 'discord:XXXX' format ID.
    * For discord: format, returns null (caller should resolve to UUID first).
    */
   async getPersonaContentForPrompt(personaId: string): Promise<string | null> {
+    const data = await this.getPersonaForPrompt(personaId);
+    if (data === null) {
+      return null;
+    }
+
+    // Build persona context with structured fields (legacy format)
+    const parts: string[] = [];
+
+    if (data.preferredName !== null && data.preferredName.length > 0) {
+      parts.push(`Name: ${data.preferredName}`);
+    }
+
+    if (data.pronouns !== null && data.pronouns.length > 0) {
+      parts.push(`Pronouns: ${data.pronouns}`);
+    }
+
+    if (data.content.length > 0) {
+      parts.push(data.content);
+    }
+
+    return parts.length > 0 ? parts.join('\n') : null;
+  }
+
+  /**
+   * Get structured persona data for prompt inclusion
+   *
+   * Returns separate fields for preferredName, pronouns, and content,
+   * allowing callers to format them as proper XML elements.
+   *
+   * Accepts either a UUID personaId or a 'discord:XXXX' format ID.
+   * For discord: format, returns null (caller should resolve to UUID first).
+   */
+  async getPersonaForPrompt(personaId: string): Promise<PersonaPromptData | null> {
     // Extended context participants use 'discord:XXXX' format, not UUIDs
     // These need to be resolved by the caller using resolveDiscordIdToPersona first
     if (!isValidUUID(personaId)) {
@@ -317,24 +365,13 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
         return null;
       }
 
-      // Build persona context with structured fields
-      const parts: string[] = [];
-
-      if (persona.preferredName !== null && persona.preferredName.length > 0) {
-        parts.push(`Name: ${persona.preferredName}`);
-      }
-
-      if (persona.pronouns !== null && persona.pronouns.length > 0) {
-        parts.push(`Pronouns: ${persona.pronouns}`);
-      }
-
-      if (persona.content !== null && persona.content.length > 0) {
-        parts.push(persona.content);
-      }
-
-      return parts.length > 0 ? parts.join('\n') : null;
+      return {
+        preferredName: persona.preferredName,
+        pronouns: persona.pronouns,
+        content: persona.content ?? '',
+      };
     } catch (error) {
-      logger.error({ err: error, personaId }, 'Failed to get persona content');
+      logger.error({ err: error, personaId }, 'Failed to get persona data');
       return null;
     }
   }

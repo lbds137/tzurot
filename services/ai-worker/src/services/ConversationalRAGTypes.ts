@@ -162,8 +162,16 @@ export interface ProcessedInputs {
 /**
  * Participant info for prompt formatting
  * Keyed by personaName for display, includes personaId for ID binding
+ *
+ * Note: preferredName, pronouns, and content are structured fields from the persona.
+ * The ParticipantFormatter renders these as separate XML elements for clear LLM parsing.
  */
 export interface ParticipantInfo {
+  /** User's preferred display name (from persona) */
+  preferredName?: string;
+  /** User's pronouns (from persona) */
+  pronouns?: string;
+  /** User's persona content/about text */
   content: string;
   isActive: boolean;
   /** Persona ID for linking to chat_log messages via from_id attribute */

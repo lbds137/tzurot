@@ -6,6 +6,7 @@
  *
  * Key features:
  * - <participant id="..."> tags with unique personaId for ID binding
+ * - Structured fields: <name>, <pronouns> as separate XML elements
  * - CDATA wrapping for user-generated content (prevents XML injection)
  * - source="user_input" attribution to clarify first-person content origin
  * - Optional guild info (roles, color, join date) for Discord server context
@@ -25,8 +26,9 @@ import type { ParticipantInfo } from '../ConversationalRAGService.js';
  *   <instruction>These people are in this conversation. Match from_id in chat_log to participant IDs.</instruction>
  *   <participant id="persona-uuid-123" active="true">
  *     <name>Lila</name>
+ *     <pronouns>she/her, they/them</pronouns>
  *     <guild_info roles="Admin, Developer" color="#FF00FF" joined="2023-05-15"/>
- *     <about source="user_input"><![CDATA[I am a transgender demon-angel...]]></about>
+ *     <about source="user_input"><![CDATA[A transgender demon-angel in human form...]]></about>
  *   </participant>
  * </participants>
  * ```
@@ -54,8 +56,14 @@ export function formatParticipantsContext(
     const activeAttr = info.isActive ? ' active="true"' : '';
     parts.push(`<participant id="${escapeXml(info.personaId)}"${activeAttr}>`);
 
-    // Name element
-    parts.push(`<name>${escapeXml(personaName)}</name>`);
+    // Name element - use preferredName if available, otherwise fall back to personaName (map key)
+    const displayName = info.preferredName ?? personaName;
+    parts.push(`<name>${escapeXml(displayName)}</name>`);
+
+    // Pronouns element (if available)
+    if (info.pronouns !== undefined && info.pronouns.length > 0) {
+      parts.push(`<pronouns>${escapeXml(info.pronouns)}</pronouns>`);
+    }
 
     // Guild info (if available) - compact attribute format
     if (info.guildInfo) {
