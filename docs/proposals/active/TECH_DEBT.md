@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25 (added context window cutoff mismatch investigation)
+> Last updated: 2026-01-25 (elevated Zod schema/interface mismatch to CRITICAL)
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -70,25 +70,46 @@ When a user replies to a message that's old enough to be outside one boundary bu
 
 ---
 
-### Audit Zod `.optional()` Usage (Bug-Hiding Pattern)
+### 🚨 Zod Schema/TypeScript Interface Mismatch (CRITICAL - Multiple Incidents)
 
-**Problem**: Excessive use of `.optional()` in Zod schemas silently accepts missing fields that should exist. This caused the avatar cache-busting bug: `avatarUpdatedAt` was defined in the schema but never populated from the database, and the optional marker let it pass silently.
+**Problem**: Zod schemas and TypeScript interfaces get out of sync. By default, Zod **strips fields not in the schema** during parsing. When we add fields to TS interfaces but forget the Zod schema, data silently disappears at validation boundaries.
 
-**Impact**: Bugs hide until runtime - the code checks for a field that's always undefined, condition fails silently, feature never works.
+**Incidents**:
 
-**Solution**:
+- **2026-01-25**: `personalityId` and `personalityName` added to `JobContext.conversationHistory` TS interface but not `apiConversationMessageSchema`. Multi-AI attribution broken for WEEKS because fields were stripped during validation.
+- **2026-01-24**: `avatarUpdatedAt` defined in schema but `.optional()` let it pass when never populated from DB.
+- Multiple similar incidents in the past.
 
-1. Audit ALL `.optional()` uses in `schemas.ts` and other Zod schemas
-2. For each optional field, verify:
-   - Is this field actually optional in the data source (DB, API)?
-   - Is there a default value that should be used instead (`.default()`)?
-   - Should this throw if missing (remove `.optional()`)?
-3. Add tests verifying schema fields match database columns
-4. Consider `.nullish()` only when field can be explicitly null vs missing
+**Impact**: Features appear to work in unit tests (which may not go through Zod) but fail in production when data crosses service boundaries. Debugging is extremely difficult because the fields simply vanish.
 
-**Files to audit**: `packages/common-types/src/types/schemas.ts`, all route request schemas
+**Solution** (HIGH PRIORITY):
 
-**Source**: Avatar cache-busting bug - PR #XXX (2026-01-24)
+1. **Enforce schema-type sync with tests**:
+
+   ```typescript
+   // Contract test: every field in TS interface must be in Zod schema
+   it('apiConversationMessageSchema matches JobContext.conversationHistory type', () => {
+     const schemaKeys = Object.keys(apiConversationMessageSchema.shape);
+     const interfaceKeys = ['id', 'role', 'content', ...]; // from interface
+     expect(schemaKeys.sort()).toEqual(interfaceKeys.sort());
+   });
+   ```
+
+2. **Use `.passthrough()` or `.strict()` during development**:
+   - `.passthrough()` - keeps unknown fields (safer)
+   - `.strict()` - throws on unknown fields (catches sync issues early)
+   - Change to neither for production (current default strips)
+
+3. **Audit all schema/interface pairs**:
+   - `apiConversationMessageSchema` ↔ `JobContext.conversationHistory`
+   - `generateRequestSchema` ↔ `GenerateRequest`
+   - All route request/response schemas
+
+4. **Consider code generation**: Use a tool to generate TS types from Zod schemas (single source of truth) instead of maintaining both manually.
+
+**Files to audit**: `packages/common-types/src/types/schemas.ts`, `jobs.ts`, all route schemas
+
+**Source**: Multi-AI attribution bug (2026-01-25), Avatar bug (2026-01-24)
 
 ---
 
