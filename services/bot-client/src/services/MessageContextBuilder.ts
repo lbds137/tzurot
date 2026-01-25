@@ -558,6 +558,7 @@ export class MessageContextBuilder {
     // Include messageMetadata so referenced messages can be formatted at prompt time
     // Include tokenCount for accurate token budget calculations (avoids chars/4 fallback)
     // Include discordUsername for disambiguation when persona name matches personality name
+    // Include discordMessageId for quote deduplication (prevents duplicating quoted content in history)
     const conversationHistory = history.map(msg => ({
       id: msg.id,
       role: msg.role,
@@ -567,6 +568,7 @@ export class MessageContextBuilder {
       personaId: msg.personaId,
       personaName: msg.personaName,
       discordUsername: msg.discordUsername, // For collision detection in prompt building
+      discordMessageId: msg.discordMessageId, // For quote deduplication in prompt building
       // AI personality info for multi-AI channel attribution
       // Allows correct attribution when multiple AI personalities respond in the same channel
       personalityId: msg.personalityId,

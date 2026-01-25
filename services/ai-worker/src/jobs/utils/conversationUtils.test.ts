@@ -669,13 +669,16 @@ describe('Conversation Utilities', () => {
       const history: RawHistoryEntry[] = [
         // First message is in history with the same Discord ID as the quoted message
         {
-          id: quotedMessageId,
+          id: 'internal-uuid-1',
           role: 'user',
           content: 'Original message that was already shown',
           personaName: 'Bob',
+          // discordMessageId array matches the quoted message's Discord ID
+          discordMessageId: [quotedMessageId],
         },
         // Second message is a reply that quotes the first message
         {
+          id: 'internal-uuid-2',
           role: 'user',
           content: 'Replying to your earlier message',
           personaName: 'Alice',
@@ -731,15 +734,18 @@ describe('Conversation Utilities', () => {
 
     it('should partially deduplicate when some quoted messages are in history', () => {
       const history: RawHistoryEntry[] = [
-        // First message - in history
+        // First message - in history with Discord ID matching the quoted message
         {
-          id: 'msg-in-history',
+          id: 'internal-uuid-1',
           role: 'user',
           content: 'Already shown message',
           personaName: 'Bob',
+          // discordMessageId array matches one of the quoted message's Discord IDs
+          discordMessageId: ['msg-in-history'],
         },
         // Reply that quotes both an in-history message and an out-of-history message
         {
+          id: 'internal-uuid-2',
           role: 'user',
           content: 'Replying to both',
           personaName: 'Alice',
