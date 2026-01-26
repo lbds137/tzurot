@@ -39,6 +39,55 @@ Technical debt prioritized by ROI: bug prevention, maintainability, and scaling 
 
 **Source**: Production bugs from extended context inconsistencies (2026-01-25, 2026-01-26)
 
+### LTM Summarization (Shapes.inc Style)
+
+**Problem**: Current approach stores verbatim conversation turns in the database. With extended context becoming the default, this is redundant - recent messages are already fetched from Discord. Storing verbatim turns wastes storage and provides no additional value.
+
+**Solution**: Replace verbatim storage with LLM-generated summaries (shapes.inc approach):
+
+1. **Configurable grouping** - Summarize after N messages (5, 10, 50) or time window (1h, 4h, 24h)
+2. **Separate LLM call** - Use a fast/cheap model for summarization (not the personality's model)
+3. **Store summaries as LTM** - These become the long-term memory, not raw turns
+4. **Extended context provides recency** - Discord fetch handles recent verbatim context
+
+**Benefits**:
+
+- Reduced storage (summaries vs verbatim)
+- Better context compression for LTM retrieval
+- Cleaner separation: Discord = recent, DB = summarized history
+- Aligns with industry practice (shapes.inc, Character.AI)
+
+**Dependencies**: Requires Extended Context Pipeline Simplification first
+
+**Source**: Architecture discussion (2026-01-26)
+
+### Memories Table Cleanup & Migration
+
+**Problem**: The `memories` table has two different formats coexisting:
+
+1. **Shapes.inc imports** - Summarized memories from the old system
+2. **Tzurot v3 memories** - Verbatim conversation turns (redundant with extended context)
+
+These need to be unified into a single, optimized format.
+
+**Solution**:
+
+1. **Design unified format** - Draw inspiration from both sources for optimal structure
+2. **One-time migration** - Convert existing tzurot-v3 memories to new format
+3. **Summarization pass** - Run existing verbatim memories through the summarizer to compress them (matching what new memories will produce)
+4. **Schema update** - May require migration to adjust columns/indexes
+
+**Considerations**:
+
+- Preserve semantic meaning during summarization
+- Handle edge cases (very short memories, already-summarized content)
+- Batch processing for large memory sets
+- Rollback strategy if summarization quality is poor
+
+**Dependencies**: Requires LTM Summarization implementation first
+
+**Source**: Architecture discussion (2026-01-26)
+
 ### Admin Debug Doesn't Work with Failures
 
 **Problem**: `/admin debug` can't show diagnostics for failed jobs. The diagnostic flight recorder only captures successful generations.
