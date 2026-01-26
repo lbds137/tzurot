@@ -170,6 +170,40 @@ export class MessageContextBuilder {
       return 0;
     }
 
+    // Collect unique discordIds that need resolution (avoid N+1 queries)
+    const uniqueDiscordIds = new Set<string>();
+    for (const msg of messages) {
+      if (!msg.personaId?.startsWith('discord:')) {
+        continue;
+      }
+      const discordId = msg.personaId.slice(8);
+      if (userMap.has(discordId)) {
+        uniqueDiscordIds.add(discordId);
+      }
+    }
+
+    if (uniqueDiscordIds.size === 0) {
+      return 0;
+    }
+
+    // Batch resolve all unique discordIds in parallel
+    const resolvedMap = new Map<
+      string,
+      { personaId: string; preferredName: string | null | undefined }
+    >();
+    await Promise.all(
+      Array.from(uniqueDiscordIds).map(async discordId => {
+        const resolved = await this.personaResolver.resolve(discordId, personalityId);
+        if (resolved.config.personaId.length > 0) {
+          resolvedMap.set(discordId, {
+            personaId: resolved.config.personaId,
+            preferredName: resolved.config.preferredName,
+          });
+        }
+      })
+    );
+
+    // Update messages using the resolved map
     let resolvedCount = 0;
     const guildInfoRemap = new Map<string, string>(); // discord:XXXX -> resolved UUID
 
@@ -178,22 +212,18 @@ export class MessageContextBuilder {
         continue;
       }
       const discordId = msg.personaId.slice(8);
-      if (!userMap.has(discordId)) {
-        continue;
-      }
-      // Resolve to actual persona ID using PersonaResolver
-      const resolved = await this.personaResolver.resolve(discordId, personalityId);
-      if (resolved.config.personaId.length === 0) {
+      const resolved = resolvedMap.get(discordId);
+      if (resolved === undefined) {
         continue;
       }
       const oldPersonaId = msg.personaId;
-      msg.personaId = resolved.config.personaId;
+      msg.personaId = resolved.personaId;
       // Update personaName to match resolved persona (if available)
-      if (resolved.config.preferredName !== undefined && resolved.config.preferredName !== null) {
-        msg.personaName = resolved.config.preferredName;
+      if (resolved.preferredName !== undefined && resolved.preferredName !== null) {
+        msg.personaName = resolved.preferredName;
       }
       // Track mapping for participantGuildInfo remap
-      guildInfoRemap.set(oldPersonaId, resolved.config.personaId);
+      guildInfoRemap.set(oldPersonaId, resolved.personaId);
       resolvedCount++;
     }
 
