@@ -1,6 +1,6 @@
 /**
- * Tests for Profile Default Handler
- * Tests gateway API calls for setting default profile.
+ * Tests for Persona Default Handler
+ * Tests gateway API calls for setting default persona.
  *
  * Note: This command uses editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
@@ -42,7 +42,7 @@ describe('handleSetDefaultPersona', () => {
       interaction: {
         options: {
           getString: (name: string) => {
-            if (name === 'profile') return personaId;
+            if (name === 'persona') return personaId;
             return null;
           },
         },
@@ -96,7 +96,7 @@ describe('handleSetDefaultPersona', () => {
     });
   });
 
-  it('should error if profile not found', async () => {
+  it('should error if persona not found', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       error: 'Persona not found',
@@ -105,7 +105,7 @@ describe('handleSetDefaultPersona', () => {
     await handleSetDefaultPersona(createMockContext('nonexistent-persona'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile not found'),
+      content: expect.stringContaining('Persona not found'),
     });
   });
 

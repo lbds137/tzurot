@@ -37,7 +37,8 @@ import {
   unflattenPersonaData,
 } from './config.js';
 import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './api.js';
-import { PersonaCustomIds } from '../../utils/customIds.js';
+import { PersonaCustomIds, type PersonaBrowseSortType } from '../../utils/customIds.js';
+import { buildBrowseResponse } from './browse.js';
 
 const logger = createLogger('persona-dashboard');
 
@@ -459,7 +460,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
       await handleCloseButton(interaction, entityId);
       break;
     case 'back':
-      await handleBackButton(interaction);
+      await handleBackButton(interaction, entityId);
       break;
     case 'refresh':
       await handleRefreshButton(interaction, entityId);
@@ -478,17 +479,61 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 
 /**
  * Handle back button - return to browse list
- *
- * NOTE: Currently shows expired message since browse context isn't stored.
- * This is a known limitation - see BACKLOG item for slash command UX improvements.
  */
-async function handleBackButton(interaction: ButtonInteraction): Promise<void> {
-  // Without browse context stored in the session, we can't restore the exact browse state.
-  // Show a helpful message directing the user to re-run the command.
-  await interaction.reply({
-    content: '⏰ Session expired. Please run `/persona browse` again to return to the list.',
-    flags: MessageFlags.Ephemeral,
-  });
+async function handleBackButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
+  await interaction.deferUpdate();
+
+  const sessionManager = getSessionManager();
+  const session = await sessionManager.get<FlattenedPersonaData>(
+    interaction.user.id,
+    'persona',
+    entityId
+  );
+
+  const browseContext = session?.data.browseContext;
+  if (!browseContext) {
+    // Session expired or no browse context - show expired message
+    await interaction.editReply({
+      content: '⏰ Session expired. Please run `/persona browse` again.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  try {
+    const result = await buildBrowseResponse(
+      interaction.user.id,
+      browseContext.page,
+      browseContext.sort as PersonaBrowseSortType
+    );
+
+    if (result === null) {
+      await interaction.editReply({
+        content: '❌ Failed to load browse list. Please try again.',
+        embeds: [],
+        components: [],
+      });
+      return;
+    }
+
+    // Clean up the dashboard session
+    await sessionManager.delete(interaction.user.id, 'persona', entityId);
+
+    await interaction.editReply({
+      embeds: [result.embed],
+      components: result.components,
+    });
+
+    logger.info({ userId: interaction.user.id }, '[Persona] Returned to browse from dashboard');
+  } catch (error) {
+    logger.error({ err: error }, '[Persona] Failed to return to browse');
+    await interaction.editReply({
+      content: '❌ Failed to load browse list. Please try again.',
+      embeds: [],
+      components: [],
+    });
+  }
 }
 
 /** Dashboard-specific actions that this handler manages */

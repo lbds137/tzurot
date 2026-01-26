@@ -4,6 +4,8 @@
  * Type definitions for persona data used in the dashboard pattern.
  */
 
+import type { BrowseContext } from '../../utils/dashboard/types.js';
+
 /**
  * API response type for persona list
  */
@@ -29,12 +31,19 @@ export interface PersonaDetails {
 }
 
 /**
+ * Browse context specific to persona browse
+ */
+export interface PersonaBrowseContext extends BrowseContext {
+  sort: 'name' | 'date';
+}
+
+/**
  * Flattened persona data for dashboard display
  * All fields are strings for form handling
- * Index signature allows usage with generic Record<string, unknown> types
+ * Index signature uses `unknown` for Record<string, unknown> compatibility
  */
 export interface FlattenedPersonaData {
-  [key: string]: string | boolean;
+  [key: string]: unknown;
   id: string;
   name: string;
   description: string;
@@ -42,6 +51,8 @@ export interface FlattenedPersonaData {
   pronouns: string;
   content: string;
   isDefault: boolean;
+  /** Browse context when opened from browse (for back navigation) */
+  browseContext?: PersonaBrowseContext;
 }
 
 /**

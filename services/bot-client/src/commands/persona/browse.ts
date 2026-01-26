@@ -310,6 +310,11 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   const personaId = interaction.values[0];
   const userId = interaction.user.id;
 
+  // Parse browse context from customId (contains page and sort)
+  const parsed = PersonaCustomIds.parse(interaction.customId);
+  const page = parsed?.page ?? 0;
+  const sort = parsed?.sort ?? DEFAULT_SORT;
+
   await interaction.deferUpdate();
 
   try {
@@ -328,6 +333,14 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
     // Flatten for dashboard
     const flattenedData = flattenPersonaData(persona);
 
+    // Add browse context for back navigation
+    flattenedData.browseContext = {
+      source: 'browse',
+      page,
+      filter: 'all', // Persona browse doesn't have filters
+      sort,
+    };
+
     // Build dashboard embed and components
     const embed = buildDashboardEmbed(PERSONA_DASHBOARD_CONFIG, flattenedData);
     const components = buildDashboardComponents(
@@ -344,7 +357,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
     // Update the message with the dashboard
     await interaction.editReply({ embeds: [embed], components });
 
-    // Create session for tracking - include browse context for back navigation
+    // Create session for tracking - includes browse context for back navigation
     const sessionManager = getSessionManager();
     await sessionManager.set<FlattenedPersonaData>({
       userId,
@@ -383,4 +396,26 @@ export function isPersonaBrowseInteraction(customId: string): boolean {
 export function isPersonaBrowseSelectInteraction(customId: string): boolean {
   const parsed = PersonaCustomIds.parse(customId);
   return parsed?.action === 'browse-select';
+}
+
+/**
+ * Build browse response for back navigation
+ * Fetches personas and builds the embed/components for a given page/sort
+ */
+export async function buildBrowseResponse(
+  userId: string,
+  page: number,
+  sort: PersonaBrowseSortType
+): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
+  const result = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
+
+  if (!result.ok) {
+    logger.warn(
+      { userId, error: result.error },
+      '[Persona] Failed to fetch personas for back navigation'
+    );
+    return null;
+  }
+
+  return buildBrowsePage(result.data.personas, page, sort);
 }
