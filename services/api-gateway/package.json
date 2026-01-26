@@ -20,24 +20,24 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/adapter-pg": "^7.3.0",
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "bullmq": "^5.66.5",
+    "bullmq": "^5.67.1",
     "express": "^5.2.1",
     "http-status-codes": "^2.3.0",
     "ioredis": "^5.9.2",
     "openai": "^6.16.0",
-    "pg": "^8.17.1",
-    "pino": "^10.2.1",
+    "pg": "^8.17.2",
+    "pino": "^10.3.0",
     "pino-http": "^11.0.0",
     "redis": "^5.10.0",
     "sharp": "^0.34.5",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
-    "@types/node": "^25.0.9",
+    "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",
     "@types/supertest": "^6.0.3",
     "supertest": "^7.2.2"
