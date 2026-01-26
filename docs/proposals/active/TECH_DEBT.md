@@ -22,16 +22,6 @@ Technical debt prioritized by ROI: bug prevention, maintainability, and scaling 
 
 ## Priority 2: MEDIUM
 
-### Shapes.inc User Mentions Not Resolved in Personality Fields ✅ FIXED
-
-**Problem**: `@[username](user:uuid)` format in `conversationalExamples`, `characterInfo`, and other personality text fields was not converted to readable names. AI saw raw shapes.inc format.
-
-**Root cause**: `UserReferenceResolver` only processed `personality.systemPrompt`, not other personality fields.
-
-**Solution implemented**: Added `resolvePersonalityReferences()` method that processes all 10 text fields in parallel with deduplication. `ConversationalRAGService` now calls this instead of processing only `systemPrompt`.
-
-**Fixed in**: 2026-01-25 (to be released in beta.51)
-
 ### Thinking Tag Leaking (Needs Investigation)
 
 **Problem**: `<thinking>` tags from reasoning models occasionally appear in AI output when they should be stripped.
@@ -226,12 +216,6 @@ Add `/admin debug recent` with personality/user/channel filters. API already sup
 - `conversationUtils.ts` → Extract `XmlFormatter.ts` (message XML formatting), `LengthCalculator.ts` (budget estimation)
 
 **Source**: Extended context consistency fixes (2026-01-25)
-
-#### Incomplete XML Prompt Migration
-
-Some prompt paths still use markdown. Audit `PromptBuilder.ts` and `MessageContextBuilder.ts`.
-
-**Source**: Production observation (2026-01-13)
 
 ---
 
