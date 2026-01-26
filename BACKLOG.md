@@ -78,8 +78,8 @@ Inconsistent patterns across slash commands. Need comprehensive review and stand
   - `buildPaginationButtons()` shared pagination button builder
   - Common constants (`ITEMS_PER_PAGE`, `MAX_SELECT_LABEL_LENGTH`)
 - [ ] Reusable browse context pattern - store page/sort/filter state for "Back to Browse" button
-  - Currently persona browse shows "session expired" because context isn't stored
-  - Implement pattern similar to preset's `browseContext` in session data
+  - Persona browse now stores context (fixed), but pattern should be extracted as reusable utility
+  - Implement generic pattern based on persona's `browseContext` in session data
 
 **Dashboard/Button Interaction Testing**
 
@@ -90,6 +90,14 @@ Inconsistent patterns across slash commands. Need comprehensive review and stand
   - Each customId action has a handler
   - Non-dashboard actions don't match dashboard checks
   - Button routing works end-to-end
+
+**Command Definition Validation**
+
+- [ ] Add tests that verify handler option names match command definitions
+  - Bug found: `/persona default` handler used `getString('profile', true)` but command option is named `'persona'`
+  - This caused `CommandInteractionOptionNotFound` error at runtime
+- [ ] Consider generating types from command definitions to catch mismatches at compile time
+- [ ] Add static analysis or test that scans handlers for `getString`/`getInteger`/etc calls and validates option names exist in command builder
 
 **Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Recent bugs exposed that interaction routing has gaps in test coverage that should be addressed systematically.
 
