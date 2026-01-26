@@ -99,6 +99,14 @@ Inconsistent patterns across slash commands. Need comprehensive review and stand
 - [ ] Consider generating types from command definitions to catch mismatches at compile time
 - [ ] Add static analysis or test that scans handlers for `getString`/`getInteger`/etc calls and validates option names exist in command builder
 
+**Autocomplete UX**
+
+- [ ] Review and document timezone autocomplete ordering logic
+  - Current ordering is unclear/confusing to users
+  - Consider: alphabetical, by UTC offset, by popularity, or user's recent selections first
+- [ ] Establish standard autocomplete ordering patterns for different data types
+  - Timezones, personas, characters, presets, etc.
+
 **Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Recent bugs exposed that interaction routing has gaps in test coverage that should be addressed systematically.
 
 ---
