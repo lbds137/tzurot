@@ -458,6 +458,9 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
     case 'close':
       await handleCloseButton(interaction, entityId);
       break;
+    case 'back':
+      await handleBackButton(interaction);
+      break;
     case 'refresh':
       await handleRefreshButton(interaction, entityId);
       break;
@@ -474,8 +477,48 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 }
 
 /**
- * Check if interaction is a persona dashboard interaction
+ * Handle back button - return to browse list
+ *
+ * NOTE: Currently shows expired message since browse context isn't stored.
+ * This is a known limitation - see BACKLOG item for slash command UX improvements.
+ */
+async function handleBackButton(interaction: ButtonInteraction): Promise<void> {
+  // Without browse context stored in the session, we can't restore the exact browse state.
+  // Show a helpful message directing the user to re-run the command.
+  await interaction.reply({
+    content: '⏰ Session expired. Please run `/persona browse` again to return to the list.',
+    flags: MessageFlags.Ephemeral,
+  });
+}
+
+/** Dashboard-specific actions that this handler manages */
+const DASHBOARD_ACTIONS = new Set([
+  'menu',
+  'modal',
+  'close',
+  'refresh',
+  'delete',
+  'confirm-delete',
+  'cancel-delete',
+  'back',
+]);
+
+/**
+ * Check if interaction is a persona dashboard interaction.
+ * Only matches dashboard-specific actions, not all persona:: customIds.
  */
 export function isPersonaDashboardInteraction(customId: string): boolean {
-  return isDashboardInteraction(customId, 'persona');
+  // Must start with persona::
+  if (!isDashboardInteraction(customId, 'persona')) {
+    return false;
+  }
+
+  // Parse to check the action
+  const parsed = PersonaCustomIds.parse(customId);
+  if (parsed === null) {
+    return false;
+  }
+
+  // Only return true for dashboard-specific actions
+  return DASHBOARD_ACTIONS.has(parsed.action);
 }

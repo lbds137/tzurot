@@ -32,13 +32,23 @@ _Cut from BACKLOG, paste here when starting work._
 - [x] Fixed help command categories (Me→Persona, Wallet→Memory, added Settings)
 - [x] Moved override handlers to subdirectory (`persona/override/set.ts`, `persona/override/clear.ts`)
 - [x] Added missing persona tests (`edit.test.ts`, `browse.test.ts`, `dashboard.test.ts`, `autocomplete.test.ts`)
+- [x] PR merged to develop (2026-01-26)
+- [x] Consolidated 6 dependabot PRs into single commit
+
+**Bug fixes during manual testing:**
+
+- [x] Fixed logger name: `me-view` → `persona-view`, updated all `[Me]` → `[Persona]` log messages
+- [x] Fixed `isPersonaDashboardInteraction` to only match dashboard actions (menu, modal, close, etc.)
+  - Bug: Was matching ALL `persona::*` customIds, causing expand/back buttons to silently fail
+- [x] Added `back` button handler (shows session expired message - proper browse context in backlog)
+- [x] Added tests to verify non-dashboard actions (expand, browse, create) don't match dashboard check
 
 **New commands:**
 
 - `/persona view|edit|create|browse|default|share-ltm` + `/persona override set|clear`
 - `/settings timezone get|set` + `/settings apikey set|browse|remove|test` + `/settings preset browse|set|reset|default|clear-default`
 
-**Ready for PR** - All phases complete, 2887 tests pass.
+**Status**: PR merged, bug fixes applied. Ready to commit fixes.
 
 ---
 

@@ -429,6 +429,21 @@ describe('isPersonaDashboardInteraction', () => {
     expect(
       isPersonaDashboardInteraction('persona::modal::b2c3d4e5-f6a7-8901-bcde-f12345678901::section')
     ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction('persona::refresh::b2c3d4e5-f6a7-8901-bcde-f12345678901')
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction('persona::delete::b2c3d4e5-f6a7-8901-bcde-f12345678901')
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction('persona::confirm-delete::b2c3d4e5-f6a7-8901-bcde-f12345678901')
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction('persona::cancel-delete::b2c3d4e5-f6a7-8901-bcde-f12345678901')
+    ).toBe(true);
+    expect(
+      isPersonaDashboardInteraction('persona::back::b2c3d4e5-f6a7-8901-bcde-f12345678901')
+    ).toBe(true);
   });
 
   it('should return false for non-persona interactions', () => {
@@ -438,5 +453,18 @@ describe('isPersonaDashboardInteraction', () => {
     expect(
       isPersonaDashboardInteraction('other::close::b2c3d4e5-f6a7-8901-bcde-f12345678901')
     ).toBe(false);
+  });
+
+  it('should return false for non-dashboard persona actions', () => {
+    // These should NOT match as dashboard interactions - they're handled separately
+    expect(
+      isPersonaDashboardInteraction(
+        'persona::expand::b2c3d4e5-f6a7-8901-bcde-f12345678901::content'
+      )
+    ).toBe(false);
+    expect(isPersonaDashboardInteraction('persona::browse::0::name')).toBe(false);
+    expect(isPersonaDashboardInteraction('persona::browse-select::0::name')).toBe(false);
+    expect(isPersonaDashboardInteraction('persona::create')).toBe(false);
+    expect(isPersonaDashboardInteraction('persona::override-create::personality-id')).toBe(false);
   });
 });
