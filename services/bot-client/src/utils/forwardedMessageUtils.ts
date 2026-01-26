@@ -52,7 +52,8 @@ export interface ForwardedContentResult {
  * @param message - Discord message to check
  * @returns true if the message is a forwarded message
  */
-export function isForwardedMessage(message: Message): boolean {
+export function isForwardedMessage(message: Message | null | undefined): boolean {
+  if (!message) {return false;}
   return message.reference?.type === MessageReferenceType.Forward;
 }
 
@@ -65,7 +66,8 @@ export function isForwardedMessage(message: Message): boolean {
  * @param message - Discord message to check
  * @returns true if the message has forwarded snapshots
  */
-export function hasForwardedSnapshots(message: Message): boolean {
+export function hasForwardedSnapshots(message: Message | null | undefined): boolean {
+  if (!message) {return false;}
   return (
     isForwardedMessage(message) &&
     message.messageSnapshots !== undefined &&
