@@ -706,6 +706,7 @@ export class MessageContextBuilder {
       content: msg.content,
       tokenCount: msg.tokenCount, // Pre-computed with tiktoken at message save time
       createdAt: msg.createdAt.toISOString(),
+      isForwarded: msg.isForwarded, // For XML attribute (forwarded="true")
       personaId: msg.personaId,
       personaName: msg.personaName,
       discordUsername: msg.discordUsername, // For collision detection in prompt building

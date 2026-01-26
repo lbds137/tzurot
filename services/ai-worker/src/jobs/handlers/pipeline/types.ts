@@ -15,10 +15,14 @@ import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.
  * Conversation history entry (raw format from job data)
  */
 export interface ConversationHistoryEntry {
+  /** Message ID (Discord message ID for extended context, UUID for DB history) */
+  id?: string;
   role: string;
   content: string;
   createdAt?: string;
   tokenCount?: number;
+  /** Whether this message was forwarded from another channel */
+  isForwarded?: boolean;
   /** User's persona ID */
   personaId?: string;
   /** User's persona display name */
