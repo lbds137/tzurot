@@ -1040,23 +1040,31 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUsersInBatch).mockResolvedValue(userMap);
 
       // Mock PersonaResolver.resolve to return different persona IDs
-      mockPersonaResolver.resolve
-        .mockResolvedValueOnce({
+      // Use mockImplementation instead of mockResolvedValueOnce for deterministic behavior
+      // with Promise.allSettled (call order isn't guaranteed with parallel resolution)
+      mockPersonaResolver.resolve.mockImplementation((discordId: string) => {
+        if (discordId === 'user-alice') {
+          return Promise.resolve({
+            config: {
+              personaId: 'alice-persona-uuid',
+              preferredName: 'Alice Display',
+              pronouns: null,
+            },
+            source: 'user-default',
+          });
+        }
+        if (discordId === 'user-bob') {
+          return Promise.resolve({
+            config: { personaId: 'bob-persona-uuid', preferredName: 'Bob Display', pronouns: null },
+            source: 'user-default',
+          });
+        }
+        // Default for current user (discordId = 'user-123')
+        return Promise.resolve({
           config: { personaId: 'persona-123', preferredName: 'Test Persona', pronouns: null },
           source: 'user-default',
-        })
-        .mockResolvedValueOnce({
-          config: {
-            personaId: 'alice-persona-uuid',
-            preferredName: 'Alice Display',
-            pronouns: null,
-          },
-          source: 'user-default',
-        })
-        .mockResolvedValueOnce({
-          config: { personaId: 'bob-persona-uuid', preferredName: 'Bob Display', pronouns: null },
-          source: 'user-default',
         });
+      });
 
       // Extended context messages with discord:XXXX format personaIds
       const extendedMessages = [

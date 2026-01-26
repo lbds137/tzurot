@@ -45,6 +45,9 @@ import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.
 
 const logger = createLogger('MessageContextBuilder');
 
+/** Prefix used for unresolved Discord user IDs in personaId fields */
+const DISCORD_ID_PREFIX = 'discord:';
+
 /**
  * Options for building message context
  */
@@ -173,10 +176,10 @@ export class MessageContextBuilder {
     // Collect unique discordIds that need resolution (avoid N+1 queries)
     const uniqueDiscordIds = new Set<string>();
     for (const msg of messages) {
-      if (!msg.personaId?.startsWith('discord:')) {
+      if (!msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
         continue;
       }
-      const discordId = msg.personaId.slice(8);
+      const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
       if (userMap.has(discordId)) {
         uniqueDiscordIds.add(discordId);
       }
@@ -186,32 +189,45 @@ export class MessageContextBuilder {
       return 0;
     }
 
-    // Batch resolve all unique discordIds in parallel
+    // Batch resolve all unique discordIds in parallel with resilience
+    // Use Promise.allSettled so one failure doesn't prevent other resolutions
     const resolvedMap = new Map<
       string,
       { personaId: string; preferredName: string | null | undefined }
     >();
-    await Promise.all(
+    const resolutionResults = await Promise.allSettled(
       Array.from(uniqueDiscordIds).map(async discordId => {
         const resolved = await this.personaResolver.resolve(discordId, personalityId);
-        if (resolved.config.personaId.length > 0) {
-          resolvedMap.set(discordId, {
-            personaId: resolved.config.personaId,
-            preferredName: resolved.config.preferredName,
-          });
-        }
+        return { discordId, resolved };
       })
     );
+
+    for (const result of resolutionResults) {
+      if (result.status === 'rejected') {
+        logger.warn(
+          { error: result.reason },
+          '[MessageContextBuilder] Failed to resolve extended context persona'
+        );
+        continue;
+      }
+      const { discordId, resolved } = result.value;
+      if (resolved.config.personaId.length > 0) {
+        resolvedMap.set(discordId, {
+          personaId: resolved.config.personaId,
+          preferredName: resolved.config.preferredName,
+        });
+      }
+    }
 
     // Update messages using the resolved map
     let resolvedCount = 0;
     const guildInfoRemap = new Map<string, string>(); // discord:XXXX -> resolved UUID
 
     for (const msg of messages) {
-      if (!msg.personaId?.startsWith('discord:')) {
+      if (!msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
         continue;
       }
-      const discordId = msg.personaId.slice(8);
+      const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
       const resolved = resolvedMap.get(discordId);
       if (resolved === undefined) {
         continue;
