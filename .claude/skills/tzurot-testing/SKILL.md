@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Vitest testing patterns for Tzurot v3. Use when writing tests, debugging test failures, or mocking dependencies. Covers mock factories, fake timers, and promise rejection handling.
-lastUpdated: '2026-01-24'
+lastUpdated: '2026-01-26'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -138,6 +138,57 @@ function createMockRedis() {
 | Component   | `*.component.test.ts` | Next to source        |
 | Integration | `*.test.ts`           | `tests/integration/`  |
 | Contract    | `*.contract.test.ts`  | `common-types/types/` |
+
+## Registry Integrity Tests (Commands)
+
+Tests that validate command routing works correctly:
+
+```typescript
+// In CommandHandler.component.test.ts
+describe('registry integrity', () => {
+  it('should have all componentPrefixes registered', () => {
+    const prefixToCommand = (handler as any).prefixToCommand as Map<string, unknown>;
+
+    for (const [name, command] of handler.getCommands()) {
+      // Command name should always be registered as prefix
+      expect(prefixToCommand.has(name)).toBe(true);
+
+      // All componentPrefixes should be registered
+      if (command.componentPrefixes) {
+        for (const prefix of command.componentPrefixes) {
+          expect(
+            prefixToCommand.has(prefix),
+            `componentPrefix "${prefix}" from "${name}" not registered`
+          ).toBe(true);
+        }
+      }
+    }
+  });
+});
+```
+
+**Why**: Catches bugs like the `/me profile edit` "Unknown interaction" error where entityType wasn't in componentPrefixes.
+
+## Command Structure Snapshots
+
+Capture command structure to detect unintended changes:
+
+```typescript
+describe('command structure snapshots', () => {
+  it('should have stable /persona command structure', () => {
+    const personaCommand = handler.getCommand('persona');
+    const data = personaCommand!.data.toJSON();
+    expect(data.options).toMatchSnapshot('persona-command-options');
+  });
+
+  it('should have stable command count', () => {
+    const count = handler.getCommands().size;
+    expect(count).toMatchSnapshot('total-command-count');
+  });
+});
+```
+
+**When snapshots change**: Intentional command changes require `-u` flag to update.
 
 ## Mock Reset Functions
 
