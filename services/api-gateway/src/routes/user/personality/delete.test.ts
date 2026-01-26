@@ -39,9 +39,11 @@ vi.mock('../../../utils/asyncHandler.js', () => ({
 // Mock fs/promises for avatar cache deletion tests
 vi.mock('fs/promises', () => ({
   unlink: vi.fn(),
+  readdir: vi.fn(),
 }));
 import * as fsPromises from 'fs/promises';
 const mockUnlink = vi.mocked(fsPromises.unlink);
+const mockReaddir = vi.mocked(fsPromises.readdir);
 
 import { createPersonalityRoutes } from './index.js';
 
@@ -52,6 +54,9 @@ describe('DELETE /user/personality/:slug', () => {
     vi.clearAllMocks();
     setupStandardMocks(mockPrisma);
     mockUnlink.mockReset();
+    mockReaddir.mockReset();
+    // Default: empty avatar directory
+    mockReaddir.mockResolvedValue([] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
   });
 
   it('should return 403 when user not found', async () => {
@@ -297,7 +302,13 @@ describe('DELETE /user/personality/:slug', () => {
       mockPrisma.pendingMemory.count.mockResolvedValue(0);
     });
 
-    it('should delete cached avatar file with valid slug', async () => {
+    it('should delete cached avatar files with valid slug', async () => {
+      // Mock readdir to return files for this slug (versioned and legacy)
+      mockReaddir.mockResolvedValue([
+        'valid-slug-1705827727111.png',
+        'valid-slug.png',
+        'other-slug.png',
+      ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
       mockUnlink.mockResolvedValue(undefined);
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
@@ -306,11 +317,34 @@ describe('DELETE /user/personality/:slug', () => {
 
       await handler(req, res);
 
+      // Should delete all versions for this slug
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/valid-slug-1705827727111.png');
       expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/valid-slug.png');
+      // Should NOT delete other slugs
+      expect(mockUnlink).not.toHaveBeenCalledWith('/data/avatars/other-slug.png');
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should silently handle ENOENT when avatar cache file does not exist', async () => {
+    it('should silently handle ENOENT when avatar directory does not exist', async () => {
+      const enoentError = new Error('Directory not found') as NodeJS.ErrnoException;
+      enoentError.code = 'ENOENT';
+      mockReaddir.mockRejectedValue(enoentError);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:slug');
+      const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
+
+      await handler(req, res);
+
+      // Should not fail - ENOENT is expected when directory doesn't exist
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should silently handle ENOENT during individual file deletion', async () => {
+      // File listed but deleted between readdir and unlink
+      mockReaddir.mockResolvedValue(['valid-slug.png'] as unknown as Awaited<
+        ReturnType<typeof fsPromises.readdir>
+      >);
       const enoentError = new Error('File not found') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
       mockUnlink.mockRejectedValue(enoentError);
@@ -321,35 +355,21 @@ describe('DELETE /user/personality/:slug', () => {
 
       await handler(req, res);
 
-      // Should not fail - ENOENT is expected when file doesn't exist
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
-    it('should silently handle ENOTDIR when avatar path issue', async () => {
-      const enotdirError = new Error('Not a directory') as NodeJS.ErrnoException;
-      enotdirError.code = 'ENOTDIR';
-      mockUnlink.mockRejectedValue(enotdirError);
-
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'delete', '/:slug');
-      const { req, res } = createMockReqRes({}, { slug: 'valid-slug' });
-
-      await handler(req, res);
-
-      // Should not fail - ENOTDIR is expected when data volume not mounted
+      // Should not fail - ENOENT during unlink is silently ignored
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should skip avatar deletion for invalid slug format (path traversal protection)', async () => {
       // This tests the CWE-22 path traversal protection
-      // Invalid slugs should not trigger unlink at all
+      // Invalid slugs should not trigger readdir at all
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:slug');
       const { req, res } = createMockReqRes({}, { slug: '../../../etc/passwd' });
 
       await handler(req, res);
 
-      // unlink should NOT be called for invalid slug
+      // readdir/unlink should NOT be called for invalid slug
+      expect(mockReaddir).not.toHaveBeenCalled();
       expect(mockUnlink).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -361,7 +381,8 @@ describe('DELETE /user/personality/:slug', () => {
 
       await handler(req, res);
 
-      // unlink should NOT be called for slug with spaces
+      // readdir/unlink should NOT be called for slug with spaces
+      expect(mockReaddir).not.toHaveBeenCalled();
       expect(mockUnlink).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });

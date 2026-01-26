@@ -10,6 +10,8 @@ import {
   getSafeAvatarPath,
   isValidSlug,
   extractSlugFromFilename,
+  extractTimestampFromFilename,
+  cleanupOldAvatarVersions,
 } from '../../utils/avatarPaths.js';
 import { StatusCodes } from 'http-status-codes';
 import {
@@ -37,25 +39,27 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
   // 1. Legacy: /avatars/{slug}.png
   // 2. Path-versioned: /avatars/{slug}-{timestamp}.png (Discord CDN cache-busting)
   //
-  // The timestamp suffix is stripped to get the actual slug for file lookup.
-  // Discord's CDN ignores query params, so we embed timestamp in the path instead.
+  // Versioned files are stored WITH timestamps in the filename for direct URL-to-file mapping.
+  // When a new version is fetched from DB, old versions are cleaned up asynchronously.
   router.get('/:filename', (req, res) => {
     void (async () => {
       const filename = req.params.filename;
 
-      // Extract slug from filename, handling both formats:
-      // - "cold.png" -> "cold"
-      // - "cold-1705827727111.png" -> "cold"
+      // Extract slug and timestamp from filename:
+      // - "cold.png" -> slug="cold", timestamp=null
+      // - "cold-1705827727111.png" -> slug="cold", timestamp=1705827727111
       const slug = extractSlugFromFilename(filename);
+      const requestedTimestamp = extractTimestampFromFilename(filename);
 
-      // Validate slug and construct safe path (prevents path traversal attacks)
+      // Validate slug (prevents path traversal attacks)
       if (slug === null || !isValidSlug(slug)) {
         const errorResponse = ErrorResponses.validationError('Invalid personality slug');
         res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
         return;
       }
 
-      const avatarPath = getSafeAvatarPath(slug);
+      // Build path for the exact file being requested
+      const avatarPath = getSafeAvatarPath(slug, requestedTimestamp ?? undefined);
       if (avatarPath === null) {
         const errorResponse = ErrorResponses.validationError('Invalid avatar path');
         res.status(StatusCodes.BAD_REQUEST).json(errorResponse);
@@ -63,7 +67,7 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
       }
 
       try {
-        // Try to serve from filesystem first
+        // Try to serve the exact file from filesystem
         await access(avatarPath);
         res.sendFile(avatarPath, {
           maxAge: '7d', // Cache for 7 days
@@ -75,7 +79,7 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
         try {
           const personality = await prisma.personality.findUnique({
             where: { slug },
-            select: { avatarData: true },
+            select: { avatarData: true, updatedAt: true },
           });
 
           if (!personality?.avatarData) {
@@ -87,10 +91,18 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
 
           // avatarData is already raw bytes (Buffer)
           const buffer = Buffer.from(personality.avatarData);
+          const dbTimestamp = personality.updatedAt.getTime();
 
-          // Cache to filesystem for future requests
-          await writeFile(avatarPath, buffer);
-          logger.info(`[Gateway] Cached avatar from DB to filesystem: ${slug}`);
+          // Build versioned path for caching
+          const versionedPath = getSafeAvatarPath(slug, dbTimestamp);
+          if (versionedPath !== null) {
+            // Cache to filesystem with versioned filename
+            await writeFile(versionedPath, buffer);
+            logger.info({ slug, timestamp: dbTimestamp }, '[Gateway] Cached avatar from DB');
+
+            // Cleanup old versions asynchronously (fire-and-forget)
+            void cleanupOldAvatarVersions(slug, dbTimestamp);
+          }
 
           // Serve the image
           res.set('Content-Type', CONTENT_TYPES.IMAGE_PNG);

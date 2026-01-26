@@ -110,12 +110,14 @@ describe('Avatar Routes', () => {
       expect(response.status).toBe(StatusCodes.NOT_FOUND);
     });
 
-    it('should serve avatar from database and cache to filesystem', async () => {
+    it('should serve avatar from database and cache to filesystem with versioned filename', async () => {
       const avatarBuffer = Buffer.from('fake-png-data');
+      const updatedAt = new Date('2024-01-20T10:00:00.000Z');
 
       mockAccess.mockRejectedValue(new Error('ENOENT'));
       mockPrisma.personality.findUnique.mockResolvedValue({
         avatarData: avatarBuffer,
+        updatedAt,
       });
       mockWriteFile.mockResolvedValue(undefined);
 
@@ -125,8 +127,11 @@ describe('Avatar Routes', () => {
       expect(response.headers['content-type']).toBe('image/png');
       expect(response.headers['cache-control']).toContain('max-age=604800');
 
-      // Should cache to filesystem
-      expect(mockWriteFile).toHaveBeenCalledWith('/data/avatars/testbot.png', avatarBuffer);
+      // Should cache to filesystem with versioned filename
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        `/data/avatars/testbot-${updatedAt.getTime()}.png`,
+        avatarBuffer
+      );
     });
 
     it('should handle database error gracefully', async () => {
@@ -147,6 +152,7 @@ describe('Avatar Routes', () => {
       mockAccess.mockRejectedValue(new Error('ENOENT'));
       mockPrisma.personality.findUnique.mockResolvedValue({
         avatarData: avatarBuffer,
+        updatedAt: new Date(),
       });
       mockWriteFile.mockRejectedValue(new Error('Disk full'));
 
@@ -156,7 +162,7 @@ describe('Avatar Routes', () => {
       expect(response.body.error).toBe('Internal Error');
     });
 
-    it('should query database with correct slug', async () => {
+    it('should query database with correct slug and select updatedAt', async () => {
       mockAccess.mockRejectedValue(new Error('ENOENT'));
       mockPrisma.personality.findUnique.mockResolvedValue(null);
 
@@ -164,7 +170,7 @@ describe('Avatar Routes', () => {
 
       expect(mockPrisma.personality.findUnique).toHaveBeenCalledWith({
         where: { slug: 'my-personality' },
-        select: { avatarData: true },
+        select: { avatarData: true, updatedAt: true },
       });
     });
   });

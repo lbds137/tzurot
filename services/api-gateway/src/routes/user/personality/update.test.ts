@@ -50,9 +50,11 @@ vi.mock('../../../utils/imageProcessor.js', () => ({
 // Mock fs/promises for avatar cache deletion tests
 vi.mock('fs/promises', () => ({
   unlink: vi.fn(),
+  readdir: vi.fn(),
 }));
 import * as fsPromises from 'fs/promises';
 const mockUnlink = vi.mocked(fsPromises.unlink);
+const mockReaddir = vi.mocked(fsPromises.readdir);
 
 import { createPersonalityRoutes } from './index.js';
 
@@ -63,6 +65,9 @@ describe('PUT /user/personality/:slug (update)', () => {
     vi.clearAllMocks();
     setupStandardMocks(mockPrisma);
     mockUnlink.mockReset();
+    mockReaddir.mockReset();
+    // Default: empty avatar directory
+    mockReaddir.mockResolvedValue([] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
   });
 
   it('should return 403 when user not found', async () => {
@@ -334,7 +339,13 @@ describe('PUT /user/personality/:slug (update)', () => {
       );
     });
 
-    it('should delete cached avatar file when avatar is updated', async () => {
+    it('should delete cached avatar files when avatar is updated', async () => {
+      // Mock readdir to return files for this slug (versioned and legacy)
+      mockReaddir.mockResolvedValue([
+        'test-char-1705827727111.png',
+        'test-char.png',
+        'other-slug.png',
+      ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
       mockUnlink.mockResolvedValue(undefined);
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
@@ -346,11 +357,37 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
+      // Should delete all versions for this slug
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/test-char-1705827727111.png');
       expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/test-char.png');
+      // Should NOT delete other slugs
+      expect(mockUnlink).not.toHaveBeenCalledWith('/data/avatars/other-slug.png');
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
-    it('should silently handle ENOENT when avatar cache file does not exist', async () => {
+    it('should silently handle ENOENT when avatar directory does not exist', async () => {
+      const enoentError = new Error('Directory not found') as NodeJS.ErrnoException;
+      enoentError.code = 'ENOENT';
+      mockReaddir.mockRejectedValue(enoentError);
+
+      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'put', '/:slug');
+      const { req, res } = createMockReqRes(
+        { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
+        { slug: 'valid-slug' }
+      );
+
+      await handler(req, res);
+
+      // Should not fail - ENOENT is expected when directory doesn't exist
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
+    it('should silently handle ENOENT during individual file deletion', async () => {
+      // File listed but deleted between readdir and unlink
+      mockReaddir.mockResolvedValue(['valid-slug.png'] as unknown as Awaited<
+        ReturnType<typeof fsPromises.readdir>
+      >);
       const enoentError = new Error('File not found') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
       mockUnlink.mockRejectedValue(enoentError);
@@ -364,32 +401,15 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
-      // Should not fail - ENOENT is expected when file doesn't exist
-      expect(res.status).toHaveBeenCalledWith(200);
-    });
-
-    it('should silently handle ENOTDIR when avatar path issue', async () => {
-      const enotdirError = new Error('Not a directory') as NodeJS.ErrnoException;
-      enotdirError.code = 'ENOTDIR';
-      mockUnlink.mockRejectedValue(enotdirError);
-
-      const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'put', '/:slug');
-      const { req, res } = createMockReqRes(
-        { name: 'Updated', avatarData: 'data:image/png;base64,iVBORw0KGgo=' },
-        { slug: 'valid-slug' }
-      );
-
-      await handler(req, res);
-
-      // Should not fail - ENOTDIR is expected when data volume not mounted
+      // Should not fail - ENOENT during unlink is silently ignored
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should log warning for other filesystem errors but not fail', async () => {
+      // Readdir errors other than ENOENT should be logged but not fail the request
       const permError = new Error('Permission denied') as NodeJS.ErrnoException;
       permError.code = 'EACCES';
-      mockUnlink.mockRejectedValue(permError);
+      mockReaddir.mockRejectedValue(permError);
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:slug');
@@ -406,7 +426,7 @@ describe('PUT /user/personality/:slug (update)', () => {
 
     it('should skip cache deletion for invalid slug format (path traversal protection)', async () => {
       // This tests the CWE-22 path traversal protection
-      // Invalid slugs should not trigger unlink at all
+      // Invalid slugs should not trigger readdir at all
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-avatar',
         ownerId: 'user-uuid-123',
@@ -423,7 +443,8 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
-      // unlink should NOT be called for invalid slug
+      // readdir/unlink should NOT be called for invalid slug
+      expect(mockReaddir).not.toHaveBeenCalled();
       expect(mockUnlink).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -586,6 +607,13 @@ describe('PUT /user/personality/:slug (update)', () => {
 
     it('should invalidate cache when slug is updated', async () => {
       mockIsBotOwner.mockReturnValue(true);
+      // Mock readdir to return files for both old and new slugs
+      mockReaddir.mockResolvedValue([
+        'old-slug-1705827727111.png',
+        'old-slug.png',
+        'new-slug-1705827727222.png',
+        'other.png',
+      ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
       mockUnlink.mockResolvedValue(undefined);
       // No existing personality with new slug
       mockPrisma.personality.findUnique
@@ -618,9 +646,12 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
-      // Should delete cached avatar for both old and new slugs
+      // Should delete cached avatar for both old and new slugs (all versions)
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/old-slug-1705827727111.png');
       expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/old-slug.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/new-slug.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/new-slug-1705827727222.png');
+      // Should NOT delete other slugs
+      expect(mockUnlink).not.toHaveBeenCalledWith('/data/avatars/other.png');
       // Should invalidate personality cache
       expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith(
         'personality-slug-test'
