@@ -296,6 +296,126 @@ describe('handleButton', () => {
       components: expect.any(Array),
     });
   });
+
+  it('should show error when refreshing non-existent persona', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Persona not found',
+    });
+
+    await handleButton(createMockButtonInteraction(`persona::refresh::${TEST_PERSONA_ID}`));
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Persona not found'),
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should block delete of default persona', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Default Persona', isDefault: true },
+    });
+    // isDefaultPersona returns true
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockListPersonasResponse([
+        { id: TEST_PERSONA_ID, name: 'Default Persona', isDefault: true },
+      ]),
+    });
+
+    await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Cannot delete your default'),
+      flags: MessageFlags.Ephemeral,
+    });
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('should show error on delete when session expired', async () => {
+    mockSessionGet.mockResolvedValue(null);
+
+    await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
+
+    expect(mockReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Session expired'),
+      flags: MessageFlags.Ephemeral,
+    });
+  });
+
+  it('should delete persona on confirm-delete button', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona' },
+    });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { message: 'Deleted' },
+    });
+
+    await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      `/user/persona/${TEST_PERSONA_ID}`,
+      expect.objectContaining({ method: 'DELETE' })
+    );
+    expect(mockSessionDelete).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('has been deleted'),
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should show error on confirm-delete when delete fails', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona' },
+    });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      error: 'Delete failed',
+    });
+
+    await handleButton(createMockButtonInteraction(`persona::confirm-delete::${TEST_PERSONA_ID}`));
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Failed to delete'),
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should return to dashboard on cancel-delete button', async () => {
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', isDefault: false },
+    });
+
+    await handleButton(createMockButtonInteraction(`persona::cancel-delete::${TEST_PERSONA_ID}`));
+
+    expect(mockDeferUpdate).toHaveBeenCalled();
+    expect(mockBuildDashboardEmbed).toHaveBeenCalled();
+    expect(mockEditReply).toHaveBeenCalled();
+  });
+
+  it('should show error on cancel-delete when session expired', async () => {
+    mockSessionGet.mockResolvedValue(null);
+
+    await handleButton(createMockButtonInteraction(`persona::cancel-delete::${TEST_PERSONA_ID}`));
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Session expired'),
+      embeds: [],
+      components: [],
+    });
+  });
+
+  it('should ignore non-persona button interactions', async () => {
+    await handleButton(createMockButtonInteraction('character::close::some-id'));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+    expect(mockDeferUpdate).not.toHaveBeenCalled();
+  });
 });
 
 describe('isPersonaDashboardInteraction', () => {
