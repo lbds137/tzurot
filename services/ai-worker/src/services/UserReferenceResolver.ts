@@ -84,6 +84,14 @@ export interface PersonalityResolutionResult {
 }
 
 /**
+ * Discord snowflake ID length constraints.
+ * Snowflakes are Twitter-style 64-bit IDs introduced in 2015.
+ * - MIN_LENGTH: 17 digits covers IDs from Discord's 2015 launch
+ * - MAX_LENGTH: 20 digits is the max for 64-bit unsigned integers
+ */
+const DISCORD_SNOWFLAKE_LENGTH = { MIN: 17, MAX: 20 } as const;
+
+/**
  * Regex patterns for user reference formats
  */
 const USER_REFERENCE_PATTERNS = {
@@ -93,7 +101,10 @@ const USER_REFERENCE_PATTERNS = {
 
   // <@discord_id> - Discord mention format
   // Captures: [1] = discord_id (snowflake)
-  DISCORD_MENTION: /<@!?(\d{17,20})>/g,
+  DISCORD_MENTION: new RegExp(
+    `<@!?(\\d{${DISCORD_SNOWFLAKE_LENGTH.MIN},${DISCORD_SNOWFLAKE_LENGTH.MAX}})>`,
+    'g'
+  ),
 
   // @username - Simple username mention (word boundary to avoid false positives)
   // Must not be followed by [ (which would make it shapes format)
@@ -478,9 +489,18 @@ export class UserReferenceResolver {
    * Resolve persona by username
    *
    * Looks up the user by username and returns their default persona.
+   *
+   * Case-insensitive matching behavior:
+   * - Matches any case variant (e.g., "Alice", "alice", "ALICE" all match)
+   * - When multiple users exist with the same case-insensitive username (rare edge case),
+   *   returns the oldest account (orderBy createdAt asc) for deterministic results
+   * - This is intentional: we prioritize stable matching over exact case matching
+   *   since shapes.inc references don't preserve original casing
    */
   private async resolveByUsername(username: string): Promise<ResolvedPersona | null> {
     try {
+      // Case-insensitive lookup with stable ordering for edge case of duplicate usernames
+      // findFirst is bounded (take: 1 is redundant but explicit per CLAUDE.md bounded data access)
       const user = await this.prisma.user.findFirst({
         where: { username: { equals: username, mode: 'insensitive' } },
         include: {
@@ -494,7 +514,7 @@ export class UserReferenceResolver {
             },
           },
         },
-        orderBy: { createdAt: 'asc' }, // Stable ordering per CLAUDE.md bounded data access
+        orderBy: { createdAt: 'asc' },
         take: 1,
       });
 
