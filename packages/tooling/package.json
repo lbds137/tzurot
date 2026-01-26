@@ -34,11 +34,11 @@
   "devDependencies": {
     "@types/eslint": "^9.6.1",
     "@types/estree": "^1.0.8",
-    "@types/node": "^25.0.9",
-    "@vitest/coverage-v8": "^4.0.17",
-    "memfs": "^4.56.2",
+    "@types/node": "^25.0.10",
+    "@vitest/coverage-v8": "^4.0.18",
+    "memfs": "^4.56.10",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.17"
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
     "eslint": ">=9.0.0"

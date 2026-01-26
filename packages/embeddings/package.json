@@ -24,6 +24,6 @@
     "onnxruntime-node": "^1.23.2"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9"
+    "@types/node": "^25.0.10"
   }
 }
