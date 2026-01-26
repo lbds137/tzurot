@@ -13,7 +13,7 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
-const logger = createLogger('wallet-remove');
+const logger = createLogger('settings-apikey-remove');
 
 /**
  * Handle /wallet remove <provider> subcommand

@@ -10,7 +10,7 @@ import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
-const logger = createLogger('me-settings');
+const logger = createLogger('persona-share-ltm');
 
 /** Response type for updating settings */
 interface UpdateSettingsResponse {
@@ -53,7 +53,7 @@ export async function handleShareLtmSetting(context: DeferredCommandContext): Pr
       if (result.error?.includes('no profile') || result.error?.includes('No default persona')) {
         await context.editReply({
           content:
-            "❌ You don't have a profile set up yet. Use `/me profile edit` to create one first!",
+            "❌ You don't have a profile set up yet. Use `/persona edit` to create one first!",
         });
         return;
       }

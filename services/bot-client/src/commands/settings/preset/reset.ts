@@ -8,7 +8,7 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
 
-const logger = createLogger('me-preset-reset');
+const logger = createLogger('settings-preset-reset');
 
 interface ResetResponse {
   deleted: boolean;

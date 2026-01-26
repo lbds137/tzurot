@@ -15,7 +15,7 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
-const logger = createLogger('me-preset-set');
+const logger = createLogger('settings-preset-set');
 
 interface SetResponse {
   override: {

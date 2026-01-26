@@ -93,12 +93,12 @@ function buildProfileEmbed(personaDetails: PersonaDetails): {
   } else {
     embed.addFields({
       name: '📝 Content',
-      value: '*No content set. Use `/me profile edit` to add information about yourself.*',
+      value: '*No content set. Use `/persona edit` to add information about yourself.*',
       inline: false,
     });
   }
 
-  embed.setFooter({ text: 'Use /me profile edit to update • /me settings to change options' });
+  embed.setFooter({ text: 'Use /persona edit to update • /settings to change options' });
   return { embed, components };
 }
 
@@ -125,8 +125,8 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (persona === undefined) {
       const message =
         result.data.personas.length === 0
-          ? "❌ You don't have a profile set up yet. Use `/me profile edit` to create one!"
-          : "❌ You don't have a default profile set. Use `/me profile default` to set one!";
+          ? "❌ You don't have a profile set up yet. Use `/persona edit` to create one!"
+          : "❌ You don't have a default profile set. Use `/persona default` to set one!";
       await context.editReply({ content: message });
       return;
     }

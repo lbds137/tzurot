@@ -19,7 +19,7 @@ import { buildPersonaModalFields } from './utils/modalBuilder.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
-const logger = createLogger('me-profile-create');
+const logger = createLogger('persona-create');
 
 /** Response type for creating a persona */
 interface CreatePersonaResponse {
@@ -152,7 +152,7 @@ export async function handleCreateModalSubmit(interaction: ModalSubmitInteractio
     if (setAsDefault) {
       response += '\n\n⭐ This profile has been set as your default.';
     }
-    response += '\n\nUse `/me profile list` to see all your profiles.';
+    response += '\n\nUse `/persona browse` to see all your profiles.';
 
     await interaction.reply({
       content: response,
