@@ -328,13 +328,17 @@ export class UserReferenceResolver {
 
     const results = await Promise.allSettled(processingPromises);
 
-    // Process results, logging any failures
+    // Track failed fields for aggregated error logging
+    const failedFields: string[] = [];
+
+    // Process results
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
       const fieldName = RESOLVABLE_PERSONALITY_FIELDS[i];
 
       if (result.status === 'rejected') {
-        logger.error(
+        failedFields.push(fieldName as string);
+        logger.warn(
           { field: fieldName, error: result.reason, personalityId: personality.id },
           '[UserReferenceResolver] Failed to resolve user references in personality field'
         );
@@ -353,6 +357,14 @@ export class UserReferenceResolver {
       for (const persona of value.resolvedPersonas) {
         personaMap.set(persona.personaId, persona);
       }
+    }
+
+    // Log aggregated error summary if any fields failed
+    if (failedFields.length > 0) {
+      logger.error(
+        { failedFields, failedCount: failedFields.length, personalityId: personality.id },
+        '[UserReferenceResolver] Some personality fields failed to resolve user references'
+      );
     }
 
     const allResolvedPersonas = Array.from(personaMap.values());
