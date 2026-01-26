@@ -59,21 +59,39 @@ Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified for
 - [ ] Record diagnostics on failure path, not just success path
 - [ ] Capture partial state at failure point
 
-### 5. 🏗️ Slash Command File Structure Standardization
+### 5. 🏗️ Slash Command UX Standardization
 
-Inconsistent file/directory structure across slash commands. Need comprehensive review and standardization.
+Inconsistent patterns across slash commands. Need comprehensive review and standardization.
+
+**File Structure**
 
 - [ ] Audit existing command directories for structure patterns
 - [ ] Define standard: when to use subdirectories vs flat files for subcommand groups
 - [ ] Update `tzurot-slash-command-ux` skill with mandatory file structure rules
 - [ ] Refactor existing commands to match new standard
 - [ ] Clean up legacy files (e.g., `persona/list.ts` from old `/me` command)
+
+**Shared Browse Utilities**
+
 - [ ] Extract shared browse utilities (pagination, sorting) into `utils/browse/`
   - `sortItems<T>()` generic sorting function used by `/persona browse`, `/character browse`, `/admin servers`
   - `buildPaginationButtons()` shared pagination button builder
   - Common constants (`ITEMS_PER_PAGE`, `MAX_SELECT_LABEL_LENGTH`)
+- [ ] Reusable browse context pattern - store page/sort/filter state for "Back to Browse" button
+  - Currently persona browse shows "session expired" because context isn't stored
+  - Implement pattern similar to preset's `browseContext` in session data
 
-**Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Standardize for maintainability.
+**Dashboard/Button Interaction Testing**
+
+- [ ] Add tests for `isDashboardInteraction` check functions across all commands
+  - Bug found: `isPersonaDashboardInteraction` matched ALL `persona::*` customIds, not just dashboard actions
+  - This caused "expand" and "back" buttons to silently fail
+- [ ] Add test patterns that verify:
+  - Each customId action has a handler
+  - Non-dashboard actions don't match dashboard checks
+  - Button routing works end-to-end
+
+**Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Recent bugs exposed that interaction routing has gaps in test coverage that should be addressed systematically.
 
 ---
 

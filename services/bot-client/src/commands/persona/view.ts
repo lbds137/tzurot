@@ -24,7 +24,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
-const logger = createLogger('me-view');
+const logger = createLogger('persona-view');
 
 /** Response type for persona list */
 interface PersonaSummary {
@@ -114,7 +114,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     });
 
     if (!result.ok) {
-      logger.warn({ userId: discordId, error: result.error }, '[Me] Failed to fetch personas');
+      logger.warn({ userId: discordId, error: result.error }, '[Persona] Failed to fetch personas');
       await context.editReply({
         content: '❌ Failed to retrieve your profile. Please try again later.',
       });
@@ -139,7 +139,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (!detailsResult.ok) {
       logger.warn(
         { userId: discordId, personaId: persona.id, error: detailsResult.error },
-        '[Me] Failed to fetch persona details'
+        '[Persona] Failed to fetch persona details'
       );
       await context.editReply({
         content: '❌ Failed to retrieve your profile. Please try again later.',
@@ -149,9 +149,9 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
 
     const { embed, components } = buildProfileEmbed(detailsResult.data.persona);
     await context.editReply({ embeds: [embed], components });
-    logger.info({ userId: discordId }, '[Me] User viewed their profile');
+    logger.info({ userId: discordId }, '[Persona] User viewed their profile');
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Me] Failed to view profile');
+    logger.error({ err: error, userId: discordId }, '[Persona] Failed to view profile');
     await context.editReply({
       content: '❌ Failed to retrieve your profile. Please try again later.',
     });
@@ -179,7 +179,7 @@ export async function handleExpandContent(
     if (!result.ok) {
       logger.warn(
         { userId: discordId, personaId, error: result.error },
-        '[Me] Failed to fetch persona for expand'
+        '[Persona] Failed to fetch persona for expand'
       );
       await interaction.editReply('❌ Profile not found or access denied.');
       return;
@@ -224,9 +224,9 @@ export async function handleExpandContent(
       }
     }
 
-    logger.info({ userId: discordId, personaId }, '[Me] User expanded profile content');
+    logger.info({ userId: discordId, personaId }, '[Persona] User expanded profile content');
   } catch (error) {
-    logger.error({ err: error, personaId }, '[Me] Failed to expand profile content');
+    logger.error({ err: error, personaId }, '[Persona] Failed to expand profile content');
     await interaction.editReply('❌ Failed to load content. Please try again.');
   }
 }
