@@ -66,7 +66,7 @@ describe('Me Preset Set Handler', () => {
 
       expect(embedData.title).toContain('Unlock All Models');
       expect(embedData.description).toContain('Guest Mode');
-      expect(embedData.description).toContain('/wallet set');
+      expect(embedData.description).toContain('/settings apikey set');
 
       // Should not call any API
       expect(callGatewayApi).not.toHaveBeenCalled();
@@ -138,7 +138,7 @@ describe('Me Preset Set Handler', () => {
 
       expect(embedData.title).toContain('Premium Model Not Available');
       expect(embedData.description).toContain('Guest Mode');
-      expect(embedData.description).toContain('/wallet set');
+      expect(embedData.description).toContain('/settings apikey set');
     });
 
     it('should allow guest mode users to use free models', async () => {

@@ -51,7 +51,7 @@ export async function handleRemoveKey(context: DeferredCommandContext): Promise<
         `Your **${getProviderDisplayName(provider)}** API key has been deleted.\n\n` +
           'The bot will now use the default system key (if available) for this provider.'
       )
-      .setFooter({ text: 'Use /wallet set to configure a new key' })
+      .setFooter({ text: 'Use /settings apikey set to configure a new key' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

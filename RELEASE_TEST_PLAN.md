@@ -123,7 +123,7 @@
 
 **Test Steps**:
 
-- [x] All slash commands work: `/character`, `/preset`, `/persona`, `/wallet`, `/memory`
+- [x] All slash commands work: `/character`, `/preset`, `/persona`, `/settings apikey`, `/memory`
 - [x] No duplicate command registrations in logs
 - [x] Subcommands work correctly (e.g., `/character edit`, `/character create`)
 
@@ -174,7 +174,7 @@ Run these to ensure nothing broke:
 - [x] `/character create` - Create new character
 - [x] `/character list` - List characters
 - [x] `@character message` - Chat with character
-- [x] `/wallet test` - Check API key status
+- [x] `/settings apikey test` - Check API key status
 - [ ] `/persona create` - Create persona
 - [x] `/persona list` - List personas
 - [ ] `/channel status` - Check channel settings

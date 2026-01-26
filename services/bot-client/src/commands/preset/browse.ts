@@ -372,7 +372,7 @@ function buildBrowsePage(
   // Guest mode warning
   if (isGuestMode) {
     lines.push(
-      '⚠️ **Guest Mode** - Limited to free models (🆓). Use `/wallet set` for full access.\n'
+      '⚠️ **Guest Mode** - Limited to free models (🆓). Use `/settings apikey set` for full access.\n'
     );
   }
 

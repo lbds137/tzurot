@@ -53,7 +53,7 @@ curl https://api-gateway-development-83e8.up.railway.app/health
 
 | Category               | Slash Commands                                    | Description                                             |
 | ---------------------- | ------------------------------------------------- | ------------------------------------------------------- |
-| **Wallet (BYOK)**      | `/wallet set/list/remove/test`                    | Store and manage your own API keys                      |
+| **API Keys (BYOK)**    | `/settings apikey set/browse/remove/test`         | Store and manage your own API keys                      |
 | **Model Override**     | `/model set/list/reset/set-default/clear-default` | Override which LLM config a personality uses (per-user) |
 | **LLM Configs**        | `/llm-config create/list/delete`                  | Create personal model configurations                    |
 | **Settings**           | `/settings timezone/usage`                        | User preferences and usage stats                        |
@@ -86,41 +86,41 @@ curl https://api-gateway-development-83e8.up.railway.app/health
 
 ## Test Scenarios
 
-### 1. Wallet Commands (Core BYOK)
+### 1. API Key Commands (Core BYOK)
 
 **Commands:**
 
-- `/wallet set <provider>` - Opens secure modal for API key entry
-- `/wallet list` - Shows stored keys (masked: `sk-or-...xxx`)
-- `/wallet test <provider>` - Validates key with the provider
-- `/wallet remove <provider>` - Deletes stored key
+- `/settings apikey set <provider>` - Opens secure modal for API key entry
+- `/settings apikey browse` - Shows stored keys (masked: `sk-or-...xxx`)
+- `/settings apikey test <provider>` - Validates key with the provider
+- `/settings apikey remove <provider>` - Deletes stored key
 
 **Providers:** `openrouter`, `openai`
 
 #### Test Flow
 
-| Step | Action                      | Expected Result                           |
-| ---- | --------------------------- | ----------------------------------------- |
-| 1.1  | `/wallet list`              | Empty list or "No API keys configured"    |
-| 1.2  | `/wallet set openrouter`    | Modal opens for key entry                 |
-| 1.3  | Enter valid OpenRouter key  | Success message                           |
-| 1.4  | `/wallet list`              | Shows `openrouter: sk-or-...xxx` (masked) |
-| 1.5  | `/wallet test openrouter`   | "Key is valid" message                    |
-| 1.6  | Send `@lilith hello`        | Bot responds                              |
-| 1.7  | Check logs                  | Should show `source: 'user'`              |
-| 1.8  | `/wallet remove openrouter` | Success message                           |
-| 1.9  | `/wallet list`              | Empty again                               |
-| 1.10 | Send `@lilith hello again`  | Bot responds (using system key)           |
-| 1.11 | Check logs                  | Should show `source: 'system'`            |
+| Step | Action                               | Expected Result                           |
+| ---- | ------------------------------------ | ----------------------------------------- |
+| 1.1  | `/settings apikey browse`            | Empty list or "No API keys configured"    |
+| 1.2  | `/settings apikey set openrouter`    | Modal opens for key entry                 |
+| 1.3  | Enter valid OpenRouter key           | Success message                           |
+| 1.4  | `/settings apikey browse`            | Shows `openrouter: sk-or-...xxx` (masked) |
+| 1.5  | `/settings apikey test openrouter`   | "Key is valid" message                    |
+| 1.6  | Send `@lilith hello`                 | Bot responds                              |
+| 1.7  | Check logs                           | Should show `source: 'user'`              |
+| 1.8  | `/settings apikey remove openrouter` | Success message                           |
+| 1.9  | `/settings apikey browse`            | Empty again                               |
+| 1.10 | Send `@lilith hello again`           | Bot responds (using system key)           |
+| 1.11 | Check logs                           | Should show `source: 'system'`            |
 
 #### Edge Cases
 
-| Test                | Action                                  | Expected                             |
-| ------------------- | --------------------------------------- | ------------------------------------ |
-| Invalid key format  | `/wallet set openrouter` with "invalid" | Error: invalid key format            |
-| Invalid key         | `/wallet set openrouter` with wrong key | Key stored, but `/wallet test` fails |
-| Remove non-existent | `/wallet remove openai` (never set)     | Error: no key found                  |
-| Duplicate set       | `/wallet set openrouter` twice          | Second overwrites first              |
+| Test                | Action                                           | Expected                                      |
+| ------------------- | ------------------------------------------------ | --------------------------------------------- |
+| Invalid key format  | `/settings apikey set openrouter` with "invalid" | Error: invalid key format                     |
+| Invalid key         | `/settings apikey set openrouter` with wrong key | Key stored, but `/settings apikey test` fails |
+| Remove non-existent | `/settings apikey remove openai` (never set)     | Error: no key found                           |
+| Duplicate set       | `/settings apikey set openrouter` twice          | Second overwrites first                       |
 
 ---
 
@@ -314,9 +314,9 @@ railway logs --service ai-worker | grep -iE "(error|failed|exception)"
 Run these in order to verify basic functionality:
 
 ```
-1. /wallet list                          → Empty
-2. /wallet set openrouter                → Enter your key
-3. /wallet test openrouter               → Valid
+1. /settings apikey browse                          → Empty
+2. /settings apikey set openrouter                → Enter your key
+3. /settings apikey test openrouter               → Valid
 4. @lilith hello                         → Responds
 5. /settings usage                       → Shows usage
 6. /llm-config create name:test model:anthropic/claude-sonnet-4
@@ -328,7 +328,7 @@ Run these in order to verify basic functionality:
 12. /model clear-default                 → Global default cleared
 13. /model reset lilith                  → Override removed
 14. /llm-config delete test              → Config deleted
-15. /wallet remove openrouter            → Key removed
+15. /settings apikey remove openrouter            → Key removed
 ```
 
 ### Admin-Only Smoke Test (Bot Owner)
@@ -360,13 +360,13 @@ Run these in order to verify basic functionality:
 
 - Check `API_KEY_ENCRYPTION_KEY` is set on ai-worker
 - Check `OPENROUTER_API_KEY` is set as fallback
-- Verify user has stored a key via `/wallet list`
+- Verify user has stored a key via `/settings apikey browse`
 
 ### Key Not Being Used
 
 - Check logs for `source: 'user'` vs `source: 'system'`
-- Verify key is active: `/wallet list` should show it
-- Test key validity: `/wallet test openrouter`
+- Verify key is active: `/settings apikey browse` should show it
+- Test key validity: `/settings apikey test openrouter`
 
 ### Cache Issues
 

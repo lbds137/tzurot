@@ -38,7 +38,7 @@ export async function handleListOverrides(context: DeferredCommandContext): Prom
 
     if (data.overrides.length === 0) {
       embed.setDescription(
-        "You haven't set any preset overrides.\n\nUse `/me preset set` to override which preset a personality uses."
+        "You haven't set any preset overrides.\n\nUse `/settings preset set` to override which preset a personality uses."
       );
     } else {
       const lines = data.overrides.map(
@@ -48,7 +48,7 @@ export async function handleListOverrides(context: DeferredCommandContext): Prom
 
       embed.setDescription(lines.join('\n'));
       embed.setFooter({
-        text: `${data.overrides.length} override(s) • Use /me preset reset to remove`,
+        text: `${data.overrides.length} override(s) • Use /settings preset reset to remove`,
       });
     }
 

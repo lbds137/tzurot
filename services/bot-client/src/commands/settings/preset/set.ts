@@ -54,7 +54,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
         "You're currently in **Guest Mode**, which only allows free models.\n\n" +
           'To unlock **all 400+ models** including GPT-4, Claude, and more:\n\n' +
           '1. Get an API key from [OpenRouter](https://openrouter.ai/keys)\n' +
-          '2. Run `/wallet set` and enter your key\n' +
+          '2. Run `/settings apikey set` and enter your key\n' +
           "3. That's it! All models will be available."
       )
       .setFooter({ text: 'Your API key is encrypted and stored securely' })
@@ -87,9 +87,9 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
           .setDescription(
             `**${selectedConfig.name}** uses a premium model that requires an API key.\n\n` +
               'In **Guest Mode**, you can only use configs with free models (marked with 🆓).\n\n' +
-              'Use `/wallet set` to add your own API key for full model access.'
+              'Use `/settings apikey set` to add your own API key for full model access.'
           )
-          .setFooter({ text: 'Use /me preset list to see available free presets' })
+          .setFooter({ text: 'Use /settings preset browse to see available free presets' })
           .setTimestamp();
 
         await context.editReply({ embeds: [embed] });
@@ -124,7 +124,7 @@ export async function handleSet(context: DeferredCommandContext): Promise<void> 
       .setDescription(
         `**${data.override.personalityName}** will now use the **${data.override.configName}** preset.`
       )
-      .setFooter({ text: 'Use /me preset reset to remove this override' })
+      .setFooter({ text: 'Use /settings preset reset to remove this override' })
       .setTimestamp();
 
     await context.editReply({ embeds: [embed] });

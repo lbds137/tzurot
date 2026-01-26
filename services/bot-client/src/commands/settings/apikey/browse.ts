@@ -69,7 +69,7 @@ function buildBrowseEmbed(keys: WalletKeyInfo[]): EmbedBuilder {
     embed.setDescription(
       'You have no API keys configured yet.\n\n' +
         '**Getting Started:**\n' +
-        '• Use `/wallet set` to add your own API key\n' +
+        '• Use `/settings apikey set` to add your own API key\n' +
         '• Get an OpenRouter key at https://openrouter.ai/keys\n\n' +
         '_BYOK = Bring Your Own Key_'
     );
@@ -91,9 +91,9 @@ function buildBrowseEmbed(keys: WalletKeyInfo[]): EmbedBuilder {
   embed.addFields({
     name: '💡 Management Commands',
     value: [
-      '`/wallet set <provider>` - Add or update a key',
-      '`/wallet test <provider>` - Verify a key works',
-      '`/wallet remove <provider>` - Delete a key',
+      '`/settings apikey set <provider>` - Add or update a key',
+      '`/settings apikey test <provider>` - Verify a key works',
+      '`/settings apikey remove <provider>` - Delete a key',
     ].join('\n'),
     inline: false,
   });
@@ -102,7 +102,7 @@ function buildBrowseEmbed(keys: WalletKeyInfo[]): EmbedBuilder {
 }
 
 /**
- * Handle /wallet browse subcommand
+ * Handle /settings apikey browse subcommand
  * Displays configured API keys in a browsable format
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
