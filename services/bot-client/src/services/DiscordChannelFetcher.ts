@@ -534,9 +534,17 @@ export class DiscordChannelFetcher {
       getTranscript: options.getTranscript,
     });
 
-    // Skip if no content and no attachments (nothing to process)
-    // Messages with only attachments are kept for vision processing
-    if (!rawContent && attachments.length === 0) {
+    // Skip if no content and nothing else to process
+    // Keep messages that have: text content, attachments, voice transcripts, embeds, or are forwarded
+    // Forwarded messages are kept even with empty extraction because snapshot data may still exist
+    const hasTextContent = rawContent !== undefined && rawContent.length > 0;
+    const hasAttachments = attachments.length > 0;
+    const hasVoiceTranscripts = voiceTranscripts !== undefined && voiceTranscripts.length > 0;
+    const hasEmbeds = embedsXml !== undefined && embedsXml.length > 0;
+    const hasProcessableContent =
+      hasTextContent || hasAttachments || hasVoiceTranscripts || hasEmbeds || isForwarded;
+
+    if (!hasProcessableContent) {
       return null;
     }
 
