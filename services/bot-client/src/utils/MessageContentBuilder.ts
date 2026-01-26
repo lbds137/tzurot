@@ -24,12 +24,18 @@
  */
 
 import type { Message, APIEmbed } from 'discord.js';
-import { MessageReferenceType } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { AttachmentMetadata } from '@tzurot/common-types';
 import { extractAttachments } from './attachmentExtractor.js';
 import { extractEmbedImages } from './embedImageExtractor.js';
 import { EmbedParser } from './EmbedParser.js';
+import {
+  isForwardedMessage,
+  hasForwardedSnapshots,
+  getSnapshots,
+  extractForwardedAttachments,
+  extractForwardedContent,
+} from './forwardedMessageUtils.js';
 
 const logger = createLogger('MessageContentBuilder');
 
@@ -90,20 +96,20 @@ async function processVoiceAttachments(
   const voiceTranscripts: string[] = [];
   const nonVoiceAttachments: AttachmentMetadata[] = [];
 
-  // Process forwarded voice messages first (use original message ID for DB lookup)
+  // Process forwarded voice messages first
+  // Use the FORWARDING message's ID for DB lookup (not the original message ID)
+  // because that's what VoiceTranscriptionService stored the transcript under
   if (isForwarded && snapshotAttachments.length > 0 && getTranscript !== undefined) {
     for (const attachment of snapshotAttachments) {
       if (attachment.isVoiceMessage === true) {
         hasVoiceMessage = true;
 
-        // Use original message ID for forwarded voice messages
-        // This ensures DB lookup works even after Redis cache expires
-        if (originalMessageId !== undefined) {
-          const transcript = await getTranscript(originalMessageId, attachment.url);
-          if (transcript !== null && transcript.length > 0) {
-            voiceTranscripts.push(transcript);
-            continue;
-          }
+        // Use forwarding message ID - transcript was stored under this ID when originally processed
+        // The original message may be from a different server and never in our DB
+        const transcript = await getTranscript(messageId, attachment.url);
+        if (transcript !== null && transcript.length > 0) {
+          voiceTranscripts.push(transcript);
+          continue;
         }
 
         // No transcript available
@@ -215,55 +221,45 @@ export async function buildMessageContent(
   // Collect embeds separately (for structured XML formatting, not markdown mess)
   const embedsXml: string[] = [];
 
-  // Check if this is a forwarded message
-  if (
-    message.reference?.type === MessageReferenceType.Forward &&
-    message.messageSnapshots !== undefined &&
-    message.messageSnapshots.size > 0
-  ) {
+  // Check if this is a forwarded message (using centralized utility)
+  if (isForwardedMessage(message)) {
     isForwarded = true;
-    // For forwarded messages, extract content from snapshots
-    for (const snapshot of message.messageSnapshots.values()) {
-      // Add content directly - no [Forwarded message]: prefix
-      // The isForwarded flag is used for XML attribute formatting instead
-      if (snapshot.content) {
-        contentParts.push(snapshot.content);
-      }
 
-      // Extract attachments from snapshot (critical for forwarded images!)
-      // Wrapped in try-catch to prevent partial failures from breaking the entire loop
+    // Extract content from forwarded message (handles missing snapshots gracefully)
+    const forwardedTextContent = extractForwardedContent(message);
+    if (forwardedTextContent.length > 0) {
+      contentParts.push(forwardedTextContent);
+    }
+
+    // Extract attachments from forwarded message snapshots
+    // Uses centralized utility that handles all snapshot attachment extraction
+    if (hasForwardedSnapshots(message)) {
       try {
-        if (snapshot.attachments !== undefined && snapshot.attachments !== null) {
-          const extracted = extractAttachments(snapshot.attachments);
-          if (extracted) {
-            snapshotAttachments.push(...extracted);
-          }
-        }
-
-        // Extract images from snapshot embeds
-        const snapshotEmbedImages = extractEmbedImages(snapshot.embeds);
-        if (snapshotEmbedImages) {
-          snapshotAttachments.push(...snapshotEmbedImages);
-        }
+        const forwardedAttachments = extractForwardedAttachments(message);
+        snapshotAttachments.push(...forwardedAttachments);
       } catch (error) {
         logger.warn(
           { messageId: message.id, error },
-          '[MessageContentBuilder] Failed to extract snapshot attachments'
+          '[MessageContentBuilder] Failed to extract forwarded attachments'
         );
       }
 
       // Process snapshot embeds - collect as XML for structured formatting
-      // No markdown headers like "### Forwarded Embed" - use clean XML format
-      if (includeEmbeds && snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
-        for (let index = 0; index < snapshot.embeds.length; index++) {
-          const embed = snapshot.embeds[index];
-          const numAttr = snapshot.embeds.length > 1 ? ` number="${index + 1}"` : '';
-          // Snapshot embeds are already APIEmbed format (or have toJSON method)
-          const apiEmbed: APIEmbed =
-            'toJSON' in embed && typeof embed.toJSON === 'function'
-              ? embed.toJSON()
-              : (embed as unknown as APIEmbed);
-          embedsXml.push(`<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed)}\n</embed>`);
+      const snapshots = getSnapshots(message);
+      if (includeEmbeds && snapshots !== undefined) {
+        for (const snapshot of snapshots.values()) {
+          if (snapshot.embeds !== undefined && snapshot.embeds.length > 0) {
+            for (let index = 0; index < snapshot.embeds.length; index++) {
+              const embed = snapshot.embeds[index];
+              const numAttr = snapshot.embeds.length > 1 ? ` number="${index + 1}"` : '';
+              // Snapshot embeds are already APIEmbed format (or have toJSON method)
+              const apiEmbed: APIEmbed =
+                'toJSON' in embed && typeof embed.toJSON === 'function'
+                  ? embed.toJSON()
+                  : (embed as unknown as APIEmbed);
+              embedsXml.push(`<embed${numAttr}>\n${EmbedParser.parseEmbed(apiEmbed)}\n</embed>`);
+            }
+          }
         }
       }
     }
@@ -361,16 +357,27 @@ export function formatAttachmentDescription(attachments: AttachmentMetadata[] | 
 }
 
 /**
- * Check if a message has meaningful content (text, attachments, or embeds)
+ * Check if a message has meaningful content (text, attachments, embeds, or is forwarded)
+ *
+ * Forwarded messages are always considered to have content, even if messageSnapshots
+ * is empty (which can happen due to Discord API limitations or permissions).
+ * The actual content extraction happens later in buildMessageContent.
+ *
+ * Uses centralized isForwardedMessage from forwardedMessageUtils.ts
  *
  * @param message - Discord message
  * @returns True if message has content
  */
 export function hasMessageContent(message: Message): boolean {
+  // Forwarded messages always have content (even if snapshots are empty)
+  // This prevents filtering out forwarded images/voice where Discord may not populate snapshots
+  // Uses centralized utility for consistency across codebase
+
   return (
     (message.content !== undefined && message.content.length > 0) ||
     message.attachments.size > 0 ||
     (message.embeds !== undefined && message.embeds.length > 0) ||
-    (message.messageSnapshots !== undefined && message.messageSnapshots.size > 0)
+    (message.messageSnapshots !== undefined && message.messageSnapshots.size > 0) ||
+    isForwardedMessage(message)
   );
 }

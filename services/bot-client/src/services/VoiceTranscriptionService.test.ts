@@ -5,6 +5,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { VoiceTranscriptionService } from './VoiceTranscriptionService.js';
 import type { Message } from 'discord.js';
+import { MessageReferenceType } from 'discord.js';
 import { CONTENT_TYPES } from '@tzurot/common-types';
 
 // Mock dependencies
@@ -672,9 +673,14 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
         sendTyping: vi.fn().mockResolvedValue(undefined),
       };
 
+  // If messageSnapshots is provided, include forward reference type
+  // This is required by the centralized forwardedMessageUtils detection
+  const reference = messageSnapshots !== undefined ? { type: MessageReferenceType.Forward } : null;
+
   return {
     attachments,
     messageSnapshots,
+    reference,
     channel,
     reply: vi.fn().mockResolvedValue({ id: 'reply-123' }),
   } as unknown as Message;

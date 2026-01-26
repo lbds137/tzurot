@@ -8,10 +8,14 @@
  * This ensures consistent behavior:
  * - Bot only responds to user-generated content (Default, Reply, Forward)
  * - Bot ignores system messages (ThreadCreated, ChannelPinnedMessage, UserJoin, etc.)
+ *
+ * For forwarded message handling (content extraction, snapshot access),
+ * use the centralized utilities in forwardedMessageUtils.ts
  */
 
 import type { Message } from 'discord.js';
-import { MessageType, MessageReferenceType } from 'discord.js';
+import { MessageType } from 'discord.js';
+import { isForwardedMessage as isForwarded } from './forwardedMessageUtils.js';
 
 /**
  * Check if a message is user-generated content that the bot should respond to.
@@ -41,10 +45,12 @@ export function isUserContentMessage(message: Message): boolean {
     return true;
   }
 
-  // Also allow forwarded messages (have Forward reference type with snapshots)
+  // Also allow forwarded messages (have Forward reference type)
   // Forwarded messages may have a different MessageType but contain user content
-  // The ?.size check handles both undefined and size > 0 (0 is falsy)
-  if (message.reference?.type === MessageReferenceType.Forward && message.messageSnapshots?.size) {
+  // Note: We don't require messageSnapshots.size > 0 because Discord may not always
+  // populate snapshots (permissions, API limitations, etc.)
+  // Uses centralized isForwardedMessage from forwardedMessageUtils.ts
+  if (isForwarded(message)) {
     return true;
   }
 
@@ -54,58 +60,25 @@ export function isUserContentMessage(message: Message): boolean {
 /**
  * Check if a message is a forwarded message.
  *
- * Forwarded messages have:
- * - message.reference.type === MessageReferenceType.Forward
- * - message.messageSnapshots with at least one snapshot
+ * Re-exports from forwardedMessageUtils.ts for backward compatibility.
+ * Use forwardedMessageUtils.ts directly for new code.
  *
- * The actual content is in the snapshot, not in message.content.
+ * @see forwardedMessageUtils.ts for more utilities:
+ *   - hasForwardedSnapshots() - check if snapshots are available
+ *   - extractAllForwardedContent() - comprehensive content extraction
+ *   - hasForwardedContent() - check if forwarded message has content
  */
-export function isForwardedMessage(message: Message): boolean {
-  return (
-    message.reference?.type === MessageReferenceType.Forward &&
-    message.messageSnapshots !== undefined &&
-    message.messageSnapshots.size > 0
-  );
-}
-
-/**
- * Type guard to safely extract content from a message snapshot.
- * Snapshots have a nested message.content structure that needs careful access.
- */
-function getSnapshotContent(snapshot: unknown): string | undefined {
-  if (
-    snapshot !== null &&
-    typeof snapshot === 'object' &&
-    'message' in snapshot &&
-    snapshot.message !== null &&
-    typeof snapshot.message === 'object' &&
-    'content' in snapshot.message &&
-    typeof snapshot.message.content === 'string' &&
-    snapshot.message.content.length > 0
-  ) {
-    return snapshot.message.content;
-  }
-  return undefined;
-}
+export { isForwardedMessage } from './forwardedMessageUtils.js';
 
 /**
  * Get the effective content from a message.
  *
  * For regular messages: returns message.content
- * For forwarded messages: returns the content from the first snapshot
+ * For forwarded messages: returns the content from the first snapshot (with fallback)
  *
  * This should be used by processors instead of directly accessing message.content
  * to ensure forwarded messages are handled correctly.
+ *
+ * Re-exports from forwardedMessageUtils.ts for backward compatibility.
  */
-export function getEffectiveContent(message: Message): string {
-  // For forwarded messages, extract content from the first snapshot
-  if (isForwardedMessage(message)) {
-    const firstSnapshot = message.messageSnapshots?.first();
-    const snapshotContent = getSnapshotContent(firstSnapshot);
-    if (snapshotContent !== undefined) {
-      return snapshotContent;
-    }
-  }
-
-  return message.content;
-}
+export { getEffectiveContent } from './forwardedMessageUtils.js';

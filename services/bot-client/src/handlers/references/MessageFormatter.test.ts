@@ -43,6 +43,14 @@ vi.mock('../../utils/EmbedParser.js', () => ({
   },
 }));
 
+// Mock forwarded message utilities
+vi.mock('../../utils/forwardedMessageUtils.js', () => ({
+  isForwardedMessage: vi.fn().mockReturnValue(false),
+  hasForwardedSnapshots: vi.fn().mockReturnValue(false),
+  extractForwardedAttachments: vi.fn().mockReturnValue([]),
+  extractForwardedContent: vi.fn().mockReturnValue(''),
+}));
+
 describe('MessageFormatter', () => {
   let formatter: MessageFormatter;
   let mockTranscriptRetriever: TranscriptRetriever;
@@ -366,6 +374,206 @@ describe('MessageFormatter', () => {
       const result = await formatter.formatMessage(message, 1);
 
       expect(result.embeds).toEqual(['Embed Title', 'Embed Description']);
+    });
+  });
+
+  describe('Forwarded Voice Message Handling', () => {
+    it('should extract voice attachments from forwarded message snapshots and retrieve transcripts', async () => {
+      // Setup forwarded message detection
+      const {
+        isForwardedMessage,
+        hasForwardedSnapshots,
+        extractForwardedAttachments,
+        extractForwardedContent,
+      } = await import('../../utils/forwardedMessageUtils.js');
+
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
+      vi.mocked(extractForwardedContent).mockReturnValue('Forwarded text content');
+      vi.mocked(extractForwardedAttachments).mockReturnValue([
+        {
+          url: 'https://cdn.discord.com/voice.ogg',
+          contentType: 'audio/ogg',
+          name: 'voice.ogg',
+          isVoiceMessage: true,
+          duration: 5.5,
+        },
+      ]);
+
+      // Mock transcript retrieval - uses forwarding message ID
+      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(
+        'Forwarded voice transcript'
+      );
+
+      const message = createMockMessage({
+        id: 'forwarding-msg-999', // The forwarding message's ID
+        content: '', // Forwarded messages often have empty main content
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      // Should be marked as forwarded
+      expect(result.isForwarded).toBe(true);
+
+      // Content should include forwarded text and voice transcript
+      expect(result.content).toContain('Forwarded text content');
+      expect(result.content).toContain('[Voice transcript]: Forwarded voice transcript');
+
+      // Transcript should be retrieved using FORWARDING message ID (not original)
+      expect(mockTranscriptRetriever.retrieveTranscript).toHaveBeenCalledWith(
+        'forwarding-msg-999',
+        'https://cdn.discord.com/voice.ogg'
+      );
+
+      // Voice attachment should be in attachments
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments?.[0].isVoiceMessage).toBe(true);
+    });
+
+    it('should handle forwarded voice message when no transcript is available', async () => {
+      const {
+        isForwardedMessage,
+        hasForwardedSnapshots,
+        extractForwardedAttachments,
+        extractForwardedContent,
+      } = await import('../../utils/forwardedMessageUtils.js');
+
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
+      vi.mocked(extractForwardedContent).mockReturnValue('');
+      vi.mocked(extractForwardedAttachments).mockReturnValue([
+        {
+          url: 'https://cdn.discord.com/voice-no-transcript.ogg',
+          contentType: 'audio/ogg',
+          name: 'voice.ogg',
+          isVoiceMessage: true,
+          duration: 8.2,
+        },
+      ]);
+
+      // No transcript available
+      vi.mocked(mockTranscriptRetriever.retrieveTranscript).mockResolvedValue(null);
+
+      const message = createMockMessage({
+        id: 'forwarding-msg-no-transcript',
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      // Should still be marked as forwarded
+      expect(result.isForwarded).toBe(true);
+
+      // Content should not contain voice transcript
+      expect(result.content).not.toContain('[Voice transcript]');
+
+      // Voice attachment should still be in attachments
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments?.[0].isVoiceMessage).toBe(true);
+
+      // Transcript retrieval should have been attempted
+      expect(mockTranscriptRetriever.retrieveTranscript).toHaveBeenCalledWith(
+        'forwarding-msg-no-transcript',
+        'https://cdn.discord.com/voice-no-transcript.ogg'
+      );
+    });
+
+    it('should extract images from forwarded message snapshots', async () => {
+      const {
+        isForwardedMessage,
+        hasForwardedSnapshots,
+        extractForwardedAttachments,
+        extractForwardedContent,
+      } = await import('../../utils/forwardedMessageUtils.js');
+
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      vi.mocked(hasForwardedSnapshots).mockReturnValue(true);
+      vi.mocked(extractForwardedContent).mockReturnValue('Look at this image');
+      vi.mocked(extractForwardedAttachments).mockReturnValue([
+        {
+          url: 'https://cdn.discord.com/forwarded-image.png',
+          contentType: 'image/png',
+          name: 'image.png',
+        },
+      ]);
+
+      const message = createMockMessage({
+        id: 'forwarding-image-msg',
+        content: '',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      // Should be marked as forwarded
+      expect(result.isForwarded).toBe(true);
+
+      // Should have extracted content
+      expect(result.content).toBe('Look at this image');
+
+      // Image attachment should be extracted from snapshot
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments?.[0].url).toBe('https://cdn.discord.com/forwarded-image.png');
+      expect(result.attachments?.[0].contentType).toBe('image/png');
+
+      // Should NOT try to retrieve transcript for non-voice attachment
+      expect(mockTranscriptRetriever.retrieveTranscript).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to regular attachment extraction when forwarded message has no snapshots', async () => {
+      const { extractAttachments } = await import('../../utils/attachmentExtractor.js');
+      const { extractEmbedImages } = await import('../../utils/embedImageExtractor.js');
+      const {
+        isForwardedMessage,
+        hasForwardedSnapshots,
+        extractForwardedAttachments,
+        extractForwardedContent,
+      } = await import('../../utils/forwardedMessageUtils.js');
+
+      // Forwarded but no snapshots (Discord API edge case)
+      vi.mocked(isForwardedMessage).mockReturnValue(true);
+      vi.mocked(hasForwardedSnapshots).mockReturnValue(false);
+      vi.mocked(extractForwardedContent).mockReturnValue('');
+      vi.mocked(extractForwardedAttachments).mockReturnValue([]);
+
+      // Regular attachment extraction fallback
+      vi.mocked(extractAttachments).mockReturnValue([
+        {
+          url: 'https://example.com/fallback-image.jpg',
+          contentType: 'image/jpeg',
+          name: 'fallback.jpg',
+        },
+      ]);
+      // Reset embed images to empty for this test
+      vi.mocked(extractEmbedImages).mockReturnValue([]);
+
+      const message = createMockMessage({
+        id: 'forwarding-no-snapshots',
+        content: 'Fallback content from main message',
+        author: createMockUser(),
+        attachments: new Map() as any,
+        embeds: [],
+      });
+
+      const result = await formatter.formatMessage(message, 1);
+
+      // Should still be marked as forwarded
+      expect(result.isForwarded).toBe(true);
+
+      // Content should come from main message
+      expect(result.content).toBe('Fallback content from main message');
+
+      // Should have fallen back to regular attachment extraction
+      expect(result.attachments).toHaveLength(1);
+      expect(result.attachments?.[0].url).toBe('https://example.com/fallback-image.jpg');
     });
   });
 });

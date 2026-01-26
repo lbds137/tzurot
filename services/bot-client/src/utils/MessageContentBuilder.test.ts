@@ -307,9 +307,11 @@ describe('MessageContentBuilder', () => {
       expect(result.attachments[1].name).toBe('on-main-message.gif');
     });
 
-    it('should use original message ID for forwarded voice message transcript lookup', async () => {
+    it('should use forwarding message ID for forwarded voice message transcript lookup', async () => {
       // Create forwarded voice message - the key is that getTranscript should be called
-      // with the ORIGINAL message ID (from reference.messageId), not the forwarded message ID
+      // with the FORWARDING message's ID, not the original message ID.
+      // This is because VoiceTranscriptionService stores transcripts keyed by the
+      // message ID that triggered transcription (the forwarding message).
       const snapshotAttachments = new Collection<string, Attachment>();
       snapshotAttachments.set(
         'voice-1',
@@ -331,11 +333,11 @@ describe('MessageContentBuilder', () => {
       } as unknown as MessageSnapshot);
 
       const message = createMockMessage({
-        id: 'forwarded-msg-999', // The forwarded message's ID
+        id: 'forwarded-msg-999', // The forwarding message's ID - this is used for lookup
         content: '',
         reference: {
           type: MessageReferenceType.Forward,
-          messageId: 'original-voice-msg-123', // The ORIGINAL voice message ID
+          messageId: 'original-voice-msg-123', // The ORIGINAL voice message ID (not used for lookup)
         } as Message['reference'],
         messageSnapshots,
       });
@@ -344,13 +346,13 @@ describe('MessageContentBuilder', () => {
 
       const result = await buildMessageContent(message, { getTranscript });
 
-      // CRITICAL: getTranscript should be called with ORIGINAL message ID, not forwarded message ID
-      // This ensures DB lookup works even when Redis cache is cold
+      // CRITICAL: getTranscript should be called with FORWARDING message ID
+      // The transcript was stored under the forwarding message's ID when originally processed
       expect(getTranscript).toHaveBeenCalledWith(
-        'original-voice-msg-123', // Original message ID
+        'forwarded-msg-999', // Forwarding message ID
         'https://cdn.discord.com/attachments/123/voice.ogg'
       );
-      expect(getTranscript).not.toHaveBeenCalledWith('forwarded-msg-999', expect.any(String));
+      expect(getTranscript).not.toHaveBeenCalledWith('original-voice-msg-123', expect.any(String));
 
       // Voice transcripts are now returned separately for structured XML formatting
       expect(result.voiceTranscripts).toBeDefined();
@@ -382,11 +384,11 @@ describe('MessageContentBuilder', () => {
       } as unknown as MessageSnapshot);
 
       const message = createMockMessage({
-        id: 'forwarded-msg-no-transcript',
+        id: 'forwarded-msg-no-transcript', // The forwarding message's ID - used for lookup
         content: '',
         reference: {
           type: MessageReferenceType.Forward,
-          messageId: 'original-voice-msg-456',
+          messageId: 'original-voice-msg-456', // Original message ID (not used for lookup)
         } as Message['reference'],
         messageSnapshots,
       });
@@ -396,9 +398,9 @@ describe('MessageContentBuilder', () => {
 
       const result = await buildMessageContent(message, { getTranscript });
 
-      // Should still attempt lookup
+      // Should still attempt lookup using FORWARDING message ID
       expect(getTranscript).toHaveBeenCalledWith(
-        'original-voice-msg-456',
+        'forwarded-msg-no-transcript', // Forwarding message ID
         'https://cdn.discord.com/attachments/123/voice-no-transcript.ogg'
       );
 
@@ -413,7 +415,8 @@ describe('MessageContentBuilder', () => {
 
     it('should handle forwarded voice message when originalMessageId is undefined', async () => {
       // Edge case: forwarded message without reference.messageId
-      // This can happen with certain Discord API edge cases
+      // This can happen with certain Discord API edge cases.
+      // The transcript lookup should STILL work using the forwarding message's ID.
       const snapshotAttachments = new Collection<string, Attachment>();
       snapshotAttachments.set(
         'voice-1',
@@ -435,29 +438,33 @@ describe('MessageContentBuilder', () => {
       } as unknown as MessageSnapshot);
 
       const message = createMockMessage({
-        id: 'forwarded-msg-no-ref',
+        id: 'forwarded-msg-no-ref', // The forwarding message's ID - used for lookup
         content: '',
         reference: {
           type: MessageReferenceType.Forward,
-          // messageId is intentionally missing!
+          // messageId is intentionally missing! But we don't need it anymore.
         } as Message['reference'],
         messageSnapshots,
       });
 
-      const getTranscript = vi.fn().mockResolvedValue('Should not be called');
+      const getTranscript = vi.fn().mockResolvedValue('Transcript found via forwarding message ID');
 
       const result = await buildMessageContent(message, { getTranscript });
 
-      // getTranscript should NOT be called since we don't have originalMessageId
-      expect(getTranscript).not.toHaveBeenCalled();
+      // getTranscript SHOULD be called using the FORWARDING message's ID
+      // We don't need the original message ID for lookup since transcripts are
+      // stored under the forwarding message's ID when VoiceTranscriptionService processes them
+      expect(getTranscript).toHaveBeenCalledWith(
+        'forwarded-msg-no-ref', // Forwarding message ID
+        'https://cdn.discord.com/attachments/123/voice-no-ref.ogg'
+      );
 
-      // Voice message should still be detected and included in attachments
+      // Voice message should be detected with transcript found
       expect(result.hasVoiceMessage).toBe(true);
       expect(result.isForwarded).toBe(true);
-      expect(result.attachments).toHaveLength(1);
-      expect(result.attachments[0].isVoiceMessage).toBe(true);
-      // No transcript in content
-      expect(result.content).not.toContain('[Voice transcript]');
+      // Voice transcripts are returned separately for structured XML formatting
+      expect(result.voiceTranscripts).toBeDefined();
+      expect(result.voiceTranscripts).toContain('Transcript found via forwarding message ID');
     });
 
     it('should combine text content with attachments and embeds', async () => {

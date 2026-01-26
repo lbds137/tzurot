@@ -9,6 +9,7 @@ import type { Message } from 'discord.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { splitMessage, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
 import { voiceTranscriptCache } from '../redis.js';
+import { hasForwardedSnapshots, getSnapshots } from '../utils/forwardedMessageUtils.js';
 
 const logger = createLogger('VoiceTranscriptionService');
 
@@ -65,6 +66,48 @@ function extractAudioFromSnapshot(snapshot: {
 }
 
 /**
+ * Check if a snapshot has any audio attachments
+ * @internal
+ */
+function snapshotHasAudio(snapshot: {
+  attachments?: ReadonlyMap<
+    string,
+    {
+      contentType: string | null;
+      duration: number | null;
+    }
+  > | null;
+}): boolean {
+  if (!snapshot.attachments || snapshot.attachments.size === 0) {
+    return false;
+  }
+
+  return Array.from(snapshot.attachments.values()).some(
+    a => (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) || a.duration !== null
+  );
+}
+
+/**
+ * Extract audio attachments from forwarded message snapshots
+ * @internal
+ */
+function extractAudioFromForwardedSnapshots(message: Message): TranscriptionAttachment[] {
+  const snapshots = getSnapshots(message);
+  if (snapshots === undefined) {
+    return [];
+  }
+
+  for (const snapshot of snapshots.values()) {
+    const snapshotAttachments = extractAudioFromSnapshot(snapshot);
+    if (snapshotAttachments.length > 0) {
+      return snapshotAttachments; // Return first snapshot with audio
+    }
+  }
+
+  return [];
+}
+
+/**
  * Result of voice transcription
  */
 export interface VoiceTranscriptionResult {
@@ -82,6 +125,7 @@ export class VoiceTranscriptionService {
 
   /**
    * Check if message contains voice attachment (in direct attachments or forwarded message snapshots)
+   * Uses centralized utilities from forwardedMessageUtils.ts for consistent forwarded message handling.
    */
   hasVoiceAttachment(message: Message): boolean {
     // Check direct attachments
@@ -93,27 +137,19 @@ export class VoiceTranscriptionService {
       return true;
     }
 
-    // Check forwarded message snapshots
-    if (
-      message.messageSnapshots !== null &&
-      message.messageSnapshots !== undefined &&
-      message.messageSnapshots.size > 0
-    ) {
-      for (const snapshot of message.messageSnapshots.values()) {
-        if (
-          snapshot.attachments !== null &&
-          snapshot.attachments !== undefined &&
-          snapshot.attachments.size > 0
-        ) {
-          const hasSnapshotAudio = snapshot.attachments.some(
-            a =>
-              (a.contentType?.startsWith(CONTENT_TYPES.AUDIO_PREFIX) ?? false) ||
-              a.duration !== null
-          );
-          if (hasSnapshotAudio) {
-            return true;
-          }
-        }
+    // Check forwarded message snapshots using centralized utility
+    if (!hasForwardedSnapshots(message)) {
+      return false;
+    }
+
+    const snapshots = getSnapshots(message);
+    if (snapshots === undefined) {
+      return false;
+    }
+
+    for (const snapshot of snapshots.values()) {
+      if (snapshotHasAudio(snapshot)) {
+        return true;
       }
     }
 
@@ -156,14 +192,12 @@ export class VoiceTranscriptionService {
       }));
 
       // If no direct audio attachments, check forwarded message snapshots
-      if (attachments.length === 0 && message.messageSnapshots?.size) {
-        for (const snapshot of message.messageSnapshots.values()) {
-          const snapshotAttachments = extractAudioFromSnapshot(snapshot);
-          if (snapshotAttachments.length > 0) {
-            attachments = snapshotAttachments;
-            logger.debug('[VoiceTranscriptionService] Found audio in forwarded message snapshot');
-            break; // Use first snapshot with audio
-          }
+      // Uses centralized utility for consistent forwarded message handling
+      if (attachments.length === 0 && hasForwardedSnapshots(message)) {
+        const forwardedAudio = extractAudioFromForwardedSnapshots(message);
+        if (forwardedAudio.length > 0) {
+          attachments = forwardedAudio;
+          logger.debug('[VoiceTranscriptionService] Found audio in forwarded message snapshot');
         }
       }
 
