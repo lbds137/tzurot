@@ -1,27 +1,64 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-25
-> **Current Version**: v3.0.0-beta.50
+> **Last Updated**: 2026-01-26
+> **Current Version**: v3.0.0-beta.51
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
 
-## Current Priority: User-Requested Features
+## Current Priority: Pipeline Refactor
 
-**Goal**: Deliver user value first. v2 parity is not urgent - legacy system isn't hurting anything.
+**Goal**: Fix the brittle extended context pipeline before adding more features. Current architecture causes constant bugs with forwarded messages, voice transcripts, and image descriptions.
 
 ---
 
 ## Next Up (In Order)
 
-### 1. User System Prompts ⬅️ NEXT
+### 1. Extended Context Pipeline Refactor ⬅️ NEXT
+
+**Why**: HIGH PRIORITY - The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync, causing bugs. This is blocking reliable feature development.
+
+**Details**: See [TECH_DEBT.md](docs/proposals/active/TECH_DEBT.md) → "Extended Context Pipeline Simplification"
+
+- [ ] Remove the extended context toggle - always use extended context
+- [ ] Remove dead code paths (all "if not extended context" branches)
+- [ ] Unify the pipeline - single path from Discord → LLM input
+- [ ] Consolidate types - `ConversationHistoryEntry` carries ALL data through pipeline
+
+### 2. LTM Summarization (Shapes.inc Style)
+
+**Why**: Verbatim conversation storage is redundant with extended context. Shapes.inc-style summaries are more efficient.
+
+**Details**: See [TECH_DEBT.md](docs/proposals/active/TECH_DEBT.md) → "LTM Summarization"
+
+- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
+- [ ] Separate LLM call for summarization (fast/cheap model)
+- [ ] Store summaries as LTM instead of verbatim turns
+- [ ] Extended context provides recency, DB provides summarized history
+
+### 3. Memories Table Migration
+
+**Why**: Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
+
+**Details**: See [TECH_DEBT.md](docs/proposals/active/TECH_DEBT.md) → "Memories Table Cleanup & Migration"
+
+- [ ] Design unified memory format (draw from both sources)
+- [ ] One-time migration of existing tzurot-v3 memories
+- [ ] Run existing verbatim memories through summarizer
+- [ ] Schema update if needed
+
+---
+
+## After Pipeline Refactor
+
+### 4. User System Prompts
 
 **Why**: User-requested feature to customize AI behavior per-user.
 
 - [ ] "Sidecar prompt" appended to system message per-user
 - [ ] `/me profile` dashboard upgrade to edit system prompt
 
-### 2. Channel Allowlist/Denylist
+### 5. Channel Allowlist/Denylist
 
 **Why**: User-requested. Prevents bot from spamming unwanted channels, reduces server kicks.
 
@@ -30,7 +67,7 @@
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### 3. DM Personality Chat
+### 6. DM Personality Chat
 
 **Why**: User-requested. Multiple requests for this feature.
 
