@@ -445,6 +445,132 @@ export const ChannelCustomIds = {
 } as const;
 
 // ============================================================================
+// PERSONA COMMAND
+// ============================================================================
+
+/** Sort options for persona browse */
+export type PersonaBrowseSortType = 'date' | 'name';
+
+/** Result type for PersonaCustomIds.parse */
+interface PersonaParseResult {
+  command: 'persona';
+  action: string;
+  personaId?: string;
+  sectionId?: string;
+  field?: string;
+  personalityId?: string;
+  page?: number;
+  sort?: PersonaBrowseSortType;
+}
+
+export const PersonaCustomIds = {
+  // Dashboard actions (entityType = 'persona' for routing)
+  /** Build menu customId for dashboard select menu */
+  menu: (personaId: string) => `persona::menu::${personaId}` as const,
+
+  /** Build modal customId for section edit */
+  modal: (personaId: string, sectionId: string) =>
+    `persona::modal::${personaId}::${sectionId}` as const,
+
+  /** Build close button customId */
+  close: (personaId: string) => `persona::close::${personaId}` as const,
+
+  /** Build refresh button customId */
+  refresh: (personaId: string) => `persona::refresh::${personaId}` as const,
+
+  /** Build delete button customId */
+  delete: (personaId: string) => `persona::delete::${personaId}` as const,
+
+  /** Build confirm delete button customId */
+  confirmDelete: (personaId: string) => `persona::confirm-delete::${personaId}` as const,
+
+  /** Build cancel delete button customId */
+  cancelDelete: (personaId: string) => `persona::cancel-delete::${personaId}` as const,
+
+  // Create actions
+  /** Create new persona modal */
+  create: () => 'persona::create' as const,
+
+  // View actions
+  /** Expand content field button */
+  expand: (personaId: string, field: string) => `persona::expand::${personaId}::${field}` as const,
+
+  // Override actions
+  /** Create persona for override flow */
+  overrideCreate: (personalityId: string) => `persona::override-create::${personalityId}` as const,
+
+  // Browse actions
+  /** Build browse pagination button customId */
+  browsePage: (page: number, sort: PersonaBrowseSortType) =>
+    `persona::browse::${page}::${sort}` as const,
+
+  /** Build browse select menu customId */
+  browseSelect: (page: number, sort: PersonaBrowseSortType) =>
+    `persona::browse-select::${page}::${sort}` as const,
+
+  /** Build browse info button customId (disabled) */
+  browseInfo: () => 'persona::browse::info' as const,
+
+  /** Parse persona customId */
+  parse: (customId: string): PersonaParseResult | null => {
+    const parts = customId.split(CUSTOM_ID_DELIMITER);
+    if (parts[0] !== 'persona' || parts.length < 2) {
+      return null;
+    }
+
+    const action = parts[1];
+    const result: PersonaParseResult = { command: 'persona', action };
+
+    // Handle browse actions
+    if (action === 'browse' || action === 'browse-select') {
+      if (parts[2] !== 'info' && parts[2] !== undefined) {
+        const pageNum = parseInt(parts[2], 10);
+        if (!isNaN(pageNum)) {
+          result.page = pageNum;
+        }
+        if (parts[3] === 'date' || parts[3] === 'name') {
+          result.sort = parts[3];
+        }
+      }
+      return result;
+    }
+
+    // Handle expand action: persona::expand::personaId::field
+    if (action === 'expand') {
+      result.personaId = parts[2];
+      result.field = parts[3];
+      return result;
+    }
+
+    // Handle override-create action: persona::override-create::personalityId
+    if (action === 'override-create') {
+      result.personalityId = parts[2];
+      return result;
+    }
+
+    // Handle modal action: persona::modal::personaId::sectionId
+    if (action === 'modal') {
+      result.personaId = parts[2];
+      result.sectionId = parts[3];
+      return result;
+    }
+
+    // Default: personaId in third position
+    if (parts[2] !== undefined) {
+      result.personaId = parts[2];
+    }
+    if (parts[3] !== undefined) {
+      result.sectionId = parts[3];
+    }
+
+    return result;
+  },
+
+  /** Check if customId belongs to persona command */
+  isPersona: (customId: string): boolean => customId.startsWith('persona::'),
+} as const;
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 

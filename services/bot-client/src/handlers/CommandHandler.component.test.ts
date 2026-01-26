@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect, beforeAll, vi } from 'vitest';
+import { MessageFlags } from 'discord.js';
 import { CommandHandler } from './CommandHandler.js';
 
 // Mock redis since character/chat.ts imports it
@@ -46,12 +47,12 @@ describe('CommandHandler (component)', () => {
      * This test ensures subcommandDeferralModes is properly preserved
      * for commands that define it (wallet, character, me).
      */
-    it('should preserve subcommandDeferralModes for wallet command', () => {
-      const walletCommand = handler.getCommand('wallet');
+    it('should preserve subcommandDeferralModes for settings command', () => {
+      const settingsCommand = handler.getCommand('settings');
 
-      expect(walletCommand).toBeDefined();
-      expect(walletCommand?.subcommandDeferralModes).toBeDefined();
-      expect(walletCommand?.subcommandDeferralModes?.set).toBe('modal');
+      expect(settingsCommand).toBeDefined();
+      expect(settingsCommand?.subcommandDeferralModes).toBeDefined();
+      expect(settingsCommand?.subcommandDeferralModes?.['apikey set']).toBe('modal');
     });
 
     it('should preserve subcommandDeferralModes for character command', () => {
@@ -63,12 +64,13 @@ describe('CommandHandler (component)', () => {
       expect(characterCommand?.subcommandDeferralModes?.chat).toBe('public');
     });
 
-    it('should preserve subcommandDeferralModes for me command', () => {
-      const meCommand = handler.getCommand('me');
+    it('should preserve subcommandDeferralModes for persona command', () => {
+      const personaCommand = handler.getCommand('persona');
 
-      expect(meCommand).toBeDefined();
-      expect(meCommand?.subcommandDeferralModes).toBeDefined();
-      // me has several modal subcommands for profile editing
+      expect(personaCommand).toBeDefined();
+      expect(personaCommand?.subcommandDeferralModes).toBeDefined();
+      // persona has 'create' and 'override set' as modal subcommands
+      expect(personaCommand?.subcommandDeferralModes?.create).toBe('modal');
     });
 
     it('should preserve deferralMode for commands', () => {
@@ -79,11 +81,11 @@ describe('CommandHandler (component)', () => {
     });
 
     it('should preserve handleModal for commands that define it', () => {
-      const walletCommand = handler.getCommand('wallet');
+      const settingsCommand = handler.getCommand('settings');
 
-      expect(walletCommand).toBeDefined();
-      expect(walletCommand?.handleModal).toBeDefined();
-      expect(typeof walletCommand?.handleModal).toBe('function');
+      expect(settingsCommand).toBeDefined();
+      expect(settingsCommand?.handleModal).toBeDefined();
+      expect(typeof settingsCommand?.handleModal).toBe('function');
     });
 
     it('should preserve componentPrefixes for commands that define them', () => {
@@ -106,10 +108,10 @@ describe('CommandHandler (component)', () => {
         'character',
         'help',
         'history',
-        'me',
         'memory',
+        'persona',
         'preset',
-        'wallet',
+        'settings',
       ];
 
       for (const commandName of expectedCommands) {
@@ -127,6 +129,251 @@ describe('CommandHandler (component)', () => {
           'function'
         );
       }
+    });
+  });
+
+  /**
+   * POSTMORTEM (2026-01-26): Dashboard entityType routing validation
+   *
+   * Bug: /me profile edit returned "Unknown interaction" because the 'profile'
+   * prefix wasn't registered as a componentPrefix on the /me command.
+   *
+   * Root cause: Dashboard framework uses entityType as customId prefix (e.g., 'profile::menu::...'),
+   * but CommandHandler routes by prefix. When command name doesn't match entityType,
+   * the entityType must be in componentPrefixes.
+   *
+   * These tests ensure dashboard entityTypes are properly routable.
+   */
+  describe('dashboard entityType routing (architectural validation)', () => {
+    /**
+     * Validates that all dashboard entityTypes have a matching prefix registered.
+     *
+     * Pattern: entityType is used as the first segment of customIds.
+     * Example: entityType='profile' creates customIds like 'profile::menu::...'
+     *
+     * For routing to work:
+     * 1. Command name equals entityType (e.g., /character + 'character'), OR
+     * 2. entityType is in componentPrefixes (e.g., /me + componentPrefixes: ['profile'])
+     */
+    it('should have persona entityType routable to /persona command', () => {
+      const personaCommand = handler.getCommand('persona');
+      expect(personaCommand).toBeDefined();
+
+      // Command name 'persona' matches entityType, so no componentPrefixes needed
+      // But verify the prefix is registered
+      const prefixToCommand = (handler as any).prefixToCommand as Map<string, unknown>;
+      expect(prefixToCommand.has('persona'), "'persona' prefix should be registered").toBe(true);
+    });
+
+    it('should have character entityType routable to /character command', () => {
+      const characterCommand = handler.getCommand('character');
+      expect(characterCommand).toBeDefined();
+
+      // Command name 'character' matches entityType, so no componentPrefixes needed
+      // But verify the prefix is registered (either way works)
+      const prefixToCommand = (handler as any).prefixToCommand as Map<string, unknown>;
+      expect(prefixToCommand.has('character'), "'character' prefix should be registered").toBe(
+        true
+      );
+    });
+
+    it('should have preset entityType routable to /preset command', () => {
+      const presetCommand = handler.getCommand('preset');
+      expect(presetCommand).toBeDefined();
+
+      // Command name 'preset' matches entityType
+      const prefixToCommand = (handler as any).prefixToCommand as Map<string, unknown>;
+      expect(prefixToCommand.has('preset'), "'preset' prefix should be registered").toBe(true);
+    });
+  });
+
+  describe('component interaction routing', () => {
+    /**
+     * Create a mock button interaction for testing
+     */
+    function createMockButtonInteraction(customId: string) {
+      return {
+        customId,
+        isButton: () => true,
+        isStringSelectMenu: () => false,
+        replied: false,
+        deferred: false,
+        reply: vi.fn().mockResolvedValue(undefined),
+      } as any;
+    }
+
+    it('should route persona:: customId to persona command', async () => {
+      const personaCommand = handler.getCommand('persona');
+      expect(personaCommand?.handleButton).toBeDefined();
+
+      // Spy on the handler
+      const handleButtonSpy = vi.spyOn(personaCommand!, 'handleButton');
+
+      const interaction = createMockButtonInteraction('persona::close::test-uuid');
+      await handler.handleComponentInteraction(interaction);
+
+      expect(handleButtonSpy).toHaveBeenCalledWith(interaction);
+      handleButtonSpy.mockRestore();
+    });
+
+    it('should route character:: customId to character command', async () => {
+      const characterCommand = handler.getCommand('character');
+      expect(characterCommand?.handleButton).toBeDefined();
+
+      const handleButtonSpy = vi.spyOn(characterCommand!, 'handleButton');
+
+      const interaction = createMockButtonInteraction('character::close::test-slug');
+      await handler.handleComponentInteraction(interaction);
+
+      expect(handleButtonSpy).toHaveBeenCalledWith(interaction);
+      handleButtonSpy.mockRestore();
+    });
+
+    it('should return error for unregistered prefix', async () => {
+      const interaction = createMockButtonInteraction('nonexistent::action::id');
+      await handler.handleComponentInteraction(interaction);
+
+      expect(interaction.reply).toHaveBeenCalledWith({
+        content: 'Unknown interaction!',
+        flags: MessageFlags.Ephemeral,
+      });
+    });
+  });
+
+  /**
+   * Registry Integrity Tests
+   *
+   * These tests validate the architectural contract between commands and routing.
+   * They scan all loaded commands to ensure dashboard entityTypes are properly
+   * routable without requiring componentPrefixes hacks.
+   */
+  describe('registry integrity (comprehensive)', () => {
+    it('should have all componentPrefixes registered in prefixToCommand', () => {
+      const prefixToCommand = (handler as any).prefixToCommand as Map<string, unknown>;
+
+      for (const [name, command] of handler.getCommands()) {
+        // Command name should always be registered
+        expect(prefixToCommand.has(name), `Command "${name}" should be registered as prefix`).toBe(
+          true
+        );
+
+        // All componentPrefixes should be registered
+        if (command.componentPrefixes) {
+          for (const prefix of command.componentPrefixes) {
+            expect(
+              prefixToCommand.has(prefix),
+              `componentPrefix "${prefix}" from "${name}" should be registered`
+            ).toBe(true);
+          }
+        }
+      }
+    });
+
+    it('should have no duplicate prefix registrations across commands', () => {
+      const prefixOwners = new Map<string, string[]>();
+
+      for (const [name, command] of handler.getCommands()) {
+        // Track command name as prefix
+        if (!prefixOwners.has(name)) {
+          prefixOwners.set(name, []);
+        }
+        prefixOwners.get(name)!.push(name);
+
+        // Track componentPrefixes
+        if (command.componentPrefixes) {
+          for (const prefix of command.componentPrefixes) {
+            if (!prefixOwners.has(prefix)) {
+              prefixOwners.set(prefix, []);
+            }
+            prefixOwners.get(prefix)!.push(name);
+          }
+        }
+      }
+
+      // Check for duplicates
+      for (const [prefix, owners] of prefixOwners) {
+        if (owners.length > 1) {
+          // Same command can own a prefix via name and componentPrefixes
+          const uniqueOwners = [...new Set(owners)];
+          expect(
+            uniqueOwners.length,
+            `Prefix "${prefix}" is claimed by multiple commands: ${uniqueOwners.join(', ')}`
+          ).toBe(1);
+        }
+      }
+    });
+
+    it('should log all registered prefixes for debugging', () => {
+      const prefixToCommand = (handler as any).prefixToCommand as Map<string, unknown>;
+      const registeredPrefixes = [...prefixToCommand.keys()].sort();
+
+      // This test documents what prefixes are registered
+      // If this snapshot changes, it indicates routing changes
+      expect(registeredPrefixes).toEqual(
+        expect.arrayContaining([
+          'admin',
+          'admin-servers', // Admin servers browse pattern
+          'admin-settings',
+          'channel',
+          'character',
+          'help',
+          'history',
+          'memory',
+          'persona', // Persona command - entityType matches command name
+          'preset',
+          'settings', // Settings command - consolidates timezone, apikey, preset
+        ])
+      );
+    });
+  });
+
+  /**
+   * Command Structure Snapshot Tests
+   *
+   * These tests create snapshots of command structure to catch unintended changes.
+   * Changes to command names, subcommands, or options should be intentional.
+   */
+  describe('command structure snapshots', () => {
+    it('should have stable /character command structure', () => {
+      const characterCommand = handler.getCommand('character');
+      expect(characterCommand).toBeDefined();
+
+      const data = characterCommand!.data.toJSON();
+      expect(data.name).toBe('character');
+      expect(data.options).toMatchSnapshot('character-command-options');
+    });
+
+    it('should have stable /admin command structure', () => {
+      const adminCommand = handler.getCommand('admin');
+      expect(adminCommand).toBeDefined();
+
+      const data = adminCommand!.data.toJSON();
+      expect(data.name).toBe('admin');
+      expect(data.options).toMatchSnapshot('admin-command-options');
+    });
+
+    it('should have stable /persona command structure', () => {
+      const personaCommand = handler.getCommand('persona');
+      expect(personaCommand).toBeDefined();
+
+      const data = personaCommand!.data.toJSON();
+      expect(data.name).toBe('persona');
+      expect(data.options).toMatchSnapshot('persona-command-options');
+    });
+
+    it('should have stable /settings command structure', () => {
+      const settingsCommand = handler.getCommand('settings');
+      expect(settingsCommand).toBeDefined();
+
+      const data = settingsCommand!.data.toJSON();
+      expect(data.name).toBe('settings');
+      expect(data.options).toMatchSnapshot('settings-command-options');
+    });
+
+    it('should have stable command count', () => {
+      // Track total command count to catch accidental additions/removals
+      const commandCount = handler.getCommands().size;
+      expect(commandCount).toMatchSnapshot('total-command-count');
     });
   });
 });

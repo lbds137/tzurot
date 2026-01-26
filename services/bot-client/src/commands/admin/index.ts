@@ -28,7 +28,15 @@ import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 // Import subcommand handlers
 import { handlePing } from './ping.js';
 import { handleDbSync } from './db-sync.js';
-import { handleServers } from './servers.js';
+import {
+  handleServers,
+  handleServersBrowsePagination,
+  handleServersSelect,
+  handleServersBack,
+  isServersBrowseInteraction,
+  parseBrowseCustomId,
+  parseBackCustomId,
+} from './servers.js';
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
@@ -134,6 +142,13 @@ async function handleServerAutocomplete(
  * Handle select menu interactions for admin commands
  */
 async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  // Servers browse select
+  if (isServersBrowseInteraction(interaction.customId)) {
+    // Note: Owner check - interaction is on admin command which requires owner
+    await handleServersSelect(interaction);
+    return;
+  }
+
   // Settings dashboard interactions
   if (isAdminSettingsInteraction(interaction.customId)) {
     // Note: Owner check is done via session ownership (dashboard is only created for owner)
@@ -145,8 +160,22 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
  * Handle button interactions for admin commands
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  const customId = interaction.customId;
+
+  // Servers browse pagination
+  if (parseBrowseCustomId(customId) !== null) {
+    await handleServersBrowsePagination(interaction);
+    return;
+  }
+
+  // Servers back button
+  if (parseBackCustomId(customId) !== null) {
+    await handleServersBack(interaction);
+    return;
+  }
+
   // Settings dashboard interactions
-  if (isAdminSettingsInteraction(interaction.customId)) {
+  if (isAdminSettingsInteraction(customId)) {
     // Note: Owner check is done via session ownership (dashboard is only created for owner)
     await handleAdminSettingsButton(interaction);
   }
@@ -260,5 +289,5 @@ export default defineCommand({
   handleSelectMenu,
   handleButton,
   handleModal,
-  componentPrefixes: ['admin-settings'],
+  componentPrefixes: ['admin-settings', 'admin-servers'],
 });

@@ -80,14 +80,14 @@ describe('Help Command', () => {
         category: 'Character',
       } as unknown as Command);
 
-      commands.set('wallet', {
+      commands.set('settings', {
         data: {
-          name: 'wallet',
-          description: 'Manage API keys',
-          options: [{ type: 1, name: 'list', description: 'List keys' }],
+          name: 'settings',
+          description: 'Manage account settings',
+          options: [{ type: 1, name: 'timezone', description: 'Manage timezone' }],
         },
         execute: vi.fn(),
-        category: 'Wallet',
+        category: 'Settings',
       } as unknown as Command);
 
       commands.set('help', {
@@ -287,13 +287,13 @@ describe('Help Command', () => {
         .map((f: { name: string }) => f.name)
         .filter((name: string) => !name.includes('Personality'));
 
-      // Character should come before Wallet, Wallet before Help
+      // Character should come before Settings, Settings before Help
       const characterIndex = categoryOrder.findIndex((n: string) => n.includes('Character'));
-      const walletIndex = categoryOrder.findIndex((n: string) => n.includes('Wallet'));
+      const settingsIndex = categoryOrder.findIndex((n: string) => n.includes('Settings'));
       const helpIndex = categoryOrder.findIndex((n: string) => n.includes('Help'));
 
-      expect(characterIndex).toBeLessThan(walletIndex);
-      expect(walletIndex).toBeLessThan(helpIndex);
+      expect(characterIndex).toBeLessThan(settingsIndex);
+      expect(settingsIndex).toBeLessThan(helpIndex);
     });
   });
 });
