@@ -216,8 +216,10 @@ export class ConversationalRAGService {
     // Resolve user references across all personality text fields
     // This handles shapes.inc format mentions in systemPrompt, characterInfo,
     // conversationalExamples, and other character definition fields
+    // Note: Don't pass activePersonaId here - personality.id is a personality UUID, not a persona UUID.
+    // Personalities are templates not tied to a specific persona, so self-reference detection doesn't apply.
     const { resolvedPersonality: processedPersonality, resolvedPersonas } =
-      await this.userReferenceResolver.resolvePersonalityReferences(personality, personality.id);
+      await this.userReferenceResolver.resolvePersonalityReferences(personality);
 
     // Add resolved personas to participants
     if (resolvedPersonas.length > 0) {
