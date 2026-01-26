@@ -44,7 +44,7 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
     if (!result.ok) {
       if (result.status === 404) {
         await context.editReply({
-          content: `❌ You don't have an API key configured for **${getProviderDisplayName(provider)}**.\n\nUse \`/wallet set\` to add your API key first.`,
+          content: `❌ You don't have an API key configured for **${getProviderDisplayName(provider)}**.\n\nUse \`/settings apikey set\` to add your API key first.`,
         });
         return;
       }
@@ -64,7 +64,7 @@ export async function handleTestKey(context: DeferredCommandContext): Promise<vo
           value:
             '• Check if your key is still valid\n' +
             '• Ensure you have credits/quota remaining\n' +
-            '• Use `/wallet set` to update your key',
+            '• Use `/settings apikey set` to update your key',
           inline: false,
         })
         .setTimestamp();

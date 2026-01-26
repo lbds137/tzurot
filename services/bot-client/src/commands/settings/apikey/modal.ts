@@ -105,11 +105,11 @@ async function handleSetKeySubmit(
           name: '💡 Next Steps',
           value:
             'Your API key will now be used for AI responses.\n' +
-            'Use `/wallet test` to verify it works.',
+            'Use `/settings apikey test` to verify it works.',
           inline: false,
         }
       )
-      .setFooter({ text: 'Use /wallet list to see all configured providers' })
+      .setFooter({ text: 'Use /settings apikey browse to see all configured providers' })
       .setTimestamp();
 
     await interaction.editReply({ embeds: [embed] });

@@ -167,6 +167,9 @@ export default defineCommand({
   subcommandDeferralModes: {
     'apikey set': 'modal', // /settings apikey set shows a modal
   },
+  // Route wallet:: prefixed interactions to this command
+  // (modal customIds use wallet::set::{provider} for BYOK)
+  componentPrefixes: ['wallet'],
   data: new SlashCommandBuilder()
     .setName('settings')
     .setDescription('Manage your account settings')

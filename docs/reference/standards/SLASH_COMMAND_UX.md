@@ -45,12 +45,12 @@ Commands should be organized by **user intent**, not database schema or internal
 
 ### Naming Conventions
 
-| Pattern              | Usage                    | Examples                           |
-| -------------------- | ------------------------ | ---------------------------------- |
-| Singular nouns       | Entity commands          | `/character`, `/preset`, `/wallet` |
-| `/me`                | User's own settings/data | `/me settings`, `/me persona`      |
-| Verbs as subcommands | Actions on entities      | `create`, `edit`, `delete`, `list` |
-| Lowercase, no spaces | All command names        | `/character`, not `/Character`     |
+| Pattern              | Usage                    | Examples                                 |
+| -------------------- | ------------------------ | ---------------------------------------- |
+| Singular nouns       | Entity commands          | `/character`, `/preset`, `/persona`      |
+| `/settings`          | User's own settings/data | `/settings timezone`, `/settings apikey` |
+| Verbs as subcommands | Actions on entities      | `create`, `edit`, `delete`, `browse`     |
+| Lowercase, no spaces | All command names        | `/character`, not `/Character`           |
 
 ### Standard Subcommand Names
 

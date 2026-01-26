@@ -440,7 +440,7 @@ execSync('git log --oneline -5');
 
 - **api-gateway**: https://api-gateway-development-83e8.up.railway.app
 - **Auto-deploy**: Push to develop branch
-- **Cost Model**: BYOK (users provide API keys via `/wallet`)
+- **Cost Model**: BYOK (users provide API keys via `/settings apikey`)
 
 **📚 See**: `tzurot-deployment` skill for operations, `docs/reference/RAILWAY_CLI_REFERENCE.md` for CLI
 

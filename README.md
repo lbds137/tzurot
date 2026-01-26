@@ -168,7 +168,12 @@ const provider = AIProviderFactory.create('openai', {
 - **Guest Mode**: Free model access for users without API keys
 - **Channel Activation**: Personalities can auto-respond to all messages in a channel
 - **Slash Commands**:
-  - `/wallet set/browse/remove/test` - Manage your API keys (BYOK)
+  - `/persona view/edit/create/browse/default` - User persona management
+  - `/persona share-ltm` - Share long-term memory between personas
+  - `/persona override set/clear` - Per-character persona overrides
+  - `/settings timezone set/get` - Timezone settings for timestamps
+  - `/settings apikey set/browse/remove/test` - Manage your API keys (BYOK)
+  - `/settings preset browse/set/reset/default/clear-default` - Per-character preset overrides
   - `/character create/edit/view/browse` - Manage AI characters
   - `/character import/export` - Import/export character configurations
   - `/character settings` - Configure per-character settings (model, persona)
@@ -181,10 +186,6 @@ const provider = AIProviderFactory.create('openai', {
   - `/memory browse/search/stats` - Browse and search long-term memories
   - `/memory focus/forget/purge/delete` - Memory management operations
   - `/memory incognito enable/disable/status` - Temporary privacy mode
-  - `/me profile view/edit/create/list/default` - User persona management
-  - `/me profile share-ltm` - Share long-term memory between personas
-  - `/me timezone set/get` - Timezone settings for timestamps
-  - `/me overrides list/set/override-set/override-clear/clear-default` - Per-character preset overrides
   - `/admin ping/servers/kick/usage/cleanup/db-sync/settings` - Bot administration (owner only)
   - `/help` - Show available commands
 
@@ -229,7 +230,7 @@ pnpm format
 - **API Gateway**: https://api-gateway-development-83e8.up.railway.app
 - **Health Check**: https://api-gateway-development-83e8.up.railway.app/health
 
-**BYOK Enabled**: Users can bring their own API keys via `/wallet` commands. Guest users without keys get access to free models only.
+**BYOK Enabled**: Users can bring their own API keys via `/settings apikey` commands. Guest users without keys get access to free models only.
 
 See [Railway Deployment Guide](docs/reference/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
 
