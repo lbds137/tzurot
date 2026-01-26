@@ -508,6 +508,10 @@ export class MessageContextBuilder {
     }
 
     // Opportunistic sync (fire and forget)
+    // This is idempotent and safe for concurrent execution:
+    // - Only updates EXISTING messages (no creates = no duplicate writes)
+    // - Updates are idempotent (set content to X, set content to X again = same result)
+    // - Deletes use soft-delete with timestamps (concurrent deletes are harmless)
     if (fetchResult.rawMessages) {
       this.channelFetcher
         .syncWithDatabase(
