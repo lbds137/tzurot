@@ -9,11 +9,11 @@ import { describe, it, expect } from 'vitest';
 import {
   CUSTOM_ID_DELIMITER,
   CharacterCustomIds,
-  MeCustomIds,
-  WalletCustomIds,
+  ApikeyCustomIds,
   PresetCustomIds,
   DestructiveCustomIds,
   ChannelCustomIds,
+  PersonaCustomIds,
   getCommandFromCustomId,
 } from './customIds.js';
 
@@ -100,8 +100,8 @@ describe('customIds', () => {
 
     describe('parse', () => {
       it('should return null for non-character customIds', () => {
-        expect(CharacterCustomIds.parse('wallet::set::openrouter')).toBeNull();
-        expect(CharacterCustomIds.parse('me::profile::create')).toBeNull();
+        expect(CharacterCustomIds.parse('settings::apikey::set::openrouter')).toBeNull();
+        expect(CharacterCustomIds.parse('persona::create')).toBeNull();
       });
 
       it('should return null for malformed customIds', () => {
@@ -277,136 +277,62 @@ describe('customIds', () => {
       });
 
       it('should return false for non-character customIds', () => {
-        expect(CharacterCustomIds.isCharacter('wallet::set::openrouter')).toBe(false);
-        expect(CharacterCustomIds.isCharacter('me::profile::create')).toBe(false);
+        expect(CharacterCustomIds.isCharacter('settings::apikey::set::openrouter')).toBe(false);
+        expect(CharacterCustomIds.isCharacter('persona::create')).toBe(false);
       });
     });
   });
 
-  describe('MeCustomIds', () => {
-    describe('profile builders', () => {
-      it('should build profile create customId', () => {
-        expect(MeCustomIds.profile.create()).toBe('me::profile::create');
-      });
-
-      it('should build profile edit customId with personaId', () => {
-        expect(MeCustomIds.profile.edit('persona-123')).toBe('me::profile::edit::persona-123');
-      });
-
-      it('should build profile editNew customId', () => {
-        expect(MeCustomIds.profile.editNew()).toBe('me::profile::edit::new');
-      });
-    });
-
-    describe('override builders', () => {
-      it('should build override createForOverride customId', () => {
-        expect(MeCustomIds.override.createForOverride('personality-456')).toBe(
-          'me::override::create::personality-456'
-        );
-      });
-    });
-
-    describe('parse', () => {
-      it('should return null for non-me customIds', () => {
-        expect(MeCustomIds.parse('character::seed')).toBeNull();
-        expect(MeCustomIds.parse('wallet::set::openrouter')).toBeNull();
-      });
-
-      it('should return null for malformed customIds', () => {
-        expect(MeCustomIds.parse('')).toBeNull();
-        expect(MeCustomIds.parse('me')).toBeNull();
-        expect(MeCustomIds.parse('me::profile')).toBeNull();
-      });
-
-      it('should parse profile create customId', () => {
-        const result = MeCustomIds.parse('me::profile::create');
-        expect(result).toEqual({
-          command: 'me',
-          group: 'profile',
-          action: 'create',
-        });
-      });
-
-      it('should parse profile edit customId with entityId', () => {
-        const result = MeCustomIds.parse('me::profile::edit::persona-123');
-        expect(result).toEqual({
-          command: 'me',
-          group: 'profile',
-          action: 'edit',
-          entityId: 'persona-123',
-        });
-      });
-
-      it('should parse override create customId with entityId', () => {
-        const result = MeCustomIds.parse('me::override::create::personality-456');
-        expect(result).toEqual({
-          command: 'me',
-          group: 'override',
-          action: 'create',
-          entityId: 'personality-456',
-        });
-      });
-    });
-
-    describe('isMe', () => {
-      it('should return true for me customIds', () => {
-        expect(MeCustomIds.isMe('me::profile::create')).toBe(true);
-        expect(MeCustomIds.isMe('me::override::create::abc')).toBe(true);
-      });
-
-      it('should return false for non-me customIds', () => {
-        expect(MeCustomIds.isMe('character::seed')).toBe(false);
-        expect(MeCustomIds.isMe('wallet::set::openrouter')).toBe(false);
-      });
-    });
-  });
-
-  describe('WalletCustomIds', () => {
+  describe('ApikeyCustomIds', () => {
     describe('builders', () => {
       it('should build set customId with provider', () => {
-        expect(WalletCustomIds.set('openrouter')).toBe('wallet::set::openrouter');
-        expect(WalletCustomIds.set('gemini')).toBe('wallet::set::gemini');
+        expect(ApikeyCustomIds.set('openrouter')).toBe('settings::apikey::set::openrouter');
+        expect(ApikeyCustomIds.set('gemini')).toBe('settings::apikey::set::gemini');
       });
     });
 
     describe('parse', () => {
-      it('should return null for non-wallet customIds', () => {
-        expect(WalletCustomIds.parse('character::seed')).toBeNull();
-        expect(WalletCustomIds.parse('me::profile::create')).toBeNull();
+      it('should return null for non-apikey customIds', () => {
+        expect(ApikeyCustomIds.parse('character::seed')).toBeNull();
+        expect(ApikeyCustomIds.parse('persona::create')).toBeNull();
       });
 
       it('should return null for malformed customIds', () => {
-        expect(WalletCustomIds.parse('')).toBeNull();
-        expect(WalletCustomIds.parse('wallet')).toBeNull();
+        expect(ApikeyCustomIds.parse('')).toBeNull();
+        expect(ApikeyCustomIds.parse('settings')).toBeNull();
+        expect(ApikeyCustomIds.parse('settings::apikey')).toBeNull();
       });
 
       it('should parse set customId with provider', () => {
-        const result = WalletCustomIds.parse('wallet::set::openrouter');
+        const result = ApikeyCustomIds.parse('settings::apikey::set::openrouter');
         expect(result).toEqual({
-          command: 'wallet',
+          command: 'settings',
+          subcommandGroup: 'apikey',
           action: 'set',
           provider: 'openrouter',
         });
       });
 
       it('should parse set customId without provider', () => {
-        const result = WalletCustomIds.parse('wallet::set');
+        const result = ApikeyCustomIds.parse('settings::apikey::set');
         expect(result).toEqual({
-          command: 'wallet',
+          command: 'settings',
+          subcommandGroup: 'apikey',
           action: 'set',
           provider: undefined,
         });
       });
     });
 
-    describe('isWallet', () => {
-      it('should return true for wallet customIds', () => {
-        expect(WalletCustomIds.isWallet('wallet::set::openrouter')).toBe(true);
+    describe('isApikey', () => {
+      it('should return true for apikey customIds', () => {
+        expect(ApikeyCustomIds.isApikey('settings::apikey::set::openrouter')).toBe(true);
       });
 
-      it('should return false for non-wallet customIds', () => {
-        expect(WalletCustomIds.isWallet('character::seed')).toBe(false);
-        expect(WalletCustomIds.isWallet('me::profile::create')).toBe(false);
+      it('should return false for non-apikey customIds', () => {
+        expect(ApikeyCustomIds.isApikey('character::seed')).toBe(false);
+        expect(ApikeyCustomIds.isApikey('persona::create')).toBe(false);
+        expect(ApikeyCustomIds.isApikey('settings::timezone::set')).toBe(false);
       });
     });
   });
@@ -464,8 +390,8 @@ describe('customIds', () => {
     describe('getCommandFromCustomId', () => {
       it('should extract command from :: format', () => {
         expect(getCommandFromCustomId('character::seed')).toBe('character');
-        expect(getCommandFromCustomId('me::profile::create')).toBe('me');
-        expect(getCommandFromCustomId('wallet::set::openrouter')).toBe('wallet');
+        expect(getCommandFromCustomId('persona::create')).toBe('persona');
+        expect(getCommandFromCustomId('settings::apikey::set::openrouter')).toBe('settings');
       });
 
       it('should return null for invalid format without :: delimiter', () => {
@@ -497,17 +423,16 @@ describe('customIds', () => {
       expect(parsed?.fieldName).toBe('personalityTraits');
     });
 
-    it('should round-trip me profile edit', () => {
-      const customId = MeCustomIds.profile.edit('persona-abc');
-      const parsed = MeCustomIds.parse(customId);
-      expect(parsed?.group).toBe('profile');
-      expect(parsed?.action).toBe('edit');
-      expect(parsed?.entityId).toBe('persona-abc');
+    it('should round-trip persona menu', () => {
+      const customId = PersonaCustomIds.menu('persona-abc');
+      const parsed = PersonaCustomIds.parse(customId);
+      expect(parsed?.action).toBe('menu');
+      expect(parsed?.personaId).toBe('persona-abc');
     });
 
-    it('should round-trip wallet set', () => {
-      const customId = WalletCustomIds.set('openrouter');
-      const parsed = WalletCustomIds.parse(customId);
+    it('should round-trip apikey set', () => {
+      const customId = ApikeyCustomIds.set('openrouter');
+      const parsed = ApikeyCustomIds.parse(customId);
       expect(parsed?.action).toBe('set');
       expect(parsed?.provider).toBe('openrouter');
     });
@@ -565,17 +490,22 @@ describe('customIds', () => {
         assertValidCustomId(CharacterCustomIds.deleteCancel('test'), 'character'));
     });
 
-    describe('MeCustomIds - all builders must use :: delimiter', () => {
-      it('profile.create', () => assertValidCustomId(MeCustomIds.profile.create(), 'me'));
-      it('profile.edit', () => assertValidCustomId(MeCustomIds.profile.edit('test'), 'me'));
-      it('profile.editNew', () => assertValidCustomId(MeCustomIds.profile.editNew(), 'me'));
-      it('view.expand', () => assertValidCustomId(MeCustomIds.view.expand('test', 'field'), 'me'));
-      it('override.createForOverride', () =>
-        assertValidCustomId(MeCustomIds.override.createForOverride('test'), 'me'));
+    describe('PersonaCustomIds - all builders must use :: delimiter', () => {
+      it('menu', () => assertValidCustomId(PersonaCustomIds.menu('test'), 'persona'));
+      it('modal', () => assertValidCustomId(PersonaCustomIds.modal('test', 'section'), 'persona'));
+      it('close', () => assertValidCustomId(PersonaCustomIds.close('test'), 'persona'));
+      it('refresh', () => assertValidCustomId(PersonaCustomIds.refresh('test'), 'persona'));
+      it('delete', () => assertValidCustomId(PersonaCustomIds.delete('test'), 'persona'));
+      it('create', () => assertValidCustomId(PersonaCustomIds.create(), 'persona'));
+      it('expand', () => assertValidCustomId(PersonaCustomIds.expand('test', 'field'), 'persona'));
+      it('overrideCreate', () =>
+        assertValidCustomId(PersonaCustomIds.overrideCreate('test'), 'persona'));
+      it('browsePage', () =>
+        assertValidCustomId(PersonaCustomIds.browsePage(1, 'date'), 'persona'));
     });
 
-    describe('WalletCustomIds - all builders must use :: delimiter', () => {
-      it('set', () => assertValidCustomId(WalletCustomIds.set('openrouter'), 'wallet'));
+    describe('ApikeyCustomIds - all builders must use :: delimiter', () => {
+      it('set', () => assertValidCustomId(ApikeyCustomIds.set('openrouter'), 'settings'));
     });
 
     describe('PresetCustomIds - all builders must use :: delimiter', () => {
@@ -721,7 +651,7 @@ describe('customIds', () => {
 
       it('should return false for non-destructive customIds', () => {
         expect(DestructiveCustomIds.isDestructive('character::seed')).toBe(false);
-        expect(DestructiveCustomIds.isDestructive('me::profile::create')).toBe(false);
+        expect(DestructiveCustomIds.isDestructive('persona::create')).toBe(false);
       });
     });
   });
@@ -808,7 +738,7 @@ describe('customIds', () => {
 
       it('should return false for non-channel customIds', () => {
         expect(ChannelCustomIds.isChannel('character::seed')).toBe(false);
-        expect(ChannelCustomIds.isChannel('me::profile::create')).toBe(false);
+        expect(ChannelCustomIds.isChannel('persona::create')).toBe(false);
       });
     });
   });

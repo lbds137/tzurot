@@ -1,12 +1,12 @@
 /**
- * Tests for Wallet Set Subcommand
+ * Tests for Settings API Key Set Subcommand
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TextInputStyle } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
 import { handleSetKey } from './set.js';
-import type { ModalCommandContext } from '../../utils/commandContext/types.js';
+import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -49,7 +49,7 @@ describe('handleSetKey', () => {
       channel: null,
       channelId: 'channel-123',
       guildId: null,
-      commandName: 'wallet',
+      commandName: 'settings',
       showModal: mockShowModal,
       reply: vi.fn(),
       deferReply: vi.fn(),
@@ -67,7 +67,7 @@ describe('handleSetKey', () => {
     expect(mockShowModal).toHaveBeenCalledTimes(1);
     const modal = mockShowModal.mock.calls[0][0];
 
-    expect(modal.data.custom_id).toBe('wallet::set::openrouter');
+    expect(modal.data.custom_id).toBe('settings::apikey::set::openrouter');
     expect(modal.data.title).toBe('Set OpenRouter API Key');
   });
 

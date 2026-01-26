@@ -83,8 +83,9 @@ const parsed = parseSettingsCustomId('channel-settings::select::1234567890123456
 | Channel Settings   | `channel-settings`   | `parseSettingsCustomId` |
 | Character Settings | `character-settings` | `parseSettingsCustomId` |
 | Admin Settings     | `admin-settings`     | `parseSettingsCustomId` |
-| Wallet             | `wallet`             | `WalletCustomIds`       |
+| Settings API Key   | `settings`           | `ApikeyCustomIds`       |
 | Character Commands | `character`          | `CharacterCustomIds`    |
+| Persona Commands   | `persona`            | `PersonaCustomIds`      |
 
 ## Pattern 2: SessionManager
 

@@ -41,7 +41,7 @@ vi.mock('./apikey/test.js', () => ({
 }));
 
 vi.mock('./apikey/modal.js', () => ({
-  handleWalletModalSubmit: vi.fn().mockResolvedValue(undefined),
+  handleApikeyModalSubmit: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Mock preset handlers
@@ -294,16 +294,16 @@ describe('Settings Command Index', () => {
   });
 
   describe('handleModal - modal routing', () => {
-    it('should route wallet modals to wallet modal handler', async () => {
-      const { handleWalletModalSubmit } = await import('./apikey/modal.js');
+    it('should route apikey modals to apikey modal handler', async () => {
+      const { handleApikeyModalSubmit } = await import('./apikey/modal.js');
 
       const interaction = {
-        customId: 'wallet::set::openrouter',
+        customId: 'settings::apikey::set::openrouter',
       } as any;
 
       await handleModal(interaction);
 
-      expect(handleWalletModalSubmit).toHaveBeenCalledWith(interaction);
+      expect(handleApikeyModalSubmit).toHaveBeenCalledWith(interaction);
     });
   });
 

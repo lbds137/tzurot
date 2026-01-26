@@ -107,6 +107,22 @@ Inconsistent patterns across slash commands. Need comprehensive review and stand
 - [ ] Establish standard autocomplete ordering patterns for different data types
   - Timezones, personas, characters, presets, etc.
 
+**CustomIds Standardization & Testing**
+
+- [ ] Audit all custom ID patterns across commands for consistency
+  - Bug found: `wallet::` prefix used for `/settings apikey` modal - customId prefix didn't match command name, requiring `componentPrefixes` hack
+  - Fixed by renaming to `settings::apikey::*` pattern so routing works naturally
+- [ ] Evaluate if `componentPrefixes` should be eliminated entirely
+  - Commands should use customId prefixes that match their name or use nested patterns like `{command}::{subcommand}::{action}`
+  - Document when it's acceptable to use a different prefix (legacy migration?)
+- [ ] Add registry integrity tests that verify:
+  - All dashboard entityTypes are routable to their command
+  - All customId prefixes route to valid commands
+  - No orphaned componentPrefixes that could cause "Unknown interaction" errors
+- [ ] Add round-trip tests for ALL customId patterns (not just some)
+  - Currently only a subset of builders have round-trip tests
+  - Should cover every builder function
+
 **Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Recent bugs exposed that interaction routing has gaps in test coverage that should be addressed systematically.
 
 ---

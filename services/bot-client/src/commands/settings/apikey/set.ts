@@ -11,9 +11,9 @@
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
 import { createLogger, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
-import { WalletCustomIds } from '../../../utils/customIds.js';
+import { ApikeyCustomIds } from '../../../utils/customIds.js';
 
-const logger = createLogger('wallet-set');
+const logger = createLogger('settings-apikey-set');
 
 /**
  * Handle /wallet set <provider> subcommand
@@ -30,7 +30,7 @@ export async function handleSetKey(context: ModalCommandContext): Promise<void> 
 
   // Create modal with API key input
   const modal = new ModalBuilder()
-    .setCustomId(WalletCustomIds.set(provider))
+    .setCustomId(ApikeyCustomIds.set(provider))
     .setTitle(`Set ${providerInfo.displayName} API Key`);
 
   // API Key input (required, single line for security)
@@ -50,7 +50,10 @@ export async function handleSetKey(context: ModalCommandContext): Promise<void> 
   // Show modal to user
   await context.showModal(modal);
 
-  logger.info({ provider, userId: context.user.id }, '[Wallet Set] Showing API key input modal');
+  logger.info(
+    { provider, userId: context.user.id },
+    '[Settings/ApiKey] Showing API key input modal'
+  );
 }
 
 /**
