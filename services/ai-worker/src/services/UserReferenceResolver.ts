@@ -12,10 +12,27 @@
  * - Returns the persona info for inclusion in the participants section
  */
 
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, LoadedPersonality } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('UserReferenceResolver');
+
+/**
+ * Personality text fields that may contain user references and should be resolved.
+ * These are the character definition fields that could have shapes.inc format mentions.
+ */
+const RESOLVABLE_PERSONALITY_FIELDS: (keyof LoadedPersonality)[] = [
+  'systemPrompt',
+  'characterInfo',
+  'personalityTraits',
+  'personalityTone',
+  'personalityAge',
+  'personalityAppearance',
+  'personalityLikes',
+  'personalityDislikes',
+  'conversationalGoals',
+  'conversationalExamples',
+];
 
 /**
  * Resolved persona info for a user reference
@@ -40,6 +57,16 @@ export interface UserReferenceResolutionResult {
   /** Text with all user references replaced with persona names */
   processedText: string;
   /** Personas that were resolved (for adding to participants) */
+  resolvedPersonas: ResolvedPersona[];
+}
+
+/**
+ * Result of resolving user references across all personality fields
+ */
+export interface PersonalityResolutionResult {
+  /** Personality with all text fields resolved */
+  resolvedPersonality: LoadedPersonality;
+  /** Deduplicated personas found across all fields (for adding to participants) */
   resolvedPersonas: ResolvedPersona[];
 }
 
@@ -240,6 +267,77 @@ export class UserReferenceResolver {
     }
 
     return { processedText: ctx.currentText, resolvedPersonas: ctx.resolvedPersonas };
+  }
+
+  /**
+   * Resolve user references across all personality text fields
+   *
+   * Processes all character definition fields (systemPrompt, characterInfo, etc.)
+   * in parallel, replacing user references with persona names. Returns the
+   * resolved personality and a deduplicated list of discovered personas.
+   *
+   * @param personality - The personality with text fields to resolve
+   * @param activePersonaId - Optional ID to exclude from participants (self-reference)
+   * @returns Resolved personality and deduplicated personas
+   */
+  async resolvePersonalityReferences(
+    personality: LoadedPersonality,
+    activePersonaId?: string
+  ): Promise<PersonalityResolutionResult> {
+    // Create a shallow copy to avoid mutating the original
+    const resolvedPersonality = { ...personality };
+
+    // Use a Map to deduplicate personas by ID across all fields
+    const personaMap = new Map<string, ResolvedPersona>();
+
+    // Process all fields in parallel for performance
+    const processingPromises = RESOLVABLE_PERSONALITY_FIELDS.map(async key => {
+      const originalText = personality[key];
+
+      // Skip if field is undefined, null, or not a string
+      if (originalText === undefined || originalText === null || typeof originalText !== 'string') {
+        return;
+      }
+
+      // Skip empty strings
+      if (originalText.length === 0) {
+        return;
+      }
+
+      const { processedText, resolvedPersonas } = await this.resolveUserReferences(
+        originalText,
+        activePersonaId
+      );
+
+      // Update the field on the resolved personality
+      // Type assertion needed because we're dynamically accessing keys
+      (resolvedPersonality as Record<string, unknown>)[key] = processedText;
+
+      // Aggregate found personas (deduplicated by personaId)
+      for (const persona of resolvedPersonas) {
+        personaMap.set(persona.personaId, persona);
+      }
+    });
+
+    await Promise.all(processingPromises);
+
+    const allResolvedPersonas = Array.from(personaMap.values());
+
+    if (allResolvedPersonas.length > 0) {
+      logger.info(
+        {
+          personalityId: personality.id,
+          count: allResolvedPersonas.length,
+          personas: allResolvedPersonas.map(p => p.personaName),
+        },
+        '[UserReferenceResolver] Resolved user references across personality fields'
+      );
+    }
+
+    return {
+      resolvedPersonality,
+      resolvedPersonas: allResolvedPersonas,
+    };
   }
 
   /**

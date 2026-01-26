@@ -561,4 +561,175 @@ describe('UserReferenceResolver', () => {
       });
     });
   });
+
+  describe('resolvePersonalityReferences', () => {
+    const createMockPersonality = (overrides = {}) => ({
+      id: 'personality-id',
+      name: 'Test Personality',
+      displayName: 'Test',
+      slug: 'test',
+      systemPrompt: '',
+      model: 'gpt-4',
+      temperature: 0.7,
+      maxTokens: 1000,
+      contextWindowTokens: 8000,
+      characterInfo: '',
+      personalityTraits: '',
+      ...overrides,
+    });
+
+    it('should resolve user references across multiple personality fields', async () => {
+      const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
+      const personality = createMockPersonality({
+        systemPrompt: `You are talking to @[lbds137](user:${shapesUserId})`,
+        characterInfo: `This character knows @[lbds137](user:${shapesUserId}) well.`,
+        conversationalExamples: `Example: @[lbds137](user:${shapesUserId}) said hello.`,
+      });
+
+      mockPrisma.shapesPersonaMapping.findUnique.mockResolvedValue({
+        persona: {
+          id: 'persona-uuid',
+          name: 'lbds137',
+          preferredName: 'Lila',
+          pronouns: 'she/her',
+          content: 'A magical being',
+        },
+      });
+
+      const result = await resolver.resolvePersonalityReferences(personality);
+
+      // All fields should be resolved
+      expect(result.resolvedPersonality.systemPrompt).toBe('You are talking to Lila');
+      expect(result.resolvedPersonality.characterInfo).toBe('This character knows Lila well.');
+      expect(result.resolvedPersonality.conversationalExamples).toBe('Example: Lila said hello.');
+
+      // Personas should be deduplicated
+      expect(result.resolvedPersonas).toHaveLength(1);
+      expect(result.resolvedPersonas[0].personaId).toBe('persona-uuid');
+      expect(result.resolvedPersonas[0].personaName).toBe('Lila');
+    });
+
+    it('should deduplicate personas found across different fields', async () => {
+      const uuid1 = '11111111-1111-1111-1111-111111111111';
+      const uuid2 = '22222222-2222-2222-2222-222222222222';
+      const personality = createMockPersonality({
+        systemPrompt: `@[user1](user:${uuid1})`,
+        characterInfo: `@[user1](user:${uuid1}) and @[user2](user:${uuid2})`,
+      });
+
+      mockPrisma.shapesPersonaMapping.findUnique.mockImplementation(
+        async ({ where }: { where: { shapesUserId: string } }) => {
+          if (where.shapesUserId === uuid1) {
+            return {
+              persona: {
+                id: 'persona-1',
+                name: 'user1',
+                preferredName: 'Alice',
+                pronouns: null,
+                content: 'Alice content',
+              },
+            };
+          }
+          if (where.shapesUserId === uuid2) {
+            return {
+              persona: {
+                id: 'persona-2',
+                name: 'user2',
+                preferredName: 'Bob',
+                pronouns: null,
+                content: 'Bob content',
+              },
+            };
+          }
+          return null;
+        }
+      );
+
+      const result = await resolver.resolvePersonalityReferences(personality);
+
+      // Should have exactly 2 unique personas, not 3
+      expect(result.resolvedPersonas).toHaveLength(2);
+      expect(result.resolvedPersonas.map(p => p.personaName).sort()).toEqual(['Alice', 'Bob']);
+    });
+
+    it('should not mutate the original personality object', async () => {
+      const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
+      const originalText = `Hello @[lbds137](user:${shapesUserId})`;
+      const personality = createMockPersonality({
+        systemPrompt: originalText,
+      });
+
+      mockPrisma.shapesPersonaMapping.findUnique.mockResolvedValue({
+        persona: {
+          id: 'persona-uuid',
+          name: 'lbds137',
+          preferredName: 'Lila',
+          pronouns: null,
+          content: '',
+        },
+      });
+
+      const result = await resolver.resolvePersonalityReferences(personality);
+
+      // Original should be unchanged
+      expect(personality.systemPrompt).toBe(originalText);
+      // Result should be modified
+      expect(result.resolvedPersonality.systemPrompt).toBe('Hello Lila');
+    });
+
+    it('should skip empty and undefined fields', async () => {
+      const personality = createMockPersonality({
+        systemPrompt: '',
+        characterInfo: 'No references here',
+        personalityTone: undefined,
+        personalityAge: null,
+      });
+
+      const result = await resolver.resolvePersonalityReferences(personality);
+
+      // Should return personality with unchanged values
+      expect(result.resolvedPersonality.systemPrompt).toBe('');
+      expect(result.resolvedPersonality.characterInfo).toBe('No references here');
+      expect(result.resolvedPersonas).toHaveLength(0);
+
+      // No DB calls for empty fields
+      expect(mockPrisma.shapesPersonaMapping.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should process fields in parallel', async () => {
+      const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
+      const personality = createMockPersonality({
+        systemPrompt: `@[user](user:${shapesUserId})`,
+        characterInfo: `@[user](user:${shapesUserId})`,
+        conversationalExamples: `@[user](user:${shapesUserId})`,
+      });
+
+      let callCount = 0;
+      mockPrisma.shapesPersonaMapping.findUnique.mockImplementation(async () => {
+        callCount++;
+        // Simulate async delay
+        await new Promise(resolve => setTimeout(resolve, 10));
+        return {
+          persona: {
+            id: 'persona-uuid',
+            name: 'user',
+            preferredName: 'Resolved',
+            pronouns: null,
+            content: '',
+          },
+        };
+      });
+
+      const start = Date.now();
+      await resolver.resolvePersonalityReferences(personality);
+      const duration = Date.now() - start;
+
+      // If sequential, would take ~30ms (3 * 10ms)
+      // If parallel, should take ~10-20ms
+      // Using 25ms as threshold to account for overhead
+      expect(duration).toBeLessThan(25);
+      // Should have made 3 DB calls (one per field with reference)
+      expect(callCount).toBe(3);
+    });
+  });
 });
