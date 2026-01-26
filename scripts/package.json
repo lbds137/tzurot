@@ -14,10 +14,10 @@
     "@tzurot/embeddings": "workspace:*",
     "dotenv": "^17.2.3",
     "tsx": "^4.21.0",
-    "zod": "^4.3.5"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.0.9",
-    "vitest": "^4.0.17"
+    "@types/node": "^25.0.10",
+    "vitest": "^4.0.18"
   }
 }
