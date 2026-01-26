@@ -1,6 +1,6 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25 (added large file split trigger)
+> Last updated: 2026-01-25
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
@@ -8,22 +8,39 @@ Technical debt prioritized by ROI: bug prevention, maintainability, and scaling 
 
 ## Priority 1: HIGH (Blocking Issues)
 
-### Cross-Guild Location Context for Referenced Messages
+### Admin Debug Doesn't Work with Failures
 
-**Problem**: Referenced messages no longer include location info (regression from format standardization). When a user references a message from a different guild, the AI has no context about where that message came from.
+**Problem**: `/admin debug` can't show diagnostics for failed jobs. The diagnostic flight recorder only captures successful generations.
 
-**Solution**: Add `<location>` element to referenced messages, but ONLY when the source guild differs from the current conversation's guild. No need for redundant location info when same guild.
+**Impact**: When debugging "why didn't user get a reply?", the most important cases (failures) have no diagnostic data.
 
-**Files involved**:
+**Solution**: Record diagnostics on failure path, not just success path. May need to capture partial state at failure point.
 
-- `services/bot-client/src/handlers/MessageReferenceExtractor.ts`
-- `services/ai-worker/src/services/prompt/EnvironmentFormatter.ts` (reuse formatting)
-
-**Source**: Prompt review (2026-01-24), format standardization (2026-01-25)
+**Source**: Bug intake 2026-01-25
 
 ---
 
 ## Priority 2: MEDIUM
+
+### Shapes.inc User Mentions Not Resolved in Personality Fields ✅ FIXED
+
+**Problem**: `@[username](user:uuid)` format in `conversationalExamples`, `characterInfo`, and other personality text fields was not converted to readable names. AI saw raw shapes.inc format.
+
+**Root cause**: `UserReferenceResolver` only processed `personality.systemPrompt`, not other personality fields.
+
+**Solution implemented**: Added `resolvePersonalityReferences()` method that processes all 10 text fields in parallel with deduplication. `ConversationalRAGService` now calls this instead of processing only `systemPrompt`.
+
+**Fixed in**: 2026-01-25 (to be released in beta.51)
+
+### Thinking Tag Leaking (Needs Investigation)
+
+**Problem**: `<thinking>` tags from reasoning models occasionally appear in AI output when they should be stripped.
+
+**Location**: Likely `reasoningModelUtils.ts:stripThinkingTags()` or upstream processing.
+
+**Action**: Investigate when/why stripping fails. May be edge cases in tag format or processing order.
+
+**Source**: Bug intake 2026-01-25
 
 ### Voice Message Transcript Recovery (Optional)
 
@@ -235,6 +252,15 @@ Timer patterns that would block horizontal scaling. Not urgent since single-inst
 
 ---
 
+### Admin Command UX
+
+| Item                             | Description                                                                                       |
+| -------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `/admin servers` list treatment  | Barebones output, doesn't match browse pattern used elsewhere. Apply standard list/browse pattern |
+| `/admin debug` PluralKit support | Can't lookup by response message ID, only trigger message. PK proxies change message IDs          |
+
+**Source**: Bug intake 2026-01-25
+
 ### Code Quality
 
 | Item                                | Location                            | Fix                                             |
@@ -254,7 +280,6 @@ Timer patterns that would block horizontal scaling. Not urgent since single-inst
 | Item                            | Description                                       |
 | ------------------------------- | ------------------------------------------------- |
 | Duplicate detection docs        | Document Dice coefficient choice, O(n) complexity |
-| discord:XXXX format             | Document when/why used, resolution to UUIDs       |
 | Stop sequence participant limit | Document 5-participant limit, truncation behavior |
 | PII in diagnostic logs          | Add note to tzurot-security skill                 |
 
@@ -303,11 +328,10 @@ Target: <500 lines (error), <400 lines (ideal). Lower priority since AI-only imp
 
 ### Testing
 
-| Item                               | Description                                                  |
-| ---------------------------------- | ------------------------------------------------------------ |
-| Mixed UUID + discord: format       | No test for `getAllParticipantPersonas()` with mixed formats |
-| Semantic memory search integration | Tests mock embeddings, need real pgvector tests              |
-| Audit log for memory operations    | Log before batch delete for recoverability                   |
+| Item                               | Description                                     |
+| ---------------------------------- | ----------------------------------------------- |
+| Semantic memory search integration | Tests mock embeddings, need real pgvector tests |
+| Audit log for memory operations    | Log before batch delete for recoverability      |
 
 ---
 
@@ -326,13 +350,7 @@ Target: <500 lines (error), <400 lines (ideal). Lower priority since AI-only imp
 
 ## ESLint Status
 
-**Current**: 46 warnings (14 bot-client, 28 api-gateway, 4 ai-worker)
-
-**91 eslint-disable directives** - needs audit to ensure none are masking real issues:
-
-```bash
-grep -r "eslint-disable" services packages --include="*.ts" | wc -l
-```
+**Current**: 37 warnings (6 bot-client, 28 api-gateway, 3 ai-worker)
 
 High-complexity functions (acceptable, inherent complexity):
 

@@ -213,37 +213,33 @@ export class ConversationalRAGService {
       logger.debug(`[RAG] No participant personas found in conversation history`);
     }
 
-    // Resolve user references in system prompt
-    let processedPersonality = personality;
-    if (personality.systemPrompt !== undefined && personality.systemPrompt.length > 0) {
-      const { processedText, resolvedPersonas } =
-        await this.userReferenceResolver.resolveUserReferences(
-          personality.systemPrompt,
-          personality.id
-        );
+    // Resolve user references across all personality text fields
+    // This handles shapes.inc format mentions in systemPrompt, characterInfo,
+    // conversationalExamples, and other character definition fields
+    const { resolvedPersonality: processedPersonality, resolvedPersonas } =
+      await this.userReferenceResolver.resolvePersonalityReferences(personality, personality.id);
 
-      if (resolvedPersonas.length > 0) {
-        processedPersonality = { ...personality, systemPrompt: processedText };
-
-        // Add resolved personas to participants
-        for (const persona of resolvedPersonas) {
-          if (!participantPersonas.has(persona.personaName)) {
-            participantPersonas.set(persona.personaName, {
-              preferredName: persona.preferredName ?? undefined,
-              pronouns: persona.pronouns ?? undefined,
-              content: persona.content,
-              isActive: false,
-              personaId: persona.personaId,
-            });
-            logger.debug(
-              { personaName: persona.personaName },
-              '[RAG] Added referenced user to participants'
-            );
-          }
+    // Add resolved personas to participants
+    if (resolvedPersonas.length > 0) {
+      for (const persona of resolvedPersonas) {
+        if (!participantPersonas.has(persona.personaName)) {
+          participantPersonas.set(persona.personaName, {
+            preferredName: persona.preferredName ?? undefined,
+            pronouns: persona.pronouns ?? undefined,
+            content: persona.content,
+            isActive: false,
+            personaId: persona.personaId,
+          });
+          logger.debug(
+            { personaName: persona.personaName },
+            '[RAG] Added referenced user to participants'
+          );
         }
-
-        logger.info(`[RAG] Resolved ${resolvedPersonas.length} user reference(s) in system prompt`);
       }
+
+      logger.info(
+        `[RAG] Resolved ${resolvedPersonas.length} user reference(s) in personality fields`
+      );
     }
 
     return { participantPersonas, processedPersonality };

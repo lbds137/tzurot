@@ -22,6 +22,7 @@ import { vi } from 'vitest';
  */
 export interface MockUserReferenceResolverInstance {
   resolveUserReferences: ReturnType<typeof vi.fn>;
+  resolvePersonalityReferences: ReturnType<typeof vi.fn>;
 }
 
 let mockInstance: MockUserReferenceResolverInstance | null = null;
@@ -31,6 +32,7 @@ let mockInstance: MockUserReferenceResolverInstance | null = null;
  *
  * **Default Behaviors:**
  * - `resolveUserReferences()` → Returns input text unchanged with empty resolvedPersonas
+ * - `resolvePersonalityReferences()` → Returns personality unchanged with empty resolvedPersonas
  *
  * Override in tests: `getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({...})`
  */
@@ -39,6 +41,12 @@ function createMockFunctions(): MockUserReferenceResolverInstance {
     resolveUserReferences: vi.fn().mockImplementation((text: string) =>
       Promise.resolve({
         processedText: text,
+        resolvedPersonas: [],
+      })
+    ),
+    resolvePersonalityReferences: vi.fn().mockImplementation((personality: unknown) =>
+      Promise.resolve({
+        resolvedPersonality: personality,
         resolvedPersonas: [],
       })
     ),
@@ -51,10 +59,12 @@ function createMockFunctions(): MockUserReferenceResolverInstance {
 export const mockUserReferenceResolver = {
   UserReferenceResolver: class MockUserReferenceResolver {
     resolveUserReferences: ReturnType<typeof vi.fn>;
+    resolvePersonalityReferences: ReturnType<typeof vi.fn>;
 
     constructor() {
       const fns = createMockFunctions();
       this.resolveUserReferences = fns.resolveUserReferences;
+      this.resolvePersonalityReferences = fns.resolvePersonalityReferences;
       mockInstance = this;
     }
   },

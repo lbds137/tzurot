@@ -1,7 +1,7 @@
 # Tzurot v3 Master Roadmap
 
-> **Last Updated**: 2026-01-24
-> **Current Version**: v3.0.0-beta.48
+> **Last Updated**: 2026-01-25
+> **Current Version**: v3.0.0-beta.50
 > **Status**: Public Beta (BYOK enabled, Guest Mode available)
 
 ---
@@ -14,27 +14,14 @@
 
 ## Next Up (In Order)
 
-### 1. Slash Command UX Epic ⬅️ CURRENT
-
-**Why**: Standardize CRUD UX patterns before adding more features.
-
-**Reference**: [docs/proposals/active/SLASH_COMMAND_UX_EPIC.md](docs/proposals/active/SLASH_COMMAND_UX_EPIC.md)
-
-- [x] Standardize modal/button patterns across commands (PR #482)
-- [x] Redis-backed session storage (PR #483) - enables horizontal scaling
-- [ ] **Gateway & Dashboard Pattern** - commands open dashboards, not CLI-style args
-- [ ] **Browse Pattern** - `/resource browse [query?]` combines list + search
-- [ ] **Autocomplete Standardization** - consistent emoji format across all commands
-- [ ] Fix: Global free default not filtering to free models
-
-### 2. User System Prompts
+### 1. User System Prompts ⬅️ NEXT
 
 **Why**: User-requested feature to customize AI behavior per-user.
 
-- [ ] **User System Prompts** - "Sidecar prompt" appended to system message per-user
+- [ ] "Sidecar prompt" appended to system message per-user
 - [ ] `/me profile` dashboard upgrade to edit system prompt
 
-### 3. Channel Allowlist/Denylist
+### 2. Channel Allowlist/Denylist
 
 **Why**: User-requested. Prevents bot from spamming unwanted channels, reduces server kicks.
 
@@ -43,7 +30,7 @@
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### 4. DM Personality Chat
+### 3. DM Personality Chat
 
 **Why**: User-requested. Multiple requests for this feature.
 
@@ -130,45 +117,32 @@ Not needed until post-beta when we care about semantic versioning again.
 
 ## Completed
 
-- **Phase 0**: Foundation (contract tests, PGlite component tests, message reference handling)
-- **Phase 1**: Gatekeeper / Public Beta Launch (BYOK, `/wallet`, `/preset`, `/me model`, `/me profile`, guest mode, reasoning models)
-- **Quick Wins**: Drop BotSettings table, rename `/me model` → `/me preset`
-- **Memory Management Phase 1**: STM commands (`/history clear/undo/hard-delete/view`)
-- **Memory Management Phase 2**: LTM commands (`/memory list/search/stats/delete/purge/focus`), Focus Mode
-- **Memory Management Phase 3**: Incognito Mode (`/memory incognito enable/disable/status/forget`), 👻 indicator, fail-open design
-- **Slash Command Patterns**: Standardize modal/button custom ID parsing, `INTERACTION_PATTERNS.md` documentation
-- **Redis Session Storage**: DashboardSessionManager migrated to Redis (PR #483) - horizontal scaling, TTL expiration, O(1) messageId lookups
-- **Duplicate Detection Epic**: Multi-layer "Swiss Cheese" detection (hash → Jaccard → bigram → semantic), escalating retry strategy
-- **LTM Embedding Migration**: OpenAI eviction - local bge-small-en-v1.5 embeddings via `@tzurot/embeddings` package
-- **LLM Diagnostic Flight Recorder**: Full pipeline capture, `/admin debug` command, 24-hour retention
-- **LLM Config JSONB Consolidation**: Migrated params to `advancedParameters` JSONB, dropped 7 legacy columns
+See [GitHub Releases](https://github.com/lbds137/tzurot/releases) for detailed history.
+
+**Major milestones:**
+
+- Slash Command UX Epic (dashboards, browse pattern, autocomplete standardization)
+- Prompt Format Standardization (unified timestamps, XML location, extended context)
+- Memory Management (STM commands, LTM commands, Incognito Mode)
+- LTM Embedding Migration (OpenAI eviction, local bge-small embeddings)
+- Duplicate Detection Epic (multi-layer detection, escalating retry)
+- LLM Diagnostic Flight Recorder
+- Public Beta Launch (BYOK, guest mode, reasoning models)
 
 ---
 
 ## Smaller Items (Do When Convenient)
 
-### UX Fixes
-
-- [x] Autocomplete UX - include slug for same-name personalities ✅ Already shows `(slug)` in label
-- [x] DRY violation - `me/model/autocomplete.ts` duplicates shared utility ✅ Now uses shared `handlePersonalityAutocomplete`
-
-### Feature Additions
-
-- [ ] `advancedParameters` support - schema exists in common-types, API routes need to accept/store it
-
 ### V2 Parity (Lower Priority)
 
-- [ ] Auto-Response System (`/channel activate/deactivate`)
 - [ ] Rate Limiting (token bucket)
-- [ ] Request Deduplication
 - [ ] PluralKit proxy support
 
 ### Technical Debt
 
-- [ ] 72 lint warnings (complexity issues) - down from 142
+- [ ] 37 lint warnings (complexity issues) - down from 142
 - [ ] Consolidate `scripts/data/import-personality/` workspace
 - [ ] Increase test coverage for `WebhookManager`
-- [ ] Document `advancedParameters` JSONB structures
 
 ### Testing Debt (Chip-Away Targets)
 
@@ -203,7 +177,6 @@ Not needed until post-beta when we care about semantic versioning again.
 **Low Priority / Monitor:**
 
 - [ ] Pipeline abstraction review - Evaluate if pipeline steps add value or are unnecessary wrappers (current assessment: steps have distinct responsibilities, keep as-is)
-- [ ] Model config as data - Consider moving model definitions to DB table for runtime changes (current assessment: over-engineering for one-person project, defer)
 
 ---
 
@@ -216,7 +189,6 @@ Ideas for later. Resist the shiny object.
 - Character Card Import (V2/V3 PNG metadata) - Parse community cards
 - Lorebooks / Sticky Context - Keyword-triggered lore injection with TTL
 - Author's Note Depth Injection - Insert instructions at configurable context depth
-- Logic Gates for Context - AND/NOT secondary keywords for precise triggers
 
 ### Multi-Entity Features
 
@@ -230,15 +202,12 @@ Ideas for later. Resist the shiny object.
 - Contrastive Retrieval for RAG - Avoid echo chamber loop in memory retrieval
 - Dynamic Directive Injection - Inject prompts based on conversation patterns (anti-sycophancy)
 - Analysis Step - Detect user engagement/sentiment before generation
-- Claude Thinking Tokens - Extended reasoning support (`thinking.budget_tokens`)
 
 ### Infrastructure
 
 - Streaming responses
-- Local/OpenRouter Embeddings (beyond bge-small)
 - Free-Tier Model Strategy - 8+ free model configs, fallback chains
 - Metrics & monitoring (Prometheus)
-- Smart git hooks (skip checks for doc-only changes)
 
 **Research References**:
 
