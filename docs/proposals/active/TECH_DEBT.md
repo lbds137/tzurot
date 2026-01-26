@@ -1,12 +1,43 @@
 # Tech Debt Tracking
 
-> Last updated: 2026-01-25
+> Last updated: 2026-01-26
 
 Technical debt prioritized by ROI: bug prevention, maintainability, and scaling readiness.
 
 ---
 
 ## Priority 1: HIGH (Blocking Issues)
+
+### Extended Context Pipeline Simplification
+
+**Problem**: The context pipeline (Discord → bot-client → ai-worker → LLM) is overly complex and brittle. Multiple code paths exist for "extended context on" vs "extended context off", creating maintenance burden and causing bugs.
+
+**Symptoms**:
+
+- Forwarded messages losing content/images in certain paths
+- Voice message transcripts not appearing in some scenarios
+- Image descriptions not injected correctly for forwarded images
+- Content recovery logic needed for corrupted DB entries
+- Constant bugs from inconsistent data flow between services
+
+**Root Cause**: Extended context was designed as an optional feature with toggle. This created parallel code paths that diverge and get out of sync.
+
+**Solution**:
+
+1. **Remove the toggle** - Always use extended context (keep max messages/age/images settings)
+2. **Remove dead code paths** - Eliminate all "if not extended context" branches
+3. **Unify the pipeline** - Single, well-tested path from Discord to LLM input
+4. **Consolidate types** - `ConversationHistoryEntry` should carry ALL needed data through the pipeline
+
+**Files likely affected**:
+
+- `services/bot-client/src/services/DiscordChannelFetcher.ts`
+- `services/bot-client/src/services/MessageContextBuilder.ts`
+- `services/ai-worker/src/jobs/utils/conversationUtils.ts`
+- `services/ai-worker/src/jobs/handlers/pipeline/*.ts`
+- Settings/config that expose the toggle
+
+**Source**: Production bugs from extended context inconsistencies (2026-01-25, 2026-01-26)
 
 ### Admin Debug Doesn't Work with Failures
 
@@ -198,6 +229,33 @@ Add `/admin debug recent` with personality/user/channel filters. API already sup
 ---
 
 ### Other Medium Items
+
+#### N+1 Query Pattern in UserReferenceResolver
+
+**Problem**: `resolveUserReferences()` performs sequential database queries in a loop. Each match triggers a separate `findUnique`/`findFirst` call to look up user/persona data.
+
+**Location**: `services/ai-worker/src/services/UserReferenceResolver.ts`
+
+**Current pattern**:
+
+```typescript
+for (const match of [...text.matchAll(PATTERN)]) {
+  const persona = await this.resolveByShapesUserId(shapesUserId); // DB call per match
+}
+```
+
+**Impact**: Low in practice since personality prompts typically have 0-3 user references. Would become problematic if used on longer documents with many references.
+
+**Solution**: Batch extraction pattern - collect all IDs first, fetch in single query, then replace.
+
+```typescript
+const shapesIds = [...text.matchAll(SHAPES_PATTERN)].map(m => m[2]);
+const discordIds = [...text.matchAll(DISCORD_PATTERN)].map(m => m[1]);
+const personas = await this.batchResolve(shapesIds, discordIds);
+// Then apply replacements using the pre-fetched map
+```
+
+**Source**: PR #515 code review (2026-01-26)
 
 #### Split Large Fetcher/Formatter Files (Next Touch)
 

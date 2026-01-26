@@ -6,7 +6,9 @@
  */
 
 import type { Message } from 'discord.js';
-import { type ReferencedMessage, formatLocationAsXml } from '@tzurot/common-types';
+import { type ReferencedMessage, formatLocationAsXml, createLogger } from '@tzurot/common-types';
+
+const logger = createLogger('MessageFormatter');
 import { extractDiscordEnvironment } from '../../utils/discordContext.js';
 import { extractAttachments } from '../../utils/attachmentExtractor.js';
 import { extractEmbedImages } from '../../utils/embedImageExtractor.js';
@@ -82,6 +84,12 @@ export class MessageFormatter {
           );
           if (transcript !== undefined && transcript !== null && transcript.length > 0) {
             transcripts.push(transcript);
+          } else {
+            // Log when transcript not found - helps debug voice message issues
+            logger.debug(
+              { messageId: message.id, attachmentUrl: attachment.url },
+              '[MessageFormatter] Voice transcript not found for attachment'
+            );
           }
         }
       }

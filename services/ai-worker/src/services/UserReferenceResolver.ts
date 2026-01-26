@@ -393,6 +393,7 @@ export class UserReferenceResolver {
    */
   private async resolveByShapesUserId(shapesUserId: string): Promise<ResolvedPersona | null> {
     try {
+      // findUnique is inherently bounded (returns 0-1 rows by unique constraint)
       const mapping = await this.prisma.shapesPersonaMapping.findUnique({
         where: { shapesUserId },
         include: {
@@ -439,6 +440,7 @@ export class UserReferenceResolver {
    */
   private async resolveByDiscordId(discordId: string): Promise<ResolvedPersona | null> {
     try {
+      // findUnique is inherently bounded (returns 0-1 rows by unique constraint)
       const user = await this.prisma.user.findUnique({
         where: { discordId },
         include: {

@@ -697,6 +697,8 @@ describe('UserReferenceResolver', () => {
     });
 
     it('should process fields in parallel', async () => {
+      vi.useFakeTimers();
+
       const shapesUserId = '98a94b95-cbd0-430b-8be2-602e1c75d8b0';
       const personality = createMockPersonality({
         systemPrompt: `@[user](user:${shapesUserId})`,
@@ -720,16 +722,21 @@ describe('UserReferenceResolver', () => {
         };
       });
 
-      const start = Date.now();
-      await resolver.resolvePersonalityReferences(personality);
-      const duration = Date.now() - start;
+      // Start the resolution (don't await yet)
+      const resultPromise = resolver.resolvePersonalityReferences(personality);
 
-      // If sequential, would take ~30ms (3 * 10ms)
-      // If parallel, should take ~10-20ms
-      // Using 25ms as threshold to account for overhead
-      expect(duration).toBeLessThan(25);
+      // Advance timers - if parallel, one tick of 10ms should resolve all
+      // If sequential, would need 30ms (3 * 10ms)
+      await vi.advanceTimersByTimeAsync(15);
+
+      // Should complete with parallel execution
+      const result = await resultPromise;
+
       // Should have made 3 DB calls (one per field with reference)
       expect(callCount).toBe(3);
+      expect(result.resolvedPersonality.systemPrompt).toBe('Resolved');
+
+      vi.useRealTimers();
     });
   });
 });
