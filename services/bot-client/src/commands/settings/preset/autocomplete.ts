@@ -30,7 +30,7 @@ interface WalletListResponse {
   }[];
 }
 
-const logger = createLogger('me-preset-autocomplete');
+const logger = createLogger('settings-preset-autocomplete');
 
 /**
  * Handle autocomplete for /me preset commands

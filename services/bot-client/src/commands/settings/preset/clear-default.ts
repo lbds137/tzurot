@@ -9,7 +9,7 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-const logger = createLogger('me-preset-clear-default');
+const logger = createLogger('settings-preset-clear-default');
 
 /**
  * Handle /me preset clear-default

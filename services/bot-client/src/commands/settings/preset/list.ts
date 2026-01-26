@@ -8,7 +8,7 @@ import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-const logger = createLogger('me-preset-list');
+const logger = createLogger('settings-preset-list');
 
 interface ListResponse {
   overrides: ModelOverrideSummary[];

@@ -23,7 +23,7 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
-const logger = createLogger('wallet-browse');
+const logger = createLogger('settings-apikey-browse');
 
 interface WalletKeyInfo {
   provider: AIProvider;
