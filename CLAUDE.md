@@ -2,7 +2,7 @@
 
 @~/.claude/CLAUDE.md
 
-> **🎯 SESSION STARTUP**: Read [CURRENT_WORK.md](CURRENT_WORK.md) → [ROADMAP.md](ROADMAP.md) → Start next unchecked task
+> **🎯 SESSION STARTUP**: Read [CURRENT.md](CURRENT.md) → [BACKLOG.md](BACKLOG.md) → Continue active task or pull next from High Priority
 
 > **⚠️ STATUS**: v3 is in **Public Beta** on Railway. BYOK complete, guest mode available.
 
@@ -110,7 +110,7 @@ When making changes that affect multiple files:
 | `cache`, `invalidation`, `TTL`                   | tzurot-caching          |
 | `refactor`, `lint`, `complexity`                 | tzurot-code-quality     |
 | `architecture`, `service boundary`               | tzurot-architecture     |
-| `CURRENT_WORK.md`, `documentation`               | tzurot-docs             |
+| `CURRENT.md`, `BACKLOG.md`, `documentation`      | tzurot-docs             |
 | `skill`, `SKILL.md`                              | tzurot-skills-guide     |
 | `CLI`, `ops`, `script`                           | tzurot-tooling          |
 | `MCP`, `council`, `second opinion`               | tzurot-council-mcp      |
@@ -462,4 +462,4 @@ execSync('git log --oneline -5');
 - **Folder Structure**: `docs/reference/standards/FOLDER_STRUCTURE.md`
 - **Tri-State Pattern**: `docs/reference/standards/TRI_STATE_PATTERN.md` (for cascading settings)
 - **v2 Feature Status**: `docs/proposals/active/V2_FEATURE_TRACKING.md`
-- **Tech Debt**: `docs/proposals/active/TECH_DEBT.md`
+- **Work Tracking**: `CURRENT.md` (active task), `BACKLOG.md` (all work items)
