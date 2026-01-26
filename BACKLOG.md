@@ -59,6 +59,18 @@ Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified for
 - [ ] Record diagnostics on failure path, not just success path
 - [ ] Capture partial state at failure point
 
+### 5. 🏗️ Slash Command File Structure Standardization
+
+Inconsistent file/directory structure across slash commands. Need comprehensive review and standardization.
+
+- [ ] Audit existing command directories for structure patterns
+- [ ] Define standard: when to use subdirectories vs flat files for subcommand groups
+- [ ] Update `tzurot-slash-command-ux` skill with mandatory file structure rules
+- [ ] Refactor existing commands to match new standard
+- [ ] Clean up legacy files (e.g., `persona/list.ts` from old `/me` command)
+
+**Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Standardize for maintainability.
+
 ---
 
 ## Epic: User-Requested Features

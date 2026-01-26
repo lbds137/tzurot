@@ -9,7 +9,7 @@
 
 _One sentence on what we're doing today._
 
-Workflow reorganization - consolidating ROADMAP + TECH_DEBT into BACKLOG.
+Fix `/me profile edit` bug and implement browse pattern for personas and `/admin servers`.
 
 ---
 
@@ -17,15 +17,28 @@ Workflow reorganization - consolidating ROADMAP + TECH_DEBT into BACKLOG.
 
 _Cut from BACKLOG, paste here when starting work._
 
-🧹 `[CHORE]` **Workflow Reorganization**
+🔨 `[EPIC]` **Slash Command Restructure** (beta.52)
 
-- [x] Consult MCP council on better workflow
-- [x] Create BACKLOG.md (consolidate ROADMAP + TECH_DEBT)
-- [x] Create CURRENT.md (slim down CURRENT_WORK)
-- [x] Update CLAUDE.md with new workflow
-- [x] Update tzurot-docs skill
-- [x] Remove old files (ROADMAP.md, TECH_DEBT.md, CURRENT_WORK.md)
-- [ ] Commit and push
+**Completed:**
+
+- [x] Phase 1: Testing Infrastructure (registry integrity tests, snapshots)
+- [x] Phase 2: Create `/persona` command (entityType = command name)
+- [x] Phase 3: Create `/settings` command (consolidates timezone, apikey, preset)
+- [x] Phase 4: Enhance `/admin servers` with browse pattern (pagination, sort, details)
+- [x] Phase 5: Delete old commands (`/me`, `/wallet`) - handlers migrated, old tests removed
+- [x] Phase 6: Documentation updates (tzurot-testing skill, postmortem)
+- [x] Phase 7: Full verification (typecheck, lint, tests pass)
+- [x] Added comprehensive tests for `/persona` and `/settings` commands
+- [x] Fixed help command categories (Me→Persona, Wallet→Memory, added Settings)
+- [x] Moved override handlers to subdirectory (`persona/override/set.ts`, `persona/override/clear.ts`)
+- [x] Added missing persona tests (`edit.test.ts`, `browse.test.ts`, `dashboard.test.ts`, `autocomplete.test.ts`)
+
+**New commands:**
+
+- `/persona view|edit|create|browse|default|share-ltm` + `/persona override set|clear`
+- `/settings timezone get|set` + `/settings apikey set|browse|remove|test` + `/settings preset browse|set|reset|default|clear-default`
+
+**Ready for PR** - All phases complete, 2887 tests pass.
 
 ---
 
@@ -33,11 +46,20 @@ _Cut from BACKLOG, paste here when starting work._
 
 _Error logs, decisions, API snippets - anything Claude needs to see._
 
-Council recommendation: Two-file system (CURRENT + BACKLOG) instead of three files.
+**Root cause** (2026-01-26):
+Dashboard entityType 'profile' didn't match command name 'me'. componentPrefixes hack was fragile. Fix: new `/persona` command where name = entityType.
 
-- Organize by TIME not TYPE
-- Tech debt is just a feature where your future self is the customer
-- Use tags: 🏗️ [LIFT], ✨ [FEAT], 🐛 [FIX], 🧹 [CHORE]
+**Migration completed:**
+
+- Handlers moved: `/me/profile/*` → `/persona/*`, `/me/timezone/*` → `/settings/timezone/*`, `/wallet/*` → `/settings/apikey/*`, `/me/preset/*` → `/settings/preset/*`
+- Old `/me` and `/wallet` command directories deleted
+- Test mock paths updated to match new locations
+- Obsolete snapshots removed, command count updated (11 → 9)
+
+**Phase 4 details:**
+
+- `/admin servers` has browse pattern with pagination (10/page), sorting (name/members), select menu for details
+- Custom ID format: `admin-servers::browse|select|back::page::sort`
 
 ---
 

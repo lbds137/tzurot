@@ -4,17 +4,18 @@
 
 ## Quick Reference - Key Rules Established
 
-| Date       | Incident                      | Rule Established                            |
-| ---------- | ----------------------------- | ------------------------------------------- |
-| 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch checkout |
-| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infrastructure files  |
-| 2025-07-25 | Untested push broke develop   | Always run tests before pushing             |
-| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git commands     |
-| 2025-10-31 | DB URL committed              | Never commit database URLs                  |
-| 2025-07-16 | DDD migration broke features  | Test actual behavior, not just units        |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients, not direct fetch       |
-| 2025-12-06 | API contract mismatch         | Use shared Zod schemas for contracts        |
-| 2025-12-14 | Random UUIDs broke db-sync    | Use deterministic v5 UUIDs for all entities |
+| Date       | Incident                        | Rule Established                                 |
+| ---------- | ------------------------------- | ------------------------------------------------ |
+| 2026-01-26 | Dashboard prefix not registered | Test componentPrefixes for dashboard entityTypes |
+| 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch checkout      |
+| 2026-01-17 | Dockerfile missed new package   | Use Grep Rule for all infrastructure files       |
+| 2025-07-25 | Untested push broke develop     | Always run tests before pushing                  |
+| 2025-07-21 | Git restore destroyed work      | Confirm before destructive git commands          |
+| 2025-10-31 | DB URL committed                | Never commit database URLs                       |
+| 2025-07-16 | DDD migration broke features    | Test actual behavior, not just units             |
+| 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch            |
+| 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts             |
+| 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities      |
 
 ---
 
@@ -385,3 +386,57 @@ UPDATE user_personality_configs SET id = '<v5-uuid>' WHERE user_id = '...' AND p
 ```
 
 **Universal Lesson**: When a deterministic UUID generator exists, it MUST be used at all creation points. Having the function is useless if the code doesn't call it.
+
+---
+
+## 2026-01-26 - Dashboard Prefix Not Registered (componentPrefixes Bug)
+
+**What Happened**: The `/me profile edit` command showed "Unknown interaction" error when users clicked dashboard buttons. The profile dashboard's edit/close/delete buttons stopped working.
+
+**Impact**:
+
+- Profile editing broken for all users
+- Dashboard buttons returned "Unknown interaction!"
+- Users couldn't edit their personas via dashboard
+
+**Root Cause**:
+
+- Dashboard framework uses `entityType` as the first segment of customIds (e.g., `profile::menu::uuid`)
+- Command routing uses `getCommandFromCustomId()` to find which command handles an interaction
+- The `/me` command had `componentPrefixes: ['profile']` to register 'profile' as a routable prefix
+- At some point during development, the componentPrefixes registration wasn't working correctly
+- Interactions with `profile::*` customIds couldn't find their handler
+
+**Why It Wasn't Caught**:
+
+- Tests mocked at handler level, not at routing level
+- No registry integrity test that verified componentPrefixes were registered
+- Manual testing didn't cover all dashboard flows
+
+**The Fix - New Command Structure**:
+
+Instead of relying on `componentPrefixes` hack, restructured commands so command name = entityType:
+
+```typescript
+// OLD: Command name 'me' needs componentPrefixes: ['profile']
+// Dashboard uses entityType: 'profile' -> customIds like 'profile::menu::...'
+// Requires hack to route 'profile' prefix to 'me' command
+
+// NEW: Command name 'persona' matches entityType
+// Dashboard uses entityType: 'persona' -> customIds like 'persona::menu::...'
+// Routing works naturally via command name prefix
+```
+
+**Prevention Measures Added**:
+
+1. **Registry Integrity Tests**: Added to `CommandHandler.component.test.ts` - verifies all componentPrefixes are properly registered
+
+2. **Command Structure Snapshots**: Track command structure changes with snapshots to catch unintended modifications
+
+3. **New Commands Created**:
+   - `/persona` - replaces `/me profile *`, entityType matches command name
+   - `/settings` - consolidates timezone, apikey, preset settings
+
+4. **Testing Skill Updated**: Added "Registry Integrity Tests" and "Command Structure Snapshots" sections
+
+**Universal Lesson**: When dashboard entityType differs from command name, the componentPrefixes mechanism is fragile. Prefer designs where command name = entityType for natural routing.

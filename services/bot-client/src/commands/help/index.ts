@@ -27,10 +27,10 @@ const logger = createLogger('help-command');
  */
 const CATEGORY_CONFIG: Record<string, { emoji: string; order: number }> = {
   Character: { emoji: '🎭', order: 1 },
-  Me: { emoji: '👤', order: 2 },
-  Preset: { emoji: '⚙️', order: 3 },
+  Persona: { emoji: '👤', order: 2 },
+  Settings: { emoji: '⚙️', order: 3 },
   History: { emoji: '📜', order: 4 },
-  Wallet: { emoji: '🔑', order: 5 },
+  Memory: { emoji: '🧠', order: 5 },
   Admin: { emoji: '🛡️', order: 6 },
   Help: { emoji: '❓', order: 7 },
   Other: { emoji: '📦', order: 99 },
