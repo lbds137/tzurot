@@ -14,20 +14,20 @@ import { MessageFlags, EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
-import { WalletCustomIds } from '../../../utils/customIds.js';
+import { ApikeyCustomIds } from '../../../utils/customIds.js';
 
-const logger = createLogger('wallet-modal');
+const logger = createLogger('settings-apikey-modal');
 
 /**
- * Handle wallet modal submissions
- * Routes based on customId pattern: wallet::set::{provider}
+ * Handle apikey modal submissions
+ * Routes based on customId pattern: settings::apikey::set::{provider}
  */
-export async function handleWalletModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
+export async function handleApikeyModalSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   // Parse customId using centralized utilities
-  const parsed = WalletCustomIds.parse(interaction.customId);
+  const parsed = ApikeyCustomIds.parse(interaction.customId);
   if (parsed?.provider === undefined) {
     await interaction.reply({
-      content: '❌ Unknown wallet modal submission',
+      content: '❌ Unknown apikey modal submission',
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -39,7 +39,7 @@ export async function handleWalletModalSubmit(interaction: ModalSubmitInteractio
     await handleSetKeySubmit(interaction, provider);
   } else {
     await interaction.reply({
-      content: '❌ Unknown wallet action',
+      content: '❌ Unknown apikey action',
       flags: MessageFlags.Ephemeral,
     });
   }
@@ -81,7 +81,7 @@ async function handleSetKeySubmit(
     if (!result.ok) {
       logger.error(
         { status: result.status, provider, userId: interaction.user.id, error: result.error },
-        '[Wallet Modal] Failed to store API key'
+        '[Settings/ApiKey] Failed to store API key'
       );
 
       // Handle specific error cases with user-friendly messages
@@ -116,10 +116,10 @@ async function handleSetKeySubmit(
 
     logger.info(
       { provider, userId: interaction.user.id },
-      '[Wallet Modal] API key stored successfully'
+      '[Settings/ApiKey] API key stored successfully'
     );
   } catch (error) {
-    logger.error({ err: error, provider, userId: interaction.user.id }, '[Wallet Modal] Error');
+    logger.error({ err: error, provider, userId: interaction.user.id }, '[Settings/ApiKey] Error');
 
     await interaction.editReply(
       '❌ An unexpected error occurred while saving your API key.\n' +

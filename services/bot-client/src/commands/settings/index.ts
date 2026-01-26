@@ -38,8 +38,8 @@ import { handleSetKey } from './apikey/set.js';
 import { handleBrowse as handleWalletBrowse } from './apikey/browse.js';
 import { handleRemoveKey } from './apikey/remove.js';
 import { handleTestKey } from './apikey/test.js';
-import { handleWalletModalSubmit } from './apikey/modal.js';
-import { WalletCustomIds } from '../../utils/customIds.js';
+import { handleApikeyModalSubmit } from './apikey/modal.js';
+import { ApikeyCustomIds } from '../../utils/customIds.js';
 
 // Preset handlers (moved from /me/preset)
 import { handleListOverrides } from './preset/list.js';
@@ -117,9 +117,9 @@ async function execute(context: SafeCommandContext): Promise<void> {
  * Modal submit handler for API key input
  */
 async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
-  // Check if this is a wallet modal
-  if (WalletCustomIds.isWallet(interaction.customId)) {
-    await handleWalletModalSubmit(interaction);
+  // Check if this is an apikey modal (settings::apikey::*)
+  if (ApikeyCustomIds.isApikey(interaction.customId)) {
+    await handleApikeyModalSubmit(interaction);
     return;
   }
 
@@ -167,9 +167,6 @@ export default defineCommand({
   subcommandDeferralModes: {
     'apikey set': 'modal', // /settings apikey set shows a modal
   },
-  // Route wallet:: prefixed interactions to this command
-  // (modal customIds use wallet::set::{provider} for BYOK)
-  componentPrefixes: ['wallet'],
   data: new SlashCommandBuilder()
     .setName('settings')
     .setDescription('Manage your account settings')

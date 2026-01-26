@@ -42,6 +42,14 @@ _Cut from BACKLOG, paste here when starting work._
   - Bug: Was matching ALL `persona::*` customIds, causing expand/back buttons to silently fail
 - [x] Added `back` button handler (shows session expired message - proper browse context in backlog)
 - [x] Added tests to verify non-dashboard actions (expand, browse, create) don't match dashboard check
+- [x] Fixed `/settings apikey set` "unknown interaction" modal failure
+  - Bug: `wallet::` customId prefix didn't route to `settings` command
+  - Fix: Renamed `WalletCustomIds` → `ApikeyCustomIds` with `settings::apikey::*` prefix pattern
+  - Removed `componentPrefixes: ['wallet']` hack - now routes naturally via `settings::` prefix
+- [x] Updated all user-facing strings from `/wallet` → `/settings apikey`
+- [x] Updated all user-facing strings from `/me preset` → `/settings preset`
+- [x] Updated tests for new customId format (`settings::apikey::set::provider`)
+- [x] Removed dead `MeCustomIds` from customIds.ts and tests (command was deleted)
 
 **New commands:**
 

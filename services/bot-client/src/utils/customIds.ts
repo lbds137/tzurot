@@ -155,106 +155,38 @@ export const CharacterCustomIds = {
 } as const;
 
 // ============================================================================
-// ME COMMAND (Profile, Override, Settings)
+// APIKEY SUBCOMMAND (for /settings apikey)
 // ============================================================================
 
-export const MeCustomIds = {
-  // Profile actions
-  profile: {
-    /** Create new profile modal */
-    create: () => 'me::profile::create' as const,
+export const ApikeyCustomIds = {
+  /** Set API key modal - routes to settings command via settings:: prefix */
+  set: (provider: string) => `settings::apikey::set::${provider}` as const,
 
-    /** Edit profile modal */
-    edit: (personaId: string) => `me::profile::edit::${personaId}` as const,
-
-    /** Edit modal for creating new profile (from edit flow) */
-    editNew: () => 'me::profile::edit::new' as const,
-  },
-
-  // View actions
-  view: {
-    /** Expand content field button */
-    expand: (personaId: string, field: string) =>
-      `me::view::expand::${personaId}::${field}` as const,
-  },
-
-  // Override actions
-  override: {
-    /** Create profile for override flow */
-    createForOverride: (personalityId: string) => `me::override::create::${personalityId}` as const,
-  },
-
-  /** Parse me customId */
+  /** Parse apikey customId */
   parse: (
     customId: string
   ): {
-    command: 'me';
-    group: 'profile' | 'override' | 'view';
-    action: string;
-    entityId?: string;
-    field?: string;
-  } | null => {
-    const parts = customId.split(CUSTOM_ID_DELIMITER);
-    if (parts[0] !== 'me' || parts.length < 3) {
-      return null;
-    }
-
-    const group = parts[1] as 'profile' | 'override' | 'view';
-    const action = parts[2];
-
-    // For view::expand, format is me::view::expand::personaId::field
-    if (group === 'view' && action === 'expand') {
-      return {
-        command: 'me',
-        group,
-        action,
-        entityId: parts[3],
-        field: parts[4],
-      };
-    }
-
-    return {
-      command: 'me',
-      group,
-      action,
-      entityId: parts[3],
-    };
-  },
-
-  /** Check if customId belongs to me command */
-  isMe: (customId: string): boolean => customId.startsWith('me::'),
-} as const;
-
-// ============================================================================
-// WALLET COMMAND
-// ============================================================================
-
-export const WalletCustomIds = {
-  /** Set API key modal */
-  set: (provider: string) => `wallet::set::${provider}` as const,
-
-  /** Parse wallet customId */
-  parse: (
-    customId: string
-  ): {
-    command: 'wallet';
+    command: 'settings';
+    subcommandGroup: 'apikey';
     action: string;
     provider?: string;
   } | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
-    if (parts[0] !== 'wallet' || parts.length < 2) {
+    // Format: settings::apikey::action::provider
+    if (parts[0] !== 'settings' || parts[1] !== 'apikey' || parts.length < 3) {
       return null;
     }
 
     return {
-      command: 'wallet',
-      action: parts[1],
-      provider: parts[2],
+      command: 'settings',
+      subcommandGroup: 'apikey',
+      action: parts[2],
+      provider: parts[3],
     };
   },
 
-  /** Check if customId belongs to wallet command */
-  isWallet: (customId: string): boolean => customId.startsWith('wallet::'),
+  /** Check if customId belongs to apikey subcommand */
+  isApikey: (customId: string): boolean => customId.startsWith('settings::apikey::'),
 } as const;
 
 // ============================================================================
