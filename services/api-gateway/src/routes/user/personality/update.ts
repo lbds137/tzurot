@@ -18,7 +18,7 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { optimizeAvatar } from '../../../utils/imageProcessor.js';
-import { deleteAvatarFile } from '../../../utils/avatarPaths.js';
+import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { canUserEditPersonality } from './helpers.js';
@@ -153,7 +153,7 @@ async function handleAvatarCacheInvalidation(
   personalityId: string,
   cacheInvalidationService?: CacheInvalidationService
 ): Promise<void> {
-  await deleteAvatarFile(slug, 'User avatar update');
+  await deleteAllAvatarVersions(slug, 'User avatar update');
 
   if (cacheInvalidationService) {
     try {
@@ -171,9 +171,9 @@ async function handleSlugCacheInvalidation(
   personalityId: string,
   cacheInvalidationService?: CacheInvalidationService
 ): Promise<void> {
-  // Delete cached avatar for both old and new slugs
-  await deleteAvatarFile(oldSlug, 'Slug update - old slug');
-  await deleteAvatarFile(newSlug, 'Slug update - new slug');
+  // Delete cached avatars for both old and new slugs (all versions)
+  await deleteAllAvatarVersions(oldSlug, 'Slug update - old slug');
+  await deleteAllAvatarVersions(newSlug, 'Slug update - new slug');
 
   // Invalidate personality cache
   if (cacheInvalidationService) {

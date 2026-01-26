@@ -11,7 +11,7 @@
  */
 
 import { resolve } from 'path';
-import { unlink } from 'fs/promises';
+import { unlink, readdir } from 'fs/promises';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('avatar-paths');
@@ -70,6 +70,20 @@ export function extractSlugFromFilename(filename: string): string | null {
 }
 
 /**
+ * Extracts the timestamp from a versioned avatar filename
+ *
+ * @param filename - The avatar filename (e.g., "cold-1705827727111.png")
+ * @returns The extracted timestamp as a number, or null if not a versioned filename
+ */
+export function extractTimestampFromFilename(filename: string): number | null {
+  const versionedMatch = VERSIONED_FILENAME_PATTERN.exec(filename);
+  if (versionedMatch) {
+    return parseInt(versionedMatch[2], 10);
+  }
+  return null;
+}
+
+/**
  * Validates a slug is safe for use in file paths
  */
 export function isValidSlug(slug: string): boolean {
@@ -83,17 +97,21 @@ export function isValidSlug(slug: string): boolean {
  * This double-check prevents path traversal even if slug validation somehow fails
  *
  * @param slug - The personality slug
+ * @param timestamp - Optional timestamp for versioned filenames (e.g., Date.getTime())
  * @returns Safe file path or null if validation fails
  */
-export function getSafeAvatarPath(slug: string): string | null {
+export function getSafeAvatarPath(slug: string, timestamp?: number): string | null {
   // First layer: validate slug format
   if (!isValidSlug(slug)) {
     logger.debug({ slug }, 'Rejected invalid slug format');
     return null;
   }
 
+  // Build filename - versioned if timestamp provided, legacy otherwise
+  const filename = timestamp !== undefined ? `${slug}-${timestamp}.png` : `${slug}.png`;
+
   // Second layer: resolve and verify path stays within root
-  const avatarPath = resolve(AVATAR_ROOT, `${slug}.png`);
+  const avatarPath = resolve(AVATAR_ROOT, filename);
   if (!avatarPath.startsWith(AVATAR_ROOT + '/')) {
     logger.warn({ slug, avatarPath }, 'Rejected avatar path outside root');
     return null;
@@ -131,5 +149,135 @@ export async function deleteAvatarFile(
     }
     logger.warn({ err: error, avatarPath }, `[${logContext}] Failed to delete avatar file`);
     return false;
+  }
+}
+
+/**
+ * Attempts to delete a single avatar file, returning true on success
+ * Silently ignores ENOENT (file already deleted)
+ */
+async function tryDeleteAvatarFile(filePath: string, logContext: string): Promise<boolean> {
+  try {
+    await unlink(filePath);
+    return true;
+  } catch (error) {
+    const errCode = (error as NodeJS.ErrnoException).code;
+    if (errCode !== 'ENOENT') {
+      logger.warn({ err: error, filePath }, `[${logContext}] Failed to delete avatar file`);
+    }
+    return false;
+  }
+}
+
+/**
+ * Cleans up old avatar versions for a slug, keeping only the current version
+ *
+ * Called after fetching a new avatar from DB to remove stale cached versions.
+ * This is fire-and-forget during serve (don't block response on cleanup).
+ *
+ * @param slug - The personality slug
+ * @param currentTimestamp - The timestamp of the version to keep
+ * @returns Number of old versions deleted, or null if cleanup failed
+ */
+export async function cleanupOldAvatarVersions(
+  slug: string,
+  currentTimestamp: number
+): Promise<number | null> {
+  if (!isValidSlug(slug)) {
+    return null;
+  }
+
+  try {
+    const files = await readdir(AVATAR_ROOT);
+    let deletedCount = 0;
+
+    for (const file of files) {
+      const fileSlug = extractSlugFromFilename(file);
+      if (fileSlug !== slug) {
+        continue; // Not for this personality
+      }
+
+      const fileTimestamp = extractTimestampFromFilename(file);
+      // Skip the current version
+      if (fileTimestamp === currentTimestamp) {
+        continue;
+      }
+
+      // Delete legacy files (no timestamp) and old versions
+      const filePath = resolve(AVATAR_ROOT, file);
+      if (await tryDeleteAvatarFile(filePath, 'Avatar cleanup')) {
+        deletedCount++;
+        logger.debug({ slug, file }, '[Avatar cleanup] Deleted old version');
+      }
+    }
+
+    if (deletedCount > 0) {
+      logger.info(
+        { slug, currentTimestamp, deletedCount },
+        '[Avatar cleanup] Cleaned up old versions'
+      );
+    }
+    return deletedCount;
+  } catch (error) {
+    const errCode = (error as NodeJS.ErrnoException).code;
+    if (errCode === 'ENOENT') {
+      // Avatar directory doesn't exist yet, nothing to clean
+      return 0;
+    }
+    logger.warn({ err: error, slug }, '[Avatar cleanup] Failed to read avatar directory');
+    return null;
+  }
+}
+
+/**
+ * Deletes ALL avatar versions for a slug (versioned and legacy)
+ *
+ * Used when:
+ * - A personality is deleted
+ * - A personality's slug changes (need to clean up old slug's files)
+ * - An avatar is updated (clear all old versions)
+ *
+ * @param slug - The personality slug
+ * @param logContext - Context string for logging
+ * @returns Number of files deleted, or null if cleanup failed
+ */
+export async function deleteAllAvatarVersions(
+  slug: string,
+  logContext = 'Avatar'
+): Promise<number | null> {
+  if (!isValidSlug(slug)) {
+    logger.debug({ slug }, `[${logContext}] Rejected invalid slug format`);
+    return null;
+  }
+
+  try {
+    const files = await readdir(AVATAR_ROOT);
+    let deletedCount = 0;
+
+    for (const file of files) {
+      const fileSlug = extractSlugFromFilename(file);
+      if (fileSlug !== slug) {
+        continue; // Not for this personality
+      }
+
+      const filePath = resolve(AVATAR_ROOT, file);
+      if (await tryDeleteAvatarFile(filePath, logContext)) {
+        deletedCount++;
+        logger.debug({ slug, file }, `[${logContext}] Deleted avatar version`);
+      }
+    }
+
+    if (deletedCount > 0) {
+      logger.info({ slug, deletedCount }, `[${logContext}] Deleted all avatar versions`);
+    }
+    return deletedCount;
+  } catch (error) {
+    const errCode = (error as NodeJS.ErrnoException).code;
+    if (errCode === 'ENOENT') {
+      // Avatar directory doesn't exist yet, nothing to delete
+      return 0;
+    }
+    logger.warn({ err: error, slug }, `[${logContext}] Failed to read avatar directory`);
+    return null;
   }
 }
