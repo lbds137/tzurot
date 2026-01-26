@@ -608,18 +608,55 @@ export class DiscordChannelFetcher {
     extendedMessages: ConversationMessage[],
     dbHistory: ConversationMessage[]
   ): ConversationMessage[] {
-    // Build set of message IDs from DB history for deduplication
-    const dbMessageIds = new Set<string>();
+    // Build map of message IDs to DB messages for deduplication and content comparison
+    const dbMessageMap = new Map<string, ConversationMessage>();
     for (const msg of dbHistory) {
       for (const id of msg.discordMessageId) {
-        dbMessageIds.add(id);
+        dbMessageMap.set(id, msg);
       }
+    }
+
+    // Build map of extended context messages by ID for content recovery
+    const extendedMessageMap = new Map<string, ConversationMessage>();
+    for (const msg of extendedMessages) {
+      const msgId = msg.discordMessageId[0];
+      if (msgId !== undefined) {
+        extendedMessageMap.set(msgId, msg);
+      }
+    }
+
+    // Recover empty DB content from extended context (e.g., voice messages with corrupted DB entries)
+    // This handles the case where a voice message was stored but content was cleared by a bug
+    let recoveredCount = 0;
+    for (const dbMsg of dbHistory) {
+      const dbContent = dbMsg.content ?? '';
+      if (dbContent.length > 0) {continue;} // Has content, no recovery needed
+
+      const msgId = dbMsg.discordMessageId[0];
+      if (msgId === undefined) {continue;} // No message ID to look up
+
+      const extendedMsg = extendedMessageMap.get(msgId);
+      const extendedContent = extendedMsg?.content ?? '';
+      if (extendedContent.length === 0) {continue;} // Extended context also empty
+
+      // Extended context has content (likely from bot transcript fallback) - use it
+      dbMsg.content = extendedContent;
+      // Also copy over voice transcripts if available
+      if (extendedMsg?.messageMetadata?.voiceTranscripts !== undefined) {
+        dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
+        dbMsg.messageMetadata.voiceTranscripts = extendedMsg.messageMetadata.voiceTranscripts;
+      }
+      recoveredCount++;
+      logger.info(
+        { messageId: msgId, contentLength: extendedContent.length },
+        '[DiscordChannelFetcher] Recovered empty DB message content from extended context'
+      );
     }
 
     // Filter extended messages to exclude those already in DB history
     const uniqueExtendedMessages = extendedMessages.filter(msg => {
       const msgId = msg.discordMessageId[0];
-      return !dbMessageIds.has(msgId);
+      return !dbMessageMap.has(msgId);
     });
 
     logger.debug(
@@ -628,6 +665,7 @@ export class DiscordChannelFetcher {
         dbHistoryCount: dbHistory.length,
         uniqueExtendedCount: uniqueExtendedMessages.length,
         deduplicatedCount: extendedMessages.length - uniqueExtendedMessages.length,
+        recoveredCount,
       },
       '[DiscordChannelFetcher] Merged extended context with DB history'
     );
