@@ -12,6 +12,7 @@ export interface PersonaSummary {
   name: string;
   preferredName: string | null;
   isDefault: boolean;
+  createdAt: string;
 }
 
 /**
