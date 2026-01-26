@@ -15,7 +15,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import { deleteAvatarFile } from '../../../utils/avatarPaths.js';
+import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { canUserEditPersonality } from './helpers.js';
@@ -124,7 +124,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     await deletePendingMemories(prisma, personality.id, pendingMemoryCount);
     await prisma.personality.delete({ where: { id: personality.id } });
-    await deleteAvatarFile(slug, 'Personality delete');
+    await deleteAllAvatarVersions(slug, 'Personality delete');
     await invalidateCacheSafely(cacheInvalidationService, personality.id);
 
     logger.info(
