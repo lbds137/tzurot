@@ -35,6 +35,19 @@ const RESOLVABLE_PERSONALITY_FIELDS: (keyof LoadedPersonality)[] = [
 ];
 
 /**
+ * Type-safe helper to set a personality field value.
+ * Isolates the type assertion needed for dynamic key access.
+ */
+function setPersonalityField(
+  personality: LoadedPersonality,
+  key: keyof LoadedPersonality,
+  value: string
+): void {
+  // Cast to Record for dynamic key assignment - safe since key is keyof LoadedPersonality
+  (personality as Record<string, unknown>)[key] = value;
+}
+
+/**
  * Resolved persona info for a user reference
  */
 export interface ResolvedPersona {
@@ -291,17 +304,18 @@ export class UserReferenceResolver {
     const personaMap = new Map<string, ResolvedPersona>();
 
     // Process all fields in parallel for performance
+    // Use Promise.allSettled for resilience - if one field fails, others still resolve
     const processingPromises = RESOLVABLE_PERSONALITY_FIELDS.map(async key => {
       const originalText = personality[key];
 
       // Skip if field is undefined, null, or not a string
       if (originalText === undefined || originalText === null || typeof originalText !== 'string') {
-        return;
+        return { key, skipped: true };
       }
 
       // Skip empty strings
       if (originalText.length === 0) {
-        return;
+        return { key, skipped: true };
       }
 
       const { processedText, resolvedPersonas } = await this.resolveUserReferences(
@@ -309,17 +323,37 @@ export class UserReferenceResolver {
         activePersonaId
       );
 
-      // Update the field on the resolved personality
-      // Type assertion needed because we're dynamically accessing keys
-      (resolvedPersonality as Record<string, unknown>)[key] = processedText;
-
-      // Aggregate found personas (deduplicated by personaId)
-      for (const persona of resolvedPersonas) {
-        personaMap.set(persona.personaId, persona);
-      }
+      return { key, processedText, resolvedPersonas };
     });
 
-    await Promise.all(processingPromises);
+    const results = await Promise.allSettled(processingPromises);
+
+    // Process results, logging any failures
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const fieldName = RESOLVABLE_PERSONALITY_FIELDS[i];
+
+      if (result.status === 'rejected') {
+        logger.error(
+          { field: fieldName, error: result.reason, personalityId: personality.id },
+          '[UserReferenceResolver] Failed to resolve user references in personality field'
+        );
+        continue;
+      }
+
+      const value = result.value;
+      if (value.skipped === true || value.processedText === undefined) {
+        continue;
+      }
+
+      // Update the field on the resolved personality
+      setPersonalityField(resolvedPersonality, value.key, value.processedText);
+
+      // Aggregate found personas (deduplicated by personaId)
+      for (const persona of value.resolvedPersonas) {
+        personaMap.set(persona.personaId, persona);
+      }
+    }
 
     const allResolvedPersonas = Array.from(personaMap.values());
 
