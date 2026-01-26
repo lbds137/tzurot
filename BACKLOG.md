@@ -68,6 +68,10 @@ Inconsistent file/directory structure across slash commands. Need comprehensive 
 - [ ] Update `tzurot-slash-command-ux` skill with mandatory file structure rules
 - [ ] Refactor existing commands to match new standard
 - [ ] Clean up legacy files (e.g., `persona/list.ts` from old `/me` command)
+- [ ] Extract shared browse utilities (pagination, sorting) into `utils/browse/`
+  - `sortItems<T>()` generic sorting function used by `/persona browse`, `/character browse`, `/admin servers`
+  - `buildPaginationButtons()` shared pagination button builder
+  - Common constants (`ITEMS_PER_PAGE`, `MAX_SELECT_LABEL_LENGTH`)
 
 **Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Standardize for maintainability.
 

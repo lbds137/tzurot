@@ -62,8 +62,10 @@ function sortPersonas(
   const sorted = [...personas];
   if (sortType === 'name') {
     sorted.sort((a, b) => a.name.localeCompare(b.name));
+  } else if (sortType === 'date') {
+    // Sort by createdAt descending (newest first)
+    sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }
-  // 'date' sorting would require createdAt field - for now just use original order
   return sorted;
 }
 
