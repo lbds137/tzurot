@@ -25,6 +25,7 @@ import {
   parseDashboardCustomId,
   isDashboardInteraction,
 } from '../../utils/dashboard/index.js';
+import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -251,7 +252,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       const preset = await fetchPreset(entityId, interaction.user.id);
       if (preset === null) {
         await interaction.reply({
-          content: '❌ Preset not found.',
+          content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
           flags: MessageFlags.Ephemeral,
         });
         return;

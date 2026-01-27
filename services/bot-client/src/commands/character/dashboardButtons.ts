@@ -13,7 +13,7 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import type { CharacterSessionData } from './edit.js';
 import { fetchCharacter } from './api.js';
@@ -103,7 +103,11 @@ export async function handleRefreshButton(
 
   const character = await fetchCharacter(entityId, config, interaction.user.id);
   if (!character) {
-    await interaction.editReply({ content: '❌ Character not found.', embeds: [], components: [] });
+    await interaction.editReply({
+      content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
+      embeds: [],
+      components: [],
+    });
     return;
   }
 

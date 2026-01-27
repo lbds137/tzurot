@@ -162,7 +162,7 @@ export async function handleRefreshButton(
 
   if (preset === null) {
     await interaction.editReply({
-      content: '❌ Preset not found.',
+      content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
       embeds: [],
       components: [],
     });

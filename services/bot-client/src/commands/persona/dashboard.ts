@@ -216,7 +216,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       const persona = await fetchPersona(entityId, interaction.user.id);
       if (!persona) {
         await interaction.reply({
-          content: '❌ Persona not found.',
+          content: DASHBOARD_MESSAGES.NOT_FOUND('Persona'),
           flags: MessageFlags.Ephemeral,
         });
         return;
