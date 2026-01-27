@@ -105,6 +105,8 @@ async function cleanupOldVersionsSync(slug: string, currentTimestamp: number): P
     if (errCode === 'ENOENT') {
       return 0; // Directory doesn't exist yet
     }
+    // Note: Throws on errors (fail-fast during startup), unlike cleanupOldAvatarVersions
+    // which is called async during runtime and logs instead of throwing
     throw error;
   }
 }
