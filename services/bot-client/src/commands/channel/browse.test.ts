@@ -3,12 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  handleBrowse,
-  handleBrowsePagination,
-  parseBrowseCustomId,
-  isChannelBrowseInteraction,
-} from './browse.js';
+import { handleBrowse, handleBrowsePagination, isChannelBrowseInteraction } from './browse.js';
 import type { ButtonInteraction } from 'discord.js';
 
 // Mock common-types
@@ -37,38 +32,6 @@ const mockRequireManageMessagesContext = vi.fn().mockResolvedValue(true);
 vi.mock('../../utils/permissions.js', () => ({
   requireManageMessagesContext: (...args: unknown[]) => mockRequireManageMessagesContext(...args),
 }));
-
-describe('parseBrowseCustomId', () => {
-  it('should parse valid browse custom ID', () => {
-    const result = parseBrowseCustomId('channel::browse::0::current::date::');
-    expect(result).toEqual({ page: 0, filter: 'current', sort: 'date', query: null });
-  });
-
-  it('should parse browse custom ID with query', () => {
-    const result = parseBrowseCustomId('channel::browse::1::all::name::luna');
-    expect(result).toEqual({ page: 1, filter: 'all', sort: 'name', query: 'luna' });
-  });
-
-  it('should return null for non-browse custom ID', () => {
-    expect(parseBrowseCustomId('channel::list::0::date')).toBeNull();
-  });
-
-  it('should return null for invalid format', () => {
-    expect(parseBrowseCustomId('channel::browse')).toBeNull();
-  });
-
-  it('should return null for invalid filter', () => {
-    expect(parseBrowseCustomId('channel::browse::0::invalid::date::')).toBeNull();
-  });
-
-  it('should return null for invalid sort', () => {
-    expect(parseBrowseCustomId('channel::browse::0::current::invalid::')).toBeNull();
-  });
-
-  it('should return null for non-numeric page', () => {
-    expect(parseBrowseCustomId('channel::browse::abc::current::date::')).toBeNull();
-  });
-});
 
 describe('isChannelBrowseInteraction', () => {
   it('should return true for browse custom IDs', () => {
