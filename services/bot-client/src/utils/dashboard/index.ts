@@ -69,3 +69,13 @@ export {
   shutdownSessionManager,
   type SetSessionOptions,
 } from './SessionManager.js';
+
+// Messages
+export {
+  DASHBOARD_MESSAGES,
+  formatSessionExpiredMessage,
+  formatNotFoundMessage,
+} from './messages.js';
+
+// Close Handler
+export { handleDashboardClose, createCloseHandler } from './closeHandler.js';
