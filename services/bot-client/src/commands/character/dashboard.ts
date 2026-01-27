@@ -164,8 +164,11 @@ async function handleSectionModalSubmit(
     logger.info({ slug: entityId, sectionId, isAdmin }, 'Character section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update character section');
-    // Since we deferred update, we can't send a new error message easily
-    // The dashboard will remain in its previous state
+    // Notify user of failure via followUp (since we deferred update)
+    await interaction.followUp({
+      content: '❌ Failed to update character. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
   }
 }
 
@@ -585,9 +588,34 @@ async function handleDeleteButton(
   );
 }
 
+/** Dashboard-specific actions that this handler manages */
+const DASHBOARD_ACTIONS = new Set([
+  'menu',
+  'modal',
+  'close',
+  'refresh',
+  'back',
+  'delete',
+  'delete_confirm',
+  'delete_cancel',
+]);
+
 /**
- * Check if interaction is a character dashboard interaction
+ * Check if interaction is a character dashboard interaction.
+ * Only matches dashboard-specific actions, not all character:: customIds.
  */
 export function isCharacterDashboardInteraction(customId: string): boolean {
-  return isDashboardInteraction(customId, 'character');
+  // Must start with character::
+  if (!isDashboardInteraction(customId, 'character')) {
+    return false;
+  }
+
+  // Parse to check the action
+  const parsed = CharacterCustomIds.parse(customId);
+  if (parsed === null) {
+    return false;
+  }
+
+  // Only return true for dashboard-specific actions
+  return DASHBOARD_ACTIONS.has(parsed.action);
 }
