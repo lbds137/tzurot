@@ -252,6 +252,26 @@ describe('avatarPaths', () => {
         expect(extractSlugFromFilename('test-12345678901.png')).toBe('test-12345678901'); // 11 digits
       });
     });
+
+    describe('edge cases with numeric slugs', () => {
+      it('should handle slugs with version numbers correctly', () => {
+        // bot-v2-{timestamp} - v2 is part of slug, timestamp is extracted
+        expect(extractSlugFromFilename('bot-v2-1705827727111.png')).toBe('bot-v2');
+      });
+
+      it('should treat 13+ digit sequences in slugs as timestamps (greedy match)', () => {
+        // When a slug contains 13+ digit numbers, the LAST such sequence is the timestamp
+        // This is because the regex is greedy: (.+)-(\d{13,})\.png
+        expect(extractSlugFromFilename('test-1234567890123-1705827727111.png')).toBe(
+          'test-1234567890123'
+        );
+      });
+
+      it('should handle purely numeric slugs', () => {
+        // A slug that is just numbers with a timestamp
+        expect(extractSlugFromFilename('12345-1705827727111.png')).toBe('12345');
+      });
+    });
   });
 
   describe('extractTimestampFromFilename', () => {
@@ -277,6 +297,18 @@ describe('avatarPaths', () => {
       // Numbers less than 13 digits are not timestamps
       expect(extractTimestampFromFilename('bot-v2-123.png')).toBeNull();
       expect(extractTimestampFromFilename('test-12345678901.png')).toBeNull(); // 11 digits
+    });
+
+    it('should extract timestamp from slugs with version numbers', () => {
+      // bot-v2-{timestamp} - extracts the actual timestamp
+      expect(extractTimestampFromFilename('bot-v2-1705827727111.png')).toBe(1705827727111);
+    });
+
+    it('should extract last timestamp when slug contains 13+ digit numbers', () => {
+      // The greedy regex matches the LAST 13+ digit sequence as timestamp
+      expect(extractTimestampFromFilename('test-1234567890123-1705827727111.png')).toBe(
+        1705827727111
+      );
     });
   });
 
@@ -383,6 +415,23 @@ describe('avatarPaths', () => {
 
       await cleanupOldAvatarVersions('123test', 1705827727222);
       expect(mockGlob).toHaveBeenCalledWith('/data/avatars/1/123test*.png');
+    });
+
+    it('should limit glob results to prevent memory issues', async () => {
+      // Create more files than the limit (GLOB_RESULT_LIMIT = 1000)
+      const manyFiles = Array.from(
+        { length: 1100 },
+        (_, i) => `/data/avatars/c/cold-${1705827727111 + i}.png`
+      );
+      mockGlob.mockReturnValue(createAsyncGenerator(manyFiles));
+      mockUnlink.mockResolvedValue(undefined);
+
+      const result = await cleanupOldAvatarVersions('cold', 9999999999999);
+
+      // Should only process up to limit (1000), skipping current timestamp
+      // All 1000 files have different timestamps, so all should be deleted
+      expect(result).toBe(1000);
+      expect(mockUnlink).toHaveBeenCalledTimes(1000);
     });
   });
 

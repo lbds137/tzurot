@@ -66,10 +66,14 @@ describe('syncAvatars', () => {
 
     await syncAvatars();
 
-    expect(mockFindMany).toHaveBeenCalledWith({
-      where: { avatarData: { not: null } },
-      select: { slug: true, avatarData: true, updatedAt: true },
-    });
+    expect(mockFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { avatarData: { not: null } },
+        select: { id: true, slug: true, avatarData: true, updatedAt: true },
+        take: 100,
+        orderBy: { id: 'asc' },
+      })
+    );
     expect(mockWriteFile).not.toHaveBeenCalled();
     expect(mockDisconnect).toHaveBeenCalled();
   });
@@ -79,7 +83,9 @@ describe('syncAvatars', () => {
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
     const timestamp = updatedAt.getTime();
 
-    mockFindMany.mockResolvedValue([{ slug: 'test-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
     mockGlob.mockReturnValue(createAsyncGenerator([]));
 
@@ -100,7 +106,9 @@ describe('syncAvatars', () => {
     const avatarBuffer = Buffer.from('fake-png-data');
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
 
-    mockFindMany.mockResolvedValue([{ slug: 'existing-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'existing-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockResolvedValue(undefined); // File exists
 
     await syncAvatars();
@@ -114,7 +122,7 @@ describe('syncAvatars', () => {
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
 
     mockFindMany.mockResolvedValue([
-      { slug: 'invalid<script>slug', avatarData: avatarBuffer, updatedAt },
+      { id: 'p1', slug: 'invalid<script>slug', avatarData: avatarBuffer, updatedAt },
     ]);
 
     await syncAvatars();
@@ -130,7 +138,9 @@ describe('syncAvatars', () => {
     const currentTimestamp = updatedAt.getTime();
     const oldTimestamp = 1705749600000; // older
 
-    mockFindMany.mockResolvedValue([{ slug: 'test-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
 
     // Glob returns current file and old version
@@ -154,7 +164,9 @@ describe('syncAvatars', () => {
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
     const timestamp = updatedAt.getTime();
 
-    mockFindMany.mockResolvedValue([{ slug: 'test-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
 
     // Glob returns legacy file without timestamp
@@ -175,7 +187,9 @@ describe('syncAvatars', () => {
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
     const timestamp = updatedAt.getTime();
 
-    mockFindMany.mockResolvedValue([{ slug: 'test', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
 
     // Glob returns files for 'test' and 'test-bot' (different slug with same prefix)
@@ -196,7 +210,9 @@ describe('syncAvatars', () => {
     const avatarBuffer = Buffer.from('fake-png-data');
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
 
-    mockFindMany.mockResolvedValue([{ slug: 'new-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'new-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
 
     // Glob throws ENOENT (directory doesn't exist yet)
@@ -217,7 +233,9 @@ describe('syncAvatars', () => {
     const avatarBuffer = Buffer.from('fake-png-data');
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
 
-    mockFindMany.mockResolvedValue([{ slug: 'test-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
 
     // Glob throws permission error
@@ -236,7 +254,9 @@ describe('syncAvatars', () => {
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
     const oldTimestamp = 1705749600000;
 
-    mockFindMany.mockResolvedValue([{ slug: 'test-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
     mockGlob.mockReturnValue(
       createAsyncGenerator([`/data/avatars/t/test-bot-${oldTimestamp}.png`])
@@ -259,7 +279,9 @@ describe('syncAvatars', () => {
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
     const oldTimestamp = 1705749600000;
 
-    mockFindMany.mockResolvedValue([{ slug: 'test-bot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'test-bot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
     mockGlob.mockReturnValue(
       createAsyncGenerator([`/data/avatars/t/test-bot-${oldTimestamp}.png`])
@@ -283,8 +305,8 @@ describe('syncAvatars', () => {
     const date2 = new Date('2024-01-21T10:00:00.000Z');
 
     mockFindMany.mockResolvedValue([
-      { slug: 'alpha', avatarData: avatar1, updatedAt: date1 },
-      { slug: 'beta', avatarData: avatar2, updatedAt: date2 },
+      { id: 'p1', slug: 'alpha', avatarData: avatar1, updatedAt: date1 },
+      { id: 'p2', slug: 'beta', avatarData: avatar2, updatedAt: date2 },
     ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
     mockGlob.mockReturnValue(createAsyncGenerator([]));
@@ -316,7 +338,9 @@ describe('syncAvatars', () => {
     const avatarBuffer = Buffer.from('fake-png-data');
     const updatedAt = new Date('2024-01-20T10:00:00.000Z');
 
-    mockFindMany.mockResolvedValue([{ slug: 'MyBot', avatarData: avatarBuffer, updatedAt }]);
+    mockFindMany.mockResolvedValue([
+      { id: 'p1', slug: 'MyBot', avatarData: avatarBuffer, updatedAt },
+    ]);
     mockAccess.mockRejectedValue(new Error('ENOENT'));
     mockGlob.mockReturnValue(createAsyncGenerator([]));
 
@@ -328,5 +352,43 @@ describe('syncAvatars', () => {
       `/data/avatars/m/MyBot-${updatedAt.getTime()}.png`,
       avatarBuffer
     );
+  });
+
+  it('should use cursor-based pagination for large datasets', async () => {
+    const avatar1 = Buffer.from('avatar-1');
+    const avatar2 = Buffer.from('avatar-2');
+    const date = new Date('2024-01-20T10:00:00.000Z');
+
+    // First batch returns 100 items (batch size), second batch returns 1 item
+    mockFindMany
+      .mockResolvedValueOnce(
+        Array.from({ length: 100 }, (_, i) => ({
+          id: `p${i}`,
+          slug: `bot${i}`,
+          avatarData: avatar1,
+          updatedAt: date,
+        }))
+      )
+      .mockResolvedValueOnce([
+        { id: 'p100', slug: 'bot100', avatarData: avatar2, updatedAt: date },
+      ]);
+
+    mockAccess.mockResolvedValue(undefined); // All files exist (skip writing)
+    mockGlob.mockReturnValue(createAsyncGenerator([]));
+
+    await syncAvatars();
+
+    // Should call findMany twice (pagination)
+    expect(mockFindMany).toHaveBeenCalledTimes(2);
+
+    // Second call should use cursor from last item of first batch
+    expect(mockFindMany).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        cursor: { id: 'p99' },
+        skip: 1,
+      })
+    );
+    expect(mockDisconnect).toHaveBeenCalled();
   });
 });
