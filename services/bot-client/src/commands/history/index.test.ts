@@ -45,11 +45,10 @@ vi.mock('./hard-delete.js', () => ({
 
 // Mock autocomplete handlers
 const mockHandlePersonalityAutocomplete = vi.fn();
-const mockHandlePersonaProfileAutocomplete = vi.fn();
+const mockHandlePersonaAutocomplete = vi.fn();
 vi.mock('./autocomplete.js', () => ({
   handlePersonalityAutocomplete: (...args: unknown[]) => mockHandlePersonalityAutocomplete(...args),
-  handlePersonaProfileAutocomplete: (...args: unknown[]) =>
-    mockHandlePersonaProfileAutocomplete(...args),
+  handlePersonaAutocomplete: (...args: unknown[]) => mockHandlePersonaAutocomplete(...args),
 }));
 
 // Mock subcommandContextRouter - use vi.hoisted to define mock before hoisting
@@ -124,7 +123,7 @@ describe('History Command Definition', () => {
     expect(clearSubcommand?.options).toHaveLength(2);
     expect(clearSubcommand?.options?.[0]?.name).toBe('personality');
     expect(clearSubcommand?.options?.[0]?.required).toBe(true);
-    expect(clearSubcommand?.options?.[1]?.name).toBe('profile');
+    expect(clearSubcommand?.options?.[1]?.name).toBe('persona');
     expect(clearSubcommand?.options?.[1]?.required).toBe(false);
   });
 
@@ -248,16 +247,16 @@ describe('autocomplete', () => {
     expect(mockHandlePersonalityAutocomplete).toHaveBeenCalledWith(mockInteraction);
   });
 
-  it('should delegate to handlePersonaProfileAutocomplete for profile option', async () => {
+  it('should delegate to handlePersonaAutocomplete for persona option', async () => {
     const mockInteraction = {
       options: {
-        getFocused: () => ({ name: 'profile', value: 'my' }),
+        getFocused: () => ({ name: 'persona', value: 'my' }),
       },
     };
 
     await autocomplete(mockInteraction as never);
 
-    expect(mockHandlePersonaProfileAutocomplete).toHaveBeenCalledWith(mockInteraction);
+    expect(mockHandlePersonaAutocomplete).toHaveBeenCalledWith(mockInteraction);
   });
 
   it('should respond with empty array for unknown option', async () => {

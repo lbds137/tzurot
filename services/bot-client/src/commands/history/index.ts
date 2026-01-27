@@ -26,7 +26,7 @@ import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
 import { handleHardDelete, parseHardDeleteEntityId } from './hard-delete.js';
-import { handlePersonalityAutocomplete, handlePersonaProfileAutocomplete } from './autocomplete.js';
+import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 import {
   handleDestructiveCancel,
@@ -155,8 +155,8 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 
   if (focusedOption.name === 'personality') {
     await handlePersonalityAutocomplete(interaction);
-  } else if (focusedOption.name === 'profile') {
-    await handlePersonaProfileAutocomplete(interaction);
+  } else if (focusedOption.name === 'persona') {
+    await handlePersonaAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
@@ -243,8 +243,8 @@ export default defineCommand({
         )
         .addStringOption(option =>
           option
-            .setName('profile')
-            .setDescription('The profile/persona to use (defaults to your active profile)')
+            .setName('persona')
+            .setDescription('The persona to use (defaults to your active persona)')
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -262,8 +262,8 @@ export default defineCommand({
         )
         .addStringOption(option =>
           option
-            .setName('profile')
-            .setDescription('The profile/persona to use (defaults to your active profile)')
+            .setName('persona')
+            .setDescription('The persona to use (defaults to your active persona)')
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -281,8 +281,8 @@ export default defineCommand({
         )
         .addStringOption(option =>
           option
-            .setName('profile')
-            .setDescription('The profile/persona to use (defaults to your active profile)')
+            .setName('persona')
+            .setDescription('The persona to use (defaults to your active persona)')
             .setRequired(false)
             .setAutocomplete(true)
         )
