@@ -30,6 +30,7 @@
     "audit:contracts": "pnpm ops test:audit-contracts",
     "audit:services": "pnpm ops test:audit-services",
     "generate:pglite": "pnpm ops test:generate-schema",
+    "generate:command-types": "tsx scripts/generate-command-types.ts",
     "update-deps": "pnpm ops dev:update-deps",
     "import-personality": "pnpm ops data:import",
     "bulk-import": "pnpm ops data:bulk-import",

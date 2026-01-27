@@ -45,10 +45,11 @@ vi.mock('./hard-delete.js', () => ({
 
 // Mock autocomplete handlers
 const mockHandlePersonalityAutocomplete = vi.fn();
-const mockHandleProfileAutocomplete = vi.fn();
+const mockHandlePersonaProfileAutocomplete = vi.fn();
 vi.mock('./autocomplete.js', () => ({
   handlePersonalityAutocomplete: (...args: unknown[]) => mockHandlePersonalityAutocomplete(...args),
-  handleProfileAutocomplete: (...args: unknown[]) => mockHandleProfileAutocomplete(...args),
+  handlePersonaProfileAutocomplete: (...args: unknown[]) =>
+    mockHandlePersonaProfileAutocomplete(...args),
 }));
 
 // Mock subcommandContextRouter - use vi.hoisted to define mock before hoisting
@@ -246,7 +247,7 @@ describe('autocomplete', () => {
     expect(mockHandlePersonalityAutocomplete).toHaveBeenCalledWith(mockInteraction);
   });
 
-  it('should delegate to handleProfileAutocomplete for profile option', async () => {
+  it('should delegate to handlePersonaProfileAutocomplete for profile option', async () => {
     const mockInteraction = {
       options: {
         getFocused: () => ({ name: 'profile', value: 'my' }),
@@ -255,7 +256,7 @@ describe('autocomplete', () => {
 
     await autocomplete(mockInteraction as never);
 
-    expect(mockHandleProfileAutocomplete).toHaveBeenCalledWith(mockInteraction);
+    expect(mockHandlePersonaProfileAutocomplete).toHaveBeenCalledWith(mockInteraction);
   });
 
   it('should respond with empty array for unknown option', async () => {

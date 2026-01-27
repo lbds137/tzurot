@@ -1,13 +1,13 @@
 /**
  * History Command Autocomplete
- * Handles autocomplete for personality and profile selection
+ * Handles autocomplete for personality and persona selection
  *
  * Uses shared autocomplete utilities for consistency across commands.
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
 import { handlePersonalityAutocomplete as sharedPersonalityAutocomplete } from '../../utils/autocomplete/personalityAutocomplete.js';
-import { handlePersonaAutocomplete } from '../../utils/autocomplete/personaAutocomplete.js';
+import { handlePersonaAutocomplete as sharedPersonaAutocomplete } from '../../utils/autocomplete/personaAutocomplete.js';
 
 /**
  * Handle personality autocomplete for history commands
@@ -24,13 +24,16 @@ export async function handlePersonalityAutocomplete(
 }
 
 /**
- * Handle profile autocomplete for history commands
- * Shows user's personas for optional profile selection
+ * Handle persona autocomplete for the 'profile' option in history commands.
+ * Shows user's personas for optional persona selection.
+ *
+ * Note: The Discord option is named 'profile' for user-facing clarity,
+ * but internally this uses the persona autocomplete utility.
  */
-export async function handleProfileAutocomplete(
+export async function handlePersonaProfileAutocomplete(
   interaction: AutocompleteInteraction
 ): Promise<void> {
-  await handlePersonaAutocomplete(interaction, {
+  await sharedPersonaAutocomplete(interaction, {
     optionName: 'profile',
     includeCreateNew: false,
     logPrefix: '[History]',

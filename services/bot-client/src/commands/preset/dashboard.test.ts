@@ -420,7 +420,7 @@ describe('handleButton', () => {
     });
   });
 
-  it('should fetch global preset when session indicates global', async () => {
+  it('should try user endpoint first even when session indicates global', async () => {
     mockParseDashboardCustomId.mockReturnValue({
       entityType: 'preset',
       entityId: 'preset-123',
@@ -429,12 +429,35 @@ describe('handleButton', () => {
     mockSessionManagerGet.mockResolvedValue({
       data: { id: 'preset-123', isGlobal: true },
     });
+    // User endpoint returns the global preset (it's accessible)
+    mockFetchPreset.mockResolvedValue(mockPresetData);
+
+    await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
+
+    // Should try user endpoint first (works for accessible global presets)
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
+    // Should not need to fall back to global endpoint
+    expect(mockFetchGlobalPreset).not.toHaveBeenCalled();
+  });
+
+  it('should fall back to global endpoint when user endpoint returns null for global preset', async () => {
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      entityId: 'preset-123',
+      action: 'refresh',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', isGlobal: true },
+    });
+    // User endpoint returns null
+    mockFetchPreset.mockResolvedValue(null);
+    // Global endpoint returns the preset
     mockFetchGlobalPreset.mockResolvedValue(mockPresetData);
 
     await handleButton(createMockButtonInteraction('preset::refresh::preset-123'));
 
+    expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
     expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
-    expect(mockFetchPreset).not.toHaveBeenCalled();
   });
 
   it('should show error when preset not found on refresh', async () => {

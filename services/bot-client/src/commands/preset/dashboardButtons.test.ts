@@ -273,12 +273,38 @@ describe('Preset Dashboard Buttons', () => {
       expect(mockSessionManager.set).toHaveBeenCalled();
     });
 
-    it('should refresh with global preset data', async () => {
+    it('should refresh with global preset data via user endpoint first', async () => {
       const mockInteraction = createMockButtonInteraction('preset::refresh::preset-123');
 
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ isGlobal: true }),
       });
+      // User endpoint returns global preset (it's accessible)
+      mockFetchPreset.mockResolvedValue(
+        createMockPresetResponse({
+          isGlobal: true,
+          isOwned: false,
+          permissions: { canEdit: false },
+        })
+      );
+
+      await handleRefreshButton(mockInteraction, 'preset-123');
+
+      // Should try user endpoint first (works for accessible global presets)
+      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-123');
+      // Should not need to fall back to global endpoint
+      expect(mockFetchGlobalPreset).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to global endpoint when user endpoint returns null', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::refresh::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({ isGlobal: true }),
+      });
+      // User endpoint returns null (not accessible via user endpoint)
+      mockFetchPreset.mockResolvedValue(null);
+      // Global endpoint returns the preset
       mockFetchGlobalPreset.mockResolvedValue(
         createMockPresetResponse({
           isGlobal: true,
@@ -289,6 +315,9 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleRefreshButton(mockInteraction, 'preset-123');
 
+      // Should try user endpoint first
+      expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-123');
+      // Should fall back to global endpoint
       expect(mockFetchGlobalPreset).toHaveBeenCalledWith('preset-123');
     });
 

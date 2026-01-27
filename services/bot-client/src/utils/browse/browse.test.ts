@@ -335,3 +335,145 @@ describe('createBrowseCustomIdHelpers without sort', () => {
     });
   });
 });
+
+describe('buildBrowseButtons', async () => {
+  // Import dynamically to avoid hoisting issues
+  const { buildBrowseButtons, buildSimplePaginationButtons } = await import('./buttonBuilder.js');
+  const { ButtonStyle } = await import('discord.js');
+
+  const baseConfig = {
+    currentPage: 1,
+    totalPages: 5,
+    filter: 'all' as const,
+    currentSort: 'date' as const,
+    query: null,
+    buildCustomId: (page: number, filter: string, sort: string, query: string | null) =>
+      `test::browse::${page}::${filter}::${sort}::${query ?? ''}`,
+    buildInfoId: () => 'test::browse::info',
+  };
+
+  describe('button structure', () => {
+    it('should create row with 4 buttons when sort toggle enabled', () => {
+      const row = buildBrowseButtons(baseConfig);
+      const buttons = row.components;
+
+      expect(buttons).toHaveLength(4);
+    });
+
+    it('should create row with 3 buttons when sort toggle disabled', () => {
+      const row = buildBrowseButtons({ ...baseConfig, showSortToggle: false });
+      const buttons = row.components;
+
+      expect(buttons).toHaveLength(3);
+    });
+  });
+
+  describe('previous button', () => {
+    it('should be enabled on middle page', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentPage: 2 });
+      const prevButton = row.components[0];
+      const buttonData = prevButton.toJSON();
+
+      expect(buttonData.disabled).toBe(false);
+      expect(buttonData.custom_id).toBe('test::browse::1::all::date::');
+    });
+
+    it('should be disabled on first page', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentPage: 0 });
+      const prevButton = row.components[0];
+      const buttonData = prevButton.toJSON();
+
+      expect(buttonData.disabled).toBe(true);
+    });
+  });
+
+  describe('page indicator', () => {
+    it('should show correct page number', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentPage: 2 });
+      const infoButton = row.components[1];
+      const buttonData = infoButton.toJSON();
+
+      expect(buttonData.label).toBe('Page 3 of 5');
+      expect(buttonData.disabled).toBe(true);
+      expect(buttonData.custom_id).toBe('test::browse::info');
+    });
+  });
+
+  describe('next button', () => {
+    it('should be enabled on middle page', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentPage: 2 });
+      const nextButton = row.components[2];
+      const buttonData = nextButton.toJSON();
+
+      expect(buttonData.disabled).toBe(false);
+      expect(buttonData.custom_id).toBe('test::browse::3::all::date::');
+    });
+
+    it('should be disabled on last page', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentPage: 4 });
+      const nextButton = row.components[2];
+      const buttonData = nextButton.toJSON();
+
+      expect(buttonData.disabled).toBe(true);
+    });
+  });
+
+  describe('sort toggle button', () => {
+    it('should toggle from date to name sort', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentSort: 'date' });
+      const sortButton = row.components[3];
+      const buttonData = sortButton.toJSON();
+
+      expect(buttonData.custom_id).toContain('::name::');
+      expect(buttonData.label).toBe('🔤 Sort A-Z');
+      expect(buttonData.style).toBe(ButtonStyle.Primary);
+    });
+
+    it('should toggle from name to date sort', () => {
+      const row = buildBrowseButtons({ ...baseConfig, currentSort: 'name' });
+      const sortButton = row.components[3];
+      const buttonData = sortButton.toJSON();
+
+      expect(buttonData.custom_id).toContain('::date::');
+      expect(buttonData.label).toBe('📅 Sort by Date');
+    });
+  });
+
+  describe('custom labels', () => {
+    it('should use custom button labels', () => {
+      const row = buildBrowseButtons({
+        ...baseConfig,
+        labels: {
+          previous: 'Back',
+          next: 'Forward',
+          sortByName: 'ABC',
+          sortByDate: 'Recent',
+        },
+      });
+      const buttons = row.components;
+
+      expect(buttons[0].toJSON().label).toBe('Back');
+      expect(buttons[2].toJSON().label).toBe('Forward');
+      expect(buttons[3].toJSON().label).toBe('ABC'); // currentSort is 'date', so shows name option
+    });
+  });
+
+  describe('query preservation', () => {
+    it('should include query in customIds', () => {
+      const row = buildBrowseButtons({ ...baseConfig, query: 'search term' });
+      const prevButton = row.components[0];
+      const buttonData = prevButton.toJSON();
+
+      expect(buttonData.custom_id).toBe('test::browse::0::all::date::search term');
+    });
+  });
+
+  describe('buildSimplePaginationButtons', () => {
+    it('should create pagination without sort toggle', () => {
+      const row = buildSimplePaginationButtons(baseConfig);
+      const buttons = row.components;
+
+      expect(buttons).toHaveLength(3);
+    });
+  });
+});
