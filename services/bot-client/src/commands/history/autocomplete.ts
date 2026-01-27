@@ -24,17 +24,14 @@ export async function handlePersonalityAutocomplete(
 }
 
 /**
- * Handle persona autocomplete for the 'profile' option in history commands.
+ * Handle persona autocomplete for the 'persona' option in history commands.
  * Shows user's personas for optional persona selection.
- *
- * Note: The Discord option is named 'profile' for user-facing clarity,
- * but internally this uses the persona autocomplete utility.
  */
-export async function handlePersonaProfileAutocomplete(
+export async function handlePersonaAutocomplete(
   interaction: AutocompleteInteraction
 ): Promise<void> {
   await sharedPersonaAutocomplete(interaction, {
-    optionName: 'profile',
+    optionName: 'persona',
     includeCreateNew: false,
     logPrefix: '[History]',
   });
