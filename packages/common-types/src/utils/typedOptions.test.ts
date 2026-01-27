@@ -188,6 +188,71 @@ describe('typedOptions', () => {
       expect(getOptions(interaction1).value()).toBe('first');
       expect(getOptions(interaction2).value()).toBe('second');
     });
+
+    it('should create accessor for user option', () => {
+      const mockUser = { id: '123', username: 'testuser' };
+      const getOptions = defineTypedOptions({
+        target: { type: 'user', required: true },
+      });
+
+      const interaction = createMockInteraction({ target: mockUser });
+      const options = getOptions(interaction);
+
+      expect(options.target()).toBe(mockUser);
+      expect(interaction.options.getUser).toHaveBeenCalledWith('target', true);
+    });
+
+    it('should create accessor for channel option', () => {
+      const mockChannel = { id: '456', name: 'test-channel' };
+      const getOptions = defineTypedOptions({
+        channel: { type: 'channel', required: false },
+      });
+
+      const interaction = createMockInteraction({ channel: mockChannel });
+      const options = getOptions(interaction);
+
+      expect(options.channel()).toBe(mockChannel);
+      expect(interaction.options.getChannel).toHaveBeenCalledWith('channel', false);
+    });
+
+    it('should create accessor for role option', () => {
+      const mockRole = { id: '789', name: 'Admin' };
+      const getOptions = defineTypedOptions({
+        role: { type: 'role', required: true },
+      });
+
+      const interaction = createMockInteraction({ role: mockRole });
+      const options = getOptions(interaction);
+
+      expect(options.role()).toBe(mockRole);
+      expect(interaction.options.getRole).toHaveBeenCalledWith('role', true);
+    });
+
+    it('should create accessor for mentionable option', () => {
+      const mockMentionable = { id: '999', type: 'user' };
+      const getOptions = defineTypedOptions({
+        mention: { type: 'mentionable', required: false },
+      });
+
+      const interaction = createMockInteraction({ mention: mockMentionable });
+      const options = getOptions(interaction);
+
+      expect(options.mention()).toBe(mockMentionable);
+      expect(interaction.options.getMentionable).toHaveBeenCalledWith('mention', false);
+    });
+
+    it('should create accessor for attachment option', () => {
+      const mockAttachment = { id: '111', name: 'file.png', url: 'https://example.com/file.png' };
+      const getOptions = defineTypedOptions({
+        file: { type: 'attachment', required: true },
+      });
+
+      const interaction = createMockInteraction({ file: mockAttachment });
+      const options = getOptions(interaction);
+
+      expect(options.file()).toBe(mockAttachment);
+      expect(interaction.options.getAttachment).toHaveBeenCalledWith('file', true);
+    });
   });
 
   describe('createSchema', () => {
