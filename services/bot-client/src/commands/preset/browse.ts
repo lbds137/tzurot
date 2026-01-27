@@ -13,7 +13,6 @@ import {
   escapeMarkdown,
   ActionRowBuilder,
   ButtonBuilder,
-  ButtonStyle,
   StringSelectMenuBuilder,
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
@@ -32,7 +31,11 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { ITEMS_PER_PAGE, truncateForSelect } from '../../utils/browse/index.js';
+import {
+  ITEMS_PER_PAGE,
+  truncateForSelect,
+  buildBrowseButtons as buildSharedBrowseButtons,
+} from '../../utils/browse/index.js';
 import { PRESET_DASHBOARD_CONFIG, flattenPresetData, type FlattenedPresetData } from './config.js';
 import { fetchPreset } from './api.js';
 
@@ -285,44 +288,24 @@ function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: numb
 }
 
 /**
- * Build pagination buttons for browse
+ * Build pagination buttons using shared utility (no sort toggle for presets)
  */
 function buildBrowseButtons(
   currentPage: number,
   totalPages: number,
   filter: PresetBrowseFilter,
   query: string | null
-): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
-
-  // Previous button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage - 1, filter, query))
-      .setLabel('◀ Previous')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage === 0)
-  );
-
-  // Page indicator (disabled button)
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${BROWSE_PREFIX}::info`)
-      .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
-  );
-
-  // Next button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage + 1, filter, query))
-      .setLabel('Next ▶')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= totalPages - 1)
-  );
-
-  return row;
+): ReturnType<typeof buildSharedBrowseButtons> {
+  return buildSharedBrowseButtons({
+    currentPage,
+    totalPages,
+    filter,
+    currentSort: 'name', // Preset browse doesn't use sort toggle
+    query,
+    buildCustomId: (page, f, _sort, q) => buildBrowseCustomId(page, f, q),
+    buildInfoId: () => `${BROWSE_PREFIX}::info`,
+    showSortToggle: false, // Presets don't have sort toggle
+  });
 }
 
 /** Union type for action rows that can contain buttons or select menus */

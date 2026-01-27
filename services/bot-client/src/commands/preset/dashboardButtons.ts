@@ -8,15 +8,11 @@
  * - Delete confirmation flow
  */
 
-import {
-  MessageFlags,
-  EmbedBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder,
-} from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import { createLogger, getConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
+import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
@@ -119,20 +115,13 @@ export async function refreshDashboardUI(
 }
 
 /**
- * Handle close button - delete session and close dashboard.
+ * Handle close button using shared handler
  */
 export async function handleCloseButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  const sessionManager = getSessionManager();
-  await sessionManager.delete(interaction.user.id, 'preset', entityId);
-
-  await interaction.update({
-    content: '✅ Dashboard closed.',
-    embeds: [],
-    components: [],
-  });
+  await handleDashboardClose(interaction, 'preset', entityId);
 }
 
 /**
@@ -290,29 +279,15 @@ export async function handleDeleteButton(
     return;
   }
 
-  const confirmEmbed = new EmbedBuilder()
-    .setTitle('🗑️ Delete Preset?')
-    .setDescription(
-      `Are you sure you want to delete **${session.data.name}**?\n\nThis action cannot be undone.`
-    )
-    .setColor(DISCORD_COLORS.WARNING);
-
-  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(`preset::cancel-delete::${entityId}`)
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(`preset::confirm-delete::${entityId}`)
-      .setLabel('Delete')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🗑️')
-  );
-
-  await interaction.update({
-    embeds: [confirmEmbed],
-    components: [confirmRow],
+  // Build confirmation dialog using shared utility
+  const { embed, components } = buildDeleteConfirmation({
+    entityType: 'Preset',
+    entityName: session.data.name,
+    confirmCustomId: `preset::confirm-delete::${entityId}`,
+    cancelCustomId: `preset::cancel-delete::${entityId}`,
   });
+
+  await interaction.update({ embeds: [embed], components });
 }
 
 /**

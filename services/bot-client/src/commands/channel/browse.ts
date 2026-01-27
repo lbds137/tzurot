@@ -11,13 +11,8 @@
  */
 
 import type { ButtonInteraction, TextChannel, Client } from 'discord.js';
-import {
-  EmbedBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder,
-  escapeMarkdown,
-} from 'discord.js';
+import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, escapeMarkdown } from 'discord.js';
+import { buildBrowseButtons as buildSharedBrowseButtons } from '../../utils/browse/index.js';
 import {
   createLogger,
   isBotOwner,
@@ -224,7 +219,7 @@ function buildGuildPages(activations: ChannelSettings[], client: Client): GuildP
 }
 
 /**
- * Build pagination and sort buttons for browse
+ * Build pagination and sort buttons using shared utility
  */
 function buildBrowseButtons(
   currentPage: number,
@@ -232,47 +227,16 @@ function buildBrowseButtons(
   filter: ChannelBrowseFilter,
   currentSort: ChannelBrowseSortType,
   query: string | null
-): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
-
-  // Previous button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage - 1, filter, currentSort, query))
-      .setLabel('◀ Previous')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage === 0)
-  );
-
-  // Page indicator (disabled)
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${BROWSE_PREFIX}::info`)
-      .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
-  );
-
-  // Next button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage + 1, filter, currentSort, query))
-      .setLabel('Next ▶')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= totalPages - 1)
-  );
-
-  // Sort toggle button
-  const newSort: ChannelBrowseSortType = currentSort === 'date' ? 'name' : 'date';
-  const sortLabel = currentSort === 'date' ? '🔤 Sort A-Z' : '📅 Sort by Date';
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage, filter, newSort, query))
-      .setLabel(sortLabel)
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  return row;
+): ReturnType<typeof buildSharedBrowseButtons> {
+  return buildSharedBrowseButtons({
+    currentPage,
+    totalPages,
+    filter,
+    currentSort,
+    query,
+    buildCustomId: buildBrowseCustomId,
+    buildInfoId: () => `${BROWSE_PREFIX}::info`,
+  });
 }
 
 /**

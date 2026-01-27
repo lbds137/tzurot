@@ -11,7 +11,6 @@
 
 import {
   ButtonBuilder,
-  ButtonStyle,
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
@@ -32,7 +31,10 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { truncateForSelect } from '../../utils/browse/index.js';
+import {
+  truncateForSelect,
+  buildBrowseButtons as buildSharedBrowseButtons,
+} from '../../utils/browse/index.js';
 import {
   type ListItem,
   filterCharacters,
@@ -230,7 +232,7 @@ function buildBrowseSelectMenu(
 }
 
 /**
- * Build pagination and sort buttons for browse
+ * Build pagination buttons using shared utility
  */
 function buildBrowseButtons(
   currentPage: number,
@@ -238,47 +240,16 @@ function buildBrowseButtons(
   filter: CharacterBrowseFilter,
   currentSort: CharacterBrowseSortType,
   query: string | null
-): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
-
-  // Previous button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage - 1, filter, currentSort, query))
-      .setLabel('◀ Previous')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage === 0)
-  );
-
-  // Page indicator (disabled)
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(`${BROWSE_PREFIX}::info`)
-      .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
-  );
-
-  // Next button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage + 1, filter, currentSort, query))
-      .setLabel('Next ▶')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= totalPages - 1)
-  );
-
-  // Sort toggle button
-  const newSort: CharacterBrowseSortType = currentSort === 'date' ? 'name' : 'date';
-  const sortLabel = currentSort === 'date' ? '🔤 Sort A-Z' : '📅 Sort by Date';
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(buildBrowseCustomId(currentPage, filter, newSort, query))
-      .setLabel(sortLabel)
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  return row;
+): ReturnType<typeof buildSharedBrowseButtons> {
+  return buildSharedBrowseButtons({
+    currentPage,
+    totalPages,
+    filter,
+    currentSort,
+    query,
+    buildCustomId: buildBrowseCustomId,
+    buildInfoId: () => `${BROWSE_PREFIX}::info`,
+  });
 }
 
 /** Union type for action rows that can contain buttons or select menus */

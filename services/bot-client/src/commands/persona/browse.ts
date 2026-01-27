@@ -7,7 +7,6 @@
 
 import {
   ButtonBuilder,
-  ButtonStyle,
   EmbedBuilder,
   ActionRowBuilder,
   StringSelectMenuBuilder,
@@ -23,7 +22,11 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { ITEMS_PER_PAGE, truncateForSelect } from '../../utils/browse/index.js';
+import {
+  ITEMS_PER_PAGE,
+  truncateForSelect,
+  buildBrowseButtons as buildSharedBrowseButtons,
+} from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
@@ -99,53 +102,22 @@ function buildBrowseSelectMenu(
 }
 
 /**
- * Build pagination and sort buttons for browse
+ * Build pagination and sort buttons using shared utility
  */
 function buildBrowseButtons(
   currentPage: number,
   totalPages: number,
   currentSort: PersonaBrowseSortType
-): ActionRowBuilder<ButtonBuilder> {
-  const row = new ActionRowBuilder<ButtonBuilder>();
-
-  // Previous button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(PersonaCustomIds.browsePage(currentPage - 1, currentSort))
-      .setLabel('◀ Previous')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage === 0)
-  );
-
-  // Page indicator (disabled)
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(PersonaCustomIds.browseInfo())
-      .setLabel(`Page ${currentPage + 1} of ${totalPages}`)
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(true)
-  );
-
-  // Next button
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(PersonaCustomIds.browsePage(currentPage + 1, currentSort))
-      .setLabel('Next ▶')
-      .setStyle(ButtonStyle.Secondary)
-      .setDisabled(currentPage >= totalPages - 1)
-  );
-
-  // Sort toggle button
-  const newSort: PersonaBrowseSortType = currentSort === 'date' ? 'name' : 'date';
-  const sortLabel = currentSort === 'date' ? '🔤 Sort A-Z' : '📅 Sort by Date';
-  row.addComponents(
-    new ButtonBuilder()
-      .setCustomId(PersonaCustomIds.browsePage(currentPage, newSort))
-      .setLabel(sortLabel)
-      .setStyle(ButtonStyle.Primary)
-  );
-
-  return row;
+): ReturnType<typeof buildSharedBrowseButtons> {
+  return buildSharedBrowseButtons({
+    currentPage,
+    totalPages,
+    filter: 'all', // Persona browse doesn't use filters
+    currentSort,
+    query: null, // Persona browse doesn't use query
+    buildCustomId: (page, _filter, sort) => PersonaCustomIds.browsePage(page, sort),
+    buildInfoId: () => PersonaCustomIds.browseInfo(),
+  });
 }
 
 /** Union type for action rows */

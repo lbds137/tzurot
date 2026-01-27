@@ -16,6 +16,7 @@ import {
   handleBackButton,
   generateClonedName,
 } from './dashboardButtons.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import type { FlattenedPresetData } from './config.js';
 
 // Mock dependencies
@@ -55,6 +56,10 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionManager: () => mockSessionManager,
   };
 });
+
+vi.mock('../../utils/dashboard/closeHandler.js', () => ({
+  handleDashboardClose: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -213,17 +218,13 @@ describe('Preset Dashboard Buttons', () => {
   });
 
   describe('handleCloseButton', () => {
-    it('should delete session and close dashboard', async () => {
+    it('should delegate to shared close handler', async () => {
       const mockInteraction = createMockButtonInteraction('preset::close::preset-123');
 
       await handleCloseButton(mockInteraction, 'preset-123');
 
-      expect(mockSessionManager.delete).toHaveBeenCalledWith('user-123', 'preset', 'preset-123');
-      expect(mockInteraction.update).toHaveBeenCalledWith({
-        content: expect.stringContaining('Dashboard closed'),
-        embeds: [],
-        components: [],
-      });
+      // Verify the shared handler was called with correct arguments
+      expect(handleDashboardClose).toHaveBeenCalledWith(mockInteraction, 'preset', 'preset-123');
     });
   });
 
