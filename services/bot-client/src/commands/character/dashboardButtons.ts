@@ -7,13 +7,15 @@
 
 import type { ButtonInteraction } from 'discord.js';
 import { createLogger, getConfig, isBotOwner } from '@tzurot/common-types';
-import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
   getSessionManager,
+  getSessionOrExpired,
+  handleDashboardClose,
+  DASHBOARD_MESSAGES,
+  formatSessionExpiredMessage,
 } from '../../utils/dashboard/index.js';
-import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import type { CharacterSessionData } from './edit.js';
 import { fetchCharacter } from './api.js';
@@ -35,15 +37,20 @@ export async function handleBackButton(
   const config = getConfig();
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<CharacterData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<CharacterData>(
+    interaction,
     'character',
-    entityId
+    entityId,
+    '/character browse'
   );
+  if (session === null) {
+    return;
+  }
 
-  const browseContext = session?.data.browseContext;
+  const browseContext = session.data.browseContext;
   if (!browseContext) {
+    // Session exists but no browse context - shouldn't happen, show expired
     await interaction.editReply({
       content: formatSessionExpiredMessage('/character browse'),
       embeds: [],
@@ -65,6 +72,8 @@ export async function handleBackButton(
       }
     );
 
+    // Clear the session since we're leaving the dashboard
+    const sessionManager = getSessionManager();
     await sessionManager.delete(interaction.user.id, 'character', entityId);
     await interaction.editReply({ embeds: [embed], components });
 
