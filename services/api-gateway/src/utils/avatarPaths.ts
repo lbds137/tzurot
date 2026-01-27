@@ -234,17 +234,26 @@ async function tryDeleteAvatarFile(filePath: string, logContext: string): Promis
   }
 }
 
+/** Maximum number of files to return from glob (prevents unbounded memory usage) */
+const GLOB_RESULT_LIMIT = 1000;
+
 /**
  * Collects files matching a glob pattern into an array
  *
  * Node.js fs.glob returns an AsyncIterable, this helper converts it to an array.
+ * Limited to GLOB_RESULT_LIMIT files to prevent memory issues from runaway patterns.
  *
  * @param pattern - Glob pattern to match
+ * @param limit - Maximum files to return (default: GLOB_RESULT_LIMIT)
  * @returns Array of matching file paths
  */
-async function globToArray(pattern: string): Promise<string[]> {
+async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): Promise<string[]> {
   const files: string[] = [];
   for await (const file of glob(pattern)) {
+    if (files.length >= limit) {
+      logger.warn({ pattern, limit }, '[Avatar glob] Result limit reached');
+      break;
+    }
     files.push(file);
   }
   return files;
@@ -275,6 +284,8 @@ export async function cleanupOldAvatarVersions(
   const subdir = getAvatarSubdir(slug);
   // Glob pattern: /data/avatars/{first-char}/{slug}*.png
   // This finds both versioned and legacy files for this slug
+  // Security: slug is validated by isValidSlug (alphanumeric, underscore, hyphen only)
+  // This prevents glob pattern injection (no *, ?, [, ], {, } characters allowed)
   const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
 
   try {
@@ -348,6 +359,8 @@ export async function deleteAllAvatarVersions(
 
   const subdir = getAvatarSubdir(slug);
   // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+  // Security: slug is validated by isValidSlug (alphanumeric, underscore, hyphen only)
+  // This prevents glob pattern injection (no *, ?, [, ], {, } characters allowed)
   const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
 
   try {
