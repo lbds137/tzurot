@@ -185,39 +185,6 @@ export async function ensureAvatarDir(slug: string): Promise<string | null> {
 }
 
 /**
- * Safely deletes an avatar file by slug (legacy format only)
- *
- * @deprecated Use deleteAllAvatarVersions for complete cleanup
- * @param slug - The personality slug
- * @param logContext - Context string for logging (e.g., 'Personality delete', 'Avatar update')
- * @returns true if deleted, false if validation failed, null if file didn't exist
- */
-export async function deleteAvatarFile(
-  slug: string,
-  logContext = 'Avatar'
-): Promise<boolean | null> {
-  const avatarPath = getSafeAvatarPath(slug);
-  if (avatarPath === null) {
-    return false;
-  }
-
-  try {
-    await unlink(avatarPath);
-    logger.info({ slug, avatarPath }, `[${logContext}] Deleted cached avatar file`);
-    return true;
-  } catch (error) {
-    const errCode = (error as NodeJS.ErrnoException).code;
-    // ENOENT = file doesn't exist, ENOTDIR = path component is not a directory
-    if (errCode === 'ENOENT' || errCode === 'ENOTDIR') {
-      logger.debug({ slug, errCode }, `[${logContext}] Avatar file not found, nothing to delete`);
-      return null;
-    }
-    logger.warn({ err: error, avatarPath }, `[${logContext}] Failed to delete avatar file`);
-    return false;
-  }
-}
-
-/**
  * Attempts to delete a single avatar file, returning true on success
  * Silently ignores ENOENT (file already deleted)
  */
