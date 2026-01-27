@@ -247,6 +247,28 @@ When modifying a file:
 - ❌ No unused imports/variables (ESLint enforced)
 - ✅ Git history preserves deleted code
 
+### Avoid Re-exports
+
+**Import from source modules, not index files.**
+
+Re-exports create spaghetti code and obscure dependencies. They make refactoring harder and can cause circular import issues.
+
+- ❌ Don't add re-exports just for convenience
+- ❌ Don't create `index.ts` files that only re-export
+- ✅ Import directly from the source module
+- ✅ Exception: Package entry points (e.g., `@tzurot/common-types`)
+
+```typescript
+// ❌ BAD - Re-exporting for convenience
+// utils/index.ts
+export { formatDate } from './dateUtils.js';
+export { parseUrl } from './urlUtils.js';
+
+// ✅ GOOD - Import from source
+import { formatDate } from './utils/dateUtils.js';
+import { parseUrl } from './utils/urlUtils.js';
+```
+
 ### Code Review Checklist
 
 Before approving any PR:
