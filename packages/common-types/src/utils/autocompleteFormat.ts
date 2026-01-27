@@ -23,7 +23,7 @@ export const AUTOCOMPLETE_BADGES = {
   /** User-created resource, only visible to owner */
   OWNED: '🔒',
   /** User-created but shared publicly with others */
-  PUBLIC: '🌍',
+  PUBLIC: '🌐',
   /** Visible but not editable (e.g., someone else's public resource) */
   READ_ONLY: '📖',
 
@@ -77,7 +77,7 @@ const DISCORD_MAX_LENGTH = 100;
  * `[ScopeBadge][StatusBadges] Name (identifier) · metadata`
  *
  * Where:
- * - ScopeBadge: Single emoji indicating ownership/visibility (🌐🔒🌍📖)
+ * - ScopeBadge: Single emoji indicating ownership/visibility (🌐🔒📖)
  * - StatusBadges: Up to 2 additional status indicators (⭐🆓🔐)
  * - Name: The display name of the resource
  * - identifier: Optional disambiguation string in parentheses

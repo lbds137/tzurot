@@ -304,7 +304,7 @@ describe('handlePersonalityAutocomplete', () => {
       await handlePersonalityAutocomplete(interaction);
 
       expect(mockRespond).toHaveBeenCalledWith([
-        { name: '🌍 Public Owned (public-owned)', value: 'public-owned' },
+        { name: '🌐 Public Owned (public-owned)', value: 'public-owned' },
         { name: '🔒 Private Owned (private-owned)', value: 'private-owned' },
         { name: '📖 Public Not Owned (public-not-owned)', value: 'public-not-owned' },
       ]);
@@ -325,7 +325,7 @@ describe('handlePersonalityAutocomplete', () => {
       await handlePersonalityAutocomplete(interaction);
 
       expect(mockRespond).toHaveBeenCalledWith([
-        { name: '🌍 Beautiful Display Name (test)', value: 'test' },
+        { name: '🌐 Beautiful Display Name (test)', value: 'test' },
       ]);
     });
 
@@ -388,9 +388,9 @@ describe('handlePersonalityAutocomplete', () => {
 });
 
 describe('getVisibilityIcon', () => {
-  it('should return 🌍 (PUBLIC) for public and can edit', () => {
-    // 🌍 = user's public personality (can edit)
-    expect(getVisibilityIcon(true, true)).toBe('🌍');
+  it('should return 🌐 (PUBLIC) for public and can edit', () => {
+    // 🌐 = user's public personality (can edit)
+    expect(getVisibilityIcon(true, true)).toBe('🌐');
   });
 
   it('should return 🔒 (OWNED) for private and can edit', () => {

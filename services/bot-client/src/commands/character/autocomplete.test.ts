@@ -122,7 +122,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', '', 'avatar'));
 
-    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌍 MyChar (my-char)', value: 'my-char' }]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 MyChar (my-char)', value: 'my-char' }]);
   });
 
   it('should return all characters for view subcommand', async () => {
@@ -171,7 +171,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', 'lun', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌍 Luna (luna)', value: 'luna' }]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 Luna (luna)', value: 'luna' }]);
   });
 
   it('should filter by query matching slug', async () => {
@@ -220,7 +220,7 @@ describe('handleAutocomplete', () => {
     await handleAutocomplete(createMockInteraction('character', 'fancy', 'edit'));
 
     expect(mockRespond).toHaveBeenCalledWith([
-      { name: '🌍 Fancy Display Name (char-1)', value: 'char-1' },
+      { name: '🌐 Fancy Display Name (char-1)', value: 'char-1' },
     ]);
   });
 
@@ -237,7 +237,7 @@ describe('handleAutocomplete', () => {
 
     await handleAutocomplete(createMockInteraction('character', 'LUNA', 'edit'));
 
-    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌍 Luna (luna)', value: 'luna' }]);
+    expect(mockRespond).toHaveBeenCalledWith([{ name: '🌐 Luna (luna)', value: 'luna' }]);
   });
 
   it('should return empty array when cache returns empty', async () => {
@@ -305,7 +305,7 @@ describe('handleAutocomplete', () => {
 
     expect(mockRespond).toHaveBeenCalledWith([
       { name: '🔒 Private (private-owned)', value: 'private-owned' },
-      { name: '🌍 Public (public-owned)', value: 'public-owned' },
+      { name: '🌐 Public (public-owned)', value: 'public-owned' },
       { name: '📖 Other (public-other)', value: 'public-other' },
     ]);
   });
