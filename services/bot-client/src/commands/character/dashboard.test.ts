@@ -418,20 +418,69 @@ describe('Character Dashboard', () => {
   });
 
   describe('isCharacterDashboardInteraction', () => {
-    it('should return true for character dashboard customId', () => {
+    it('should return true for dashboard-specific actions', () => {
       vi.mocked(dashboardUtils.isDashboardInteraction).mockReturnValue(true);
 
-      expect(isCharacterDashboardInteraction('character::menu::test')).toBe(true);
-      expect(dashboardUtils.isDashboardInteraction).toHaveBeenCalledWith(
-        'character::menu::test',
-        'character'
-      );
+      // Test each dashboard action
+      const dashboardActions = [
+        'menu',
+        'modal',
+        'close',
+        'refresh',
+        'back',
+        'delete',
+        'delete_confirm',
+        'delete_cancel',
+      ];
+
+      for (const action of dashboardActions) {
+        vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+          command: 'character',
+          action,
+          characterId: 'test-char',
+        });
+
+        expect(isCharacterDashboardInteraction(`character::${action}::test-char`)).toBe(true);
+      }
     });
 
     it('should return false for non-character customId', () => {
       vi.mocked(dashboardUtils.isDashboardInteraction).mockReturnValue(false);
 
       expect(isCharacterDashboardInteraction('persona::menu::test')).toBe(false);
+    });
+
+    it('should return false for non-dashboard character actions', () => {
+      vi.mocked(dashboardUtils.isDashboardInteraction).mockReturnValue(true);
+
+      // Browse actions should NOT be matched
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
+        action: 'browse',
+        page: 0,
+      });
+      expect(isCharacterDashboardInteraction('character::browse::0::all::date::')).toBe(false);
+
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
+        action: 'browse-select',
+      });
+      expect(isCharacterDashboardInteraction('character::browse-select')).toBe(false);
+
+      // List action should NOT be matched
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
+        action: 'list',
+        page: 0,
+      });
+      expect(isCharacterDashboardInteraction('character::list::0')).toBe(false);
+    });
+
+    it('should return false if parse returns null', () => {
+      vi.mocked(dashboardUtils.isDashboardInteraction).mockReturnValue(true);
+      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
+
+      expect(isCharacterDashboardInteraction('character::invalid')).toBe(false);
     });
   });
 

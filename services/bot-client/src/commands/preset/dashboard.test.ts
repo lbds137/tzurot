@@ -40,6 +40,17 @@ vi.mock('./api.js', () => ({
   createPreset: (...args: unknown[]) => mockCreatePreset(...args),
 }));
 
+// Mock customIds
+const mockPresetCustomIdsParse = vi.fn();
+vi.mock('../../utils/customIds.js', () => ({
+  PresetCustomIds: {
+    parse: (...args: unknown[]) => mockPresetCustomIdsParse(...args),
+    menu: (id: string) => `preset::menu::${id}`,
+    modal: (id: string, section: string) => `preset::modal::${id}::${section}`,
+    isPreset: (customId: string) => customId.startsWith('preset::'),
+  },
+}));
+
 // Mock dashboard utilities
 const mockBuildDashboardEmbed = vi.fn().mockReturnValue({ title: 'Test Embed' });
 const mockBuildDashboardComponents = vi.fn().mockReturnValue([]);
@@ -82,16 +93,33 @@ const mockPresetData: PresetData = {
 };
 
 describe('isPresetDashboardInteraction', () => {
-  it('should delegate to isDashboardInteraction', () => {
+  it('should return true for dashboard-specific actions', () => {
     mockIsDashboardInteraction.mockReturnValue(true);
 
-    const result = isPresetDashboardInteraction('preset::modal::123::identity');
+    // Test each dashboard action
+    const dashboardActions = [
+      'menu',
+      'modal',
+      'seed',
+      'close',
+      'back',
+      'refresh',
+      'clone',
+      'toggle-global',
+      'delete',
+      'confirm-delete',
+      'cancel-delete',
+    ];
 
-    expect(mockIsDashboardInteraction).toHaveBeenCalledWith(
-      'preset::modal::123::identity',
-      'preset'
-    );
-    expect(result).toBe(true);
+    for (const action of dashboardActions) {
+      mockPresetCustomIdsParse.mockReturnValue({
+        command: 'preset',
+        action,
+        presetId: '123',
+      });
+
+      expect(isPresetDashboardInteraction(`preset::${action}::123`)).toBe(true);
+    }
   });
 
   it('should return false for non-preset interactions', () => {
@@ -100,6 +128,31 @@ describe('isPresetDashboardInteraction', () => {
     const result = isPresetDashboardInteraction('character::modal::123::identity');
 
     expect(result).toBe(false);
+  });
+
+  it('should return false for non-dashboard preset actions', () => {
+    mockIsDashboardInteraction.mockReturnValue(true);
+
+    // Browse actions should NOT be matched
+    mockPresetCustomIdsParse.mockReturnValue({
+      command: 'preset',
+      action: 'browse',
+      presetId: undefined,
+    });
+    expect(isPresetDashboardInteraction('preset::browse::0::all')).toBe(false);
+
+    mockPresetCustomIdsParse.mockReturnValue({
+      command: 'preset',
+      action: 'browse-select',
+    });
+    expect(isPresetDashboardInteraction('preset::browse-select')).toBe(false);
+  });
+
+  it('should return false if parse returns null', () => {
+    mockIsDashboardInteraction.mockReturnValue(true);
+    mockPresetCustomIdsParse.mockReturnValue(null);
+
+    expect(isPresetDashboardInteraction('preset::invalid')).toBe(false);
   });
 });
 

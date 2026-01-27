@@ -33,6 +33,7 @@ import {
 } from './config.js';
 import { fetchPreset, updatePreset, updateGlobalPreset } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
+import { PresetCustomIds } from '../../utils/customIds.js';
 import { presetConfigValidator } from './presetValidation.js';
 import { buildValidationEmbed, canProceed } from '../../utils/configValidation.js';
 
@@ -319,9 +320,37 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
   }
 }
 
+/** Dashboard-specific actions that this handler manages */
+const DASHBOARD_ACTIONS = new Set([
+  'menu',
+  'modal',
+  'seed',
+  'close',
+  'back',
+  'refresh',
+  'clone',
+  'toggle-global',
+  'delete',
+  'confirm-delete',
+  'cancel-delete',
+]);
+
 /**
- * Check if interaction is a preset dashboard interaction
+ * Check if interaction is a preset dashboard interaction.
+ * Only matches dashboard-specific actions, not all preset:: customIds.
  */
 export function isPresetDashboardInteraction(customId: string): boolean {
-  return isDashboardInteraction(customId, 'preset');
+  // Must start with preset::
+  if (!isDashboardInteraction(customId, 'preset')) {
+    return false;
+  }
+
+  // Parse to check the action
+  const parsed = PresetCustomIds.parse(customId);
+  if (parsed === null) {
+    return false;
+  }
+
+  // Only return true for dashboard-specific actions
+  return DASHBOARD_ACTIONS.has(parsed.action);
 }
