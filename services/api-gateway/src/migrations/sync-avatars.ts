@@ -18,7 +18,7 @@
  * in the deployment.
  */
 
-import { writeFile, access, unlink, glob } from 'fs/promises';
+import { writeFile, access, unlink } from 'fs/promises';
 import { basename } from 'path';
 import { getPrismaClient, createLogger } from '@tzurot/common-types';
 import {
@@ -28,6 +28,7 @@ import {
   getSafeAvatarPath,
   getAvatarSubdir,
   ensureAvatarDir,
+  globToArray,
   AVATAR_ROOT,
 } from '../utils/avatarPaths.js';
 
@@ -49,25 +50,6 @@ async function tryDeleteFile(filePath: string, filename: string): Promise<boolea
     }
     return false;
   }
-}
-
-/** Maximum glob results during startup sync (same as avatarPaths.ts) */
-const GLOB_RESULT_LIMIT = 1000;
-
-/**
- * Collects files matching a glob pattern into an array
- * Limited to GLOB_RESULT_LIMIT to prevent memory issues with runaway patterns.
- */
-async function globToArray(pattern: string): Promise<string[]> {
-  const files: string[] = [];
-  for await (const file of glob(pattern)) {
-    if (files.length >= GLOB_RESULT_LIMIT) {
-      logger.warn({ pattern, limit: GLOB_RESULT_LIMIT }, '[Avatar Sync] Glob limit reached');
-      break;
-    }
-    files.push(file);
-  }
-  return files;
 }
 
 /**
