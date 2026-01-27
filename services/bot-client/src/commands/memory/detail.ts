@@ -18,6 +18,7 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
+import { truncateForSelect, MAX_SELECT_LABEL_LENGTH } from '../../utils/browse/index.js';
 
 // Re-export API functions for backward compatibility
 export { fetchMemory, updateMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
@@ -38,9 +39,6 @@ const logger = createLogger('memory-detail');
 
 /** Custom ID prefix for memory detail actions */
 export const MEMORY_DETAIL_PREFIX = 'memory-detail';
-
-/** Maximum label length for select menu options */
-const MAX_SELECT_LABEL_LENGTH = 100;
 
 /** Overhead for select label (number prefix "1. " to "99. " + optional lock icon "🔒 ") */
 const SELECT_LABEL_OVERHEAD = 10;
@@ -127,17 +125,6 @@ export function parseMemoryActionId(customId: string): {
 }
 
 /**
- * Truncate text for select menu label
- */
-function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
-  const singleLine = text.replace(/\n+/g, ' ').trim();
-  if (singleLine.length <= maxLength) {
-    return singleLine;
-  }
-  return singleLine.substring(0, maxLength - 3) + '...';
-}
-
-/**
  * Build select menu for choosing a memory from the list
  */
 export function buildMemorySelectMenu(
@@ -154,7 +141,11 @@ export function buildMemorySelectMenu(
   memories.forEach((memory, index) => {
     const num = page * itemsPerPage + index + 1;
     const lockIcon = memory.isLocked ? '🔒 ' : '';
-    const label = `${num}. ${lockIcon}${truncateForSelect(memory.content, MAX_SELECT_LABEL_LENGTH - SELECT_LABEL_OVERHEAD)}`;
+    const contentLabel = truncateForSelect(memory.content, {
+      maxLength: MAX_SELECT_LABEL_LENGTH - SELECT_LABEL_OVERHEAD,
+      stripNewlines: true,
+    });
+    const label = `${num}. ${lockIcon}${contentLabel}`;
 
     selectMenu.addOptions(
       new StringSelectMenuOptionBuilder()

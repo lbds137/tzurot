@@ -60,6 +60,31 @@ describe('truncateForSelect', () => {
     const result = truncateForSelect('Hello', 3);
     expect(result).toBe('...');
   });
+
+  it('should accept options object', () => {
+    const result = truncateForSelect('Hello World', { maxLength: 8 });
+    expect(result).toBe('Hello...');
+  });
+
+  it('should strip newlines when requested', () => {
+    const result = truncateForSelect('Line 1\nLine 2', { stripNewlines: true });
+    expect(result).toBe('Line 1 Line 2');
+  });
+
+  it('should strip multiple newlines when requested', () => {
+    const result = truncateForSelect('Line 1\n\n\nLine 2', { stripNewlines: true });
+    expect(result).toBe('Line 1 Line 2');
+  });
+
+  it('should strip newlines and truncate', () => {
+    const result = truncateForSelect('Short\nText', { maxLength: 8, stripNewlines: true });
+    expect(result).toBe('Short...');
+  });
+
+  it('should trim whitespace after stripping newlines', () => {
+    const result = truncateForSelect('  Text\n  ', { stripNewlines: true });
+    expect(result).toBe('Text');
+  });
 });
 
 describe('truncateForDescription', () => {
