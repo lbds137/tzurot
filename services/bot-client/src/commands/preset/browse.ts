@@ -32,13 +32,11 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
+import { ITEMS_PER_PAGE, truncateForSelect } from '../../utils/browse/index.js';
 import { PRESET_DASHBOARD_CONFIG, flattenPresetData, type FlattenedPresetData } from './config.js';
 import { fetchPreset } from './api.js';
 
 const logger = createLogger('preset-browse');
-
-/** Items per page for pagination */
-const ITEMS_PER_PAGE = 10;
 
 /** Browse filter options */
 export type PresetBrowseFilter = 'all' | 'global' | 'mine' | 'free';
@@ -48,9 +46,6 @@ const BROWSE_PREFIX = 'preset::browse';
 
 /** Custom ID prefix for browse select menu */
 const BROWSE_SELECT_PREFIX = 'preset::browse-select';
-
-/** Maximum length for select menu option labels */
-const MAX_SELECT_LABEL_LENGTH = 100;
 
 interface ListResponse {
   configs: LlmConfigSummary[];
@@ -114,16 +109,6 @@ export function isPresetBrowseInteraction(customId: string): boolean {
  */
 export function isPresetBrowseSelectInteraction(customId: string): boolean {
   return customId.startsWith(BROWSE_SELECT_PREFIX);
-}
-
-/**
- * Truncate text for select menu label
- */
-function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.substring(0, maxLength - 3) + '...';
 }
 
 /**

@@ -23,6 +23,7 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction, Guild } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
+import { truncateForSelect } from '../../utils/browse/index.js';
 
 const logger = createLogger('admin-servers');
 
@@ -39,9 +40,6 @@ const DEFAULT_SORT: ServerBrowseSortType = 'members';
 const BROWSE_PREFIX = 'admin-servers::browse';
 const SELECT_PREFIX = 'admin-servers::select';
 const BACK_PREFIX = 'admin-servers::back';
-
-/** Maximum length for select menu option labels */
-const MAX_SELECT_LABEL_LENGTH = 100;
 
 /**
  * Guild info for display
@@ -192,16 +190,6 @@ export function isServersBrowseInteraction(customId: string): boolean {
     customId.startsWith(SELECT_PREFIX) ||
     customId.startsWith(BACK_PREFIX)
   );
-}
-
-/**
- * Truncate text for select menu label
- */
-function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.substring(0, maxLength - 3) + '...';
 }
 
 /**

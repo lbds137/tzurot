@@ -32,6 +32,7 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
+import { truncateForSelect } from '../../utils/browse/index.js';
 import {
   type ListItem,
   filterCharacters,
@@ -61,9 +62,6 @@ const BROWSE_PREFIX = 'character::browse';
 
 /** Custom ID prefix for browse select menu */
 const BROWSE_SELECT_PREFIX = 'character::browse-select';
-
-/** Maximum length for select menu option labels */
-const MAX_SELECT_LABEL_LENGTH = 100;
 
 /**
  * Build custom ID for browse pagination
@@ -128,16 +126,6 @@ export function isCharacterBrowseInteraction(customId: string): boolean {
  */
 export function isCharacterBrowseSelectInteraction(customId: string): boolean {
   return customId.startsWith(BROWSE_SELECT_PREFIX);
-}
-
-/**
- * Truncate text for select menu label
- */
-function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.substring(0, maxLength - 3) + '...';
 }
 
 /**

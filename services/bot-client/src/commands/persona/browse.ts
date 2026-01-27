@@ -23,6 +23,8 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
+import { ITEMS_PER_PAGE, truncateForSelect } from '../../utils/browse/index.js';
+import { createListComparator } from '../../utils/listSorting.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   flattenPersonaData,
@@ -33,40 +35,23 @@ import type { PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-browse');
 
-/** Personas per page for pagination */
-const PERSONAS_PER_PAGE = 10;
-
 /** Default sort type */
 const DEFAULT_SORT: PersonaBrowseSortType = 'name';
 
-/** Maximum length for select menu option labels */
-const MAX_SELECT_LABEL_LENGTH = 100;
+/** Create comparator for persona sorting using shared utility */
+const personaComparator = createListComparator<PersonaSummary>(
+  persona => persona.name,
+  persona => persona.createdAt
+);
 
 /**
- * Truncate text for select menu label
- */
-function truncateForSelect(text: string, maxLength: number = MAX_SELECT_LABEL_LENGTH): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.substring(0, maxLength - 3) + '...';
-}
-
-/**
- * Sort personas by the specified type
+ * Sort personas by the specified type using shared sorting utility
  */
 function sortPersonas(
   personas: PersonaSummary[],
   sortType: PersonaBrowseSortType
 ): PersonaSummary[] {
-  const sorted = [...personas];
-  if (sortType === 'name') {
-    sorted.sort((a, b) => a.name.localeCompare(b.name));
-  } else if (sortType === 'date') {
-    // Sort by createdAt descending (newest first)
-    sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  }
-  return sorted;
+  return [...personas].sort(personaComparator(sortType));
 }
 
 /**
@@ -180,11 +165,11 @@ function buildBrowsePage(
   // Sort personas
   const sortedPersonas = sortPersonas(personas, sortType);
 
-  const totalPages = Math.max(1, Math.ceil(sortedPersonas.length / PERSONAS_PER_PAGE));
+  const totalPages = Math.max(1, Math.ceil(sortedPersonas.length / ITEMS_PER_PAGE));
   const safePage = Math.min(Math.max(0, page), totalPages - 1);
 
-  const startIdx = safePage * PERSONAS_PER_PAGE;
-  const endIdx = Math.min(startIdx + PERSONAS_PER_PAGE, sortedPersonas.length);
+  const startIdx = safePage * ITEMS_PER_PAGE;
+  const endIdx = Math.min(startIdx + ITEMS_PER_PAGE, sortedPersonas.length);
   const pageItems = sortedPersonas.slice(startIdx, endIdx);
 
   // Build description lines
