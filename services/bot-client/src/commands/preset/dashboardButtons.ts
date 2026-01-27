@@ -20,6 +20,7 @@ import {
   getSessionManager,
   type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -204,7 +205,7 @@ export async function handleToggleGlobalButton(
 
   if (session === null) {
     await interaction.editReply({
-      content: '❌ Session expired. Please reopen the dashboard.',
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       embeds: [],
       components: [],
     });
@@ -265,7 +266,7 @@ export async function handleDeleteButton(
 
   if (session === null) {
     await interaction.reply({
-      content: '❌ Session expired. Please reopen the dashboard.',
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -364,7 +365,7 @@ export async function handleCancelDeleteButton(
 
   if (session === null) {
     await interaction.editReply({
-      content: '❌ Session expired. Please reopen the dashboard.',
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       embeds: [],
       components: [],
     });
@@ -392,7 +393,7 @@ export async function handleCloneButton(
 
   if (session === null) {
     await interaction.editReply({
-      content: '❌ Session expired. Please reopen the dashboard.',
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       embeds: [],
       components: [],
     });
@@ -492,7 +493,7 @@ export async function handleBackButton(
   if (!browseContext) {
     // Session expired or no browse context - show expired message
     await interaction.editReply({
-      content: '⏰ Session expired. Please run `/preset browse` again.',
+      content: formatSessionExpiredMessage('/preset browse'),
       embeds: [],
       components: [],
     });
