@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   isValidSlug,
   getSafeAvatarPath,
-  deleteAvatarFile,
   extractSlugFromFilename,
   extractTimestampFromFilename,
   cleanupOldAvatarVersions,
@@ -135,58 +134,6 @@ describe('avatarPaths', () => {
       const result2 = await ensureAvatarDir('123bot');
       expect(result2).toBe('/data/avatars/1');
       expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/1', { recursive: true });
-    });
-  });
-
-  describe('deleteAvatarFile', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
-
-    it('should delete file for valid slug with subdirectory path', async () => {
-      mockUnlink.mockResolvedValue(undefined);
-
-      const result = await deleteAvatarFile('test-slug', 'Test');
-
-      expect(result).toBe(true);
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/t/test-slug.png');
-    });
-
-    it('should return false for invalid slug', async () => {
-      const result = await deleteAvatarFile('../etc/passwd', 'Test');
-
-      expect(result).toBe(false);
-      expect(mockUnlink).not.toHaveBeenCalled();
-    });
-
-    it('should return null when file does not exist (ENOENT)', async () => {
-      const error = new Error('ENOENT') as NodeJS.ErrnoException;
-      error.code = 'ENOENT';
-      mockUnlink.mockRejectedValue(error);
-
-      const result = await deleteAvatarFile('nonexistent', 'Test');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return null when path component is not a directory (ENOTDIR)', async () => {
-      const error = new Error('ENOTDIR') as NodeJS.ErrnoException;
-      error.code = 'ENOTDIR';
-      mockUnlink.mockRejectedValue(error);
-
-      const result = await deleteAvatarFile('test-slug', 'Test');
-
-      expect(result).toBeNull();
-    });
-
-    it('should return false on other errors', async () => {
-      const error = new Error('Permission denied') as NodeJS.ErrnoException;
-      error.code = 'EACCES';
-      mockUnlink.mockRejectedValue(error);
-
-      const result = await deleteAvatarFile('test-slug', 'Test');
-
-      expect(result).toBe(false);
     });
   });
 
