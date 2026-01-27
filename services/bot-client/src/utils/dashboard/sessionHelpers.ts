@@ -165,8 +165,7 @@ export async function getSessionOrExpired<T>(
 export async function getSessionDataOrReply<T>(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
   entityType: string,
-  entityId: string,
-  _entityLabel: string
+  entityId: string
 ): Promise<T | null> {
   const sessionManager = getSessionManager();
   const session = await sessionManager.get<T>(interaction.user.id, entityType, entityId);

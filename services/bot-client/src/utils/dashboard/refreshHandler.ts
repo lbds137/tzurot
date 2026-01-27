@@ -80,7 +80,9 @@ export function createRefreshHandler<TData, TRaw = TData>(
       return;
     }
 
-    // Transform if needed
+    // Transform if needed.
+    // When transformFn is not provided, caller guarantees TData matches the API response type.
+    // This cast is safe because the generic constraint requires callers to specify matching types.
     const data = transformFn !== undefined ? transformFn(rawData) : (rawData as unknown as TData);
 
     // Update session
