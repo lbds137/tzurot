@@ -24,6 +24,19 @@ Tzurot is a Discord bot with multiple AI personalities powered by a microservice
 - **NEVER** keep old code paths "just in case"
 - **ALWAYS** make the cleanest change, even if breaking
 
+### Standardization Over Uniqueness
+
+**Centralize patterns to fail fast and prevent inconsistencies.**
+
+The goal of using shared utilities is NOT just code reduction - it's ensuring that if something breaks, it breaks everywhere visibly rather than silently creating inconsistent behavior.
+
+- **ALWAYS** check for existing shared utilities before implementing patterns
+- **NEVER** reimplement pagination, customIds, dashboard messages, etc. locally
+- If a shared utility doesn't fit, **extend it** rather than creating a one-off version
+- Arbitrary uniqueness creates bugs that are hard to track down
+
+**📚 See**: `tzurot-slash-command-ux` skill for the shared utility reference table
+
 ### No "Not My Problem" Excuses
 
 **If tests fail or lint errors exist, FIX THEM. No exceptions.**

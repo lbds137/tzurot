@@ -13,6 +13,35 @@ lastUpdated: '2026-01-27'
 - Creating button-based interactions (confirm, navigate)
 - Building dashboard-style editors
 
+## Standardization Principle
+
+**Centralize patterns to fail fast and prevent inconsistencies.**
+
+The goal of standardization is NOT just code reduction - it's ensuring that if something breaks, it breaks everywhere visibly rather than silently creating inconsistent behavior.
+
+### Why This Matters
+
+- **Arbitrary uniqueness creates bugs** - When each command reimplements the same pattern slightly differently, bugs appear randomly and are hard to track down
+- **Fail fast is good** - If a shared utility has a bug, ALL commands using it fail, making the bug immediately visible and easy to fix
+- **Inconsistencies confuse users** - Different behaviors for similar operations erode trust
+
+### Required: Use Shared Utilities
+
+When implementing browse, dashboard, or API patterns, **ALWAYS check for existing shared utilities**:
+
+| Pattern            | Shared Utility                | Location                              |
+| ------------------ | ----------------------------- | ------------------------------------- |
+| Browse pagination  | `createBrowseCustomIdHelpers` | `utils/browse/customIdFactory.ts`     |
+| Browse buttons     | `buildBrowseButtons`          | `utils/browse/buttonBuilder.ts`       |
+| Truncation         | `truncateForSelect`           | `utils/browse/truncation.ts`          |
+| Dashboard messages | `DASHBOARD_MESSAGES`          | `utils/dashboard/messages.ts`         |
+| Dashboard refresh  | `createRefreshHandler`        | `utils/dashboard/refreshHandler.ts`   |
+| Dashboard close    | `handleDashboardClose`        | `utils/dashboard/closeHandler.ts`     |
+| Session management | `fetchOrCreateSession`        | `utils/dashboard/sessionHelpers.ts`   |
+| Permission checks  | `checkPermissionOrReply`      | `utils/dashboard/permissionChecks.ts` |
+
+**Never reimplement these patterns locally.** If a shared utility doesn't fit your use case, extend it rather than creating a one-off version.
+
 ## Quick Reference
 
 ### Standard Subcommand Names
