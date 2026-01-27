@@ -4,20 +4,30 @@
  * Database is source of truth. On startup, check if versioned avatar files exist
  * on the volume. If they don't exist, decode from DB and write versioned files.
  *
- * Files are stored with timestamps in the filename: {slug}-{timestamp}.png
- * This enables automatic cache invalidation when avatars are updated.
+ * Directory Structure:
+ * /data/avatars/{first-char}/{slug}-{timestamp}.png
+ *
+ * Examples:
+ * - /data/avatars/c/cold-1705827727111.png
+ * - /data/avatars/m/my-personality-1705827727111.png
+ *
+ * The two-level structure reduces files per directory for better performance
+ * when the number of personalities grows large (100+).
  *
  * This replaces the old migrate-avatars.ts approach which bundled files
  * in the deployment.
  */
 
-import { writeFile, access, readdir, unlink } from 'fs/promises';
-import { resolve } from 'path';
+import { writeFile, access, unlink, glob } from 'fs/promises';
+import { basename } from 'path';
 import { getPrismaClient, createLogger } from '@tzurot/common-types';
 import {
   extractSlugFromFilename,
   extractTimestampFromFilename,
   isValidSlug,
+  getSafeAvatarPath,
+  getAvatarSubdir,
+  ensureAvatarDir,
   AVATAR_ROOT,
 } from '../utils/avatarPaths.js';
 
@@ -28,45 +38,64 @@ const prisma = getPrismaClient();
  * Attempts to delete a single avatar file, returning true on success
  * Silently ignores ENOENT (file already deleted)
  */
-async function tryDeleteFile(filePath: string, file: string): Promise<boolean> {
+async function tryDeleteFile(filePath: string, filename: string): Promise<boolean> {
   try {
     await unlink(filePath);
     return true;
   } catch (error) {
     const errCode = (error as NodeJS.ErrnoException).code;
     if (errCode !== 'ENOENT') {
-      logger.warn({ err: error, file }, '[Avatar Sync] Failed to delete old version');
+      logger.warn({ err: error, filename }, '[Avatar Sync] Failed to delete old version');
     }
     return false;
   }
 }
 
 /**
+ * Collects files matching a glob pattern into an array
+ */
+async function globToArray(pattern: string): Promise<string[]> {
+  const files: string[] = [];
+  for await (const file of glob(pattern)) {
+    files.push(file);
+  }
+  return files;
+}
+
+/**
  * Cleanup old avatar versions for a slug during sync
  * Synchronous cleanup during startup for deterministic behavior
+ * Uses glob to efficiently find files in the slug's subdirectory
  */
 async function cleanupOldVersionsSync(slug: string, currentTimestamp: number): Promise<number> {
+  const subdir = getAvatarSubdir(slug);
+  // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+  const pattern = `${AVATAR_ROOT}/${subdir}/${slug}*.png`;
+
   try {
-    const files = await readdir(AVATAR_ROOT);
+    const files = await globToArray(pattern);
     let deletedCount = 0;
 
-    for (const file of files) {
-      const fileSlug = extractSlugFromFilename(file);
+    for (const filePath of files) {
+      const filename = basename(filePath);
+      const fileSlug = extractSlugFromFilename(filename);
+
+      // Verify this file actually belongs to our slug (not just prefix match)
       if (fileSlug !== slug) {
         continue;
       }
 
-      const fileTimestamp = extractTimestampFromFilename(file);
+      const fileTimestamp = extractTimestampFromFilename(filename);
       // Skip the current version
       if (fileTimestamp === currentTimestamp) {
         continue;
       }
 
       // Delete legacy files (no timestamp) and old versions
-      const filePath = resolve(AVATAR_ROOT, file);
-      if (await tryDeleteFile(filePath, file)) {
+      // Security: filePath comes from glob on a validated pattern (no path traversal)
+      if (await tryDeleteFile(filePath, filename)) {
         deletedCount++;
-        logger.debug({ slug, file }, '[Avatar Sync] Deleted old version');
+        logger.debug({ slug, filename }, '[Avatar Sync] Deleted old version');
       }
     }
 
@@ -115,8 +144,13 @@ export async function syncAvatars(): Promise<void> {
       }
 
       const timestamp = personality.updatedAt.getTime();
-      const versionedFilename = `${personality.slug}-${timestamp}.png`;
-      const avatarPath = resolve(AVATAR_ROOT, versionedFilename);
+      const avatarPath = getSafeAvatarPath(personality.slug, timestamp);
+
+      // Safety check - getSafeAvatarPath validates the slug
+      if (avatarPath === null) {
+        logger.warn({ slug: personality.slug }, '[Avatar Sync] Invalid avatar path');
+        continue;
+      }
 
       try {
         // Check if exact versioned file already exists
@@ -135,6 +169,9 @@ export async function syncAvatars(): Promise<void> {
       if (personality.avatarData === null) {
         continue;
       }
+
+      // Ensure subdirectory exists before writing
+      await ensureAvatarDir(personality.slug);
 
       // avatarData is already raw bytes, just write to file
       const buffer = Buffer.from(personality.avatarData);
