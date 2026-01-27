@@ -272,7 +272,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     // Check if user can edit this preset (uses canEdit for admin support)
     if (!presetData.canEdit) {
       await interaction.reply({
-        content: '❌ You do not have permission to edit this preset.',
+        content: DASHBOARD_MESSAGES.NO_PERMISSION('edit this preset'),
         flags: MessageFlags.Ephemeral,
       });
       return;

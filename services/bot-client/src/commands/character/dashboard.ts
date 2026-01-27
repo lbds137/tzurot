@@ -384,7 +384,7 @@ async function handleDeleteAction(
   // Verify user can delete
   if (!character.canEdit) {
     await interaction.reply({
-      content: '❌ You do not have permission to delete this character.',
+      content: DASHBOARD_MESSAGES.NO_PERMISSION('delete this character'),
       flags: MessageFlags.Ephemeral,
     });
     return;
