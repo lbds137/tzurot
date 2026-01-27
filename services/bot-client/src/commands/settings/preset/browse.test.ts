@@ -1,12 +1,12 @@
 /**
- * Tests for Me Preset List Handler
+ * Tests for Settings Preset Browse Handler
  *
  * Note: This command uses editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleListOverrides } from './list.js';
+import { handleBrowseOverrides } from './browse.js';
 import { EmbedBuilder } from 'discord.js';
 
 // Mock dependencies
@@ -29,7 +29,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-describe('Me Preset List Handler', () => {
+describe('Settings Preset Browse Handler', () => {
   const mockEditReply = vi.fn();
 
   beforeEach(() => {
@@ -40,17 +40,17 @@ describe('Me Preset List Handler', () => {
     return {
       user: { id: 'user-123' },
       editReply: mockEditReply,
-    } as unknown as Parameters<typeof handleListOverrides>[0];
+    } as unknown as Parameters<typeof handleBrowseOverrides>[0];
   }
 
-  describe('handleListOverrides', () => {
+  describe('handleBrowseOverrides', () => {
     it('should show empty state when no overrides', async () => {
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: true,
         data: { overrides: [] },
       });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: expect.arrayContaining([expect.any(EmbedBuilder)]),
@@ -75,7 +75,7 @@ describe('Me Preset List Handler', () => {
         },
       });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
@@ -96,7 +96,7 @@ describe('Me Preset List Handler', () => {
         },
       });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       const embedCall = mockEditReply.mock.calls[0][0] as { embeds: EmbedBuilder[] };
       const embed = embedCall.embeds[0];
@@ -112,7 +112,7 @@ describe('Me Preset List Handler', () => {
         error: 'Internal error',
       });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ Failed to get overrides. Please try again later.',
@@ -122,7 +122,7 @@ describe('Me Preset List Handler', () => {
     it('should handle network errors', async () => {
       vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: '❌ An error occurred. Please try again later.',

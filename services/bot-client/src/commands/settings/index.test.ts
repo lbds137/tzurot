@@ -45,8 +45,8 @@ vi.mock('./apikey/modal.js', () => ({
 }));
 
 // Mock preset handlers
-vi.mock('./preset/list.js', () => ({
-  handleListOverrides: vi.fn().mockResolvedValue(undefined),
+vi.mock('./preset/browse.js', () => ({
+  handleBrowseOverrides: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('./preset/set.js', () => ({
@@ -237,12 +237,12 @@ describe('Settings Command Index', () => {
 
     describe('preset group', () => {
       it('should route to preset browse handler', async () => {
-        const { handleListOverrides } = await import('./preset/list.js');
+        const { handleBrowseOverrides } = await import('./preset/browse.js');
         const context = createMockContext('preset', 'browse');
 
         await execute(context);
 
-        expect(handleListOverrides).toHaveBeenCalledWith(context);
+        expect(handleBrowseOverrides).toHaveBeenCalledWith(context);
       });
 
       it('should route to preset set handler', async () => {

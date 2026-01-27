@@ -42,7 +42,7 @@ import { handleApikeyModalSubmit } from './apikey/modal.js';
 import { ApikeyCustomIds } from '../../utils/customIds.js';
 
 // Preset handlers (moved from /me/preset)
-import { handleListOverrides } from './preset/list.js';
+import { handleBrowseOverrides } from './preset/browse.js';
 import { handleSet as handlePresetSet } from './preset/set.js';
 import { handleReset as handlePresetReset } from './preset/reset.js';
 import { handleDefault as handlePresetDefault } from './preset/default.js';
@@ -84,7 +84,7 @@ const apikeyRouter = createMixedModeSubcommandRouter(
  */
 const presetRouter = createTypedSubcommandRouter(
   {
-    browse: handleListOverrides, // Renamed from 'list' for consistency
+    browse: handleBrowseOverrides,
     set: handlePresetSet,
     reset: handlePresetReset,
     default: handlePresetDefault,
