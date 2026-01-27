@@ -14,6 +14,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 _New items go here. Triage to appropriate section later._
 
 - ✨ `[FEAT]` **Message Reactions in XML** - Add reaction metadata to extended context messages showing emoji and who reacted (use same user/persona resolution as elsewhere)
+- 🏗️ `[LIFT]` **Make ownerId NOT NULL** - `LlmConfig.ownerId` and `Personality.ownerId` are nullable but all records have owners. Migration to make non-nullable + clean up code paths handling null (removes dead "global/unowned" concept)
 
 ---
 
@@ -21,47 +22,9 @@ _New items go here. Triage to appropriate section later._
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. 🏗️ Extended Context Pipeline Refactor ⬅️ NEXT
+### 1. 🏗️ Slash Command & Dashboard UX Standardization ⬅️ NEXT
 
-The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync. This is blocking reliable feature development.
-
-- [ ] Remove the extended context toggle - always use extended context
-- [ ] Remove dead code paths (all "if not extended context" branches)
-- [ ] Unify the pipeline - single path from Discord → LLM input
-- [ ] Consolidate types - `ConversationHistoryEntry` carries ALL data through pipeline
-
-**Files**: `DiscordChannelFetcher.ts`, `MessageContextBuilder.ts`, `conversationUtils.ts`, pipeline steps
-
-### 2. ✨ LTM Summarization (Shapes.inc Style)
-
-Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
-
-- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
-- [ ] Separate LLM call for summarization (fast/cheap model)
-- [ ] Store summaries as LTM instead of verbatim turns
-
-**Depends on**: Pipeline Refactor
-
-### 3. 🏗️ Memories Table Migration
-
-Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
-
-- [ ] Design unified memory format (draw from both sources)
-- [ ] One-time migration of existing tzurot-v3 memories
-- [ ] Run existing verbatim memories through summarizer
-
-**Depends on**: LTM Summarization
-
-### 4. 🐛 Admin Debug Doesn't Work with Failures
-
-`/admin debug` can't show diagnostics for failed jobs. The most important cases (failures) have no data.
-
-- [ ] Record diagnostics on failure path, not just success path
-- [ ] Capture partial state at failure point
-
-### 5. 🏗️ Slash Command UX Standardization
-
-Inconsistent patterns across slash commands. Need comprehensive review and standardization.
+Inconsistent patterns across slash commands and dashboard interactions. Need comprehensive review and standardization.
 
 **File Structure**
 
@@ -123,7 +86,52 @@ Inconsistent patterns across slash commands. Need comprehensive review and stand
   - Currently only a subset of builders have round-trip tests
   - Should cover every builder function
 
+**Dashboard UX Polish**
+
+- [ ] Delete button redundant ownership checks - `character/browse.ts:679` combines `canEdit` with explicit `ownerId` check
+- [ ] Clone name edge case - `preset/dashboardButtons.ts:364-375` regex for "(Copy N)" fails on "Preset (Copy) (Copy)"
+- [ ] Modal submit silent failure - `character/dashboard.ts:164-168` failed updates logged but user not notified
+- [ ] Dashboard refresh race condition - Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere
+
 **Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Recent bugs exposed that interaction routing has gaps in test coverage that should be addressed systematically.
+
+### 2. 🏗️ Extended Context Pipeline Refactor
+
+The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync. This is blocking reliable feature development.
+
+- [ ] Remove the extended context toggle - always use extended context
+- [ ] Remove dead code paths (all "if not extended context" branches)
+- [ ] Unify the pipeline - single path from Discord → LLM input
+- [ ] Consolidate types - `ConversationHistoryEntry` carries ALL data through pipeline
+
+**Files**: `DiscordChannelFetcher.ts`, `MessageContextBuilder.ts`, `conversationUtils.ts`, pipeline steps
+
+### 3. ✨ LTM Summarization (Shapes.inc Style)
+
+Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
+
+- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
+- [ ] Separate LLM call for summarization (fast/cheap model)
+- [ ] Store summaries as LTM instead of verbatim turns
+
+**Depends on**: Pipeline Refactor
+
+### 4. 🏗️ Memories Table Migration
+
+Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
+
+- [ ] Design unified memory format (draw from both sources)
+- [ ] One-time migration of existing tzurot-v3 memories
+- [ ] Run existing verbatim memories through summarizer
+
+**Depends on**: LTM Summarization
+
+### 5. 🐛 Admin Debug Doesn't Work with Failures
+
+`/admin debug` can't show diagnostics for failed jobs. The most important cases (failures) have no data.
+
+- [ ] Record diagnostics on failure path, not just success path
+- [ ] Capture partial state at failure point
 
 ---
 
@@ -247,26 +255,6 @@ Scans entire history looking for 5 assistant messages. Add `MAX_SCAN_DEPTH = 100
 ### 🧹 Logging Verbosity
 
 INFO log for EVERY response. Downgrade PASSED to DEBUG, keep NEAR-MISS/DUPLICATE at INFO.
-
----
-
-## Epic: Dashboard UX Polish
-
-### 🐛 Delete Button Redundant Ownership Checks
-
-`character/browse.ts:679` - combines `canEdit` with explicit `ownerId` check.
-
-### 🐛 Clone Name Edge Case
-
-`preset/dashboardButtons.ts:364-375` - regex for "(Copy N)" fails on "Preset (Copy) (Copy)".
-
-### 🐛 Modal Submit Silent Failure
-
-`character/dashboard.ts:164-168` - failed updates logged but user not notified.
-
-### 🐛 Dashboard Refresh Race Condition
-
-Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere.
 
 ---
 
