@@ -50,11 +50,22 @@ vi.mock('../../../utils/imageProcessor.js', () => ({
 // Mock fs/promises for avatar cache deletion tests
 vi.mock('fs/promises', () => ({
   unlink: vi.fn(),
-  readdir: vi.fn(),
+  mkdir: vi.fn(),
+  glob: vi.fn(),
 }));
 import * as fsPromises from 'fs/promises';
 const mockUnlink = vi.mocked(fsPromises.unlink);
-const mockReaddir = vi.mocked(fsPromises.readdir);
+const mockMkdir = vi.mocked(fsPromises.mkdir);
+const mockGlob = vi.mocked(fsPromises.glob);
+
+// Helper to create an async generator from an array (simulates glob behavior)
+function createAsyncGenerator(items: string[]): AsyncGenerator<string> {
+  return (async function* () {
+    for (const item of items) {
+      yield item;
+    }
+  })();
+}
 
 import { createPersonalityRoutes } from './index.js';
 
@@ -65,9 +76,11 @@ describe('PUT /user/personality/:slug (update)', () => {
     vi.clearAllMocks();
     setupStandardMocks(mockPrisma);
     mockUnlink.mockReset();
-    mockReaddir.mockReset();
+    mockMkdir.mockReset();
+    mockGlob.mockReset();
     // Default: empty avatar directory
-    mockReaddir.mockResolvedValue([] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
+    mockGlob.mockReturnValue(createAsyncGenerator([]));
+    mockMkdir.mockResolvedValue(undefined);
   });
 
   it('should return 403 when user not found', async () => {
@@ -340,12 +353,14 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should delete cached avatar files when avatar is updated', async () => {
-      // Mock readdir to return files for this slug (versioned and legacy)
-      mockReaddir.mockResolvedValue([
-        'test-char-1705827727111.png',
-        'test-char.png',
-        'other-slug.png',
-      ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
+      // Mock glob to return files for this slug (versioned and legacy) in subdirectory
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/t/test-char-1705827727111.png',
+          '/data/avatars/t/test-char.png',
+          // Note: glob pattern is specific to slug's subdirectory, so other-slug won't appear
+        ])
+      );
       mockUnlink.mockResolvedValue(undefined);
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
@@ -357,18 +372,18 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
-      // Should delete all versions for this slug
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/test-char-1705827727111.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/test-char.png');
-      // Should NOT delete other slugs
-      expect(mockUnlink).not.toHaveBeenCalledWith('/data/avatars/other-slug.png');
+      // Should delete all versions for this slug (in subdirectory)
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/t/test-char-1705827727111.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/t/test-char.png');
       expect(res.status).toHaveBeenCalledWith(200);
     });
 
     it('should silently handle ENOENT when avatar directory does not exist', async () => {
       const enoentError = new Error('Directory not found') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
-      mockReaddir.mockRejectedValue(enoentError);
+      mockGlob.mockImplementation(() => {
+        throw enoentError;
+      });
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:slug');
@@ -384,10 +399,8 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should silently handle ENOENT during individual file deletion', async () => {
-      // File listed but deleted between readdir and unlink
-      mockReaddir.mockResolvedValue(['valid-slug.png'] as unknown as Awaited<
-        ReturnType<typeof fsPromises.readdir>
-      >);
+      // File listed but deleted between glob and unlink
+      mockGlob.mockReturnValue(createAsyncGenerator(['/data/avatars/v/valid-slug.png']));
       const enoentError = new Error('File not found') as NodeJS.ErrnoException;
       enoentError.code = 'ENOENT';
       mockUnlink.mockRejectedValue(enoentError);
@@ -406,10 +419,12 @@ describe('PUT /user/personality/:slug (update)', () => {
     });
 
     it('should log warning for other filesystem errors but not fail', async () => {
-      // Readdir errors other than ENOENT should be logged but not fail the request
+      // Glob errors other than ENOENT should be logged but not fail the request
       const permError = new Error('Permission denied') as NodeJS.ErrnoException;
       permError.code = 'EACCES';
-      mockReaddir.mockRejectedValue(permError);
+      mockGlob.mockImplementation(() => {
+        throw permError;
+      });
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:slug');
@@ -426,7 +441,7 @@ describe('PUT /user/personality/:slug (update)', () => {
 
     it('should skip cache deletion for invalid slug format (path traversal protection)', async () => {
       // This tests the CWE-22 path traversal protection
-      // Invalid slugs should not trigger readdir at all
+      // Invalid slugs should not trigger glob at all
       mockPrisma.personality.findUnique.mockResolvedValue({
         id: 'personality-avatar',
         ownerId: 'user-uuid-123',
@@ -443,8 +458,8 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
-      // readdir/unlink should NOT be called for invalid slug
-      expect(mockReaddir).not.toHaveBeenCalled();
+      // glob/unlink should NOT be called for invalid slug
+      expect(mockGlob).not.toHaveBeenCalled();
       expect(mockUnlink).not.toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -607,13 +622,16 @@ describe('PUT /user/personality/:slug (update)', () => {
 
     it('should invalidate cache when slug is updated', async () => {
       mockIsBotOwner.mockReturnValue(true);
-      // Mock readdir to return files for both old and new slugs
-      mockReaddir.mockResolvedValue([
-        'old-slug-1705827727111.png',
-        'old-slug.png',
-        'new-slug-1705827727222.png',
-        'other.png',
-      ] as unknown as Awaited<ReturnType<typeof fsPromises.readdir>>);
+      // Mock glob to return files for old slug (in 'o' subdirectory) and new slug (in 'n' subdirectory)
+      // Since deleteAllAvatarVersions is called twice (once per slug), we need to mock multiple calls
+      mockGlob
+        .mockReturnValueOnce(
+          createAsyncGenerator([
+            '/data/avatars/o/old-slug-1705827727111.png',
+            '/data/avatars/o/old-slug.png',
+          ])
+        )
+        .mockReturnValueOnce(createAsyncGenerator(['/data/avatars/n/new-slug-1705827727222.png']));
       mockUnlink.mockResolvedValue(undefined);
       // No existing personality with new slug
       mockPrisma.personality.findUnique
@@ -646,12 +664,10 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
-      // Should delete cached avatar for both old and new slugs (all versions)
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/old-slug-1705827727111.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/old-slug.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/new-slug-1705827727222.png');
-      // Should NOT delete other slugs
-      expect(mockUnlink).not.toHaveBeenCalledWith('/data/avatars/other.png');
+      // Should delete cached avatar for both old and new slugs (all versions, in subdirectories)
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/o/old-slug-1705827727111.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/o/old-slug.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/n/new-slug-1705827727222.png');
       // Should invalidate personality cache
       expect(mockCacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith(
         'personality-slug-test'
