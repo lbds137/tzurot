@@ -5,7 +5,7 @@
  * across all commands. Uses the gateway API for data access.
  *
  * Uses standardized badges from @tzurot/common-types:
- * - 🌍 PUBLIC = User's public personality (can edit)
+ * - 🌐 PUBLIC = User's public personality (can edit)
  * - 🔒 OWNED = User's private personality (can edit)
  * - 📖 READ_ONLY = Someone else's public personality
  */
@@ -113,7 +113,7 @@ export async function handlePersonalityAutocomplete(
           : p.name;
 
       // Determine scope badge based on permissions
-      // 🌍 PUBLIC = can edit + public (user's shared personality)
+      // 🌐 PUBLIC = can edit + public (user's shared personality)
       // 🔒 OWNED = can edit + private (user's private personality)
       // 📖 READ_ONLY = cannot edit (someone else's public personality)
       const scopeBadge = p.permissions.canEdit
@@ -152,7 +152,7 @@ export async function handlePersonalityAutocomplete(
  * Get visibility icon for a personality
  *
  * Uses standardized badges from AUTOCOMPLETE_BADGES:
- * - 🌍 PUBLIC = can edit + public
+ * - 🌐 PUBLIC = can edit + public
  * - 🔒 OWNED = can edit + private
  * - 📖 READ_ONLY = cannot edit
  *

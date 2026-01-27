@@ -186,9 +186,9 @@ describe('handleAutocomplete', () => {
 
       await handleAutocomplete(mockInteraction);
 
-      // 🌍 = PUBLIC (owned + public personality)
+      // 🌐 = PUBLIC (owned + public personality)
       expect(mockInteraction.respond).toHaveBeenCalledWith([
-        { name: '🌍 Lilith Bot (lilith)', value: 'p1' },
+        { name: '🌐 Lilith Bot (lilith)', value: 'p1' },
       ]);
     });
 

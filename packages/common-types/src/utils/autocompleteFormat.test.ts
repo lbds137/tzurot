@@ -15,7 +15,7 @@ describe('autocompleteFormat', () => {
     it('should have all expected scope badges', () => {
       expect(AUTOCOMPLETE_BADGES.GLOBAL).toBe('🌐');
       expect(AUTOCOMPLETE_BADGES.OWNED).toBe('🔒');
-      expect(AUTOCOMPLETE_BADGES.PUBLIC).toBe('🌍');
+      expect(AUTOCOMPLETE_BADGES.PUBLIC).toBe('🌐');
       expect(AUTOCOMPLETE_BADGES.READ_ONLY).toBe('📖');
     });
 
@@ -141,7 +141,7 @@ describe('autocompleteFormat', () => {
         identifier: 'shared-bot',
       });
 
-      expect(result.name).toBe('🌍 Shared Bot (shared-bot)');
+      expect(result.name).toBe('🌐 Shared Bot (shared-bot)');
     });
 
     it('should handle read-only personality correctly', () => {

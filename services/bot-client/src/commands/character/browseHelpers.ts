@@ -152,7 +152,7 @@ export function createListItems(
       if (isGroupStart) {
         if (isFirstOthersGroup) {
           // First group of others gets the section header
-          groupHeader = `**🌍 Other Users' Characters (${othersPublic.length})**\n\n__${escapeMarkdown(group.ownerName)}__`;
+          groupHeader = `**🌐 Other Users' Characters (${othersPublic.length})**\n\n__${escapeMarkdown(group.ownerName)}__`;
           isFirstOthersGroup = false;
         } else {
           // Subsequent groups just get owner subheader
@@ -219,7 +219,7 @@ export function renderPageItems(pageItems: ListItem[], existingLinesLength: numb
       // Add separator before "Other Users" section if coming from own chars
       const totalLines = existingLinesLength + lines.length;
       const lastLine = lines.length > 0 ? lines[lines.length - 1] : '';
-      if (!item.isOwn && totalLines > 0 && !lastLine.startsWith('**🌍')) {
+      if (!item.isOwn && totalLines > 0 && !lastLine.startsWith('**🌐')) {
         lines.push('');
       }
       lines.push(item.groupHeader);
