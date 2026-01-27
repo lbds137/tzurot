@@ -152,9 +152,8 @@ describe('Avatar Routes', () => {
       expect(response.body.error).toBe('Internal Error');
     });
 
-    it('should return 500 if filesystem cache write fails', async () => {
-      // Note: Current implementation awaits writeFile before sending response,
-      // so if caching fails, the request fails with 500. This is a known behavior.
+    it('should still serve avatar from DB even if filesystem cache write fails', async () => {
+      // Fire-and-forget caching: disk failures don't block user response
       const avatarBuffer = Buffer.from('fake-png-data');
 
       mockAccess.mockRejectedValue(new Error('ENOENT'));
@@ -166,8 +165,10 @@ describe('Avatar Routes', () => {
 
       const response = await request(app).get('/avatars/testbot.png');
 
-      expect(response.status).toBe(StatusCodes.INTERNAL_SERVER_ERROR);
-      expect(response.body.error).toBe('Internal Error');
+      // User still gets the avatar - caching failure is logged but doesn't block response
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.headers['content-type']).toBe('image/png');
+      expect(response.body).toEqual(avatarBuffer);
     });
 
     it('should query database with correct slug and select updatedAt', async () => {

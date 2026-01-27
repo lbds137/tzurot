@@ -107,15 +107,19 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
           if (shouldCache) {
             const versionedPath = getSafeAvatarPath(slug, dbTimestamp);
             if (versionedPath !== null) {
-              // Ensure subdirectory exists before writing
-              await ensureAvatarDir(slug);
-
-              // Cache to filesystem with versioned filename
-              await writeFile(versionedPath, buffer);
-              logger.info({ slug, timestamp: dbTimestamp }, '[Gateway] Cached avatar from DB');
-
-              // Cleanup old versions asynchronously (fire-and-forget)
-              void cleanupOldAvatarVersions(slug, dbTimestamp);
+              // Cache to filesystem asynchronously (fire-and-forget)
+              // Don't block response - user gets avatar from DB even if caching fails
+              void (async () => {
+                try {
+                  await ensureAvatarDir(slug);
+                  await writeFile(versionedPath, buffer);
+                  logger.info({ slug, timestamp: dbTimestamp }, '[Gateway] Cached avatar from DB');
+                  // Cleanup old versions after successful cache
+                  void cleanupOldAvatarVersions(slug, dbTimestamp);
+                } catch (err) {
+                  logger.warn({ err, slug }, '[Gateway] Failed to cache avatar to filesystem');
+                }
+              })();
             }
           } else {
             // Request is for an old version but DB has newer - serve current but don't cache
