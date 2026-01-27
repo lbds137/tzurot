@@ -9,7 +9,7 @@ export {
   createEntityUpdater,
   createEntityDeleter,
   createListFetcher,
-  handleNotFound,
+  unwrapOrThrow,
   NotFoundError,
   isNotFoundError,
   type GatewayResult,

@@ -112,7 +112,7 @@ describe('deleteConfirmation', () => {
 
   describe('buildDeleteSuccessMessage', () => {
     it('should format success message with entity name', () => {
-      const message = buildDeleteSuccessMessage('Persona', 'My Persona');
+      const message = buildDeleteSuccessMessage('My Persona');
       expect(message).toBe('✅ **My Persona** has been deleted.');
     });
   });

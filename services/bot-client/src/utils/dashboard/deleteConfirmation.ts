@@ -102,11 +102,10 @@ export function buildDeleteConfirmation(options: DeleteConfirmationOptions): {
 /**
  * Build a simple success message for completed deletion.
  *
- * @param entityType - Type of entity that was deleted
  * @param entityName - Name of entity that was deleted
  * @returns Formatted success message
  */
-export function buildDeleteSuccessMessage(_entityType: string, entityName: string): string {
+export function buildDeleteSuccessMessage(entityName: string): string {
   return `✅ **${entityName}** has been deleted.`;
 }
 

@@ -8,7 +8,7 @@ import {
   createEntityUpdater,
   createEntityDeleter,
   createListFetcher,
-  handleNotFound,
+  unwrapOrThrow,
   NotFoundError,
   isNotFoundError,
 } from './gatewayFetcher.js';
@@ -214,23 +214,23 @@ describe('gatewayFetcher', () => {
     });
   });
 
-  describe('handleNotFound', () => {
+  describe('unwrapOrThrow', () => {
     it('should return data on success', () => {
       const data = { id: '123' };
-      const result = handleNotFound({ ok: true, data, status: 200 }, 'entity');
+      const result = unwrapOrThrow({ ok: true, data, status: 200 }, 'entity');
 
       expect(result).toEqual(data);
     });
 
     it('should throw NotFoundError on 404', () => {
       expect(() => {
-        handleNotFound({ ok: false, error: 'Not found', status: 404 }, 'preset');
+        unwrapOrThrow({ ok: false, error: 'Not found', status: 404 }, 'preset');
       }).toThrow(NotFoundError);
     });
 
     it('should throw generic error on other failures', () => {
       expect(() => {
-        handleNotFound({ ok: false, error: 'Server error', status: 500 }, 'entity');
+        unwrapOrThrow({ ok: false, error: 'Server error', status: 500 }, 'entity');
       }).toThrow('Failed to fetch entity: 500 - Server error');
     });
   });
