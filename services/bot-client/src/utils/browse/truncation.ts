@@ -7,28 +7,48 @@
 
 import { MAX_SELECT_LABEL_LENGTH, MAX_SELECT_DESCRIPTION_LENGTH } from './constants.js';
 
+/** Options for truncateForSelect */
+interface TruncateOptions {
+  /** Maximum length (defaults to MAX_SELECT_LABEL_LENGTH) */
+  maxLength?: number;
+  /** Replace newlines with spaces before truncating */
+  stripNewlines?: boolean;
+}
+
 /**
  * Truncate text for select menu labels/descriptions.
  * Adds ellipsis when text is truncated.
  *
  * @param text - Text to truncate
- * @param maxLength - Maximum length (defaults to MAX_SELECT_LABEL_LENGTH)
+ * @param maxLengthOrOptions - Maximum length or options object
  * @returns Truncated text with ellipsis if needed
  *
  * @example
  * ```typescript
  * truncateForSelect('Short text'); // 'Short text'
  * truncateForSelect('Very long text...', 10); // 'Very lo...'
+ * truncateForSelect('Multi\nline', { stripNewlines: true }); // 'Multi line'
  * ```
  */
 export function truncateForSelect(
   text: string,
-  maxLength: number = MAX_SELECT_LABEL_LENGTH
+  maxLengthOrOptions?: number | TruncateOptions
 ): string {
-  if (text.length <= maxLength) {
-    return text;
+  // Handle backwards-compatible overloaded signature
+  const options: TruncateOptions =
+    typeof maxLengthOrOptions === 'number'
+      ? { maxLength: maxLengthOrOptions }
+      : (maxLengthOrOptions ?? {});
+
+  const maxLength = options.maxLength ?? MAX_SELECT_LABEL_LENGTH;
+
+  // Strip newlines if requested
+  const processedText = options.stripNewlines === true ? text.replace(/\n+/g, ' ').trim() : text;
+
+  if (processedText.length <= maxLength) {
+    return processedText;
   }
-  return text.substring(0, maxLength - 3) + '...';
+  return processedText.substring(0, maxLength - 3) + '...';
 }
 
 /**
