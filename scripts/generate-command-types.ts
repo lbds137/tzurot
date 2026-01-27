@@ -22,7 +22,16 @@ const projectRoot = path.resolve(__dirname, '..');
 
 interface ExtractedOption {
   name: string;
-  type: 'string' | 'integer' | 'number' | 'boolean' | 'user' | 'channel' | 'role' | 'attachment';
+  type:
+    | 'string'
+    | 'integer'
+    | 'number'
+    | 'boolean'
+    | 'user'
+    | 'channel'
+    | 'role'
+    | 'attachment'
+    | 'mentionable';
   required: boolean;
 }
 
@@ -52,6 +61,7 @@ const optionMethodToType: Record<string, ExtractedOption['type']> = {
   addChannelOption: 'channel',
   addRoleOption: 'role',
   addAttachmentOption: 'attachment',
+  addMentionableOption: 'mentionable',
 };
 
 /**
@@ -116,7 +126,7 @@ function extractOptionsFromBlock(block: string): ExtractedOption[] {
 
   // Find each option method call
   const optionMethodRegex =
-    /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption)\s*\(/g;
+    /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption|addMentionableOption)\s*\(/g;
 
   let match;
   while ((match = optionMethodRegex.exec(block)) !== null) {
@@ -241,7 +251,7 @@ function parseCommandFile(filePath: string): ExtractedCommand | null {
   // If no subcommands, look for options at the command level
   if (subcommands.length === 0) {
     const optionBlocks = content.matchAll(
-      /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption)\s*\(\s*(?:option\s*=>|function\s*\(option\))\s*([\s\S]*?)\s*\)/g
+      /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption|addMentionableOption)\s*\(\s*(?:option\s*=>|function\s*\(option\))\s*([\s\S]*?)\s*\)/g
     );
 
     for (const optMatch of optionBlocks) {

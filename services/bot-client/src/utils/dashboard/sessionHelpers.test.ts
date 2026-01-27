@@ -176,7 +176,7 @@ describe('sessionHelpers', () => {
         reply: vi.fn(),
       } as unknown as ButtonInteraction;
 
-      const result = await getSessionDataOrReply(interaction, 'preset', 'preset-123', 'Preset');
+      const result = await getSessionDataOrReply(interaction, 'preset', 'preset-123');
 
       expect(result).toEqual(sessionData);
       expect(interaction.reply).not.toHaveBeenCalled();
@@ -189,7 +189,7 @@ describe('sessionHelpers', () => {
         reply: vi.fn(),
       } as unknown as ButtonInteraction;
 
-      const result = await getSessionDataOrReply(interaction, 'preset', 'preset-123', 'Preset');
+      const result = await getSessionDataOrReply(interaction, 'preset', 'preset-123');
 
       expect(result).toBeNull();
       expect(interaction.reply).toHaveBeenCalledWith({
