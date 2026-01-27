@@ -7,18 +7,31 @@ import {
   extractTimestampFromFilename,
   cleanupOldAvatarVersions,
   deleteAllAvatarVersions,
+  getAvatarSubdir,
+  ensureAvatarDir,
   AVATAR_ROOT,
 } from './avatarPaths.js';
 
 // Mock fs/promises
 vi.mock('fs/promises', () => ({
   unlink: vi.fn(),
-  readdir: vi.fn(),
+  mkdir: vi.fn(),
+  glob: vi.fn(),
 }));
 
-import { unlink, readdir } from 'fs/promises';
+import { unlink, mkdir, glob } from 'fs/promises';
 const mockUnlink = vi.mocked(unlink);
-const mockReaddir = vi.mocked(readdir);
+const mockMkdir = vi.mocked(mkdir);
+const mockGlob = vi.mocked(glob);
+
+// Helper to create an async generator from an array (simulates glob behavior)
+function createAsyncGenerator(items: string[]): AsyncGenerator<string> {
+  return (async function* () {
+    for (const item of items) {
+      yield item;
+    }
+  })();
+}
 
 describe('avatarPaths', () => {
   describe('AVATAR_ROOT', () => {
@@ -45,10 +58,21 @@ describe('avatarPaths', () => {
     });
   });
 
+  describe('getAvatarSubdir', () => {
+    it('should return first character lowercased', () => {
+      expect(getAvatarSubdir('cold')).toBe('c');
+      expect(getAvatarSubdir('MyBot')).toBe('m');
+      expect(getAvatarSubdir('123bot')).toBe('1');
+      expect(getAvatarSubdir('_special')).toBe('_');
+      expect(getAvatarSubdir('ABC')).toBe('a');
+    });
+  });
+
   describe('getSafeAvatarPath', () => {
-    it('should return path for valid slug', () => {
-      expect(getSafeAvatarPath('test-slug')).toBe('/data/avatars/test-slug.png');
-      expect(getSafeAvatarPath('MyAvatar123')).toBe('/data/avatars/MyAvatar123.png');
+    it('should return path with subdirectory for valid slug', () => {
+      expect(getSafeAvatarPath('test-slug')).toBe('/data/avatars/t/test-slug.png');
+      expect(getSafeAvatarPath('MyAvatar123')).toBe('/data/avatars/m/MyAvatar123.png');
+      expect(getSafeAvatarPath('cold')).toBe('/data/avatars/c/cold.png');
     });
 
     it('should return null for invalid slug', () => {
@@ -61,6 +85,55 @@ describe('avatarPaths', () => {
       // Even if somehow the regex was bypassed, the path check would catch it
       expect(getSafeAvatarPath('..%2F..%2Fetc%2Fpasswd')).toBeNull();
     });
+
+    it('should return versioned path when timestamp provided', () => {
+      expect(getSafeAvatarPath('test-slug', 1705827727111)).toBe(
+        '/data/avatars/t/test-slug-1705827727111.png'
+      );
+      expect(getSafeAvatarPath('cold', 1705827727111)).toBe(
+        '/data/avatars/c/cold-1705827727111.png'
+      );
+    });
+
+    it('should return legacy path when no timestamp provided', () => {
+      expect(getSafeAvatarPath('test-slug')).toBe('/data/avatars/t/test-slug.png');
+    });
+
+    it('should return null for invalid slug even with timestamp', () => {
+      expect(getSafeAvatarPath('../etc/passwd', 1705827727111)).toBeNull();
+    });
+  });
+
+  describe('ensureAvatarDir', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should create subdirectory and return path for valid slug', async () => {
+      mockMkdir.mockResolvedValue(undefined);
+
+      const result = await ensureAvatarDir('cold');
+
+      expect(result).toBe('/data/avatars/c');
+      expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/c', { recursive: true });
+    });
+
+    it('should return null for invalid slug', async () => {
+      const result = await ensureAvatarDir('../etc/passwd');
+
+      expect(result).toBeNull();
+      expect(mockMkdir).not.toHaveBeenCalled();
+    });
+
+    it('should handle different slug first characters', async () => {
+      mockMkdir.mockResolvedValue(undefined);
+
+      await ensureAvatarDir('MyBot');
+      expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/m', { recursive: true });
+
+      await ensureAvatarDir('123bot');
+      expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/1', { recursive: true });
+    });
   });
 
   describe('deleteAvatarFile', () => {
@@ -68,13 +141,13 @@ describe('avatarPaths', () => {
       vi.clearAllMocks();
     });
 
-    it('should delete file for valid slug', async () => {
+    it('should delete file for valid slug with subdirectory path', async () => {
       mockUnlink.mockResolvedValue(undefined);
 
       const result = await deleteAvatarFile('test-slug', 'Test');
 
       expect(result).toBe(true);
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/test-slug.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/t/test-slug.png');
     });
 
     it('should return false for invalid slug', async () => {
@@ -205,49 +278,49 @@ describe('avatarPaths', () => {
     });
   });
 
-  describe('getSafeAvatarPath with timestamp', () => {
-    it('should return versioned path when timestamp provided', () => {
-      expect(getSafeAvatarPath('test-slug', 1705827727111)).toBe(
-        '/data/avatars/test-slug-1705827727111.png'
-      );
-    });
-
-    it('should return legacy path when no timestamp provided', () => {
-      expect(getSafeAvatarPath('test-slug')).toBe('/data/avatars/test-slug.png');
-    });
-
-    it('should return null for invalid slug even with timestamp', () => {
-      expect(getSafeAvatarPath('../etc/passwd', 1705827727111)).toBeNull();
-    });
-  });
-
   describe('cleanupOldAvatarVersions', () => {
     beforeEach(() => {
       vi.clearAllMocks();
     });
 
     it('should delete old versions and legacy files, keep current version', async () => {
-      mockReaddir.mockResolvedValue([
-        'cold-1705827727111.png', // Old version
-        'cold-1705827727222.png', // Current version (should keep)
-        'cold.png', // Legacy file (should delete)
-        'other-personality.png', // Different slug (should keep)
-      ] as unknown as Awaited<ReturnType<typeof readdir>>);
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1705827727111.png', // Old version
+          '/data/avatars/c/cold-1705827727222.png', // Current version (should keep)
+          '/data/avatars/c/cold.png', // Legacy file (should delete)
+        ])
+      );
       mockUnlink.mockResolvedValue(undefined);
 
       const result = await cleanupOldAvatarVersions('cold', 1705827727222);
 
       expect(result).toBe(2); // Deleted old version + legacy
       expect(mockUnlink).toHaveBeenCalledTimes(2);
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/cold-1705827727111.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/cold.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/c/cold-1705827727111.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/c/cold.png');
+    });
+
+    it('should not delete files with prefix match but different slug', async () => {
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1705827727222.png', // Current version
+          '/data/avatars/c/cold-bot-1705827727111.png', // Different slug (cold-bot)
+        ])
+      );
+
+      const result = await cleanupOldAvatarVersions('cold', 1705827727222);
+
+      expect(result).toBe(0);
+      expect(mockUnlink).not.toHaveBeenCalled();
     });
 
     it('should return 0 when no old versions exist', async () => {
-      mockReaddir.mockResolvedValue([
-        'cold-1705827727222.png', // Current version only
-        'other.png',
-      ] as unknown as Awaited<ReturnType<typeof readdir>>);
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1705827727222.png', // Current version only
+        ])
+      );
 
       const result = await cleanupOldAvatarVersions('cold', 1705827727222);
 
@@ -258,7 +331,9 @@ describe('avatarPaths', () => {
     it('should return 0 when avatar directory does not exist', async () => {
       const error = new Error('ENOENT') as NodeJS.ErrnoException;
       error.code = 'ENOENT';
-      mockReaddir.mockRejectedValue(error);
+      mockGlob.mockImplementation(() => {
+        throw error;
+      });
 
       const result = await cleanupOldAvatarVersions('cold', 1705827727222);
 
@@ -269,14 +344,16 @@ describe('avatarPaths', () => {
       const result = await cleanupOldAvatarVersions('../etc/passwd', 1705827727222);
 
       expect(result).toBeNull();
-      expect(mockReaddir).not.toHaveBeenCalled();
+      expect(mockGlob).not.toHaveBeenCalled();
     });
 
     it('should continue cleanup even if some files fail to delete', async () => {
-      mockReaddir.mockResolvedValue([
-        'cold-1111111111111.png',
-        'cold-2222222222222.png',
-      ] as unknown as Awaited<ReturnType<typeof readdir>>);
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1111111111111.png',
+          '/data/avatars/c/cold-2222222222222.png',
+        ])
+      );
 
       const error = new Error('EACCES') as NodeJS.ErrnoException;
       error.code = 'EACCES';
@@ -287,6 +364,24 @@ describe('avatarPaths', () => {
       // Should still count the successful deletion
       expect(result).toBe(1);
     });
+
+    it('should use correct glob pattern with subdirectory', async () => {
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
+
+      await cleanupOldAvatarVersions('cold', 1705827727222);
+
+      expect(mockGlob).toHaveBeenCalledWith('/data/avatars/c/cold*.png');
+    });
+
+    it('should use correct subdirectory for different slugs', async () => {
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
+
+      await cleanupOldAvatarVersions('MyBot', 1705827727222);
+      expect(mockGlob).toHaveBeenCalledWith('/data/avatars/m/MyBot*.png');
+
+      await cleanupOldAvatarVersions('123test', 1705827727222);
+      expect(mockGlob).toHaveBeenCalledWith('/data/avatars/1/123test*.png');
+    });
   });
 
   describe('deleteAllAvatarVersions', () => {
@@ -295,27 +390,42 @@ describe('avatarPaths', () => {
     });
 
     it('should delete all versions for a slug', async () => {
-      mockReaddir.mockResolvedValue([
-        'cold-1705827727111.png',
-        'cold-1705827727222.png',
-        'cold.png',
-        'other-personality.png', // Different slug
-      ] as unknown as Awaited<ReturnType<typeof readdir>>);
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1705827727111.png',
+          '/data/avatars/c/cold-1705827727222.png',
+          '/data/avatars/c/cold.png',
+        ])
+      );
       mockUnlink.mockResolvedValue(undefined);
 
       const result = await deleteAllAvatarVersions('cold', 'Test delete');
 
       expect(result).toBe(3); // All three cold files
       expect(mockUnlink).toHaveBeenCalledTimes(3);
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/cold-1705827727111.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/cold-1705827727222.png');
-      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/cold.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/c/cold-1705827727111.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/c/cold-1705827727222.png');
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/c/cold.png');
+    });
+
+    it('should not delete files with prefix match but different slug', async () => {
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1705827727111.png',
+          '/data/avatars/c/cold-bot-1705827727222.png', // Different slug
+        ])
+      );
+      mockUnlink.mockResolvedValue(undefined);
+
+      const result = await deleteAllAvatarVersions('cold', 'Test delete');
+
+      expect(result).toBe(1); // Only cold file, not cold-bot
+      expect(mockUnlink).toHaveBeenCalledTimes(1);
+      expect(mockUnlink).toHaveBeenCalledWith('/data/avatars/c/cold-1705827727111.png');
     });
 
     it('should return 0 when no files for slug exist', async () => {
-      mockReaddir.mockResolvedValue(['other.png', 'another-personality.png'] as unknown as Awaited<
-        ReturnType<typeof readdir>
-      >);
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
 
       const result = await deleteAllAvatarVersions('cold', 'Test delete');
 
@@ -326,7 +436,9 @@ describe('avatarPaths', () => {
     it('should return 0 when avatar directory does not exist', async () => {
       const error = new Error('ENOENT') as NodeJS.ErrnoException;
       error.code = 'ENOENT';
-      mockReaddir.mockRejectedValue(error);
+      mockGlob.mockImplementation(() => {
+        throw error;
+      });
 
       const result = await deleteAllAvatarVersions('cold', 'Test delete');
 
@@ -337,14 +449,16 @@ describe('avatarPaths', () => {
       const result = await deleteAllAvatarVersions('../etc/passwd', 'Test delete');
 
       expect(result).toBeNull();
-      expect(mockReaddir).not.toHaveBeenCalled();
+      expect(mockGlob).not.toHaveBeenCalled();
     });
 
     it('should ignore ENOENT errors during file deletion', async () => {
-      mockReaddir.mockResolvedValue([
-        'cold-1111111111111.png',
-        'cold-2222222222222.png',
-      ] as unknown as Awaited<ReturnType<typeof readdir>>);
+      mockGlob.mockReturnValue(
+        createAsyncGenerator([
+          '/data/avatars/c/cold-1111111111111.png',
+          '/data/avatars/c/cold-2222222222222.png',
+        ])
+      );
 
       const error = new Error('ENOENT') as NodeJS.ErrnoException;
       error.code = 'ENOENT';
@@ -355,6 +469,14 @@ describe('avatarPaths', () => {
 
       // Only counts successful deletion
       expect(result).toBe(1);
+    });
+
+    it('should use correct glob pattern with subdirectory', async () => {
+      mockGlob.mockReturnValue(createAsyncGenerator([]));
+
+      await deleteAllAvatarVersions('cold', 'Test');
+
+      expect(mockGlob).toHaveBeenCalledWith('/data/avatars/c/cold*.png');
     });
   });
 });

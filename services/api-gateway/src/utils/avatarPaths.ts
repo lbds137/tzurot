@@ -4,14 +4,26 @@
  * Centralized functions for safe avatar file path handling.
  * Implements defense-in-depth against path traversal attacks (CWE-22/23/36/73/99)
  *
+ * Directory Structure:
+ * /data/avatars/{first-char}/{slug}-{timestamp}.png
+ *
+ * Examples:
+ * - /data/avatars/c/cold-1705827727111.png
+ * - /data/avatars/m/my-personality-1705827727111.png
+ * - /data/avatars/1/123bot-1705827727111.png
+ *
+ * The two-level structure reduces files per directory for better performance
+ * when the number of personalities grows large (100+).
+ *
  * Pattern:
  * 1. Validate slug format (alphanumeric, underscore, hyphen only)
- * 2. Resolve path using path.resolve()
- * 3. Verify resolved path starts with expected root directory
+ * 2. Derive subdirectory from first character (lowercased)
+ * 3. Resolve path using path.resolve()
+ * 4. Verify resolved path starts with expected root directory
  */
 
-import { resolve } from 'path';
-import { unlink, readdir } from 'fs/promises';
+import { resolve, basename } from 'path';
+import { unlink, mkdir, glob } from 'fs/promises';
 import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('avatar-paths');
@@ -25,9 +37,15 @@ const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
 /**
  * Regex pattern for path-versioned avatar filenames
  * Matches: {slug}-{timestamp}.png where timestamp is 13+ digits (milliseconds)
+ *
+ * Why 13+ digits: JavaScript timestamps (Date.getTime()) are 13 digits as of 2001
+ * and will be 14 digits around year 2286. This threshold distinguishes timestamps
+ * from version numbers in slugs like "avatar-v2.png" or "bot-123.png".
+ *
  * Examples:
- * - "cold-1705827727111.png" -> captures "cold"
+ * - "cold-1705827727111.png" -> captures "cold", timestamp 1705827727111
  * - "my-personality-1705827727111.png" -> captures "my-personality"
+ * - "bot-v2.png" -> NOT matched (2 is not 13+ digits), falls through to legacy
  */
 const VERSIONED_FILENAME_PATTERN = /^(.+)-(\d{13,})\.png$/;
 
@@ -91,10 +109,28 @@ export function isValidSlug(slug: string): boolean {
 }
 
 /**
+ * Gets the subdirectory name for a slug (first character, lowercased)
+ *
+ * Examples:
+ * - "cold" -> "c"
+ * - "MyBot" -> "m"
+ * - "123bot" -> "1"
+ * - "_special" -> "_"
+ *
+ * @param slug - The personality slug (must be valid)
+ * @returns Single character subdirectory name
+ */
+export function getAvatarSubdir(slug: string): string {
+  return slug[0].toLowerCase();
+}
+
+/**
  * Builds a safe avatar file path, or null if the slug is invalid
  *
  * Security: Validates slug pattern AND verifies resolved path stays within AVATAR_ROOT
  * This double-check prevents path traversal even if slug validation somehow fails
+ *
+ * Path format: /data/avatars/{first-char}/{slug}-{timestamp}.png
  *
  * @param slug - The personality slug
  * @param timestamp - Optional timestamp for versioned filenames (e.g., Date.getTime())
@@ -109,9 +145,10 @@ export function getSafeAvatarPath(slug: string, timestamp?: number): string | nu
 
   // Build filename - versioned if timestamp provided, legacy otherwise
   const filename = timestamp !== undefined ? `${slug}-${timestamp}.png` : `${slug}.png`;
+  const subdir = getAvatarSubdir(slug);
 
   // Second layer: resolve and verify path stays within root
-  const avatarPath = resolve(AVATAR_ROOT, filename);
+  const avatarPath = resolve(AVATAR_ROOT, subdir, filename);
   if (!avatarPath.startsWith(AVATAR_ROOT + '/')) {
     logger.warn({ slug, avatarPath }, 'Rejected avatar path outside root');
     return null;
@@ -121,8 +158,36 @@ export function getSafeAvatarPath(slug: string, timestamp?: number): string | nu
 }
 
 /**
- * Safely deletes an avatar file by slug
+ * Ensures the avatar subdirectory exists for a slug
  *
+ * Creates /data/avatars/{first-char}/ if it doesn't exist.
+ * Safe to call multiple times (uses recursive: true).
+ *
+ * @param slug - The personality slug (must be valid)
+ * @returns The subdirectory path, or null if slug is invalid
+ */
+export async function ensureAvatarDir(slug: string): Promise<string | null> {
+  if (!isValidSlug(slug)) {
+    return null;
+  }
+
+  const subdir = getAvatarSubdir(slug);
+  const dirPath = resolve(AVATAR_ROOT, subdir);
+
+  // Verify path is within root (defense in depth)
+  if (!dirPath.startsWith(AVATAR_ROOT + '/')) {
+    logger.warn({ slug, dirPath }, 'Rejected avatar directory outside root');
+    return null;
+  }
+
+  await mkdir(dirPath, { recursive: true });
+  return dirPath;
+}
+
+/**
+ * Safely deletes an avatar file by slug (legacy format only)
+ *
+ * @deprecated Use deleteAllAvatarVersions for complete cleanup
  * @param slug - The personality slug
  * @param logContext - Context string for logging (e.g., 'Personality delete', 'Avatar update')
  * @returns true if deleted, false if validation failed, null if file didn't exist
@@ -170,14 +235,34 @@ async function tryDeleteAvatarFile(filePath: string, logContext: string): Promis
 }
 
 /**
+ * Collects files matching a glob pattern into an array
+ *
+ * Node.js fs.glob returns an AsyncIterable, this helper converts it to an array.
+ *
+ * @param pattern - Glob pattern to match
+ * @returns Array of matching file paths
+ */
+async function globToArray(pattern: string): Promise<string[]> {
+  const files: string[] = [];
+  for await (const file of glob(pattern)) {
+    files.push(file);
+  }
+  return files;
+}
+
+/**
  * Cleans up old avatar versions for a slug, keeping only the current version
  *
- * Called after fetching a new avatar from DB to remove stale cached versions.
- * This is fire-and-forget during serve (don't block response on cleanup).
+ * Triggered on cache miss when a new avatar is fetched from DB. Called as
+ * fire-and-forget (async, non-blocking) to avoid delaying the response.
+ * Removes both legacy files ({slug}.png) and old versioned files.
+ *
+ * Uses glob to efficiently find files only for this slug's subdirectory,
+ * avoiding full directory scans.
  *
  * @param slug - The personality slug
  * @param currentTimestamp - The timestamp of the version to keep
- * @returns Number of old versions deleted, or null if cleanup failed
+ * @returns Number of old versions deleted, or null if validation failed (already logged)
  */
 export async function cleanupOldAvatarVersions(
   slug: string,
@@ -187,27 +272,36 @@ export async function cleanupOldAvatarVersions(
     return null;
   }
 
+  const subdir = getAvatarSubdir(slug);
+  // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+  // This finds both versioned and legacy files for this slug
+  const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
+
   try {
-    const files = await readdir(AVATAR_ROOT);
+    const files = await globToArray(pattern);
     let deletedCount = 0;
 
-    for (const file of files) {
-      const fileSlug = extractSlugFromFilename(file);
+    for (const filePath of files) {
+      const filename = basename(filePath);
+      const fileSlug = extractSlugFromFilename(filename);
+
+      // Verify this file actually belongs to our slug (not just prefix match)
+      // e.g., "cold*.png" might match "cold-bot.png" which has slug "cold-bot"
       if (fileSlug !== slug) {
-        continue; // Not for this personality
+        continue;
       }
 
-      const fileTimestamp = extractTimestampFromFilename(file);
+      const fileTimestamp = extractTimestampFromFilename(filename);
       // Skip the current version
       if (fileTimestamp === currentTimestamp) {
         continue;
       }
 
       // Delete legacy files (no timestamp) and old versions
-      const filePath = resolve(AVATAR_ROOT, file);
+      // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteAvatarFile(filePath, 'Avatar cleanup')) {
         deletedCount++;
-        logger.debug({ slug, file }, '[Avatar cleanup] Deleted old version');
+        logger.debug({ slug, filename }, '[Avatar cleanup] Deleted old version');
       }
     }
 
@@ -224,7 +318,7 @@ export async function cleanupOldAvatarVersions(
       // Avatar directory doesn't exist yet, nothing to clean
       return 0;
     }
-    logger.warn({ err: error, slug }, '[Avatar cleanup] Failed to read avatar directory');
+    logger.warn({ err: error, slug }, '[Avatar cleanup] Failed to glob avatar directory');
     return null;
   }
 }
@@ -235,11 +329,13 @@ export async function cleanupOldAvatarVersions(
  * Used when:
  * - A personality is deleted
  * - A personality's slug changes (need to clean up old slug's files)
- * - An avatar is updated (clear all old versions)
+ * - An avatar is updated (clear all old versions before new one is cached)
+ *
+ * Uses glob to efficiently find files only for this slug's subdirectory.
  *
  * @param slug - The personality slug
  * @param logContext - Context string for logging
- * @returns Number of files deleted, or null if cleanup failed
+ * @returns Number of files deleted, or null if validation failed (already logged)
  */
 export async function deleteAllAvatarVersions(
   slug: string,
@@ -250,20 +346,27 @@ export async function deleteAllAvatarVersions(
     return null;
   }
 
+  const subdir = getAvatarSubdir(slug);
+  // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+  const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
+
   try {
-    const files = await readdir(AVATAR_ROOT);
+    const files = await globToArray(pattern);
     let deletedCount = 0;
 
-    for (const file of files) {
-      const fileSlug = extractSlugFromFilename(file);
+    for (const filePath of files) {
+      const filename = basename(filePath);
+      const fileSlug = extractSlugFromFilename(filename);
+
+      // Verify this file actually belongs to our slug (not just prefix match)
       if (fileSlug !== slug) {
-        continue; // Not for this personality
+        continue;
       }
 
-      const filePath = resolve(AVATAR_ROOT, file);
+      // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteAvatarFile(filePath, logContext)) {
         deletedCount++;
-        logger.debug({ slug, file }, `[${logContext}] Deleted avatar version`);
+        logger.debug({ slug, filename }, `[${logContext}] Deleted avatar version`);
       }
     }
 
@@ -277,7 +380,7 @@ export async function deleteAllAvatarVersions(
       // Avatar directory doesn't exist yet, nothing to delete
       return 0;
     }
-    logger.warn({ err: error, slug }, `[${logContext}] Failed to read avatar directory`);
+    logger.warn({ err: error, slug }, `[${logContext}] Failed to glob avatar directory`);
     return null;
   }
 }

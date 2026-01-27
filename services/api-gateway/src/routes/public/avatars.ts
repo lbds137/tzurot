@@ -12,6 +12,7 @@ import {
   extractSlugFromFilename,
   extractTimestampFromFilename,
   cleanupOldAvatarVersions,
+  ensureAvatarDir,
 } from '../../utils/avatarPaths.js';
 import { StatusCodes } from 'http-status-codes';
 import {
@@ -93,15 +94,30 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
           const buffer = Buffer.from(personality.avatarData);
           const dbTimestamp = personality.updatedAt.getTime();
 
-          // Build versioned path for caching
-          const versionedPath = getSafeAvatarPath(slug, dbTimestamp);
-          if (versionedPath !== null) {
-            // Cache to filesystem with versioned filename
-            await writeFile(versionedPath, buffer);
-            logger.info({ slug, timestamp: dbTimestamp }, '[Gateway] Cached avatar from DB');
+          // Only cache if request matches current DB version or is a legacy request.
+          // This prevents race conditions where an old URL request would cache a newer
+          // version, only to have it cleaned up by a concurrent request for the new URL.
+          const shouldCache = requestedTimestamp === null || requestedTimestamp === dbTimestamp;
 
-            // Cleanup old versions asynchronously (fire-and-forget)
-            void cleanupOldAvatarVersions(slug, dbTimestamp);
+          if (shouldCache) {
+            const versionedPath = getSafeAvatarPath(slug, dbTimestamp);
+            if (versionedPath !== null) {
+              // Ensure subdirectory exists before writing
+              await ensureAvatarDir(slug);
+
+              // Cache to filesystem with versioned filename
+              await writeFile(versionedPath, buffer);
+              logger.info({ slug, timestamp: dbTimestamp }, '[Gateway] Cached avatar from DB');
+
+              // Cleanup old versions asynchronously (fire-and-forget)
+              void cleanupOldAvatarVersions(slug, dbTimestamp);
+            }
+          } else {
+            // Request is for an old version but DB has newer - serve current but don't cache
+            logger.debug(
+              { slug, requestedTimestamp, dbTimestamp },
+              '[Gateway] Serving current avatar without caching (version mismatch)'
+            );
           }
 
           // Serve the image

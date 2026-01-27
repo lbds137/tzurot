@@ -8,14 +8,17 @@ import request from 'supertest';
 import { StatusCodes } from 'http-status-codes';
 
 // Use vi.hoisted to create mock functions before they're used in vi.mock
-const { mockAccess, mockWriteFile } = vi.hoisted(() => ({
+const { mockAccess, mockWriteFile, mockMkdir } = vi.hoisted(() => ({
   mockAccess: vi.fn(),
   mockWriteFile: vi.fn(),
+  mockMkdir: vi.fn(),
 }));
 
 vi.mock('fs/promises', () => ({
   access: mockAccess,
   writeFile: mockWriteFile,
+  mkdir: mockMkdir,
+  glob: vi.fn(),
 }));
 
 // Mock common-types
@@ -66,6 +69,8 @@ describe('Avatar Routes', () => {
     mockPrisma = createMockPrisma();
     app = express();
     app.use('/avatars', createAvatarRouter(mockPrisma as never));
+    // Default mock for mkdir (always succeeds)
+    mockMkdir.mockResolvedValue(undefined);
   });
 
   describe('GET /:slug.png', () => {
@@ -127,9 +132,12 @@ describe('Avatar Routes', () => {
       expect(response.headers['content-type']).toBe('image/png');
       expect(response.headers['cache-control']).toContain('max-age=604800');
 
-      // Should cache to filesystem with versioned filename
+      // Should ensure subdirectory exists
+      expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/t', { recursive: true });
+
+      // Should cache to filesystem with versioned filename in subdirectory
       expect(mockWriteFile).toHaveBeenCalledWith(
-        `/data/avatars/testbot-${updatedAt.getTime()}.png`,
+        `/data/avatars/t/testbot-${updatedAt.getTime()}.png`,
         avatarBuffer
       );
     });
@@ -172,6 +180,80 @@ describe('Avatar Routes', () => {
         where: { slug: 'my-personality' },
         select: { avatarData: true, updatedAt: true },
       });
+    });
+
+    it('should skip caching when requested timestamp does not match DB timestamp (race condition prevention)', async () => {
+      const avatarBuffer = Buffer.from('fake-png-data');
+      const dbUpdatedAt = new Date('2024-01-20T12:00:00.000Z'); // DB has newer version
+      const requestedTimestamp = 1705749600000; // Older timestamp in URL (2024-01-20T10:00:00.000Z)
+
+      mockAccess.mockRejectedValue(new Error('ENOENT'));
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        avatarData: avatarBuffer,
+        updatedAt: dbUpdatedAt,
+      });
+
+      // Request with old timestamp in URL
+      const response = await request(app).get(`/avatars/testbot-${requestedTimestamp}.png`);
+
+      // Should still serve the image (current DB version)
+      expect(response.status).toBe(StatusCodes.OK);
+      expect(response.headers['content-type']).toBe('image/png');
+
+      // Should NOT cache since timestamps don't match
+      expect(mockWriteFile).not.toHaveBeenCalled();
+      expect(mockMkdir).not.toHaveBeenCalled();
+    });
+
+    it('should cache when requested timestamp matches DB timestamp', async () => {
+      const avatarBuffer = Buffer.from('fake-png-data');
+      const updatedAt = new Date('2024-01-20T10:00:00.000Z');
+      const timestamp = updatedAt.getTime();
+
+      mockAccess.mockRejectedValue(new Error('ENOENT'));
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        avatarData: avatarBuffer,
+        updatedAt,
+      });
+      mockWriteFile.mockResolvedValue(undefined);
+
+      // Request with matching timestamp in URL
+      const response = await request(app).get(`/avatars/testbot-${timestamp}.png`);
+
+      expect(response.status).toBe(StatusCodes.OK);
+
+      // Should ensure subdirectory exists
+      expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/t', { recursive: true });
+
+      // Should cache since timestamps match (in subdirectory)
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        `/data/avatars/t/testbot-${timestamp}.png`,
+        avatarBuffer
+      );
+    });
+
+    it('should use correct subdirectory based on slug first character', async () => {
+      const avatarBuffer = Buffer.from('fake-png-data');
+      const updatedAt = new Date('2024-01-20T10:00:00.000Z');
+
+      mockAccess.mockRejectedValue(new Error('ENOENT'));
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        avatarData: avatarBuffer,
+        updatedAt,
+      });
+      mockWriteFile.mockResolvedValue(undefined);
+
+      // Test with uppercase first character
+      const response = await request(app).get('/avatars/MyBot.png');
+
+      expect(response.status).toBe(StatusCodes.OK);
+
+      // Should use lowercase 'm' for subdirectory
+      expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/m', { recursive: true });
+      expect(mockWriteFile).toHaveBeenCalledWith(
+        `/data/avatars/m/MyBot-${updatedAt.getTime()}.png`,
+        avatarBuffer
+      );
     });
   });
 });
