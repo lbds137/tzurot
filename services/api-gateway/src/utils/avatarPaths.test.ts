@@ -128,10 +128,12 @@ describe('avatarPaths', () => {
     it('should handle different slug first characters', async () => {
       mockMkdir.mockResolvedValue(undefined);
 
-      await ensureAvatarDir('MyBot');
+      const result1 = await ensureAvatarDir('MyBot');
+      expect(result1).toBe('/data/avatars/m');
       expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/m', { recursive: true });
 
-      await ensureAvatarDir('123bot');
+      const result2 = await ensureAvatarDir('123bot');
+      expect(result2).toBe('/data/avatars/1');
       expect(mockMkdir).toHaveBeenCalledWith('/data/avatars/1', { recursive: true });
     });
   });
