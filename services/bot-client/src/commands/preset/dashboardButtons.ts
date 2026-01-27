@@ -36,6 +36,13 @@ import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 const logger = createLogger('preset-dashboard-buttons');
 
 /**
+ * Pattern to match a trailing (Copy) or (Copy N) suffix.
+ * Defined at module scope to avoid regex recompilation on each call.
+ * Group 1 captures the optional number for extraction.
+ */
+const COPY_SUFFIX_PATTERN = /\s*\(Copy(?:\s+(\d+))?\)\s*$/i;
+
+/**
  * Generate a cloned name by stripping all (Copy N) suffixes and adding a new one.
  * Finds the maximum copy number among all suffixes and increments it.
  *
@@ -50,24 +57,27 @@ const logger = createLogger('preset-dashboard-buttons');
  * @returns A new name with appropriate (Copy N) suffix
  */
 export function generateClonedName(originalName: string): string {
-  // Check if name already has (Copy N) suffixes
-  const baseNameResult = /^(.+?)(\s*\(Copy(?:\s+\d+)?\)\s*)+$/i.exec(originalName);
-  if (baseNameResult === null) {
+  // Iteratively strip (Copy N) suffixes and track the highest number
+  let baseName = originalName;
+  let maxNum = 0;
+  let hadSuffix = false;
+
+  let match: RegExpExecArray | null;
+  while ((match = COPY_SUFFIX_PATTERN.exec(baseName)) !== null) {
+    hadSuffix = true;
+    // match[1] is the capture group for the number (undefined if just "(Copy)")
+    const num = match[1] !== undefined ? parseInt(match[1], 10) : 1;
+    maxNum = Math.max(maxNum, num);
+    // Strip this suffix
+    baseName = baseName.slice(0, match.index);
+  }
+
+  baseName = baseName.trim();
+
+  if (!hadSuffix) {
     return `${originalName} (Copy)`;
   }
 
-  // Count existing (Copy N) suffixes to determine next number
-  const copyMatches = originalName.match(/\(Copy(?:\s+(\d+))?\)/gi);
-  let maxNum = 1;
-  if (copyMatches !== null) {
-    for (const match of copyMatches) {
-      const numMatch = /\d+/.exec(match);
-      const num = numMatch !== null ? parseInt(numMatch[0], 10) : 1;
-      maxNum = Math.max(maxNum, num);
-    }
-  }
-
-  const baseName = baseNameResult[1].trim();
   return `${baseName} (Copy ${maxNum + 1})`;
 }
 
