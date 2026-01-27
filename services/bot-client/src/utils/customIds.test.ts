@@ -450,6 +450,21 @@ describe('customIds', () => {
       expect(parsed?.action).toBe('delete_cancel');
       expect(parsed?.characterId).toBe('my-char');
     });
+
+    it('should round-trip preset menu', () => {
+      const customId = PresetCustomIds.menu('preset-abc');
+      const parsed = PresetCustomIds.parse(customId);
+      expect(parsed?.action).toBe('menu');
+      expect(parsed?.presetId).toBe('preset-abc');
+    });
+
+    it('should round-trip preset modal', () => {
+      const customId = PresetCustomIds.modal('preset-abc', 'identity');
+      const parsed = PresetCustomIds.parse(customId);
+      expect(parsed?.action).toBe('modal');
+      expect(parsed?.presetId).toBe('preset-abc');
+      expect(parsed?.sectionId).toBe('identity');
+    });
   });
 
   /**

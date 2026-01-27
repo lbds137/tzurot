@@ -128,6 +128,12 @@ export async function handleCloseButton(
 /**
  * Handle refresh button - fetch fresh data and update dashboard.
  * Preserves browseContext from existing session for back navigation.
+ *
+ * Uses a fallback strategy to handle stale session data:
+ * 1. Try user endpoint first (works for owned + accessible global presets)
+ * 2. If null and session indicated global, try global endpoint (admin only)
+ *
+ * This prevents refresh failures when isGlobal status changed in another session.
  */
 export async function handleRefreshButton(
   interaction: ButtonInteraction,
@@ -142,12 +148,17 @@ export async function handleRefreshButton(
     'preset',
     entityId
   );
-  const isGlobal = existingSession?.data.isGlobal ?? false;
+  const cachedIsGlobal = existingSession?.data.isGlobal ?? false;
   const existingBrowseContext = existingSession?.data.browseContext;
 
-  const preset = isGlobal
-    ? await fetchGlobalPreset(entityId)
-    : await fetchPreset(entityId, interaction.user.id);
+  // Try user endpoint first (works for owned presets AND accessible global presets)
+  let preset = await fetchPreset(entityId, interaction.user.id);
+
+  // Fallback: if null and session indicated global, try admin endpoint
+  // This handles edge case where preset is still global but user endpoint failed
+  if (preset === null && cachedIsGlobal) {
+    preset = await fetchGlobalPreset(entityId);
+  }
 
   if (preset === null) {
     await interaction.editReply({

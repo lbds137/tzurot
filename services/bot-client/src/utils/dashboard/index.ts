@@ -79,3 +79,31 @@ export {
 
 // Close Handler
 export { handleDashboardClose, createCloseHandler } from './closeHandler.js';
+
+// Session Helpers
+export {
+  fetchOrCreateSession,
+  getSessionOrExpired,
+  getSessionDataOrReply,
+  type FetchOrCreateOptions,
+  type FetchOrCreateResult,
+  type FetchOrCreateError,
+} from './sessionHelpers.js';
+
+// Refresh Handler
+export {
+  createRefreshHandler,
+  refreshDashboardUI,
+  type RefreshHandlerOptions,
+} from './refreshHandler.js';
+
+// Delete Confirmation
+export {
+  buildDeleteConfirmation,
+  buildDeleteSuccessMessage,
+  buildDeleteSummary,
+  type DeleteConfirmationOptions,
+} from './deleteConfirmation.js';
+
+// Permission Checks
+export { checkEditPermission, checkOwnership, isOwner } from './permissionChecks.js';

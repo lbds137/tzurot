@@ -26,7 +26,7 @@ import { handleClear } from './clear.js';
 import { handleUndo } from './undo.js';
 import { handleStats } from './stats.js';
 import { handleHardDelete, parseHardDeleteEntityId } from './hard-delete.js';
-import { handlePersonalityAutocomplete, handleProfileAutocomplete } from './autocomplete.js';
+import { handlePersonalityAutocomplete, handlePersonaProfileAutocomplete } from './autocomplete.js';
 import { DestructiveCustomIds } from '../../utils/customIds.js';
 import {
   handleDestructiveCancel,
@@ -156,7 +156,7 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
   if (focusedOption.name === 'personality') {
     await handlePersonalityAutocomplete(interaction);
   } else if (focusedOption.name === 'profile') {
-    await handleProfileAutocomplete(interaction);
+    await handlePersonaProfileAutocomplete(interaction);
   } else {
     await interaction.respond([]);
   }
