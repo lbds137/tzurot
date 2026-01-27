@@ -24,11 +24,27 @@ const mockSessionManager = {
   delete: vi.fn(),
 };
 
+// Mock getSessionOrExpired to delegate to mockSessionManager
+const mockGetSessionOrExpired = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId, _command) => {
+    const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      await interaction.editReply({
+        content: 'Session expired. Please run /character browse to try again.',
+        embeds: [],
+        components: [],
+      });
+    }
+    return session;
+  });
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
     ...actual,
     getSessionManager: () => mockSessionManager,
+    getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
   };
 });
 
@@ -57,6 +73,20 @@ describe('Character Dashboard Buttons', () => {
     mockSessionManager.get.mockResolvedValue(null);
     mockSessionManager.set.mockResolvedValue(undefined);
     mockSessionManager.delete.mockResolvedValue(undefined);
+    // Reset getSessionOrExpired to default implementation
+    mockGetSessionOrExpired.mockImplementation(
+      async (interaction, entityType, entityId, _command) => {
+        const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
+        if (session === null) {
+          await interaction.editReply({
+            content: 'Session expired. Please run /character browse to try again.',
+            embeds: [],
+            components: [],
+          });
+        }
+        return session;
+      }
+    );
   });
 
   const createMockCharacterData = (overrides?: Record<string, unknown>) => ({

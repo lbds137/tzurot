@@ -9,11 +9,23 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { DASHBOARD_MESSAGES } from './messages.js';
 
 /**
- * Entity with permission information
+ * Entity with permission information.
+ * Supports two ownership patterns:
+ * - `ownerId` - Compare against user ID (typical API response)
+ * - `isOwned` - Pre-computed boolean (flattened dashboard data)
  */
 interface PermissionEntity {
   canEdit?: boolean;
   ownerId?: string;
+  isOwned?: boolean;
+}
+
+/**
+ * Options for permission check functions
+ */
+interface PermissionCheckOptions {
+  /** Use followUp instead of reply (for deferred interactions) */
+  deferred?: boolean;
 }
 
 /**
@@ -23,6 +35,7 @@ interface PermissionEntity {
  * @param interaction - Button or select menu interaction
  * @param entity - Entity with canEdit field
  * @param action - Action being attempted (for error message)
+ * @param options - Options including deferred flag
  * @returns true if permitted, false if blocked
  *
  * @example
@@ -36,48 +49,63 @@ interface PermissionEntity {
 export async function checkEditPermission(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
   entity: PermissionEntity,
-  action = 'edit this'
+  action = 'edit this',
+  options: PermissionCheckOptions = {}
 ): Promise<boolean> {
   if (entity.canEdit === true) {
     return true;
   }
 
-  await interaction.reply({
-    content: DASHBOARD_MESSAGES.NO_PERMISSION(action),
-    flags: MessageFlags.Ephemeral,
-  });
+  const content = DASHBOARD_MESSAGES.NO_PERMISSION(action);
+
+  if (options.deferred === true) {
+    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+  } else {
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  }
   return false;
 }
 
 /**
- * Check if user owns an entity (by ownerId comparison).
+ * Check if user owns an entity.
+ * Supports both `ownerId` comparison and `isOwned` boolean.
  * Does NOT send a reply - use when you need custom handling.
  */
 export function isOwner(userId: string, entity: PermissionEntity): boolean {
-  return entity.ownerId === userId;
+  return entity.isOwned === true || entity.ownerId === userId;
 }
 
 /**
  * Check ownership and reply with error if not owner.
  * Returns true if user is owner, false if blocked.
  *
+ * Supports two patterns:
+ * - `entity.ownerId` compared against user ID
+ * - `entity.isOwned` pre-computed boolean
+ *
  * @param interaction - Button or select menu interaction
- * @param entity - Entity with ownerId field
+ * @param entity - Entity with ownerId or isOwned field
  * @param action - Action being attempted (for error message)
+ * @param options - Options including deferred flag
  * @returns true if owner, false if blocked
  */
 export async function checkOwnership(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
   entity: PermissionEntity,
-  action = 'modify this'
+  action = 'modify this',
+  options: PermissionCheckOptions = {}
 ): Promise<boolean> {
-  if (entity.ownerId === interaction.user.id) {
+  // Support both ownership patterns
+  if (entity.isOwned === true || entity.ownerId === interaction.user.id) {
     return true;
   }
 
-  await interaction.reply({
-    content: DASHBOARD_MESSAGES.NO_PERMISSION(action),
-    flags: MessageFlags.Ephemeral,
-  });
+  const content = DASHBOARD_MESSAGES.NO_PERMISSION(action);
+
+  if (options.deferred === true) {
+    await interaction.followUp({ content, flags: MessageFlags.Ephemeral });
+  } else {
+    await interaction.reply({ content, flags: MessageFlags.Ephemeral });
+  }
   return false;
 }

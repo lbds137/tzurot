@@ -70,15 +70,52 @@ const mockGetSessionManager = vi.fn().mockReturnValue({
   update: mockSessionManagerUpdate,
   delete: mockSessionManagerDelete,
 });
-vi.mock('../../utils/dashboard/index.js', () => ({
-  buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
-  buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
-  buildSectionModal: (...args: unknown[]) => mockBuildSectionModal(...args),
-  extractModalValues: (...args: unknown[]) => mockExtractModalValues(...args),
-  getSessionManager: () => mockGetSessionManager(),
-  parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
-  isDashboardInteraction: (...args: unknown[]) => mockIsDashboardInteraction(...args),
-}));
+// Session helper mocks - delegate to session manager and handle error responses
+const mockGetSessionOrExpired = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId) => {
+    const session = await mockSessionManagerGet(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      // Mimic real behavior: call editReply with expired message
+      await interaction.editReply({
+        content: 'Session expired. Please run /preset browse to try again.',
+        embeds: [],
+        components: [],
+      });
+    }
+    return session;
+  });
+const mockGetSessionDataOrReply = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId) => {
+    const session = await mockSessionManagerGet(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      // Mimic real behavior: call reply with expired message
+      await interaction.reply({
+        content: 'Session expired. Please try again.',
+        flags: 64, // MessageFlags.Ephemeral
+      });
+      return null;
+    }
+    return session.data;
+  });
+const mockCheckOwnership = vi.fn().mockResolvedValue(true); // Default: owner
+vi.mock('../../utils/dashboard/index.js', async () => {
+  const actual = await vi.importActual('../../utils/dashboard/index.js');
+  return {
+    ...actual,
+    buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
+    buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
+    buildSectionModal: (...args: unknown[]) => mockBuildSectionModal(...args),
+    extractModalValues: (...args: unknown[]) => mockExtractModalValues(...args),
+    getSessionManager: () => mockGetSessionManager(),
+    parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
+    isDashboardInteraction: (...args: unknown[]) => mockIsDashboardInteraction(...args),
+    getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
+    getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
+    checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
+  };
+});
 
 vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
@@ -511,6 +548,8 @@ describe('handleButton', () => {
 
     beforeEach(() => {
       mockFollowUp.mockClear();
+      // Reset ownership check to default (owner)
+      mockCheckOwnership.mockResolvedValue(true);
     });
 
     it('should toggle preset from private to global', async () => {
@@ -576,13 +615,12 @@ describe('handleButton', () => {
       mockSessionManagerGet.mockResolvedValue({
         data: { id: 'preset-123', isGlobal: false, isOwned: false },
       });
+      // Mock ownership check to return false
+      mockCheckOwnership.mockResolvedValue(false);
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
 
-      expect(mockFollowUp).toHaveBeenCalledWith({
-        content: '❌ You can only toggle global status for presets you own.',
-        flags: MessageFlags.Ephemeral,
-      });
+      // checkOwnership handles the error reply
       expect(mockUpdatePreset).not.toHaveBeenCalled();
     });
 
