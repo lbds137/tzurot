@@ -95,8 +95,13 @@ export function createAvatarRouter(prisma: PrismaClient): Router {
           const dbTimestamp = personality.updatedAt.getTime();
 
           // Only cache if request matches current DB version or is a legacy request.
-          // This prevents race conditions where an old URL request would cache a newer
-          // version, only to have it cleaned up by a concurrent request for the new URL.
+          // Race condition prevention: Without this check, the following could happen:
+          // 1. Request A arrives for old URL (timestamp=1000)
+          // 2. Request B arrives for new URL (timestamp=2000), caches version 2000
+          // 3. Request A queries DB, gets version 2000, caches it as version 2000
+          // 4. Request B's cleanup deletes version 2000 (thinking it's cleaning old versions)
+          // Result: File deleted immediately after caching. By only caching when timestamps
+          // match, Request A in step 3 would skip caching (1000 !== 2000).
           const shouldCache = requestedTimestamp === null || requestedTimestamp === dbTimestamp;
 
           if (shouldCache) {
