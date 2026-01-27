@@ -75,6 +75,7 @@ vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
 }));
 
 vi.mock('../../utils/customIds.js', () => ({
+  CUSTOM_ID_DELIMITER: '::',
   CharacterCustomIds: {
     parse: vi.fn(),
   },

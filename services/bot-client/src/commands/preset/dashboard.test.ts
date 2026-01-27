@@ -44,6 +44,7 @@ vi.mock('./api.js', () => ({
 // Mock customIds
 const mockPresetCustomIdsParse = vi.fn();
 vi.mock('../../utils/customIds.js', () => ({
+  CUSTOM_ID_DELIMITER: '::',
   PresetCustomIds: {
     parse: (...args: unknown[]) => mockPresetCustomIdsParse(...args),
     menu: (id: string) => `preset::menu::${id}`,

@@ -62,6 +62,7 @@ vi.mock('../../utils/subcommandContextRouter.js', () => ({
 
 // Mock customIds - matches real format: {source}::destructive::{action}::{operation}::{entityId}
 vi.mock('../../utils/customIds.js', () => ({
+  CUSTOM_ID_DELIMITER: '::',
   DestructiveCustomIds: {
     isDestructive: (id: string) => id.includes('::destructive::'),
     parse: (id: string) => {
