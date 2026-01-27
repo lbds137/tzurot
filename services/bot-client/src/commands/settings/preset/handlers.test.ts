@@ -1,12 +1,12 @@
 /**
- * Tests for Preset Command Handlers (list, set, reset)
+ * Tests for Preset Command Handlers (browse, set, reset)
  *
  * Note: These handlers use editReply() because interactions are deferred
  * at the top level in index.ts. Ephemerality is set by deferReply().
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleListOverrides } from './list.js';
+import { handleBrowseOverrides } from './browse.js';
 import { handleSet } from './set.js';
 import { handleReset } from './reset.js';
 import {
@@ -58,12 +58,12 @@ describe('Preset Command Handlers', () => {
     vi.clearAllMocks();
   });
 
-  describe('handleListOverrides', () => {
+  describe('handleBrowseOverrides', () => {
     function createMockContext() {
       return {
         user: { id: '123456789' },
         editReply: mockEditReply,
-      } as unknown as Parameters<typeof handleListOverrides>[0];
+      } as unknown as Parameters<typeof handleBrowseOverrides>[0];
     }
 
     it('should list overrides', async () => {
@@ -85,7 +85,7 @@ describe('Preset Command Handlers', () => {
         ]),
       });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
         userId: '123456789',
@@ -108,7 +108,7 @@ describe('Preset Command Handlers', () => {
         data: mockListModelOverridesResponse([]),
       });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
@@ -124,7 +124,7 @@ describe('Preset Command Handlers', () => {
     it('should handle API error', async () => {
       mockCallGatewayApi.mockResolvedValue({ ok: false, status: 500, error: 'Error' });
 
-      await handleListOverrides(createMockContext());
+      await handleBrowseOverrides(createMockContext());
 
       expect(mockEditReply).toHaveBeenCalledWith({
         content: expect.stringContaining('Failed to get overrides'),

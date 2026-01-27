@@ -1,6 +1,6 @@
 /**
- * Me Preset List Handler
- * Handles /me preset list subcommand
+ * Settings Preset Browse Handler
+ * Handles /settings preset browse subcommand
  */
 
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
@@ -8,16 +8,16 @@ import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
-const logger = createLogger('settings-preset-list');
+const logger = createLogger('settings-preset-browse');
 
 interface ListResponse {
   overrides: ModelOverrideSummary[];
 }
 
 /**
- * Handle /me preset list
+ * Handle /settings preset browse
  */
-export async function handleListOverrides(context: DeferredCommandContext): Promise<void> {
+export async function handleBrowseOverrides(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
