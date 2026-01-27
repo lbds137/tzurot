@@ -365,7 +365,7 @@ describe('avatarPaths', () => {
     });
 
     it('should limit glob results to prevent memory issues', async () => {
-      // Create more files than the limit (GLOB_RESULT_LIMIT = 1000)
+      // Create more files than the glob limit (GLOB_RESULT_LIMIT = 1000)
       const manyFiles = Array.from(
         { length: 1100 },
         (_, i) => `/data/avatars/c/cold-${1705827727111 + i}.png`
@@ -375,10 +375,27 @@ describe('avatarPaths', () => {
 
       const result = await cleanupOldAvatarVersions('cold', 9999999999999);
 
-      // Should only process up to limit (1000), skipping current timestamp
-      // All 1000 files have different timestamps, so all should be deleted
-      expect(result).toBe(1000);
-      expect(mockUnlink).toHaveBeenCalledTimes(1000);
+      // Glob limits to 1000 files, but deletion is capped at MAX_DELETIONS_PER_CLEANUP (50)
+      // Remaining files will be cleaned on next request
+      expect(result).toBe(50);
+      expect(mockUnlink).toHaveBeenCalledTimes(50);
+    });
+
+    it('should skip cleanup if already in progress for same slug', async () => {
+      // First call - sets up to start cleanup but doesn't resolve yet
+      mockGlob.mockReturnValue(createAsyncGenerator(['/data/avatars/c/cold-1705827727111.png']));
+      mockUnlink.mockResolvedValue(undefined);
+
+      // Start first cleanup (don't await yet)
+      const cleanup1 = cleanupOldAvatarVersions('cold', 9999999999999);
+
+      // Second call for same slug should be skipped (returns null)
+      const result2 = await cleanupOldAvatarVersions('cold', 9999999999999);
+      expect(result2).toBeNull();
+
+      // First cleanup completes normally
+      const result1 = await cleanup1;
+      expect(result1).toBe(1);
     });
   });
 

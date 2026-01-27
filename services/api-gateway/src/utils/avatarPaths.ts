@@ -36,18 +36,22 @@ const SAFE_SLUG_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 /**
  * Regex pattern for path-versioned avatar filenames
- * Matches: {slug}-{timestamp}.png where timestamp is 13+ digits (milliseconds)
+ * Matches: {slug}-{timestamp}.png where timestamp is 13-17 digits (milliseconds)
  *
- * Why 13+ digits: JavaScript timestamps (Date.getTime()) are 13 digits as of 2001
- * and will be 14 digits around year 2286. This threshold distinguishes timestamps
- * from version numbers in slugs like "avatar-v2.png" or "bot-123.png".
+ * Why 13-17 digits:
+ * - Lower bound (13): JavaScript timestamps are 13 digits as of 2001
+ * - Upper bound (17): Covers until year ~5138, and prevents matching numbers
+ *   beyond Number.MAX_SAFE_INTEGER (9007199254740991 = 16 digits)
+ *
+ * This threshold distinguishes timestamps from version numbers in slugs
+ * like "avatar-v2.png" or "bot-123.png".
  *
  * Examples:
  * - "cold-1705827727111.png" -> captures "cold", timestamp 1705827727111
  * - "my-personality-1705827727111.png" -> captures "my-personality"
- * - "bot-v2.png" -> NOT matched (2 is not 13+ digits), falls through to legacy
+ * - "bot-v2.png" -> NOT matched (2 is not 13-17 digits), falls through to legacy
  */
-const VERSIONED_FILENAME_PATTERN = /^(.+)-(\d{13,})\.png$/;
+const VERSIONED_FILENAME_PATTERN = /^(.+)-(\d{13,17})\.png$/;
 
 /**
  * Regex pattern for legacy avatar filenames (no timestamp)
@@ -204,6 +208,15 @@ async function tryDeleteAvatarFile(filePath: string, logContext: string): Promis
 /** Maximum number of files to return from glob (prevents unbounded memory usage) */
 const GLOB_RESULT_LIMIT = 1000;
 
+/** Maximum deletions per cleanup call (prevents blocking event loop on slugs with many versions) */
+const MAX_DELETIONS_PER_CLEANUP = 50;
+
+/** Threshold for logging high version count warning */
+const HIGH_VERSION_COUNT_THRESHOLD = 20;
+
+/** Track in-progress cleanups to prevent duplicate concurrent operations */
+const cleanupInProgress = new Set<string>();
+
 /**
  * Collects files matching a glob pattern into an array
  *
@@ -236,9 +249,13 @@ async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): Promise<
  * Uses glob to efficiently find files only for this slug's subdirectory,
  * avoiding full directory scans.
  *
+ * Limits:
+ * - MAX_DELETIONS_PER_CLEANUP (50): Prevents blocking event loop on slugs with many versions
+ * - Skips if cleanup already in progress for this slug (prevents duplicate work)
+ *
  * @param slug - The personality slug
  * @param currentTimestamp - The timestamp of the version to keep
- * @returns Number of old versions deleted, or null if validation failed (already logged)
+ * @returns Number of old versions deleted, or null if validation failed/skipped
  */
 export async function cleanupOldAvatarVersions(
   slug: string,
@@ -248,17 +265,26 @@ export async function cleanupOldAvatarVersions(
     return null;
   }
 
-  const subdir = getAvatarSubdir(slug);
-  // Glob pattern: /data/avatars/{first-char}/{slug}*.png
-  // This finds both versioned and legacy files for this slug
-  // Security: slug is validated by isValidSlug (alphanumeric, underscore, hyphen only)
-  // This prevents glob pattern injection (no *, ?, [, ], {, } characters allowed)
-  const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
+  // Skip if cleanup already in progress for this slug (prevents duplicate concurrent work)
+  if (cleanupInProgress.has(slug)) {
+    logger.debug({ slug }, '[Avatar cleanup] Skipping, cleanup already in progress');
+    return null;
+  }
+
+  cleanupInProgress.add(slug);
 
   try {
-    const files = await globToArray(pattern);
-    let deletedCount = 0;
+    const subdir = getAvatarSubdir(slug);
+    // Glob pattern: /data/avatars/{first-char}/{slug}*.png
+    // This finds both versioned and legacy files for this slug
+    // Security: slug is validated by isValidSlug (alphanumeric, underscore, hyphen only)
+    // This prevents glob pattern injection (no *, ?, [, ], {, } characters allowed)
+    const pattern = resolve(AVATAR_ROOT, subdir, `${slug}*.png`);
 
+    const files = await globToArray(pattern);
+
+    // Count files that need deletion (excluding current version and prefix mismatches)
+    const filesToDelete: string[] = [];
     for (const filePath of files) {
       const filename = basename(filePath);
       const fileSlug = extractSlugFromFilename(filename);
@@ -275,11 +301,35 @@ export async function cleanupOldAvatarVersions(
         continue;
       }
 
-      // Delete legacy files (no timestamp) and old versions
+      filesToDelete.push(filePath);
+    }
+
+    // Log warning if unusually high version count
+    if (filesToDelete.length > HIGH_VERSION_COUNT_THRESHOLD) {
+      logger.warn(
+        { slug, versionCount: filesToDelete.length, threshold: HIGH_VERSION_COUNT_THRESHOLD },
+        '[Avatar cleanup] High version count detected'
+      );
+    }
+
+    // Delete files up to the limit
+    let deletedCount = 0;
+    for (const filePath of filesToDelete) {
+      if (deletedCount >= MAX_DELETIONS_PER_CLEANUP) {
+        logger.info(
+          { slug, deleted: deletedCount, remaining: filesToDelete.length - deletedCount },
+          '[Avatar cleanup] Reached deletion limit, remaining will be cleaned on next request'
+        );
+        break;
+      }
+
       // Security: filePath comes from glob on a validated pattern (no path traversal)
       if (await tryDeleteAvatarFile(filePath, 'Avatar cleanup')) {
         deletedCount++;
-        logger.debug({ slug, filename }, '[Avatar cleanup] Deleted old version');
+        logger.debug(
+          { slug, filename: basename(filePath) },
+          '[Avatar cleanup] Deleted old version'
+        );
       }
     }
 
@@ -298,6 +348,8 @@ export async function cleanupOldAvatarVersions(
     }
     logger.warn({ err: error, slug }, '[Avatar cleanup] Failed to glob avatar directory');
     return null;
+  } finally {
+    cleanupInProgress.delete(slug);
   }
 }
 
