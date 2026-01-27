@@ -1,7 +1,7 @@
 ---
 name: tzurot-slash-command-ux
 description: Use when implementing Discord slash commands, building list/browse UX, adding buttons or pagination, or creating dashboard patterns. Covers standard naming, shared utilities, and confirmation flows.
-lastUpdated: '2026-01-23'
+lastUpdated: '2026-01-27'
 ---
 
 # Slash Command UX Patterns
@@ -33,6 +33,7 @@ lastUpdated: '2026-01-23'
 | File                                                    | Purpose                             |
 | ------------------------------------------------------- | ----------------------------------- |
 | `src/commands/preset/browse.ts`                         | **Browse → Dashboard reference**    |
+| `src/utils/browse/`                                     | Shared browse utilities (NEW)       |
 | `src/utils/autocomplete/personalityAutocomplete.ts`     | Shared personality autocomplete     |
 | `packages/common-types/src/utils/autocompleteFormat.ts` | Autocomplete formatting utility     |
 | `src/utils/listSorting.ts`                              | Shared sorting comparators          |
@@ -40,6 +41,57 @@ lastUpdated: '2026-01-23'
 | `src/utils/dashboard/settings/types.ts`                 | Settings custom ID builders/parsers |
 | `docs/reference/standards/SLASH_COMMAND_UX.md`          | Full UX documentation               |
 | `docs/reference/standards/INTERACTION_PATTERNS.md`      | State passing patterns guide        |
+
+### File Structure Rules
+
+Commands follow a **flat file structure** by default:
+
+```
+commands/
+├── persona/
+│   ├── index.ts        # Command definition, routing
+│   ├── browse.ts       # /persona browse handler
+│   ├── create.ts       # /persona create handler
+│   ├── edit.ts         # /persona edit handler
+│   └── api.ts          # API calls for persona
+├── preset/
+│   ├── index.ts
+│   ├── browse.ts
+│   └── ...
+```
+
+**Rules:**
+
+1. **Flat files for subcommands** - Each subcommand gets its own file
+2. **Subdirectories only for subcommand groups** - `/settings timezone get` → `settings/timezone/get.ts`
+3. **Handler filename matches subcommand name** - `/persona browse` → `persona/browse.ts`
+4. **Use `index.ts` for routing** - Contains command definition and routes to handlers
+
+## Shared Browse Utilities
+
+The `src/utils/browse/` module provides shared utilities for browse/list commands:
+
+```typescript
+import {
+  ITEMS_PER_PAGE, // Standard page size (10)
+  MAX_SELECT_LABEL_LENGTH, // Discord limit (100)
+  truncateForSelect, // Truncate text for select menu labels
+  createListComparator, // Type-safe sorting comparator
+} from '../../utils/browse/index.js';
+
+// Truncate long descriptions for select menus
+const label = truncateForSelect(item.description); // "A very long desc..."
+
+// Strip newlines for single-line display
+const clean = truncateForSelect(item.content, { stripNewlines: true });
+
+// Create a type-safe comparator for sorting
+const comparator = createListComparator<Item>(
+  item => item.name, // Name accessor for A-Z
+  item => item.createdAt // Date accessor for chronological
+);
+items.sort(comparator('name', false)); // false = ascending
+```
 
 ## Pagination Pattern
 
@@ -249,6 +301,16 @@ await interaction.reply({
 ## Autocomplete
 
 Use for **entity selection** (characters, presets, personalities) and **large lists** (>10 items).
+
+### Standard Ordering by Data Type
+
+| Data Type         | Ordering                             | Rationale                             |
+| ----------------- | ------------------------------------ | ------------------------------------- |
+| **Timezones**     | By region (Americas → Europe → Asia) | Users know their region, scan quickly |
+| **Personas**      | User's own first, then alphabetical  | Most users want their own personas    |
+| **Characters**    | User's own first, then alphabetical  | Same as personas                      |
+| **Presets**       | Free first → user's → global → paid  | Surface free options for new users    |
+| **Personalities** | Alphabetical within visibility scope | Consistent with Discord's defaults    |
 
 ### Standard Formatting (REQUIRED)
 
