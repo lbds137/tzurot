@@ -10,6 +10,7 @@ import {
   handleButton,
   isPresetDashboardInteraction,
 } from './dashboard.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import type { PresetData } from './config.js';
 
 // Mock common-types logger
@@ -76,6 +77,10 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   getSessionManager: () => mockGetSessionManager(),
   parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
   isDashboardInteraction: (...args: unknown[]) => mockIsDashboardInteraction(...args),
+}));
+
+vi.mock('../../utils/dashboard/closeHandler.js', () => ({
+  handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));
 
 const mockPresetData: PresetData = {
@@ -381,21 +386,18 @@ describe('handleButton', () => {
     vi.clearAllMocks();
   });
 
-  it('should handle close button', async () => {
+  it('should delegate to shared close handler', async () => {
     mockParseDashboardCustomId.mockReturnValue({
       entityType: 'preset',
       entityId: 'preset-123',
       action: 'close',
     });
 
-    await handleButton(createMockButtonInteraction('preset::close::preset-123'));
+    const mockInteraction = createMockButtonInteraction('preset::close::preset-123');
+    await handleButton(mockInteraction);
 
-    expect(mockSessionManagerDelete).toHaveBeenCalledWith('user-456', 'preset', 'preset-123');
-    expect(mockUpdate).toHaveBeenCalledWith({
-      content: '✅ Dashboard closed.',
-      embeds: [],
-      components: [],
-    });
+    // Verify delegation to shared handler
+    expect(handleDashboardClose).toHaveBeenCalledWith(mockInteraction, 'preset', 'preset-123');
   });
 
   it('should handle refresh button', async () => {

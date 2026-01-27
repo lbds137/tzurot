@@ -7,13 +7,7 @@
  * - Modal submissions for section edits
  */
 
-import {
-  MessageFlags,
-  EmbedBuilder,
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-} from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
@@ -23,10 +17,10 @@ import {
   createLogger,
   getConfig,
   isBotOwner,
-  DISCORD_COLORS,
   DeletePersonalityResponseSchema,
   type EnvConfig,
 } from '@tzurot/common-types';
+import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -395,38 +389,26 @@ async function handleDeleteAction(
     return;
   }
 
-  // Build confirmation embed
+  // Build confirmation dialog using shared utility
   const displayName = character.displayName ?? character.name;
-  const confirmEmbed = new EmbedBuilder()
-    .setTitle('⚠️ Delete Character')
-    .setDescription(
-      `Are you sure you want to **permanently delete** \`${displayName}\`?\n\n` +
-        '**This action is irreversible and will delete:**\n' +
-        '• All conversation history\n' +
-        '• All long-term memories\n' +
-        '• All pending memories\n' +
-        '• All activated channels\n' +
-        '• All aliases\n' +
-        '• Cached avatar'
-    )
-    .setColor(DISCORD_COLORS.ERROR);
-
-  // Build confirmation buttons using CharacterCustomIds
-  const buttons = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(CharacterCustomIds.deleteConfirm(slug))
-      .setLabel('Delete Forever')
-      .setStyle(ButtonStyle.Danger),
-    new ButtonBuilder()
-      .setCustomId(CharacterCustomIds.deleteCancel(slug))
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary)
-  );
-
-  await interaction.update({
-    embeds: [confirmEmbed],
-    components: [buttons],
+  const { embed, components } = buildDeleteConfirmation({
+    entityType: 'Character',
+    entityName: displayName,
+    confirmCustomId: CharacterCustomIds.deleteConfirm(slug),
+    cancelCustomId: CharacterCustomIds.deleteCancel(slug),
+    title: '⚠️ Delete Character?',
+    confirmLabel: 'Delete Forever',
+    deletedItems: [
+      'Conversation history',
+      'Long-term memories',
+      'Pending memories',
+      'Activated channels',
+      'Aliases',
+      'Cached avatar',
+    ],
   });
+
+  await interaction.update({ embeds: [embed], components });
 
   logger.info({ userId: interaction.user.id, slug }, 'Showing delete confirmation from dashboard');
 }

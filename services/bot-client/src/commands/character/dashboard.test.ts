@@ -9,6 +9,7 @@ import {
   handleButton,
   isCharacterDashboardInteraction,
 } from './dashboard.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import * as api from './api.js';
 import * as createModule from './create.js';
 import * as viewModule from './view.js';
@@ -60,6 +61,17 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   }),
   parseDashboardCustomId: vi.fn(),
   isDashboardInteraction: vi.fn(),
+}));
+
+vi.mock('../../utils/dashboard/closeHandler.js', () => ({
+  handleDashboardClose: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
+  buildDeleteConfirmation: vi.fn().mockReturnValue({
+    embed: { data: {} },
+    components: [],
+  }),
 }));
 
 vi.mock('../../utils/customIds.js', () => ({
@@ -322,7 +334,7 @@ describe('Character Dashboard', () => {
       );
     });
 
-    it('should handle close button', async () => {
+    it('should delegate to shared close handler', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
       vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
         entityType: 'character',
@@ -330,24 +342,12 @@ describe('Character Dashboard', () => {
         entityId: 'test-char',
       });
 
-      const mockSessionManager = {
-        get: vi.fn(),
-        set: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-      };
-      vi.mocked(dashboardUtils.getSessionManager).mockReturnValue(mockSessionManager as any);
-
       const mockInteraction = createMockButtonInteraction('character::close::test-char');
 
       await handleButton(mockInteraction);
 
-      expect(mockSessionManager.delete).toHaveBeenCalledWith('user-123', 'character', 'test-char');
-      expect(mockInteraction.update).toHaveBeenCalledWith({
-        content: expect.stringContaining('Dashboard closed'),
-        embeds: [],
-        components: [],
-      });
+      // Verify delegation to shared handler
+      expect(handleDashboardClose).toHaveBeenCalledWith(mockInteraction, 'character', 'test-char');
     });
 
     it('should handle refresh button', async () => {
