@@ -226,17 +226,20 @@ export function createListFetcher<TResponse, TResult>(
 }
 
 /**
- * Helper to handle 404 responses specially (return null instead of error).
- * For other errors, throws.
+ * Unwrap a gateway result or throw an appropriate error.
+ *
+ * - Returns data if result is ok
+ * - Throws NotFoundError for 404 responses
+ * - Throws generic Error for other failures
  *
  * @example
  * ```typescript
  * const result = await callGatewayApi<Response>('/user/preset/123', { userId });
- * const data = handleNotFound(result, 'preset');
- * // Returns null for 404, throws for other errors
+ * const data = unwrapOrThrow(result, 'preset');
+ * // Returns data on success, throws NotFoundError for 404, throws Error otherwise
  * ```
  */
-export function handleNotFound<T>(result: GatewayResult<T>, entityType: string): T {
+export function unwrapOrThrow<T>(result: GatewayResult<T>, entityType: string): T {
   if (result.ok) {
     return result.data;
   }
