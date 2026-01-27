@@ -49,11 +49,52 @@ const mockSessionManager = {
   delete: vi.fn(),
 };
 
+// Session helper mocks - delegate to session manager and handle error responses
+const mockGetSessionOrExpired = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId) => {
+    const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      // Mimic real behavior: call editReply with expired message
+      await interaction.editReply({
+        content: 'Session expired. Please run /preset browse to try again.',
+        embeds: [],
+        components: [],
+      });
+    }
+    return session;
+  });
+const mockGetSessionDataOrReply = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId) => {
+    const session = await mockSessionManager.get(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      // Mimic real behavior: call reply with expired message
+      await interaction.reply({
+        content: 'Session expired. Please try again.',
+        flags: 64, // MessageFlags.Ephemeral
+      });
+      return null;
+    }
+    return session.data;
+  });
+// checkOwnership mock - track calls so tests can override behavior
+const mockCheckOwnership = vi
+  .fn()
+  .mockImplementation(async (interaction, _entity, action, options) => {
+    // Default: owner (tests can override with mockCheckOwnership.mockResolvedValue(false))
+    // When tests set mockResolvedValue(false), this implementation is replaced
+    return true;
+  });
+
 vi.mock('../../utils/dashboard/index.js', async () => {
   const actual = await vi.importActual('../../utils/dashboard/index.js');
   return {
     ...actual,
     getSessionManager: () => mockSessionManager,
+    getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
+    getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
+    checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),
   };
 });
 
@@ -136,9 +177,12 @@ describe('generateClonedName', () => {
 describe('Preset Dashboard Buttons', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Session manager defaults
     mockSessionManager.get.mockResolvedValue(null);
     mockSessionManager.set.mockResolvedValue(undefined);
     mockSessionManager.delete.mockResolvedValue(undefined);
+    // Reset ownership check to default (owner)
+    mockCheckOwnership.mockResolvedValue(true);
   });
 
   const createMockFlattenedPreset = (
@@ -407,13 +451,13 @@ describe('Preset Dashboard Buttons', () => {
       mockSessionManager.get.mockResolvedValue({
         data: createMockFlattenedPreset({ isOwned: false }),
       });
+      // Mock ownership check to return false (checkOwnership handles the error reply)
+      mockCheckOwnership.mockResolvedValue(false);
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
-      expect(mockInteraction.reply).toHaveBeenCalledWith({
-        content: expect.stringContaining('only delete presets you own'),
-        flags: expect.any(Number),
-      });
+      // checkOwnership handles the error reply - just verify update wasn't called
+      expect(mockInteraction.update).not.toHaveBeenCalled();
     });
 
     it('should show error if session expired', async () => {
@@ -423,6 +467,7 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleDeleteButton(mockInteraction, 'preset-123');
 
+      // getSessionDataOrReply handles the error reply
       expect(mockInteraction.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('Session expired'),
         flags: expect.any(Number),

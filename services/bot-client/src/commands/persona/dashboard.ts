@@ -23,11 +23,14 @@ import {
   buildSectionModal,
   extractModalValues,
   getSessionManager,
+  getSessionOrExpired,
+  getSessionDataOrReply,
   parseDashboardCustomId,
   isDashboardInteraction,
+  DASHBOARD_MESSAGES,
+  formatSessionExpiredMessage,
   type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
-import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
@@ -267,18 +270,9 @@ const handleRefreshButton = createRefreshHandler({
  * Handle delete button - show confirmation dialog.
  */
 async function handleDeleteButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPersonaData>(
-    interaction.user.id,
-    'persona',
-    entityId
-  );
-
-  if (!session) {
-    await interaction.reply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      flags: MessageFlags.Ephemeral,
-    });
+  // Get session data or show expired message
+  const data = await getSessionDataOrReply<FlattenedPersonaData>(interaction, 'persona', entityId);
+  if (data === null) {
     return;
   }
 
@@ -297,7 +291,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
   // Show confirmation dialog using shared utility
   const { embed, components } = buildDeleteConfirmation({
     entityType: 'Persona',
-    entityName: session.data.name,
+    entityName: data.name,
     confirmCustomId: PersonaCustomIds.confirmDelete(entityId),
     cancelCustomId: PersonaCustomIds.cancelDelete(entityId),
     additionalWarning: 'Any personality-specific overrides using this persona will be cleared.',
@@ -357,19 +351,14 @@ async function handleCancelDeleteButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPersonaData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<FlattenedPersonaData>(
+    interaction,
     'persona',
-    entityId
+    entityId,
+    '/persona browse'
   );
-
-  if (!session) {
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      embeds: [],
-      components: [],
-    });
+  if (session === null) {
     return;
   }
 
@@ -439,16 +428,20 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
 async function handleBackButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPersonaData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<FlattenedPersonaData>(
+    interaction,
     'persona',
-    entityId
+    entityId,
+    '/persona browse'
   );
+  if (session === null) {
+    return;
+  }
 
-  const browseContext = session?.data.browseContext;
+  const browseContext = session.data.browseContext;
   if (!browseContext) {
-    // Session expired or no browse context - show expired message
+    // Session exists but no browse context - shouldn't happen, show expired
     await interaction.editReply({
       content: formatSessionExpiredMessage('/persona browse'),
       embeds: [],
@@ -474,6 +467,7 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
     }
 
     // Clean up the dashboard session
+    const sessionManager = getSessionManager();
     await sessionManager.delete(interaction.user.id, 'persona', entityId);
 
     await interaction.editReply({

@@ -33,32 +33,69 @@ const mockSessionGet = vi.fn();
 const mockSessionSet = vi.fn();
 const mockSessionUpdate = vi.fn();
 const mockSessionDelete = vi.fn();
-vi.mock('../../utils/dashboard/index.js', () => ({
-  buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
-  buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
-  buildSectionModal: (...args: unknown[]) => mockBuildSectionModal(...args),
-  extractModalValues: (...args: unknown[]) => mockExtractModalValues(...args),
-  getSessionManager: () => ({
-    get: mockSessionGet,
-    set: mockSessionSet,
-    update: mockSessionUpdate,
-    delete: mockSessionDelete,
-  }),
-  parseDashboardCustomId: vi.fn((customId: string) => {
-    // Simple parser for tests
-    const parts = customId.split('::');
-    if (parts[0] !== 'persona') return null;
-    return {
-      entityType: 'persona',
-      action: parts[1],
-      entityId: parts[2],
-      sectionId: parts[3],
-    };
-  }),
-  isDashboardInteraction: vi.fn((customId: string, entityType: string) => {
-    return customId.startsWith(`${entityType}::`);
-  }),
-}));
+
+// Mock getSessionOrExpired to delegate to mockSessionGet
+const mockGetSessionOrExpired = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId, _command) => {
+    const session = await mockSessionGet(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      await interaction.editReply({
+        content: 'Session expired. Please run /persona browse to try again.',
+        embeds: [],
+        components: [],
+      });
+    }
+    return session;
+  });
+
+// Mock getSessionDataOrReply to delegate to mockSessionGet
+const mockGetSessionDataOrReply = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId) => {
+    const session = await mockSessionGet(interaction.user.id, entityType, entityId);
+    if (session === null) {
+      await interaction.reply({
+        content: 'Session expired. Please try again.',
+        flags: 64,
+      });
+      return null;
+    }
+    return session.data;
+  });
+
+vi.mock('../../utils/dashboard/index.js', async () => {
+  const actual = await vi.importActual('../../utils/dashboard/index.js');
+  return {
+    ...actual,
+    buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
+    buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
+    buildSectionModal: (...args: unknown[]) => mockBuildSectionModal(...args),
+    extractModalValues: (...args: unknown[]) => mockExtractModalValues(...args),
+    getSessionManager: () => ({
+      get: mockSessionGet,
+      set: mockSessionSet,
+      update: mockSessionUpdate,
+      delete: mockSessionDelete,
+    }),
+    getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
+    getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
+    parseDashboardCustomId: vi.fn((customId: string) => {
+      // Simple parser for tests
+      const parts = customId.split('::');
+      if (parts[0] !== 'persona') return null;
+      return {
+        entityType: 'persona',
+        action: parts[1],
+        entityId: parts[2],
+        sectionId: parts[3],
+      };
+    }),
+    isDashboardInteraction: vi.fn((customId: string, entityType: string) => {
+      return customId.startsWith(`${entityType}::`);
+    }),
+  };
+});
 
 vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
@@ -231,6 +268,29 @@ describe('handleButton', () => {
     mockDeferUpdate.mockResolvedValue(undefined);
     mockBuildDashboardEmbed.mockReturnValue({ title: 'Test' });
     mockBuildDashboardComponents.mockReturnValue([]);
+    // Reset session helper mocks to default implementations
+    mockGetSessionOrExpired.mockImplementation(async (interaction, entityType, entityId) => {
+      const session = await mockSessionGet(interaction.user.id, entityType, entityId);
+      if (session === null) {
+        await interaction.editReply({
+          content: 'Session expired. Please run /persona browse to try again.',
+          embeds: [],
+          components: [],
+        });
+      }
+      return session;
+    });
+    mockGetSessionDataOrReply.mockImplementation(async (interaction, entityType, entityId) => {
+      const session = await mockSessionGet(interaction.user.id, entityType, entityId);
+      if (session === null) {
+        await interaction.reply({
+          content: 'Session expired. Please try again.',
+          flags: 64,
+        });
+        return null;
+      }
+      return session.data;
+    });
   });
 
   function createMockButtonInteraction(customId: string) {

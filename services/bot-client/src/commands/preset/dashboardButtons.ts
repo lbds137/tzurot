@@ -11,16 +11,20 @@
 import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
-import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
-import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
+  buildDeleteConfirmation,
+  handleDashboardClose,
   getSessionManager,
+  getSessionOrExpired,
+  getSessionDataOrReply,
+  checkOwnership,
+  DASHBOARD_MESSAGES,
+  formatSessionExpiredMessage,
   type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
-import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -196,27 +200,23 @@ export async function handleToggleGlobalButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPresetData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<FlattenedPresetData>(
+    interaction,
     'preset',
-    entityId
+    entityId,
+    '/preset browse'
   );
-
   if (session === null) {
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      embeds: [],
-      components: [],
-    });
     return;
   }
 
-  if (!session.data.isOwned) {
-    await interaction.followUp({
-      content: '❌ You can only toggle global status for presets you own.',
-      flags: MessageFlags.Ephemeral,
-    });
+  // Check ownership (deferred, so use followUp for errors)
+  if (
+    !(await checkOwnership(interaction, session.data, 'toggle global status for presets', {
+      deferred: true,
+    }))
+  ) {
     return;
   }
 
@@ -229,6 +229,7 @@ export async function handleToggleGlobalButton(
     );
 
     const flattenedData = flattenPresetData(updatedPreset);
+    const sessionManager = getSessionManager();
 
     await sessionManager.update<FlattenedPresetData>(
       interaction.user.id,
@@ -257,33 +258,21 @@ export async function handleDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPresetData>(
-    interaction.user.id,
-    'preset',
-    entityId
-  );
-
-  if (session === null) {
-    await interaction.reply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      flags: MessageFlags.Ephemeral,
-    });
+  // Get session data or reply with expired message (non-deferred)
+  const data = await getSessionDataOrReply<FlattenedPresetData>(interaction, 'preset', entityId);
+  if (data === null) {
     return;
   }
 
-  if (!session.data.isOwned) {
-    await interaction.reply({
-      content: '❌ You can only delete presets you own.',
-      flags: MessageFlags.Ephemeral,
-    });
+  // Check ownership (non-deferred, so use reply for errors)
+  if (!(await checkOwnership(interaction, data, 'delete presets'))) {
     return;
   }
 
   // Build confirmation dialog using shared utility
   const { embed, components } = buildDeleteConfirmation({
     entityType: 'Preset',
-    entityName: session.data.name,
+    entityName: data.name,
     confirmCustomId: `preset::confirm-delete::${entityId}`,
     cancelCustomId: `preset::cancel-delete::${entityId}`,
   });
@@ -356,19 +345,14 @@ export async function handleCancelDeleteButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPresetData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<FlattenedPresetData>(
+    interaction,
     'preset',
-    entityId
+    entityId,
+    '/preset browse'
   );
-
   if (session === null) {
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      embeds: [],
-      components: [],
-    });
     return;
   }
 
@@ -384,25 +368,21 @@ export async function handleCloneButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPresetData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<FlattenedPresetData>(
+    interaction,
     'preset',
-    entityId
+    entityId,
+    '/preset browse'
   );
-
   if (session === null) {
-    await interaction.editReply({
-      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
-      embeds: [],
-      components: [],
-    });
     return;
   }
 
   try {
     const config = getConfig();
     const sourceData = session.data;
+    const sessionManager = getSessionManager();
 
     const clonedName = generateClonedName(sourceData.name);
 
@@ -482,16 +462,20 @@ export async function handleBackButton(
 ): Promise<void> {
   await interaction.deferUpdate();
 
-  const sessionManager = getSessionManager();
-  const session = await sessionManager.get<FlattenedPresetData>(
-    interaction.user.id,
+  // Get session or show expired message
+  const session = await getSessionOrExpired<FlattenedPresetData>(
+    interaction,
     'preset',
-    entityId
+    entityId,
+    '/preset browse'
   );
+  if (session === null) {
+    return;
+  }
 
-  const browseContext = session?.data.browseContext;
+  const browseContext = session.data.browseContext;
   if (!browseContext) {
-    // Session expired or no browse context - show expired message
+    // Session exists but no browse context - shouldn't happen, show expired
     await interaction.editReply({
       content: formatSessionExpiredMessage('/preset browse'),
       embeds: [],
@@ -517,6 +501,7 @@ export async function handleBackButton(
     }
 
     // Clear the session since we're leaving the dashboard
+    const sessionManager = getSessionManager();
     await sessionManager.delete(interaction.user.id, 'preset', entityId);
 
     await interaction.editReply({ embeds: [result.embed], components: result.components });

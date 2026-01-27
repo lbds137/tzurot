@@ -47,21 +47,25 @@ vi.mock('./view.js', () => ({
   handleExpandField: vi.fn(),
 }));
 
-vi.mock('../../utils/dashboard/index.js', () => ({
-  buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
-  buildDashboardComponents: vi.fn().mockReturnValue([]),
-  buildDashboardCustomId: vi.fn((type, action) => `${type}::${action}`),
-  buildSectionModal: vi.fn().mockReturnValue({ toJSON: () => ({}) }),
-  extractModalValues: vi.fn(),
-  getSessionManager: vi.fn().mockReturnValue({
-    get: vi.fn(),
-    set: vi.fn(),
-    update: vi.fn(),
-    delete: vi.fn(),
-  }),
-  parseDashboardCustomId: vi.fn(),
-  isDashboardInteraction: vi.fn(),
-}));
+vi.mock('../../utils/dashboard/index.js', async () => {
+  const actual = await vi.importActual('../../utils/dashboard/index.js');
+  return {
+    ...actual,
+    buildDashboardEmbed: vi.fn().mockReturnValue({ data: {} }),
+    buildDashboardComponents: vi.fn().mockReturnValue([]),
+    buildDashboardCustomId: vi.fn((type, action) => `${type}::${action}`),
+    buildSectionModal: vi.fn().mockReturnValue({ toJSON: () => ({}) }),
+    extractModalValues: vi.fn(),
+    getSessionManager: vi.fn().mockReturnValue({
+      get: vi.fn(),
+      set: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+    }),
+    parseDashboardCustomId: vi.fn(),
+    isDashboardInteraction: vi.fn(),
+  };
+});
 
 vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
