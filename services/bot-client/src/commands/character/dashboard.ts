@@ -32,6 +32,7 @@ import {
   isDashboardInteraction,
   type DashboardContext,
 } from '../../utils/dashboard/index.js';
+import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import type { CharacterSessionData } from './edit.js';
@@ -226,7 +227,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       const character = await fetchCharacter(entityId, config, interaction.user.id);
       if (!character) {
         await interaction.reply({
-          content: '❌ Character not found.',
+          content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
           flags: MessageFlags.Ephemeral,
         });
         return;
@@ -374,7 +375,7 @@ async function handleDeleteAction(
   const character = await fetchCharacter(slug, config, interaction.user.id);
   if (!character) {
     await interaction.reply({
-      content: '❌ Character not found.',
+      content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
       flags: MessageFlags.Ephemeral,
     });
     return;
