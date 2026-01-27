@@ -64,6 +64,17 @@ export {
 export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
 export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
 export {
+  defineTypedOptions,
+  createSchema,
+  type OptionType,
+  type OptionConfig,
+  type OptionSchema,
+  type TypedOptionsAccessor,
+} from './utils/typedOptions.js';
+
+// Generated command option schemas
+export * from './generated/commandOptions.js';
+export {
   encryptApiKey,
   decryptApiKey,
   isValidEncryptedData,
