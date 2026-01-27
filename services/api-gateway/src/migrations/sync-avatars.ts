@@ -111,88 +111,126 @@ async function cleanupOldVersionsSync(slug: string, currentTimestamp: number): P
   }
 }
 
+/** Batch size for cursor-based pagination (prevents OOM with large datasets) */
+const SYNC_BATCH_SIZE = 100;
+
+/** Result of syncing a single personality's avatar */
+interface SyncResult {
+  synced: boolean;
+  cleanedCount: number;
+}
+
+/**
+ * Sync a single personality's avatar to the filesystem
+ *
+ * @param personality - Personality data from database
+ * @returns Sync result indicating if file was synced and how many old versions cleaned
+ */
+async function syncPersonalityAvatar(personality: {
+  slug: string;
+  avatarData: Uint8Array | null;
+  updatedAt: Date;
+}): Promise<SyncResult> {
+  // Validate slug for safety
+  if (!isValidSlug(personality.slug)) {
+    logger.warn({ slug: personality.slug }, '[Avatar Sync] Skipping invalid slug');
+    return { synced: false, cleanedCount: 0 };
+  }
+
+  const timestamp = personality.updatedAt.getTime();
+  const avatarPath = getSafeAvatarPath(personality.slug, timestamp);
+
+  // Safety check - getSafeAvatarPath validates the slug
+  if (avatarPath === null) {
+    logger.warn({ slug: personality.slug }, '[Avatar Sync] Invalid avatar path');
+    return { synced: false, cleanedCount: 0 };
+  }
+
+  try {
+    // Check if exact versioned file already exists
+    await access(avatarPath);
+    logger.debug({ slug: personality.slug, timestamp }, '[Avatar Sync] Versioned avatar exists');
+    return { synced: false, cleanedCount: 0 };
+  } catch {
+    // File doesn't exist, create it from DB
+  }
+
+  // Skip if no avatar data (should not happen due to where clause, but TypeScript doesn't know)
+  if (personality.avatarData === null) {
+    return { synced: false, cleanedCount: 0 };
+  }
+
+  // Ensure subdirectory exists before writing
+  await ensureAvatarDir(personality.slug);
+
+  // avatarData is already raw bytes, just write to file
+  const buffer = Buffer.from(personality.avatarData);
+  await writeFile(avatarPath, buffer);
+
+  // Cleanup old versions synchronously during startup
+  const cleaned = await cleanupOldVersionsSync(personality.slug, timestamp);
+
+  const sizeKB = (buffer.length / 1024).toFixed(2);
+  logger.info(
+    { slug: personality.slug, timestamp, sizeKB, cleanedVersions: cleaned },
+    '[Avatar Sync] Synced avatar'
+  );
+
+  return { synced: true, cleanedCount: cleaned };
+}
+
 export async function syncAvatars(): Promise<void> {
   logger.info('[Avatar Sync] Starting avatar sync from database...');
 
   try {
-    // Query all personalities with avatar data
-    const personalities = await prisma.personality.findMany({
-      where: {
-        avatarData: { not: null },
-      },
-      select: {
-        slug: true,
-        avatarData: true,
-        updatedAt: true,
-      },
-    });
-
-    if (personalities.length === 0) {
-      logger.info('[Avatar Sync] No personalities with avatar data found');
-      return;
-    }
-
-    logger.info(`[Avatar Sync] Found ${personalities.length} personalities with avatars`);
-
     let syncedCount = 0;
     let skippedCount = 0;
     let cleanedCount = 0;
+    let totalProcessed = 0;
+    let cursor: string | undefined;
 
-    for (const personality of personalities) {
-      // Validate slug for safety
-      if (!isValidSlug(personality.slug)) {
-        logger.warn({ slug: personality.slug }, '[Avatar Sync] Skipping invalid slug');
-        continue;
+    // Use cursor-based pagination to prevent OOM with large datasets
+    // Each batch loads avatarData for only SYNC_BATCH_SIZE personalities at a time
+    do {
+      const personalities = await prisma.personality.findMany({
+        where: { avatarData: { not: null } },
+        select: {
+          id: true,
+          slug: true,
+          avatarData: true,
+          updatedAt: true,
+        },
+        take: SYNC_BATCH_SIZE,
+        ...(cursor !== undefined ? { cursor: { id: cursor }, skip: 1 } : {}),
+        orderBy: { id: 'asc' },
+      });
+
+      if (personalities.length === 0 && totalProcessed === 0) {
+        logger.info('[Avatar Sync] No personalities with avatar data found');
+        return;
       }
 
-      const timestamp = personality.updatedAt.getTime();
-      const avatarPath = getSafeAvatarPath(personality.slug, timestamp);
-
-      // Safety check - getSafeAvatarPath validates the slug
-      if (avatarPath === null) {
-        logger.warn({ slug: personality.slug }, '[Avatar Sync] Invalid avatar path');
-        continue;
+      for (const personality of personalities) {
+        const result = await syncPersonalityAvatar(personality);
+        if (result.synced) {
+          syncedCount++;
+          cleanedCount += result.cleanedCount;
+        } else {
+          skippedCount++;
+        }
       }
 
-      try {
-        // Check if exact versioned file already exists
-        await access(avatarPath);
-        logger.debug(
-          { slug: personality.slug, timestamp },
-          '[Avatar Sync] Versioned avatar exists'
-        );
-        skippedCount++;
-        continue;
-      } catch {
-        // File doesn't exist, create it from DB
-      }
+      totalProcessed += personalities.length;
 
-      // Skip if no avatar data (should not happen due to where clause, but TypeScript doesn't know that)
-      if (personality.avatarData === null) {
-        continue;
-      }
-
-      // Ensure subdirectory exists before writing
-      await ensureAvatarDir(personality.slug);
-
-      // avatarData is already raw bytes, just write to file
-      const buffer = Buffer.from(personality.avatarData);
-      await writeFile(avatarPath, buffer);
-
-      // Cleanup old versions synchronously during startup
-      const cleaned = await cleanupOldVersionsSync(personality.slug, timestamp);
-      cleanedCount += cleaned;
-
-      const sizeKB = (buffer.length / 1024).toFixed(2);
-      logger.info(
-        { slug: personality.slug, timestamp, sizeKB, cleanedVersions: cleaned },
-        '[Avatar Sync] Synced avatar'
-      );
-      syncedCount++;
-    }
+      // Set cursor for next batch (if there are more results)
+      cursor =
+        personalities.length === SYNC_BATCH_SIZE
+          ? personalities[personalities.length - 1].id
+          : undefined;
+    } while (cursor !== undefined);
 
     logger.info(
-      { synced: syncedCount, skipped: skippedCount, cleaned: cleanedCount },
+      { synced: syncedCount, skipped: skippedCount, cleaned: cleanedCount, total: totalProcessed },
       '[Avatar Sync] Complete'
     );
   } catch (error) {
