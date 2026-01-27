@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { ButtonInteraction, Client } from 'discord.js';
 import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 
 // Mock dependencies
 const mockFetchCharacter = vi.fn();
@@ -30,6 +31,10 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionManager: () => mockSessionManager,
   };
 });
+
+vi.mock('../../utils/dashboard/closeHandler.js', () => ({
+  handleDashboardClose: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -98,21 +103,17 @@ describe('Character Dashboard Buttons', () => {
     }) as unknown as ButtonInteraction;
 
   describe('handleCloseButton', () => {
-    it('should delete session and close dashboard', async () => {
+    it('should delegate to shared close handler', async () => {
       const mockInteraction = createMockButtonInteraction('character::close::test-character');
 
       await handleCloseButton(mockInteraction, 'test-character');
 
-      expect(mockSessionManager.delete).toHaveBeenCalledWith(
-        'user-123',
+      // Verify the shared handler was called with correct arguments
+      expect(handleDashboardClose).toHaveBeenCalledWith(
+        mockInteraction,
         'character',
         'test-character'
       );
-      expect(mockInteraction.update).toHaveBeenCalledWith({
-        content: expect.stringContaining('Dashboard closed'),
-        embeds: [],
-        components: [],
-      });
     });
   });
 

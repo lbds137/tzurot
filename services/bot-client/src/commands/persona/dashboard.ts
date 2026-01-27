@@ -7,19 +7,16 @@
  * - Modal submissions for section edits
  */
 
-import {
-  MessageFlags,
-  EmbedBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  ActionRowBuilder,
-} from 'discord.js';
+import { MessageFlags } from 'discord.js';
 import type {
   StringSelectMenuInteraction,
   ButtonInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
+import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
+import { createRefreshHandler } from '../../utils/dashboard/refreshHandler.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -248,53 +245,22 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
 }
 
 /**
- * Handle close button - delete session and close dashboard.
+ * Handle close button using shared handler
  */
 async function handleCloseButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
-  const sessionManager = getSessionManager();
-  await sessionManager.delete(interaction.user.id, 'persona', entityId);
-
-  await interaction.update({
-    content: '✅ Dashboard closed.',
-    embeds: [],
-    components: [],
-  });
+  await handleDashboardClose(interaction, 'persona', entityId);
 }
 
 /**
- * Handle refresh button - fetch fresh data and update dashboard.
+ * Handle refresh button using shared handler
  */
-async function handleRefreshButton(
-  interaction: ButtonInteraction,
-  entityId: string
-): Promise<void> {
-  await interaction.deferUpdate();
-
-  const persona = await fetchPersona(entityId, interaction.user.id);
-
-  if (!persona) {
-    await interaction.editReply({
-      content: '❌ Persona not found.',
-      embeds: [],
-      components: [],
-    });
-    return;
-  }
-
-  const flattenedData = flattenPersonaData(persona);
-
-  const sessionManager = getSessionManager();
-  await sessionManager.set({
-    userId: interaction.user.id,
-    entityType: 'persona',
-    entityId,
-    data: flattenedData,
-    messageId: interaction.message.id,
-    channelId: interaction.channelId,
-  });
-
-  await refreshDashboardUI(interaction, entityId, flattenedData);
-}
+const handleRefreshButton = createRefreshHandler({
+  entityType: 'persona',
+  dashboardConfig: PERSONA_DASHBOARD_CONFIG,
+  fetchFn: fetchPersona,
+  transformFn: flattenPersonaData,
+  buildOptions: buildPersonaDashboardOptions,
+});
 
 /**
  * Handle delete button - show confirmation dialog.
@@ -327,31 +293,16 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
     return;
   }
 
-  // Show confirmation dialog
-  const confirmEmbed = new EmbedBuilder()
-    .setTitle('🗑️ Delete Persona?')
-    .setDescription(
-      `Are you sure you want to delete **${session.data.name}**?\n\n` +
-        'This action cannot be undone. Any personality-specific overrides using this persona will be cleared.'
-    )
-    .setColor(DISCORD_COLORS.WARNING);
-
-  const confirmRow = new ActionRowBuilder<ButtonBuilder>().addComponents(
-    new ButtonBuilder()
-      .setCustomId(PersonaCustomIds.cancelDelete(entityId))
-      .setLabel('Cancel')
-      .setStyle(ButtonStyle.Secondary),
-    new ButtonBuilder()
-      .setCustomId(PersonaCustomIds.confirmDelete(entityId))
-      .setLabel('Delete')
-      .setStyle(ButtonStyle.Danger)
-      .setEmoji('🗑️')
-  );
-
-  await interaction.update({
-    embeds: [confirmEmbed],
-    components: [confirmRow],
+  // Show confirmation dialog using shared utility
+  const { embed, components } = buildDeleteConfirmation({
+    entityType: 'Persona',
+    entityName: session.data.name,
+    confirmCustomId: PersonaCustomIds.confirmDelete(entityId),
+    cancelCustomId: PersonaCustomIds.cancelDelete(entityId),
+    additionalWarning: 'Any personality-specific overrides using this persona will be cleared.',
   });
+
+  await interaction.update({ embeds: [embed], components });
 }
 
 /**

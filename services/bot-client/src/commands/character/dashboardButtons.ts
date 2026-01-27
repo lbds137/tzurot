@@ -7,6 +7,7 @@
 
 import type { ButtonInteraction } from 'discord.js';
 import { createLogger, getConfig, isBotOwner } from '@tzurot/common-types';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -136,13 +137,11 @@ export async function handleRefreshButton(
 }
 
 /**
- * Handle close button - delete session and close dashboard
+ * Handle close button using shared handler
  */
 export async function handleCloseButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  const sessionManager = getSessionManager();
-  await sessionManager.delete(interaction.user.id, 'character', entityId);
-  await interaction.update({ content: '✅ Dashboard closed.', embeds: [], components: [] });
+  await handleDashboardClose(interaction, 'character', entityId);
 }

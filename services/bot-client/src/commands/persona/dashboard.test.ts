@@ -11,6 +11,8 @@ import {
   handleButton,
   isPersonaDashboardInteraction,
 } from './dashboard.js';
+import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
+import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { mockGetPersonaResponse, mockListPersonasResponse } from '@tzurot/common-types';
 
 // Valid UUIDs for tests
@@ -56,6 +58,21 @@ vi.mock('../../utils/dashboard/index.js', () => ({
   isDashboardInteraction: vi.fn((customId: string, entityType: string) => {
     return customId.startsWith(`${entityType}::`);
   }),
+}));
+
+vi.mock('../../utils/dashboard/closeHandler.js', () => ({
+  handleDashboardClose: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
+  buildDeleteConfirmation: vi.fn().mockReturnValue({
+    embed: { data: {} },
+    components: [],
+  }),
+}));
+
+vi.mock('../../utils/dashboard/refreshHandler.js', () => ({
+  createRefreshHandler: vi.fn().mockReturnValue(vi.fn().mockResolvedValue(undefined)),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -229,51 +246,21 @@ describe('handleButton', () => {
     } as unknown as Parameters<typeof handleButton>[0];
   }
 
-  it('should close dashboard and clean up session on close button', async () => {
-    await handleButton(
-      createMockButtonInteraction('persona::close::a1b2c3d4-e5f6-7890-abcd-ef1234567890')
+  it('should delegate to shared close handler on close button', async () => {
+    const mockInteraction = createMockButtonInteraction(
+      'persona::close::a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     );
+    await handleButton(mockInteraction);
 
-    expect(mockSessionDelete).toHaveBeenCalledWith(
-      '123456789',
+    // Verify delegation to shared handler
+    expect(handleDashboardClose).toHaveBeenCalledWith(
+      expect.anything(),
       'persona',
       'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
     );
-    expect(mockUpdate).toHaveBeenCalledWith({
-      content: expect.stringContaining('Dashboard closed'),
-      embeds: [],
-      components: [],
-    });
   });
 
-  it('should refresh dashboard with fresh data on refresh button', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          id: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-          name: 'Test Persona',
-          isDefault: false,
-        },
-      }),
-    });
-
-    await handleButton(
-      createMockButtonInteraction('persona::refresh::a1b2c3d4-e5f6-7890-abcd-ef1234567890')
-    );
-
-    expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(
-      '/user/persona/a1b2c3d4-e5f6-7890-abcd-ef1234567890',
-      {
-        userId: '123456789',
-      }
-    );
-    expect(mockBuildDashboardEmbed).toHaveBeenCalled();
-    expect(mockEditReply).toHaveBeenCalled();
-  });
-
-  it('should show confirmation on delete button', async () => {
+  it('should show confirmation using shared delete confirmation builder', async () => {
     mockSessionGet.mockResolvedValue({
       data: { name: 'Test Persona', isDefault: false },
     });
@@ -287,29 +274,14 @@ describe('handleButton', () => {
 
     await handleButton(createMockButtonInteraction(`persona::delete::${TEST_PERSONA_ID}`));
 
-    expect(mockUpdate).toHaveBeenCalledWith({
-      embeds: [
-        expect.objectContaining({
-          data: expect.objectContaining({ title: expect.stringContaining('Delete') }),
-        }),
-      ],
-      components: expect.any(Array),
-    });
-  });
-
-  it('should show error when refreshing non-existent persona', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: false,
-      error: 'Persona not found',
-    });
-
-    await handleButton(createMockButtonInteraction(`persona::refresh::${TEST_PERSONA_ID}`));
-
-    expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Persona not found'),
-      embeds: [],
-      components: [],
-    });
+    // Verify the shared delete confirmation builder was called
+    expect(buildDeleteConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entityType: 'Persona',
+        entityName: 'Test Persona',
+      })
+    );
+    expect(mockUpdate).toHaveBeenCalled();
   });
 
   it('should block delete of default persona', async () => {
