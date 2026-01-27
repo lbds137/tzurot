@@ -206,7 +206,7 @@ async function tryDeleteAvatarFile(filePath: string, logContext: string): Promis
 }
 
 /** Maximum number of files to return from glob (prevents unbounded memory usage) */
-const GLOB_RESULT_LIMIT = 1000;
+export const GLOB_RESULT_LIMIT = 1000;
 
 /** Maximum deletions per cleanup call (prevents blocking event loop on slugs with many versions) */
 const MAX_DELETIONS_PER_CLEANUP = 50;
@@ -227,7 +227,7 @@ const cleanupInProgress = new Set<string>();
  * @param limit - Maximum files to return (default: GLOB_RESULT_LIMIT)
  * @returns Array of matching file paths
  */
-async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): Promise<string[]> {
+export async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): Promise<string[]> {
   const files: string[] = [];
   for await (const file of glob(pattern)) {
     if (files.length >= limit) {
