@@ -13,6 +13,7 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
+import { formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import type { CharacterSessionData } from './edit.js';
 import { fetchCharacter } from './api.js';
@@ -44,7 +45,7 @@ export async function handleBackButton(
   const browseContext = session?.data.browseContext;
   if (!browseContext) {
     await interaction.editReply({
-      content: '⏰ Session expired. Please run `/character browse` again.',
+      content: formatSessionExpiredMessage('/character browse'),
       embeds: [],
       components: [],
     });
