@@ -27,6 +27,7 @@ import {
   isDashboardInteraction,
   type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
+import { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from '../../utils/dashboard/messages.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
@@ -275,7 +276,7 @@ async function handleDeleteButton(interaction: ButtonInteraction, entityId: stri
 
   if (!session) {
     await interaction.reply({
-      content: '❌ Session expired. Please reopen the dashboard.',
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       flags: MessageFlags.Ephemeral,
     });
     return;
@@ -365,7 +366,7 @@ async function handleCancelDeleteButton(
 
   if (!session) {
     await interaction.editReply({
-      content: '❌ Session expired. Please reopen the dashboard.',
+      content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
       embeds: [],
       components: [],
     });
@@ -449,7 +450,7 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
   if (!browseContext) {
     // Session expired or no browse context - show expired message
     await interaction.editReply({
-      content: '⏰ Session expired. Please run `/persona browse` again.',
+      content: formatSessionExpiredMessage('/persona browse'),
       embeds: [],
       components: [],
     });

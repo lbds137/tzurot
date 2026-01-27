@@ -559,7 +559,7 @@ describe('handleButton', () => {
 
       expect(mockDeferUpdate).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Session expired. Please reopen the dashboard.',
+        content: expect.stringContaining('Session expired'),
         embeds: [],
         components: [],
       });
@@ -749,7 +749,7 @@ describe('handleButton', () => {
 
       expect(mockDeferUpdate).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
-        content: '❌ Session expired. Please reopen the dashboard.',
+        content: expect.stringContaining('Session expired'),
         embeds: [],
         components: [],
       });
