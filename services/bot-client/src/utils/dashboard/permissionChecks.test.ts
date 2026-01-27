@@ -63,6 +63,25 @@ describe('permissionChecks', () => {
         flags: MessageFlags.Ephemeral,
       });
     });
+
+    it('should use followUp when deferred option is true', async () => {
+      const interaction = createMockInteraction();
+      (interaction as { followUp: ReturnType<typeof vi.fn> }).followUp = vi.fn();
+      const entity = { canEdit: false };
+
+      const result = await checkEditPermission(interaction, entity, 'edit this', {
+        deferred: true,
+      });
+
+      expect(result).toBe(false);
+      expect(interaction.reply).not.toHaveBeenCalled();
+      expect((interaction as { followUp: ReturnType<typeof vi.fn> }).followUp).toHaveBeenCalledWith(
+        {
+          content: '❌ You do not have permission to edit this.',
+          flags: MessageFlags.Ephemeral,
+        }
+      );
+    });
   });
 
   describe('isOwner', () => {
@@ -82,6 +101,25 @@ describe('permissionChecks', () => {
       const entity = {};
 
       expect(isOwner('user-123', entity)).toBe(false);
+    });
+
+    it('should return true when isOwned is true', () => {
+      const entity = { isOwned: true };
+
+      expect(isOwner('user-123', entity)).toBe(true);
+    });
+
+    it('should return false when isOwned is false', () => {
+      const entity = { isOwned: false };
+
+      expect(isOwner('user-123', entity)).toBe(false);
+    });
+
+    it('should return true when isOwned is true even if ownerId does not match', () => {
+      // isOwned takes precedence - if pre-computed as true, trust it
+      const entity = { isOwned: true, ownerId: 'user-456' };
+
+      expect(isOwner('user-123', entity)).toBe(true);
     });
   });
 
@@ -119,6 +157,43 @@ describe('permissionChecks', () => {
         content: '❌ You do not have permission to delete this character.',
         flags: MessageFlags.Ephemeral,
       });
+    });
+
+    it('should return true when isOwned is true', async () => {
+      const interaction = createMockInteraction('user-123');
+      const entity = { isOwned: true };
+
+      const result = await checkOwnership(interaction, entity);
+
+      expect(result).toBe(true);
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should return true when isOwned is true even if ownerId does not match', async () => {
+      const interaction = createMockInteraction('user-123');
+      const entity = { isOwned: true, ownerId: 'user-456' };
+
+      const result = await checkOwnership(interaction, entity);
+
+      expect(result).toBe(true);
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should use followUp when deferred option is true', async () => {
+      const interaction = createMockInteraction('user-123');
+      (interaction as { followUp: ReturnType<typeof vi.fn> }).followUp = vi.fn();
+      const entity = { ownerId: 'user-456' };
+
+      const result = await checkOwnership(interaction, entity, 'modify this', { deferred: true });
+
+      expect(result).toBe(false);
+      expect(interaction.reply).not.toHaveBeenCalled();
+      expect((interaction as { followUp: ReturnType<typeof vi.fn> }).followUp).toHaveBeenCalledWith(
+        {
+          content: '❌ You do not have permission to modify this.',
+          flags: MessageFlags.Ephemeral,
+        }
+      );
     });
   });
 });
