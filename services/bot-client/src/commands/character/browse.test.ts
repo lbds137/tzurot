@@ -7,7 +7,6 @@ import {
   handleBrowse,
   handleBrowsePagination,
   handleBrowseSelect,
-  parseBrowseCustomId,
   isCharacterBrowseInteraction,
   isCharacterBrowseSelectInteraction,
 } from './browse.js';
@@ -718,34 +717,6 @@ describe('handleBrowsePagination', () => {
         ]),
       })
     );
-  });
-});
-
-describe('parseBrowseCustomId', () => {
-  it('should parse valid browse custom ID', () => {
-    const result = parseBrowseCustomId('character::browse::0::all::date::');
-    expect(result).toEqual({ page: 0, filter: 'all', sort: 'date', query: null });
-  });
-
-  it('should parse browse custom ID with query', () => {
-    const result = parseBrowseCustomId('character::browse::1::mine::name::alice');
-    expect(result).toEqual({ page: 1, filter: 'mine', sort: 'name', query: 'alice' });
-  });
-
-  it('should return null for non-browse custom ID', () => {
-    expect(parseBrowseCustomId('character::menu::123')).toBeNull();
-  });
-
-  it('should return null for invalid format', () => {
-    expect(parseBrowseCustomId('character::browse')).toBeNull();
-  });
-
-  it('should return null for invalid filter', () => {
-    expect(parseBrowseCustomId('character::browse::0::invalid::date::')).toBeNull();
-  });
-
-  it('should return null for invalid sort', () => {
-    expect(parseBrowseCustomId('character::browse::0::all::invalid::')).toBeNull();
   });
 });
 

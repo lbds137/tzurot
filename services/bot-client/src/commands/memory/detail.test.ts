@@ -19,6 +19,7 @@ import {
   type MemoryItem,
   type ListContext,
 } from './detail.js';
+import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 
 // Mock common-types
@@ -48,7 +49,7 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 
 // Mock customIds
 vi.mock('../../utils/customIds.js', () => ({
-  CUSTOM_ID_DELIMITER: ':',
+  CUSTOM_ID_DELIMITER: '::',
 }));
 
 describe('Memory Detail', () => {
@@ -70,33 +71,41 @@ describe('Memory Detail', () => {
   describe('buildMemoryActionId', () => {
     it('should build ID with action only', () => {
       const id = buildMemoryActionId('select');
-      expect(id).toBe(`${MEMORY_DETAIL_PREFIX}:select`);
+      expect(id).toBe(`${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}select`);
     });
 
     it('should build ID with action and memoryId', () => {
       const id = buildMemoryActionId('edit', 'memory-123');
-      expect(id).toBe(`${MEMORY_DETAIL_PREFIX}:edit:memory-123`);
+      expect(id).toBe(
+        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}edit${CUSTOM_ID_DELIMITER}memory-123`
+      );
     });
 
     it('should build ID with action, memoryId, and extra', () => {
       const id = buildMemoryActionId('edit', 'memory-123', 'modal');
-      expect(id).toBe(`${MEMORY_DETAIL_PREFIX}:edit:memory-123:modal`);
+      expect(id).toBe(
+        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}edit${CUSTOM_ID_DELIMITER}memory-123${CUSTOM_ID_DELIMITER}modal`
+      );
     });
   });
 
   describe('parseMemoryActionId', () => {
     it('should parse valid action ID', () => {
-      const result = parseMemoryActionId(`${MEMORY_DETAIL_PREFIX}:select`);
+      const result = parseMemoryActionId(`${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}select`);
       expect(result).toEqual({ action: 'select', memoryId: undefined, extra: undefined });
     });
 
     it('should parse ID with memoryId', () => {
-      const result = parseMemoryActionId(`${MEMORY_DETAIL_PREFIX}:edit:memory-123`);
+      const result = parseMemoryActionId(
+        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}edit${CUSTOM_ID_DELIMITER}memory-123`
+      );
       expect(result).toEqual({ action: 'edit', memoryId: 'memory-123', extra: undefined });
     });
 
     it('should parse ID with extra', () => {
-      const result = parseMemoryActionId(`${MEMORY_DETAIL_PREFIX}:edit:memory-123:modal`);
+      const result = parseMemoryActionId(
+        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}edit${CUSTOM_ID_DELIMITER}memory-123${CUSTOM_ID_DELIMITER}modal`
+      );
       expect(result).toEqual({ action: 'edit', memoryId: 'memory-123', extra: 'modal' });
     });
 
@@ -121,7 +130,7 @@ describe('Memory Detail', () => {
 
       expect(row.components).toHaveLength(1);
       const menu = row.components[0];
-      expect(menu.data.custom_id).toBe(`${MEMORY_DETAIL_PREFIX}:select`);
+      expect(menu.data.custom_id).toBe(`${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}select`);
     });
 
     it('should create select menu component', () => {
@@ -137,7 +146,9 @@ describe('Memory Detail', () => {
       const row = buildMemorySelectMenu([], 0, 10);
 
       expect(row.components).toHaveLength(1);
-      expect(row.components[0].data.custom_id).toBe(`${MEMORY_DETAIL_PREFIX}:select`);
+      expect(row.components[0].data.custom_id).toBe(
+        `${MEMORY_DETAIL_PREFIX}${CUSTOM_ID_DELIMITER}select`
+      );
     });
 
     it('should set placeholder text', () => {

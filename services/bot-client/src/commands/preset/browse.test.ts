@@ -8,7 +8,6 @@ import {
   handleBrowse,
   handleBrowsePagination,
   handleBrowseSelect,
-  parseBrowseCustomId,
   isPresetBrowseInteraction,
   isPresetBrowseSelectInteraction,
 } from './browse.js';
@@ -448,26 +447,6 @@ describe('handleBrowsePagination', () => {
     // Should not throw
     await expect(handleBrowsePagination(mockInteraction)).resolves.not.toThrow();
     expect(mockEditReply).not.toHaveBeenCalled();
-  });
-});
-
-describe('parseBrowseCustomId', () => {
-  it('should parse valid browse custom ID', () => {
-    const result = parseBrowseCustomId('preset::browse::0::all::');
-    expect(result).toEqual({ page: 0, filter: 'all', query: null });
-  });
-
-  it('should parse browse custom ID with query', () => {
-    const result = parseBrowseCustomId('preset::browse::1::free::claude');
-    expect(result).toEqual({ page: 1, filter: 'free', query: 'claude' });
-  });
-
-  it('should return null for non-browse custom ID', () => {
-    expect(parseBrowseCustomId('preset::menu::123')).toBeNull();
-  });
-
-  it('should return null for invalid format', () => {
-    expect(parseBrowseCustomId('preset::browse')).toBeNull();
   });
 });
 

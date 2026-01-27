@@ -35,6 +35,7 @@ import {
   ITEMS_PER_PAGE,
   truncateForSelect,
   buildBrowseButtons as buildSharedBrowseButtons,
+  createBrowseCustomIdHelpers,
 } from '../../utils/browse/index.js';
 import { PRESET_DASHBOARD_CONFIG, flattenPresetData, type FlattenedPresetData } from './config.js';
 import { fetchPreset } from './api.js';
@@ -44,11 +45,15 @@ const logger = createLogger('preset-browse');
 /** Browse filter options */
 export type PresetBrowseFilter = 'all' | 'global' | 'mine' | 'free';
 
-/** Custom ID prefix for browse pagination */
-const BROWSE_PREFIX = 'preset::browse';
+/** Valid filters for preset browse */
+const VALID_FILTERS = ['all', 'global', 'mine', 'free'] as const;
 
-/** Custom ID prefix for browse select menu */
-const BROWSE_SELECT_PREFIX = 'preset::browse-select';
+/** Browse customId helpers using shared factory (no sort for presets) */
+const browseHelpers = createBrowseCustomIdHelpers<PresetBrowseFilter>({
+  prefix: 'preset',
+  validFilters: VALID_FILTERS,
+  includeSort: false,
+});
 
 interface ListResponse {
   configs: LlmConfigSummary[];
@@ -62,99 +67,17 @@ interface WalletListResponse {
 }
 
 /**
- * Build custom ID for browse pagination
- */
-function buildBrowseCustomId(
-  page: number,
-  filter: PresetBrowseFilter,
-  query: string | null
-): string {
-  // Encode query if present, otherwise use empty marker
-  const encodedQuery = query ?? '';
-  return `${BROWSE_PREFIX}::${page}::${filter}::${encodedQuery}`;
-}
-
-/**
- * Parse browse custom ID
- */
-export function parseBrowseCustomId(
-  customId: string
-): { page: number; filter: PresetBrowseFilter; query: string | null } | null {
-  if (!customId.startsWith(BROWSE_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 4) {
-    return null;
-  }
-
-  const page = parseInt(parts[2], 10);
-  const filter = parts[3] as PresetBrowseFilter;
-  const query = parts[4] !== '' ? parts[4] : null;
-
-  if (isNaN(page) || !['all', 'global', 'mine', 'free'].includes(filter)) {
-    return null;
-  }
-
-  return { page, filter, query };
-}
-
-/**
  * Check if custom ID is a preset browse interaction
  */
 export function isPresetBrowseInteraction(customId: string): boolean {
-  return customId.startsWith(BROWSE_PREFIX);
+  return browseHelpers.isBrowse(customId);
 }
 
 /**
  * Check if custom ID is a preset browse select interaction
  */
 export function isPresetBrowseSelectInteraction(customId: string): boolean {
-  return customId.startsWith(BROWSE_SELECT_PREFIX);
-}
-
-/**
- * Build custom ID for browse select menu with context
- * Format: preset::browse-select::page::filter::query
- */
-function buildBrowseSelectCustomId(
-  page: number,
-  filter: PresetBrowseFilter,
-  query: string | null
-): string {
-  // Truncate query to fit within Discord's 100-char customId limit
-  const truncatedQuery = query !== null && query.length > 50 ? query.slice(0, 50) : (query ?? '');
-  return `${BROWSE_SELECT_PREFIX}::${page}::${filter}::${truncatedQuery}`;
-}
-
-/**
- * Parse browse select custom ID to extract context
- */
-export function parseBrowseSelectCustomId(customId: string): {
-  page: number;
-  filter: PresetBrowseFilter;
-  query: string | null;
-} | null {
-  if (!customId.startsWith(BROWSE_SELECT_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 4) {
-    // Legacy format without context - return defaults
-    return { page: 0, filter: 'all', query: null };
-  }
-
-  const page = parseInt(parts[2], 10);
-  const filter = parts[3] as PresetBrowseFilter;
-  const query = parts[4] !== '' ? parts[4] : null;
-
-  if (isNaN(page)) {
-    return { page: 0, filter: 'all', query: null };
-  }
-
-  return { page, filter, query };
+  return browseHelpers.isBrowseSelect(customId);
 }
 
 /** Options for buildBrowseSelectMenu */
@@ -175,7 +98,7 @@ function buildBrowseSelectMenu(
 ): ActionRowBuilder<StringSelectMenuBuilder> {
   const { pageItems, startIdx, isGuestMode, page, filter, query } = options;
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(buildBrowseSelectCustomId(page, filter, query))
+    .setCustomId(browseHelpers.buildSelect(page, filter, 'name', query))
     .setPlaceholder('Select a preset to view...')
     .setMinValues(1)
     .setMaxValues(1);
@@ -302,8 +225,8 @@ function buildBrowseButtons(
     filter,
     currentSort: 'name', // Preset browse doesn't use sort toggle
     query,
-    buildCustomId: (page, f, _sort, q) => buildBrowseCustomId(page, f, q),
-    buildInfoId: () => `${BROWSE_PREFIX}::info`,
+    buildCustomId: (page, f, _sort, q) => browseHelpers.build(page, f, 'name', q),
+    buildInfoId: browseHelpers.buildInfo,
     showSortToggle: false, // Presets don't have sort toggle
   });
 }
@@ -480,7 +403,7 @@ export async function buildBrowseResponse(
  * Handle browse pagination button clicks
  */
 export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
-  const parsed = parseBrowseCustomId(interaction.customId);
+  const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
@@ -516,7 +439,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   const userId = interaction.user.id;
 
   // Parse browse context from customId
-  const browseContext = parseBrowseSelectCustomId(interaction.customId);
+  const browseContext = browseHelpers.parseSelect(interaction.customId);
 
   await interaction.deferUpdate();
 
