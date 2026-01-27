@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handlePersonalityAutocomplete, handleProfileAutocomplete } from './autocomplete.js';
+import { handlePersonalityAutocomplete, handlePersonaProfileAutocomplete } from './autocomplete.js';
 
 // Mock the shared personality autocomplete utility
 const mockSharedPersonalityAutocomplete = vi.fn();
@@ -15,9 +15,9 @@ vi.mock('../../utils/autocomplete/personalityAutocomplete.js', () => ({
 }));
 
 // Mock the shared persona autocomplete utility
-const mockHandlePersonaAutocomplete = vi.fn();
+const mockSharedPersonaAutocomplete = vi.fn();
 vi.mock('../../utils/autocomplete/personaAutocomplete.js', () => ({
-  handlePersonaAutocomplete: (...args: unknown[]) => mockHandlePersonaAutocomplete(...args),
+  handlePersonaAutocomplete: (...args: unknown[]) => mockSharedPersonaAutocomplete(...args),
 }));
 
 describe('handlePersonalityAutocomplete', () => {
@@ -50,17 +50,17 @@ describe('handlePersonalityAutocomplete', () => {
   });
 });
 
-describe('handleProfileAutocomplete', () => {
+describe('handlePersonaProfileAutocomplete', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it('should delegate to handlePersonaAutocomplete with correct options', async () => {
-    const mockInteraction = {} as Parameters<typeof handleProfileAutocomplete>[0];
+  it('should delegate to shared persona autocomplete with correct options', async () => {
+    const mockInteraction = {} as Parameters<typeof handlePersonaProfileAutocomplete>[0];
 
-    await handleProfileAutocomplete(mockInteraction);
+    await handlePersonaProfileAutocomplete(mockInteraction);
 
-    expect(mockHandlePersonaAutocomplete).toHaveBeenCalledWith(mockInteraction, {
+    expect(mockSharedPersonaAutocomplete).toHaveBeenCalledWith(mockInteraction, {
       optionName: 'profile',
       includeCreateNew: false,
       logPrefix: '[History]',

@@ -170,7 +170,11 @@ async function handleSectionModalSubmit(
     logger.info({ personaId: entityId, sectionId }, 'Persona section updated');
   } catch (error) {
     logger.error({ err: error, entityId, sectionId }, 'Failed to update persona section');
-    // Dashboard will remain in its previous state since we deferred
+    // Notify user of failure via followUp (since we deferred update)
+    await interaction.followUp({
+      content: '❌ Failed to update persona. Please try again.',
+      flags: MessageFlags.Ephemeral,
+    });
   }
 }
 
