@@ -36,6 +36,42 @@ import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 const logger = createLogger('preset-dashboard-buttons');
 
 /**
+ * Generate a cloned name by stripping all (Copy N) suffixes and adding a new one.
+ * Finds the maximum copy number among all suffixes and increments it.
+ *
+ * Examples:
+ * - "Preset" → "Preset (Copy)"
+ * - "Preset (Copy)" → "Preset (Copy 2)"
+ * - "Preset (Copy 2)" → "Preset (Copy 3)"
+ * - "Preset (Copy) (Copy)" → "Preset (Copy 2)" (max of 1,1 is 1, so next is 2)
+ * - "Preset (Copy 5) (Copy)" → "Preset (Copy 6)" (max of 5,1 is 5, so next is 6)
+ *
+ * @param originalName - The original preset name
+ * @returns A new name with appropriate (Copy N) suffix
+ */
+export function generateClonedName(originalName: string): string {
+  // Check if name already has (Copy N) suffixes
+  const baseNameResult = /^(.+?)(\s*\(Copy(?:\s+\d+)?\)\s*)+$/i.exec(originalName);
+  if (baseNameResult === null) {
+    return `${originalName} (Copy)`;
+  }
+
+  // Count existing (Copy N) suffixes to determine next number
+  const copyMatches = originalName.match(/\(Copy(?:\s+(\d+))?\)/gi);
+  let maxNum = 1;
+  if (copyMatches !== null) {
+    for (const match of copyMatches) {
+      const numMatch = /\d+/.exec(match);
+      const num = numMatch !== null ? parseInt(numMatch[0], 10) : 1;
+      maxNum = Math.max(maxNum, num);
+    }
+  }
+
+  const baseName = baseNameResult[1].trim();
+  return `${baseName} (Copy ${maxNum + 1})`;
+}
+
+/**
  * Build dashboard button options including toggle-global and delete for owned presets.
  * Shows back button when opened from browse, close button when opened directly.
  */
@@ -371,19 +407,7 @@ export async function handleCloneButton(
     const config = getConfig();
     const sourceData = session.data;
 
-    // Generate cloned name (append "(Copy)" or increment if already exists at end)
-    const clonedName = (/\(Copy( \d+)?\)$/.exec(sourceData.name))
-      ? sourceData.name.replace(
-          /\(Copy( \d+)?\)$/,
-          (_match: string, capturedNum: string | undefined) => {
-            const n =
-              capturedNum !== undefined && capturedNum.length > 0
-                ? parseInt(capturedNum.trim(), 10) + 1
-                : 2;
-            return `(Copy ${n})`;
-          }
-        )
-      : `${sourceData.name} (Copy)`;
+    const clonedName = generateClonedName(sourceData.name);
 
     // Create the cloned preset with just name and model (required fields)
     const newPreset = await createPreset(

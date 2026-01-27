@@ -14,6 +14,7 @@ import {
   handleCancelDeleteButton,
   handleCloneButton,
   handleBackButton,
+  generateClonedName,
 } from './dashboardButtons.js';
 import type { FlattenedPresetData } from './config.js';
 
@@ -67,6 +68,64 @@ vi.mock('@tzurot/common-types', async () => {
       debug: vi.fn(),
     }),
   };
+});
+
+describe('generateClonedName', () => {
+  it('should add (Copy) to simple name', () => {
+    expect(generateClonedName('My Preset')).toBe('My Preset (Copy)');
+  });
+
+  it('should add (Copy) to name with special characters', () => {
+    expect(generateClonedName('Test @ #1')).toBe('Test @ #1 (Copy)');
+  });
+
+  it('should increment (Copy) to (Copy 2)', () => {
+    expect(generateClonedName('My Preset (Copy)')).toBe('My Preset (Copy 2)');
+  });
+
+  it('should increment (Copy 2) to (Copy 3)', () => {
+    expect(generateClonedName('My Preset (Copy 2)')).toBe('My Preset (Copy 3)');
+  });
+
+  it('should increment large copy numbers', () => {
+    expect(generateClonedName('My Preset (Copy 99)')).toBe('My Preset (Copy 100)');
+  });
+
+  it('should handle multiple (Copy) suffixes by finding max', () => {
+    // Edge case: "Preset (Copy) (Copy)" - both are unnumbered (treated as 1)
+    // max is 1, so result is max + 1 = 2
+    expect(generateClonedName('Preset (Copy) (Copy)')).toBe('Preset (Copy 2)');
+  });
+
+  it('should handle mixed copy suffixes', () => {
+    // "Preset (Copy 2) (Copy)" - max is 2, so next is 3
+    expect(generateClonedName('Preset (Copy 2) (Copy)')).toBe('Preset (Copy 3)');
+  });
+
+  it('should handle numbered copy before unnumbered', () => {
+    // "Preset (Copy 5) (Copy)" - max is 5, so next is 6
+    expect(generateClonedName('Preset (Copy 5) (Copy)')).toBe('Preset (Copy 6)');
+  });
+
+  it('should handle copy suffix in middle - should NOT match', () => {
+    // "(Copy)" in the middle of name should NOT be matched by the end regex
+    expect(generateClonedName('Preset (Copy) Edition')).toBe('Preset (Copy) Edition (Copy)');
+  });
+
+  it('should handle case-insensitive matching', () => {
+    expect(generateClonedName('My Preset (copy)')).toBe('My Preset (Copy 2)');
+    expect(generateClonedName('My Preset (COPY)')).toBe('My Preset (Copy 2)');
+    expect(generateClonedName('My Preset (CoPy 5)')).toBe('My Preset (Copy 6)');
+  });
+
+  it('should handle whitespace variations in suffix', () => {
+    expect(generateClonedName('My Preset  (Copy) ')).toBe('My Preset (Copy 2)');
+    expect(generateClonedName('My Preset (Copy 3) ')).toBe('My Preset (Copy 4)');
+  });
+
+  it('should preserve base name with trailing spaces trimmed', () => {
+    expect(generateClonedName('  Spaced Name  (Copy)')).toBe('Spaced Name (Copy 2)');
+  });
 });
 
 describe('Preset Dashboard Buttons', () => {
