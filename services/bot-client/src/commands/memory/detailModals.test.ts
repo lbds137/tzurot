@@ -39,7 +39,7 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 
 // Mock customIds
 vi.mock('../../utils/customIds.js', () => ({
-  CUSTOM_ID_DELIMITER: ':',
+  CUSTOM_ID_DELIMITER: '::',
 }));
 
 describe('Memory Detail Modals', () => {

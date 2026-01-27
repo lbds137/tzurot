@@ -34,6 +34,7 @@ import {
 import {
   truncateForSelect,
   buildBrowseButtons as buildSharedBrowseButtons,
+  createBrowseCustomIdHelpers,
 } from '../../utils/browse/index.js';
 import {
   type ListItem,
@@ -59,122 +60,27 @@ export type CharacterBrowseSortType = 'date' | 'name';
 /** Default sort type */
 const DEFAULT_SORT: CharacterBrowseSortType = 'date';
 
-/** Custom ID prefix for browse pagination */
-const BROWSE_PREFIX = 'character::browse';
+/** Valid filters for character browse */
+const VALID_FILTERS = ['all', 'mine', 'public'] as const;
 
-/** Custom ID prefix for browse select menu */
-const BROWSE_SELECT_PREFIX = 'character::browse-select';
-
-/**
- * Build custom ID for browse pagination
- */
-function buildBrowseCustomId(
-  page: number,
-  filter: CharacterBrowseFilter,
-  sort: CharacterBrowseSortType,
-  query: string | null
-): string {
-  const encodedQuery = query ?? '';
-  return `${BROWSE_PREFIX}::${page}::${filter}::${sort}::${encodedQuery}`;
-}
-
-/**
- * Parse browse custom ID
- */
-export function parseBrowseCustomId(customId: string): {
-  page: number;
-  filter: CharacterBrowseFilter;
-  sort: CharacterBrowseSortType;
-  query: string | null;
-} | null {
-  if (!customId.startsWith(BROWSE_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 5) {
-    return null;
-  }
-
-  const page = parseInt(parts[2], 10);
-  const filter = parts[3] as CharacterBrowseFilter;
-  const sort = parts[4] as CharacterBrowseSortType;
-  const query = parts[5] !== '' ? parts[5] : null;
-
-  if (isNaN(page)) {
-    return null;
-  }
-
-  if (!['all', 'mine', 'public'].includes(filter)) {
-    return null;
-  }
-
-  if (!['date', 'name'].includes(sort)) {
-    return null;
-  }
-
-  return { page, filter, sort, query };
-}
+/** Browse customId helpers using shared factory */
+const browseHelpers = createBrowseCustomIdHelpers<CharacterBrowseFilter>({
+  prefix: 'character',
+  validFilters: VALID_FILTERS,
+});
 
 /**
  * Check if custom ID is a character browse interaction
  */
 export function isCharacterBrowseInteraction(customId: string): boolean {
-  return customId.startsWith(BROWSE_PREFIX);
+  return browseHelpers.isBrowse(customId);
 }
 
 /**
  * Check if custom ID is a character browse select interaction
  */
 export function isCharacterBrowseSelectInteraction(customId: string): boolean {
-  return customId.startsWith(BROWSE_SELECT_PREFIX);
-}
-
-/**
- * Build custom ID for browse select menu with context
- * Format: character::browse-select::page::filter::sort::query
- */
-function buildBrowseSelectCustomId(
-  page: number,
-  filter: CharacterBrowseFilter,
-  sort: CharacterBrowseSortType,
-  query: string | null
-): string {
-  // Truncate query to fit within Discord's 100-char customId limit
-  // Base format is ~40 chars, leaving ~60 for query
-  const truncatedQuery = query !== null && query.length > 50 ? query.slice(0, 50) : (query ?? '');
-  return `${BROWSE_SELECT_PREFIX}::${page}::${filter}::${sort}::${truncatedQuery}`;
-}
-
-/**
- * Parse browse select custom ID to extract context
- */
-export function parseBrowseSelectCustomId(customId: string): {
-  page: number;
-  filter: CharacterBrowseFilter;
-  sort: CharacterBrowseSortType;
-  query: string | null;
-} | null {
-  if (!customId.startsWith(BROWSE_SELECT_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 5) {
-    // Legacy format without context - return defaults
-    return { page: 0, filter: 'all', sort: 'date', query: null };
-  }
-
-  const page = parseInt(parts[2], 10);
-  const filter = parts[3] as CharacterBrowseFilter;
-  const sort = parts[4] as CharacterBrowseSortType;
-  const query = parts[5] !== '' ? parts[5] : null;
-
-  if (isNaN(page)) {
-    return { page: 0, filter: 'all', sort: 'date', query: null };
-  }
-
-  return { page, filter, sort, query };
+  return browseHelpers.isBrowseSelect(customId);
 }
 
 /** Options for buildBrowseSelectMenu */
@@ -196,7 +102,7 @@ function buildBrowseSelectMenu(
   const { pageItems, startIdx, page, filter, sort, query } = options;
 
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(buildBrowseSelectCustomId(page, filter, sort, query))
+    .setCustomId(browseHelpers.buildSelect(page, filter, sort, query))
     .setPlaceholder('Select a character to view/edit...')
     .setMinValues(1)
     .setMaxValues(1);
@@ -247,8 +153,8 @@ function buildBrowseButtons(
     filter,
     currentSort,
     query,
-    buildCustomId: buildBrowseCustomId,
-    buildInfoId: () => `${BROWSE_PREFIX}::info`,
+    buildCustomId: browseHelpers.build,
+    buildInfoId: browseHelpers.buildInfo,
   });
 }
 
@@ -447,7 +353,7 @@ export async function handleBrowsePagination(
   interaction: ButtonInteraction,
   config: EnvConfig
 ): Promise<void> {
-  const parsed = parseBrowseCustomId(interaction.customId);
+  const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
@@ -483,7 +389,7 @@ export async function handleBrowseSelect(
   const userId = interaction.user.id;
 
   // Parse browse context from customId
-  const browseContext = parseBrowseSelectCustomId(interaction.customId);
+  const browseContext = browseHelpers.parseSelect(interaction.customId);
 
   await interaction.deferUpdate();
 
