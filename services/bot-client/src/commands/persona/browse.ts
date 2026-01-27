@@ -16,7 +16,6 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { createLogger, DISCORD_COLORS, type ListPersonasResponse } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { PersonaCustomIds, type PersonaBrowseSortType } from '../../utils/customIds.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -26,6 +25,8 @@ import {
   ITEMS_PER_PAGE,
   truncateForSelect,
   buildBrowseButtons as buildSharedBrowseButtons,
+  createBrowseCustomIdHelpers,
+  type BrowseSortType,
 } from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
 import {
@@ -38,8 +39,17 @@ import type { PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-browse');
 
+/** Persona browse doesn't use filters, so we use a single 'all' value */
+type PersonaBrowseFilter = 'all';
+
+/** Browse customId helpers using shared factory */
+const browseHelpers = createBrowseCustomIdHelpers<PersonaBrowseFilter>({
+  prefix: 'persona',
+  validFilters: ['all'] as const,
+});
+
 /** Default sort type */
-const DEFAULT_SORT: PersonaBrowseSortType = 'name';
+const DEFAULT_SORT: BrowseSortType = 'name';
 
 /** Create comparator for persona sorting using shared utility */
 const personaComparator = createListComparator<PersonaSummary>(
@@ -50,10 +60,7 @@ const personaComparator = createListComparator<PersonaSummary>(
 /**
  * Sort personas by the specified type using shared sorting utility
  */
-function sortPersonas(
-  personas: PersonaSummary[],
-  sortType: PersonaBrowseSortType
-): PersonaSummary[] {
+function sortPersonas(personas: PersonaSummary[], sortType: BrowseSortType): PersonaSummary[] {
   return [...personas].sort(personaComparator(sortType));
 }
 
@@ -64,10 +71,10 @@ function buildBrowseSelectMenu(
   pageItems: PersonaSummary[],
   startIdx: number,
   page: number,
-  sort: PersonaBrowseSortType
+  sort: BrowseSortType
 ): ActionRowBuilder<StringSelectMenuBuilder> {
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(PersonaCustomIds.browseSelect(page, sort))
+    .setCustomId(browseHelpers.buildSelect(page, 'all', sort, null))
     .setPlaceholder('Select a persona to view/edit...')
     .setMinValues(1)
     .setMaxValues(1);
@@ -107,7 +114,7 @@ function buildBrowseSelectMenu(
 function buildBrowseButtons(
   currentPage: number,
   totalPages: number,
-  currentSort: PersonaBrowseSortType
+  currentSort: BrowseSortType
 ): ReturnType<typeof buildSharedBrowseButtons> {
   return buildSharedBrowseButtons({
     currentPage,
@@ -115,8 +122,8 @@ function buildBrowseButtons(
     filter: 'all', // Persona browse doesn't use filters
     currentSort,
     query: null, // Persona browse doesn't use query
-    buildCustomId: (page, _filter, sort) => PersonaCustomIds.browsePage(page, sort),
-    buildInfoId: () => PersonaCustomIds.browseInfo(),
+    buildCustomId: browseHelpers.build,
+    buildInfoId: browseHelpers.buildInfo,
   });
 }
 
@@ -129,7 +136,7 @@ type BrowseActionRow = ActionRowBuilder<ButtonBuilder> | ActionRowBuilder<String
 function buildBrowsePage(
   personas: PersonaSummary[],
   page: number,
-  sortType: PersonaBrowseSortType
+  sortType: BrowseSortType
 ): {
   embed: EmbedBuilder;
   components: BrowseActionRow[];
@@ -226,8 +233,8 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
  * Handle browse pagination button clicks
  */
 export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
-  const parsed = PersonaCustomIds.parse(interaction.customId);
-  if (parsed?.action !== 'browse') {
+  const parsed = browseHelpers.parse(interaction.customId);
+  if (parsed === null) {
     return;
   }
 
@@ -235,8 +242,8 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 
   try {
     const userId = interaction.user.id;
-    const page = parsed.page ?? 0;
-    const sort = parsed.sort ?? DEFAULT_SORT;
+    const page = parsed.page;
+    const sort = parsed.sort;
 
     // Fetch fresh data
     const result = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
@@ -268,7 +275,7 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
   const userId = interaction.user.id;
 
   // Parse browse context from customId (contains page and sort)
-  const parsed = PersonaCustomIds.parse(interaction.customId);
+  const parsed = browseHelpers.parseSelect(interaction.customId);
   const page = parsed?.page ?? 0;
   const sort = parsed?.sort ?? DEFAULT_SORT;
 
@@ -343,16 +350,14 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
  * Check if custom ID is a persona browse interaction
  */
 export function isPersonaBrowseInteraction(customId: string): boolean {
-  const parsed = PersonaCustomIds.parse(customId);
-  return parsed?.action === 'browse';
+  return browseHelpers.isBrowse(customId);
 }
 
 /**
  * Check if custom ID is a persona browse select interaction
  */
 export function isPersonaBrowseSelectInteraction(customId: string): boolean {
-  const parsed = PersonaCustomIds.parse(customId);
-  return parsed?.action === 'browse-select';
+  return browseHelpers.isBrowseSelect(customId);
 }
 
 /**
@@ -362,7 +367,7 @@ export function isPersonaBrowseSelectInteraction(customId: string): boolean {
 export async function buildBrowseResponse(
   userId: string,
   page: number,
-  sort: PersonaBrowseSortType
+  sort: BrowseSortType
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const result = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
 

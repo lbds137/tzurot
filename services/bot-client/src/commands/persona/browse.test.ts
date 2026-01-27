@@ -148,7 +148,7 @@ describe('handleBrowsePagination', () => {
       ]),
     });
 
-    await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::name'));
+    await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::all::name::'));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
     expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { userId: '123456789' });
@@ -175,7 +175,7 @@ describe('handleBrowseSelect', () => {
 
   function createMockSelectInteraction(personaId: string) {
     return {
-      customId: 'persona::browse-select::0::name',
+      customId: 'persona::browse-select::0::all::name::',
       values: [personaId],
       user: { id: '123456789' },
       channelId: 'channel-123',
@@ -230,23 +230,23 @@ describe('handleBrowseSelect', () => {
 
 describe('isPersonaBrowseInteraction', () => {
   it('should return true for browse button interactions', () => {
-    expect(isPersonaBrowseInteraction('persona::browse::0::name')).toBe(true);
-    expect(isPersonaBrowseInteraction('persona::browse::1::date')).toBe(true);
+    expect(isPersonaBrowseInteraction('persona::browse::0::all::name::')).toBe(true);
+    expect(isPersonaBrowseInteraction('persona::browse::1::all::date::')).toBe(true);
   });
 
   it('should return false for non-browse interactions', () => {
     expect(isPersonaBrowseInteraction('persona::other::action')).toBe(false);
-    expect(isPersonaBrowseInteraction('character::browse::0::name')).toBe(false);
+    expect(isPersonaBrowseInteraction('character::browse::0::all::name::')).toBe(false);
   });
 });
 
 describe('isPersonaBrowseSelectInteraction', () => {
   it('should return true for browse select interactions', () => {
-    expect(isPersonaBrowseSelectInteraction('persona::browse-select::0::name')).toBe(true);
+    expect(isPersonaBrowseSelectInteraction('persona::browse-select::0::all::name::')).toBe(true);
   });
 
   it('should return false for non-browse-select interactions', () => {
-    expect(isPersonaBrowseSelectInteraction('persona::browse::0::name')).toBe(false);
+    expect(isPersonaBrowseSelectInteraction('persona::browse::0::all::name::')).toBe(false);
     expect(isPersonaBrowseSelectInteraction('persona::other::action')).toBe(false);
   });
 });

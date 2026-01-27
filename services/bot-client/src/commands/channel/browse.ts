@@ -12,7 +12,11 @@
 
 import type { ButtonInteraction, TextChannel, Client } from 'discord.js';
 import { EmbedBuilder, ButtonBuilder, ActionRowBuilder, escapeMarkdown } from 'discord.js';
-import { buildBrowseButtons as buildSharedBrowseButtons } from '../../utils/browse/index.js';
+import {
+  buildBrowseButtons as buildSharedBrowseButtons,
+  createBrowseCustomIdHelpers,
+  type BrowseSortType,
+} from '../../utils/browse/index.js';
 import {
   createLogger,
   isBotOwner,
@@ -31,71 +35,23 @@ const logger = createLogger('channel-browse');
 /** Browse filter options */
 export type ChannelBrowseFilter = 'current' | 'all';
 
-/** Sort options */
-export type ChannelBrowseSortType = 'date' | 'name';
+/** Valid filters for channel browse */
+const VALID_FILTERS = ['current', 'all'] as const;
+
+/** Browse customId helpers using shared factory */
+const browseHelpers = createBrowseCustomIdHelpers<ChannelBrowseFilter>({
+  prefix: 'channel',
+  validFilters: VALID_FILTERS,
+});
 
 /** Default sort type */
-const DEFAULT_SORT: ChannelBrowseSortType = 'date';
-
-/** Custom ID prefix for browse pagination */
-const BROWSE_PREFIX = 'channel::browse';
-
-/**
- * Build custom ID for browse pagination
- */
-function buildBrowseCustomId(
-  page: number,
-  filter: ChannelBrowseFilter,
-  sort: ChannelBrowseSortType,
-  query: string | null
-): string {
-  const encodedQuery = query ?? '';
-  return `${BROWSE_PREFIX}::${page}::${filter}::${sort}::${encodedQuery}`;
-}
-
-/**
- * Parse browse custom ID
- */
-export function parseBrowseCustomId(customId: string): {
-  page: number;
-  filter: ChannelBrowseFilter;
-  sort: ChannelBrowseSortType;
-  query: string | null;
-} | null {
-  if (!customId.startsWith(BROWSE_PREFIX)) {
-    return null;
-  }
-
-  const parts = customId.split('::');
-  if (parts.length < 5) {
-    return null;
-  }
-
-  const page = parseInt(parts[2], 10);
-  const filter = parts[3] as ChannelBrowseFilter;
-  const sort = parts[4] as ChannelBrowseSortType;
-  const query = parts[5] !== '' ? parts[5] : null;
-
-  if (isNaN(page)) {
-    return null;
-  }
-
-  if (!['current', 'all'].includes(filter)) {
-    return null;
-  }
-
-  if (!['date', 'name'].includes(sort)) {
-    return null;
-  }
-
-  return { page, filter, sort, query };
-}
+const DEFAULT_SORT: BrowseSortType = 'date';
 
 /**
  * Check if custom ID is a channel browse interaction
  */
 export function isChannelBrowseInteraction(customId: string): boolean {
-  return customId.startsWith(BROWSE_PREFIX);
+  return browseHelpers.isBrowse(customId);
 }
 
 /**
@@ -127,7 +83,7 @@ function createChannelComparator(
  */
 function sortChannelSettings(
   settings: ChannelSettings[],
-  sortType: ChannelBrowseSortType,
+  sortType: BrowseSortType,
   client: Client,
   isAllServers = false
 ): ChannelSettings[] {
@@ -225,7 +181,7 @@ function buildBrowseButtons(
   currentPage: number,
   totalPages: number,
   filter: ChannelBrowseFilter,
-  currentSort: ChannelBrowseSortType,
+  currentSort: BrowseSortType,
   query: string | null
 ): ReturnType<typeof buildSharedBrowseButtons> {
   return buildSharedBrowseButtons({
@@ -234,8 +190,8 @@ function buildBrowseButtons(
     filter,
     currentSort,
     query,
-    buildCustomId: buildBrowseCustomId,
-    buildInfoId: () => `${BROWSE_PREFIX}::info`,
+    buildCustomId: browseHelpers.build,
+    buildInfoId: browseHelpers.buildInfo,
   });
 }
 
@@ -245,7 +201,7 @@ function buildBrowseButtons(
 function buildEmbedSingleGuild(
   activations: ChannelSettings[],
   page: number,
-  sortType: ChannelBrowseSortType,
+  sortType: BrowseSortType,
   query: string | null
 ): EmbedBuilder {
   const totalPages = Math.max(1, Math.ceil(activations.length / CHANNELS_PER_PAGE));
@@ -292,7 +248,7 @@ function buildEmbedSingleGuild(
 function buildEmbedAllServers(
   guildPages: GuildPage[],
   page: number,
-  sortType: ChannelBrowseSortType,
+  sortType: BrowseSortType,
   totalChannels: number,
   query: string | null
 ): EmbedBuilder {
@@ -340,7 +296,7 @@ interface BuildBrowsePageOptions {
   activations: ChannelSettings[];
   page: number;
   filter: ChannelBrowseFilter;
-  sortType: ChannelBrowseSortType;
+  sortType: BrowseSortType;
   query: string | null;
   client: Client;
 }
@@ -515,7 +471,7 @@ export async function handleBrowsePagination(
   interaction: ButtonInteraction,
   guildId: string | null
 ): Promise<void> {
-  const parsed = parseBrowseCustomId(interaction.customId);
+  const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
   }
