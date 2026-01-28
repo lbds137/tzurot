@@ -312,9 +312,10 @@ describe('GenerationStep', () => {
       expect(result.result?.success).toBe(false);
       expect(result.result?.error).toBe('Model rate limit exceeded');
       expect(result.result?.personalityErrorMessage).toBe('Sorry, something went wrong.');
-      // Verify error metadata includes model/provider info for footer display
+      // Verify error metadata includes model/provider/config info for footer display
       expect(result.result?.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
       expect(result.result?.metadata?.providerUsed).toBe('openrouter');
+      expect(result.result?.metadata?.configSource).toBe('personality');
       expect(result.result?.metadata?.isGuestMode).toBe(false);
     });
 
@@ -333,9 +334,10 @@ describe('GenerationStep', () => {
 
       expect(result.result?.success).toBe(false);
       expect(result.result?.error).toBe('Unknown error');
-      // Verify error metadata includes model/provider info for footer display
+      // Verify error metadata includes model/provider/config info for footer display
       expect(result.result?.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
       expect(result.result?.metadata?.providerUsed).toBe('openrouter');
+      expect(result.result?.metadata?.configSource).toBe('personality');
       expect(result.result?.metadata?.isGuestMode).toBe(false);
     });
 
