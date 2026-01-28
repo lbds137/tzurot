@@ -10,7 +10,7 @@ import {
   createMockActivation,
   getHandler,
   setupStandardMocks,
-  MOCK_CREATED_AT,
+  createMockCreatedAt,
   MOCK_USER_UUID,
   MOCK_DISCORD_USER_ID,
 } from './test-utils.js';
@@ -71,7 +71,7 @@ describe('GET /user/channel/:channelId', () => {
           autoRespond: true,
           extendedContext: false,
           activatedBy: MOCK_USER_UUID,
-          createdAt: MOCK_CREATED_AT.toISOString(),
+          createdAt: createMockCreatedAt().toISOString(),
         }),
       })
     );

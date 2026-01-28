@@ -1,13 +1,15 @@
 import { z } from 'zod';
 import { MODEL_DEFAULTS, SERVICE_DEFAULTS, AIProvider } from '../constants/index.js';
 
+/** Type for optional string schema that accepts undefined or transforms empty string to undefined */
+type OptionalStringSchema = z.ZodType<string | undefined>;
+
 /**
  * Helper for optional string fields that must be non-empty if provided
  * Rejects empty strings, but allows undefined
  * @returns Zod schema for optional non-empty string
  */
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-const optionalNonEmptyString = () =>
+const optionalNonEmptyString = (): OptionalStringSchema =>
   z
     .string()
     .min(1)
@@ -18,8 +20,7 @@ const optionalNonEmptyString = () =>
  * Helper for optional Discord IDs (must be all digits if provided)
  * @returns Zod schema for optional Discord ID
  */
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-const optionalDiscordId = () =>
+const optionalDiscordId = (): OptionalStringSchema =>
   z
     .string()
     .regex(/^\d+$/, 'Must be a valid Discord ID (all digits)')
@@ -30,8 +31,7 @@ const optionalDiscordId = () =>
  * Helper for optional hex encryption key (must be exactly 64 hex chars = 32 bytes if provided)
  * @returns Zod schema for optional encryption key
  */
-// eslint-disable-next-line @typescript-eslint/explicit-function-return-type
-const optionalEncryptionKey = () =>
+const optionalEncryptionKey = (): OptionalStringSchema =>
   z
     .string()
     .regex(
@@ -211,6 +211,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     AUTO_TRANSCRIBE_VOICE: undefined,
     BOT_OWNER_ID: undefined,
     BOT_MENTION_CHAR: '@',
+    INTERNAL_SERVICE_SECRET: undefined,
 
     // AI Provider
     AI_PROVIDER: AIProvider.OpenRouter,
