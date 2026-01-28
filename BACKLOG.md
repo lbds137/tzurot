@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-01-26
-> **Version**: v3.0.0-beta.51
+> **Last Updated**: 2026-01-27
+> **Version**: v3.0.0-beta.53
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -23,78 +23,31 @@ _New items go here. Triage to appropriate section later._
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. 🏗️ Slash Command & Dashboard UX Standardization ⬅️ NEXT
+### 1. 🏗️ Slash Command & Dashboard UX Standardization ✅ DONE
 
-Inconsistent patterns across slash commands and dashboard interactions. Need comprehensive review and standardization.
+Comprehensive standardization of slash commands and dashboard interactions completed across 114 files.
 
-**File Structure**
+**Completed Work (beta.52-53):**
 
-- [ ] Audit existing command directories for structure patterns
-- [ ] Define standard: when to use subdirectories vs flat files for subcommand groups
-- [ ] Update `tzurot-slash-command-ux` skill with mandatory file structure rules
-- [ ] Refactor existing commands to match new standard
-- [ ] Clean up legacy files (e.g., `persona/list.ts` from old `/me` command)
+- [x] Extracted shared browse utilities into `utils/browse/` (buttonBuilder, customIdFactory, constants, truncation, types)
+- [x] Extracted shared dashboard utilities into `utils/dashboard/` (closeHandler, refreshHandler, sessionHelpers, constants)
+- [x] Migrated all browse commands to use shared factory pattern
+- [x] Migrated all dashboards to use shared DASHBOARD_MESSAGES constants
+- [x] Added type-safe command option accessors (`scripts/generate-command-types.ts`)
+- [x] All 55 command handlers migrated to generated type-safe option accessors
+- [x] Fixed `isDashboardInteraction` checks to only match dashboard actions
+- [x] Added tests for non-dashboard actions (expand, browse, create) not matching dashboard checks
+- [x] Fixed `wallet::` → `settings::apikey::` customId prefix pattern
+- [x] Removed `componentPrefixes` hack - commands route naturally via matching prefixes
+- [x] Hardened clone name regex to prevent ReDoS
+- [x] Updated `tzurot-slash-command-ux` skill with file structure patterns
+- [x] Documented autocomplete patterns in skill
 
-**Shared Browse Utilities**
+**Remaining Polish (moved to Smaller Items):**
 
-- [ ] Extract shared browse utilities (pagination, sorting) into `utils/browse/`
-  - `sortItems<T>()` generic sorting function used by `/persona browse`, `/character browse`, `/admin servers`
-  - `buildPaginationButtons()` shared pagination button builder
-  - Common constants (`ITEMS_PER_PAGE`, `MAX_SELECT_LABEL_LENGTH`)
-- [ ] Reusable browse context pattern - store page/sort/filter state for "Back to Browse" button
-  - Persona browse now stores context (fixed), but pattern should be extracted as reusable utility
-  - Implement generic pattern based on persona's `browseContext` in session data
+- Dashboard refresh race condition - Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere
 
-**Dashboard/Button Interaction Testing**
-
-- [ ] Add tests for `isDashboardInteraction` check functions across all commands
-  - Bug found: `isPersonaDashboardInteraction` matched ALL `persona::*` customIds, not just dashboard actions
-  - This caused "expand" and "back" buttons to silently fail
-- [ ] Add test patterns that verify:
-  - Each customId action has a handler
-  - Non-dashboard actions don't match dashboard checks
-  - Button routing works end-to-end
-
-**Command Definition Validation**
-
-- [ ] Add tests that verify handler option names match command definitions
-  - Bug found: `/persona default` handler used `getString('profile', true)` but command option is named `'persona'`
-  - This caused `CommandInteractionOptionNotFound` error at runtime
-- [ ] Consider generating types from command definitions to catch mismatches at compile time
-- [ ] Add static analysis or test that scans handlers for `getString`/`getInteger`/etc calls and validates option names exist in command builder
-
-**Autocomplete UX**
-
-- [ ] Review and document timezone autocomplete ordering logic
-  - Current ordering is unclear/confusing to users
-  - Consider: alphabetical, by UTC offset, by popularity, or user's recent selections first
-- [ ] Establish standard autocomplete ordering patterns for different data types
-  - Timezones, personas, characters, presets, etc.
-
-**CustomIds Standardization & Testing**
-
-- [ ] Audit all custom ID patterns across commands for consistency
-  - Bug found: `wallet::` prefix used for `/settings apikey` modal - customId prefix didn't match command name, requiring `componentPrefixes` hack
-  - Fixed by renaming to `settings::apikey::*` pattern so routing works naturally
-- [ ] Evaluate if `componentPrefixes` should be eliminated entirely
-  - Commands should use customId prefixes that match their name or use nested patterns like `{command}::{subcommand}::{action}`
-  - Document when it's acceptable to use a different prefix (legacy migration?)
-- [ ] Add registry integrity tests that verify:
-  - All dashboard entityTypes are routable to their command
-  - All customId prefixes route to valid commands
-  - No orphaned componentPrefixes that could cause "Unknown interaction" errors
-- [ ] Add round-trip tests for ALL customId patterns (not just some)
-  - Currently only a subset of builders have round-trip tests
-  - Should cover every builder function
-
-**Dashboard UX Polish**
-
-- [ ] Delete button redundant ownership checks - `character/browse.ts:679` combines `canEdit` with explicit `ownerId` check
-- [ ] Clone name edge case - `preset/dashboardButtons.ts:364-375` regex for "(Copy N)" fails on "Preset (Copy) (Copy)"
-- [ ] Modal submit silent failure - `character/dashboard.ts:164-168` failed updates logged but user not notified
-- [ ] Dashboard refresh race condition - Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere
-
-**Context**: The `/persona override` subcommand group uses `override/set.ts` and `override/clear.ts` (subdirectory pattern). Other commands may use flat patterns inconsistently. Recent bugs exposed that interaction routing has gaps in test coverage that should be addressed systematically.
+**Stats**: 25 commits, +6186/-1261 lines
 
 ### 2. 🏗️ Extended Context Pipeline Refactor
 
@@ -286,6 +239,10 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 ## Smaller Items
 
 _Opportunistic work between major features._
+
+### 🐛 Dashboard Refresh Race Condition
+
+Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere. Low priority - edge case.
 
 ### 🐛 Thinking Tag Leaking
 
