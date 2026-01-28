@@ -104,9 +104,10 @@ describe('unflattenPersonaData', () => {
     expect(result.content).toBe('About me');
   });
 
-  it('should convert empty content to null', () => {
+  it('should omit empty content (required field cannot be null)', () => {
     const result = unflattenPersonaData({ content: '' });
-    expect(result.content).toBeNull();
+    // Content is required in the database - empty means "preserve existing value"
+    expect(result.content).toBeUndefined();
   });
 
   it('should handle undefined values', () => {

@@ -283,7 +283,9 @@ function buildUpdateData(
     updateData.name = nameValue;
   }
 
-  if (body.content !== undefined) {
+  // Content is required and cannot be set to null/empty, so only update if a valid string is provided.
+  // If body.content is null or undefined, preserve the existing value (don't include in update).
+  if (body.content !== undefined && body.content !== null) {
     const contentValue = extractString(body.content);
     if (contentValue === null) {
       return { error: ErrorResponses.validationError('Content cannot be empty') };

@@ -52,8 +52,10 @@ export function unflattenPersonaData(flat: Partial<FlattenedPersonaData>): Recor
   if (flat.pronouns !== undefined) {
     result.pronouns = flat.pronouns.length > 0 ? flat.pronouns : null;
   }
-  if (flat.content !== undefined) {
-    result.content = flat.content.length > 0 ? flat.content : null;
+  // Content is required in the database - only include if non-empty.
+  // Empty content means "preserve existing value" (don't include in update payload).
+  if (flat.content !== undefined && flat.content.length > 0) {
+    result.content = flat.content;
   }
 
   return result;
