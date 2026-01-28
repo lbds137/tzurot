@@ -275,7 +275,8 @@ export function buildViewComponents(
   navRow.addComponents(
     new ButtonBuilder()
       .setCustomId(CharacterCustomIds.viewPage(slug, currentPage - 1))
-      .setLabel('◀ Previous')
+      .setLabel('Previous')
+      .setEmoji('◀️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 0),
     new ButtonBuilder()
@@ -285,7 +286,8 @@ export function buildViewComponents(
       .setDisabled(true),
     new ButtonBuilder()
       .setCustomId(CharacterCustomIds.viewPage(slug, currentPage + 1))
-      .setLabel('Next ▶')
+      .setLabel('Next')
+      .setEmoji('▶️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= VIEW_TOTAL_PAGES - 1)
   );
@@ -316,7 +318,8 @@ export function buildViewComponents(
       expandRow.addComponents(
         new ButtonBuilder()
           .setCustomId(CharacterCustomIds.expand(slug, fieldName))
-          .setLabel(`📖 ${fieldInfo.label.replace(/^[^\s]+\s/, '')}`) // Remove emoji prefix
+          .setLabel(fieldInfo.label.replace(/^[^\s]+\s/, '')) // Remove emoji prefix from field label
+          .setEmoji('📖')
           .setStyle(ButtonStyle.Primary)
       );
       buttonCount++;

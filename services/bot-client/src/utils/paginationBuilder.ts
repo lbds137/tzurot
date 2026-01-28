@@ -65,13 +65,21 @@ export interface PaginationParseResult {
 }
 
 /**
- * Default labels for pagination buttons
+ * Default labels and emojis for pagination buttons
+ * Emojis are set via .setEmoji() for consistent button sizing
  */
 const DEFAULT_LABELS = {
-  previous: '◀ Previous',
-  next: 'Next ▶',
-  sortByName: '🔤 Sort A-Z',
-  sortByDate: '📅 Sort by Date',
+  previous: 'Previous',
+  next: 'Next',
+  sortByName: 'Sort A-Z',
+  sortByDate: 'Sort by Date',
+} as const;
+
+const DEFAULT_EMOJIS = {
+  previous: '◀️',
+  next: '▶️',
+  sortByName: '🔤',
+  sortByDate: '📅',
 } as const;
 
 /**
@@ -196,6 +204,7 @@ export function buildPaginationButtons(
     new ButtonBuilder()
       .setCustomId(buildListPageId(config.prefix, currentPage - 1, currentSort))
       .setLabel(labels.previous)
+      .setEmoji(DEFAULT_EMOJIS.previous)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 0)
   );
@@ -220,6 +229,7 @@ export function buildPaginationButtons(
     new ButtonBuilder()
       .setCustomId(buildListPageId(config.prefix, currentPage + 1, currentSort))
       .setLabel(labels.next)
+      .setEmoji(DEFAULT_EMOJIS.next)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(disableNext)
   );
@@ -228,10 +238,13 @@ export function buildPaginationButtons(
   if (config.hideSortToggle !== true) {
     const newSort: ListSortType = currentSort === 'date' ? 'name' : 'date';
     const sortLabel = currentSort === 'date' ? labels.sortByName : labels.sortByDate;
+    const sortEmoji =
+      currentSort === 'date' ? DEFAULT_EMOJIS.sortByName : DEFAULT_EMOJIS.sortByDate;
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(buildSortToggleId(config.prefix, currentPage, newSort))
         .setLabel(sortLabel)
+        .setEmoji(sortEmoji)
         .setStyle(ButtonStyle.Primary)
     );
   }

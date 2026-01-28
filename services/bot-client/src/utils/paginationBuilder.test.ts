@@ -135,11 +135,13 @@ describe('paginationBuilder', () => {
 
     it('should toggle sort button based on current sort', () => {
       const rowDate = buildPaginationButtons({ prefix: 'memory' }, 0, 5, 'date');
-      expect(rowDate.components[3].data.label).toBe('🔤 Sort A-Z');
+      expect(rowDate.components[3].data.label).toBe('Sort A-Z');
+      expect(rowDate.components[3].data.emoji?.name).toBe('🔤');
       expect(rowDate.components[3].data.custom_id).toBe('memory::sort::0::name');
 
       const rowName = buildPaginationButtons({ prefix: 'memory' }, 0, 5, 'name');
-      expect(rowName.components[3].data.label).toBe('📅 Sort by Date');
+      expect(rowName.components[3].data.label).toBe('Sort by Date');
+      expect(rowName.components[3].data.emoji?.name).toBe('📅');
       expect(rowName.components[3].data.custom_id).toBe('memory::sort::0::date');
     });
 

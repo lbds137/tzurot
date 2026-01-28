@@ -253,7 +253,8 @@ function buildButtons(
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(buildBrowseCustomId(currentPage - 1, currentSort))
-      .setLabel('◀ Previous')
+      .setLabel('Previous')
+      .setEmoji('◀️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 0)
   );
@@ -271,18 +272,21 @@ function buildButtons(
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(buildBrowseCustomId(currentPage + 1, currentSort))
-      .setLabel('Next ▶')
+      .setLabel('Next')
+      .setEmoji('▶️')
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= totalPages - 1)
   );
 
   // Sort toggle button
   const newSort: ServerBrowseSortType = currentSort === 'members' ? 'name' : 'members';
-  const sortLabel = currentSort === 'members' ? '🔤 Sort A-Z' : '👥 Sort by Members';
+  const sortEmoji = currentSort === 'members' ? '🔤' : '👥';
+  const sortLabel = currentSort === 'members' ? 'Sort A-Z' : 'Sort by Members';
   row.addComponents(
     new ButtonBuilder()
       .setCustomId(buildBrowseCustomId(currentPage, newSort))
       .setLabel(sortLabel)
+      .setEmoji(sortEmoji)
       .setStyle(ButtonStyle.Primary)
   );
 
@@ -399,7 +403,8 @@ function buildServerDetailsEmbed(
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(buildBackCustomId(page, sort))
-      .setLabel('◀ Back to List')
+      .setLabel('Back to List')
+      .setEmoji('◀️')
       .setStyle(ButtonStyle.Secondary)
   );
 
