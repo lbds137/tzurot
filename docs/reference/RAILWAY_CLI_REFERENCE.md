@@ -1,7 +1,7 @@
 # Railway CLI Reference
 
-**Railway CLI Version**: 4.5.3
-**Last Updated**: 2025-10-23
+**Railway CLI Version**: 4.27.4
+**Last Updated**: 2026-01-28
 **Purpose**: Accurate command reference to prevent errors from outdated AI training data
 
 ---
@@ -30,13 +30,100 @@ Wait a few minutes between bulk operations.
 
 ---
 
+## Non-Interactive & Automation Mode
+
+Railway CLI supports full non-interactive operation for CI/CD pipelines and AI assistants.
+
+### JSON Output (All Commands)
+
+**Every command** supports `--json` for machine-readable output:
+
+```bash
+# Get structured data instead of human-readable text
+railway status --json
+railway variables --json
+railway logs --json
+railway list --json
+railway whoami --json
+
+# Parse with jq
+railway variables --json | jq '.DATABASE_URL'
+railway list --json | jq '.[0].name'
+```
+
+### Browserless Authentication
+
+For headless environments (CI, SSH, Codespaces):
+
+```bash
+# Returns a 4-word pairing code
+railway login --browserless
+
+# With 2FA (added in v4.27.2)
+railway login --2fa-code 123456
+```
+
+**Environment variable authentication** (recommended for CI):
+
+```bash
+# Set RAILWAY_TOKEN for automated scripts
+export RAILWAY_TOKEN="your-token-here"
+
+# Token scopes:
+# - Account-scoped: Full access to all projects
+# - Project-scoped: Limited to specific project
+```
+
+### Confirmation Skipping
+
+Skip interactive prompts with `--yes` or `-y`:
+
+```bash
+railway redeploy --yes
+railway down --yes
+railway environment delete --yes
+```
+
+### CI/CD Deployment
+
+```bash
+# Build logs only, exit when done (ideal for CI)
+railway up --ci
+
+# Detach from log stream
+railway up --detach
+```
+
+### Environment Configuration (v4.27.0+)
+
+Configure services without interactive prompts using dot-path notation:
+
+```bash
+# Create environment with service config
+railway environment new --name staging --service-config "api.replicas=2"
+
+# Edit environment config
+railway environment edit --service-config "worker.memory=512Mi"
+```
+
+---
+
 ## Authentication & Project Setup
 
 ### Login
 
 ```bash
+# Interactive (opens browser)
 railway login
-# Opens browser for authentication
+
+# Headless/CI environments (returns 4-word pairing code)
+railway login --browserless
+
+# With 2FA code (v4.27.2+)
+railway login --2fa-code 123456
+
+# Token-based (CI/CD) - set environment variable
+export RAILWAY_TOKEN="your-token-here"
 ```
 
 ### Check Current User
@@ -1000,9 +1087,13 @@ REDIS_URL=${{Redis.REDIS_URL}}
 
 ## Version History
 
-| Date       | CLI Version | Changes                                 |
-| ---------- | ----------- | --------------------------------------- |
-| 2025-10-23 | 4.5.3       | Initial comprehensive reference created |
+| Date       | CLI Version | Changes                                        |
+| ---------- | ----------- | ---------------------------------------------- |
+| 2026-01-28 | 4.27.4      | Added non-interactive/automation section       |
+|            |             | Added --json flag documentation (all commands) |
+|            |             | Added --browserless, --2fa-code, --yes flags   |
+|            |             | Added environment config subcommand            |
+| 2025-10-23 | 4.5.3       | Initial comprehensive reference created        |
 
 ---
 
@@ -1015,10 +1106,21 @@ REDIS_URL=${{Redis.REDIS_URL}}
 3. If unsure, use `railway <command> --help`
 4. Remember: CLI cannot delete variables!
 5. Check for rate limiting after bulk operations
+6. **Use `--json` for parsing output** - all commands support it
 
 **Common Mistakes to Avoid**:
 
 - ❌ `railway variables --unset KEY` (doesn't exist!)
 - ❌ `railway service list` (doesn't exist!)
+- ❌ `railway restart` (doesn't exist - use `redeploy`)
+- ❌ `railway logs --tail N` (use `-n N` instead)
+- ❌ `railway variables set KEY=value` (use `--set "KEY=value"`)
 - ❌ Assuming commands from other CLIs work the same
 - ❌ Not checking `--help` when uncertain
+
+**Best Practices for Automation**:
+
+- ✅ Use `--json` flag and parse with `jq`
+- ✅ Use `RAILWAY_TOKEN` env var for CI/CD
+- ✅ Use `--yes` to skip confirmation prompts
+- ✅ Use `--ci` with `railway up` for build-only output

@@ -15,8 +15,8 @@ On **both** `api-gateway` and `ai-worker` services:
 openssl rand -hex 32
 
 # Set on Railway
-railway variables set API_KEY_ENCRYPTION_KEY=<your-64-hex-chars> --service api-gateway
-railway variables set API_KEY_ENCRYPTION_KEY=<your-64-hex-chars> --service ai-worker
+railway variables --set "API_KEY_ENCRYPTION_KEY=<your-64-hex-chars>" --service api-gateway
+railway variables --set "API_KEY_ENCRYPTION_KEY=<your-64-hex-chars>" --service ai-worker
 ```
 
 On **both** `api-gateway` and `bot-client` services (for admin commands):
@@ -26,8 +26,8 @@ On **both** `api-gateway` and `bot-client` services (for admin commands):
 openssl rand -hex 32
 
 # Set on Railway (same key for both services)
-railway variables set INTERNAL_SERVICE_SECRET=<your-64-hex-chars> --service api-gateway
-railway variables set INTERNAL_SERVICE_SECRET=<your-64-hex-chars> --service bot-client
+railway variables --set "INTERNAL_SERVICE_SECRET=<your-64-hex-chars>" --service api-gateway
+railway variables --set "INTERNAL_SERVICE_SECRET=<your-64-hex-chars>" --service bot-client
 ```
 
 ### Verify Setup

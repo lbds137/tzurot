@@ -131,7 +131,7 @@ railway login
 ## 📖 Related Documentation
 
 - **[packages/tooling/](../packages/tooling/)** - The new ops CLI package
-- **[docs/deployment/RAILWAY_DEPLOYMENT.md](../docs/deployment/RAILWAY_DEPLOYMENT.md)** - Railway guide
+- **[docs/reference/deployment/RAILWAY_OPERATIONS.md](../docs/reference/deployment/RAILWAY_OPERATIONS.md)** - Railway guide
 - **[docs/guides/DEVELOPMENT.md](../docs/guides/DEVELOPMENT.md)** - Local setup
 
 ## 🎯 Claude Code Skills

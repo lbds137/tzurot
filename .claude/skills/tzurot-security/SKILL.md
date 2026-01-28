@@ -37,7 +37,7 @@ railway variables --service <name>
 **If you commit a secret:**
 
 1. **Rotate immediately** (regenerate in provider dashboard)
-2. Update Railway: `railway variables set KEY=new-value`
+2. Update Railway: `railway variables --set "KEY=new-value"`
 3. Consider git history rewrite if not shared
 
 ### GitGuardian False Positives (Test Secrets)

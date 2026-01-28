@@ -81,7 +81,7 @@
 - `README.md` - Component overview
 - `PROGRESS.md` - Development progress
 - `SHAPES_INC_IMPORT_PLAN.md` - Complete import plan
-- `RAILWAY_VOLUME_SETUP.md` - Avatar storage guide
+- `RAILWAY_OPERATIONS.md` - Railway deployment and operations guide (includes avatar storage)
 
 **Integration** (3 files):
 

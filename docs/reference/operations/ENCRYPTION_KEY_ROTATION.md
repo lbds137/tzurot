@@ -121,8 +121,8 @@ npx tsx scripts/rotate-encryption-key.ts
 
 ```bash
 # Update Railway environment variable
-railway variables set API_KEY_ENCRYPTION_KEY=<new-key> --service api-gateway
-railway variables set API_KEY_ENCRYPTION_KEY=<new-key> --service ai-worker
+railway variables --set "API_KEY_ENCRYPTION_KEY=<new-key>" --service api-gateway
+railway variables --set "API_KEY_ENCRYPTION_KEY=<new-key>" --service ai-worker
 ```
 
 ### Step 4: Restart Services
@@ -189,4 +189,4 @@ The current implementation uses a single encryption key. Future versions could s
 
 - [BYOK Architecture](../architecture/BYOK_ARCHITECTURE.md)
 - [Security Best Practices](../guides/SECURITY.md)
-- [Railway Deployment](../deployment/RAILWAY_DEPLOYMENT.md)
+- [Railway Operations](../deployment/RAILWAY_OPERATIONS.md)

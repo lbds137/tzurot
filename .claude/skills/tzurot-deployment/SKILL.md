@@ -1,7 +1,7 @@
 ---
 name: tzurot-deployment
 description: Railway deployment procedures for Tzurot v3. Use when deploying, running migrations, or debugging production. Covers service management, log analysis, and health checks.
-lastUpdated: '2026-01-21'
+lastUpdated: '2026-01-28'
 ---
 
 # Deployment Skill - Tzurot v3
@@ -11,20 +11,21 @@ lastUpdated: '2026-01-21'
 ## Quick Reference
 
 ```bash
-# Check service status
+# Check service status (use --json for parsing)
 railway status
+railway status --json
 
 # View logs
-railway logs --service api-gateway --tail 50
+railway logs --service api-gateway -n 50
 
 # Health check
 curl https://api-gateway-development-83e8.up.railway.app/health
 
 # Set env variable
-railway variables set KEY=value --service service-name
+railway variables --set "KEY=value" --service service-name
 ```
 
-> **IMPORTANT**: Consult `docs/reference/RAILWAY_CLI_REFERENCE.md` for accurate Railway CLI 4.5.3 commands.
+> **IMPORTANT**: Consult `docs/reference/RAILWAY_CLI_REFERENCE.md` for accurate Railway CLI 4.27.4 commands.
 
 ## Deployment Workflow
 
@@ -39,8 +40,8 @@ railway variables set KEY=value --service service-name
 2. **Monitor deployment**:
 
    ```bash
-   railway status --service api-gateway
-   railway logs --service api-gateway --tail 100
+   railway status --json
+   railway logs --service api-gateway -n 100
    ```
 
 3. **Verify health**:
@@ -63,7 +64,7 @@ git push origin develop
 
 ```bash
 # Tail specific service
-railway logs --service bot-client --tail 50
+railway logs --service bot-client -n 50
 
 # Search for errors
 railway logs --service api-gateway | grep "ERROR"
@@ -80,14 +81,15 @@ pnpm ops deploy:setup-vars --env dev --dry-run  # Preview first
 pnpm ops deploy:setup-vars --env dev            # Apply to dev
 pnpm ops deploy:setup-vars --env prod           # Apply to prod
 
-# List all for a service
+# List all for a service (use --json for parsing)
 railway variables --service api-gateway --environment development
+railway variables --service api-gateway --json
 
 # Set single variable
-railway variables --set OPENROUTER_API_KEY=sk-or-v1-... --service ai-worker --environment development
+railway variables --set "OPENROUTER_API_KEY=sk-or-v1-..." --service ai-worker --environment development
 
-# Delete variable
-railway variables --unset OLD_VAR_NAME --service ai-worker --environment development
+# Delete variable - USE DASHBOARD (CLI cannot delete!)
+# Go to: Railway Dashboard → Service → Variables → Delete
 ```
 
 ### Database Operations
@@ -150,21 +152,22 @@ pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
 ### Service Restart
 
 ```bash
-railway restart --service bot-client
+# Use redeploy (railway restart doesn't exist)
+railway redeploy --service bot-client --yes
 ```
 
 ## Troubleshooting
 
 | Symptom            | Check                           | Solution                      |
 | ------------------ | ------------------------------- | ----------------------------- |
-| Service crashed    | `railway logs --tail 100`       | Check for missing env vars    |
+| Service crashed    | `railway logs -n 100`           | Check for missing env vars    |
 | Slow responses     | `railway logs \| grep duration` | Check DB/Redis connection     |
 | Bot not responding | `bot-client` logs               | Verify DISCORD_TOKEN          |
 | Migration failed   | `pnpm ops db:status --env dev`  | Apply with `db:migrate --env` |
 
 ### Service Won't Start
 
-1. Check logs: `railway logs --service <name> --tail 100`
+1. Check logs: `railway logs --service <name> -n 100`
 2. Verify env vars: `railway variables --service <name>`
 3. Check DATABASE_URL and REDIS_URL are set
 
@@ -276,6 +279,5 @@ for (let attempt = 1; attempt <= 5; attempt++) {
 ## References
 
 - Railway CLI: `docs/reference/RAILWAY_CLI_REFERENCE.md`
-- Railway variables: `docs/reference/deployment/RAILWAY_SHARED_VARIABLES.md`
-- Railway deployment: `docs/reference/deployment/RAILWAY_DEPLOYMENT.md`
-- Railway docs: https://docs.railway.app/
+- Railway Operations: `docs/reference/deployment/RAILWAY_OPERATIONS.md`
+- Railway docs: https://docs.railway.com/
