@@ -157,27 +157,28 @@ describe('PgvectorMemoryAdapter Component Test', () => {
       USING hnsw (embedding vector_cosine_ops)
     `);
 
-    // Seed test data
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO users (id, discord_id, username)
-      VALUES ('${testUserId}', '111111111111111111', 'testuser')
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO personas (id, name, content, preferred_name, owner_id)
-      VALUES ('${testPersonaId}', 'Test Persona', 'A test persona', 'Tester', '${testUserId}')
-    `);
-
+    // Seed test data using parameterized queries (not string interpolation)
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO system_prompts (id, name, content)
-      VALUES ('${systemPromptId}', 'Test Prompt', 'You are a test bot.')
-    `);
 
-    await prisma.$executeRawUnsafe(`
+    await prisma.$executeRaw`
+      INSERT INTO users (id, discord_id, username)
+      VALUES (${testUserId}::uuid, '111111111111111111', 'testuser')
+    `;
+
+    await prisma.$executeRaw`
+      INSERT INTO personas (id, name, content, preferred_name, owner_id)
+      VALUES (${testPersonaId}::uuid, 'Test Persona', 'A test persona', 'Tester', ${testUserId}::uuid)
+    `;
+
+    await prisma.$executeRaw`
+      INSERT INTO system_prompts (id, name, content)
+      VALUES (${systemPromptId}::uuid, 'Test Prompt', 'You are a test bot.')
+    `;
+
+    await prisma.$executeRaw`
       INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits)
-      VALUES ('${testPersonalityId}', 'TestBot', 'Test Bot', 'testbot', '${systemPromptId}', 'Test character', 'Helpful')
-    `);
+      VALUES (${testPersonalityId}::uuid, 'TestBot', 'Test Bot', 'testbot', ${systemPromptId}::uuid, 'Test character', 'Helpful')
+    `;
 
     // Create embedding service and adapter
     embeddingService = createDeterministicEmbeddingService();
@@ -318,13 +319,13 @@ describe('PgvectorMemoryAdapter Component Test', () => {
     });
 
     it('should filter by personaId', async () => {
-      // Create a second persona
+      // Create a second persona using parameterized query
       const otherPersonaId = '00000000-0000-0000-0000-000000000099';
-      await prisma.$executeRawUnsafe(`
+      await prisma.$executeRaw`
         INSERT INTO personas (id, name, content, preferred_name, owner_id)
-        VALUES ('${otherPersonaId}', 'Other Persona', 'Another persona', 'Other', '${testUserId}')
+        VALUES (${otherPersonaId}::uuid, 'Other Persona', 'Another persona', 'Other', ${testUserId}::uuid)
         ON CONFLICT (id) DO NOTHING
-      `);
+      `;
 
       const baseMetadata: MemoryMetadata = {
         personaId: testPersonaId,
