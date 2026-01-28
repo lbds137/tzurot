@@ -457,6 +457,7 @@ execSync('git log --oneline -5');
 
 | Date       | Incident                      | Rule                               |
 | ---------- | ----------------------------- | ---------------------------------- |
+| 2026-01-28 | Error metadata missing model  | Update both producer and consumer  |
 | 2026-01-24 | execSync with string commands | Use execFileSync with arrays       |
 | 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch |
 | 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files  |
