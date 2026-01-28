@@ -15,9 +15,10 @@ Fix bugs and improvements: model indicator for errors, extended context DB cap, 
 
 ### Bug Fixes (2026-01-28)
 
-1. **Model indicator for errors** - Display footer (model used, guest mode, etc.) on error responses too
-2. **Extended context DB cap** - Use `extended_context_max_messages` setting to limit DB query instead of dynamic context window
-3. **Persona edit error** - User reports "Failed to save persona" when editing name/preferred_name (investigate)
+1. **Model indicator for errors** ✅ - Display footer (model used, guest mode, etc.) on error responses too
+2. **Extended context DB cap** ✅ - Use `extended_context_max_messages` setting to limit DB query instead of dynamic context window
+3. **Persona edit error** ✅ - Fixed empty content validation causing update failures
+4. **Debug command for failures** ✅ - `/admin debug` now works for failed requests (stores diagnostics on error path)
 
 ---
 
