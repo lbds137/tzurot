@@ -136,9 +136,14 @@ async function handleSectionModalSubmit(
     // Update character via API (entityId is the slug)
     const updated = await updateCharacter(entityId, values, interaction.user.id, config);
 
-    // Update session (preserve _isAdmin flag)
+    // Update session (preserve _isAdmin flag and browseContext)
+    const hasBrowseContext = session?.data?.browseContext !== undefined;
     if (session) {
-      const sessionData: CharacterSessionData = { ...updated, _isAdmin: isAdmin };
+      const sessionData: CharacterSessionData = {
+        ...updated,
+        _isAdmin: isAdmin,
+        browseContext: session.data.browseContext, // Preserve browse context for back button
+      };
       await sessionManager.update<CharacterSessionData>(
         interaction.user.id,
         'character',
@@ -150,7 +155,8 @@ async function handleSectionModalSubmit(
     // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(dashboardConfig, updated);
     const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
-      showClose: true,
+      showClose: !hasBrowseContext, // Only show close if not from browse
+      showBack: hasBrowseContext, // Show back if opened from browse
       showRefresh: true,
     });
 
@@ -447,17 +453,27 @@ async function handleAction(
     const isAdmin = isBotOwner(interaction.user.id);
     const dashboardConfig = getCharacterDashboardConfig(isAdmin);
 
-    // Update session (preserve _isAdmin flag)
+    // Get session to check for browse context
     const sessionManager = getSessionManager();
+    const session = await sessionManager.get<CharacterSessionData>(
+      interaction.user.id,
+      'character',
+      entityId
+    );
+    const hasBrowseContext = session?.data?.browseContext !== undefined;
+
+    // Update session (preserve _isAdmin flag and browseContext)
     await sessionManager.update<CharacterSessionData>(interaction.user.id, 'character', entityId, {
       isPublic: result.isPublic,
       _isAdmin: isAdmin,
+      browseContext: session?.data?.browseContext, // Preserve browse context
     });
 
     // Refresh dashboard (use slug as entityId)
     const embed = buildDashboardEmbed(dashboardConfig, updated);
     const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
-      showClose: true,
+      showClose: !hasBrowseContext, // Only show close if not from browse
+      showBack: hasBrowseContext, // Show back if opened from browse
       showRefresh: true,
     });
 

@@ -186,6 +186,64 @@ describe('Character Dashboard', () => {
         flags: MessageFlags.Ephemeral,
       });
     });
+
+    it('should preserve browseContext in session when editing character from browse', async () => {
+      const browseContext = { source: 'browse' as const, page: 2, filter: 'all', sort: 'date' };
+      vi.mocked(dashboardUtils.parseDashboardCustomId).mockReturnValue({
+        entityType: 'character',
+        action: 'modal',
+        entityId: 'test-char',
+        sectionId: 'identity',
+      });
+
+      const mockInteraction = createMockModalInteraction('character::modal::test-char::identity');
+      mockInteraction.deferUpdate = vi.fn();
+      mockInteraction.editReply = vi.fn();
+
+      // Session has browseContext
+      vi.mocked(dashboardUtils.getSessionManager().get).mockResolvedValue({
+        data: { name: 'Test', browseContext },
+      });
+
+      vi.mocked(api.updateCharacter).mockResolvedValue({
+        id: 'uuid',
+        name: 'Test',
+        slug: 'test-char',
+        displayName: null,
+        isPublic: false,
+        ownerId: 'user-123',
+        characterInfo: '',
+        personalityTraits: '',
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+        birthMonth: null,
+        birthDay: null,
+        birthYear: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        avatarData: null,
+        createdAt: '',
+        updatedAt: '',
+      });
+
+      await handleModalSubmit(mockInteraction, mockConfig);
+
+      // Verify session was updated with browseContext preserved
+      expect(dashboardUtils.getSessionManager().update).toHaveBeenCalledWith(
+        'user-123', // userId
+        'character',
+        'test-char',
+        expect.objectContaining({
+          browseContext, // browseContext should be preserved
+        })
+      );
+    });
   });
 
   describe('handleSelectMenu', () => {
