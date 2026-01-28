@@ -85,10 +85,26 @@ function parseIdentifier(identifier: string): { type: 'messageId' | 'requestId';
 }
 
 /**
+ * Determine embed color based on diagnostic state
+ */
+function getEmbedColor(payload: DiagnosticPayload): number {
+  // Red for errors
+  if (payload.error) {
+    return 0xff0000;
+  }
+  // Orange for truncated responses
+  if (payload.llmResponse.finishReason === 'length') {
+    return 0xff6600;
+  }
+  // Green for success
+  return 0x00ff00;
+}
+
+/**
  * Build a summary embed with key diagnostic stats
  */
 function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
-  const { meta, memoryRetrieval, tokenBudget, llmConfig, llmResponse, timing } = payload;
+  const { meta, memoryRetrieval, tokenBudget, llmConfig, llmResponse, timing, error } = payload;
 
   // Calculate token budget percentages for the "danger zone" indicator
   const totalTokens = tokenBudget.contextWindowSize || 1;
@@ -100,9 +116,12 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
   const tokenBar = `System: ${systemPercent}% | Memory: ${memoryPercent}% | History: ${historyPercent}%`;
   const dangerWarning = historyPercent > 70 ? '\n⚠️ **History > 70%** - Sycophancy risk!' : '';
 
+  // Determine title based on error state
+  const title = error ? '❌ LLM Diagnostic (FAILED)' : '🔍 LLM Diagnostic Summary';
+
   const embed = new EmbedBuilder()
-    .setTitle('🔍 LLM Diagnostic Summary')
-    .setColor(llmResponse.finishReason === 'length' ? 0xff6600 : 0x00ff00)
+    .setTitle(title)
+    .setColor(getEmbedColor(payload))
     .addFields(
       {
         name: '📝 Request',
@@ -131,38 +150,59 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
           `**Focus Mode:** ${memoryRetrieval.focusModeEnabled ? 'Yes' : 'No'}`,
         ].join('\n'),
         inline: true,
-      },
-      {
-        name: '📊 Token Budget',
-        value: `\`${tokenBar}\`${dangerWarning}`,
-        inline: false,
-      },
-      {
-        name: '📤 Response',
-        value: [
-          `**Finish Reason:** ${llmResponse.finishReason}`,
-          `**Prompt Tokens:** ${llmResponse.promptTokens}`,
-          `**Completion Tokens:** ${llmResponse.completionTokens}`,
-          llmResponse.stopSequenceTriggered !== null
-            ? `**Stop Sequence:** \`${llmResponse.stopSequenceTriggered}\``
-            : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        inline: true,
-      },
-      {
-        name: '⏱️ Timing',
-        value: [
-          `**Total:** ${timing.totalDurationMs}ms`,
-          timing.memoryRetrievalMs !== undefined ? `**Memory:** ${timing.memoryRetrievalMs}ms` : '',
-          timing.llmInvocationMs !== undefined ? `**LLM:** ${timing.llmInvocationMs}ms` : '',
-        ]
-          .filter(Boolean)
-          .join('\n'),
-        inline: true,
       }
-    )
+    );
+
+  // Add error field if present (before token budget for visibility)
+  if (error) {
+    embed.addFields({
+      name: '🚨 Error',
+      value: [
+        `**Category:** ${error.category}`,
+        `**Message:** ${error.message.substring(0, 200)}${error.message.length > 200 ? '...' : ''}`,
+        error.referenceId !== undefined ? `**Reference:** \`${error.referenceId}\`` : '',
+        `**Failed At:** ${error.failedAtStage}`,
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      inline: false,
+    });
+  }
+
+  embed.addFields(
+    {
+      name: '📊 Token Budget',
+      value: `\`${tokenBar}\`${dangerWarning}`,
+      inline: false,
+    },
+    {
+      name: '📤 Response',
+      value: [
+        `**Finish Reason:** ${llmResponse.finishReason}`,
+        `**Prompt Tokens:** ${llmResponse.promptTokens}`,
+        `**Completion Tokens:** ${llmResponse.completionTokens}`,
+        llmResponse.stopSequenceTriggered !== null
+          ? `**Stop Sequence:** \`${llmResponse.stopSequenceTriggered}\``
+          : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      inline: true,
+    },
+    {
+      name: '⏱️ Timing',
+      value: [
+        `**Total:** ${timing.totalDurationMs}ms`,
+        timing.memoryRetrievalMs !== undefined ? `**Memory:** ${timing.memoryRetrievalMs}ms` : '',
+        timing.llmInvocationMs !== undefined ? `**LLM:** ${timing.llmInvocationMs}ms` : '',
+      ]
+        .filter(Boolean)
+        .join('\n'),
+      inline: true,
+    }
+  );
+
+  embed
     .setTimestamp(new Date(meta.timestamp))
     .setFooter({ text: 'Full diagnostic data attached as JSON' });
 
