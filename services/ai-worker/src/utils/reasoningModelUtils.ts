@@ -16,6 +16,9 @@ const logger = createLogger('ReasoningModelUtils');
 
 /**
  * Patterns to identify reasoning/thinking models
+ *
+ * These models may emit thinking tags that need to be stripped from output.
+ * Detection enables early stripping in LLMInvoker as a first line of defense.
  */
 export const REASONING_MODEL_PATTERNS = {
   // OpenAI o1/o3 models - require no system messages
@@ -25,8 +28,20 @@ export const REASONING_MODEL_PATTERNS = {
   // Claude 3.7+ supports extended thinking (e.g., claude-3-7-sonnet-20250219)
   CLAUDE_EXTENDED_THINKING: /claude-3-[789]|claude-4/i,
 
-  // Gemini 2.0 Flash Thinking
-  GEMINI_THINKING: /gemini-2\.0-flash-thinking/i,
+  // Gemini 2.0+ Thinking models
+  GEMINI_THINKING: /gemini-2\.[0-9].*-thinking|gemini-3.*think/i,
+
+  // DeepSeek R1 reasoning models - emit <think> tags
+  DEEPSEEK_R1: /deepseek.*r1|deepseek.*reasoner/i,
+
+  // Qwen QwQ reasoning models - emit <think> tags
+  QWEN_REASONING: /qwen.*qwq|qwq/i,
+
+  // GLM-4.x with thinking mode - emit <think> tags
+  GLM_THINKING: /glm-4\.[5-9]|glm-4\.[1-9][0-9]/i,
+
+  // Kimi K2/K2.5 thinking models - emit <think> tags
+  KIMI_THINKING: /kimi.*k2.*thinking|kimi-k2/i,
 
   // Generic thinking model pattern (any model with "thinking" in name)
   GENERIC_THINKING: /thinking/i,
@@ -44,6 +59,16 @@ export enum ReasoningModelType {
   ClaudeExtendedThinking = 'claude-extended-thinking',
   /** Gemini thinking model */
   GeminiThinking = 'gemini-thinking',
+  /** DeepSeek R1 reasoning models - emit <think> tags */
+  DeepSeekR1 = 'deepseek-r1',
+  /** Qwen QwQ reasoning models - emit <think> tags */
+  QwenReasoning = 'qwen-reasoning',
+  /** GLM-4.x thinking models - emit <think> tags */
+  GlmThinking = 'glm-thinking',
+  /** Kimi K2 thinking models - emit <think> tags */
+  KimiThinking = 'kimi-thinking',
+  /** Generic thinking model (matched by name pattern) */
+  GenericThinking = 'generic-thinking',
 }
 
 /**
@@ -65,7 +90,7 @@ export interface ReasoningModelConfig {
 /**
  * Detect the type of reasoning model from its name
  *
- * @param modelName - The model identifier (e.g., "openai/o1-preview", "anthropic/claude-3-7-sonnet")
+ * @param modelName - The model identifier (e.g., "openai/o1-preview", "deepseek/deepseek-r1")
  * @returns The type of reasoning model
  */
 export function detectReasoningModelType(modelName: string): ReasoningModelType {
@@ -82,6 +107,31 @@ export function detectReasoningModelType(modelName: string): ReasoningModelType 
   // Check for Gemini thinking
   if (REASONING_MODEL_PATTERNS.GEMINI_THINKING.test(modelName)) {
     return ReasoningModelType.GeminiThinking;
+  }
+
+  // Check for DeepSeek R1 reasoning
+  if (REASONING_MODEL_PATTERNS.DEEPSEEK_R1.test(modelName)) {
+    return ReasoningModelType.DeepSeekR1;
+  }
+
+  // Check for Qwen QwQ reasoning
+  if (REASONING_MODEL_PATTERNS.QWEN_REASONING.test(modelName)) {
+    return ReasoningModelType.QwenReasoning;
+  }
+
+  // Check for GLM thinking
+  if (REASONING_MODEL_PATTERNS.GLM_THINKING.test(modelName)) {
+    return ReasoningModelType.GlmThinking;
+  }
+
+  // Check for Kimi thinking
+  if (REASONING_MODEL_PATTERNS.KIMI_THINKING.test(modelName)) {
+    return ReasoningModelType.KimiThinking;
+  }
+
+  // Check for generic thinking pattern last (catches models with "thinking" in name)
+  if (REASONING_MODEL_PATTERNS.GENERIC_THINKING.test(modelName)) {
+    return ReasoningModelType.GenericThinking;
   }
 
   return ReasoningModelType.Standard;
@@ -116,6 +166,20 @@ export function getReasoningModelConfig(modelName: string): ReasoningModelConfig
       };
 
     case ReasoningModelType.GeminiThinking:
+      return {
+        type,
+        allowsSystemMessage: true,
+        requiredTemperature: null,
+        useMaxCompletionTokens: false,
+        mayContainThinkingTags: true,
+      };
+
+    // DeepSeek, Qwen, GLM, Kimi - all emit <think> tags in text output
+    case ReasoningModelType.DeepSeekR1:
+    case ReasoningModelType.QwenReasoning:
+    case ReasoningModelType.GlmThinking:
+    case ReasoningModelType.KimiThinking:
+    case ReasoningModelType.GenericThinking:
       return {
         type,
         allowsSystemMessage: true,

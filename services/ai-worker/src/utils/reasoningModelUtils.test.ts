@@ -114,6 +114,79 @@ describe('ReasoningModelUtils', () => {
       });
     });
 
+    describe('DeepSeek R1 detection', () => {
+      it('should detect DeepSeek R1 models', () => {
+        expect(detectReasoningModelType('deepseek/deepseek-r1')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+        expect(detectReasoningModelType('deepseek/deepseek-r1-distill-llama-70b')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+        expect(detectReasoningModelType('deepseek-r1')).toBe(ReasoningModelType.DeepSeekR1);
+      });
+
+      it('should detect DeepSeek Reasoner models', () => {
+        expect(detectReasoningModelType('deepseek/deepseek-reasoner')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+      });
+
+      it('should NOT detect regular DeepSeek models', () => {
+        expect(detectReasoningModelType('deepseek/deepseek-chat')).toBe(
+          ReasoningModelType.Standard
+        );
+        expect(detectReasoningModelType('deepseek/deepseek-coder')).toBe(
+          ReasoningModelType.Standard
+        );
+      });
+    });
+
+    describe('Qwen QwQ detection', () => {
+      it('should detect Qwen QwQ models', () => {
+        expect(detectReasoningModelType('qwen/qwq-32b')).toBe(ReasoningModelType.QwenReasoning);
+        expect(detectReasoningModelType('qwen/qwen-qwq-32b-preview')).toBe(
+          ReasoningModelType.QwenReasoning
+        );
+        expect(detectReasoningModelType('qwq-32b-preview')).toBe(ReasoningModelType.QwenReasoning);
+      });
+
+      it('should NOT detect regular Qwen models', () => {
+        expect(detectReasoningModelType('qwen/qwen-2.5-72b')).toBe(ReasoningModelType.Standard);
+        expect(detectReasoningModelType('qwen/qwen-2-vl')).toBe(ReasoningModelType.Standard);
+      });
+    });
+
+    describe('GLM thinking detection', () => {
+      it('should detect GLM-4.5+ thinking models', () => {
+        expect(detectReasoningModelType('glm-4.5')).toBe(ReasoningModelType.GlmThinking);
+        expect(detectReasoningModelType('glm-4.6')).toBe(ReasoningModelType.GlmThinking);
+        expect(detectReasoningModelType('glm-4.7')).toBe(ReasoningModelType.GlmThinking);
+        expect(detectReasoningModelType('zai/glm-4.7')).toBe(ReasoningModelType.GlmThinking);
+      });
+
+      it('should NOT detect older GLM models', () => {
+        expect(detectReasoningModelType('glm-4')).toBe(ReasoningModelType.Standard);
+        expect(detectReasoningModelType('glm-4.0')).toBe(ReasoningModelType.Standard);
+      });
+    });
+
+    describe('Kimi thinking detection', () => {
+      it('should detect Kimi K2 thinking models', () => {
+        expect(detectReasoningModelType('moonshotai/kimi-k2-thinking')).toBe(
+          ReasoningModelType.KimiThinking
+        );
+        expect(detectReasoningModelType('kimi-k2')).toBe(ReasoningModelType.KimiThinking);
+      });
+    });
+
+    describe('generic thinking detection', () => {
+      it('should detect models with "thinking" in name', () => {
+        expect(detectReasoningModelType('some-model-thinking-v1')).toBe(
+          ReasoningModelType.GenericThinking
+        );
+      });
+    });
+
     describe('standard models', () => {
       it('should detect GPT-4 as standard', () => {
         expect(detectReasoningModelType('gpt-4')).toBe(ReasoningModelType.Standard);
@@ -178,6 +251,31 @@ describe('ReasoningModelUtils', () => {
       expect(config.useMaxCompletionTokens).toBe(false);
       expect(config.mayContainThinkingTags).toBe(false);
     });
+
+    it('should return correct config for DeepSeek R1', () => {
+      const config = getReasoningModelConfig('deepseek/deepseek-r1');
+
+      expect(config.type).toBe(ReasoningModelType.DeepSeekR1);
+      expect(config.allowsSystemMessage).toBe(true);
+      expect(config.requiredTemperature).toBeNull();
+      expect(config.mayContainThinkingTags).toBe(true);
+    });
+
+    it('should return correct config for Qwen QwQ', () => {
+      const config = getReasoningModelConfig('qwen/qwq-32b');
+
+      expect(config.type).toBe(ReasoningModelType.QwenReasoning);
+      expect(config.allowsSystemMessage).toBe(true);
+      expect(config.mayContainThinkingTags).toBe(true);
+    });
+
+    it('should return correct config for GLM thinking', () => {
+      const config = getReasoningModelConfig('glm-4.7');
+
+      expect(config.type).toBe(ReasoningModelType.GlmThinking);
+      expect(config.allowsSystemMessage).toBe(true);
+      expect(config.mayContainThinkingTags).toBe(true);
+    });
   });
 
   describe('isReasoningModel', () => {
@@ -187,10 +285,18 @@ describe('ReasoningModelUtils', () => {
       expect(isReasoningModel('gemini-2.0-flash-thinking')).toBe(true);
     });
 
+    it('should return true for new thinking models', () => {
+      expect(isReasoningModel('deepseek/deepseek-r1')).toBe(true);
+      expect(isReasoningModel('qwen/qwq-32b')).toBe(true);
+      expect(isReasoningModel('glm-4.7')).toBe(true);
+      expect(isReasoningModel('kimi-k2')).toBe(true);
+    });
+
     it('should return false for standard models', () => {
       expect(isReasoningModel('gpt-4')).toBe(false);
       expect(isReasoningModel('claude-3-5-sonnet')).toBe(false);
       expect(isReasoningModel('gemini-2.0-flash')).toBe(false);
+      expect(isReasoningModel('deepseek/deepseek-chat')).toBe(false);
     });
   });
 
