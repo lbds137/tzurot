@@ -100,7 +100,7 @@ export class MessageHandler {
    * Handle async job result when it arrives from ResultsListener
    * This is called from index.ts result handler
    */
-   
+
   async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<void> {
     // Get pending job context from JobTracker
     const jobContext = this.jobTracker.getContext(jobId);
@@ -264,7 +264,8 @@ export class MessageHandler {
 
       // No personality message - use the category-specific user message
       const userMessage = USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
-      return `${userMessage} ||*(reference: ${referenceId})*||`;
+      const refFooter = referenceId !== undefined ? ` ||*(reference: ${referenceId})*||` : '';
+      return `${userMessage}${refFooter}`;
     }
 
     // No error info available - fall back to basic error message

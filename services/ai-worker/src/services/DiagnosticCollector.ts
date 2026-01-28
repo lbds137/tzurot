@@ -371,11 +371,25 @@ export class DiagnosticCollector {
     rawError?: Record<string, unknown>;
     failedAtStage: string;
   }): void {
+    // Truncate large error objects to prevent storage issues
+    let sanitizedRawError = data.rawError;
+    if (sanitizedRawError !== undefined) {
+      const MAX_ERROR_SIZE = 50000; // ~50KB
+      const errorJson = JSON.stringify(sanitizedRawError);
+      if (errorJson.length > MAX_ERROR_SIZE) {
+        sanitizedRawError = {
+          _truncated: true,
+          _originalSize: errorJson.length,
+          preview: errorJson.substring(0, MAX_ERROR_SIZE),
+        };
+      }
+    }
+
     this.errorData = {
       message: data.message,
       category: data.category,
       referenceId: data.referenceId,
-      rawError: data.rawError,
+      rawError: sanitizedRawError,
       failedAtStage: data.failedAtStage,
     };
   }
