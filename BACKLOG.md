@@ -274,6 +274,17 @@ Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere. 
 
 Fixed in beta.56 (PR #535). Added support for DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2 model detection and comprehensive tag stripping (`<think>`, `<thinking>`, `<thought>`, `<reasoning>`, `<reflection>`, `<scratchpad>`, `<ant_thinking>`).
 
+### 🏗️ Database-Configurable Model Capabilities
+
+Currently, model capability detection (stop sequence support, reasoning model detection) is hardcoded in `LLMInvoker.ts` and `reasoningModelUtils.ts`. When OpenRouter adds/changes models, we need code deployments.
+
+- [ ] Add `model_capabilities` table (model pattern → capabilities JSON)
+- [ ] Migrate hardcoded patterns to database
+- [ ] Admin command to update capabilities without deployment
+- [ ] Cache capabilities with TTL to avoid DB hits on every request
+
+**Reference**: `MODELS_WITHOUT_STOP_SUPPORT` in `LLMInvoker.ts`, `REASONING_MODEL_PATTERNS` in `reasoningModelUtils.ts`
+
 ### 🏗️ N+1 Query Pattern in UserReferenceResolver
 
 Sequential DB queries in a loop for user references. Use batch extraction pattern.
