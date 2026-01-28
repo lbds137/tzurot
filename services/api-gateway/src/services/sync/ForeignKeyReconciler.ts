@@ -21,6 +21,31 @@ interface UpdateFkColumnOptions {
   pkValues: unknown[];
 }
 
+/** Options for reconciling FK columns in both directions */
+interface ReconcileBothDirectionsOptions {
+  tableName: string;
+  config: SyncTableConfig;
+  devMap: Map<string, unknown>;
+  prodMap: Map<string, unknown>;
+  pkColumns: string[];
+  deferredFkColumns: readonly string[];
+  compareTimestamps: (
+    devRow: unknown,
+    prodRow: unknown,
+    config: SyncTableConfig
+  ) => 'dev-newer' | 'prod-newer' | 'same';
+}
+
+/** Options for reconciling FK columns in one direction */
+interface ReconcileOneWayOptions {
+  tableName: string;
+  sourceMap: Map<string, unknown>;
+  targetMap: Map<string, unknown>;
+  pkColumns: string[];
+  deferredFkColumns: readonly string[];
+  direction: 'dev-to-prod' | 'prod-to-dev';
+}
+
 /**
  * Reconciles deferred foreign key columns after initial sync pass.
  *
@@ -70,51 +95,42 @@ export class ForeignKeyReconciler {
     const pkColumns = typeof config.pk === 'string' ? [config.pk] : Array.from(config.pk);
 
     // Update deferred FK columns in both directions using last-write-wins
-    await this.reconcileBothDirections(
+    await this.reconcileBothDirections({
       tableName,
       config,
       devMap,
       prodMap,
       pkColumns,
       deferredFkColumns,
-      compareTimestamps
-    );
+      compareTimestamps,
+    });
 
     // Handle rows that only exist in one database
-    await this.reconcileOneWay(
+    await this.reconcileOneWay({
       tableName,
-      prodMap,
-      devMap,
+      sourceMap: prodMap,
+      targetMap: devMap,
       pkColumns,
       deferredFkColumns,
-      'prod-to-dev'
-    );
-    await this.reconcileOneWay(
+      direction: 'prod-to-dev',
+    });
+    await this.reconcileOneWay({
       tableName,
-      devMap,
-      prodMap,
+      sourceMap: devMap,
+      targetMap: prodMap,
       pkColumns,
       deferredFkColumns,
-      'dev-to-prod'
-    );
+      direction: 'dev-to-prod',
+    });
   }
 
   /**
    * Reconcile FK columns for rows that exist in both databases
    */
-  private async reconcileBothDirections(
-    tableName: string,
-    config: SyncTableConfig,
-    devMap: Map<string, unknown>,
-    prodMap: Map<string, unknown>,
-    pkColumns: string[],
-    deferredFkColumns: readonly string[],
-    compareTimestamps: (
-      devRow: unknown,
-      prodRow: unknown,
-      config: SyncTableConfig
-    ) => 'dev-newer' | 'prod-newer' | 'same'
-  ): Promise<void> {
+  private async reconcileBothDirections(options: ReconcileBothDirectionsOptions): Promise<void> {
+    const { tableName, config, devMap, prodMap, pkColumns, deferredFkColumns, compareTimestamps } =
+      options;
+
     for (const [key, devRow] of devMap) {
       const prodRow = prodMap.get(key);
       if (prodRow === undefined) {
@@ -168,14 +184,8 @@ export class ForeignKeyReconciler {
   /**
    * Reconcile FK columns for rows that only exist in one database
    */
-  private async reconcileOneWay(
-    tableName: string,
-    sourceMap: Map<string, unknown>,
-    targetMap: Map<string, unknown>,
-    pkColumns: string[],
-    deferredFkColumns: readonly string[],
-    direction: 'dev-to-prod' | 'prod-to-dev'
-  ): Promise<void> {
+  private async reconcileOneWay(options: ReconcileOneWayOptions): Promise<void> {
+    const { tableName, sourceMap, targetMap, pkColumns, deferredFkColumns, direction } = options;
     const targetClient = direction === 'dev-to-prod' ? this.prodClient : this.devClient;
 
     for (const [key, sourceRow] of sourceMap) {

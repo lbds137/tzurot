@@ -83,6 +83,7 @@ export class ReferenceEnrichmentService {
   /**
    * Enrich a single reference with persona name
    */
+  // eslint-disable-next-line complexity -- Webhook detection requires dual Redis+Discord checks, persona resolution has multiple fallback paths (cache→DB), and each step needs null checks due to Discord API optionality. Logic is cohesive and extraction would scatter related null-safety checks.
   private async enrichSingleReference(
     reference: ReferencedMessage,
     personaNameMap: Map<string, string>,
