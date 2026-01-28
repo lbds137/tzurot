@@ -51,6 +51,8 @@ interface AdminUsageStats {
   byModel: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
   byRequestType: Record<string, { requests: number; tokensIn: number; tokensOut: number }>;
   topUsers: { discordId: string; requests: number; tokens: number }[];
+  /** True if results were truncated due to query limits */
+  limitReached?: boolean;
 }
 
 export function createAdminUsageRoutes(prisma: PrismaClient): Router {
@@ -75,7 +77,8 @@ export function createAdminUsageRoutes(prisma: PrismaClient): Router {
         where.createdAt = { gte: periodStart };
       }
 
-      // Get all usage logs for the period
+      // Get usage logs for the period (bounded to prevent OOM on large datasets)
+      const MAX_USAGE_LOGS = 50000;
       const usageLogs = await prisma.usageLog.findMany({
         where,
         select: {
@@ -86,7 +89,10 @@ export function createAdminUsageRoutes(prisma: PrismaClient): Router {
           tokensOut: true,
           requestType: true,
         },
+        take: MAX_USAGE_LOGS,
+        orderBy: { createdAt: 'desc' },
       });
+      const limitReached = usageLogs.length === MAX_USAGE_LOGS;
 
       // Get user discord IDs for the user IDs we found
       const userIds = [...new Set(usageLogs.map(log => log.userId))];
@@ -110,6 +116,7 @@ export function createAdminUsageRoutes(prisma: PrismaClient): Router {
         byModel: {},
         byRequestType: {},
         topUsers: [],
+        limitReached,
       };
 
       // Track per-user usage for top users

@@ -105,7 +105,8 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
         where.createdAt = { gte: periodStart };
       }
 
-      // Get all usage logs for the period
+      // Get usage logs for the period (bounded to prevent OOM on large datasets)
+      const MAX_USAGE_LOGS = 10000;
       const usageLogs = await prisma.usageLog.findMany({
         where,
         select: {
@@ -115,7 +116,10 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
           tokensOut: true,
           requestType: true,
         },
+        take: MAX_USAGE_LOGS,
+        orderBy: { createdAt: 'desc' },
       });
+      const limitReached = usageLogs.length === MAX_USAGE_LOGS;
 
       // Aggregate stats
       const stats: UsageStats = {
@@ -129,6 +133,7 @@ export function createUsageRoutes(prisma: PrismaClient): Router {
         byProvider: {},
         byModel: {},
         byRequestType: {},
+        limitReached,
       };
 
       for (const log of usageLogs) {
