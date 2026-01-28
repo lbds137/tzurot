@@ -95,6 +95,17 @@ Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified for
 
 _Features requested by actual users._
 
+### ✨ Preset Import/Export/Template Commands
+
+Mirror the `/character import`, `/character export`, and `/character template` commands for presets.
+
+- [ ] `/preset template` - Download JSON template showing preset format
+- [ ] `/preset export <name>` - Export owned preset as JSON file
+- [ ] `/preset import <file>` - Import preset from JSON file
+- [ ] Factor out shared logic from character commands (JSON handling, file attachments, permission checks) into reusable utilities
+
+**Reference**: `commands/character/import.ts`, `export.ts`, `template.ts`
+
 ### ✨ User System Prompts
 
 "Sidecar prompt" appended to system message per-user.
@@ -259,11 +270,9 @@ SessionManager has acknowledged gap in testing Redis failure scenarios. Add fail
 
 Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere. Low priority - edge case.
 
-### 🐛 Thinking Tag Leaking
+### 🐛 Thinking Tag Leaking ✅ DONE
 
-`<thinking>` tags from reasoning models occasionally appear in output.
-
-**Location**: `reasoningModelUtils.ts:stripThinkingTags()` or upstream.
+Fixed in beta.56 (PR #535). Added support for DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2 model detection and comprehensive tag stripping (`<think>`, `<thinking>`, `<thought>`, `<reasoning>`, `<reflection>`, `<scratchpad>`, `<ant_thinking>`).
 
 ### 🏗️ N+1 Query Pattern in UserReferenceResolver
 
