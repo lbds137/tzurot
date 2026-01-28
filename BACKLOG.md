@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-01-27
-> **Version**: v3.0.0-beta.53
+> **Last Updated**: 2026-01-28
+> **Version**: v3.0.0-beta.54
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -47,7 +47,7 @@ Comprehensive standardization of slash commands and dashboard interactions compl
 
 - Dashboard refresh race condition - Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere
 
-**Stats**: 25 commits, +6186/-1261 lines
+**Stats**: 29 commits, +6510/-1433 lines (114 files changed)
 
 ### 2. 🏗️ Extended Context Pipeline Refactor
 
@@ -239,6 +239,19 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 ## Smaller Items
 
 _Opportunistic work between major features._
+
+### 🏗️ Type-Safe Command Options Hardening
+
+From beta.54 code review observations:
+
+- [ ] **CI Validation** - Add check to verify generated `commandOptions.ts` matches source command definitions (detect schema-handler drift)
+- [ ] **AST-Based Parsing** - Current regex parsing could fail on template literals, dynamic `setRequired()`, unusual whitespace. Consider `@babel/parser` for production-grade robustness
+- [ ] **Channel Type Refinement** - `typedOptions.ts:73` returns overly broad `Channel` type. Discord.js returns union of channel types; handlers may need runtime narrowing
+- [ ] **Document Query Truncation** - `customIdFactory.ts` truncates query to 50 chars but limit not documented (only mentions Discord's 100-char customId limit)
+
+### 🧹 Redis Failure Injection Tests
+
+SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
 
 ### 🐛 Dashboard Refresh Race Condition
 
