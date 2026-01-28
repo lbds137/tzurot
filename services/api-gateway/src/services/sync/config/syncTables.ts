@@ -80,8 +80,9 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
     // default_persona_id creates circular dependency: users ↔ personas
-    // Deferred: sync users first with NULL, then update after personas sync
-    deferredFkColumns: ['default_persona_id'],
+    // default_llm_config_id creates circular dependency: users ↔ llm_configs
+    // Deferred: sync users first with NULL, then update after llm_configs/personas sync
+    deferredFkColumns: ['default_persona_id', 'default_llm_config_id'],
   },
   personas: {
     pk: 'id',
@@ -196,8 +197,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  *
  * Other dependencies:
  * - system_prompts: no FK deps
- * - llm_configs: owner_id → users (nullable)
- * - personalities: system_prompt_id → system_prompts, owner_id → users (nullable)
+ * - llm_configs: owner_id → users (NOT NULL)
+ * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)
  * - personality_default_configs: personality_id → personalities, llm_config_id → llm_configs
  * - personality_owners: personality_id → personalities, user_id → users
  * - personality_aliases: personality_id → personalities
@@ -216,12 +217,12 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
  * If you change this order, sync will fail with FK constraint violations!
  */
 export const SYNC_TABLE_ORDER: SyncTableName[] = [
-  // Base tables - users first because personas.owner_id is REQUIRED
+  // Base tables - users first because llm_configs/personas/personalities.owner_id is REQUIRED
   'system_prompts',
-  'llm_configs',
   'users', // Synced with default_persona_id=NULL (deferred)
+  'llm_configs', // Requires users.id via owner_id (NOT NULL)
   'personas', // Can now reference users via owner_id
-  // Personalities depends on system_prompts and optionally users
+  // Personalities depends on system_prompts and users (owner_id NOT NULL)
   'personalities',
   // Junction/config tables that depend on the above
   'personality_default_configs',

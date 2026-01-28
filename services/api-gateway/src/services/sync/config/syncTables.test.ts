@@ -93,19 +93,22 @@ describe('syncTables Configuration', () => {
       assertParentBeforeChild('users', 'personas', 'owner_id');
     });
 
-    // users.default_llm_config_id -> llm_configs.id
-    it('should sync llm_configs before users (users.default_llm_config_id FK)', () => {
-      assertParentBeforeChild('llm_configs', 'users', 'default_llm_config_id');
-    });
+    // users.default_llm_config_id -> llm_configs.id (DEFERRED - synced in pass 2)
+    // No order test needed - users synced first with NULL, then updated after llm_configs
 
     // personalities.system_prompt_id -> system_prompts.id
     it('should sync system_prompts before personalities (personalities.system_prompt_id FK)', () => {
       assertParentBeforeChild('system_prompts', 'personalities', 'system_prompt_id');
     });
 
-    // personalities.owner_id -> users.id (nullable, but still needs to exist if set)
+    // personalities.owner_id -> users.id (NOT NULL)
     it('should sync users before personalities (personalities.owner_id FK)', () => {
       assertParentBeforeChild('users', 'personalities', 'owner_id');
+    });
+
+    // llm_configs.owner_id -> users.id (NOT NULL)
+    it('should sync users before llm_configs (llm_configs.owner_id FK)', () => {
+      assertParentBeforeChild('users', 'llm_configs', 'owner_id');
     });
 
     // personality_default_configs.personality_id -> personalities.id
@@ -244,9 +247,13 @@ describe('syncTables Configuration', () => {
 
     it('should only defer nullable FK columns', () => {
       // Deferred FK columns must be nullable because they're set to NULL in pass 1
-      // Currently only users.default_persona_id is deferred
+      // users.default_persona_id and users.default_llm_config_id are deferred
+      // (circular deps: users ↔ personas, users ↔ llm_configs)
       const usersConfig = SYNC_CONFIG.users;
-      expect(usersConfig.deferredFkColumns).toEqual(['default_persona_id']);
+      expect(usersConfig.deferredFkColumns).toEqual([
+        'default_persona_id',
+        'default_llm_config_id',
+      ]);
     });
 
     it('should have deferredFkColumns as array or undefined for all tables', () => {
