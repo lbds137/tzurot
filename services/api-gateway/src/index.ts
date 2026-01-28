@@ -71,7 +71,7 @@ import { syncAvatars } from './migrations/sync-avatars.js';
 
 // Import pino-http (CommonJS) via require
 const require = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- pino-http is CommonJS-only and lacks ESM type definitions. require() returns 'any' type unavoidably.
 const pinoHttp = require('pino-http');
 
 const logger = createLogger('api-gateway');
@@ -304,7 +304,7 @@ async function main(): Promise<void> {
   const app = express();
   const prisma = getPrismaClient();
   app.use(express.json({ limit: '10mb' }));
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- pino-http is imported via CommonJS require() and has 'any' type. Functionally correct, just lacks type definitions.
   app.use(pinoHttp({ logger }));
   app.use(createCorsMiddleware({ origins: config.corsOrigins }));
 
