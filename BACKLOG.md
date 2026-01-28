@@ -13,7 +13,6 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _New items go here. Triage to appropriate section later._
 
-- 🧹 `[CHORE]` **Migrate Codecov Test Results Action** - `codecov/test-results-action@v1` is deprecated. Migrate to `codecov-action@v5` with `report_type: test_results`.
 - ✨ `[FEAT]` **Message Reactions in XML** - Add reaction metadata to extended context messages showing emoji and who reacted (use same user/persona resolution as elsewhere)
 - 🏗️ `[LIFT]` **Make ownerId NOT NULL** - `LlmConfig.ownerId` and `Personality.ownerId` are nullable but all records have owners. Migration to make non-nullable + clean up code paths handling null (removes dead "global/unowned" concept)
 - 🏗️ `[LIFT]` **Audit and Reduce Re-exports** - Re-exports create spaghetti code and make it harder to understand module dependencies. Audit existing re-exports in `utils/` index files and eliminate non-essential ones. Update CLAUDE.md and/or skills to discourage re-exports except for truly public APIs (e.g., package entry points like `@tzurot/common-types`). Prefer direct imports from source modules.
@@ -280,9 +279,13 @@ Add Redis-based `processed:${discordMessageId}` check in `AIJobProcessor` to pre
 
 Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
 
-### 🧹 37 Lint Warnings
+### 🧹 Lint Warnings ✅ DONE
 
-Complexity issues - down from 142. Chip away opportunistically.
+~~37 warnings~~ → **0 warnings** (beta.55 Tech Debt Sprint)
+
+- Refactored 8 route handlers to extract helper functions
+- Added documented suppressions where appropriate (40+ audited)
+- All suppressions now have inline justifications
 
 ### 🧹 Consolidate import-personality Scripts
 
@@ -292,7 +295,8 @@ Complexity issues - down from 142. Chip away opportunistically.
 
 Component test gaps (use `pnpm ops test:audit-services`):
 
-- `LongTermMemoryService.ts`, `ConversationalRAGService.ts`, `PersonalityService.ts` (high)
+- ~~`LongTermMemoryService.ts`~~ → Covered by `PgvectorMemoryAdapter.component.test.ts` (beta.55)
+- `ConversationalRAGService.ts`, `PersonalityService.ts` (high)
 - `ShortTermMemoryService.ts`, `SystemPromptService.ts`, `UserService.ts` (medium)
 
 ---
