@@ -232,7 +232,7 @@ pnpm format
 
 **BYOK Enabled**: Users can bring their own API keys via `/settings apikey` commands. Guest users without keys get access to free models only.
 
-See [Railway Deployment Guide](docs/reference/deployment/RAILWAY_DEPLOYMENT.md) for detailed deployment guide.
+See [Railway Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md) for detailed deployment guide.
 
 ```bash
 # Deploy updates (auto-deploys on push to develop)
@@ -274,7 +274,7 @@ pnpm dev
 
 - **[Development Guide](docs/reference/guides/DEVELOPMENT.md)** - Local development setup
 - **[Testing Guide](docs/reference/guides/TESTING.md)** - Testing philosophy and patterns
-- **[Deployment Guide](docs/reference/deployment/RAILWAY_DEPLOYMENT.md)** - Railway deployment guide
+- **[Operations Guide](docs/reference/deployment/RAILWAY_OPERATIONS.md)** - Railway deployment and operations
 
 ## Project History
 

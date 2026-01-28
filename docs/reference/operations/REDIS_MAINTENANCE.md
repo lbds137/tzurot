@@ -242,5 +242,5 @@ railway run --service ai-worker redis-cli --scan --pattern "bull:ai-requests:*" 
 
 **Related Documentation:**
 
-- [Deployment Guide](../deployment/RAILWAY_DEPLOYMENT.md)
+- [Operations Guide](../deployment/RAILWAY_OPERATIONS.md)
 - [Timeout Constants](../../packages/common-types/src/constants/timing.ts)
