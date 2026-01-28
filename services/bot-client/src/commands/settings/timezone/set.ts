@@ -3,7 +3,11 @@
  * Handles /me timezone set command
  */
 
-import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
+import {
+  createLogger,
+  TIMEZONE_DISCORD_CHOICES,
+  settingsTimezoneSetOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../../utils/commandHelpers.js';
@@ -16,7 +20,8 @@ const logger = createLogger('timezone-set');
  */
 export async function handleTimezoneSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const timezone = context.interaction.options.getString('timezone', true);
+  const options = settingsTimezoneSetOptions(context.interaction);
+  const timezone = options.timezone();
 
   try {
     const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {

@@ -82,7 +82,16 @@ describe('handleUsage', () => {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
-      interaction: {},
+      interaction: {
+        options: {
+          getString: vi.fn((name: string) => {
+            if (name === 'period') return period;
+            return null;
+          }),
+          getBoolean: vi.fn(() => null),
+          getInteger: vi.fn(() => null),
+        },
+      },
       user: { id: 'user-123' },
       guild: null,
       member: null,

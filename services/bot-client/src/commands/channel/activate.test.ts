@@ -79,7 +79,15 @@ describe('/channel activate', () => {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
-      interaction: { editReply: mockEditReply },
+      interaction: {
+        editReply: mockEditReply,
+        options: {
+          getString: vi.fn((name: string) => {
+            if (name === 'personality') return personalitySlug;
+            return null;
+          }),
+        },
+      },
       user: { id: 'user-123' },
       guild: guildId !== null ? { id: guildId } : null,
       member: guildId !== null ? mockMember : null,

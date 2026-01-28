@@ -18,7 +18,12 @@ import type {
   StringSelectMenuInteraction,
   ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  type EnvConfig,
+  characterSettingsOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { GatewayClient } from '../../utils/GatewayClient.js';
@@ -79,7 +84,8 @@ export async function handleSettings(
   context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  const characterSlug = context.interaction.options.getString('character', true);
+  const options = characterSettingsOptions(context.interaction);
+  const characterSlug = options.character();
   const userId = context.user.id;
 
   logger.debug({ characterSlug, userId }, '[Character Settings] Opening dashboard');

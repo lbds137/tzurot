@@ -12,7 +12,12 @@ import {
   escapeMarkdown,
   type ButtonInteraction,
 } from 'discord.js';
-import { createLogger, Duration, DurationParseError } from '@tzurot/common-types';
+import {
+  createLogger,
+  Duration,
+  DurationParseError,
+  memoryDeleteOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createWarningEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
@@ -64,8 +69,9 @@ function formatTimeframe(timeframe: string | null): string {
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with sequential UI flow
 export async function handleBatchDelete(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
-  const timeframe = context.interaction.options.getString('timeframe');
+  const options = memoryDeleteOptions(context.interaction);
+  const personalityInput = options.personality();
+  const timeframe = options.timeframe();
 
   try {
     // Resolve personality slug to ID

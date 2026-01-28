@@ -8,6 +8,7 @@ import {
   createLogger,
   DISCORD_COLORS,
   isFreeModel,
+  settingsPresetSetOptions,
   type AIProvider,
   type LlmConfigSummary,
 } from '@tzurot/common-types';
@@ -42,8 +43,9 @@ interface ConfigListResponse {
  */
 export async function handleSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityId = context.interaction.options.getString('personality', true);
-  const configId = context.interaction.options.getString('preset', true);
+  const options = settingsPresetSetOptions(context.interaction);
+  const personalityId = options.personality();
+  const configId = options.preset();
 
   // Handle "Unlock All Models" upsell selection
   if (configId === UNLOCK_MODELS_VALUE) {

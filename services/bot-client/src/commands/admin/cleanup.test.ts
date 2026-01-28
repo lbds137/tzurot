@@ -73,7 +73,19 @@ describe('handleCleanup', () => {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
-      interaction: {},
+      interaction: {
+        options: {
+          getString: vi.fn((name: string) => {
+            if (name === 'target') return target;
+            return null;
+          }),
+          getBoolean: vi.fn(() => null),
+          getInteger: vi.fn((name: string) => {
+            if (name === 'days') return days;
+            return null;
+          }),
+        },
+      },
       user: { id: 'user-123' },
       guild: null,
       member: null,

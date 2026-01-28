@@ -14,7 +14,12 @@
 
 import { MessageFlags, ModalBuilder } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS, truncateText } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  truncateText,
+  personaOverrideSetOptions,
+} from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { CREATE_NEW_PERSONA_VALUE } from '../autocomplete.js';
 import { buildPersonaModalFields } from '../utils/modalBuilder.js';
@@ -176,8 +181,9 @@ async function setExistingOverride(
  */
 export async function handleOverrideSet(context: ModalCommandContext): Promise<void> {
   const discordId = context.user.id;
-  const personalitySlug = context.interaction.options.getString('personality', true);
-  const personaId = context.interaction.options.getString('persona', true);
+  const options = personaOverrideSetOptions(context.interaction);
+  const personalitySlug = options.personality();
+  const personaId = options.persona();
 
   try {
     if (personaId === CREATE_NEW_PERSONA_VALUE) {

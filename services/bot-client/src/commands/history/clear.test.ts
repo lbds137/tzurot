@@ -49,7 +49,17 @@ describe('handleClear', () => {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
-      interaction: {},
+      interaction: {
+        options: {
+          getString: vi.fn((name: string) => {
+            if (name === 'personality') return personalitySlug;
+            if (name === 'persona') return null;
+            return null;
+          }),
+          getBoolean: vi.fn(() => null),
+          getInteger: vi.fn(() => null),
+        },
+      },
       user: { id: '123456789' },
       guild: null,
       member: null,

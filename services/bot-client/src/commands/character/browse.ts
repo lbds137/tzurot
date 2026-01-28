@@ -17,7 +17,12 @@ import {
   StringSelectMenuOptionBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, type EnvConfig, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  type EnvConfig,
+  DISCORD_COLORS,
+  characterBrowseOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   fetchUserCharacters,
@@ -250,9 +255,9 @@ export async function handleBrowse(
   config: EnvConfig
 ): Promise<void> {
   const userId = context.user.id;
-  const query = context.interaction.options.getString('query');
-  const filterStr = context.interaction.options.getString('filter') ?? 'all';
-  const filter = filterStr as CharacterBrowseFilter;
+  const options = characterBrowseOptions(context.interaction);
+  const query = options.query();
+  const filter = (options.filter() ?? 'all') as CharacterBrowseFilter;
 
   try {
     // Fetch user's own characters and all public characters

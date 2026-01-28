@@ -3,7 +3,7 @@
  * Handles /me preset reset subcommand
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, settingsPresetResetOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../../utils/commandHelpers.js';
@@ -20,7 +20,8 @@ interface ResetResponse {
  */
 export async function handleReset(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityId = context.interaction.options.getString('personality', true);
+  const options = settingsPresetResetOptions(context.interaction);
+  const personalityId = options.personality();
 
   try {
     const result = await callGatewayApi<ResetResponse>(`/user/model-override/${personalityId}`, {

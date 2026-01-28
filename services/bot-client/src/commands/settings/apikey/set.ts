@@ -9,7 +9,12 @@
  */
 
 import { ModalBuilder, ActionRowBuilder, TextInputBuilder, TextInputStyle } from 'discord.js';
-import { createLogger, AIProvider, API_KEY_FORMATS } from '@tzurot/common-types';
+import {
+  createLogger,
+  AIProvider,
+  API_KEY_FORMATS,
+  settingsApikeySetOptions,
+} from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../../utils/commandContext/types.js';
 import { ApikeyCustomIds } from '../../../utils/customIds.js';
 
@@ -23,7 +28,8 @@ const logger = createLogger('settings-apikey-set');
  * because this subcommand uses deferralMode: 'modal'.
  */
 export async function handleSetKey(context: ModalCommandContext): Promise<void> {
-  const provider = context.interaction.options.getString('provider', true) as AIProvider;
+  const options = settingsApikeySetOptions(context.interaction);
+  const provider = options.provider() as AIProvider;
 
   // Determine provider display name and help text
   const providerInfo = getProviderInfo(provider);

@@ -7,7 +7,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, personaOverrideClearOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 
@@ -29,7 +29,8 @@ interface ClearOverrideResponse {
  */
 export async function handleOverrideClear(context: DeferredCommandContext): Promise<void> {
   const discordId = context.user.id;
-  const personalitySlug = context.interaction.options.getString('personality', true);
+  const options = personaOverrideClearOptions(context.interaction);
+  const personalitySlug = options.personality();
 
   try {
     // Clear override via gateway

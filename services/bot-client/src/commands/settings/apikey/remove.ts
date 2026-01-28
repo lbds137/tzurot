@@ -8,7 +8,12 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, AIProvider } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  AIProvider,
+  settingsApikeyRemoveOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
@@ -24,7 +29,8 @@ const logger = createLogger('settings-apikey-remove');
  */
 export async function handleRemoveKey(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const provider = context.interaction.options.getString('provider', true) as AIProvider;
+  const options = settingsApikeyRemoveOptions(context.interaction);
+  const provider = options.provider() as AIProvider;
 
   try {
     const result = await callGatewayApi<void>(`/wallet/${provider}`, {

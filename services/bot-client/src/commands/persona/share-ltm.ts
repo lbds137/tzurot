@@ -6,7 +6,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, personaShareLtmOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
@@ -27,7 +27,8 @@ interface UpdateSettingsResponse {
  */
 export async function handleShareLtmSetting(context: DeferredCommandContext): Promise<void> {
   const discordId = context.user.id;
-  const enabledValue = context.interaction.options.getString('enabled', true);
+  const options = personaShareLtmOptions(context.interaction);
+  const enabledValue = options.enabled();
   const enabled = enabledValue === 'enable';
 
   try {

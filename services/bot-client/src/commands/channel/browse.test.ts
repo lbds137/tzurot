@@ -483,6 +483,9 @@ describe('backfillMissingGuildIds', () => {
           },
           guilds: { cache: new Map() },
         },
+        options: {
+          getString: vi.fn(() => null),
+        },
       },
       getOption: vi.fn(() => null),
       editReply: mockEditReply,
@@ -652,6 +655,12 @@ describe('buildGuildPages (all-servers view)', () => {
               ['guild-2', { name: 'Server Beta' }],
             ]),
           },
+        },
+        options: {
+          getString: vi.fn((name: string) => {
+            if (name === 'filter') return filter;
+            return null;
+          }),
         },
       },
       getOption: vi.fn(<T>(name: string): T | null => {

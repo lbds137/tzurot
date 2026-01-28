@@ -46,7 +46,16 @@ describe('handleDbSync', () => {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
-      interaction: {},
+      interaction: {
+        options: {
+          getString: vi.fn(() => null),
+          getBoolean: vi.fn((name: string) => {
+            if (name === 'dry-run') return dryRun;
+            return null;
+          }),
+          getInteger: vi.fn(() => null),
+        },
+      },
       user: { id: 'owner-123' },
       guild: null,
       member: null,

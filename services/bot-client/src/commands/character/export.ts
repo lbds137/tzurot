@@ -5,7 +5,13 @@
  */
 
 import { AttachmentBuilder } from 'discord.js';
-import { createLogger, type EnvConfig, getConfig, isBotOwner } from '@tzurot/common-types';
+import {
+  createLogger,
+  type EnvConfig,
+  getConfig,
+  isBotOwner,
+  characterExportOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import type { CharacterData } from './config.js';
@@ -119,7 +125,8 @@ export async function handleExport(
   context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  const slug = context.interaction.options.getString('character', true);
+  const options = characterExportOptions(context.interaction);
+  const slug = options.character();
   const userId = context.user.id;
 
   try {

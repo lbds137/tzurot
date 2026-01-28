@@ -49,6 +49,14 @@ describe('handleKick', () => {
     return {
       interaction: {
         client: mockClient,
+        options: {
+          getString: vi.fn((name: string) => {
+            if (name === 'server-id') return serverId;
+            return null;
+          }),
+          getBoolean: vi.fn(() => null),
+          getInteger: vi.fn(() => null),
+        },
       } as unknown as ChatInputCommandInteraction,
       user: { id: '123456789' },
       guild: null,
