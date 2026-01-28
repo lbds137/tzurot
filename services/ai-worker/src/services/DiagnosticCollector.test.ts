@@ -587,6 +587,94 @@ describe('DiagnosticCollector', () => {
     });
   });
 
+  describe('recordError', () => {
+    it('should record error data in the finalized payload', () => {
+      collector.recordError({
+        message: 'API rate limit exceeded',
+        category: 'rate_limit',
+        referenceId: 'ref-abc123',
+        rawError: { status: 429, provider: 'openrouter' },
+        failedAtStage: 'GenerationStep',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.error).toBeDefined();
+      expect(payload.error).toEqual({
+        message: 'API rate limit exceeded',
+        category: 'rate_limit',
+        referenceId: 'ref-abc123',
+        rawError: { status: 429, provider: 'openrouter' },
+        failedAtStage: 'GenerationStep',
+      });
+    });
+
+    it('should include error alongside partial diagnostic data', () => {
+      // Record some stages before error
+      collector.recordInputProcessing({
+        rawUserMessage: 'Hello!',
+        processedAttachments: [],
+        searchQuery: 'hello',
+      });
+
+      collector.recordLlmConfig({
+        model: 'claude-3-5-sonnet',
+        provider: 'anthropic',
+        stopSequences: [],
+      });
+
+      // Then error occurs
+      collector.recordError({
+        message: 'Provider returned error',
+        category: 'provider_error',
+        failedAtStage: 'GenerationStep',
+      });
+
+      const payload = collector.finalize();
+
+      // Should have partial data from before error
+      expect(payload.inputProcessing.rawUserMessage).toBe('Hello!');
+      expect(payload.llmConfig.model).toBe('claude-3-5-sonnet');
+
+      // Should also have error
+      expect(payload.error).toBeDefined();
+      expect(payload.error?.category).toBe('provider_error');
+
+      // Should have defaults for stages that never ran
+      expect(payload.llmResponse.rawContent).toBe('[not recorded]');
+    });
+
+    it('should not include error field when no error recorded', () => {
+      collector.recordInputProcessing({
+        rawUserMessage: 'Hello!',
+        processedAttachments: [],
+        searchQuery: 'hello',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.error).toBeUndefined();
+    });
+
+    it('should handle error without optional fields', () => {
+      collector.recordError({
+        message: 'Unknown error',
+        category: 'unknown',
+        failedAtStage: 'GenerationStep',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.error).toEqual({
+        message: 'Unknown error',
+        category: 'unknown',
+        referenceId: undefined,
+        rawError: undefined,
+        failedAtStage: 'GenerationStep',
+      });
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle memories without metadata id', () => {
       collector.recordMemoryRetrieval({

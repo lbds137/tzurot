@@ -458,6 +458,145 @@ describe('MessageHandler', () => {
       );
     });
 
+    it('should include metadata in error responses for explicit failures', async () => {
+      const jobId = 'job-meta-error';
+      const result = {
+        requestId: 'req-meta-error',
+        success: false,
+        error: 'API quota exceeded',
+        errorInfo: {
+          category: 'quota_exceeded' as const,
+          referenceId: 'ref-quota-123',
+        },
+        metadata: {
+          modelUsed: 'anthropic/claude-3-5-sonnet',
+          isGuestMode: true,
+          focusModeEnabled: false,
+          incognitoModeActive: true,
+        },
+      };
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'MetaBot' },
+        personaId: 'persona-meta',
+        userMessageContent: 'Trigger quota error',
+        userMessageTime: new Date(),
+        isAutoResponse: false,
+      };
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['meta-msg-1'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should include all metadata fields in the error response
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelUsed: 'anthropic/claude-3-5-sonnet',
+          isGuestMode: true,
+          focusModeEnabled: false,
+          incognitoModeActive: true,
+          isAutoResponse: false,
+        })
+      );
+    });
+
+    it('should handle error response when result.metadata is undefined', async () => {
+      const jobId = 'job-no-meta';
+      const result = {
+        requestId: 'req-no-meta',
+        success: false,
+        error: 'Network timeout',
+        errorInfo: {
+          category: 'network_error' as const,
+          referenceId: 'ref-net-123',
+        },
+        // Note: metadata is completely missing
+      };
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'NoMetaBot' },
+        personaId: 'persona-nometa',
+        userMessageContent: 'Trigger network error',
+        userMessageTime: new Date(),
+        isAutoResponse: true,
+      };
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['nometa-msg-1'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should still call sendResponse with undefined metadata fields (no crash)
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelUsed: undefined,
+          isGuestMode: undefined,
+          isAutoResponse: true,
+        })
+      );
+    });
+
+    it('should include metadata in error response for invalid content', async () => {
+      const jobId = 'job-invalid-meta';
+      const result = {
+        requestId: 'req-invalid-meta',
+        success: true,
+        content: '', // Empty content triggers error path
+        metadata: {
+          modelUsed: 'openai/gpt-4o',
+          isGuestMode: false,
+          focusModeEnabled: true,
+        },
+      };
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'InvalidMetaBot' },
+        personaId: 'persona-invmeta',
+        userMessageContent: 'Trigger invalid content',
+        userMessageTime: new Date(),
+        isAutoResponse: false,
+      };
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['invmeta-msg-1'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should include metadata even when content validation fails
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelUsed: 'openai/gpt-4o',
+          isGuestMode: false,
+          focusModeEnabled: true,
+        })
+      );
+    });
+
     it('should strip error spoiler when saving invalid content error to history', async () => {
       const jobId = 'job-invalid';
       const result = {
