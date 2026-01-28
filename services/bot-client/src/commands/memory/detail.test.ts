@@ -221,8 +221,10 @@ describe('Memory Detail', () => {
       const labels = row.components.map(b => b.data.label);
       expect(labels).toContain('✏️ Edit');
       expect(labels).toContain('🔒 Lock');
+      expect(labels).toContain('◀️ Back to List');
       expect(labels).toContain('🗑️ Delete');
-      expect(labels).toContain('↩️ Back to List');
+      // Delete should be last (standard dashboard order)
+      expect(labels[labels.length - 1]).toBe('🗑️ Delete');
     });
 
     it('should show unlock button for locked memory', () => {

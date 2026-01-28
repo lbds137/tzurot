@@ -216,10 +216,6 @@ export function buildDetailButtons(
       .setCustomId(buildMemoryActionId('lock', memory.id))
       .setLabel(lockLabel)
       .setStyle(lockStyle),
-    new ButtonBuilder()
-      .setCustomId(buildMemoryActionId('delete', memory.id))
-      .setLabel('🗑️ Delete')
-      .setStyle(ButtonStyle.Danger),
   ];
 
   // Add "View Full" button if content was truncated
@@ -232,11 +228,20 @@ export function buildDetailButtons(
     );
   }
 
+  // Back button comes before Delete (standard dashboard order)
   buttons.push(
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('back'))
-      .setLabel('↩️ Back to List')
+      .setLabel('◀️ Back to List')
       .setStyle(ButtonStyle.Secondary)
+  );
+
+  // Delete button last (danger action should be visually last)
+  buttons.push(
+    new ButtonBuilder()
+      .setCustomId(buildMemoryActionId('delete', memory.id))
+      .setLabel('🗑️ Delete')
+      .setStyle(ButtonStyle.Danger)
   );
 
   return new ActionRowBuilder<ButtonBuilder>().addComponents(buttons);

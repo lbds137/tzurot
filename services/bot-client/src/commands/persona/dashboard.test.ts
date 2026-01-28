@@ -192,6 +192,36 @@ describe('handleModalSubmit', () => {
       flags: MessageFlags.Ephemeral,
     });
   });
+
+  it('should preserve browseContext in session when editing persona from browse', async () => {
+    const browseContext = { source: 'browse' as const, page: 2, filter: 'all', sort: 'name' };
+    mockSessionGet.mockResolvedValue({
+      data: { name: 'Test Persona', preferredName: 'Tester', browseContext },
+    });
+    mockExtractModalValues.mockReturnValue({ name: 'Updated Name' });
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: mockGetPersonaResponse({
+        persona: { id: TEST_PERSONA_ID, name: 'Updated Name' },
+      }),
+    });
+
+    await handleModalSubmit(
+      createMockModalInteraction(`persona::modal::${TEST_PERSONA_ID}::identity`, {
+        name: 'Updated Name',
+      })
+    );
+
+    // Verify session was updated with browseContext preserved
+    expect(mockSessionUpdate).toHaveBeenCalledWith(
+      '123456789', // userId
+      'persona',
+      TEST_PERSONA_ID,
+      expect.objectContaining({
+        browseContext, // browseContext should be preserved
+      })
+    );
+  });
 });
 
 describe('handleSelectMenu', () => {

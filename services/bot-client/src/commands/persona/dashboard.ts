@@ -46,10 +46,13 @@ const logger = createLogger('persona-dashboard');
 /**
  * Build dashboard button options for personas.
  * Delete button only shown for non-default personas.
+ * Back button shown when opened from browse (preserves navigation context).
  */
 function buildPersonaDashboardOptions(data: FlattenedPersonaData): ActionButtonOptions {
+  const hasBackContext = data.browseContext !== undefined;
   return {
-    showClose: true,
+    showClose: !hasBackContext, // Only show close if not from browse
+    showBack: hasBackContext, // Show back if opened from browse
     showRefresh: true,
     showDelete: !data.isDefault, // Can't delete default persona
   };
@@ -154,6 +157,11 @@ async function handleSectionModalSubmit(
 
     // Flatten the response for dashboard display
     const flattenedData = flattenPersonaData(updatedPersona);
+
+    // Preserve browseContext from original session for back button support
+    if (session?.data?.browseContext) {
+      flattenedData.browseContext = session.data.browseContext;
+    }
 
     // Update session
     if (session) {
