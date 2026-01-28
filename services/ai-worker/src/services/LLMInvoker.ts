@@ -38,6 +38,46 @@ import {
 const logger = createLogger('LLMInvoker');
 
 /**
+ * Models that do NOT support the 'stop' parameter.
+ *
+ * These patterns are based on OpenRouter's supported_parameters for each model.
+ * When stop sequences are passed to these models, they return 400 Bad Request.
+ *
+ * Research source: OpenRouter model API pages (January 2026)
+ * - glm-4.5-air: Only supports reasoning, include_reasoning, max_tokens, temperature, top_p, tools, tool_choice
+ * - gemini-3-pro-preview: Only supports temperature, top_p, frequency_penalty
+ * - gemma-3-27b-it:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty
+ * - llama-3.3-70b-instruct:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty, tool_choice, tools
+ *
+ * TODO: Make this configurable via database (see BACKLOG.md)
+ */
+const MODELS_WITHOUT_STOP_SUPPORT: RegExp[] = [
+  // Z-AI GLM 4.5 Air variants (but NOT GLM 4.6, 4.7 which do support stop)
+  /glm-4\.5-air/i,
+  // Google Gemini 3 Pro Preview (but NOT Gemini 3 Flash which does support stop)
+  /gemini-3-pro-preview/i,
+  // Google Gemma 3 free tier
+  /gemma-3-27b-it:free/i,
+  // Meta Llama 3.3 70B free tier
+  /llama-3\.3-70b-instruct:free/i,
+];
+
+/**
+ * Check if a model supports stop sequences.
+ *
+ * @param modelName - The model identifier (e.g., "z-ai/glm-4.5-air:free")
+ * @returns true if the model supports stop sequences, false otherwise
+ */
+export function supportsStopSequences(modelName: string): boolean {
+  for (const pattern of MODELS_WITHOUT_STOP_SUPPORT) {
+    if (pattern.test(modelName)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Options for invoking an LLM with retry logic
  */
 export interface InvokeWithRetryOptions {
@@ -97,6 +137,18 @@ export class LLMInvoker {
     // LLM always gets full independent timeout budget (480s = 8 minutes)
     const globalTimeoutMs = TIMEOUTS.LLM_INVOCATION;
 
+    // Filter stop sequences for models that don't support them
+    // This prevents 400 Bad Request errors from models like GLM 4.5 Air, Gemma 3 free, etc.
+    const modelSupportsStop = supportsStopSequences(modelName);
+    const effectiveStopSequences = modelSupportsStop ? stopSequences : undefined;
+
+    if (stopSequences && stopSequences.length > 0 && !modelSupportsStop) {
+      logger.warn(
+        { modelName, stopSequenceCount: stopSequences.length },
+        '[LLMInvoker] Model does not support stop sequences - filtering them out to prevent 400 errors'
+      );
+    }
+
     // Get reasoning model config for special handling
     const reasoningConfig = getReasoningModelConfig(modelName);
     const isReasoningModel = reasoningConfig.type !== ReasoningModelType.Standard;
@@ -125,14 +177,15 @@ export class LLMInvoker {
         isReasoningModel,
         originalMessageCount: messages.length,
         transformedMessageCount: transformedMessages.length,
-        stopSequenceCount: stopSequences?.length ?? 0,
+        stopSequenceCount: effectiveStopSequences?.length ?? 0,
+        stopSequencesFiltered: !modelSupportsStop && (stopSequences?.length ?? 0) > 0,
       },
       `[LLMInvoker] Dynamic timeout calculated: ${globalTimeoutMs}ms (job: ${jobTimeout}ms)`
     );
 
-    if (stopSequences && stopSequences.length > 0) {
+    if (effectiveStopSequences && effectiveStopSequences.length > 0) {
       logger.debug(
-        { stopSequences },
+        { stopSequences: effectiveStopSequences },
         '[LLMInvoker] Using stop sequences for identity bleeding prevention'
       );
     }
@@ -140,7 +193,7 @@ export class LLMInvoker {
     // Use retryService for consistent retry behavior
     // Fast-fail on permanent errors (auth, quota, content policy, etc.)
     const result = await withRetry(
-      () => this.invokeSingleAttempt(model, transformedMessages, modelName, stopSequences),
+      () => this.invokeSingleAttempt(model, transformedMessages, modelName, effectiveStopSequences),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         globalTimeoutMs,
