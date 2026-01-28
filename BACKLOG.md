@@ -80,12 +80,14 @@ Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified for
 
 **Depends on**: LTM Summarization
 
-### 5. 🐛 Admin Debug Doesn't Work with Failures
+### 5. ✅ Admin Debug Doesn't Work with Failures (DONE)
 
-`/admin debug` can't show diagnostics for failed jobs. The most important cases (failures) have no data.
+`/admin debug` now shows diagnostics for failed jobs.
 
-- [ ] Record diagnostics on failure path, not just success path
-- [ ] Capture partial state at failure point
+- [x] Record diagnostics on failure path, not just success path
+- [x] Capture partial state at failure point
+- [x] Add error field to DiagnosticPayload with category, message, referenceId
+- [x] Update debug embed to show error information with red color
 
 ---
 
