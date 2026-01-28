@@ -10,7 +10,7 @@ import {
   createMockActivation,
   getHandler,
   setupStandardMocks,
-  MOCK_CREATED_AT,
+  createMockCreatedAt,
   MOCK_USER_UUID,
   MOCK_ACTIVATION_UUID,
   MOCK_DISCORD_USER_ID,
@@ -135,7 +135,7 @@ describe('GET /user/channel/list', () => {
           extendedContextMaxAge: null,
           extendedContextMaxImages: null,
           activatedBy: MOCK_USER_UUID,
-          createdAt: MOCK_CREATED_AT.toISOString(),
+          createdAt: createMockCreatedAt().toISOString(),
         },
       ],
     });

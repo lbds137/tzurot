@@ -54,6 +54,229 @@ function categorizeAttachments(attachments: AttachmentMetadata[]): {
   return { audio, images };
 }
 
+/** Parameters for creating audio transcription jobs */
+interface AudioJobParams {
+  audioAttachments: AttachmentMetadata[];
+  requestId: string;
+  requestIdSuffix: string;
+  userId: string;
+  channelId: string | undefined;
+  responseDestination: ResponseDestination;
+  queueName: string;
+  referenceNumber?: number;
+}
+
+/** Parameters for creating image description jobs */
+interface ImageJobParams {
+  imageAttachments: AttachmentMetadata[];
+  requestId: string;
+  requestIdSuffix: string;
+  userId: string;
+  channelId: string | undefined;
+  responseDestination: ResponseDestination;
+  personality: LoadedPersonality;
+  queueName: string;
+  referenceNumber?: number;
+}
+
+/** Result from creating preprocessing jobs */
+interface PreprocessingJobsResult {
+  children: FlowJob[];
+  dependencies: JobDependency[];
+}
+
+/**
+ * Create audio transcription child jobs for a set of audio attachments
+ */
+function createAudioTranscriptionJobs(params: AudioJobParams): PreprocessingJobsResult {
+  const {
+    audioAttachments,
+    requestId,
+    requestIdSuffix,
+    userId,
+    channelId,
+    responseDestination,
+    queueName,
+    referenceNumber,
+  } = params;
+
+  const children: FlowJob[] = [];
+  const dependencies: JobDependency[] = [];
+
+  for (let i = 0; i < audioAttachments.length; i++) {
+    const attachment = audioAttachments[i];
+    const audioRequestId = `${requestId}${requestIdSuffix}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
+    const jobId = `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${audioRequestId}`;
+
+    const jobData: AudioTranscriptionJobData = {
+      requestId: audioRequestId,
+      jobType: JobType.AudioTranscription,
+      attachment,
+      context: { userId, channelId },
+      responseDestination,
+      ...(referenceNumber !== undefined && { sourceReferenceNumber: referenceNumber }),
+    };
+
+    const validation = audioTranscriptionJobDataSchema.safeParse(jobData);
+    if (!validation.success) {
+      const errorContext = referenceNumber !== undefined ? `referenced message ` : '';
+      logger.error(
+        { requestId: audioRequestId, referenceNumber, errors: validation.error.format() },
+        `[JobChain] ${errorContext}Audio transcription job validation failed`
+      );
+      throw new Error(
+        `${errorContext}Audio transcription job validation failed: ${validation.error.message}`
+      );
+    }
+
+    children.push({
+      name: JobType.AudioTranscription,
+      data: jobData,
+      queueName,
+      opts: { jobId },
+    });
+
+    dependencies.push({
+      jobId,
+      type: JobType.AudioTranscription,
+      status: JobStatus.Queued,
+      resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${userId || 'unknown'}:${jobId}`,
+    });
+
+    logger.info(
+      { jobId, requestId: audioRequestId, referenceNumber, attachmentName: attachment.name },
+      '[JobChain] Added audio transcription child job'
+    );
+  }
+
+  return { children, dependencies };
+}
+
+/**
+ * Create image description child job for a set of image attachments
+ */
+function createImageDescriptionJob(params: ImageJobParams): PreprocessingJobsResult {
+  const {
+    imageAttachments,
+    requestId,
+    requestIdSuffix,
+    userId,
+    channelId,
+    responseDestination,
+    personality,
+    queueName,
+    referenceNumber,
+  } = params;
+
+  if (imageAttachments.length === 0) {
+    return { children: [], dependencies: [] };
+  }
+
+  const imageRequestId = `${requestId}${requestIdSuffix}${JOB_REQUEST_SUFFIXES.IMAGE}`;
+  const jobId = `${JOB_PREFIXES.IMAGE_DESCRIPTION}${imageRequestId}`;
+
+  const jobData: ImageDescriptionJobData = {
+    requestId: imageRequestId,
+    jobType: JobType.ImageDescription,
+    attachments: imageAttachments,
+    personality,
+    context: { userId, channelId },
+    responseDestination,
+    ...(referenceNumber !== undefined && { sourceReferenceNumber: referenceNumber }),
+  };
+
+  const validation = imageDescriptionJobDataSchema.safeParse(jobData);
+  if (!validation.success) {
+    const errorContext = referenceNumber !== undefined ? `referenced message ` : '';
+    logger.error(
+      { requestId: imageRequestId, referenceNumber, errors: validation.error.format() },
+      `[JobChain] ${errorContext}Image description job validation failed`
+    );
+    throw new Error(
+      `${errorContext}Image description job validation failed: ${validation.error.message}`
+    );
+  }
+
+  const children: FlowJob[] = [
+    {
+      name: JobType.ImageDescription,
+      data: jobData,
+      queueName,
+      opts: { jobId },
+    },
+  ];
+
+  const dependencies: JobDependency[] = [
+    {
+      jobId,
+      type: JobType.ImageDescription,
+      status: JobStatus.Queued,
+      resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${userId || 'unknown'}:${jobId}`,
+    },
+  ];
+
+  logger.info(
+    { jobId, requestId: imageRequestId, referenceNumber, imageCount: imageAttachments.length },
+    '[JobChain] Added image description child job'
+  );
+
+  return { children, dependencies };
+}
+
+/**
+ * Process attachments and create preprocessing jobs for them
+ */
+function processAttachmentsForJobs(
+  attachments: AttachmentMetadata[],
+  params: {
+    requestId: string;
+    requestIdSuffix: string;
+    userId: string;
+    channelId: string | undefined;
+    responseDestination: ResponseDestination;
+    personality: LoadedPersonality;
+    queueName: string;
+    referenceNumber?: number;
+  }
+): PreprocessingJobsResult {
+  const { audio, images } = categorizeAttachments(attachments);
+  const children: FlowJob[] = [];
+  const dependencies: JobDependency[] = [];
+
+  // Create audio transcription jobs
+  if (audio.length > 0) {
+    const audioResult = createAudioTranscriptionJobs({
+      audioAttachments: audio,
+      requestId: params.requestId,
+      requestIdSuffix: params.requestIdSuffix,
+      userId: params.userId,
+      channelId: params.channelId,
+      responseDestination: params.responseDestination,
+      queueName: params.queueName,
+      referenceNumber: params.referenceNumber,
+    });
+    children.push(...audioResult.children);
+    dependencies.push(...audioResult.dependencies);
+  }
+
+  // Create image description job
+  const imageResult = createImageDescriptionJob({
+    imageAttachments: images,
+    requestId: params.requestId,
+    requestIdSuffix: params.requestIdSuffix,
+    userId: params.userId,
+    channelId: params.channelId,
+    responseDestination: params.responseDestination,
+    personality: params.personality,
+    queueName: params.queueName,
+    referenceNumber: params.referenceNumber,
+  });
+  children.push(...imageResult.children);
+  dependencies.push(...imageResult.dependencies);
+
+  return { children, dependencies };
+}
+
 /**
  * Orchestrate job chain creation using BullMQ FlowProducer
  *
@@ -85,278 +308,49 @@ export async function createJobChain(params: {
   const children: FlowJob[] = [];
   const dependencies: JobDependency[] = [];
 
-  // Check if we have attachments that need preprocessing
+  const baseJobParams = {
+    requestId,
+    userId: context.userId,
+    channelId: context.channelId,
+    responseDestination,
+    personality,
+    queueName: QUEUE_NAME,
+  };
+
+  // Process direct attachments
   if (context.attachments && context.attachments.length > 0) {
     logger.info(
-      {
-        requestId,
-        attachmentCount: context.attachments.length,
-      },
+      { requestId, attachmentCount: context.attachments.length },
       '[JobChain] Attachments detected - creating preprocessing jobs as flow children'
     );
 
-    const { audio, images } = categorizeAttachments(context.attachments);
-
-    // Create audio transcription child jobs
-    for (let i = 0; i < audio.length; i++) {
-      const attachment = audio[i];
-      const audioRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
-      const jobId = `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${audioRequestId}`;
-
-      const jobData: AudioTranscriptionJobData = {
-        requestId: audioRequestId,
-        jobType: JobType.AudioTranscription,
-        attachment,
-        context: {
-          userId: context.userId,
-          channelId: context.channelId,
-        },
-        responseDestination,
-      };
-
-      // Validate job payload against schema (contract testing)
-      const validation = audioTranscriptionJobDataSchema.safeParse(jobData);
-      if (!validation.success) {
-        logger.error(
-          {
-            requestId: audioRequestId,
-            errors: validation.error.format(),
-          },
-          '[JobChain] Audio transcription job validation failed'
-        );
-        throw new Error(`Audio transcription job validation failed: ${validation.error.message}`);
-      }
-
-      children.push({
-        name: JobType.AudioTranscription,
-        data: jobData,
-        queueName: QUEUE_NAME,
-        opts: {
-          jobId,
-        },
-      });
-
-      dependencies.push({
-        jobId,
-        type: JobType.AudioTranscription,
-        status: JobStatus.Queued,
-        // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
-        // Include userId for namespacing to prevent key collisions between users
-        // Fallback to 'unknown' if userId is missing (defensive coding)
-        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
-      });
-
-      logger.info(
-        {
-          jobId,
-          requestId: audioRequestId,
-          attachmentName: attachment.name,
-        },
-        '[JobChain] Added audio transcription child job'
-      );
-    }
-
-    // Create image description child job
-    if (images.length > 0) {
-      const imageRequestId = `${requestId}${JOB_REQUEST_SUFFIXES.IMAGE}`;
-      const jobId = `${JOB_PREFIXES.IMAGE_DESCRIPTION}${imageRequestId}`;
-
-      const jobData: ImageDescriptionJobData = {
-        requestId: imageRequestId,
-        jobType: JobType.ImageDescription,
-        attachments: images,
-        personality,
-        context: {
-          userId: context.userId,
-          channelId: context.channelId,
-        },
-        responseDestination,
-      };
-
-      // Validate job payload against schema (contract testing)
-      const validation = imageDescriptionJobDataSchema.safeParse(jobData);
-      if (!validation.success) {
-        logger.error(
-          {
-            requestId: imageRequestId,
-            errors: validation.error.format(),
-          },
-          '[JobChain] Image description job validation failed'
-        );
-        throw new Error(`Image description job validation failed: ${validation.error.message}`);
-      }
-
-      children.push({
-        name: JobType.ImageDescription,
-        data: jobData,
-        queueName: QUEUE_NAME,
-        opts: {
-          jobId,
-        },
-      });
-
-      dependencies.push({
-        jobId,
-        type: JobType.ImageDescription,
-        status: JobStatus.Queued,
-        // Result stored in Redis with 1-hour TTL (see ai-worker/src/redis.ts:storeJobResult)
-        // Include userId for namespacing to prevent key collisions between users
-        // Fallback to 'unknown' if userId is missing (defensive coding)
-        resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
-      });
-
-      logger.info(
-        {
-          jobId,
-          requestId: imageRequestId,
-          imageCount: images.length,
-        },
-        '[JobChain] Added image description child job'
-      );
-    }
+    const result = processAttachmentsForJobs(context.attachments, {
+      ...baseJobParams,
+      requestIdSuffix: '',
+    });
+    children.push(...result.children);
+    dependencies.push(...result.dependencies);
 
     logger.info(
-      {
-        requestId,
-        audioJobs: audio.length,
-        imageJobs: images.length > 0 ? 1 : 0,
-        totalChildren: children.length,
-      },
+      { requestId, totalChildren: children.length },
       '[JobChain] Built preprocessing child jobs for direct attachments'
     );
   }
 
-  // Also preprocess attachments from referenced messages
-  // This ensures referenced message images/audio get the same preprocessing treatment
-  // as direct attachments, avoiding inline processing timeouts
+  // Process attachments from referenced messages
   if (context.referencedMessages && context.referencedMessages.length > 0) {
     for (const refMsg of context.referencedMessages) {
       if (!refMsg.attachments || refMsg.attachments.length === 0) {
         continue;
       }
 
-      const refNum = refMsg.referenceNumber;
-      const { audio: refAudio, images: refImages } = categorizeAttachments(refMsg.attachments);
-
-      // Create audio transcription jobs for referenced message audio
-      for (let i = 0; i < refAudio.length; i++) {
-        const attachment = refAudio[i];
-        const audioRequestId = `${requestId}-ref${refNum}${JOB_REQUEST_SUFFIXES.AUDIO}-${i}`;
-        const jobId = `${JOB_PREFIXES.AUDIO_TRANSCRIPTION}${audioRequestId}`;
-
-        const jobData: AudioTranscriptionJobData = {
-          requestId: audioRequestId,
-          jobType: JobType.AudioTranscription,
-          attachment,
-          context: {
-            userId: context.userId,
-            channelId: context.channelId,
-          },
-          responseDestination,
-          sourceReferenceNumber: refNum,
-        };
-
-        const validation = audioTranscriptionJobDataSchema.safeParse(jobData);
-        if (!validation.success) {
-          logger.error(
-            {
-              requestId: audioRequestId,
-              referenceNumber: refNum,
-              errors: validation.error.format(),
-            },
-            '[JobChain] Referenced message audio transcription job validation failed'
-          );
-          throw new Error(
-            `Referenced message audio transcription job validation failed: ${validation.error.message}`
-          );
-        }
-
-        children.push({
-          name: JobType.AudioTranscription,
-          data: jobData,
-          queueName: QUEUE_NAME,
-          opts: {
-            jobId,
-          },
-        });
-
-        dependencies.push({
-          jobId,
-          type: JobType.AudioTranscription,
-          status: JobStatus.Queued,
-          resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
-        });
-
-        logger.info(
-          {
-            jobId,
-            requestId: audioRequestId,
-            referenceNumber: refNum,
-            attachmentName: attachment.name,
-          },
-          '[JobChain] Added referenced message audio transcription child job'
-        );
-      }
-
-      // Create image description job for referenced message images
-      if (refImages.length > 0) {
-        const imageRequestId = `${requestId}-ref${refNum}${JOB_REQUEST_SUFFIXES.IMAGE}`;
-        const jobId = `${JOB_PREFIXES.IMAGE_DESCRIPTION}${imageRequestId}`;
-
-        const jobData: ImageDescriptionJobData = {
-          requestId: imageRequestId,
-          jobType: JobType.ImageDescription,
-          attachments: refImages,
-          personality,
-          context: {
-            userId: context.userId,
-            channelId: context.channelId,
-          },
-          responseDestination,
-          sourceReferenceNumber: refNum,
-        };
-
-        const validation = imageDescriptionJobDataSchema.safeParse(jobData);
-        if (!validation.success) {
-          logger.error(
-            {
-              requestId: imageRequestId,
-              referenceNumber: refNum,
-              errors: validation.error.format(),
-            },
-            '[JobChain] Referenced message image description job validation failed'
-          );
-          throw new Error(
-            `Referenced message image description job validation failed: ${validation.error.message}`
-          );
-        }
-
-        children.push({
-          name: JobType.ImageDescription,
-          data: jobData,
-          queueName: QUEUE_NAME,
-          opts: {
-            jobId,
-          },
-        });
-
-        dependencies.push({
-          jobId,
-          type: JobType.ImageDescription,
-          status: JobStatus.Queued,
-          resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}${context.userId || 'unknown'}:${jobId}`,
-        });
-
-        logger.info(
-          {
-            jobId,
-            requestId: imageRequestId,
-            referenceNumber: refNum,
-            imageCount: refImages.length,
-          },
-          '[JobChain] Added referenced message image description child job'
-        );
-      }
+      const result = processAttachmentsForJobs(refMsg.attachments, {
+        ...baseJobParams,
+        requestIdSuffix: `-ref${refMsg.referenceNumber}`,
+        referenceNumber: refMsg.referenceNumber,
+      });
+      children.push(...result.children);
+      dependencies.push(...result.dependencies);
     }
 
     logger.info(
@@ -386,10 +380,7 @@ export async function createJobChain(params: {
   const validation = llmGenerationJobDataSchema.safeParse(llmJobData);
   if (!validation.success) {
     logger.error(
-      {
-        requestId,
-        errors: validation.error.format(),
-      },
+      { requestId, errors: validation.error.format() },
       '[JobChain] LLM generation job validation failed'
     );
     throw new Error(`LLM generation job validation failed: ${validation.error.message}`);
@@ -398,27 +389,18 @@ export async function createJobChain(params: {
   // Create flow with LLM as parent, preprocessing as children
   // FlowProducer automatically:
   // 1. Runs all children in parallel (audio + image jobs execute concurrently)
-  //    - Children are added to queue immediately and processed by available workers
-  //    - Parallel execution confirmed by BullMQ architecture (see: bullmq.io/guide/flows)
   // 2. Waits for ALL children to complete successfully
   // 3. Only then queues the parent (LLM) job for execution
   const flow = await flowProducer.add({
     name: JobType.LLMGeneration,
     data: llmJobData,
     queueName: QUEUE_NAME,
-    opts: {
-      jobId: llmJobId,
-    },
+    opts: { jobId: llmJobId },
     children: children.length > 0 ? children : undefined,
   });
 
   logger.info(
-    {
-      jobId: llmJobId,
-      requestId,
-      personalityName: personality.name,
-      childCount: children.length,
-    },
+    { jobId: llmJobId, requestId, personalityName: personality.name, childCount: children.length },
     '[JobChain] Created flow - LLM will wait for all children to complete'
   );
 

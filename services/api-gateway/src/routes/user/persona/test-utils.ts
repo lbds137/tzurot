@@ -18,7 +18,23 @@ export const mockUser = {
   defaultPersonaId: MOCK_PERSONA_ID,
 };
 
-export const mockPersona = {
+// Mock date factories for consistent testing (factory functions avoid mutable module state)
+export const createMockCreatedAt = (): Date => new Date('2025-01-01T00:00:00.000Z');
+export const createMockUpdatedAt = (): Date => new Date('2025-01-02T00:00:00.000Z');
+
+/** Factory function for creating mock persona (avoids mutable module state) */
+export function createMockPersona(
+  overrides: Partial<typeof defaultMockPersona> = {}
+): typeof defaultMockPersona {
+  return {
+    ...defaultMockPersona,
+    createdAt: createMockCreatedAt(),
+    updatedAt: createMockUpdatedAt(),
+    ...overrides,
+  };
+}
+
+const defaultMockPersona = {
   id: MOCK_PERSONA_ID,
   name: 'Test Persona',
   preferredName: 'Tester',
@@ -26,9 +42,12 @@ export const mockPersona = {
   content: 'I am a test persona for unit tests.',
   pronouns: 'they/them',
   shareLtmAcrossPersonalities: false,
-  createdAt: new Date('2025-01-01'),
-  updatedAt: new Date('2025-01-02'),
+  createdAt: new Date('2025-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2025-01-02T00:00:00.000Z'),
 };
+
+/** @deprecated Use createMockPersona() instead - this exports mutable state */
+export const mockPersona = defaultMockPersona;
 
 /** Mock Prisma client type for testing - includes UserService dependencies */
 export interface MockPrismaClient {

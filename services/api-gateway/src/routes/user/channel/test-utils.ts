@@ -15,9 +15,9 @@ export const mockIsBotOwner: ((...args: unknown[]) => boolean) & {
   mockReset: () => void;
 };
 
-// Mock dates for consistent testing
-export const MOCK_CREATED_AT = new Date('2024-01-01T00:00:00.000Z');
-export const MOCK_UPDATED_AT = new Date('2024-01-02T00:00:00.000Z');
+// Mock date factories for consistent testing (factory functions avoid mutable module state)
+export const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
+export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
 
 // Valid UUIDs for testing
 export const MOCK_USER_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -143,7 +143,7 @@ export function createMockActivation(
     channelId: MOCK_DISCORD_USER_ID,
     guildId: MOCK_GUILD_ID,
     createdBy: MOCK_USER_UUID,
-    createdAt: MOCK_CREATED_AT,
+    createdAt: createMockCreatedAt(),
     autoRespond: true,
     extendedContext: false,
     extendedContextMaxMessages: null,

@@ -45,6 +45,10 @@ import { ReplyMessageProcessor } from './processors/ReplyMessageProcessor.js';
 import { ActivatedChannelProcessor } from './processors/ActivatedChannelProcessor.js';
 import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
+import {
+  startNotificationCacheCleanup,
+  stopNotificationCacheCleanup,
+} from './processors/notificationCache.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
 import {
   createDeferredContext,
@@ -394,6 +398,7 @@ process.on('SIGINT', () => {
       services.jobTracker.cleanup();
       services.responseOrderingService.stopCleanup();
       services.webhookManager.destroy();
+      stopNotificationCacheCleanup();
       void services.cacheInvalidationService.unsubscribe();
       void services.personaCacheInvalidationService.unsubscribe();
       void services.channelActivationCacheInvalidationService.unsubscribe();
@@ -525,6 +530,10 @@ async function start(): Promise<void> {
     logger.info('[Bot] Initializing services with dependency injection...');
     services = createServices();
     logger.info('[Bot] All services initialized');
+
+    // Start notification cache cleanup timer
+    startNotificationCacheCleanup();
+    logger.info('[Bot] Notification cache cleanup started');
 
     // Subscribe to all cache invalidation events (personality, persona, channel activation)
     await subscribeToCacheInvalidation();
