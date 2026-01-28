@@ -4,18 +4,50 @@
 
 ## Quick Reference - Key Rules Established
 
-| Date       | Incident                        | Rule Established                                 |
-| ---------- | ------------------------------- | ------------------------------------------------ |
-| 2026-01-26 | Dashboard prefix not registered | Test componentPrefixes for dashboard entityTypes |
-| 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch checkout      |
-| 2026-01-17 | Dockerfile missed new package   | Use Grep Rule for all infrastructure files       |
-| 2025-07-25 | Untested push broke develop     | Always run tests before pushing                  |
-| 2025-07-21 | Git restore destroyed work      | Confirm before destructive git commands          |
-| 2025-10-31 | DB URL committed                | Never commit database URLs                       |
-| 2025-07-16 | DDD migration broke features    | Test actual behavior, not just units             |
-| 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch            |
-| 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts             |
-| 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities      |
+| Date       | Incident                        | Rule Established                                  |
+| ---------- | ------------------------------- | ------------------------------------------------- |
+| 2026-01-28 | Model footer missing on errors  | Both producer & consumer must be updated together |
+| 2026-01-26 | Dashboard prefix not registered | Test componentPrefixes for dashboard entityTypes  |
+| 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch checkout       |
+| 2026-01-17 | Dockerfile missed new package   | Use Grep Rule for all infrastructure files        |
+| 2025-07-25 | Untested push broke develop     | Always run tests before pushing                   |
+| 2025-07-21 | Git restore destroyed work      | Confirm before destructive git commands           |
+| 2025-10-31 | DB URL committed                | Never commit database URLs                        |
+| 2025-07-16 | DDD migration broke features    | Test actual behavior, not just units              |
+| 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch             |
+| 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts              |
+| 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities       |
+
+---
+
+## 2026-01-28 - Model Footer Missing on Error Responses
+
+**What Happened**: Model footer (model used, guest mode indicator, etc.) was not displaying on error responses despite beta.55 changes that were supposed to enable this feature.
+
+**Root Cause**: Gap between consumer and producer changes. Beta.55 added support for _passing_ `modelUsed` to error responses in `bot-client/MessageHandler.ts`, but this depended on `result.metadata?.modelUsed` being populated by the ai-worker. The ai-worker error paths were never updated to populate this field.
+
+**Two error paths missed**:
+
+1. `GenerationStep.ts:500` - Error metadata only had `{ processingTimeMs }`
+2. `LLMGenerationHandler.ts:189-194` - Error metadata had debug info but no model info
+
+The success path correctly included `modelUsed: response.modelUsed` in metadata.
+
+**Impact**: Error messages showed without model footer for all users.
+
+**Why It Wasn't Caught**:
+
+1. No integration test verifying error responses include model metadata
+2. The bot-client change was correct but useless without the ai-worker change
+3. Manual testing likely focused on the happy path
+
+**Fix**: Added `modelUsed`, `providerUsed`, and `isGuestMode` to error metadata in both error paths.
+
+**Prevention**:
+
+- When adding features that span multiple services, update ALL producers before the consumer
+- Add test: "error responses should include modelUsed in metadata when available"
+- Consider contract tests between services for critical fields
 
 ---
 
