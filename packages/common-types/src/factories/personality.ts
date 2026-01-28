@@ -84,8 +84,8 @@ interface PersonalitySummaryOverrides {
   displayName?: string | null;
   isPublic?: boolean;
   isOwned?: boolean;
-  ownerId?: string | null;
-  ownerDiscordId?: string | null;
+  ownerId?: string;
+  ownerDiscordId?: string;
   permissions?: { canEdit: boolean; canDelete: boolean };
 }
 

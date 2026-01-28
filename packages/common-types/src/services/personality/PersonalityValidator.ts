@@ -124,7 +124,7 @@ export interface DatabasePersonality {
   slug: string;
   // Access control fields
   isPublic: boolean;
-  ownerId: string | null;
+  ownerId: string;
   // Timestamp for avatar cache-busting
   updatedAt: Date;
   // Extended context tri-state: null=auto, true=on, false=off

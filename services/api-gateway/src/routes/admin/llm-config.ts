@@ -26,6 +26,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-llm-config');
 
@@ -89,7 +90,7 @@ function createListHandler(prisma: PrismaClient) {
 
     const formattedConfigs = configs.map(c => ({
       ...c,
-      ownerInfo: c.owner ? { discordId: c.owner.discordId, username: c.owner.username } : null,
+      ownerInfo: { discordId: c.owner.discordId, username: c.owner.username },
       owner: undefined,
     }));
 
@@ -135,8 +136,9 @@ function createGetHandler(prisma: PrismaClient) {
 }
 
 function createCreateConfigHandler(prisma: PrismaClient) {
-  return async (req: Request, res: Response) => {
+  return async (req: AuthenticatedRequest, res: Response) => {
     const body = req.body as CreateGlobalConfigBody;
+    const discordUserId = req.userId;
 
     // Validate required fields
     if (!body.name || body.name.trim().length === 0) {
@@ -157,6 +159,16 @@ function createCreateConfigHandler(prisma: PrismaClient) {
       }
     }
 
+    // Get admin user's internal ID for ownership
+    const adminUser = await prisma.user.findUnique({
+      where: { discordId: discordUserId },
+      select: { id: true },
+    });
+
+    if (adminUser === null) {
+      return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
+    }
+
     // Check for duplicate name among global configs
     const existing = await prisma.llmConfig.findFirst({
       where: { isGlobal: true, name: body.name.trim() },
@@ -174,7 +186,7 @@ function createCreateConfigHandler(prisma: PrismaClient) {
         id: generateLlmConfigUuid(body.name.trim()),
         name: body.name.trim(),
         description: body.description ?? null,
-        ownerId: null,
+        ownerId: adminUser.id,
         isGlobal: true,
         isDefault: false,
         provider: body.provider ?? 'openrouter',

@@ -46,6 +46,7 @@ interface ImportOptions {
   force: boolean;
   skipMemories: boolean;
   skipExisting: boolean;
+  ownerId: string; // Owner's internal user ID (all entities require an owner)
 }
 
 interface UUIDMappingData {
@@ -296,7 +297,7 @@ class PersonalityImportCLI {
     options: ImportOptions
   ): Promise<PersonalityImportResult> {
     // Map to v3 format
-    const v3Data = this.mapper.map(config);
+    const v3Data = this.mapper.map(config, options.ownerId);
 
     if (options.dryRun) {
       console.log('[DRY RUN] Would create personality:', v3Data.personality.name);
@@ -434,10 +435,13 @@ async function main() {
   // Parse args
   if (args.length === 0 || args.includes('--help')) {
     console.log(`
-Usage: pnpm import-personality <slug> [options]
+Usage: pnpm import-personality <slug> --owner-id <uuid> [options]
 
 Arguments:
   slug                 Personality slug (e.g., cold-kerach-batuach)
+
+Required:
+  --owner-id <uuid>   Owner's internal user ID (all entities require an owner)
 
 Options:
   --dry-run           Parse and validate without making changes
@@ -447,16 +451,27 @@ Options:
   --skip-existing     Skip memories that already exist in Qdrant (saves OpenAI credits)
 
 Examples:
-  pnpm import-personality cold-kerach-batuach --dry-run
-  pnpm import-personality cold-kerach-batuach
-  pnpm import-personality cold-kerach-batuach --memories-only
-  pnpm import-personality cold-kerach-batuach --force
-  pnpm import-personality lila-ani-tzuratech --memories-only --skip-existing
+  pnpm import-personality cold-kerach-batuach --owner-id abc-123 --dry-run
+  pnpm import-personality cold-kerach-batuach --owner-id abc-123
+  pnpm import-personality cold-kerach-batuach --owner-id abc-123 --memories-only
+  pnpm import-personality cold-kerach-batuach --owner-id abc-123 --force
+  pnpm import-personality lila-ani-tzuratech --owner-id abc-123 --memories-only --skip-existing
     `);
     process.exit(0);
   }
 
   const slug = args[0];
+
+  // Parse required owner-id argument
+  const ownerIdIndex = args.indexOf('--owner-id');
+  const ownerId = ownerIdIndex !== -1 ? args[ownerIdIndex + 1] : undefined;
+
+  if (!ownerId) {
+    console.error('Error: --owner-id <uuid> is required');
+    console.error('Run with --help for usage information');
+    process.exit(1);
+  }
+
   const options: ImportOptions = {
     slug,
     dryRun: args.includes('--dry-run'),
@@ -464,6 +479,7 @@ Examples:
     force: args.includes('--force'),
     skipMemories: args.includes('--skip-memories'),
     skipExisting: args.includes('--skip-existing'),
+    ownerId,
   };
 
   const cli = new PersonalityImportCLI();

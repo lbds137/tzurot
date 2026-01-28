@@ -15,15 +15,29 @@ import {
   PersonalityService,
   generateSystemPromptUuid,
   generatePersonalityUuid,
+  generateUserUuid,
 } from '@tzurot/common-types';
 import { setupTestEnvironment, type TestEnvironment } from './setup';
 
 describe('PersonalityService Integration', () => {
   let testEnv: TestEnvironment;
   let personalityService: PersonalityService;
+  let testUserId: string;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+
+    // Create test user first (required for ownerId)
+    const testUser = await testEnv.prisma.user.upsert({
+      where: { discordId: 'test-int-user' },
+      create: {
+        id: generateUserUuid('test-int-user'),
+        discordId: 'test-int-user',
+        username: 'test-integration-user',
+      },
+      update: {},
+    });
+    testUserId = testUser.id;
 
     // Seed test system prompts (using deterministic UUIDs for sync compatibility)
     const systemPrompt1 = await testEnv.prisma.systemPrompt.create({
@@ -51,6 +65,7 @@ describe('PersonalityService Integration', () => {
           slug: 'test-personality-1',
           displayName: 'Test Personality 1',
           systemPromptId: systemPrompt1.id,
+          ownerId: testUserId,
           characterInfo: 'A test character for integration testing',
           personalityTraits: 'Helpful, friendly, and responsive',
         },
@@ -60,6 +75,7 @@ describe('PersonalityService Integration', () => {
           slug: 'test-personality-2',
           displayName: 'Test Personality 2',
           systemPromptId: systemPrompt2.id,
+          ownerId: testUserId,
           characterInfo: 'Another test character for integration testing',
           personalityTraits: 'Professional, knowledgeable, and concise',
         },
@@ -73,6 +89,7 @@ describe('PersonalityService Integration', () => {
       create: {
         id: '00000000-0000-0000-0000-000000000000',
         name: 'Global Default',
+        ownerId: testUserId,
         model: 'anthropic/claude-sonnet-4',
         visionModel: 'anthropic/claude-sonnet-4',
         advancedParameters: {
