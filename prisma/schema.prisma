@@ -150,7 +150,7 @@ model LlmConfig {
   id                          String                     @id @db.Uuid
   name                        String                     @db.VarChar(255)
   description                 String?
-  ownerId                     String?                    @map("owner_id") @db.Uuid
+  ownerId                     String                     @map("owner_id") @db.Uuid
   isGlobal                    Boolean                    @default(false) @map("is_global")
   isDefault                   Boolean                    @default(false) @map("is_default")
   /// Default config for guest mode (users without API keys). Only one should be true.
@@ -168,7 +168,7 @@ model LlmConfig {
   contextWindowTokens         Int                        @default(131072) @map("context_window_tokens")
   createdAt                   DateTime                   @default(now()) @map("created_at")
   updatedAt                   DateTime                   @updatedAt @map("updated_at")
-  owner                       User?                      @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  owner                       User                       @relation("LlmConfigOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   personalitiesUsingAsDefault PersonalityDefaultConfig[]
   userPersonalityConfigs      UserPersonalityConfig[]
   usersWithAsDefault          User[]                     @relation("UserDefaultLlmConfig")
@@ -196,7 +196,7 @@ model Personality {
   displayName                String?  @map("display_name") @db.VarChar(255)
   slug                       String   @unique @db.VarChar(255)
   systemPromptId             String?  @map("system_prompt_id") @db.Uuid
-  ownerId                    String?  @map("owner_id") @db.Uuid
+  ownerId                    String   @map("owner_id") @db.Uuid
   characterInfo              String   @map("character_info")
   personalityTraits          String   @map("personality_traits")
   personalityTone            String?  @map("personality_tone")
@@ -233,7 +233,7 @@ model Personality {
   aliases               PersonalityAlias[]
   conversationHistory   ConversationHistory[]
   memories              Memory[]
-  owner                 User?                      @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  owner                 User                       @relation("PersonalityOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   systemPrompt          SystemPrompt?              @relation(fields: [systemPromptId], references: [id])
   defaultConfigLink     PersonalityDefaultConfig?
   owners                PersonalityOwner[]

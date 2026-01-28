@@ -33,7 +33,7 @@ describe('PersonalityLoader', () => {
       displayName: string;
       slug: string;
       isPublic: boolean;
-      ownerId: string | null;
+      ownerId: string;
     }> = {}
   ) => ({
     id: overrides.id ?? 'test-id',
@@ -41,7 +41,7 @@ describe('PersonalityLoader', () => {
     displayName: overrides.displayName ?? 'Test Bot',
     slug: overrides.slug ?? 'test-bot',
     isPublic: overrides.isPublic ?? true,
-    ownerId: overrides.ownerId ?? null,
+    ownerId: overrides.ownerId ?? 'default-owner-id',
     updatedAt: new Date(),
     systemPrompt: { content: 'Test prompt' },
     defaultConfigLink: null,

@@ -79,6 +79,7 @@ const CONFIG_SELECT = {
   visionModel: true,
   isGlobal: true,
   isDefault: true,
+  ownerId: true,
 } as const;
 
 /** Select fields for detail queries (includes advancedParameters) */
@@ -124,7 +125,7 @@ function createListHandler(prisma: PrismaClient) {
         ...c,
         isOwned: false,
         permissions: computeLlmConfigPermissions(
-          { ownerId: null, isGlobal: true },
+          { ownerId: c.ownerId, isGlobal: true },
           user?.id ?? null,
           discordUserId
         ),
@@ -133,7 +134,7 @@ function createListHandler(prisma: PrismaClient) {
         ...c,
         isOwned: true,
         permissions: computeLlmConfigPermissions(
-          { ownerId: user?.id ?? null, isGlobal: false },
+          { ownerId: c.ownerId, isGlobal: false },
           user?.id ?? null,
           discordUserId
         ),

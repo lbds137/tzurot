@@ -38,8 +38,8 @@ interface PersonalityListResponse {
     /** Truthful: did the requesting user create this? */
     isOwned: boolean;
     isPublic: boolean;
-    ownerId: string | null;
-    ownerDiscordId: string | null;
+    ownerId: string;
+    ownerDiscordId: string;
     /** Server-computed permissions */
     permissions: { canEdit: boolean; canDelete: boolean };
   }[];

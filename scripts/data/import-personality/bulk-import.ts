@@ -57,6 +57,7 @@ interface BulkImportOptions {
   skipExisting: boolean;
   delayMs: number; // Delay between personality imports to avoid overwhelming Qdrant
   memoryDelayMs: number; // Delay between individual memory imports (default: 200ms)
+  ownerId: string; // Owner's internal user ID (all entities require an owner)
 }
 
 interface UUIDMappingData {
@@ -212,7 +213,7 @@ class BulkPersonalityImporter {
       console.log(`✅ Loaded ${slug} (${shapesConfig.name})`);
 
       // Map to v3 format
-      const v3Data = this.mapper.map(shapesConfig);
+      const v3Data = this.mapper.map(shapesConfig, options.ownerId);
 
       // Apply name overrides for duplicates (unique mention name, but same display name)
       if (DUPLICATE_NAME_OVERRIDES[slug]) {
@@ -442,7 +443,10 @@ async function main() {
   // Parse args
   if (args.includes('--help')) {
     console.log(`
-Usage: pnpm tsx scripts/import-personality/bulk-import.ts [options]
+Usage: pnpm tsx scripts/import-personality/bulk-import.ts --owner-id <uuid> [options]
+
+Required:
+  --owner-id <uuid>  Owner's internal user ID (all entities require an owner)
 
 Options:
   --dry-run          Parse and validate without making changes
@@ -455,14 +459,24 @@ Options:
                      Prevents overwhelming Qdrant with rapid-fire upserts.
 
 Examples:
-  pnpm tsx scripts/import-personality/bulk-import.ts --dry-run
-  pnpm tsx scripts/import-personality/bulk-import.ts
-  pnpm tsx scripts/import-personality/bulk-import.ts --force
-  pnpm tsx scripts/import-personality/bulk-import.ts --skip-memories
-  pnpm tsx scripts/import-personality/bulk-import.ts --force --skip-existing
-  pnpm tsx scripts/import-personality/bulk-import.ts --force --skip-existing --delay 5000
+  pnpm tsx scripts/import-personality/bulk-import.ts --owner-id abc-123 --dry-run
+  pnpm tsx scripts/import-personality/bulk-import.ts --owner-id abc-123
+  pnpm tsx scripts/import-personality/bulk-import.ts --owner-id abc-123 --force
+  pnpm tsx scripts/import-personality/bulk-import.ts --owner-id abc-123 --skip-memories
+  pnpm tsx scripts/import-personality/bulk-import.ts --owner-id abc-123 --force --skip-existing
+  pnpm tsx scripts/import-personality/bulk-import.ts --owner-id abc-123 --force --skip-existing --delay 5000
     `);
     process.exit(0);
+  }
+
+  // Parse required owner-id argument
+  const ownerIdIndex = args.indexOf('--owner-id');
+  const ownerId = ownerIdIndex !== -1 ? args[ownerIdIndex + 1] : undefined;
+
+  if (!ownerId) {
+    console.error('Error: --owner-id <uuid> is required');
+    console.error('Run with --help for usage information');
+    process.exit(1);
   }
 
   // Parse delay arguments
@@ -483,6 +497,7 @@ Examples:
     skipExisting: args.includes('--skip-existing'),
     delayMs,
     memoryDelayMs,
+    ownerId,
   };
 
   const importer = new BulkPersonalityImporter();

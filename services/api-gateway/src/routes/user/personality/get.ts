@@ -79,7 +79,7 @@ interface PersonalityResponse {
   extendedContextMaxMessages: number | null;
   extendedContextMaxAge: number | null;
   extendedContextMaxImages: number | null;
-  ownerId: string | null;
+  ownerId: string;
   hasAvatar: boolean;
   customFields: unknown;
   systemPromptId: string | null;
@@ -94,7 +94,7 @@ interface PersonalityResponse {
 async function checkUserAccess(
   prisma: PrismaClient,
   userId: string | undefined,
-  personality: { id: string; isPublic: boolean; ownerId: string | null },
+  personality: { id: string; isPublic: boolean; ownerId: string },
   discordUserId: string
 ): Promise<boolean> {
   if (isBotOwner(discordUserId)) {

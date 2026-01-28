@@ -10,7 +10,8 @@ import type { PrismaClient, LlmConfigCacheInvalidationService } from '@tzurot/co
 
 // Mock the admin auth middleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (_req: unknown, _res: unknown, next: () => void) => {
+  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
+    req.userId = 'admin-discord-id'; // Set admin user ID
     next();
   },
 }));
@@ -40,10 +41,15 @@ const createMockPrismaClient = () => {
     count: vi.fn(),
   };
 
+  const mockUser = {
+    findUnique: vi.fn(),
+  };
+
   return {
     llmConfig: mockLlmConfig,
     personalityDefaultConfig: mockPersonalityDefaultConfig,
     userPersonalityConfig: mockUserPersonalityConfig,
+    user: mockUser,
     // Transaction mock - executes callback with all mock objects and returns result
     $transaction: vi.fn(async (callback: (tx: unknown) => Promise<unknown>) => {
       // Provide all models that might be used in transactions
@@ -64,6 +70,10 @@ describe('Admin LLM Config Routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     prisma = createMockPrismaClient();
+
+    // Default: admin user exists (required for ownerId)
+    prisma.user.findUnique.mockResolvedValue({ id: 'admin-user-id' });
+
     app = express();
     app.use(express.json());
     app.use('/admin/llm-config', createAdminLlmConfigRoutes(prisma as unknown as PrismaClient));
@@ -78,8 +88,8 @@ describe('Admin LLM Config Routes', () => {
           model: 'anthropic/claude-sonnet-4',
           isGlobal: true,
           isDefault: true,
-          ownerId: null,
-          owner: null,
+          ownerId: 'admin-user-id',
+          owner: { discordId: 'admin-discord-id', username: 'admin' },
         },
         {
           id: 'config-2',

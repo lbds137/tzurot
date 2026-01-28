@@ -151,7 +151,7 @@ export interface V3PersonalityData {
     memoryLimit: number | null;
     contextWindowTokens: number;
     isGlobal: boolean;
-    ownerId: string | null;
+    ownerId: string;
   };
 }
 

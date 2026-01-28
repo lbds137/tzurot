@@ -47,9 +47,10 @@ async function testMapper() {
     const summary = mapper.summarize(shapesConfig);
     console.log(JSON.stringify(summary, null, 2));
 
-    // Map to v3 format
+    // Map to v3 format (using test owner ID)
     console.log('\n🔄 Mapping to v3 schema...');
-    const v3Data = mapper.map(shapesConfig);
+    const testOwnerId = 'test-owner-id-for-validation';
+    const v3Data = mapper.map(shapesConfig, testOwnerId);
 
     console.log('\n✅ Mapping complete!');
     console.log('\n' + '='.repeat(80));

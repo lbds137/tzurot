@@ -97,7 +97,7 @@ CREATE TABLE "llm_configs" (
     "id" UUID NOT NULL,
     "name" VARCHAR(255) NOT NULL,
     "description" TEXT,
-    "owner_id" UUID,
+    "owner_id" UUID NOT NULL,
     "is_global" BOOLEAN NOT NULL DEFAULT false,
     "is_default" BOOLEAN NOT NULL DEFAULT false,
     "is_free_default" BOOLEAN NOT NULL DEFAULT false,
@@ -131,7 +131,7 @@ CREATE TABLE "personalities" (
     "display_name" VARCHAR(255),
     "slug" VARCHAR(255) NOT NULL,
     "system_prompt_id" UUID,
-    "owner_id" UUID,
+    "owner_id" UUID NOT NULL,
     "character_info" TEXT NOT NULL,
     "personality_traits" TEXT NOT NULL,
     "personality_tone" TEXT,
@@ -608,7 +608,7 @@ ALTER TABLE "personality_default_configs" ADD CONSTRAINT "personality_default_co
 ALTER TABLE "personality_default_configs" ADD CONSTRAINT "personality_default_configs_personality_id_fkey" FOREIGN KEY ("personality_id") REFERENCES "personalities"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "personalities" ADD CONSTRAINT "personalities_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "personalities" ADD CONSTRAINT "personalities_owner_id_fkey" FOREIGN KEY ("owner_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "personalities" ADD CONSTRAINT "personalities_system_prompt_id_fkey" FOREIGN KEY ("system_prompt_id") REFERENCES "system_prompts"("id") ON DELETE SET NULL ON UPDATE CASCADE;

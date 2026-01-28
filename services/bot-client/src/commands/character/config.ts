@@ -42,7 +42,7 @@ export interface CharacterData {
   isPublic: boolean;
   voiceEnabled: boolean;
   imageEnabled: boolean;
-  ownerId: string | null;
+  ownerId: string;
   avatarData: string | null; // Base64-encoded
   createdAt: string;
   updatedAt: string;

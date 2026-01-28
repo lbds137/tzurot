@@ -73,7 +73,7 @@ interface PersonalityResponse {
     extendedContextMaxMessages: number | null;
     extendedContextMaxAge: number | null;
     extendedContextMaxImages: number | null;
-    ownerId: string | null;
+    ownerId: string;
   };
 }
 

@@ -30,16 +30,16 @@ export interface EntityPermissions {
  * - Creator can edit/delete their own personalities
  * - Bot owner (admin) can edit/delete any personality
  *
- * @param ownerId - The personality's owner internal user ID (null for system personalities)
+ * @param ownerId - The personality's owner internal user ID
  * @param requestingUserId - The requesting user's internal ID (null if not logged in)
  * @param discordUserId - The requesting user's Discord ID (for admin check)
  */
 export function computePersonalityPermissions(
-  ownerId: string | null,
+  ownerId: string,
   requestingUserId: string | null,
   discordUserId: string
 ): EntityPermissions {
-  const isCreator = requestingUserId !== null && ownerId !== null && ownerId === requestingUserId;
+  const isCreator = requestingUserId !== null && ownerId === requestingUserId;
   const isAdmin = isBotOwner(discordUserId);
 
   return {
@@ -61,12 +61,11 @@ export function computePersonalityPermissions(
  * @param discordUserId - The requesting user's Discord ID (for admin check)
  */
 export function computeLlmConfigPermissions(
-  config: { ownerId: string | null; isGlobal: boolean },
+  config: { ownerId: string; isGlobal: boolean },
   requestingUserId: string | null,
   discordUserId: string
 ): EntityPermissions {
-  const isCreator =
-    requestingUserId !== null && config.ownerId !== null && config.ownerId === requestingUserId;
+  const isCreator = requestingUserId !== null && config.ownerId === requestingUserId;
   const isAdmin = isBotOwner(discordUserId);
 
   // Global configs: only admin can edit/delete

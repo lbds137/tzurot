@@ -92,6 +92,7 @@ describe('Duplicate Detection Data Flow', () => {
         slug: 'test-duplicate-detection',
         displayName: 'Test Duplicate Detection',
         systemPromptId: testSystemPromptId,
+        ownerId: testUserId,
         characterInfo: 'Test character',
         personalityTraits: 'Helpful',
       },

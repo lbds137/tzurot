@@ -17,8 +17,8 @@ export interface CanUserViewPersonalityOptions {
   personalityId: string;
   /** Whether the personality is public */
   isPublic: boolean;
-  /** Owner ID of the personality (null if no owner) */
-  ownerId: string | null;
+  /** Owner ID of the personality */
+  ownerId: string;
   /** Discord user ID (for bot owner check) */
   discordUserId: string;
 }
