@@ -673,6 +673,49 @@ describe('DiagnosticCollector', () => {
         failedAtStage: 'GenerationStep',
       });
     });
+
+    it('should truncate large rawError objects', () => {
+      // Create a large error object (>50KB)
+      const largeData = 'x'.repeat(60000);
+      const largeError = { data: largeData };
+
+      collector.recordError({
+        message: 'Large error',
+        category: 'provider_error',
+        referenceId: 'ref-large',
+        rawError: largeError,
+        failedAtStage: 'GenerationStep',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.error).toBeDefined();
+      expect(payload.error?.rawError).toMatchObject({
+        _truncated: true,
+        _originalSize: expect.any(Number),
+        preview: expect.any(String),
+      });
+      // Preview should be truncated to ~50KB
+      expect((payload.error?.rawError as { preview: string }).preview.length).toBeLessThanOrEqual(
+        50000
+      );
+    });
+
+    it('should not truncate small rawError objects', () => {
+      const smallError = { code: 'ERR_TIMEOUT', details: 'Connection timed out' };
+
+      collector.recordError({
+        message: 'Small error',
+        category: 'network_error',
+        rawError: smallError,
+        failedAtStage: 'GenerationStep',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.error?.rawError).toEqual(smallError);
+      expect(payload.error?.rawError).not.toHaveProperty('_truncated');
+    });
   });
 
   describe('edge cases', () => {

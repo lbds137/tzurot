@@ -597,6 +597,53 @@ describe('MessageHandler', () => {
       );
     });
 
+    it('should handle error response with missing referenceId gracefully', async () => {
+      const jobId = 'job-no-ref';
+      const result = {
+        requestId: 'req-no-ref',
+        success: false,
+        error: 'Provider error without reference',
+        errorInfo: {
+          category: 'provider_error' as const,
+          // referenceId is intentionally undefined
+        },
+      };
+
+      const mockMessage = {
+        reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
+      } as unknown as Message;
+
+      const mockContext = {
+        message: mockMessage,
+        personality: { id: 'p-1', name: 'NoRefBot' },
+        personaId: 'persona-noref',
+        userMessageContent: 'Trigger error without ref',
+        userMessageTime: new Date(),
+        isAutoResponse: false,
+      };
+
+      mockJobTracker.getContext.mockReturnValue(mockContext);
+      mockPersistence.saveAssistantMessage.mockResolvedValue(undefined);
+      mockResponseSender.sendResponse.mockResolvedValue({
+        chunkMessageIds: ['noref-msg-1'],
+      });
+
+      await messageHandler.handleJobResult(jobId, result);
+
+      // Should not include 'undefined' in the content
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.not.stringContaining('undefined'),
+        })
+      );
+      // Should not include reference footer at all when referenceId is missing
+      expect(mockResponseSender.sendResponse).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.not.stringContaining('reference:'),
+        })
+      );
+    });
+
     it('should strip error spoiler when saving invalid content error to history', async () => {
       const jobId = 'job-invalid';
       const result = {
