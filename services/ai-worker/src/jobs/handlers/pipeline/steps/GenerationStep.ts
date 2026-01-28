@@ -465,10 +465,28 @@ export class GenerationStep implements IPipelineStep {
       const processingTimeMs = Date.now() - startTime;
       const underlyingError = error instanceof RetryError ? error.lastError : error;
       const errorInfo = parseApiError(underlyingError);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
       logger.error(
         { err: error, jobId: job.id, ...getErrorLogContext(underlyingError) },
         `[GenerationStep] Generation failed: ${errorInfo.category}`
+      );
+
+      // Record error in diagnostic collector for debugging failed requests
+      diagnosticCollector.recordError({
+        message: errorMessage,
+        category: errorInfo.category,
+        referenceId: errorInfo.referenceId,
+        rawError: getErrorLogContext(underlyingError),
+        failedAtStage: 'GenerationStep',
+      });
+
+      // Store diagnostic data even for failures (fire-and-forget)
+      // This enables /admin debug to show what went wrong
+      this.storeDiagnosticLog(
+        diagnosticCollector,
+        effectivePersonality.model ?? 'unknown',
+        provider ?? 'unknown'
       );
 
       return {
@@ -476,7 +494,7 @@ export class GenerationStep implements IPipelineStep {
         result: {
           requestId,
           success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
+          error: errorMessage,
           personalityErrorMessage: personality.errorMessage,
           errorInfo,
           metadata: { processingTimeMs },
