@@ -115,7 +115,7 @@ function createServices(): Services {
 
   // Initialize Redis for cache invalidation
   validateRedisUrl();
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated by validateRedisUrl() above, but TypeScript can't infer the narrowed type across function boundaries
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', err => {
     logger.error({ err }, '[Bot] Cache Redis connection error');
