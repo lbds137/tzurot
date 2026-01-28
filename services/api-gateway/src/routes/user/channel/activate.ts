@@ -24,6 +24,70 @@ import { getOrCreateInternalUser, canUserViewPersonality } from '../personality/
 
 const logger = createLogger('channel-activate');
 
+/** Channel settings select type for upsert */
+interface ChannelSettingsResult {
+  id: string;
+  channelId: string;
+  guildId: string | null;
+  autoRespond: boolean;
+  extendedContext: boolean | null;
+  extendedContextMaxMessages: number | null;
+  extendedContextMaxAge: number | null;
+  extendedContextMaxImages: number | null;
+  createdBy: string | null;
+  createdAt: Date;
+  activatedPersonality: { slug: string; displayName: string | null } | null;
+}
+
+/** Activation response type */
+interface ActivationResponse {
+  activation: {
+    id: string;
+    channelId: string;
+    guildId: string | null;
+    personalitySlug: string | null;
+    personalityName: string | null;
+    autoRespond: boolean;
+    extendedContext: boolean | null;
+    extendedContextMaxMessages: number | null;
+    extendedContextMaxAge: number | null;
+    extendedContextMaxImages: number | null;
+    activatedBy: string | null;
+    createdAt: string;
+  };
+  replaced: boolean;
+}
+
+/**
+ * Build activation response from channel settings
+ */
+function buildActivationResponse(
+  settings: ChannelSettingsResult,
+  wasReplaced: boolean
+): ActivationResponse {
+  const response: ActivationResponse = {
+    activation: {
+      id: settings.id,
+      channelId: settings.channelId,
+      guildId: settings.guildId,
+      personalitySlug: settings.activatedPersonality?.slug ?? null,
+      personalityName: settings.activatedPersonality?.displayName ?? null,
+      autoRespond: settings.autoRespond,
+      extendedContext: settings.extendedContext,
+      extendedContextMaxMessages: settings.extendedContextMaxMessages,
+      extendedContextMaxAge: settings.extendedContextMaxAge,
+      extendedContextMaxImages: settings.extendedContextMaxImages,
+      activatedBy: settings.createdBy,
+      createdAt: settings.createdAt.toISOString(),
+    },
+    replaced: wasReplaced,
+  };
+
+  // Validate response matches schema
+  ActivateChannelResponseSchema.parse(response);
+  return response;
+}
+
 /**
  * Create handler for POST /user/channel/activate
  * Activates a personality in a channel. Replaces any existing activation.
@@ -45,12 +109,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     // Look up personality by slug
     const personality = await prisma.personality.findUnique({
       where: { slug: personalitySlug },
-      select: {
-        id: true,
-        displayName: true,
-        isPublic: true,
-        ownerId: true,
-      },
+      select: { id: true, displayName: true, isPublic: true, ownerId: true },
     });
 
     if (personality === null) {
@@ -58,10 +117,8 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
-    // Get or create internal user
+    // Get or create internal user and check access
     const user = await getOrCreateInternalUser(prisma, discordUserId);
-
-    // Check if user can access this personality
     const canView = await canUserViewPersonality({
       prisma,
       userId: user.id,
@@ -76,15 +133,11 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
       return;
     }
 
-    // Create or update channel settings with deterministic UUID
-    const settingsId = generateChannelSettingsUuid(channelId);
-
     // Check for existing settings to determine if we're replacing
     const existingSettings = await prisma.channelSettings.findUnique({
       where: { channelId },
       select: { activatedPersonalityId: true },
     });
-
     const wasReplaced =
       existingSettings !== null && existingSettings.activatedPersonalityId !== personality.id;
 
@@ -92,17 +145,14 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     const settings = await prisma.channelSettings.upsert({
       where: { channelId },
       create: {
-        id: settingsId,
+        id: generateChannelSettingsUuid(channelId),
         channelId,
         guildId,
         activatedPersonalityId: personality.id,
         autoRespond: true,
         createdBy: user.id,
       },
-      update: {
-        activatedPersonalityId: personality.id,
-        guildId, // Update guildId in case it changed
-      },
+      update: { activatedPersonalityId: personality.id, guildId },
       select: {
         id: true,
         channelId: true,
@@ -114,48 +164,16 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
         extendedContextMaxImages: true,
         createdBy: true,
         createdAt: true,
-        activatedPersonality: {
-          select: {
-            slug: true,
-            displayName: true,
-          },
-        },
+        activatedPersonality: { select: { slug: true, displayName: true } },
       },
     });
 
     logger.info(
-      {
-        discordUserId,
-        channelId,
-        personalitySlug,
-        replaced: wasReplaced,
-      },
+      { discordUserId, channelId, personalitySlug, replaced: wasReplaced },
       '[Channel] Activated personality in channel'
     );
 
-    // Build response matching schema
-    const response = {
-      activation: {
-        id: settings.id,
-        channelId: settings.channelId,
-        guildId: settings.guildId,
-        personalitySlug: settings.activatedPersonality?.slug ?? null,
-        personalityName: settings.activatedPersonality?.displayName ?? null,
-        autoRespond: settings.autoRespond,
-        extendedContext: settings.extendedContext,
-        extendedContextMaxMessages: settings.extendedContextMaxMessages,
-        extendedContextMaxAge: settings.extendedContextMaxAge,
-        extendedContextMaxImages: settings.extendedContextMaxImages,
-        activatedBy: settings.createdBy,
-        createdAt: settings.createdAt.toISOString(),
-      },
-      replaced: wasReplaced,
-    };
-
-    // Validate response matches schema
-    ActivateChannelResponseSchema.parse(response);
-
-    sendCustomSuccess(res, response, StatusCodes.CREATED);
+    sendCustomSuccess(res, buildActivationResponse(settings, wasReplaced), StatusCodes.CREATED);
   });
 
   return [requireUserAuth(), handler];
