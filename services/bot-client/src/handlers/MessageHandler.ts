@@ -18,7 +18,7 @@ import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
-import { JobTracker } from '../services/JobTracker.js';
+import { JobTracker, type PendingJobContext } from '../services/JobTracker.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -100,7 +100,7 @@ export class MessageHandler {
    * Handle async job result when it arrives from ResultsListener
    * This is called from index.ts result handler
    */
-  // eslint-disable-next-line max-lines-per-function -- Result handler with multiple error paths and response forwarding
+   
   async handleJobResult(jobId: string, result: LLMGenerationResult): Promise<void> {
     // Get pending job context from JobTracker
     const jobContext = this.jobTracker.getContext(jobId);
@@ -121,38 +121,7 @@ export class MessageHandler {
         { jobId, error: result.error, errorInfo: result.errorInfo },
         '[MessageHandler] Job failed with error from ai-worker'
       );
-
-      // Build error content with dynamic details
-      const errorContent = this.buildErrorContent(result);
-
-      // Send error via personality webhook (not parent bot)
-      try {
-        const { chunkMessageIds } = await this.responseSender.sendResponse({
-          content: errorContent,
-          personality,
-          message,
-        });
-
-        // Save error message to history (stripped of technical spoiler details)
-        // This lets the character know an error occurred without confusing metadata
-        await this.persistence.saveAssistantMessage({
-          message,
-          personality,
-          personaId,
-          content: stripErrorSpoiler(errorContent),
-          chunkMessageIds,
-          userMessageTime,
-        });
-      } catch (sendError) {
-        logger.error(
-          { err: sendError, jobId },
-          '[MessageHandler] Failed to send error via webhook, falling back to reply'
-        );
-        // Fallback to direct reply if webhook fails
-        await message.reply(errorContent).catch(() => {
-          // Intentionally ignore reply failures - we've already logged the webhook error
-        });
-      }
+      await this.sendErrorResponse(jobId, this.buildErrorContent(result), result, jobContext);
       return;
     }
 
@@ -171,33 +140,7 @@ export class MessageHandler {
         },
         '[MessageHandler] Job result missing or invalid content field'
       );
-
-      // Build error content with dynamic details
-      const errorContent = this.buildErrorContent(result);
-
-      // Send error via personality webhook
-      try {
-        const { chunkMessageIds } = await this.responseSender.sendResponse({
-          content: errorContent,
-          personality,
-          message,
-        });
-
-        // Save error message to history (stripped of technical spoiler details)
-        await this.persistence.saveAssistantMessage({
-          message,
-          personality,
-          personaId,
-          content: stripErrorSpoiler(errorContent),
-          chunkMessageIds,
-          userMessageTime,
-        });
-      } catch (sendError) {
-        logger.error(
-          { err: sendError, jobId },
-          '[MessageHandler] Failed to send error via webhook'
-        );
-      }
+      await this.sendErrorResponse(jobId, this.buildErrorContent(result), result, jobContext);
       return;
     }
 
@@ -240,35 +183,53 @@ export class MessageHandler {
       );
     } catch (error) {
       logger.error({ err: error, jobId }, '[MessageHandler] Error handling job result');
-
       // Try to notify user of the error via webhook (don't throw - we don't want to crash the listener)
-      const errorContent = this.buildErrorContent(result);
+      await this.sendErrorResponse(jobId, this.buildErrorContent(result), result, jobContext);
+    }
+  }
 
-      try {
-        const { chunkMessageIds } = await this.responseSender.sendResponse({
-          content: errorContent,
-          personality,
-          message,
-        });
+  /**
+   * Send error response to Discord and save to history
+   * Extracted to reduce complexity in handleJobResult
+   */
+  private async sendErrorResponse(
+    jobId: string,
+    errorContent: string,
+    result: LLMGenerationResult,
+    jobContext: PendingJobContext
+  ): Promise<void> {
+    const { message, personality, personaId, userMessageTime, isAutoResponse } = jobContext;
 
-        // Save error message to history (stripped of technical spoiler details if present)
-        await this.persistence.saveAssistantMessage({
-          message,
-          personality,
-          personaId,
-          content: stripErrorSpoiler(errorContent),
-          chunkMessageIds,
-          userMessageTime,
-        });
-      } catch (sendError) {
-        logger.error(
-          { err: sendError, jobId },
-          '[MessageHandler] Failed to send error via webhook, falling back to reply'
-        );
-        await message.reply(errorContent).catch(() => {
-          // Intentionally ignore reply failures - we've already logged the webhook error
-        });
-      }
+    try {
+      const { chunkMessageIds } = await this.responseSender.sendResponse({
+        content: errorContent,
+        personality,
+        message,
+        modelUsed: result.metadata?.modelUsed,
+        isGuestMode: result.metadata?.isGuestMode,
+        isAutoResponse,
+        focusModeEnabled: result.metadata?.focusModeEnabled,
+        incognitoModeActive: result.metadata?.incognitoModeActive,
+      });
+
+      // Save error message to history (stripped of technical spoiler details)
+      await this.persistence.saveAssistantMessage({
+        message,
+        personality,
+        personaId,
+        content: stripErrorSpoiler(errorContent),
+        chunkMessageIds,
+        userMessageTime,
+      });
+    } catch (sendError) {
+      logger.error(
+        { err: sendError, jobId },
+        '[MessageHandler] Failed to send error via webhook, falling back to reply'
+      );
+      // Fallback to direct reply if webhook fails
+      await message.reply(errorContent).catch(() => {
+        // Intentionally ignore reply failures - we've already logged the webhook error
+      });
     }
   }
 
