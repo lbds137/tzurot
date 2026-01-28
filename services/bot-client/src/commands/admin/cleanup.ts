@@ -6,7 +6,7 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger, CLEANUP_DEFAULTS } from '@tzurot/common-types';
+import { createLogger, CLEANUP_DEFAULTS, adminCleanupOptions } from '@tzurot/common-types';
 import { adminPostJson } from '../../utils/adminApiClient.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -23,8 +23,9 @@ interface CleanupResponse {
 
 export async function handleCleanup(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const daysToKeep = context.getOption<number>('days') ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
-  const target = context.getOption<string>('target') ?? 'all';
+  const options = adminCleanupOptions(context.interaction);
+  const daysToKeep = options.days() ?? CLEANUP_DEFAULTS.DAYS_TO_KEEP_HISTORY;
+  const target = options.target() ?? 'all';
 
   try {
     const response = await adminPostJson('/admin/cleanup', {

@@ -5,7 +5,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, presetGlobalDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { adminPutJson } from '../../../utils/adminApiClient.js';
 
@@ -15,7 +15,8 @@ const logger = createLogger('preset-global-set-default');
  * Handle /preset global set-default
  */
 export async function handleGlobalSetDefault(context: DeferredCommandContext): Promise<void> {
-  const configId = context.interaction.options.getString('config', true);
+  const options = presetGlobalDefaultOptions(context.interaction);
+  const configId = options.config();
 
   try {
     const response = await adminPutJson(`/admin/llm-config/${configId}/set-default`, {});

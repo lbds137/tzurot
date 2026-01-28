@@ -21,7 +21,7 @@
  */
 
 import { AttachmentBuilder, EmbedBuilder } from 'discord.js';
-import { createLogger, type DiagnosticPayload } from '@tzurot/common-types';
+import { createLogger, adminDebugOptions, type DiagnosticPayload } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -170,7 +170,8 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
 }
 
 export async function handleDebug(context: DeferredCommandContext): Promise<void> {
-  const identifier = context.getOption<string>('identifier');
+  const options = adminDebugOptions(context.interaction);
+  const identifier = options.identifier();
 
   if (identifier === null || identifier === undefined || identifier === '') {
     await context.editReply({

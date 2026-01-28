@@ -5,7 +5,7 @@
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, memoryBrowseOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { resolvePersonalityId } from './autocomplete.js';
@@ -382,7 +382,8 @@ function setupBrowseCollector(
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality');
+  const options = memoryBrowseOptions(context.interaction);
+  const personalityInput = options.personality();
 
   try {
     // Resolve personality if provided

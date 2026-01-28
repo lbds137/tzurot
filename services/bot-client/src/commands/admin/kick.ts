@@ -6,13 +6,14 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, adminKickOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-kick');
 
 export async function handleKick(context: DeferredCommandContext): Promise<void> {
-  const serverId = context.getRequiredOption<string>('server-id');
+  const options = adminKickOptions(context.interaction);
+  const serverId = options['server-id']();
 
   try {
     const guild = context.interaction.client.guilds.cache.get(serverId);

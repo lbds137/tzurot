@@ -7,7 +7,7 @@
  * - Non-owners can view global presets in autocomplete but cannot edit them
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, presetEditOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -24,7 +24,8 @@ const logger = createLogger('preset-edit');
  * Opens the preset dashboard for the selected preset
  */
 export async function handleEdit(context: DeferredCommandContext): Promise<void> {
-  const presetId = context.interaction.options.getString('preset', true);
+  const options = presetEditOptions(context.interaction);
+  const presetId = options.preset();
   const userId = context.user.id;
 
   try {

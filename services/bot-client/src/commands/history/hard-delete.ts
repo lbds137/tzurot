@@ -12,7 +12,7 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, historyHardDeleteOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDestructiveWarning,
@@ -28,7 +28,8 @@ const logger = createLogger('history-hard-delete');
 export async function handleHardDelete(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const channelId = context.channelId;
-  const personalitySlug = context.getRequiredOption<string>('personality');
+  const options = historyHardDeleteOptions(context.interaction);
+  const personalitySlug = options.personality();
 
   try {
     // Create the destructive confirmation config

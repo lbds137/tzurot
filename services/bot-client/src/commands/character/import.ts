@@ -4,7 +4,13 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_LIMITS, DISCORD_COLORS, type EnvConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_LIMITS,
+  DISCORD_COLORS,
+  type EnvConfig,
+  characterImportOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
@@ -426,10 +432,11 @@ export async function handleImport(
 ): Promise<void> {
   const userId = context.user.id;
   const username = context.user.username;
+  const options = characterImportOptions(context.interaction);
 
   try {
-    const fileAttachment = context.interaction.options.getAttachment('file', true);
-    const avatarAttachment = context.interaction.options.getAttachment('avatar', false);
+    const fileAttachment = options.file();
+    const avatarAttachment = options.avatar();
 
     // Step 1: Validate, download, parse, and validate JSON file
     const parseResult = await validateAndParseJsonFile(fileAttachment);

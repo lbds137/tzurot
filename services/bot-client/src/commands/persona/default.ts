@@ -7,7 +7,7 @@
  * Uses gateway API for all data access (no direct Prisma).
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, personaDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
@@ -29,7 +29,8 @@ interface SetDefaultResponse {
  */
 export async function handleSetDefaultPersona(context: DeferredCommandContext): Promise<void> {
   const discordId = context.user.id;
-  const personaId = context.interaction.options.getString('persona', true);
+  const options = personaDefaultOptions(context.interaction);
+  const personaId = options.persona();
 
   try {
     // Set default via gateway API

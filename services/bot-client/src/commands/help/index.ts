@@ -11,7 +11,7 @@
  */
 
 import { SlashCommandBuilder, EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, getConfig } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, getConfig, helpOptions } from '@tzurot/common-types';
 import {
   defineCommand,
   type DeferredCommandContext,
@@ -60,7 +60,8 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
     return;
   }
 
-  const specificCommand = context.getOption<string>('command');
+  const options = helpOptions(context.interaction);
+  const specificCommand = options.command();
   const config = getConfig();
   const mentionChar = config.BOT_MENTION_CHAR;
 

@@ -6,7 +6,7 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, historyUndoOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed } from '../../utils/commandHelpers.js';
@@ -25,8 +25,9 @@ interface UndoResponse {
  */
 export async function handleUndo(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalitySlug = context.getRequiredOption<string>('personality');
-  const personaId = context.getOption<string>('profile'); // Optional profile/persona
+  const options = historyUndoOptions(context.interaction);
+  const personalitySlug = options.personality();
+  const personaId = options.persona(); // Optional profile/persona
 
   try {
     // Build request body, only include personaId if explicitly provided

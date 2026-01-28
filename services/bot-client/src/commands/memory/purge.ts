@@ -16,7 +16,7 @@ import {
   type ButtonInteraction,
   type ModalSubmitInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, memoryPurgeOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
@@ -63,7 +63,8 @@ function getConfirmationPhrase(personalityName: string): string {
 // eslint-disable-next-line max-lines-per-function, max-statements -- Discord command handler with multi-step confirmation flow
 export async function handlePurge(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
+  const options = memoryPurgeOptions(context.interaction);
+  const personalityInput = options.personality();
 
   try {
     // Resolve personality slug to ID

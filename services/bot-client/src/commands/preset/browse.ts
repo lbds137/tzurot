@@ -21,6 +21,7 @@ import {
   createLogger,
   DISCORD_COLORS,
   isFreeModel,
+  presetBrowseOptions,
   type LlmConfigSummary,
   type AIProvider,
 } from '@tzurot/common-types';
@@ -330,8 +331,9 @@ function buildBrowsePage(
  */
 export async function handleBrowse(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const query = context.interaction.options.getString('query');
-  const filterStr = context.interaction.options.getString('filter') ?? 'all';
+  const options = presetBrowseOptions(context.interaction);
+  const query = options.query();
+  const filterStr = options.filter() ?? 'all';
   const filter = filterStr as PresetBrowseFilter;
 
   try {

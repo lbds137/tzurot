@@ -9,7 +9,11 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger, type ActivateChannelResponse } from '@tzurot/common-types';
+import {
+  createLogger,
+  type ActivateChannelResponse,
+  channelActivateOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { requireManageMessagesContext } from '../../utils/permissions.js';
@@ -38,7 +42,8 @@ async function invalidateSettingsCache(channelId: string): Promise<void> {
  * @param context - DeferredCommandContext (already deferred by framework)
  */
 export async function handleActivate(context: DeferredCommandContext): Promise<void> {
-  const personalitySlug = context.getRequiredOption<string>('personality');
+  const options = channelActivateOptions(context.interaction);
+  const personalitySlug = options.personality();
   const { channelId, guildId } = context;
 
   // Check permission using context-aware utility
