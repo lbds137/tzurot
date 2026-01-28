@@ -122,6 +122,56 @@ const comparator = createListComparator<Item>(
 items.sort(comparator('name', false)); // false = ascending
 ```
 
+## Button Emoji Pattern
+
+**ALWAYS use `.setEmoji()` separately from `.setLabel()`** for consistent button sizing.
+
+### Why This Matters
+
+When emojis are embedded directly in the label string, Discord renders buttons with inconsistent sizing - they appear narrower/skinnier than buttons using `.setEmoji()`. This is visually jarring, especially in button rows.
+
+### Implementation
+
+```typescript
+// ❌ WRONG - Emoji embedded in label (buttons look skinny)
+new ButtonBuilder()
+  .setCustomId('back')
+  .setLabel('◀️ Back to List') // Embedded emoji
+  .setStyle(ButtonStyle.Secondary);
+
+// ✅ CORRECT - Emoji set separately (consistent button sizing)
+new ButtonBuilder()
+  .setCustomId('back')
+  .setLabel('Back to List')
+  .setEmoji('◀️') // Separate emoji
+  .setStyle(ButtonStyle.Secondary);
+```
+
+### Standard Button Emojis
+
+| Action    | Emoji | Label        |
+| --------- | ----- | ------------ |
+| Previous  | ◀️    | Previous     |
+| Next      | ▶️    | Next         |
+| Back      | ◀️    | Back         |
+| Edit      | ✏️    | Edit         |
+| Delete    | 🗑️    | Delete       |
+| Lock      | 🔒    | Lock         |
+| Unlock    | 🔓    | Unlock       |
+| Refresh   | 🔄    | Refresh      |
+| Close     | ❌    | Close        |
+| Sort A-Z  | 🔤    | Sort A-Z     |
+| Sort Date | 📅    | Sort by Date |
+
+### Standard Button Order
+
+Buttons should follow this order (left to right):
+
+1. **Primary actions** - Edit, Lock/Unlock, other actions
+2. **View actions** - View Full, etc.
+3. **Navigation** - Back to List
+4. **Destructive** - Delete (always last, uses `ButtonStyle.Danger`)
+
 ## Pagination Pattern
 
 ### Button Layout
