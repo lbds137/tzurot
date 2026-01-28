@@ -6,7 +6,7 @@
  * because the parent command uses deferralMode: 'ephemeral'.
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, adminUsageOptions } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
 import { buildAdminUsageEmbed, type AdminUsageStats } from '../../utils/usageFormatter.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -14,7 +14,8 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 const logger = createLogger('admin-usage');
 
 export async function handleUsage(context: DeferredCommandContext): Promise<void> {
-  const periodOption = context.getOption<string>('period');
+  const options = adminUsageOptions(context.interaction);
+  const periodOption = options.period();
   const timeframe =
     periodOption !== undefined && periodOption !== null && periodOption.length > 0
       ? periodOption

@@ -5,7 +5,7 @@
  * Automatically resizes large images to fit within the API gateway's body limit.
  */
 
-import { createLogger, type EnvConfig } from '@tzurot/common-types';
+import { createLogger, type EnvConfig, characterAvatarOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { fetchCharacter, updateCharacter } from './api.js';
 import {
@@ -38,8 +38,9 @@ export async function handleAvatar(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  const slug = context.interaction.options.getString('character', true);
-  const attachment = context.interaction.options.getAttachment('image', true);
+  const options = characterAvatarOptions(context.interaction);
+  const slug = options.character();
+  const attachment = options.image();
   const userId = context.user.id;
 
   const validationError = validateAttachment(attachment.contentType, attachment.size);

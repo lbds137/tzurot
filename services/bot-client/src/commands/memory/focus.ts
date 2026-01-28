@@ -7,7 +7,12 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import {
+  createLogger,
+  memoryFocusEnableOptions,
+  memoryFocusDisableOptions,
+  memoryFocusStatusOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';
@@ -41,7 +46,8 @@ export async function handleFocusDisable(context: DeferredCommandContext): Promi
  */
 export async function handleFocusStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
+  const options = memoryFocusStatusOptions(context.interaction);
+  const personalityInput = options.personality();
 
   try {
     // Resolve personality slug to ID
@@ -100,7 +106,11 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
  */
 async function setFocusMode(context: DeferredCommandContext, enabled: boolean): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
+  // Both enable and disable use the same option schema
+  const options = enabled
+    ? memoryFocusEnableOptions(context.interaction)
+    : memoryFocusDisableOptions(context.interaction);
+  const personalityInput = options.personality();
 
   try {
     // Resolve personality slug to ID

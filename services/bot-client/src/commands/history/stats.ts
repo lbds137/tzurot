@@ -7,7 +7,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, historyStatsOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
@@ -60,8 +60,9 @@ function formatDate(dateStr: string | null): string {
 export async function handleStats(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const channelId = context.channelId;
-  const personalitySlug = context.getRequiredOption<string>('personality');
-  const personaId = context.getOption<string>('profile'); // Optional profile/persona
+  const options = historyStatsOptions(context.interaction);
+  const personalitySlug = options.personality();
+  const personaId = options.persona(); // Optional profile/persona
 
   try {
     // Build query params

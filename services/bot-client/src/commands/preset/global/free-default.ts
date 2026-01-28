@@ -5,7 +5,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, presetGlobalFreeDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
 import { adminPutJson } from '../../../utils/adminApiClient.js';
 
@@ -15,7 +15,8 @@ const logger = createLogger('preset-global-free-default');
  * Handle /preset global free-default
  */
 export async function handleGlobalSetFreeDefault(context: DeferredCommandContext): Promise<void> {
-  const configId = context.interaction.options.getString('config', true);
+  const options = presetGlobalFreeDefaultOptions(context.interaction);
+  const configId = options.config();
 
   try {
     const response = await adminPutJson(`/admin/llm-config/${configId}/set-free-default`, {});

@@ -26,6 +26,7 @@ import {
   MESSAGE_LIMITS,
   GUEST_MODE,
   AI_ENDPOINTS,
+  characterChatOptions,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -222,8 +223,9 @@ export async function handleChat(
   context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  const characterSlug = context.interaction.options.getString('character', true);
-  const message = context.interaction.options.getString('message', false);
+  const options = characterChatOptions(context.interaction);
+  const characterSlug = options.character();
+  const message = options.message();
   const userId = context.user.id;
   const isWeighInMode = message === null || message.trim().length === 0;
   const discordDisplayName = context.member?.displayName ?? context.user.displayName;

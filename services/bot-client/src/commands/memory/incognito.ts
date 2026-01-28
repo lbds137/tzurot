@@ -14,6 +14,9 @@ import { escapeMarkdown } from 'discord.js';
 import {
   createLogger,
   getDurationLabel,
+  memoryIncognitoEnableOptions,
+  memoryIncognitoDisableOptions,
+  memoryIncognitoForgetOptions,
   type IncognitoSession,
   type IncognitoDuration,
 } from '@tzurot/common-types';
@@ -89,8 +92,9 @@ async function resolvePersonalityOrAll(
  */
 export async function handleIncognitoEnable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
-  const duration = context.interaction.options.getString('duration', true) as IncognitoDuration;
+  const options = memoryIncognitoEnableOptions(context.interaction);
+  const personalityInput = options.personality();
+  const duration = options.duration() as IncognitoDuration;
 
   try {
     const resolved = await resolvePersonalityOrAll(userId, personalityInput);
@@ -149,7 +153,8 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
  */
 export async function handleIncognitoDisable(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
+  const options = memoryIncognitoDisableOptions(context.interaction);
+  const personalityInput = options.personality();
 
   try {
     const resolved = await resolvePersonalityOrAll(userId, personalityInput);
@@ -266,8 +271,9 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
  */
 export async function handleIncognitoForget(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
-  const timeframe = context.interaction.options.getString('timeframe', true);
+  const options = memoryIncognitoForgetOptions(context.interaction);
+  const personalityInput = options.personality();
+  const timeframe = options.timeframe();
 
   try {
     const resolved = await resolvePersonalityOrAll(userId, personalityInput);

@@ -5,7 +5,7 @@
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, memorySearchOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { resolvePersonalityId } from './autocomplete.js';
@@ -457,8 +457,9 @@ async function fetchSearchResults(options: FetchSearchOptions): Promise<SearchRe
  */
 export async function handleSearch(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const query = context.interaction.options.getString('query', true);
-  const personalityInput = context.interaction.options.getString('personality');
+  const options = memorySearchOptions(context.interaction);
+  const query = options.query();
+  const personalityInput = options.personality();
 
   try {
     // Resolve personality if provided

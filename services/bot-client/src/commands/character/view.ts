@@ -19,6 +19,7 @@ import {
   CHARACTER_VIEW_LIMITS,
   TEXT_LIMITS,
   splitMessage,
+  characterViewOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './config.js';
@@ -362,7 +363,8 @@ export async function handleView(
   context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
-  const slug = context.interaction.options.getString('character', true);
+  const options = characterViewOptions(context.interaction);
+  const slug = options.character();
   const userId = context.user.id;
 
   try {

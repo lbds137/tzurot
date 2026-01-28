@@ -9,6 +9,7 @@ import {
   createLogger,
   DISCORD_COLORS,
   isFreeModel,
+  settingsPresetDefaultOptions,
   type AIProvider,
   type LlmConfigSummary,
 } from '@tzurot/common-types';
@@ -41,7 +42,8 @@ interface ConfigListResponse {
  */
 export async function handleDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const configId = context.interaction.options.getString('preset', true);
+  const options = settingsPresetDefaultOptions(context.interaction);
+  const configId = options.preset();
 
   // Handle "Unlock All Models" upsell selection
   if (configId === UNLOCK_MODELS_VALUE) {

@@ -4,7 +4,12 @@
  * Opens the dashboard for editing an existing character.
  */
 
-import { createLogger, isBotOwner, type EnvConfig } from '@tzurot/common-types';
+import {
+  createLogger,
+  isBotOwner,
+  type EnvConfig,
+  characterEditOptions,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -39,7 +44,8 @@ export async function handleEdit(
   context: DeferredCommandContext,
   config: EnvConfig
 ): Promise<void> {
-  const slug = context.interaction.options.getString('character', true);
+  const options = characterEditOptions(context.interaction);
+  const slug = options.character();
   const userId = context.user.id;
 
   try {

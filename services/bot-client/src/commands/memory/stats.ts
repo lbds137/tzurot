@@ -4,7 +4,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, memoryStatsOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
@@ -34,7 +34,8 @@ function formatDateOrNA(dateStr: string | null): string {
  */
 export async function handleStats(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const personalityInput = context.interaction.options.getString('personality', true);
+  const options = memoryStatsOptions(context.interaction);
+  const personalityInput = options.personality();
 
   try {
     // Resolve personality slug to ID

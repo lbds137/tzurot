@@ -23,6 +23,7 @@ import {
   type ListChannelSettingsResponse,
   type ChannelSettings,
   DISCORD_COLORS,
+  channelBrowseOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -392,9 +393,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     return;
   }
 
-  const query = context.getOption<string>('query') ?? null;
-  const filterStr = context.getOption<string>('filter') ?? 'current';
-  const filter = filterStr as ChannelBrowseFilter;
+  const options = channelBrowseOptions(interaction);
+  const query = options.query();
+  const filter = (options.filter() ?? 'current') as ChannelBrowseFilter;
 
   // Check owner permission for 'all' filter
   if (filter === 'all' && !isBotOwner(context.user.id)) {

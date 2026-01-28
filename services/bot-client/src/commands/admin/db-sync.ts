@@ -7,7 +7,12 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, TEXT_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  TEXT_LIMITS,
+  adminDbSyncOptions,
+} from '@tzurot/common-types';
 import { adminPostJson } from '../../utils/adminApiClient.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -65,7 +70,8 @@ function buildSyncSummary(result: SyncResult, dryRun: boolean): string {
 
 export async function handleDbSync(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
-  const dryRun = context.getOption<boolean>('dry-run') ?? false;
+  const options = adminDbSyncOptions(context.interaction);
+  const dryRun = options['dry-run']() ?? false;
 
   try {
     // Call API Gateway sync endpoint
