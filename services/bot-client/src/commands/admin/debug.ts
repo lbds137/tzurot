@@ -173,7 +173,8 @@ export async function handleDebug(context: DeferredCommandContext): Promise<void
   const options = adminDebugOptions(context.interaction);
   const identifier = options.identifier();
 
-  if (identifier === null || identifier === undefined || identifier === '') {
+  // Note: identifier() returns string (required option), so only empty check needed
+  if (identifier === '') {
     await context.editReply({
       content: '❌ Identifier is required. Provide a message ID, message link, or request UUID.',
     });

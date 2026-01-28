@@ -249,16 +249,19 @@ function parseCommandFile(filePath: string): ExtractedCommand | null {
   }
 
   // If no subcommands, look for options at the command level
+  // Use balanced parenthesis matching (like subcommands) to handle nested parens in option chains
   if (subcommands.length === 0) {
-    const optionBlocks = content.matchAll(
-      /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption|addMentionableOption)\s*\(\s*(?:option\s*=>|function\s*\(option\))\s*([\s\S]*?)\s*\)/g
-    );
+    const optionMethodRegex =
+      /\.(addStringOption|addIntegerOption|addNumberOption|addBooleanOption|addUserOption|addChannelOption|addRoleOption|addAttachmentOption|addMentionableOption)\s*\(/g;
 
-    for (const optMatch of optionBlocks) {
-      const [, method, optionChain] = optMatch;
-      const nameMatch = /\.setName\(['"]([^'"]+)['"]\)/.exec(optionChain);
+    let optMatch;
+    while ((optMatch = optionMethodRegex.exec(content)) !== null) {
+      const method = optMatch[1];
+      const optionBlock = findBalancedBlock(content, optMatch.index + optMatch[0].length - 1);
+
+      const nameMatch = /\.setName\(['"]([^'"]+)['"]\)/.exec(optionBlock);
       if (nameMatch) {
-        const requiredMatch = /\.setRequired\((true|false)\)/.exec(optionChain);
+        const requiredMatch = /\.setRequired\((true|false)\)/.exec(optionBlock);
         commandOptions.push({
           name: nameMatch[1],
           type: optionMethodToType[method] ?? 'string',
