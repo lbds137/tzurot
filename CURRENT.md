@@ -1,7 +1,7 @@
 # Current
 
-> **Session**: 2026-01-26
-> **Version**: v3.0.0-beta.51
+> **Session**: 2026-01-27
+> **Version**: v3.0.0-beta.53
 
 ---
 
@@ -9,7 +9,7 @@
 
 _One sentence on what we're doing today._
 
-Fix `/me profile edit` bug and implement browse pattern for personas and `/admin servers`.
+_(No active task - pull next from BACKLOG High Priority)_
 
 ---
 
@@ -17,46 +17,7 @@ Fix `/me profile edit` bug and implement browse pattern for personas and `/admin
 
 _Cut from BACKLOG, paste here when starting work._
 
-🔨 `[EPIC]` **Slash Command Restructure** (beta.52)
-
-**Completed:**
-
-- [x] Phase 1: Testing Infrastructure (registry integrity tests, snapshots)
-- [x] Phase 2: Create `/persona` command (entityType = command name)
-- [x] Phase 3: Create `/settings` command (consolidates timezone, apikey, preset)
-- [x] Phase 4: Enhance `/admin servers` with browse pattern (pagination, sort, details)
-- [x] Phase 5: Delete old commands (`/me`, `/wallet`) - handlers migrated, old tests removed
-- [x] Phase 6: Documentation updates (tzurot-testing skill, postmortem)
-- [x] Phase 7: Full verification (typecheck, lint, tests pass)
-- [x] Added comprehensive tests for `/persona` and `/settings` commands
-- [x] Fixed help command categories (Me→Persona, Wallet→Memory, added Settings)
-- [x] Moved override handlers to subdirectory (`persona/override/set.ts`, `persona/override/clear.ts`)
-- [x] Added missing persona tests (`edit.test.ts`, `browse.test.ts`, `dashboard.test.ts`, `autocomplete.test.ts`)
-- [x] PR merged to develop (2026-01-26)
-- [x] Consolidated 6 dependabot PRs into single commit
-
-**Bug fixes during manual testing:**
-
-- [x] Fixed logger name: `me-view` → `persona-view`, updated all `[Me]` → `[Persona]` log messages
-- [x] Fixed `isPersonaDashboardInteraction` to only match dashboard actions (menu, modal, close, etc.)
-  - Bug: Was matching ALL `persona::*` customIds, causing expand/back buttons to silently fail
-- [x] Added `back` button handler (shows session expired message - proper browse context in backlog)
-- [x] Added tests to verify non-dashboard actions (expand, browse, create) don't match dashboard check
-- [x] Fixed `/settings apikey set` "unknown interaction" modal failure
-  - Bug: `wallet::` customId prefix didn't route to `settings` command
-  - Fix: Renamed `WalletCustomIds` → `ApikeyCustomIds` with `settings::apikey::*` prefix pattern
-  - Removed `componentPrefixes: ['wallet']` hack - now routes naturally via `settings::` prefix
-- [x] Updated all user-facing strings from `/wallet` → `/settings apikey`
-- [x] Updated all user-facing strings from `/me preset` → `/settings preset`
-- [x] Updated tests for new customId format (`settings::apikey::set::provider`)
-- [x] Removed dead `MeCustomIds` from customIds.ts and tests (command was deleted)
-
-**New commands:**
-
-- `/persona view|edit|create|browse|default|share-ltm` + `/persona override set|clear`
-- `/settings timezone get|set` + `/settings apikey set|browse|remove|test` + `/settings preset browse|set|reset|default|clear-default`
-
-**Status**: PR merged, bug fixes applied. Ready to commit fixes.
+_(Empty - ready for next task)_
 
 ---
 
@@ -64,20 +25,15 @@ _Cut from BACKLOG, paste here when starting work._
 
 _Error logs, decisions, API snippets - anything Claude needs to see._
 
-**Root cause** (2026-01-26):
-Dashboard entityType 'profile' didn't match command name 'me'. componentPrefixes hack was fragile. Fix: new `/persona` command where name = entityType.
+_(Empty)_
 
-**Migration completed:**
+---
 
-- Handlers moved: `/me/profile/*` → `/persona/*`, `/me/timezone/*` → `/settings/timezone/*`, `/wallet/*` → `/settings/apikey/*`, `/me/preset/*` → `/settings/preset/*`
-- Old `/me` and `/wallet` command directories deleted
-- Test mock paths updated to match new locations
-- Obsolete snapshots removed, command count updated (11 → 9)
+## Recent Highlights
 
-**Phase 4 details:**
-
-- `/admin servers` has browse pattern with pagination (10/page), sorting (name/members), select menu for details
-- Custom ID format: `admin-servers::browse|select|back::page::sort`
+- **beta.53**: Type-safe command option accessors, UX Standardization epic complete (114 files, 25 commits)
+- **beta.52**: Shared browse/dashboard utilities, `/persona` and `/settings` commands, customId standardization
+- **beta.51**: Shapes.inc user mention resolution, forwarded message fixes, tech debt documentation
 
 ---
 
