@@ -293,25 +293,24 @@ Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
 
 `scripts/data/import-personality/` workspace needs cleanup.
 
-### 🧹 Railway CLI Non-Interactive Mode & Docs Consolidation
+### 🧹 Railway CLI Non-Interactive Mode & Docs Consolidation ✅ DONE
 
 Railway shipped non-interactive CLI options (January 2026) - "AI friendly" calls for all methods.
 
-**Current State** (scattered docs):
+**Completed (beta.55)**:
 
-- `docs/reference/RAILWAY_CLI_REFERENCE.md` - Top level, 23KB
-- `docs/reference/deployment/RAILWAY_DEPLOYMENT.md`
-- `docs/reference/deployment/RAILWAY_VOLUME_SETUP.md`
-- `docs/reference/deployment/RAILWAY_SHARED_VARIABLES.md`
-- `tzurot-deployment` skill - Primary skill reference
+- [x] Research Railway's new non-interactive CLI options (v4.27.4)
+- [x] Update `RAILWAY_CLI_REFERENCE.md` with non-interactive section (--json, --browserless, --2fa-code, --yes)
+- [x] Consolidate 3 deployment docs into `RAILWAY_OPERATIONS.md`
+- [x] Update `tzurot-deployment` skill with correct commands and references
+- [x] Tooling already uses `--json` where beneficial (env-runner.ts)
 
-**Tasks**:
+### 🧹 Railway Ops CLI Enhancements
 
-- [ ] Research Railway's new non-interactive CLI options
-- [ ] Update `RAILWAY_CLI_REFERENCE.md` with non-interactive examples
-- [ ] Consolidate scattered deployment docs (consider merging into single reference)
-- [ ] Update `tzurot-deployment` skill to reference consolidated docs
-- [ ] Update `pnpm ops` commands if any can leverage non-interactive mode
+Low priority quality-of-life improvements leveraging Railway's `--json` output:
+
+- [ ] `pnpm ops railway:status` - Parse `railway status --json` for nicer formatted output
+- [ ] `pnpm ops railway:vars` - View variables with secret hiding and service grouping
 
 ### Testing Debt
 

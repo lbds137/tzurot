@@ -224,4 +224,4 @@ railway run --service SERVICE_NAME npx prisma migrate deploy
 - [Prisma Migrate Documentation](https://www.prisma.io/docs/concepts/components/prisma-migrate)
 - [Prisma Production Troubleshooting](https://www.prisma.io/docs/guides/migrate/production-troubleshooting)
 - [pgvector Extension](https://github.com/pgvector/pgvector)
-- [Railway Deployment Guide](../deployment/RAILWAY_DEPLOYMENT.md)
+- [Railway Operations Guide](../deployment/RAILWAY_OPERATIONS.md)

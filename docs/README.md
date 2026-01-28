@@ -25,7 +25,7 @@ This directory contains all project documentation, organized by lifecycle stage 
 **Key docs:**
 
 - `reference/architecture/ARCHITECTURE_DECISIONS.md` - Core architectural choices
-- `reference/deployment/RAILWAY_DEPLOYMENT.md` - Primary deployment guide
+- `reference/deployment/RAILWAY_OPERATIONS.md` - Primary deployment and operations guide
 - `reference/guides/DEVELOPMENT.md` - Local development setup
 - `reference/standards/FOLDER_STRUCTURE.md` - File organization standards
 
@@ -87,7 +87,7 @@ This directory contains all project documentation, organized by lifecycle stage 
 
 1. [Development Setup](reference/guides/DEVELOPMENT.md)
 2. [Architecture Overview](reference/architecture/ARCHITECTURE_DECISIONS.md)
-3. [Deployment Guide](reference/deployment/RAILWAY_DEPLOYMENT.md)
+3. [Operations Guide](reference/deployment/RAILWAY_OPERATIONS.md)
 
 **Understanding the System:**
 

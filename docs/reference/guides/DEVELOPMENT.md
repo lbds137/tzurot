@@ -74,7 +74,7 @@ tzurot-v3/
 ├── docker-compose.yml       # Local dev services (Redis, Postgres with pgvector)
 ├── railway.json             # Railway deployment config
 ├── .env.example             # Environment variables template
-└── RAILWAY_DEPLOYMENT.md    # Railway deployment guide
+└── RAILWAY_OPERATIONS.md    # Railway deployment & operations guide
 ```
 
 ## Quick Start
