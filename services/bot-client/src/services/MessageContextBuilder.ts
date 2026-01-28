@@ -357,28 +357,28 @@ export class MessageContextBuilder {
    * Fetch conversation history from database.
    * When extended context is enabled, fetches ALL channel messages (not filtered by personality)
    * to align with Discord extended context and prevent duplication issues.
+   *
+   * The limit parameter caps the DB fetch to match the resolved extended_context_max_messages
+   * setting, preventing the DB lookup from going much farther back than the Discord fetch.
    */
   private async fetchDbHistory(
     channelId: string,
     personalityId: string,
     contextEpoch: Date | undefined,
-    useChannelHistory: boolean
+    useChannelHistory: boolean,
+    limit: number = MESSAGE_LIMITS.MAX_HISTORY_FETCH
   ): Promise<ConversationMessage[]> {
     const history = useChannelHistory
-      ? await this.conversationHistory.getChannelHistory(
-          channelId,
-          MESSAGE_LIMITS.MAX_HISTORY_FETCH,
-          contextEpoch
-        )
+      ? await this.conversationHistory.getChannelHistory(channelId, limit, contextEpoch)
       : await this.conversationHistory.getRecentHistory(
           channelId,
           personalityId,
-          MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+          limit,
           contextEpoch
         );
 
     logger.debug(
-      { channelId, personalityId, useChannelHistory, dbHistoryCount: history.length },
+      { channelId, personalityId, useChannelHistory, limit, dbHistoryCount: history.length },
       '[MessageContextBuilder] Fetched conversation history from database'
     );
 
@@ -651,6 +651,7 @@ export class MessageContextBuilder {
    * @param content - Message content (may be voice transcript)
    * @param options - Additional options including extended context
    */
+  // eslint-disable-next-line max-lines-per-function -- Coordinator method with 6 well-organized steps
   async buildContext(
     message: Message,
     personality: LoadedPersonality,
@@ -669,12 +670,16 @@ export class MessageContextBuilder {
       userContext;
 
     // Step 3: Fetch conversation history from PostgreSQL
+    // When extended context is enabled, cap the DB fetch to the maxMessages setting
+    // This prevents the DB lookup from going much farther back than the Discord fetch
     const useChannelHistory = options.extendedContext?.enabled === true;
+    const dbLimit = options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH;
     const dbHistory = await this.fetchDbHistory(
       message.channel.id,
       personality.id,
       contextEpoch,
-      useChannelHistory
+      useChannelHistory,
+      dbLimit
     );
 
     // Step 4: Fetch extended context from Discord (if enabled) and merge with DB history
