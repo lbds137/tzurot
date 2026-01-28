@@ -39,6 +39,25 @@ export interface DiagnosticPayload {
 
   /** Timing breakdown */
   timing: DiagnosticTiming;
+
+  /** Error info (present only for failed requests) */
+  error?: DiagnosticError;
+}
+
+/**
+ * Error information for failed requests
+ */
+export interface DiagnosticError {
+  /** Error message */
+  message: string;
+  /** Error category (from apiErrorParser) */
+  category: string;
+  /** Reference ID for support */
+  referenceId?: string;
+  /** Raw error details (sanitized) */
+  rawError?: Record<string, unknown>;
+  /** Which pipeline stage failed */
+  failedAtStage: string;
 }
 
 /**

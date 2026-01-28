@@ -31,6 +31,7 @@ import {
   type DiagnosticLlmResponse,
   type DiagnosticPostProcessing,
   type DiagnosticTiming,
+  type DiagnosticError,
 } from '@tzurot/common-types';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
@@ -145,6 +146,7 @@ export class DiagnosticCollector {
   private llmConfig: DiagnosticLlmConfig | null = null;
   private llmResponse: DiagnosticLlmResponse | null = null;
   private postProcessing: DiagnosticPostProcessing | null = null;
+  private errorData: DiagnosticError | null = null;
 
   // Timing markers
   private memoryRetrievalStartMs: number | null = null;
@@ -359,6 +361,26 @@ export class DiagnosticCollector {
   }
 
   /**
+   * Record an error that occurred during processing.
+   * Call this before finalize() when the request fails.
+   */
+  recordError(data: {
+    message: string;
+    category: string;
+    referenceId?: string;
+    rawError?: Record<string, unknown>;
+    failedAtStage: string;
+  }): void {
+    this.errorData = {
+      message: data.message,
+      category: data.category,
+      referenceId: data.referenceId,
+      rawError: data.rawError,
+      failedAtStage: data.failedAtStage,
+    };
+  }
+
+  /**
    * Record Stage 7: Post-processing transforms
    */
   recordPostProcessing(data: PostProcessingData): void {
@@ -425,11 +447,17 @@ export class DiagnosticCollector {
       timing,
     };
 
+    // Include error data if present (for failed requests)
+    if (this.errorData !== null) {
+      payload.error = this.errorData;
+    }
+
     // Log completion for debugging
     logger.debug(
       {
         requestId: this.meta.requestId,
         totalDurationMs,
+        hasError: this.errorData !== null,
         stages: {
           inputProcessing: this.inputProcessing !== null,
           memoryRetrieval: this.memoryRetrieval !== null,
