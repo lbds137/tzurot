@@ -43,10 +43,31 @@ export function cleanupNotificationCache(): void {
   }
 }
 
-// Start periodic cleanup interval to prevent memory leaks
-// This runs every hour to remove expired cache entries
-// Safe for bot-client: single-instance, local UI state (not horizontally scaled)
-setInterval(cleanupNotificationCache, INTERVALS.ONE_HOUR_MS);
+/** Timer reference for cleanup interval */
+let cleanupTimer: ReturnType<typeof setInterval> | null = null;
+
+/**
+ * Start periodic cleanup of the notification cache.
+ * This should be called during bot initialization, not at module import time.
+ * Safe for bot-client: single-instance, local UI state (not horizontally scaled)
+ */
+export function startNotificationCacheCleanup(): void {
+  if (cleanupTimer !== null) {
+    return; // Already started
+  }
+  cleanupTimer = setInterval(cleanupNotificationCache, INTERVALS.ONE_HOUR_MS);
+}
+
+/**
+ * Stop periodic cleanup of the notification cache.
+ * This should be called during bot shutdown.
+ */
+export function stopNotificationCacheCleanup(): void {
+  if (cleanupTimer !== null) {
+    clearInterval(cleanupTimer);
+    cleanupTimer = null;
+  }
+}
 
 // ============================================================================
 // Test Utilities

@@ -16,9 +16,9 @@ export const mockIsBotOwner: ((...args: unknown[]) => boolean) & {
   mockReset: () => void;
 };
 
-// Mock dates for consistent testing
-export const MOCK_CREATED_AT = new Date('2024-01-01T00:00:00.000Z');
-export const MOCK_UPDATED_AT = new Date('2024-01-02T00:00:00.000Z');
+// Mock date factories for consistent testing (factory functions avoid mutable module state)
+export const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
+export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
 
 // Type for mock Prisma client
 export type MockPrisma = ReturnType<typeof createMockPrisma>;
@@ -129,8 +129,8 @@ export function createMockPersonality(
     imageEnabled: false,
     ownerId: 'user-uuid-123',
     avatarData: null,
-    createdAt: MOCK_CREATED_AT,
-    updatedAt: MOCK_UPDATED_AT,
+    createdAt: createMockCreatedAt(),
+    updatedAt: createMockUpdatedAt(),
     ...overrides,
   };
 }

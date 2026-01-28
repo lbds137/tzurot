@@ -14,7 +14,7 @@ import {
   MOCK_USER_UUID,
   MOCK_DISCORD_USER_ID,
   MOCK_ACTIVATION_UUID,
-  MOCK_CREATED_AT,
+  createMockCreatedAt,
 } from './test-utils.js';
 
 // Mock dependencies
@@ -126,7 +126,7 @@ describe('PATCH /user/channel/extended-context/:channelId', () => {
       channelId,
       guildId: null,
       createdBy: MOCK_USER_UUID,
-      createdAt: MOCK_CREATED_AT,
+      createdAt: createMockCreatedAt(),
       autoRespond: true,
       extendedContext: true,
       extendedContextMaxMessages: null,
