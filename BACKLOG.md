@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-01-28
-> **Version**: v3.0.0-beta.54
+> **Version**: v3.0.0-beta.55
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
