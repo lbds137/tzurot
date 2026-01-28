@@ -500,7 +500,7 @@ export class GenerationStep implements IPipelineStep {
           metadata: {
             processingTimeMs,
             modelUsed: effectivePersonality.model ?? undefined,
-            providerUsed: provider ?? undefined,
+            providerUsed: provider,
             isGuestMode,
           },
         },
