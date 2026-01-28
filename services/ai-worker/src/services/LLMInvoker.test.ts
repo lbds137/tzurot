@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { LLMInvoker } from './LLMInvoker.js';
+import { LLMInvoker, supportsStopSequences } from './LLMInvoker.js';
 import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { TIMEOUTS } from '@tzurot/common-types';
@@ -1090,6 +1090,126 @@ describe('LLMInvoker', () => {
           })
         );
       });
+
+      it('should filter out stop sequences for models that do not support them', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response from GLM',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'z-ai/glm-4.5-air:free',
+          stopSequences: ['</message>', '\nUser:', '\nHuman:'],
+        });
+
+        // Stop sequences should NOT be passed to the model
+        expect(mockModel.invoke).toHaveBeenCalledWith(
+          messages,
+          expect.not.objectContaining({
+            stop: expect.anything(),
+          })
+        );
+      });
+
+      it('should pass stop sequences for models that support them', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Response from Claude',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'anthropic/claude-sonnet-4.5',
+          stopSequences: ['</message>', '\nUser:'],
+        });
+
+        // Stop sequences SHOULD be passed to the model
+        expect(mockModel.invoke).toHaveBeenCalledWith(
+          messages,
+          expect.objectContaining({
+            stop: ['</message>', '\nUser:'],
+          })
+        );
+      });
+    });
+  });
+});
+
+describe('supportsStopSequences', () => {
+  describe('models that DO NOT support stop sequences', () => {
+    it('should return false for GLM 4.5 Air variants', () => {
+      expect(supportsStopSequences('z-ai/glm-4.5-air:free')).toBe(false);
+      expect(supportsStopSequences('z-ai/glm-4.5-air')).toBe(false);
+      expect(supportsStopSequences('glm-4.5-air:free')).toBe(false);
+    });
+
+    it('should return false for Gemini 3 Pro Preview', () => {
+      expect(supportsStopSequences('google/gemini-3-pro-preview')).toBe(false);
+      expect(supportsStopSequences('gemini-3-pro-preview')).toBe(false);
+    });
+
+    it('should return false for Gemma 3 27B free tier', () => {
+      expect(supportsStopSequences('google/gemma-3-27b-it:free')).toBe(false);
+      expect(supportsStopSequences('gemma-3-27b-it:free')).toBe(false);
+    });
+
+    it('should return false for Llama 3.3 70B free tier', () => {
+      expect(supportsStopSequences('meta-llama/llama-3.3-70b-instruct:free')).toBe(false);
+      expect(supportsStopSequences('llama-3.3-70b-instruct:free')).toBe(false);
+    });
+  });
+
+  describe('models that DO support stop sequences', () => {
+    it('should return true for GLM 4.6 and 4.7 (paid versions support stop)', () => {
+      expect(supportsStopSequences('z-ai/glm-4.6')).toBe(true);
+      expect(supportsStopSequences('z-ai/glm-4.7')).toBe(true);
+    });
+
+    it('should return true for Gemini 3 Flash Preview', () => {
+      expect(supportsStopSequences('google/gemini-3-flash-preview')).toBe(true);
+    });
+
+    it('should return true for Gemini 2.5 models', () => {
+      expect(supportsStopSequences('google/gemini-2.5-flash')).toBe(true);
+      expect(supportsStopSequences('google/gemini-2.5-pro')).toBe(true);
+    });
+
+    it('should return true for Claude models', () => {
+      expect(supportsStopSequences('anthropic/claude-sonnet-4.5')).toBe(true);
+      expect(supportsStopSequences('anthropic/claude-haiku-4.5')).toBe(true);
+      expect(supportsStopSequences('anthropic/claude-opus-4.5')).toBe(true);
+    });
+
+    it('should return true for DeepSeek models', () => {
+      expect(supportsStopSequences('deepseek/deepseek-v3.2')).toBe(true);
+      expect(supportsStopSequences('tngtech/deepseek-r1t-chimera:free')).toBe(true);
+    });
+
+    it('should return true for Kimi K2 Thinking', () => {
+      expect(supportsStopSequences('moonshotai/kimi-k2-thinking')).toBe(true);
+    });
+
+    it('should return true for Mistral models', () => {
+      expect(supportsStopSequences('mistralai/mistral-small-3.1-24b-instruct:free')).toBe(true);
+    });
+
+    it('should return true for Hermes models', () => {
+      expect(supportsStopSequences('nousresearch/hermes-3-llama-3.1-405b:free')).toBe(true);
     });
   });
 });
