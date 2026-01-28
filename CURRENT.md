@@ -7,25 +7,29 @@
 
 ## Session Goal
 
-_One sentence on what we're doing today._
-
-_(No active task - pull next from BACKLOG High Priority)_
+Fix bugs and improvements: model indicator for errors, extended context DB cap, persona edit error.
 
 ---
 
 ## Active Task
 
-_Cut from BACKLOG, paste here when starting work._
+### Bug Fixes (2026-01-28)
 
-_(Empty - ready for next task)_
+1. **Model indicator for errors** - Display footer (model used, guest mode, etc.) on error responses too
+2. **Extended context DB cap** - Use `extended_context_max_messages` setting to limit DB query instead of dynamic context window
+3. **Persona edit error** - User reports "Failed to save persona" when editing name/preferred_name (investigate)
 
 ---
 
 ## Scratchpad
 
-_Error logs, decisions, API snippets - anything Claude needs to see._
+### Issue 3 Root Cause (RESOLVED)
 
-_(Empty)_
+- **Root Cause**: Identity section modal includes ALL 5 fields (name, preferredName, pronouns, description, content)
+- When content is empty in modal, `unflattenPersonaData` converted `''` to `null`
+- API saw `body.content = null` (not undefined), entered validation block
+- `extractString(null)` returns `null`, triggering "Content cannot be empty" error
+- **Fix**: Both API and bot-client updated - empty content now omitted from update payload instead of sending null
 
 ---
 
