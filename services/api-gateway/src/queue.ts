@@ -55,6 +55,7 @@ logger.info(
 const QUEUE_NAME = config.QUEUE_NAME;
 
 // Create the AI requests queue
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: BullMQ Queue must be shared across all route handlers to ensure consistent job processing. Creating multiple instances would cause jobs to be processed multiple times or missed entirely.
 export const aiQueue = new Queue(QUEUE_NAME, {
   connection: redisConfig,
   defaultJobOptions: {
@@ -70,11 +71,13 @@ export const aiQueue = new Queue(QUEUE_NAME, {
 
 // Create flow producer for job dependencies
 // FlowProducer allows creating parent-child job relationships where parent waits for children
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: FlowProducer must be shared to maintain job dependency relationships. Multiple instances would break parent-child job tracking.
 export const flowProducer = new FlowProducer({
   connection: redisConfig,
 });
 
 // Create queue events listener
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: QueueEvents listener must be shared to avoid duplicate event handling. Multiple instances would cause events to fire multiple times.
 export const queueEvents = new QueueEvents(QUEUE_NAME, {
   connection: redisConfig,
 });

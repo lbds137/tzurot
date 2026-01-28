@@ -118,6 +118,7 @@ export class LinkExtractor {
    * @param sourceMessage - Original message (for guild access)
    * @returns Discord message or null if not accessible
    */
+  // eslint-disable-next-line complexity, max-lines-per-function -- Discord API requires nested try-catch for guild→channel→message fetch chain with different error codes (10008, 50001, 50013). Extracting would obscure the sequential fetch flow and error handling context.
   async fetchMessageFromLink(
     link: ParsedMessageLink,
     sourceMessage: Message

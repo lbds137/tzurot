@@ -87,12 +87,15 @@ redis.on('reconnecting', () => {
 });
 
 // Export singleton RedisService instance
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: RedisService wraps ioredis client for job results and streaming. Multiple instances would create redundant connections and inconsistent state.
 export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: VoiceTranscriptCache shares Redis connection for transcript caching. Multiple instances would cause cache misses and wasted API calls.
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
 
 // Export singleton VisionDescriptionCache instance with L2 persistent cache
+// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: VisionDescriptionCache shares Redis connection with L2 PostgreSQL cache. Multiple instances would bypass cache layers and waste API calls.
 export const visionDescriptionCache = new VisionDescriptionCache(redis);
 
 // Set up L2 (PostgreSQL) cache for persistent storage
