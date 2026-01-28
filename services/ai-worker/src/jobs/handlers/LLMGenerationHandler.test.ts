@@ -754,6 +754,11 @@ describe('LLMGenerationHandler', () => {
         expect(result.error).toBe('AI provider rate limited');
         expect(result.requestId).toBe('test-req-001');
         expect(result.metadata?.processingTimeMs).toBeGreaterThanOrEqual(0);
+        // Verify error metadata includes model info for footer display
+        // (provider is undefined when no apiKeyResolver is provided)
+        expect(result.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
+        expect(result.metadata?.providerUsed).toBeUndefined();
+        expect(result.metadata?.isGuestMode).toBe(false);
       });
 
       it('should handle unknown error type', async () => {
@@ -766,6 +771,10 @@ describe('LLMGenerationHandler', () => {
 
         expect(result.success).toBe(false);
         expect(result.error).toBe('Unknown error');
+        // Verify error metadata includes model info for footer display
+        expect(result.metadata?.modelUsed).toBe('anthropic/claude-sonnet-4');
+        expect(result.metadata?.providerUsed).toBeUndefined();
+        expect(result.metadata?.isGuestMode).toBe(false);
       });
     });
 
