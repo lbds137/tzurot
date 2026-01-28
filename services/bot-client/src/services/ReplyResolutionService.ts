@@ -31,6 +31,7 @@ export class ReplyResolutionService {
    * @param userId - Discord user ID for access control
    * @returns LoadedPersonality if reply targets an accessible personality, null otherwise
    */
+  // eslint-disable-next-line complexity -- Discord API returns nullable fields requiring explicit checks (webhookId, applicationId, author). Redis lookup with UUID detection adds necessary branching. Webhook username parsing is a fallback path. All branches are related to the single task of resolving personality identity.
   async resolvePersonality(message: Message, userId: string): Promise<LoadedPersonality | null> {
     try {
       const messageId = message.reference?.messageId;
