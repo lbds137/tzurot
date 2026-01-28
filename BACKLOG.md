@@ -293,6 +293,26 @@ Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
 
 `scripts/data/import-personality/` workspace needs cleanup.
 
+### 🧹 Railway CLI Non-Interactive Mode & Docs Consolidation
+
+Railway shipped non-interactive CLI options (January 2026) - "AI friendly" calls for all methods.
+
+**Current State** (scattered docs):
+
+- `docs/reference/RAILWAY_CLI_REFERENCE.md` - Top level, 23KB
+- `docs/reference/deployment/RAILWAY_DEPLOYMENT.md`
+- `docs/reference/deployment/RAILWAY_VOLUME_SETUP.md`
+- `docs/reference/deployment/RAILWAY_SHARED_VARIABLES.md`
+- `tzurot-deployment` skill - Primary skill reference
+
+**Tasks**:
+
+- [ ] Research Railway's new non-interactive CLI options
+- [ ] Update `RAILWAY_CLI_REFERENCE.md` with non-interactive examples
+- [ ] Consolidate scattered deployment docs (consider merging into single reference)
+- [ ] Update `tzurot-deployment` skill to reference consolidated docs
+- [ ] Update `pnpm ops` commands if any can leverage non-interactive mode
+
 ### Testing Debt
 
 Component test gaps (use `pnpm ops test:audit-services`):
