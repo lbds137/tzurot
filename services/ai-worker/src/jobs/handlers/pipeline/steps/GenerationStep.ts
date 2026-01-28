@@ -497,7 +497,12 @@ export class GenerationStep implements IPipelineStep {
           error: errorMessage,
           personalityErrorMessage: personality.errorMessage,
           errorInfo,
-          metadata: { processingTimeMs },
+          metadata: {
+            processingTimeMs,
+            modelUsed: effectivePersonality.model ?? undefined,
+            providerUsed: provider ?? undefined,
+            isGuestMode,
+          },
         },
       };
     }

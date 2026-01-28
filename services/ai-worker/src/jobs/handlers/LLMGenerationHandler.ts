@@ -181,6 +181,7 @@ export class LLMGenerationHandler {
       );
 
       // Return error result with step information for debugging
+      // Include model info if available (ConfigStep may have populated it)
       return {
         requestId: job.data.requestId,
         success: false,
@@ -191,6 +192,10 @@ export class LLMGenerationHandler {
           failedStep: currentStepName,
           lastSuccessfulStep,
           errorStack: error instanceof Error ? error.stack : undefined,
+          // Include model/provider info if available from completed steps
+          modelUsed: context.config?.effectivePersonality.model ?? job.data.personality.model,
+          providerUsed: context.auth?.provider,
+          isGuestMode: context.auth?.isGuestMode,
         },
       };
     }
