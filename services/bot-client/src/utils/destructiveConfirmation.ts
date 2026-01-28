@@ -82,12 +82,14 @@ export function buildDestructiveWarning(config: DestructiveConfirmationConfig): 
         DestructiveCustomIds.confirmButton(config.source, config.operation, config.entityId)
       )
       .setLabel(config.buttonLabel)
+      .setEmoji('🗑️')
       .setStyle(ButtonStyle.Danger),
     new ButtonBuilder()
       .setCustomId(
         DestructiveCustomIds.cancelButton(config.source, config.operation, config.entityId)
       )
       .setLabel('Cancel')
+      .setEmoji('❌')
       .setStyle(ButtonStyle.Secondary)
   );
 
