@@ -37,14 +37,6 @@ _(Empty)_
 
 ---
 
-## Recent Highlights
-
-- **beta.51**: Shapes.inc user mention resolution, forwarded message fixes, tech debt documentation
-- **beta.50**: Unified timestamp format, XML location format, extended context personaId resolution
-- **beta.49**: Prompt XML cleanup, voice transcript sync fix, participant context improvements
-
----
-
 ## Quick Links
 
 - **[BACKLOG.md](BACKLOG.md)** - All work items (replaces ROADMAP + TECH_DEBT)
