@@ -43,13 +43,23 @@ export interface BrowseButtonConfig<TFilter extends string> {
 }
 
 /**
- * Default button labels
+ * Default button labels (without emojis - use setEmoji() separately for consistent sizing)
  */
 const DEFAULT_LABELS = {
-  previous: '◀ Previous',
-  next: 'Next ▶',
-  sortByName: '🔤 Sort A-Z',
-  sortByDate: '📅 Sort by Date',
+  previous: 'Previous',
+  next: 'Next',
+  sortByName: 'Sort A-Z',
+  sortByDate: 'Sort by Date',
+} as const;
+
+/**
+ * Default button emojis (set via .setEmoji() for consistent button sizing)
+ */
+const DEFAULT_EMOJIS = {
+  previous: '◀️',
+  next: '▶️',
+  sortByName: '🔤',
+  sortByDate: '📅',
 } as const;
 
 /**
@@ -87,6 +97,7 @@ export function buildBrowseButtons<TFilter extends string>(
     new ButtonBuilder()
       .setCustomId(buildCustomId(currentPage - 1, filter, currentSort, query))
       .setLabel(labels.previous)
+      .setEmoji(DEFAULT_EMOJIS.previous)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage === 0)
   );
@@ -105,6 +116,7 @@ export function buildBrowseButtons<TFilter extends string>(
     new ButtonBuilder()
       .setCustomId(buildCustomId(currentPage + 1, filter, currentSort, query))
       .setLabel(labels.next)
+      .setEmoji(DEFAULT_EMOJIS.next)
       .setStyle(ButtonStyle.Secondary)
       .setDisabled(currentPage >= totalPages - 1)
   );
@@ -113,10 +125,13 @@ export function buildBrowseButtons<TFilter extends string>(
   if (showSortToggle) {
     const newSort: BrowseSortType = currentSort === 'date' ? 'name' : 'date';
     const sortLabel = currentSort === 'date' ? labels.sortByName : labels.sortByDate;
+    const sortEmoji =
+      currentSort === 'date' ? DEFAULT_EMOJIS.sortByName : DEFAULT_EMOJIS.sortByDate;
     row.addComponents(
       new ButtonBuilder()
         .setCustomId(buildCustomId(currentPage, filter, newSort, query))
         .setLabel(sortLabel)
+        .setEmoji(sortEmoji)
         .setStyle(ButtonStyle.Primary)
     );
   }

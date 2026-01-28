@@ -85,21 +85,41 @@ export function createRefreshHandler<TData, TRaw = TData>(
     // This cast is safe because the generic constraint requires callers to specify matching types.
     const data = transformFn !== undefined ? transformFn(rawData) : (rawData as unknown as TData);
 
-    // Update session
+    // Get existing session to preserve browseContext (for back button navigation)
     const sessionManager = getSessionManager();
+    const existingSession = await sessionManager.get(interaction.user.id, entityType, entityId);
+
+    // Preserve browseContext from existing session if present
+    // Type guard: browseContext is an object with page/filter/sort properties
+    const existingData = existingSession?.data as Record<string, unknown> | undefined;
+    const browseContext = existingData?.browseContext;
+    const hasBrowseContext =
+      browseContext !== undefined &&
+      typeof browseContext === 'object' &&
+      browseContext !== null &&
+      'page' in browseContext;
+
+    const dataWithContext = hasBrowseContext ? { ...data, browseContext } : data;
+
+    // Update session with preserved context
     await sessionManager.set({
       userId: interaction.user.id,
       entityType,
       entityId,
-      data,
+      data: dataWithContext,
       messageId: interaction.message.id,
       channelId: interaction.channelId,
     });
 
-    // Build and update dashboard
-    const embed = buildDashboardEmbed(dashboardConfig, data);
-    const buttonOptions = buildOptions !== undefined ? buildOptions(data) : undefined;
-    const components = buildDashboardComponents(dashboardConfig, entityId, data, buttonOptions);
+    // Build and update dashboard using data with preserved context
+    const embed = buildDashboardEmbed(dashboardConfig, dataWithContext);
+    const buttonOptions = buildOptions !== undefined ? buildOptions(dataWithContext) : undefined;
+    const components = buildDashboardComponents(
+      dashboardConfig,
+      entityId,
+      dataWithContext,
+      buttonOptions
+    );
 
     await interaction.editReply({ embeds: [embed], components });
 

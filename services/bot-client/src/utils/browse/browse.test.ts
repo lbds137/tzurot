@@ -425,7 +425,8 @@ describe('buildBrowseButtons', async () => {
       const buttonData = sortButton.toJSON();
 
       expect(buttonData.custom_id).toContain('::name::');
-      expect(buttonData.label).toBe('🔤 Sort A-Z');
+      expect(buttonData.label).toBe('Sort A-Z');
+      expect(buttonData.emoji?.name).toBe('🔤');
       expect(buttonData.style).toBe(ButtonStyle.Primary);
     });
 
@@ -435,7 +436,8 @@ describe('buildBrowseButtons', async () => {
       const buttonData = sortButton.toJSON();
 
       expect(buttonData.custom_id).toContain('::date::');
-      expect(buttonData.label).toBe('📅 Sort by Date');
+      expect(buttonData.label).toBe('Sort by Date');
+      expect(buttonData.emoji?.name).toBe('📅');
     });
   });
 

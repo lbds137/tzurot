@@ -143,11 +143,13 @@ export async function handleBatchDelete(context: DeferredCommandContext): Promis
     const confirmButton = new ButtonBuilder()
       .setCustomId('memory_batch_delete_confirm')
       .setLabel(`Delete ${preview.wouldDelete} Memories`)
+      .setEmoji('🗑️')
       .setStyle(ButtonStyle.Danger);
 
     const cancelButton = new ButtonBuilder()
       .setCustomId('memory_batch_delete_cancel')
       .setLabel('Cancel')
+      .setEmoji('❌')
       .setStyle(ButtonStyle.Secondary);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
