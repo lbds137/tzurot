@@ -72,7 +72,7 @@ const envConfig = getConfig();
 // Validate required environment variables at startup
 validateRequiredEnvVars();
 
-// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+// eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated by validateRequiredEnvVars() above, but TypeScript can't infer the narrowed type across function boundaries
 const parsedUrl = parseRedisUrl(envConfig.REDIS_URL!);
 
 const redisConfig = createBullMQRedisConfig({
@@ -371,7 +371,7 @@ async function main(): Promise<void> {
 
   // Initialize core infrastructure
   const prisma = getPrismaClient();
-  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion -- REDIS_URL is validated at startup by validateRequiredEnvVars(), but TypeScript can't track validation across function boundaries
   const cacheRedis = new Redis(envConfig.REDIS_URL!);
   cacheRedis.on('error', err => logger.error({ err }, '[AIWorker] Cache Redis error'));
 

@@ -13,9 +13,8 @@ export type { PresetData, FlattenedPresetData } from './types.js';
 
 /**
  * Convert API response to flattened form data
- * Complexity is inherent to mapping many fields - no nested logic, just field extraction
  */
-// eslint-disable-next-line complexity
+// eslint-disable-next-line complexity -- Inherent complexity from mapping ~20 optional fields from nested API response to flat form data. No conditional logic, just null coalescing and type conversion.
 export function flattenPresetData(data: PresetData): FlattenedPresetData {
   return {
     id: data.id,
