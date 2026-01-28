@@ -205,8 +205,10 @@ describe('handleDebug', () => {
     );
   });
 
-  it('should handle missing identifier', async () => {
-    const context = createMockContext(null);
+  it('should handle empty identifier', async () => {
+    // Note: identifier is a required option, so Discord.js would normally reject
+    // before reaching handler. This tests the defensive check for empty strings.
+    const context = createMockContext('');
     await handleDebug(context);
 
     expect(fetch).not.toHaveBeenCalled();
