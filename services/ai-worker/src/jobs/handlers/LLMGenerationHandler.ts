@@ -192,10 +192,11 @@ export class LLMGenerationHandler {
           failedStep: currentStepName,
           lastSuccessfulStep,
           errorStack: error instanceof Error ? error.stack : undefined,
-          // Include model/provider info (from config if available, otherwise from job data)
+          // Include model/provider/config info (from context if available, otherwise from job data)
           modelUsed: context.config?.effectivePersonality.model ?? job.data.personality.model,
           providerUsed: context.auth?.provider,
-          isGuestMode: context.auth?.isGuestMode,
+          configSource: context.config?.configSource,
+          isGuestMode: context.auth?.isGuestMode ?? false,
         },
       };
     }
