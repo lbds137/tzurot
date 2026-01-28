@@ -219,12 +219,13 @@ describe('Memory Detail', () => {
 
       expect(row.components).toHaveLength(4);
       const labels = row.components.map(b => b.data.label);
-      expect(labels).toContain('✏️ Edit');
-      expect(labels).toContain('🔒 Lock');
-      expect(labels).toContain('◀️ Back to List');
-      expect(labels).toContain('🗑️ Delete');
+      // Emojis are set via .setEmoji(), not embedded in labels
+      expect(labels).toContain('Edit');
+      expect(labels).toContain('Lock');
+      expect(labels).toContain('Back to List');
+      expect(labels).toContain('Delete');
       // Delete should be last (standard dashboard order)
-      expect(labels[labels.length - 1]).toBe('🗑️ Delete');
+      expect(labels[labels.length - 1]).toBe('Delete');
     });
 
     it('should show unlock button for locked memory', () => {
@@ -232,7 +233,7 @@ describe('Memory Detail', () => {
       const row = buildDetailButtons(memory);
 
       const labels = row.components.map(b => b.data.label);
-      expect(labels).toContain('🔓 Unlock');
+      expect(labels).toContain('Unlock'); // Emoji set via .setEmoji()
     });
 
     it('should include View Full button when content is truncated', () => {
@@ -241,7 +242,7 @@ describe('Memory Detail', () => {
 
       expect(row.components).toHaveLength(5);
       const labels = row.components.map(b => b.data.label);
-      expect(labels).toContain('📄 View Full');
+      expect(labels).toContain('View Full'); // Emoji set via .setEmoji()
     });
 
     it('should not include View Full button when content is not truncated', () => {
@@ -250,7 +251,7 @@ describe('Memory Detail', () => {
 
       expect(row.components).toHaveLength(4);
       const labels = row.components.map(b => b.data.label);
-      expect(labels).not.toContain('📄 View Full');
+      expect(labels).not.toContain('View Full');
     });
   });
 

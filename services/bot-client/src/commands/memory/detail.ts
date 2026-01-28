@@ -204,17 +204,21 @@ export function buildDetailButtons(
   memory: MemoryItem,
   isTruncated = false
 ): ActionRowBuilder<ButtonBuilder> {
-  const lockLabel = memory.isLocked ? '🔓 Unlock' : '🔒 Lock';
+  // Use .setEmoji() separately for consistent button sizing
+  const lockEmoji = memory.isLocked ? '🔓' : '🔒';
+  const lockLabel = memory.isLocked ? 'Unlock' : 'Lock';
   const lockStyle = memory.isLocked ? ButtonStyle.Secondary : ButtonStyle.Primary;
 
   const buttons: ButtonBuilder[] = [
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('edit', memory.id))
-      .setLabel('✏️ Edit')
+      .setLabel('Edit')
+      .setEmoji('✏️')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('lock', memory.id))
       .setLabel(lockLabel)
+      .setEmoji(lockEmoji)
       .setStyle(lockStyle),
   ];
 
@@ -223,7 +227,8 @@ export function buildDetailButtons(
     buttons.push(
       new ButtonBuilder()
         .setCustomId(buildMemoryActionId('view-full', memory.id))
-        .setLabel('📄 View Full')
+        .setLabel('View Full')
+        .setEmoji('📄')
         .setStyle(ButtonStyle.Secondary)
     );
   }
@@ -232,7 +237,8 @@ export function buildDetailButtons(
   buttons.push(
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('back'))
-      .setLabel('◀️ Back to List')
+      .setLabel('Back to List')
+      .setEmoji('◀️')
       .setStyle(ButtonStyle.Secondary)
   );
 
@@ -240,7 +246,8 @@ export function buildDetailButtons(
   buttons.push(
     new ButtonBuilder()
       .setCustomId(buildMemoryActionId('delete', memory.id))
-      .setLabel('🗑️ Delete')
+      .setLabel('Delete')
+      .setEmoji('🗑️')
       .setStyle(ButtonStyle.Danger)
   );
 

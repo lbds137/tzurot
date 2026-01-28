@@ -153,11 +153,14 @@ async function handleSectionModalSubmit(
     }
 
     // Refresh dashboard (use slug as entityId)
+    // Use canEdit from session - it was verified when dashboard opened and doesn't change
+    const canEdit = session?.data?.canEdit === true;
     const embed = buildDashboardEmbed(dashboardConfig, updated);
     const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
       showClose: !hasBrowseContext, // Only show close if not from browse
       showBack: hasBrowseContext, // Show back if opened from browse
       showRefresh: true,
+      showDelete: canEdit, // Preserve delete button for owned characters
     });
 
     await interaction.editReply({ embeds: [embed], components });
@@ -470,11 +473,14 @@ async function handleAction(
     });
 
     // Refresh dashboard (use slug as entityId)
+    // Use canEdit from session - it was verified when dashboard opened and doesn't change
+    const canEdit = session?.data?.canEdit === true;
     const embed = buildDashboardEmbed(dashboardConfig, updated);
     const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
       showClose: !hasBrowseContext, // Only show close if not from browse
       showBack: hasBrowseContext, // Show back if opened from browse
       showRefresh: true,
+      showDelete: canEdit, // Preserve delete button for owned characters
     });
 
     await interaction.editReply({ embeds: [embed], components });
