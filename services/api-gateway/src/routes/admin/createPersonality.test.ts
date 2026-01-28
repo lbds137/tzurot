@@ -10,8 +10,9 @@ import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
-  requireOwnerAuth: () => (_req: unknown, _res: unknown, next: () => void) => {
-    next(); // Bypass auth for testing
+  requireOwnerAuth: () => (req: { userId?: string }, _res: unknown, next: () => void) => {
+    req.userId = 'admin-discord-id'; // Set admin user ID
+    next();
   },
 }));
 
@@ -42,6 +43,9 @@ const createMockPrismaClient = () => ({
   personalityDefaultConfig: {
     create: vi.fn(),
   },
+  user: {
+    findUnique: vi.fn(),
+  },
 });
 
 describe('POST /admin/personality', () => {
@@ -53,6 +57,9 @@ describe('POST /admin/personality', () => {
 
     // Create mock Prisma client
     prisma = createMockPrismaClient();
+
+    // Default: admin user exists (required for ownerId)
+    prisma.user.findUnique.mockResolvedValue({ id: 'admin-user-id' });
 
     // Create Express app with create personality router
     app = express();

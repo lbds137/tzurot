@@ -69,6 +69,22 @@ describe('AIJobProcessor Component Test', () => {
 
     // Apply minimal schema to PGlite (using actual table names from Prisma schema)
     // Execute each CREATE TABLE separately
+
+    // Users table first (referenced by llm_configs and personalities)
+    await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS users (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        discord_id VARCHAR(20) UNIQUE NOT NULL,
+        username VARCHAR(255) NOT NULL,
+        timezone VARCHAR(50) DEFAULT 'UTC',
+        is_superuser BOOLEAN DEFAULT FALSE,
+        default_llm_config_id UUID,
+        default_persona_id UUID,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS system_prompts (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -86,7 +102,7 @@ describe('AIJobProcessor Component Test', () => {
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         name VARCHAR(255) NOT NULL,
         description TEXT,
-        owner_id UUID,
+        owner_id UUID NOT NULL REFERENCES users(id),
         is_global BOOLEAN DEFAULT FALSE,
         is_default BOOLEAN DEFAULT FALSE,
         is_free_default BOOLEAN DEFAULT FALSE,
@@ -117,7 +133,7 @@ describe('AIJobProcessor Component Test', () => {
         display_name VARCHAR(255),
         slug VARCHAR(255) UNIQUE NOT NULL,
         system_prompt_id UUID REFERENCES system_prompts(id),
-        owner_id UUID,
+        owner_id UUID NOT NULL REFERENCES users(id),
         character_info TEXT NOT NULL,
         personality_traits TEXT NOT NULL,
         personality_tone TEXT,
@@ -160,6 +176,16 @@ describe('AIJobProcessor Component Test', () => {
     `);
 
     // Seed test data (using deterministic UUIDs for consistency)
+
+    // Create test user first (required for ownerId)
+    const testUser = await prisma.user.create({
+      data: {
+        id: '11111111-1111-1111-1111-111111111111',
+        discordId: 'test-discord-id',
+        username: 'test-user',
+      },
+    });
+
     const systemPrompt = await prisma.systemPrompt.create({
       data: {
         id: generateSystemPromptUuid('test-component-prompt'),
@@ -175,6 +201,7 @@ describe('AIJobProcessor Component Test', () => {
         slug: 'test-component',
         displayName: 'Test Component Bot',
         systemPromptId: systemPrompt.id,
+        ownerId: testUser.id,
         characterInfo: 'A test bot for component testing',
         personalityTraits: 'Helpful and deterministic',
       },
@@ -185,6 +212,7 @@ describe('AIJobProcessor Component Test', () => {
       data: {
         id: '00000000-0000-0000-0000-000000000000',
         name: 'Global Default',
+        ownerId: testUser.id,
         model: 'anthropic/claude-sonnet-4',
         visionModel: 'anthropic/claude-sonnet-4',
         advancedParameters: {

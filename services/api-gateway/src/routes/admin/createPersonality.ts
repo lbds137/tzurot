@@ -3,7 +3,7 @@
  * Create a new AI personality
  */
 
-import { Router, type Request, type Response } from 'express';
+import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
@@ -18,6 +18,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
 import { validateSlug, validateCustomFields, validateRequired } from '../../utils/validators.js';
+import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-create-personality');
 
@@ -176,8 +177,9 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
   router.post(
     '/',
     requireOwnerAuth(),
-    asyncHandler(async (req: Request, res: Response) => {
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const body = req.body as CreatePersonalityBody;
+      const discordUserId = req.userId;
 
       // Validate required fields
       const validation = validateRequiredFields(body);
@@ -185,6 +187,16 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
         return sendError(res, validation.error);
       }
       const { name, slug, characterInfo, personalityTraits } = validation.data;
+
+      // Get admin user's internal ID for ownership
+      const adminUser = await prisma.user.findUnique({
+        where: { discordId: discordUserId },
+        select: { id: true },
+      });
+
+      if (adminUser === null) {
+        return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
+      }
 
       // Check if personality already exists
       const existing = await prisma.personality.findUnique({ where: { slug } });
@@ -225,6 +237,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
           conversationalExamples: body.conversationalExamples ?? null,
           errorMessage: body.errorMessage ?? null,
           systemPromptId: defaultSystemPrompt?.id ?? null,
+          ownerId: adminUser.id,
           ...(body.customFields !== null && body.customFields !== undefined
             ? { customFields: body.customFields as Prisma.InputJsonValue }
             : {}),

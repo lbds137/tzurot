@@ -22,11 +22,11 @@ vi.mock('@tzurot/common-types', async () => {
 
   // Redefine computePersonalityPermissions to use the mocked isBotOwner
   const computePersonalityPermissions = (
-    ownerId: string | null,
+    ownerId: string,
     requestingUserId: string | null,
     discordUserId: string
   ) => {
-    const isCreator = requestingUserId !== null && ownerId !== null && ownerId === requestingUserId;
+    const isCreator = requestingUserId !== null && ownerId === requestingUserId;
     const isAdmin = isBotOwner(discordUserId);
     return {
       canEdit: isCreator || isAdmin,
@@ -73,6 +73,7 @@ describe('GET /user/personality (list)', () => {
       slug: 'public-character',
       ownerId: 'other-user',
       isPublic: true,
+      owner: { discordId: 'other-discord-id' },
     };
     mockPrisma.personality.findMany
       .mockResolvedValueOnce([publicPersonality])
@@ -108,6 +109,7 @@ describe('GET /user/personality (list)', () => {
       slug: 'my-character',
       ownerId: 'user-uuid-123',
       isPublic: false,
+      owner: { discordId: 'discord-123456789' },
     };
     mockPrisma.personality.findMany
       .mockResolvedValueOnce([])
@@ -255,17 +257,17 @@ describe('GET /user/personality (list)', () => {
       );
     });
 
-    it('should handle personality with null owner', async () => {
-      const personalityWithoutOwner = {
-        id: 'personality-no-owner',
-        name: 'Orphan Character',
-        displayName: 'Orphan',
-        slug: 'orphan-char',
-        ownerId: null,
+    it('should return ownerDiscordId for personalities with owner', async () => {
+      const personalityWithOwner = {
+        id: 'personality-with-owner',
+        name: 'Owned Character',
+        displayName: 'Owned',
+        slug: 'owned-char',
+        ownerId: 'owner-user-id',
         isPublic: true,
-        owner: null,
+        owner: { discordId: 'owner-discord-id' },
       };
-      mockPrisma.personality.findMany.mockResolvedValueOnce([personalityWithoutOwner]);
+      mockPrisma.personality.findMany.mockResolvedValueOnce([personalityWithOwner]);
 
       const router = createPersonalityRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'get', '/');
@@ -277,7 +279,8 @@ describe('GET /user/personality (list)', () => {
         expect.objectContaining({
           personalities: [
             expect.objectContaining({
-              ownerDiscordId: null,
+              ownerId: 'owner-user-id',
+              ownerDiscordId: 'owner-discord-id',
             }),
           ],
         })

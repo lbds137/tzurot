@@ -10,12 +10,15 @@ import { ShapesIncPersonalityConfig, V3PersonalityData } from './types.js';
 export class PersonalityMapper {
   /**
    * Map shapes.inc personality config to v3 schema format
+   *
+   * @param shapesConfig - The shapes.inc personality config to map
+   * @param ownerId - The owner's internal user ID (all entities require an owner)
    */
-  map(shapesConfig: ShapesIncPersonalityConfig): V3PersonalityData {
+  map(shapesConfig: ShapesIncPersonalityConfig, ownerId: string): V3PersonalityData {
     return {
       personality: this.mapPersonality(shapesConfig),
       systemPrompt: this.mapSystemPrompt(shapesConfig),
-      llmConfig: this.mapLlmConfig(shapesConfig),
+      llmConfig: this.mapLlmConfig(shapesConfig, ownerId),
     };
   }
 
@@ -119,7 +122,7 @@ export class PersonalityMapper {
    * Uses the advancedParameters JSONB format (snake_case) instead of
    * individual columns for sampling parameters.
    */
-  private mapLlmConfig(config: ShapesIncPersonalityConfig) {
+  private mapLlmConfig(config: ShapesIncPersonalityConfig, ownerId: string) {
     // Build advancedParameters JSONB in snake_case format
     // Only include non-null values
     const advancedParameters: Record<string, unknown> = {};
@@ -158,7 +161,7 @@ export class PersonalityMapper {
       memoryLimit: config.ltm_max_retrieved_summaries ?? null,
       contextWindowTokens: config.stm_window,
       isGlobal: false, // Imported configs are user-owned
-      ownerId: null, // Will be set during import with actual user ID
+      ownerId, // Required: owner's internal user ID
     };
   }
 

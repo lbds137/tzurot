@@ -8,5 +8,6 @@ const data = JSON.parse(
   )
 );
 const mapper = new PersonalityMapper();
-const result = mapper.map(data);
+const testOwnerId = 'test-owner-id-for-validation';
+const result = mapper.map(data, testOwnerId);
 console.log('Custom Fields:', JSON.stringify(result.personality.customFields, null, 2));

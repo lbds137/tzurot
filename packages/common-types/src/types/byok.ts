@@ -21,9 +21,9 @@ export interface PersonalitySummary {
   /** True if the personality is publicly visible */
   isPublic: boolean;
   /** Owner's internal user ID */
-  ownerId: string | null;
+  ownerId: string;
   /** Owner's Discord user ID (for fetching display name) */
-  ownerDiscordId: string | null;
+  ownerDiscordId: string;
   /** Computed permissions for the requesting user */
   permissions: EntityPermissions;
 }
