@@ -102,6 +102,104 @@ The answer is 42.`;
       expect(result.visibleContent).toBe('The conclusion.');
       expect(result.blockCount).toBe(1);
     });
+
+    it('should extract <thought> tags (legacy fine-tunes)', () => {
+      const content = '<thought>Internal processing.</thought>Here is the answer.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Internal processing.');
+      expect(result.visibleContent).toBe('Here is the answer.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract <scratchpad> tags (legacy research)', () => {
+      const content = '<scratchpad>Working area for calculations.</scratchpad>Final result.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Working area for calculations.');
+      expect(result.visibleContent).toBe('Final result.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract <reflection> tags (Reflection AI)', () => {
+      const content = '<reflection>Let me reconsider my approach.</reflection>Better answer.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Let me reconsider my approach.');
+      expect(result.visibleContent).toBe('Better answer.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract <ant_thinking> tags (Anthropic legacy)', () => {
+      const content =
+        '<ant_thinking>Anthropic internal reasoning.</ant_thinking>External response.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Anthropic internal reasoning.');
+      expect(result.visibleContent).toBe('External response.');
+      expect(result.blockCount).toBe(1);
+    });
+  });
+
+  describe('mixed tag types', () => {
+    it('should remove ALL tag types from visible content (critical bug fix)', () => {
+      // This test ensures that if a response contains BOTH <think> AND <thinking> tags,
+      // BOTH are removed from visible content (not just the first pattern matched)
+      const content =
+        '<think>Primary thought.</think>Middle.<thinking>Alternative thought.</thinking>End.';
+      const result = extractThinkingBlocks(content);
+
+      // Both thinking contents should be extracted
+      expect(result.thinkingContent).toContain('Primary thought.');
+      expect(result.thinkingContent).toContain('Alternative thought.');
+      // CRITICAL: Both tag types must be removed from visible content
+      expect(result.visibleContent).not.toContain('<think>');
+      expect(result.visibleContent).not.toContain('<thinking>');
+      expect(result.visibleContent).toBe('Middle.End.');
+      expect(result.blockCount).toBe(2);
+    });
+
+    it('should handle multiple different tag types in same response', () => {
+      const content =
+        '<think>Thought 1.</think>Part 1.<reasoning>Thought 2.</reasoning>Part 2.<reflection>Thought 3.</reflection>End.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('Thought 1.');
+      expect(result.thinkingContent).toContain('Thought 2.');
+      expect(result.thinkingContent).toContain('Thought 3.');
+      expect(result.visibleContent).toBe('Part 1.Part 2.End.');
+      expect(result.blockCount).toBe(3);
+    });
+  });
+
+  describe('unclosed tags', () => {
+    it('should extract content from unclosed tag as fallback', () => {
+      const content = '<think>This thinking was cut off due to truncation';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('This thinking was cut off due to truncation');
+      expect(result.visibleContent).toBe('');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should prefer complete tags over unclosed tags', () => {
+      const content = '<think>Complete thought.</think>Answer.<think>Unclosed';
+      const result = extractThinkingBlocks(content);
+
+      // Complete tag should be extracted, unclosed ignored (since we found complete ones)
+      expect(result.thinkingContent).toBe('Complete thought.');
+      expect(result.visibleContent).toContain('Answer.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should handle unclosed <thinking> tag', () => {
+      const content = '<thinking>Truncated reasoning content';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Truncated reasoning content');
+      expect(result.visibleContent).toBe('');
+      expect(result.blockCount).toBe(1);
+    });
   });
 
   describe('case insensitivity', () => {
@@ -158,20 +256,26 @@ The answer is 42.`;
       expect(result.visibleContent).toBe('Code comparison complete.');
     });
 
-    it('should handle unclosed thinking tag (not extracted)', () => {
+    it('should handle unclosed thinking tag (extracted as fallback)', () => {
+      // Unclosed tags are now extracted as a fallback to handle truncated responses
       const content = '<think>This is not closed. The response continues.';
       const result = extractThinkingBlocks(content);
 
-      expect(result.thinkingContent).toBeNull();
-      expect(result.visibleContent).toBe(content);
+      expect(result.thinkingContent).toBe('This is not closed. The response continues.');
+      expect(result.visibleContent).toBe('');
+      expect(result.blockCount).toBe(1);
     });
 
-    it('should handle malformed closing tag', () => {
+    it('should handle malformed closing tag as unclosed', () => {
+      // Malformed closing tag (</thin> instead of </think>) is treated as unclosed
+      // The unclosed tag fallback extracts everything after the opening tag
       const content = '<think>Content</thin>Response.';
       const result = extractThinkingBlocks(content);
 
-      expect(result.thinkingContent).toBeNull();
-      expect(result.visibleContent).toBe(content);
+      // Treated as unclosed <think> tag - everything after it is extracted
+      expect(result.thinkingContent).toBe('Content</thin>Response.');
+      expect(result.visibleContent).toBe('');
+      expect(result.blockCount).toBe(1);
     });
   });
 
@@ -238,8 +342,15 @@ describe('hasThinkingBlocks', () => {
     expect(hasThinkingBlocks('Just a normal response')).toBe(false);
   });
 
-  it('should return false for unclosed tags', () => {
-    expect(hasThinkingBlocks('<think>unclosed content')).toBe(false);
+  it('should return true for unclosed tags (fallback detection)', () => {
+    expect(hasThinkingBlocks('<think>unclosed content')).toBe(true);
+  });
+
+  it('should return true for additional tag types', () => {
+    expect(hasThinkingBlocks('<thought>content</thought>response')).toBe(true);
+    expect(hasThinkingBlocks('<scratchpad>content</scratchpad>response')).toBe(true);
+    expect(hasThinkingBlocks('<reflection>content</reflection>response')).toBe(true);
+    expect(hasThinkingBlocks('<ant_thinking>content</ant_thinking>response')).toBe(true);
   });
 
   it('should be case insensitive', () => {
