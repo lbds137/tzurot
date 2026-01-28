@@ -87,4 +87,6 @@ export interface UsageStats {
   byProvider: Record<string, UsageBreakdown>;
   byModel: Record<string, UsageBreakdown>;
   byRequestType: Record<string, UsageBreakdown>;
+  /** True if results were truncated due to query limits */
+  limitReached?: boolean;
 }
