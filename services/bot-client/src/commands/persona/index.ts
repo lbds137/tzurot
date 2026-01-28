@@ -26,7 +26,7 @@ import type {
   ButtonInteraction,
   StringSelectMenuInteraction,
 } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, personaEditOptions } from '@tzurot/common-types';
 import { defineCommand } from '../../utils/defineCommand.js';
 import type {
   SafeCommandContext,
@@ -109,7 +109,7 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await overrideRouter(context);
   } else if (subcommand === 'edit') {
     // Edit opens the persona dashboard (deferred command)
-    const personaId = context.interaction.options.getString('persona');
+    const personaId = personaEditOptions(context.interaction).persona();
     await handleEditPersona(context as DeferredCommandContext, personaId);
   } else if (subcommand === 'default') {
     // Default needs the persona ID (deferred command)
