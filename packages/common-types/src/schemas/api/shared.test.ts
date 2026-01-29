@@ -133,6 +133,14 @@ describe('optionalString', () => {
       expect(result.data).toBe('a');
     }
   });
+
+  it('should convert non-string values to undefined for safety', () => {
+    // Numbers, objects, arrays should not cause confusing validation errors
+    expect(optionalString(10).safeParse(42).data).toBeUndefined();
+    expect(optionalString(10).safeParse({ foo: 'bar' }).data).toBeUndefined();
+    expect(optionalString(10).safeParse(['a', 'b']).data).toBeUndefined();
+    expect(optionalString(10).safeParse(true).data).toBeUndefined();
+  });
 });
 
 describe('nullableString', () => {
@@ -175,6 +183,15 @@ describe('nullableString', () => {
   it('should enforce max length', () => {
     const result = schema.safeParse({ description: 'a'.repeat(101) });
     expect(result.success).toBe(false);
+  });
+
+  it('should convert non-string values to undefined for safety', () => {
+    // Non-string values become undefined (don't update) rather than null (clear)
+    // This prevents accidental field clearing from malformed input
+    expect(nullableString(100).safeParse(42).data).toBeUndefined();
+    expect(nullableString(100).safeParse({ foo: 'bar' }).data).toBeUndefined();
+    expect(nullableString(100).safeParse(['a', 'b']).data).toBeUndefined();
+    expect(nullableString(100).safeParse(true).data).toBeUndefined();
   });
 });
 
