@@ -166,6 +166,7 @@ function createCreateConfigHandler(prisma: PrismaClient) {
     });
 
     if (adminUser === null) {
+      logger.warn({ discordUserId }, 'Admin user not found in database');
       return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
     }
 

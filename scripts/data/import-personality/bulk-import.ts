@@ -479,6 +479,14 @@ Examples:
     process.exit(1);
   }
 
+  // Validate UUID format
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!uuidRegex.test(ownerId)) {
+    console.error(`Error: Invalid UUID format: ${ownerId}`);
+    console.error('Expected format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx');
+    process.exit(1);
+  }
+
   // Parse delay arguments
   const delayIndex = args.indexOf('--delay');
   const delayMs =
