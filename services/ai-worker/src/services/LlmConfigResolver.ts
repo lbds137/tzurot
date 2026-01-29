@@ -26,6 +26,42 @@ import {
 const logger = createLogger('LlmConfigResolver');
 
 /**
+ * Keys to copy from personality/override to ResolvedLlmConfig.
+ * Used by both extractConfig() and mergeConfig() for consistency.
+ */
+const LLM_CONFIG_KEYS = [
+  // Core
+  'visionModel',
+  // Basic sampling
+  'temperature',
+  'topP',
+  'topK',
+  'frequencyPenalty',
+  'presencePenalty',
+  'repetitionPenalty',
+  // Advanced sampling
+  'minP',
+  'topA',
+  'seed',
+  // Output control
+  'maxTokens',
+  'stop',
+  'logitBias',
+  'responseFormat',
+  'showThinking',
+  // Reasoning (for thinking models)
+  'reasoning',
+  // OpenRouter-specific
+  'transforms',
+  'route',
+  'verbosity',
+  // Memory/context
+  'memoryScoreThreshold',
+  'memoryLimit',
+  'contextWindowTokens',
+] as const;
+
+/**
  * Resolved LLM config values that can override personality defaults.
  *
  * Extends ConvertedLlmParams to include ALL parameters from advancedParameters JSONB,
@@ -231,73 +267,49 @@ export class LlmConfigResolver {
   }
 
   /**
-   * Extract config values from a LoadedPersonality
+   * Extract config values from a LoadedPersonality.
+   * Used when no user override exists - returns all params from personality.
    */
   private extractConfig(personality: LoadedPersonality): ResolvedLlmConfig {
-    return {
-      model: personality.model,
-      visionModel: personality.visionModel,
-      temperature: personality.temperature,
-      topP: personality.topP,
-      topK: personality.topK,
-      frequencyPenalty: personality.frequencyPenalty,
-      presencePenalty: personality.presencePenalty,
-      repetitionPenalty: personality.repetitionPenalty,
-      maxTokens: personality.maxTokens,
-      memoryScoreThreshold: personality.memoryScoreThreshold,
-      memoryLimit: personality.memoryLimit,
-      contextWindowTokens: personality.contextWindowTokens,
-    };
+    // Start with required field
+    const result = { model: personality.model } as ResolvedLlmConfig;
+
+    // Copy all config keys from personality
+    for (const key of LLM_CONFIG_KEYS) {
+      const value = personality[key];
+      if (value !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+        (result as any)[key] = value;
+      }
+    }
+
+    return result;
   }
 
   /**
    * Merge override config into personality defaults.
    * Uses pre-mapped config from LlmConfigMapper (already converted to camelCase).
-   * Only non-null values from override replace personality values.
+   * Override values take precedence; personality values are fallbacks.
    */
   private mergeConfig(
     personality: LoadedPersonality,
     override: MappedLlmConfigWithName
   ): ResolvedLlmConfig {
-    return {
-      // Model is always overridden (it's required)
-      model: override.model,
-      // Vision model: use override if provided, else personality default
-      visionModel: override.visionModel ?? personality.visionModel,
+    // Start with required field (model is always from override)
+    const result = { model: override.model } as ResolvedLlmConfig;
 
-      // Basic sampling params
-      temperature: override.temperature ?? personality.temperature,
-      topP: override.topP ?? personality.topP,
-      topK: override.topK ?? personality.topK,
-      frequencyPenalty: override.frequencyPenalty ?? personality.frequencyPenalty,
-      presencePenalty: override.presencePenalty ?? personality.presencePenalty,
-      repetitionPenalty: override.repetitionPenalty ?? personality.repetitionPenalty,
+    // For each config key, use override if defined, else personality
+    for (const key of LLM_CONFIG_KEYS) {
+      const overrideValue = override[key];
+      const personalityValue = personality[key];
+      const value = overrideValue ?? personalityValue;
+      if (value !== undefined) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+        (result as any)[key] = value;
+      }
+    }
 
-      // Advanced sampling params (new)
-      minP: override.minP,
-      topA: override.topA,
-      seed: override.seed,
-
-      // Output params
-      maxTokens: override.maxTokens ?? personality.maxTokens,
-      stop: override.stop,
-      logitBias: override.logitBias,
-      responseFormat: override.responseFormat,
-      showThinking: override.showThinking,
-
-      // Reasoning params (new - for thinking models)
-      reasoning: override.reasoning,
-
-      // OpenRouter-specific params (new)
-      transforms: override.transforms,
-      route: override.route,
-      verbosity: override.verbosity,
-
-      // Non-JSONB fields (memory and context)
-      memoryScoreThreshold: override.memoryScoreThreshold ?? personality.memoryScoreThreshold,
-      memoryLimit: override.memoryLimit ?? personality.memoryLimit,
-      contextWindowTokens: override.contextWindowTokens ?? personality.contextWindowTokens,
-    };
+    return result;
   }
 
   /**
