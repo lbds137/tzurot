@@ -22,6 +22,57 @@ const logger = createLogger('ModelFactory');
 const config = getConfig();
 
 /**
+ * OpenRouter-specific parameters that need to be injected into the request body.
+ * The OpenAI SDK v4+ strips unknown top-level keys from the params, so we need
+ * to inject these after SDK validation via a custom fetch wrapper.
+ */
+export interface OpenRouterExtraParams {
+  include_reasoning?: boolean;
+  transforms?: string[];
+  route?: 'fallback';
+  verbosity?: 'low' | 'medium' | 'high';
+}
+
+/**
+ * Create a custom fetch function that injects OpenRouter-specific parameters
+ * into the request body after SDK validation.
+ *
+ * The OpenAI SDK v4+ requires extra_body as a separate options argument,
+ * but LangChain.js doesn't expose this. This workaround intercepts the
+ * fetch call and modifies the body before sending.
+ */
+function createOpenRouterFetch(
+  extraParams: OpenRouterExtraParams
+): (url: string | URL | Request, init?: RequestInit) => Promise<Response> {
+  return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+    if (init?.method === 'POST' && init.body !== undefined && init.body !== null) {
+      try {
+        const body = JSON.parse(init.body as string) as Record<string, unknown>;
+
+        // Inject OpenRouter-specific parameters
+        if (extraParams.include_reasoning === true) {
+          body.include_reasoning = true;
+        }
+        if (extraParams.transforms !== undefined && extraParams.transforms.length > 0) {
+          body.transforms = extraParams.transforms;
+        }
+        if (extraParams.route !== undefined) {
+          body.route = extraParams.route;
+        }
+        if (extraParams.verbosity !== undefined) {
+          body.verbosity = extraParams.verbosity;
+        }
+
+        init.body = JSON.stringify(body);
+      } catch {
+        // If body isn't JSON, pass through unchanged
+      }
+    }
+    return fetch(url, init);
+  };
+}
+
+/**
  * Validate and normalize model name
  */
 function validateModelName(requestedModel: string | undefined): string {
@@ -158,33 +209,38 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   // The 'reasoning' object configures effort/tokens (OpenAI o1/o3 style)
   addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
 
-  // OpenRouter-specific parameters must go in extra_body
-  // The OpenAI SDK v4+ filters out unknown top-level keys, but passes through extra_body
-  const extraBody: Record<string, unknown> = {};
+  // Note: OpenRouter-specific params (include_reasoning, transforms, route, verbosity)
+  // are injected via custom fetch wrapper, not modelKwargs, because the OpenAI SDK v4+
+  // strips unknown top-level keys from the params object.
+
+  return kwargs;
+}
+
+/**
+ * Build OpenRouter-specific parameters that need to be injected via custom fetch.
+ * These can't go in modelKwargs because the OpenAI SDK strips unknown keys.
+ */
+function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraParams {
+  const params: OpenRouterExtraParams = {};
 
   // include_reasoning: opt-in flag for OpenRouter to return thinking content
   // Without this, reasoning models' thinking is stripped from the response
   if (modelConfig.reasoning !== undefined && modelConfig.reasoning.exclude !== true) {
-    extraBody.include_reasoning = true;
+    params.include_reasoning = true;
   }
 
   // OpenRouter-specific routing/transform options
   if (modelConfig.transforms !== undefined && modelConfig.transforms.length > 0) {
-    extraBody.transforms = modelConfig.transforms;
+    params.transforms = modelConfig.transforms;
   }
   if (modelConfig.route !== undefined) {
-    extraBody.route = modelConfig.route;
+    params.route = modelConfig.route;
   }
   if (modelConfig.verbosity !== undefined) {
-    extraBody.verbosity = modelConfig.verbosity;
+    params.verbosity = modelConfig.verbosity;
   }
 
-  // Only add extra_body if we have OpenRouter-specific params
-  if (Object.keys(extraBody).length > 0) {
-    kwargs.extra_body = extraBody;
-  }
-
-  return kwargs;
+  return params;
 }
 
 /**
@@ -220,6 +276,10 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
 
       const modelName = validateModelName(modelConfig.modelName);
 
+      // Build OpenRouter-specific params that need custom fetch injection
+      const extraParams = buildOpenRouterExtraParams(modelConfig);
+      const hasExtraParams = Object.keys(extraParams).length > 0;
+
       logger.debug(
         {
           provider,
@@ -230,6 +290,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           presencePenalty,
           maxTokens,
           modelKwargs: hasModelKwargs ? modelKwargs : undefined,
+          extraParams: hasExtraParams ? extraParams : undefined,
         },
         '[ModelFactory] Creating model'
       );
@@ -246,6 +307,9 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           modelKwargs: hasModelKwargs ? modelKwargs : undefined,
           configuration: {
             baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
+            // Use custom fetch to inject OpenRouter-specific params that
+            // the OpenAI SDK would otherwise strip from the request body
+            fetch: hasExtraParams ? createOpenRouterFetch(extraParams) : undefined,
           },
         }),
         modelName,
