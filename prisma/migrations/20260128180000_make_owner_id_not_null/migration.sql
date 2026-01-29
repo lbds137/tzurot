@@ -10,6 +10,34 @@
 --   After: Deleting a user deletes all their personalities
 --   This is intentional - orphaned entities without owners don't make sense
 
+-- Safety check: Verify no orphaned owner_id references exist
+-- This prevents FK constraint failures during migration
+DO $$
+DECLARE
+  orphaned_llm_configs INTEGER;
+  orphaned_personalities INTEGER;
+BEGIN
+  -- Check for llm_configs with invalid owner_id
+  SELECT COUNT(*) INTO orphaned_llm_configs
+  FROM llm_configs c
+  WHERE c.owner_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM users WHERE id = c.owner_id);
+
+  IF orphaned_llm_configs > 0 THEN
+    RAISE EXCEPTION 'Found % llm_configs with invalid owner_id references', orphaned_llm_configs;
+  END IF;
+
+  -- Check for personalities with invalid owner_id
+  SELECT COUNT(*) INTO orphaned_personalities
+  FROM personalities p
+  WHERE p.owner_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM users WHERE id = p.owner_id);
+
+  IF orphaned_personalities > 0 THEN
+    RAISE EXCEPTION 'Found % personalities with invalid owner_id references', orphaned_personalities;
+  END IF;
+END $$;
+
 -- LlmConfig: make owner_id required (FK already has ON DELETE CASCADE)
 ALTER TABLE "llm_configs" ALTER COLUMN "owner_id" SET NOT NULL;
 

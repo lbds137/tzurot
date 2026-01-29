@@ -195,6 +195,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
       });
 
       if (adminUser === null) {
+        logger.warn({ discordUserId }, 'Admin user not found in database');
         return sendError(res, ErrorResponses.unauthorized('Admin user not found in database'));
       }
 
