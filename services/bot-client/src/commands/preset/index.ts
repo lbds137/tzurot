@@ -6,6 +6,9 @@
  * - /preset browse - Browse presets with search and filtering
  * - /preset create - Create a new preset (toggle global via dashboard)
  * - /preset edit - Edit your preset (opens dashboard, includes delete)
+ * - /preset export - Export a preset as JSON file
+ * - /preset import - Import a preset from JSON file
+ * - /preset template - Download JSON template for import
  * - /preset global default - Set system default (owner only)
  * - /preset global free-default - Set free tier default (owner only)
  *
@@ -38,6 +41,9 @@ import {
 } from './browse.js';
 import { handleCreate } from './create.js';
 import { handleEdit } from './edit.js';
+import { handleExport } from './export.js';
+import { handleImport } from './import.js';
+import { handleTemplate } from './template.js';
 import { handleAutocomplete } from './autocomplete.js';
 import { handleGlobalSetDefault } from './global/set-default.js';
 import { handleGlobalSetFreeDefault } from './global/free-default.js';
@@ -53,13 +59,19 @@ const logger = createLogger('preset-command');
 /**
  * Create user preset router with mixed deferral modes
  * - create: modal mode (shows seed modal)
- * - browse/edit: deferred mode (ephemeral response)
+ * - browse/edit/export/import/template: deferred mode (ephemeral response)
  * Note: Delete is now handled via the dashboard
  */
 const userRouter = createMixedModeSubcommandRouter(
   {
     modal: { create: handleCreate },
-    deferred: { browse: handleBrowse, edit: handleEdit },
+    deferred: {
+      browse: handleBrowse,
+      edit: handleEdit,
+      export: handleExport,
+      import: handleImport,
+      template: handleTemplate,
+    },
   },
   { logger, logPrefix: '[Preset]' }
 );
@@ -188,6 +200,29 @@ export default defineCommand({
             .setRequired(true)
             .setAutocomplete(true)
         )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('export')
+        .setDescription('Export a preset as JSON file')
+        .addStringOption(option =>
+          option
+            .setName('preset')
+            .setDescription('Preset to export')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('import')
+        .setDescription('Import a preset from JSON file')
+        .addAttachmentOption(option =>
+          option.setName('file').setDescription('JSON file to import').setRequired(true)
+        )
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('template').setDescription('Download a JSON template for preset import')
     )
     .addSubcommandGroup(group =>
       group

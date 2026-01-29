@@ -6,7 +6,6 @@
 import { EmbedBuilder } from 'discord.js';
 import {
   createLogger,
-  DISCORD_LIMITS,
   DISCORD_COLORS,
   type EnvConfig,
   characterImportOptions,
@@ -14,6 +13,7 @@ import {
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
+import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import {
   VALID_IMAGE_TYPES,
   MAX_INPUT_SIZE_MB,
@@ -104,55 +104,6 @@ function buildTemplateMessage(): string {
 // ============================================================================
 
 /**
- * Validate JSON file attachment
- */
-function validateJsonFile(
-  file: NonNullable<
-    ReturnType<
-      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
-    >
-  >
-): string | null {
-  if ((file.contentType?.includes('json') ?? false) === false && !file.name.endsWith('.json')) {
-    return '❌ File must be a JSON file (.json)';
-  }
-  if (file.size > DISCORD_LIMITS.AVATAR_SIZE) {
-    return '❌ File is too large (max 10MB)';
-  }
-  return null;
-}
-
-/**
- * Download and parse JSON file
- */
-async function downloadAndParseJson(
-  url: string,
-  filename: string
-): Promise<{ data: Record<string, unknown> } | { error: string }> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    const text = await response.text();
-    const data = JSON.parse(text) as Record<string, unknown>;
-    logger.info(
-      { filename, sizeKb: (text.length / 1024).toFixed(2) },
-      '[Character/Import] Downloaded JSON'
-    );
-    return { data };
-  } catch (error) {
-    logger.error({ err: error }, '[Character/Import] Failed to download or parse JSON');
-    return {
-      error:
-        '❌ Failed to parse JSON file.\n' +
-        'Make sure the file is valid JSON format.\n\n' +
-        buildTemplateMessage(),
-    };
-  }
-}
-
-/**
  * Validate character data has required fields and valid slug
  */
 function validateCharacterData(
@@ -181,33 +132,34 @@ function validateCharacterData(
 
 /**
  * Combined: validate JSON file, download, parse, and validate character data
+ * Uses shared JSON utilities for file validation and parsing
  */
-async function validateAndParseJsonFile(
+async function validateAndParseCharacterJsonFile(
   file: NonNullable<
     ReturnType<
       typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
     >
   >
 ): Promise<{ data: Record<string, unknown>; slug: string } | { error: string }> {
-  // Validate file type and size
-  const fileError = validateJsonFile(file);
-  if (fileError !== null) {
-    return { error: fileError };
+  // Validate file type and size using shared utility
+  const validationResult = validateJsonFile(file);
+  if ('error' in validationResult) {
+    return { error: validationResult.error + '\n\n' + buildTemplateMessage() };
   }
 
-  // Download and parse
+  // Download and parse using shared utility
   const jsonResult = await downloadAndParseJson(file.url, file.name);
   if ('error' in jsonResult) {
-    return { error: jsonResult.error };
+    return { error: jsonResult.error + '\n\n' + buildTemplateMessage() };
   }
 
-  // Validate character data
-  const validationResult = validateCharacterData(jsonResult.data);
-  if ('error' in validationResult) {
-    return { error: validationResult.error };
+  // Validate character-specific data
+  const charValidation = validateCharacterData(jsonResult.data);
+  if ('error' in charValidation) {
+    return { error: charValidation.error };
   }
 
-  return { data: jsonResult.data, slug: validationResult.slug };
+  return { data: jsonResult.data, slug: charValidation.slug };
 }
 
 /**
@@ -439,7 +391,7 @@ export async function handleImport(
     const avatarAttachment = options.avatar();
 
     // Step 1: Validate, download, parse, and validate JSON file
-    const parseResult = await validateAndParseJsonFile(fileAttachment);
+    const parseResult = await validateAndParseCharacterJsonFile(fileAttachment);
     if ('error' in parseResult) {
       await context.editReply(parseResult.error);
       return;
