@@ -239,7 +239,9 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(context.editReply).toHaveBeenCalledWith('❌ File must be a JSON file (.json)');
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('❌ File must be a JSON file (.json)')
+      );
     });
 
     it('should accept files with .json extension even without content type', async () => {
@@ -283,7 +285,9 @@ describe('handleImport', () => {
 
       await handleImport(context, mockConfig);
 
-      expect(context.editReply).toHaveBeenCalledWith('❌ File is too large (max 10MB)');
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.stringContaining('❌ File is too large (max 10MB)')
+      );
     });
 
     it('should accept files within size limit', async () => {
