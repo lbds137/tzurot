@@ -230,6 +230,23 @@ Preset creation via slash command should use OpenRouter's model list dynamically
 
 **Reference**: OpenRouter `/api/v1/models` endpoint, council-mcp's model caching pattern
 
+### 🏗️ Consolidate LLM Config Key Lists (DRY)
+
+Multiple places define the same list of LLM config keys, creating maintenance burden when adding new params:
+
+- `LLM_CONFIG_KEYS` in `ConfigStep.ts`
+- `LLM_CONFIG_KEYS` in `LlmConfigResolver.ts`
+- Manual field lists in `ConversationalRAGService.getModel()` and `recordLlmConfig()`
+
+All these need to stay in sync. When we added reasoning params, we had to update 4+ places.
+
+- [ ] Create shared `LLM_CONFIG_PARAM_KEYS` constant in `@tzurot/common-types`
+- [ ] Use in `ConfigStep.mergeConfigWithPersonality()`
+- [ ] Use in `LlmConfigResolver.extractConfig()` and `mergeConfig()`
+- [ ] Consider using for `ConversationalRAGService` (may need different approach due to method call structure)
+
+**Reference**: `services/ai-worker/src/jobs/handlers/pipeline/steps/ConfigStep.ts`, `services/ai-worker/src/services/LlmConfigResolver.ts`
+
 ### 🏗️ Type-Safe Command Options Hardening
 
 From beta.54 code review observations:
