@@ -90,7 +90,12 @@ function addIfHasKeys(
 }
 
 /**
- * Build reasoning params object from ModelConfig reasoning
+ * Build reasoning params object from ModelConfig reasoning.
+ *
+ * IMPORTANT: OpenRouter only accepts ONE of `effort` OR `max_tokens`, not both.
+ * When both are specified, we prefer `effort` since it's the simpler user-friendly option.
+ *
+ * @see https://openrouter.ai/docs/parameters#reasoning-effort
  */
 function buildReasoningParams(
   reasoning: ModelConfig['reasoning']
@@ -100,8 +105,21 @@ function buildReasoningParams(
   }
 
   const params: Record<string, unknown> = {};
-  addIfDefined(params, 'effort', reasoning.effort);
-  addIfDefined(params, 'max_tokens', reasoning.maxTokens);
+
+  // OpenRouter constraint: only ONE of effort or max_tokens can be specified
+  // Prefer effort (simpler) over maxTokens (precise) when both are set
+  if (reasoning.effort !== undefined) {
+    params.effort = reasoning.effort;
+    if (reasoning.maxTokens !== undefined) {
+      logger.debug(
+        { effort: reasoning.effort, maxTokens: reasoning.maxTokens },
+        '[ModelFactory] Both reasoning.effort and reasoning.maxTokens set, using effort (OpenRouter constraint)'
+      );
+    }
+  } else if (reasoning.maxTokens !== undefined) {
+    params.max_tokens = reasoning.maxTokens;
+  }
+
   addIfDefined(params, 'exclude', reasoning.exclude);
   addIfDefined(params, 'enabled', reasoning.enabled);
 
@@ -156,8 +174,9 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
 export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
   const provider = config.AI_PROVIDER;
 
-  // Extract sampling parameters with defaults
-  const temperature = modelConfig.temperature ?? 0.7;
+  // Extract sampling parameters (NO DEFAULTS - let model/API decide)
+  // See: https://openrouter.ai/docs - different models have different optimal defaults
+  const temperature = modelConfig.temperature;
   const topP = modelConfig.topP;
   const frequencyPenalty = modelConfig.frequencyPenalty;
   const presencePenalty = modelConfig.presencePenalty;
@@ -250,10 +269,10 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
   const apiKeyPrefix =
     apiKey !== undefined && apiKey.length >= 10 ? apiKey.substring(0, 10) : 'env';
 
-  // Build params key from all config values
+  // Build params key from all config values (no defaults - undefined is a valid state)
   const paramsKey = [
     // Basic sampling
-    cacheVal(modelConfig.temperature, 0.7),
+    cacheVal(modelConfig.temperature),
     cacheVal(modelConfig.topP),
     cacheVal(modelConfig.topK),
     cacheVal(modelConfig.frequencyPenalty),

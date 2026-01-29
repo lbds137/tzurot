@@ -193,18 +193,17 @@ describe('ModelFactory', () => {
       );
     });
 
-    it('should use default temperature of 0.7 when not provided', () => {
+    it('should pass undefined temperature when not provided (let model decide)', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
       };
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          temperature: 0.7,
-        })
-      );
+      // Temperature should be undefined, not defaulted
+      // Different models have different optimal defaults (reasoning models need specific temps)
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.temperature).toBeUndefined();
     });
 
     it('should not include modelKwargs when topK and repetitionPenalty are undefined', () => {
@@ -383,12 +382,14 @@ describe('ModelFactory', () => {
       );
     });
 
-    it('should pass full reasoning object with all fields', () => {
+    it('should pass reasoning object with all fields except maxTokens when effort is set', () => {
+      // OpenRouter constraint: only ONE of effort or maxTokens can be used
+      // When both are provided, effort takes precedence
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: {
           effort: 'xhigh',
-          maxTokens: 32000,
+          maxTokens: 32000, // Will be ignored because effort is set
           exclude: false,
           enabled: true,
         },
@@ -401,9 +402,32 @@ describe('ModelFactory', () => {
           modelKwargs: expect.objectContaining({
             reasoning: {
               effort: 'xhigh',
-              max_tokens: 32000,
+              // max_tokens NOT included because effort takes precedence
               exclude: false,
               enabled: true,
+            },
+          }),
+        })
+      );
+    });
+
+    it('should use maxTokens when effort is not set', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        reasoning: {
+          maxTokens: 16000,
+          exclude: true,
+        },
+      };
+
+      createChatModel(config);
+
+      expect(mockChatOpenAI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelKwargs: expect.objectContaining({
+            reasoning: {
+              max_tokens: 16000,
+              exclude: true,
             },
           }),
         })
@@ -475,8 +499,8 @@ describe('ModelFactory', () => {
         // Output
         stop: ['END'],
         responseFormat: { type: 'text' },
-        // Reasoning
-        reasoning: { effort: 'high', maxTokens: 8000 },
+        // Reasoning (effort only - maxTokens would conflict)
+        reasoning: { effort: 'high' },
         // OpenRouter
         transforms: ['middle-out'],
         route: 'fallback',
@@ -492,7 +516,7 @@ describe('ModelFactory', () => {
             seed: 42,
             stop: ['END'],
             response_format: { type: 'text' },
-            reasoning: { effort: 'high', max_tokens: 8000 },
+            reasoning: { effort: 'high' },
             transforms: ['middle-out'],
             route: 'fallback',
           }),
