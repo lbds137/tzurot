@@ -1,33 +1,36 @@
 # Current
 
-> **Session**: 2026-01-28
-> **Version**: v3.0.0-beta.55
+> **Session**: 2026-01-29
+> **Version**: v3.0.0-beta.57
 
 ---
 
 ## Session Goal
 
-_(No active task - ready for next work item)_
+_(Complete - ready for beta.57 release)_
 
 ---
 
 ## Completed This Session
 
-- **PR #537**: Stop sequences fix for GLM 4.5 Air (filter unsupported params)
-- **PR #538**: Make ownerId NOT NULL on LlmConfig and Personality
-  - Sync table order fixed
-  - FK constraint updated (SetNull → Cascade)
-  - Migration includes orphaned FK safety check
-  - All tests updated with proper user mocks
+- **DeepSeek R1 Reasoning Extraction** - Fixed thinking content not being displayed in Discord
+  - Added `injectReasoningIntoContent()` in ModelFactory to inject API-level reasoning into content
+  - Fixed showThinking resolution chain (was using base personality instead of resolved config)
+  - Added 6 unit tests for reasoning injection
+- **Reasoning Model Formats Reference Doc** - New `docs/reference/REASONING_MODEL_FORMATS.md`
+- **Temperature Jitter for Duplicate Detection** - Changed from fixed 1.0 to random 0.95-1.0
+  - New `getRetryTemperature()` function for cache-busting variety
+- **Consolidated LLM Config Key Lists** - Created `LLM_CONFIG_OVERRIDE_KEYS` in @tzurot/common-types
+  - Removed duplicate key lists from ConfigStep.ts and LlmConfigResolver.ts
 
 ---
 
 ## Recent Highlights
 
+- **beta.57**: DeepSeek R1 reasoning fix, temperature jitter, LLM config key consolidation
+- **beta.56**: Reasoning param conflict warning, API-level reasoning extraction tests
 - **beta.55**: ownerId NOT NULL migration, stop sequences fix, model footer on errors
 - **beta.54**: Standardize button emoji usage, preserve browseContext in refresh handler
-- **beta.53**: Type-safe command option accessors, UX Standardization epic complete (114 files, 25 commits)
-- **beta.52**: Shared browse/dashboard utilities, `/persona` and `/settings` commands, customId standardization
 
 ---
 

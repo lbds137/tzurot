@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-01-29
-> **Version**: v3.0.0-beta.56
+> **Version**: v3.0.0-beta.57
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -16,7 +16,6 @@ _New items go here. Triage to appropriate section later._
 - ✨ `[FEAT]` **Message Reactions in XML** - Add reaction metadata to extended context messages showing emoji and who reacted (use same user/persona resolution as elsewhere)
 - 🏗️ `[LIFT]` **Audit and Reduce Re-exports** - Re-exports create spaghetti code and make it harder to understand module dependencies. Audit existing re-exports in `utils/` index files and eliminate non-essential ones. Update CLAUDE.md and/or skills to discourage re-exports except for truly public APIs (e.g., package entry points like `@tzurot/common-types`). Prefer direct imports from source modules.
 - 🧹 `[CHORE]` **Log Warning for Non-String Zod Values** - `optionalString`/`nullableString` preprocessors silently convert non-string values (objects, numbers) to undefined. Add `logger.warn` when this happens to surface malformed API requests.
-- 🧹 `[CHORE]` **Document Reasoning Model Formats** - Create reference doc listing which models use API-level reasoning (`additional_kwargs.reasoning` for DeepSeek R1) vs inline tags (`<think>` for Claude, etc.) to help users understand thinking extraction behavior.
 
 ---
 
@@ -177,10 +176,6 @@ Create `scripts/debug/view-failed-jobs.ts` to inspect failed BullMQ jobs.
 
 ## Epic: Duplicate Detection Hardening
 
-### 🐛 Temperature Strategy
-
-Cache-busting temp 1.1 rejected by some providers. Need random jitter 0.95-1.0.
-
 ### 🏗️ Unbounded History Scanning
 
 Scans entire history looking for 5 assistant messages. Add `MAX_SCAN_DEPTH = 100`.
@@ -231,23 +226,6 @@ Preset creation via slash command should use OpenRouter's model list dynamically
 - [ ] Cache TTL strategy (models don't change often, ~24h reasonable)
 
 **Reference**: OpenRouter `/api/v1/models` endpoint, council-mcp's model caching pattern
-
-### 🏗️ Consolidate LLM Config Key Lists (DRY)
-
-Multiple places define the same list of LLM config keys, creating maintenance burden when adding new params:
-
-- `LLM_CONFIG_KEYS` in `ConfigStep.ts`
-- `LLM_CONFIG_KEYS` in `LlmConfigResolver.ts`
-- Manual field lists in `ConversationalRAGService.getModel()` and `recordLlmConfig()`
-
-All these need to stay in sync. When we added reasoning params, we had to update 4+ places.
-
-- [ ] Create shared `LLM_CONFIG_PARAM_KEYS` constant in `@tzurot/common-types`
-- [ ] Use in `ConfigStep.mergeConfigWithPersonality()`
-- [ ] Use in `LlmConfigResolver.extractConfig()` and `mergeConfig()`
-- [ ] Consider using for `ConversationalRAGService` (may need different approach due to method call structure)
-
-**Reference**: `services/ai-worker/src/jobs/handlers/pipeline/steps/ConfigStep.ts`, `services/ai-worker/src/services/LlmConfigResolver.ts`
 
 ### 🏗️ Type-Safe Command Options Hardening
 
