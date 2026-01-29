@@ -3,7 +3,7 @@
  * Handles /preset import - allows users to import presets from JSON files
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS, presetImportOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -236,7 +236,7 @@ function buildSuccessEmbed(payload: Record<string, unknown>, presetName: string)
   const embed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.SUCCESS)
     .setTitle('Preset Imported Successfully')
-    .setDescription(`Imported preset: **${presetName}**`)
+    .setDescription(`Imported preset: **${escapeMarkdown(presetName)}**`)
     .setTimestamp();
 
   const importedFields = getImportedFieldsList(payload);
