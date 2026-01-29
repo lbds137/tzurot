@@ -321,6 +321,54 @@ describe('DiscordChannelFetcher', () => {
       expect(result.messages[0].content).toContain('Has content');
     });
 
+    it('should filter thinking block messages from extended context', async () => {
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'User question',
+          authorId: 'user123',
+        }),
+        createMockMessage({
+          id: '2',
+          // Thinking block message - should be filtered
+          content:
+            '💭 **Thinking:**\n||Let me analyze this carefully...\nThe user is asking about...||',
+          authorId: 'webhook123', // Sent via webhook, different from bot ID
+          authorUsername: 'Lilith | שבת',
+          isBot: true, // Webhooks show as bot
+        }),
+        createMockMessage({
+          id: '3',
+          content: 'The actual response without thinking',
+          authorId: 'bot456',
+          authorUsername: 'Lilith | שבת',
+          isBot: true,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot456',
+        personalityName: 'Lilith',
+      });
+
+      // Should have 2 messages (user + response), not 3 (thinking filtered out)
+      expect(result.fetchedCount).toBe(3);
+      expect(result.filteredCount).toBe(2);
+      expect(result.messages).toHaveLength(2);
+
+      // Verify thinking block was filtered
+      const thinkingMsg = result.messages.find(m => m.content?.includes('💭 **Thinking:**'));
+      expect(thinkingMsg).toBeUndefined();
+
+      // Verify actual response is present
+      const responseMsg = result.messages.find(m =>
+        m.content?.includes('The actual response without thinking')
+      );
+      expect(responseMsg).toBeDefined();
+    });
+
     it('should include empty messages with attachments', async () => {
       const messages = [
         createMockMessage({

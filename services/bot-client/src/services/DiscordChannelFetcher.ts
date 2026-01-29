@@ -381,6 +381,13 @@ export class DiscordChannelFetcher {
         continue;
       }
 
+      // Skip thinking block messages - these are reasoning outputs sent before the
+      // actual response. They're for user visibility only, not for context.
+      // Detection: message starts with thinking block header
+      if (this.isThinkingBlockMessage(msg)) {
+        continue;
+      }
+
       // Skip messages before context epoch (user has cleared history)
       if (options.contextEpoch !== undefined && msg.createdAt < options.contextEpoch) {
         continue;
@@ -455,6 +462,22 @@ export class DiscordChannelFetcher {
       limitedParticipantGuildInfo,
       extendedContextUsers
     );
+  }
+
+  /**
+   * Check if a message is a thinking block output
+   *
+   * Thinking blocks are reasoning/chain-of-thought outputs sent as separate messages
+   * before the actual response. They're sent via webhook and identified by:
+   * 1. Starting with the thinking block header "💭 **Thinking:**"
+   *
+   * We filter these out because:
+   * - They're meant for user visibility only (displayed in Discord spoilers)
+   * - Including them would pollute context and waste tokens
+   * - The actual response (without thinking) is what should be in context
+   */
+  private isThinkingBlockMessage(msg: Message): boolean {
+    return msg.content.startsWith('💭 **Thinking:**');
   }
 
   /**
@@ -630,14 +653,20 @@ export class DiscordChannelFetcher {
     let recoveredCount = 0;
     for (const dbMsg of dbHistory) {
       const dbContent = dbMsg.content ?? '';
-      if (dbContent.length > 0) {continue;} // Has content, no recovery needed
+      if (dbContent.length > 0) {
+        continue;
+      } // Has content, no recovery needed
 
       const msgId = dbMsg.discordMessageId[0];
-      if (msgId === undefined) {continue;} // No message ID to look up
+      if (msgId === undefined) {
+        continue;
+      } // No message ID to look up
 
       const extendedMsg = extendedMessageMap.get(msgId);
       const extendedContent = extendedMsg?.content ?? '';
-      if (extendedContent.length === 0) {continue;} // Extended context also empty
+      if (extendedContent.length === 0) {
+        continue;
+      } // Extended context also empty
 
       // Extended context has content (likely from bot transcript fallback) - use it
       dbMsg.content = extendedContent;
