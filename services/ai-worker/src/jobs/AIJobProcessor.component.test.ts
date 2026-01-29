@@ -27,6 +27,7 @@ import {
   type LLMGenerationJobData,
   generateSystemPromptUuid,
   generatePersonalityUuid,
+  generateUserUuid,
 } from '@tzurot/common-types';
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types';
@@ -178,10 +179,12 @@ describe('AIJobProcessor Component Test', () => {
     // Seed test data (using deterministic UUIDs for consistency)
 
     // Create test user first (required for ownerId)
+    // Use deterministic UUID for sync compatibility
+    const testDiscordId = 'test-discord-id';
     const testUser = await prisma.user.create({
       data: {
-        id: '11111111-1111-1111-1111-111111111111',
-        discordId: 'test-discord-id',
+        id: generateUserUuid(testDiscordId),
+        discordId: testDiscordId,
         username: 'test-user',
       },
     });
