@@ -3,6 +3,7 @@
  * Handles /preset export - allows users to export their presets as JSON files
  */
 
+import { escapeMarkdown } from 'discord.js';
 import { createLogger, isBotOwner, presetExportOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -13,10 +14,10 @@ const logger = createLogger('preset-export');
 
 /**
  * API response type for preset endpoint
+ * Note: API returns 'config' not 'preset' to match api.ts pattern
  */
 interface PresetResponse {
-  preset: PresetData;
-  canEdit: boolean;
+  config: PresetData;
 }
 
 /**
@@ -162,11 +163,10 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
       throw new Error(`API error: ${result.status}`);
     }
 
-    const preset = result.data.preset;
-    const canEdit = result.data.canEdit;
+    const preset = result.data.config;
 
     // Check ownership - only preset owner or bot owner can export
-    if (!canEdit && !isBotOwner(userId)) {
+    if (!preset.permissions.canEdit && !isBotOwner(userId)) {
       await context.editReply(
         `❌ You don't have permission to export this preset.\n` +
           'You can only export presets you own.'
@@ -182,7 +182,7 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
     const attachment = createJsonAttachment(exportData, safeName, `Preset data: ${preset.name}`);
 
     const contentParts: string[] = [
-      `✅ Exported **${preset.name}**`,
+      `✅ Exported **${escapeMarkdown(preset.name)}**`,
       '',
       '📝 Edit the JSON and re-import with `/preset import`.',
     ];
