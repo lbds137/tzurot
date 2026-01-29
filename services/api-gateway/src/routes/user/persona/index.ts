@@ -27,12 +27,11 @@ import { addOverrideRoutes } from './override.js';
 export type {
   PersonaSummary,
   PersonaDetails,
-  CreatePersonaBody,
-  UpdatePersonaBody,
   SettingsBody,
   OverrideBody,
   PersonaOverrideSummary,
 } from './types.js';
+export type { CreatePersonaBody, UpdatePersonaBody } from './crud.js';
 
 export function createPersonaRoutes(prisma: PrismaClient): Router {
   const router = Router();

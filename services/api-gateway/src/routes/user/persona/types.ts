@@ -26,27 +26,8 @@ export interface PersonaDetails extends PersonaSummary {
   pronouns: string | null;
 }
 
-/**
- * Request body for creating a persona
- */
-export interface CreatePersonaBody {
-  name: string;
-  preferredName?: string;
-  description?: string;
-  content: string;
-  pronouns?: string;
-}
-
-/**
- * Request body for updating a persona
- */
-export interface UpdatePersonaBody {
-  name?: string;
-  preferredName?: string;
-  description?: string;
-  content?: string;
-  pronouns?: string;
-}
+// Note: CreatePersonaBody and UpdatePersonaBody are now Zod-inferred types
+// exported from crud.ts for consistency with the validation schemas
 
 /**
  * Request body for settings update
