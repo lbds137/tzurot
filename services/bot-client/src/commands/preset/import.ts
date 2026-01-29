@@ -209,7 +209,13 @@ async function createPresetFromImport(
 
   const presetId = createResult.data.id;
 
-  // If there are advanced parameters, update the preset
+  // If there are advanced parameters, update the preset in a second call.
+  // The create endpoint doesn't support advancedParameters, so we update after creation.
+  // If this fails, we log but don't fail the import because:
+  // 1. The preset was successfully created with all basic fields
+  // 2. Default advanced parameters are functional (temperature, etc.)
+  // 3. Users can manually configure advanced parameters via /preset edit
+  // 4. Failing the import after successful creation would leave an orphan preset
   if (payload.advancedParameters !== undefined) {
     const updateResult = await callGatewayApi<{ id: string }>(`/user/llm-config/${presetId}`, {
       userId,
@@ -220,9 +226,8 @@ async function createPresetFromImport(
     if (!updateResult.ok) {
       logger.warn(
         { error: updateResult.error, presetId },
-        '[Preset/Import] Failed to update advanced parameters'
+        '[Preset/Import] Failed to update advanced parameters (preset created with defaults)'
       );
-      // Don't fail the import, just log the warning
     }
   }
 
