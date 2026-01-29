@@ -17,7 +17,7 @@ vi.mock('./ModelFactory.js', () => ({
     modelName: modelName || 'openrouter/anthropic/claude-sonnet-4.5',
   })),
   getModelCacheKey: vi.fn(({ modelName, apiKey, temperature }) => {
-    return `${modelName || 'default'}_${apiKey || 'default'}_${temperature || 0.7}`;
+    return `${modelName || 'default'}_${apiKey || 'default'}_${temperature ?? 'none'}`;
   }),
 }));
 
@@ -50,7 +50,7 @@ describe('LLMInvoker', () => {
       expect(result1).not.toBe(result2);
     });
 
-    it('should use default temperature when not provided', () => {
+    it('should work without temperature (model uses its own default)', () => {
       const result = invoker.getModel({ modelName: 'test-model' });
 
       expect(result).toBeDefined();
