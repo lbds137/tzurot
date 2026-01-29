@@ -56,6 +56,11 @@ export interface SendResponseOptions {
    * Displayed in a collapsible spoiler format.
    */
   thinkingContent?: string;
+  /**
+   * Whether to display thinking content.
+   * From the user's LLM config (preset or override).
+   */
+  showThinking?: boolean;
 }
 
 /**
@@ -89,15 +94,12 @@ export class DiscordResponseSender {
       focusModeEnabled,
       incognitoModeActive,
       thinkingContent,
+      showThinking,
     } = options;
 
     // Send thinking content as a separate message before the main response
-    // Only displayed if the personality has showThinking enabled
-    if (
-      personality.showThinking === true &&
-      thinkingContent !== undefined &&
-      thinkingContent.length > 0
-    ) {
+    // Only displayed if showThinking is enabled in the user's LLM config
+    if (showThinking === true && thinkingContent !== undefined && thinkingContent.length > 0) {
       await this.sendThinkingBlock(message, personality, thinkingContent);
     }
 

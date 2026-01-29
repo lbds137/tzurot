@@ -458,6 +458,7 @@ export class GenerationStep implements IPipelineStep {
             focusModeEnabled: response.focusModeEnabled,
             incognitoModeActive: response.incognitoModeActive,
             thinkingContent: response.thinkingContent,
+            showThinking: effectivePersonality.showThinking,
           },
         },
       };

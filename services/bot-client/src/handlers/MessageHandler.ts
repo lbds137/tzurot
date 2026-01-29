@@ -165,6 +165,7 @@ export class MessageHandler {
         focusModeEnabled: result.metadata?.focusModeEnabled,
         incognitoModeActive: result.metadata?.incognitoModeActive,
         thinkingContent: result.metadata?.thinkingContent,
+        showThinking: result.metadata?.showThinking,
       });
 
       // Save assistant message to conversation history
