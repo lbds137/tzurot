@@ -17,7 +17,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import { validateSlug } from '../../../utils/validators.js';
+import { validateSlug, validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
@@ -26,17 +26,13 @@ import { getOrCreateInternalUser } from './helpers.js';
 const logger = createLogger('user-persona-override');
 
 /**
- * UUID format regex - validates format without strict RFC 4122 compliance.
- * This matches the existing validateUuid helper behavior.
- */
-const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-/**
  * Schema for setting a persona override.
- * personaId must be a UUID format string.
+ * Uses validateUuid for consistent UUID format validation across the codebase.
  */
 const SetOverrideBodySchema = z.object({
-  personaId: z.string().regex(UUID_REGEX, 'Invalid persona ID format'),
+  personaId: z
+    .string()
+    .refine(val => validateUuid(val, 'persona ID').valid, { message: 'Invalid persona ID format' }),
 });
 
 // --- Handler Factories ---
