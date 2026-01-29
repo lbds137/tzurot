@@ -18,6 +18,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import { fetchCharacter } from './api.js';
+import { buildCharacterDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('character-edit');
 
@@ -73,11 +74,12 @@ export async function handleEdit(
     // Build and send dashboard
     // Use slug as entityId (not UUID) because fetchCharacter expects slug
     const embed = buildDashboardEmbed(dashboardConfig, character);
-    const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
-      showClose: true,
-      showRefresh: true,
-      showDelete: character.canEdit, // Only show delete for owned characters
-    });
+    const components = buildDashboardComponents(
+      dashboardConfig,
+      character.slug,
+      character,
+      buildCharacterDashboardOptions(character)
+    );
 
     const reply = await context.editReply({ embeds: [embed], components });
 

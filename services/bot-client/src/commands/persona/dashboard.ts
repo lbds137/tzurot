@@ -48,7 +48,7 @@ const logger = createLogger('persona-dashboard');
  * Delete button only shown for non-default personas.
  * Back button shown when opened from browse (preserves navigation context).
  */
-function buildPersonaDashboardOptions(data: FlattenedPersonaData): ActionButtonOptions {
+export function buildPersonaDashboardOptions(data: FlattenedPersonaData): ActionButtonOptions {
   const hasBackContext = data.browseContext !== undefined;
   return {
     showClose: !hasBackContext, // Only show close if not from browse

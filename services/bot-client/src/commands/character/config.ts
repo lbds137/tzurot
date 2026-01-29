@@ -46,6 +46,8 @@ export interface CharacterData {
   avatarData: string | null; // Base64-encoded
   createdAt: string;
   updatedAt: string;
+  /** Whether the current user can edit this character (set by API based on ownership) */
+  canEdit?: boolean;
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: BrowseContext;
 }
