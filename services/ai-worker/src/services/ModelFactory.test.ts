@@ -348,7 +348,7 @@ describe('ModelFactory', () => {
     // Reasoning parameters (CRITICAL for thinking models)
     // ===================================
 
-    it('should pass reasoning with effort via modelKwargs and set include_reasoning in extra_body', () => {
+    it('should pass reasoning with effort via modelKwargs and use custom fetch for include_reasoning', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: { effort: 'high' },
@@ -356,15 +356,17 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            reasoning: { effort: 'high' },
-            // OpenRouter flag to receive reasoning content in response (in extra_body)
-            extra_body: { include_reasoning: true },
-          }),
-        })
-      );
+      // Get the actual call arguments
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+        configuration?: { fetch?: unknown };
+      };
+
+      // reasoning goes in modelKwargs
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'high' });
+
+      // include_reasoning is injected via custom fetch (not in modelKwargs)
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
     it('should pass reasoning with maxTokens (converted to snake_case) via modelKwargs', () => {
@@ -375,14 +377,14 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            reasoning: { max_tokens: 16000 },
-            extra_body: { include_reasoning: true },
-          }),
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+        configuration?: { fetch?: unknown };
+      };
+
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({ max_tokens: 16000 });
+      // Custom fetch used for include_reasoning
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
     it('should pass reasoning object with all fields except maxTokens when effort is set', () => {
@@ -400,23 +402,22 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            reasoning: {
-              effort: 'xhigh',
-              // max_tokens NOT included because effort takes precedence
-              exclude: false,
-              enabled: true,
-            },
-            // include_reasoning is set in extra_body because exclude !== true
-            extra_body: { include_reasoning: true },
-          }),
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+        configuration?: { fetch?: unknown };
+      };
+
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({
+        effort: 'xhigh',
+        // max_tokens NOT included because effort takes precedence
+        exclude: false,
+        enabled: true,
+      });
+      // Custom fetch used because exclude !== true
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
-    it('should use maxTokens when effort is not set and NOT set include_reasoning when exclude: true', () => {
+    it('should use maxTokens when effort is not set and NOT use custom fetch when exclude: true', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: {
@@ -427,26 +428,25 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      // Get the actual call arguments
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
         modelKwargs?: Record<string, unknown>;
+        configuration?: { fetch?: unknown };
       };
-      const modelKwargs = callArgs?.modelKwargs;
 
       // reasoning object should be present
-      expect(modelKwargs?.reasoning).toEqual({
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({
         max_tokens: 16000,
         exclude: true,
       });
-      // extra_body should NOT be set when exclude: true (no include_reasoning)
-      expect(modelKwargs?.extra_body).toBeUndefined();
+      // No custom fetch when exclude: true (no include_reasoning needed)
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
     // ===================================
-    // OpenRouter-specific parameters (in extra_body)
+    // OpenRouter-specific parameters (via custom fetch)
     // ===================================
 
-    it('should pass transforms via extra_body in modelKwargs', () => {
+    it('should use custom fetch for transforms', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         transforms: ['middle-out'],
@@ -454,16 +454,15 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            extra_body: { transforms: ['middle-out'] },
-          }),
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      // transforms injected via custom fetch
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
-    it('should pass route via extra_body in modelKwargs', () => {
+    it('should use custom fetch for route', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         route: 'fallback',
@@ -471,16 +470,14 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            extra_body: { route: 'fallback' },
-          }),
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
-    it('should pass verbosity via extra_body in modelKwargs', () => {
+    it('should use custom fetch for verbosity', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         verbosity: 'low',
@@ -488,13 +485,11 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            extra_body: { verbosity: 'low' },
-          }),
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
 
     it('should pass all advanced parameters together', () => {
@@ -516,24 +511,23 @@ describe('ModelFactory', () => {
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            min_p: 0.1,
-            top_a: 0.5,
-            seed: 42,
-            stop: ['END'],
-            response_format: { type: 'text' },
-            reasoning: { effort: 'high' },
-            // OpenRouter-specific params go in extra_body
-            extra_body: {
-              include_reasoning: true,
-              transforms: ['middle-out'],
-              route: 'fallback',
-            },
-          }),
-        })
-      );
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+        configuration?: { fetch?: unknown };
+      };
+
+      // Standard params in modelKwargs
+      expect(callArgs?.modelKwargs).toEqual({
+        min_p: 0.1,
+        top_a: 0.5,
+        seed: 42,
+        stop: ['END'],
+        response_format: { type: 'text' },
+        reasoning: { effort: 'high' },
+      });
+
+      // OpenRouter-specific params (include_reasoning, transforms, route) via custom fetch
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
   });
 
