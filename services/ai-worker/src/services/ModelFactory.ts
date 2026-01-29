@@ -34,6 +34,75 @@ export interface OpenRouterExtraParams {
 }
 
 /**
+ * Log the raw OpenRouter response structure for debugging reasoning extraction.
+ * This helps identify whether reasoning content is present in the response.
+ */
+async function logOpenRouterResponseStructure(response: Response): Promise<void> {
+  try {
+    const clonedResponse = response.clone();
+    const responseBody = (await clonedResponse.json()) as Record<string, unknown>;
+    const choices = responseBody.choices as Record<string, unknown>[] | undefined;
+    const firstChoice = choices?.[0];
+    const message = firstChoice?.message as Record<string, unknown> | undefined;
+
+    logger.info(
+      {
+        hasReasoning: message?.reasoning !== undefined,
+        hasReasoningContent: message?.reasoning_content !== undefined,
+        messageKeys: message !== undefined ? Object.keys(message) : [],
+        choiceKeys: firstChoice !== undefined ? Object.keys(firstChoice) : [],
+        responseKeys: Object.keys(responseBody),
+      },
+      '[ModelFactory] Raw OpenRouter response structure'
+    );
+  } catch {
+    // Ignore logging errors
+  }
+}
+
+/**
+ * Inject OpenRouter-specific parameters into the request body.
+ * Mutates the init object in place.
+ */
+function injectOpenRouterParams(
+  url: string | URL | Request,
+  init: RequestInit,
+  extraParams: OpenRouterExtraParams
+): void {
+  try {
+    const body = JSON.parse(init.body as string) as Record<string, unknown>;
+
+    // Inject OpenRouter-specific parameters
+    if (extraParams.include_reasoning === true) {
+      body.include_reasoning = true;
+    }
+    if (extraParams.transforms !== undefined && extraParams.transforms.length > 0) {
+      body.transforms = extraParams.transforms;
+    }
+    if (extraParams.route !== undefined) {
+      body.route = extraParams.route;
+    }
+    if (extraParams.verbosity !== undefined) {
+      body.verbosity = extraParams.verbosity;
+    }
+
+    const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
+    logger.info(
+      {
+        url: urlStr,
+        injectedParams: extraParams,
+        hasIncludeReasoning: body.include_reasoning,
+      },
+      '[ModelFactory] Custom fetch injecting OpenRouter params'
+    );
+
+    init.body = JSON.stringify(body);
+  } catch {
+    // If body isn't JSON, pass through unchanged
+  }
+}
+
+/**
  * Create a custom fetch function that injects OpenRouter-specific parameters
  * into the request body after SDK validation.
  *
@@ -46,39 +115,17 @@ function createOpenRouterFetch(
 ): (url: string | URL | Request, init?: RequestInit) => Promise<Response> {
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
     if (init?.method === 'POST' && init.body !== undefined && init.body !== null) {
-      try {
-        const body = JSON.parse(init.body as string) as Record<string, unknown>;
-
-        // Inject OpenRouter-specific parameters
-        if (extraParams.include_reasoning === true) {
-          body.include_reasoning = true;
-        }
-        if (extraParams.transforms !== undefined && extraParams.transforms.length > 0) {
-          body.transforms = extraParams.transforms;
-        }
-        if (extraParams.route !== undefined) {
-          body.route = extraParams.route;
-        }
-        if (extraParams.verbosity !== undefined) {
-          body.verbosity = extraParams.verbosity;
-        }
-
-        const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
-        logger.info(
-          {
-            url: urlStr,
-            injectedParams: extraParams,
-            hasIncludeReasoning: body.include_reasoning,
-          },
-          '[ModelFactory] Custom fetch injecting OpenRouter params'
-        );
-
-        init.body = JSON.stringify(body);
-      } catch {
-        // If body isn't JSON, pass through unchanged
-      }
+      injectOpenRouterParams(url, init, extraParams);
     }
-    return fetch(url, init);
+
+    const response = await fetch(url, init);
+
+    // Log the raw response to debug reasoning extraction
+    if (extraParams.include_reasoning === true && init?.method === 'POST') {
+      await logOpenRouterResponseStructure(response);
+    }
+
+    return response;
   };
 }
 
