@@ -89,11 +89,22 @@ export interface TokenBudgetData {
 }
 
 /**
+ * Reasoning configuration for diagnostic recording
+ */
+interface ReasoningConfig {
+  effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
+  maxTokens?: number;
+  exclude?: boolean;
+  enabled?: boolean;
+}
+
+/**
  * LLM configuration data
  */
 export interface LlmConfigData {
   model: string;
   provider: string;
+  // Basic sampling
   temperature?: number;
   topP?: number;
   topK?: number;
@@ -101,6 +112,22 @@ export interface LlmConfigData {
   frequencyPenalty?: number;
   presencePenalty?: number;
   repetitionPenalty?: number;
+  // Advanced sampling
+  minP?: number;
+  topA?: number;
+  seed?: number;
+  // Output control
+  stop?: string[];
+  logitBias?: Record<string, number>;
+  responseFormat?: { type: 'text' | 'json_object' };
+  showThinking?: boolean;
+  // Reasoning (for thinking models)
+  reasoning?: ReasoningConfig;
+  // OpenRouter-specific
+  transforms?: string[];
+  route?: 'fallback';
+  verbosity?: 'low' | 'medium' | 'high';
+  // Stop sequences (generated at runtime)
   stopSequences: string[];
 }
 
@@ -324,8 +351,10 @@ export class DiagnosticCollector {
       repetitionPenalty: data.repetitionPenalty,
       stopSequences: data.stopSequences,
       allParams: {
+        // Core
         model: data.model,
         provider: data.provider,
+        // Basic sampling
         temperature: data.temperature,
         topP: data.topP,
         topK: data.topK,
@@ -333,6 +362,21 @@ export class DiagnosticCollector {
         frequencyPenalty: data.frequencyPenalty,
         presencePenalty: data.presencePenalty,
         repetitionPenalty: data.repetitionPenalty,
+        // Advanced sampling
+        minP: data.minP,
+        topA: data.topA,
+        seed: data.seed,
+        // Output control
+        stop: data.stop,
+        logitBias: data.logitBias,
+        responseFormat: data.responseFormat,
+        showThinking: data.showThinking,
+        // Reasoning
+        reasoning: data.reasoning,
+        // OpenRouter-specific
+        transforms: data.transforms,
+        route: data.route,
+        verbosity: data.verbosity,
       },
     };
   }
