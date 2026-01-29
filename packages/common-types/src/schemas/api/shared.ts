@@ -117,7 +117,7 @@ export function nullableString(maxLength = 500): z.ZodType<string | null | undef
       }
       return val;
     },
-    z.union([z.null(), z.undefined(), z.string().max(maxLength)])
+    z.union([z.null(), z.undefined(), z.string().min(1).max(maxLength)])
   );
 }
 

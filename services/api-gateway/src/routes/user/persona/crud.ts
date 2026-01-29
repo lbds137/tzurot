@@ -63,22 +63,7 @@ const CreatePersonaBodySchema = z.object({
 const UpdatePersonaBodySchema = z.object({
   // Required DB fields: empty string → undefined (preserve existing value)
   name: optionalString(255),
-  content: z.preprocess(
-    val => {
-      if (typeof val === 'string') {
-        const trimmed = val.trim();
-        return trimmed.length === 0 ? undefined : trimmed;
-      }
-      return val;
-    },
-    z
-      .string()
-      .max(
-        DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
-        `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-      )
-      .optional()
-  ),
+  content: optionalString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
   // Nullable DB fields: empty string → null (clear the value)
   preferredName: nullableString(255),
   description: nullableString(500),
@@ -267,11 +252,21 @@ function createUpdateHandler(prisma: PrismaClient) {
     const { name, content, preferredName, description, pronouns } = parseResult.data;
     const updateData: Record<string, unknown> = {};
 
-    if (name !== undefined) {updateData.name = name;}
-    if (content !== undefined) {updateData.content = content;}
-    if (preferredName !== undefined) {updateData.preferredName = preferredName;}
-    if (description !== undefined) {updateData.description = description;}
-    if (pronouns !== undefined) {updateData.pronouns = pronouns;}
+    if (name !== undefined) {
+      updateData.name = name;
+    }
+    if (content !== undefined) {
+      updateData.content = content;
+    }
+    if (preferredName !== undefined) {
+      updateData.preferredName = preferredName;
+    }
+    if (description !== undefined) {
+      updateData.description = description;
+    }
+    if (pronouns !== undefined) {
+      updateData.pronouns = pronouns;
+    }
 
     const persona = await prisma.persona.update({
       where: { id },
