@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { extractThinkingBlocks, hasThinkingBlocks } from './thinkingExtraction.js';
+import {
+  extractThinkingBlocks,
+  hasThinkingBlocks,
+  extractApiReasoningContent,
+  mergeThinkingContent,
+  type ReasoningDetail,
+} from './thinkingExtraction.js';
 
 describe('extractThinkingBlocks', () => {
   describe('basic extraction', () => {
@@ -355,5 +361,221 @@ describe('hasThinkingBlocks', () => {
 
   it('should be case insensitive', () => {
     expect(hasThinkingBlocks('<THINK>content</THINK>response')).toBe(true);
+  });
+});
+
+describe('extractApiReasoningContent', () => {
+  describe('basic extraction', () => {
+    it('should extract text from reasoning.text type', () => {
+      const details: ReasoningDetail[] = [
+        {
+          type: 'reasoning.text',
+          text: 'Let me think through this step by step...',
+        },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('Let me think through this step by step...');
+    });
+
+    it('should extract summary from reasoning.summary type', () => {
+      const details: ReasoningDetail[] = [
+        {
+          type: 'reasoning.summary',
+          summary: 'The model analyzed the problem by identifying constraints.',
+        },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('The model analyzed the problem by identifying constraints.');
+    });
+
+    it('should handle multiple reasoning details', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'reasoning.text', text: 'First thought.' },
+        { type: 'reasoning.text', text: 'Second thought.' },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toContain('First thought.');
+      expect(result).toContain('Second thought.');
+      expect(result).toContain('---'); // Separator
+    });
+
+    it('should handle mixed reasoning types', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'reasoning.summary', summary: 'Summary of reasoning.' },
+        { type: 'reasoning.text', text: 'Detailed text.' },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toContain('Summary of reasoning.');
+      expect(result).toContain('Detailed text.');
+    });
+  });
+
+  describe('invalid input handling', () => {
+    it('should return null for empty array', () => {
+      expect(extractApiReasoningContent([])).toBeNull();
+    });
+
+    it('should return null for undefined', () => {
+      expect(extractApiReasoningContent(undefined)).toBeNull();
+    });
+
+    it('should return null for null', () => {
+      expect(extractApiReasoningContent(null)).toBeNull();
+    });
+
+    it('should return null for non-array input', () => {
+      expect(extractApiReasoningContent('not an array')).toBeNull();
+      expect(extractApiReasoningContent(123)).toBeNull();
+      expect(extractApiReasoningContent({})).toBeNull();
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should skip empty text content', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'reasoning.text', text: '' },
+        { type: 'reasoning.text', text: 'Valid content.' },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('Valid content.');
+    });
+
+    it('should skip whitespace-only content', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'reasoning.text', text: '   \n   ' },
+        { type: 'reasoning.summary', summary: 'Valid summary.' },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('Valid summary.');
+    });
+
+    it('should handle reasoning.encrypted type gracefully', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'reasoning.encrypted', data: 'encrypted-data-blob' },
+      ];
+      // Encrypted content can't be extracted, should return null
+      const result = extractApiReasoningContent(details);
+      expect(result).toBeNull();
+    });
+
+    it('should handle unknown type with text field', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'unknown.custom', text: 'Custom type content.' } as ReasoningDetail,
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('Custom type content.');
+    });
+
+    it('should handle null entries in array', () => {
+      const details = [null, { type: 'reasoning.text', text: 'Valid.' }] as ReasoningDetail[];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('Valid.');
+    });
+
+    it('should handle entries without expected fields', () => {
+      const details: ReasoningDetail[] = [
+        { type: 'reasoning.text' } as ReasoningDetail, // Missing text field
+        { type: 'reasoning.text', text: 'Valid content.' },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toBe('Valid content.');
+    });
+  });
+
+  describe('real-world OpenRouter responses', () => {
+    it('should handle DeepSeek R1 reasoning details', () => {
+      const details: ReasoningDetail[] = [
+        {
+          type: 'reasoning.text',
+          format: 'unknown',
+          text: `The user is asking about quantum computing.
+Let me break this down:
+1. Quantum bits (qubits) can exist in superposition
+2. Entanglement allows for correlated states
+3. This enables parallel computation
+
+I should explain this in simple terms.`,
+        },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toContain('superposition');
+      expect(result).toContain('Entanglement');
+    });
+
+    it('should handle Claude Extended Thinking format', () => {
+      const details: ReasoningDetail[] = [
+        {
+          type: 'reasoning.summary',
+          format: 'anthropic-claude-v1',
+          summary: 'Analyzed the mathematical proof by examining each step sequentially.',
+        },
+        {
+          type: 'reasoning.text',
+          format: 'anthropic-claude-v1',
+          text: 'Step 1: Assume P is true.\nStep 2: Apply logical transformation.\nStep 3: Derive Q.',
+        },
+      ];
+      const result = extractApiReasoningContent(details);
+      expect(result).toContain('mathematical proof');
+      expect(result).toContain('Step 1');
+    });
+  });
+});
+
+describe('mergeThinkingContent', () => {
+  describe('basic merging', () => {
+    it('should return API reasoning when only API content present', () => {
+      const result = mergeThinkingContent('API reasoning content', null);
+      expect(result).toBe('API reasoning content');
+    });
+
+    it('should return inline reasoning when only inline content present', () => {
+      const result = mergeThinkingContent(null, 'Inline reasoning content');
+      expect(result).toBe('Inline reasoning content');
+    });
+
+    it('should merge both with API first', () => {
+      const result = mergeThinkingContent('API reasoning', 'Inline reasoning');
+      expect(result).toContain('API reasoning');
+      expect(result).toContain('Inline reasoning');
+      // API should come first
+      expect(result?.indexOf('API reasoning')).toBeLessThan(
+        result?.indexOf('Inline reasoning') ?? 0
+      );
+    });
+
+    it('should return null when both are null', () => {
+      expect(mergeThinkingContent(null, null)).toBeNull();
+    });
+  });
+
+  describe('empty string handling', () => {
+    it('should treat empty API string as absent', () => {
+      const result = mergeThinkingContent('', 'Inline only');
+      expect(result).toBe('Inline only');
+    });
+
+    it('should treat empty inline string as absent', () => {
+      const result = mergeThinkingContent('API only', '');
+      expect(result).toBe('API only');
+    });
+
+    it('should return null when both are empty', () => {
+      expect(mergeThinkingContent('', '')).toBeNull();
+    });
+  });
+
+  describe('formatting', () => {
+    it('should include section separator when both present', () => {
+      const result = mergeThinkingContent('API reasoning', 'Inline reasoning');
+      expect(result).toContain('=== Additional Inline Reasoning ===');
+    });
+
+    it('should not include separator when only one source', () => {
+      const apiOnly = mergeThinkingContent('API reasoning', null);
+      const inlineOnly = mergeThinkingContent(null, 'Inline reasoning');
+      expect(apiOnly).not.toContain('===');
+      expect(inlineOnly).not.toContain('===');
+    });
   });
 });

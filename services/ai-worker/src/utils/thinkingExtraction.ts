@@ -3,20 +3,24 @@
  *
  * Extracts thinking/reasoning blocks from AI responses.
  *
- * Supported models and their tag formats:
- * - DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2: <think>...</think>
- * - Claude (prompted), Anthropic legacy: <thinking>...</thinking>, <ant_thinking>
- * - Reflection AI: <reflection>...</reflection>
- * - Legacy fine-tunes: <thought>...</thought>, <reasoning>...</reasoning>
- * - Research models: <scratchpad>...</scratchpad>
+ * Two extraction methods are supported:
+ *
+ * 1. **Inline Tags** (text content):
+ *    - DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2: <think>...</think>
+ *    - Claude (prompted), Anthropic legacy: <thinking>...</thinking>, <ant_thinking>
+ *    - Reflection AI: <reflection>...</reflection>
+ *    - Legacy fine-tunes: <thought>...</thought>, <reasoning>...</reasoning>
+ *    - Research models: <scratchpad>...</scratchpad>
+ *
+ * 2. **API-level Reasoning** (response metadata):
+ *    - OpenRouter's `reasoning_details` array in response metadata
+ *    - Types: reasoning.summary, reasoning.text, reasoning.encrypted
+ *    - Used by: DeepSeek R1 via OpenRouter, Claude Extended Thinking
  *
  * This utility extracts the thinking content separately so it can be:
  * 1. Displayed to users (if showThinking is enabled) in Discord spoiler tags
  * 2. Excluded from the visible response
  * 3. Logged for debugging purposes
- *
- * Note: API-level thinking (Claude Extended Thinking, Gemini, OpenAI o1/o3) is
- * handled separately by LangChain and doesn't appear in text content.
  */
 
 import { createLogger } from '@tzurot/common-types';
@@ -186,4 +190,146 @@ export function hasThinkingBlocks(content: string): boolean {
   }
 
   return false;
+}
+
+/**
+ * OpenRouter reasoning detail types.
+ *
+ * @see https://openrouter.ai/docs/guides/best-practices/reasoning-tokens
+ */
+export interface ReasoningDetail {
+  /** Type of reasoning content (known types or any string for forward compatibility) */
+  type: string;
+  /** Reasoning ID (if provided) */
+  id?: string | null;
+  /** Format indicator (known formats or any string for forward compatibility) */
+  format?: string;
+  /** Index for ordering */
+  index?: number;
+  /** Summary content (for reasoning.summary type) */
+  summary?: string;
+  /** Text content (for reasoning.text type) */
+  text?: string;
+  /** Encrypted data (for reasoning.encrypted type) */
+  data?: string;
+  /** Signature for verification (optional) */
+  signature?: string;
+}
+
+/**
+ * Extract reasoning content from OpenRouter's reasoning_details array.
+ *
+ * OpenRouter returns API-level reasoning in a structured format separate from
+ * the text content. This is used by models like DeepSeek R1, Claude Extended
+ * Thinking, and other reasoning models when `reasoning.exclude: false` is set.
+ *
+ * @param reasoningDetails - Array of reasoning detail objects from response metadata
+ * @returns Extracted reasoning text, or null if no readable content found
+ *
+ * @example
+ * ```typescript
+ * const metadata = response.response_metadata;
+ * const apiReasoning = extractApiReasoningContent(metadata?.reasoning_details);
+ * ```
+ */
+export function extractApiReasoningContent(reasoningDetails: unknown): string | null {
+  // Guard against invalid input
+  if (!Array.isArray(reasoningDetails) || reasoningDetails.length === 0) {
+    return null;
+  }
+
+  const parts: string[] = [];
+
+  for (const detail of reasoningDetails) {
+    // Skip if not a valid object
+    if (detail === null || typeof detail !== 'object') {
+      continue;
+    }
+
+    const typedDetail = detail as ReasoningDetail;
+
+    // Extract content based on type
+    switch (typedDetail.type) {
+      case 'reasoning.text':
+        if (typeof typedDetail.text === 'string' && typedDetail.text.trim().length > 0) {
+          parts.push(typedDetail.text.trim());
+        }
+        break;
+
+      case 'reasoning.summary':
+        if (typeof typedDetail.summary === 'string' && typedDetail.summary.trim().length > 0) {
+          parts.push(typedDetail.summary.trim());
+        }
+        break;
+
+      case 'reasoning.encrypted':
+        // Can't decrypt, but note that reasoning was present
+        logger.debug(
+          { type: typedDetail.type, format: typedDetail.format },
+          '[ThinkingExtraction] Found encrypted reasoning content (cannot extract)'
+        );
+        break;
+
+      default:
+        // Unknown type - try to extract any text/summary field
+        if (typeof typedDetail.text === 'string' && typedDetail.text.trim().length > 0) {
+          parts.push(typedDetail.text.trim());
+        } else if (
+          typeof typedDetail.summary === 'string' &&
+          typedDetail.summary.trim().length > 0
+        ) {
+          parts.push(typedDetail.summary.trim());
+        }
+    }
+  }
+
+  if (parts.length === 0) {
+    return null;
+  }
+
+  const content = parts.join('\n\n---\n\n');
+
+  logger.info(
+    {
+      detailCount: reasoningDetails.length,
+      extractedParts: parts.length,
+      contentLength: content.length,
+    },
+    `[ThinkingExtraction] Extracted API-level reasoning from ${parts.length} detail(s)`
+  );
+
+  return content;
+}
+
+/**
+ * Merge thinking content from multiple sources.
+ *
+ * Combines API-level reasoning (from reasoning_details) with inline tag extraction.
+ * API-level reasoning is displayed first if present, followed by inline tags.
+ *
+ * @param apiReasoning - Content from extractApiReasoningContent()
+ * @param inlineReasoning - Content from extractThinkingBlocks()
+ * @returns Combined thinking content, or null if both are null/empty
+ */
+export function mergeThinkingContent(
+  apiReasoning: string | null,
+  inlineReasoning: string | null
+): string | null {
+  const hasApi = apiReasoning !== null && apiReasoning.length > 0;
+  const hasInline = inlineReasoning !== null && inlineReasoning.length > 0;
+
+  if (!hasApi && !hasInline) {
+    return null;
+  }
+
+  if (hasApi && !hasInline) {
+    return apiReasoning;
+  }
+
+  if (!hasApi && hasInline) {
+    return inlineReasoning;
+  }
+
+  // Both present - combine with clear section separation
+  return `${apiReasoning}\n\n=== Additional Inline Reasoning ===\n\n${inlineReasoning}`;
 }

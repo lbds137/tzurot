@@ -27,7 +27,11 @@ import {
 import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { stripResponseArtifacts } from '../utils/responseArtifacts.js';
 import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
-import { extractThinkingBlocks } from '../utils/thinkingExtraction.js';
+import {
+  extractThinkingBlocks,
+  extractApiReasoningContent,
+  mergeThinkingContent,
+} from '../utils/thinkingExtraction.js';
 import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -371,7 +375,7 @@ export class ConversationalRAGService {
 
     const rawContent = response.content as string;
 
-    // Extract token usage and finish reason for diagnostics
+    // Extract token usage, finish reason, and reasoning details for diagnostics
     const responseData = response as unknown as {
       usage_metadata?: {
         input_tokens?: number;
@@ -384,6 +388,8 @@ export class ConversationalRAGService {
         finishReason?: string;
         stop?: string;
         stop_sequence?: string;
+        // OpenRouter API-level reasoning (DeepSeek R1, Claude Extended Thinking, etc.)
+        reasoning_details?: unknown[];
       };
     };
     const usageMetadata = responseData.usage_metadata;
@@ -415,9 +421,26 @@ export class ConversationalRAGService {
     // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
     const deduplicatedContent = removeDuplicateResponse(rawContent);
 
-    // Extract thinking blocks (DeepSeek R1, Claude with reasoning, o1/o3, etc.)
-    // This must happen before stripResponseArtifacts to preserve the full thinking content
-    const { thinkingContent, visibleContent } = extractThinkingBlocks(deduplicatedContent);
+    // Extract thinking content from TWO sources:
+    // 1. API-level reasoning (OpenRouter's reasoning_details field)
+    // 2. Inline thinking tags (<think>, <thinking>, etc.)
+    //
+    // API-level reasoning is returned by models like DeepSeek R1 via OpenRouter
+    // when reasoning.exclude: false is set. Inline tags are used by some models
+    // or when reasoning is prompted (e.g., "think step by step in <think> tags").
+    const apiReasoning = extractApiReasoningContent(responseMetadata?.reasoning_details);
+    const { thinkingContent: inlineThinking, visibleContent } =
+      extractThinkingBlocks(deduplicatedContent);
+
+    // Merge both sources - API reasoning first, then inline
+    const thinkingContent = mergeThinkingContent(apiReasoning, inlineThinking);
+
+    if (apiReasoning !== null) {
+      logger.debug(
+        { apiReasoningLength: apiReasoning.length, hasInline: inlineThinking !== null },
+        '[RAG] Extracted API-level reasoning from response metadata'
+      );
+    }
 
     // Strip artifacts from visible content only
     let cleanedContent = stripResponseArtifacts(visibleContent, personality.name);
