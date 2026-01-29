@@ -9,11 +9,14 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { z } from 'zod';
 import {
   createLogger,
   type PrismaClient,
   DISCORD_LIMITS,
   generatePersonaUuid,
+  optionalString,
+  nullableString,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -22,15 +25,73 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import type {
-  PersonaSummary,
-  PersonaDetails,
-  CreatePersonaBody,
-  UpdatePersonaBody,
-} from './types.js';
-import { extractString, getOrCreateInternalUser } from './helpers.js';
+import type { PersonaSummary, PersonaDetails } from './types.js';
+import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-crud');
+
+// ===========================================
+// ZOD SCHEMAS
+// ===========================================
+
+/**
+ * Schema for creating a new persona.
+ * - name: Required, non-empty string
+ * - content: Required, non-empty string with max length
+ * - preferredName, description, pronouns: Optional nullable strings
+ */
+const CreatePersonaBodySchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  content: z
+    .string()
+    .min(1, 'Content is required')
+    .max(
+      DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+      `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
+    ),
+  preferredName: nullableString(255),
+  description: nullableString(500),
+  pronouns: nullableString(100),
+});
+
+/**
+ * Schema for updating a persona.
+ * Uses empty-to-undefined/null transforms so clients can send "" to preserve or clear fields.
+ * - name, content: Empty string → undefined (preserve existing value)
+ * - preferredName, description, pronouns: Empty string → null (clear the value)
+ */
+const UpdatePersonaBodySchema = z.object({
+  // Required DB fields: empty string → undefined (preserve existing value)
+  name: optionalString(255),
+  content: z.preprocess(
+    val => {
+      if (typeof val === 'string') {
+        const trimmed = val.trim();
+        return trimmed.length === 0 ? undefined : trimmed;
+      }
+      return val;
+    },
+    z
+      .string()
+      .max(
+        DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+        `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
+      )
+      .optional()
+  ),
+  // Nullable DB fields: empty string → null (clear the value)
+  preferredName: nullableString(255),
+  description: nullableString(500),
+  pronouns: nullableString(100),
+});
+
+// Type exports for tests
+export type CreatePersonaBody = z.infer<typeof CreatePersonaBodySchema>;
+export type UpdatePersonaBody = z.infer<typeof UpdatePersonaBodySchema>;
+
+// ===========================================
+// DATABASE CONSTANTS
+// ===========================================
 
 const PERSONA_SELECT = {
   id: true,
@@ -123,37 +184,28 @@ function createGetHandler(prisma: PrismaClient) {
 function createCreateHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const body = req.body as Partial<CreatePersonaBody>;
 
-    const nameValue = extractString(body.name);
-    if (nameValue === null) {
-      return sendError(res, ErrorResponses.validationError('Name is required'));
+    // Validate request body with Zod
+    const parseResult = CreatePersonaBodySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      const fieldPath = firstIssue.path.join('.');
+      const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+      return sendError(res, ErrorResponses.validationError(message));
     }
 
-    const contentValue = extractString(body.content);
-    if (contentValue === null) {
-      return sendError(res, ErrorResponses.validationError('Content is required'));
-    }
-
-    if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
-      return sendError(
-        res,
-        ErrorResponses.validationError(
-          `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-        )
-      );
-    }
+    const { name, content, preferredName, description, pronouns } = parseResult.data;
 
     const user = await getOrCreateInternalUser(prisma, discordUserId);
 
     const persona = await prisma.persona.create({
       data: {
-        id: generatePersonaUuid(nameValue, user.id),
-        name: nameValue,
-        preferredName: extractString(body.preferredName),
-        description: extractString(body.description),
-        content: contentValue,
-        pronouns: extractString(body.pronouns),
+        id: generatePersonaUuid(name, user.id),
+        name,
+        preferredName: preferredName ?? null,
+        description: description ?? null,
+        content,
+        pronouns: pronouns ?? null,
         ownerId: user.id,
       },
       select: PERSONA_SELECT,
@@ -185,11 +237,19 @@ function createUpdateHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
-    const body = req.body as Partial<UpdatePersonaBody>;
 
     const idValidation = validateUuid(id, 'persona ID');
     if (!idValidation.valid) {
       return sendError(res, idValidation.error);
+    }
+
+    // Validate request body with Zod
+    const parseResult = UpdatePersonaBodySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      const fieldPath = firstIssue.path.join('.');
+      const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+      return sendError(res, ErrorResponses.validationError(message));
     }
 
     const user = await getOrCreateInternalUser(prisma, discordUserId);
@@ -203,14 +263,19 @@ function createUpdateHandler(prisma: PrismaClient) {
       return sendError(res, ErrorResponses.notFound('Persona'));
     }
 
-    const updateResult = buildUpdateData(body);
-    if ('error' in updateResult) {
-      return sendError(res, updateResult.error);
-    }
+    // Build update data from validated fields (only include defined values)
+    const { name, content, preferredName, description, pronouns } = parseResult.data;
+    const updateData: Record<string, unknown> = {};
+
+    if (name !== undefined) {updateData.name = name;}
+    if (content !== undefined) {updateData.content = content;}
+    if (preferredName !== undefined) {updateData.preferredName = preferredName;}
+    if (description !== undefined) {updateData.description = description;}
+    if (pronouns !== undefined) {updateData.pronouns = pronouns;}
 
     const persona = await prisma.persona.update({
       where: { id },
-      data: updateResult,
+      data: updateData,
       select: PERSONA_SELECT,
     });
 
@@ -258,62 +323,6 @@ function createDeleteHandler(prisma: PrismaClient) {
 
     sendCustomSuccess(res, { message: 'Persona deleted' });
   };
-}
-
-// --- Helper Functions ---
-
-interface PersonaUpdateData {
-  name?: string;
-  preferredName?: string | null;
-  description?: string | null;
-  content?: string;
-  pronouns?: string | null;
-}
-
-function buildUpdateData(
-  body: Partial<UpdatePersonaBody>
-): PersonaUpdateData | { error: ReturnType<typeof ErrorResponses.validationError> } {
-  const updateData: PersonaUpdateData = {};
-
-  // Required fields: empty string → don't update (preserve existing value)
-  // This matches the pattern clients use: clear field → send ""
-  if (body.name !== undefined) {
-    const nameValue = extractString(body.name);
-    // Only update if non-empty string provided; empty string means "don't change"
-    if (nameValue !== null) {
-      updateData.name = nameValue;
-    }
-  }
-
-  // Content is required and cannot be set to null/empty, so only update if a valid string is provided.
-  // Empty string means "don't change" (preserve existing value).
-  if (body.content !== undefined && body.content !== null) {
-    const contentValue = extractString(body.content);
-    // Only update if non-empty string provided
-    if (contentValue !== null) {
-      if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
-        return {
-          error: ErrorResponses.validationError(
-            `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-          ),
-        };
-      }
-      updateData.content = contentValue;
-    }
-  }
-
-  // Nullable fields: empty string → null (clear the value)
-  if (body.preferredName !== undefined) {
-    updateData.preferredName = extractString(body.preferredName);
-  }
-  if (body.description !== undefined) {
-    updateData.description = extractString(body.description);
-  }
-  if (body.pronouns !== undefined) {
-    updateData.pronouns = extractString(body.pronouns);
-  }
-
-  return updateData;
 }
 
 // --- Main Route Setup ---
