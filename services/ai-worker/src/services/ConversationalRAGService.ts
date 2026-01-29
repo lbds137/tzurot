@@ -282,6 +282,7 @@ export class ConversationalRAGService {
     const { model, modelName } = this.llmInvoker.getModel({
       modelName: personality.model,
       apiKey: userApiKey,
+      // Basic sampling
       temperature: effectiveTemperature,
       topP: personality.topP,
       topK: personality.topK,
@@ -289,6 +290,21 @@ export class ConversationalRAGService {
       presencePenalty: personality.presencePenalty,
       repetitionPenalty: personality.repetitionPenalty,
       maxTokens: personality.maxTokens,
+      // Advanced sampling
+      minP: personality.minP,
+      topA: personality.topA,
+      seed: personality.seed,
+      // Output control
+      stop: personality.stop,
+      logitBias: personality.logitBias,
+      responseFormat: personality.responseFormat,
+      showThinking: personality.showThinking,
+      // Reasoning (for thinking models: o1/o3, Claude, DeepSeek R1)
+      reasoning: personality.reasoning,
+      // OpenRouter-specific
+      transforms: personality.transforms,
+      route: personality.route,
+      verbosity: personality.verbosity,
     });
 
     // Calculate attachment counts for timeout
@@ -314,6 +330,7 @@ export class ConversationalRAGService {
       diagnosticCollector.recordLlmConfig({
         model: modelName,
         provider: modelName.split('/')[0] || 'unknown',
+        // Basic sampling
         temperature: effectiveTemperature,
         topP: personality.topP,
         topK: personality.topK,
@@ -321,6 +338,22 @@ export class ConversationalRAGService {
         frequencyPenalty: effectiveFrequencyPenalty,
         presencePenalty: personality.presencePenalty,
         repetitionPenalty: personality.repetitionPenalty,
+        // Advanced sampling
+        minP: personality.minP,
+        topA: personality.topA,
+        seed: personality.seed,
+        // Output control
+        stop: personality.stop,
+        logitBias: personality.logitBias,
+        responseFormat: personality.responseFormat,
+        showThinking: personality.showThinking,
+        // Reasoning (for thinking models)
+        reasoning: personality.reasoning,
+        // OpenRouter-specific
+        transforms: personality.transforms,
+        route: personality.route,
+        verbosity: personality.verbosity,
+        // Stop sequences (generated at runtime)
         stopSequences,
       });
       diagnosticCollector.markLlmInvocationStart();

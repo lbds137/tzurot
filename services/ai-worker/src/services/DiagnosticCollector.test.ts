@@ -344,6 +344,78 @@ describe('DiagnosticCollector', () => {
       expect(payload.llmConfig.temperature).toBeUndefined();
       expect(payload.llmConfig.topP).toBeUndefined();
     });
+
+    it('should record advanced sampling parameters', () => {
+      collector.recordLlmConfig({
+        model: 'deepseek/deepseek-r1',
+        provider: 'deepseek',
+        minP: 0.1,
+        topA: 0.5,
+        seed: 42,
+        stopSequences: [],
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmConfig.allParams.minP).toBe(0.1);
+      expect(payload.llmConfig.allParams.topA).toBe(0.5);
+      expect(payload.llmConfig.allParams.seed).toBe(42);
+    });
+
+    it('should record reasoning config for thinking models', () => {
+      collector.recordLlmConfig({
+        model: 'deepseek/deepseek-r1',
+        provider: 'deepseek',
+        reasoning: {
+          effort: 'high',
+          enabled: true,
+        },
+        showThinking: true,
+        stopSequences: [],
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmConfig.allParams.reasoning).toEqual({
+        effort: 'high',
+        enabled: true,
+      });
+      expect(payload.llmConfig.allParams.showThinking).toBe(true);
+    });
+
+    it('should record OpenRouter-specific parameters', () => {
+      collector.recordLlmConfig({
+        model: 'openai/gpt-4o',
+        provider: 'openai',
+        transforms: ['middle-out'],
+        route: 'fallback',
+        verbosity: 'high',
+        stopSequences: [],
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmConfig.allParams.transforms).toEqual(['middle-out']);
+      expect(payload.llmConfig.allParams.route).toBe('fallback');
+      expect(payload.llmConfig.allParams.verbosity).toBe('high');
+    });
+
+    it('should record output control parameters', () => {
+      collector.recordLlmConfig({
+        model: 'openai/gpt-4o',
+        provider: 'openai',
+        stop: ['###', '---'],
+        logitBias: { '123': -100 },
+        responseFormat: { type: 'json_object' },
+        stopSequences: [],
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmConfig.allParams.stop).toEqual(['###', '---']);
+      expect(payload.llmConfig.allParams.logitBias).toEqual({ '123': -100 });
+      expect(payload.llmConfig.allParams.responseFormat).toEqual({ type: 'json_object' });
+    });
   });
 
   describe('recordLlmResponse', () => {

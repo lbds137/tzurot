@@ -197,6 +197,35 @@ export const loadedPersonalitySchema = z.object({
   // Reasoning/thinking display
   showThinking: z.boolean().optional(), // Display <think> blocks as separate messages
 
+  // Advanced sampling parameters (from user LLM config)
+  minP: z.number().optional(),
+  topA: z.number().optional(),
+  seed: z.number().optional(),
+
+  // Output control
+  stop: z.array(z.string()).optional(),
+  logitBias: z.record(z.string(), z.number()).optional(),
+  responseFormat: z
+    .object({
+      type: z.enum(['text', 'json_object']),
+    })
+    .optional(),
+
+  // Reasoning configuration (for thinking models: o1/o3, Claude, DeepSeek R1)
+  reasoning: z
+    .object({
+      effort: z.enum(['xhigh', 'high', 'medium', 'low', 'minimal', 'none']).optional(),
+      maxTokens: z.number().optional(),
+      exclude: z.boolean().optional(),
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
+
+  // OpenRouter-specific routing/transform params
+  transforms: z.array(z.string()).optional(),
+  route: z.literal('fallback').optional(),
+  verbosity: z.enum(['low', 'medium', 'high']).optional(),
+
   // Memory configuration
   memoryScoreThreshold: z.number().optional(),
   memoryLimit: z.number().optional(),
