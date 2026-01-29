@@ -31,6 +31,7 @@ import {
   fetchCharacter,
 } from './api.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
+import { buildCharacterDashboardOptions } from './dashboardButtons.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -414,19 +415,7 @@ export async function handleBrowseSelect(
     // Get dashboard config based on edit permissions
     const dashboardConfig = getCharacterDashboardConfig(character.canEdit);
 
-    // Build dashboard embed and components - show back button since we're coming from browse
-    const embed = buildDashboardEmbed(dashboardConfig, character);
-    const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
-      showBack: true, // Show "Back to Browse" instead of close
-      showRefresh: true,
-      showDelete: character.canEdit, // canEdit is server-side authoritative permission
-    });
-
-    // Update the message with the dashboard
-    await interaction.editReply({ embeds: [embed], components });
-
-    // Create session for tracking - include browse context for back navigation
-    const sessionManager = getSessionManager();
+    // Create session data with browse context for back navigation
     const sessionData: CharacterData = {
       ...character,
       browseContext: browseContext
@@ -439,6 +428,21 @@ export async function handleBrowseSelect(
           }
         : undefined,
     };
+
+    // Build dashboard embed and components using shared options builder
+    const embed = buildDashboardEmbed(dashboardConfig, character);
+    const components = buildDashboardComponents(
+      dashboardConfig,
+      character.slug,
+      character,
+      buildCharacterDashboardOptions(sessionData)
+    );
+
+    // Update the message with the dashboard
+    await interaction.editReply({ embeds: [embed], components });
+
+    // Store session for tracking
+    const sessionManager = getSessionManager();
 
     await sessionManager.set<CharacterData>({
       userId,

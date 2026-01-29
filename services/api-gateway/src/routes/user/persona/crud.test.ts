@@ -356,16 +356,25 @@ describe('persona CRUD routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should reject empty name update', async () => {
+    it('should ignore empty name update (preserve existing value)', async () => {
+      const existingPersona = { ...mockPersona, name: 'Existing Name' };
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+      mockPrisma.persona.update.mockResolvedValue(existingPersona);
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:id');
 
+      // Empty name should NOT be included in update (preserves existing)
       const { req, res } = createMockReqRes({ name: '' }, { id: MOCK_PERSONA_ID });
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      // Should succeed and NOT pass name to the update
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.persona.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.not.objectContaining({ name: expect.anything() }),
+        })
+      );
     });
 
     it('should return 400 for invalid UUID format', async () => {
@@ -383,19 +392,23 @@ describe('persona CRUD routes', () => {
       );
     });
 
-    it('should reject empty content update', async () => {
+    it('should ignore empty content (preserve existing value)', async () => {
+      const existingPersona = { ...mockPersona, content: 'Existing content' };
       mockPrisma.persona.findFirst.mockResolvedValue({ id: MOCK_PERSONA_ID });
+      mockPrisma.persona.update.mockResolvedValue(existingPersona);
 
       const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/:id');
 
+      // Empty content should NOT be included in update (preserves existing)
       const { req, res } = createMockReqRes({ content: '' }, { id: MOCK_PERSONA_ID });
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith(
+      // Should succeed and NOT pass content to the update
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.persona.update).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('Content cannot be empty'),
+          data: expect.not.objectContaining({ content: expect.anything() }),
         })
       );
     });

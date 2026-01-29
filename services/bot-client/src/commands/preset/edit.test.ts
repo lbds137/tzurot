@@ -92,11 +92,21 @@ describe('handleEdit', () => {
     // Note: deferReply is now called at the framework level, not in the handler
     expect(mockFetchPreset).toHaveBeenCalledWith('preset-123', 'user-456');
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
+    // Uses buildPresetDashboardOptions for consistent button configuration
     expect(mockBuildDashboardComponents).toHaveBeenCalledWith(
       expect.anything(),
       'preset-123',
       expect.objectContaining({ id: 'preset-123', name: 'Test Preset' }),
-      { showClose: true, showRefresh: true }
+      expect.objectContaining({
+        showClose: true,
+        showRefresh: true,
+        showDelete: true, // isOwned is true
+        showClone: true,
+        toggleGlobal: expect.objectContaining({
+          isGlobal: false,
+          isOwned: true,
+        }),
+      })
     );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [{ title: 'Test Embed' }],

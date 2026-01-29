@@ -40,6 +40,7 @@ import {
 } from '../../utils/browse/index.js';
 import { PRESET_DASHBOARD_CONFIG, flattenPresetData, type FlattenedPresetData } from './config.js';
 import { fetchPreset } from './api.js';
+import { buildPresetDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('preset-browse');
 
@@ -458,28 +459,9 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
       return;
     }
 
-    // Flatten the data for dashboard display
-    const flattenedData = flattenPresetData(preset);
-
-    // Build dashboard embed and components - show back button since we're coming from browse
-    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, presetId, flattenedData, {
-      showBack: true, // Show "Back to Browse" instead of close
-      showRefresh: true,
-      showDelete: flattenedData.isOwned,
-      toggleGlobal: {
-        isGlobal: flattenedData.isGlobal,
-        isOwned: flattenedData.isOwned,
-      },
-    });
-
-    // Update the message with the dashboard
-    await interaction.editReply({ embeds: [embed], components });
-
-    // Create session for tracking - include browse context for back navigation
-    const sessionManager = getSessionManager();
-    const sessionData: FlattenedPresetData = {
-      ...flattenedData,
+    // Flatten the data for dashboard display, including browse context for back navigation
+    const flattenedData: FlattenedPresetData = {
+      ...flattenPresetData(preset),
       browseContext: browseContext
         ? {
             source: 'browse',
@@ -490,11 +472,26 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
         : undefined,
     };
 
+    // Build dashboard embed and components using shared options builder
+    const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
+    const components = buildDashboardComponents(
+      PRESET_DASHBOARD_CONFIG,
+      presetId,
+      flattenedData,
+      buildPresetDashboardOptions(flattenedData)
+    );
+
+    // Update the message with the dashboard
+    await interaction.editReply({ embeds: [embed], components });
+
+    // Create session for tracking (flattenedData already has browseContext)
+    const sessionManager = getSessionManager();
+
     await sessionManager.set<FlattenedPresetData>({
       userId,
       entityType: 'preset',
       entityId: presetId,
-      data: sessionData,
+      data: flattenedData,
       messageId: interaction.message.id,
       channelId: interaction.channelId,
     });
