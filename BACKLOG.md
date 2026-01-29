@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-01-28
+> **Last Updated**: 2026-01-29
 > **Version**: v3.0.0-beta.55
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -216,6 +216,19 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 ## Smaller Items
 
 _Opportunistic work between major features._
+
+### ✨ Dynamic Model Selection for Presets
+
+Preset creation via slash command should use OpenRouter's model list dynamically instead of hardcoded options.
+
+- [ ] Fetch and cache OpenRouter model list (see `~/Projects/council-mcp` for reference implementation)
+- [ ] Model slug dropdown populated from cached models (autocomplete)
+- [ ] Vision model selection restricted to models with `image` modality
+- [ ] Context window tokens auto-calculated as half of model's advertised context
+- [ ] Free users restricted to free models only (both main model and vision model)
+- [ ] Cache TTL strategy (models don't change often, ~24h reasonable)
+
+**Reference**: OpenRouter `/api/v1/models` endpoint, council-mcp's model caching pattern
 
 ### 🏗️ Type-Safe Command Options Hardening
 
