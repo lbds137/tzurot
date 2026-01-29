@@ -42,9 +42,10 @@ export interface OpenRouterExtraParams {
  * Solution: Intercept the response and prepend reasoning to content with
  * `<reasoning>` tags. Our existing thinkingExtraction.ts will extract it.
  *
+ * @internal Exported for testing
  * @returns Modified Response with reasoning injected into content, or original if no reasoning
  */
-async function injectReasoningIntoContent(response: Response): Promise<Response> {
+export async function injectReasoningIntoContent(response: Response): Promise<Response> {
   try {
     const responseBody = (await response.json()) as Record<string, unknown>;
     const choices = responseBody.choices as Record<string, unknown>[] | undefined;

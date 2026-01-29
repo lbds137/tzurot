@@ -37,7 +37,12 @@ vi.mock('@tzurot/common-types', () => ({
   },
 }));
 
-import { createChatModel, getModelCacheKey, type ModelConfig } from './ModelFactory.js';
+import {
+  createChatModel,
+  getModelCacheKey,
+  injectReasoningIntoContent,
+  type ModelConfig,
+} from './ModelFactory.js';
 
 describe('ModelFactory', () => {
   beforeEach(() => {
@@ -640,6 +645,174 @@ describe('ModelFactory', () => {
       const config2: ModelConfig = { modelName: 'model-1' };
 
       expect(getModelCacheKey(config1)).not.toBe(getModelCacheKey(config2));
+    });
+  });
+
+  // ===================================
+  // Response Mutation (Reasoning Injection)
+  // ===================================
+
+  describe('injectReasoningIntoContent', () => {
+    /**
+     * Helper to create a mock Response with OpenRouter-style body
+     */
+    function createMockResponse(body: Record<string, unknown>): Response {
+      return new Response(JSON.stringify(body), {
+        status: 200,
+        statusText: 'OK',
+        headers: { 'content-type': 'application/json' },
+      });
+    }
+
+    it('should inject reasoning into content with <reasoning> tags', async () => {
+      const mockBody = {
+        id: 'gen-123',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'The answer is 42.',
+              reasoning: 'Let me think about this carefully...',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+
+      const response = createMockResponse(mockBody);
+      const result = await injectReasoningIntoContent(response);
+
+      const resultBody = (await result.json()) as Record<string, unknown>;
+      const choices = resultBody.choices as Record<string, unknown>[];
+      const message = choices[0].message as Record<string, unknown>;
+
+      // Reasoning should be injected into content with tags
+      expect(message.content).toBe(
+        '<reasoning>\nLet me think about this carefully...\n</reasoning>\n\nThe answer is 42.'
+      );
+
+      // Original reasoning field should be removed
+      expect(message.reasoning).toBeUndefined();
+    });
+
+    it('should preserve content unchanged when no reasoning is present', async () => {
+      const mockBody = {
+        id: 'gen-123',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'The answer is 42.',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+
+      const response = createMockResponse(mockBody);
+      const result = await injectReasoningIntoContent(response);
+
+      const resultBody = (await result.json()) as Record<string, unknown>;
+      const choices = resultBody.choices as Record<string, unknown>[];
+      const message = choices[0].message as Record<string, unknown>;
+
+      // Content should be unchanged
+      expect(message.content).toBe('The answer is 42.');
+    });
+
+    it('should preserve content unchanged when reasoning is empty string', async () => {
+      const mockBody = {
+        id: 'gen-123',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'The answer is 42.',
+              reasoning: '',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+
+      const response = createMockResponse(mockBody);
+      const result = await injectReasoningIntoContent(response);
+
+      const resultBody = (await result.json()) as Record<string, unknown>;
+      const choices = resultBody.choices as Record<string, unknown>[];
+      const message = choices[0].message as Record<string, unknown>;
+
+      // Content should be unchanged
+      expect(message.content).toBe('The answer is 42.');
+    });
+
+    it('should handle response with no message gracefully', async () => {
+      const mockBody = {
+        id: 'gen-123',
+        choices: [
+          {
+            finish_reason: 'stop',
+            // No message field
+          },
+        ],
+      };
+
+      const response = createMockResponse(mockBody);
+      const result = await injectReasoningIntoContent(response);
+
+      // Should return a valid response without crashing
+      expect(result.status).toBe(200);
+      const resultBody = (await result.json()) as Record<string, unknown>;
+      expect(resultBody.id).toBe('gen-123');
+    });
+
+    it('should handle empty content with reasoning', async () => {
+      const mockBody = {
+        id: 'gen-123',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: '', // Empty content
+              reasoning: 'I thought about this but have no response.',
+            },
+            finish_reason: 'stop',
+          },
+        ],
+      };
+
+      const response = createMockResponse(mockBody);
+      const result = await injectReasoningIntoContent(response);
+
+      const resultBody = (await result.json()) as Record<string, unknown>;
+      const choices = resultBody.choices as Record<string, unknown>[];
+      const message = choices[0].message as Record<string, unknown>;
+
+      // Reasoning should still be injected even with empty content
+      expect(message.content).toBe(
+        '<reasoning>\nI thought about this but have no response.\n</reasoning>\n\n'
+      );
+    });
+
+    it('should preserve response status and headers', async () => {
+      const mockBody = {
+        id: 'gen-123',
+        choices: [
+          {
+            message: {
+              role: 'assistant',
+              content: 'Test',
+              reasoning: 'Thinking...',
+            },
+          },
+        ],
+      };
+
+      const response = createMockResponse(mockBody);
+      const result = await injectReasoningIntoContent(response);
+
+      expect(result.status).toBe(200);
+      expect(result.statusText).toBe('OK');
     });
   });
 });
