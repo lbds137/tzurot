@@ -123,6 +123,7 @@ export async function createPreset(
     model: string;
     provider?: string;
     description?: string;
+    visionModel?: string;
     maxReferencedMessages?: number;
   },
   userId: string,

@@ -269,6 +269,32 @@ describe('handleModalSubmit', () => {
       flags: MessageFlags.Ephemeral,
     });
   });
+
+  it('should preserve browseContext when updating preset from browse', async () => {
+    const browseContext = { source: 'browse' as const, page: 2, filter: 'owned' };
+    mockParseDashboardCustomId.mockReturnValue({
+      entityType: 'preset',
+      action: 'modal',
+      entityId: 'preset-123',
+      sectionId: 'identity',
+    });
+    mockSessionManagerGet.mockResolvedValue({
+      data: { id: 'preset-123', name: 'Test', isGlobal: false, isOwned: true, browseContext },
+    });
+    mockUpdatePreset.mockResolvedValue(mockPresetData);
+
+    await handleModalSubmit(createMockModalInteraction('preset::modal::preset-123::identity'));
+
+    // Verify session was updated with browseContext preserved
+    expect(mockSessionManagerUpdate).toHaveBeenCalledWith(
+      'user-456',
+      'preset',
+      'preset-123',
+      expect.objectContaining({
+        browseContext, // browseContext should be preserved
+      })
+    );
+  });
 });
 
 describe('handleSelectMenu', () => {

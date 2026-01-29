@@ -177,6 +177,11 @@ async function handleSectionModalSubmit(
     // Flatten the response for dashboard display
     const flattenedData = flattenPresetData(updatedPreset);
 
+    // Preserve browseContext from existing session for back navigation
+    if (session?.data.browseContext !== undefined) {
+      flattenedData.browseContext = session.data.browseContext;
+    }
+
     // Update session
     if (session !== null) {
       await sessionManager.update<FlattenedPresetData>(
