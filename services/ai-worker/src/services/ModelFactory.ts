@@ -63,6 +63,16 @@ function createOpenRouterFetch(
           body.verbosity = extraParams.verbosity;
         }
 
+        const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
+        logger.info(
+          {
+            url: urlStr,
+            injectedParams: extraParams,
+            hasIncludeReasoning: body.include_reasoning,
+          },
+          '[ModelFactory] Custom fetch injecting OpenRouter params'
+        );
+
         init.body = JSON.stringify(body);
       } catch {
         // If body isn't JSON, pass through unchanged
