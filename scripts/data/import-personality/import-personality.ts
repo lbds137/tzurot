@@ -9,10 +9,13 @@
  * - UUID mapping and orphan handling
  *
  * Usage:
- *   pnpm import-personality cold-kerach-batuach --dry-run
- *   pnpm import-personality cold-kerach-batuach
- *   pnpm import-personality cold-kerach-batuach --memories-only
- *   pnpm import-personality cold-kerach-batuach --force
+ *   pnpm import-personality <slug> --owner-id <uuid> [options]
+ *
+ * Examples:
+ *   pnpm import-personality cold-kerach-batuach --owner-id abc-123 --dry-run
+ *   pnpm import-personality cold-kerach-batuach --owner-id abc-123
+ *   pnpm import-personality cold-kerach-batuach --owner-id abc-123 --memories-only
+ *   pnpm import-personality cold-kerach-batuach --owner-id abc-123 --force
  */
 
 import fs from 'fs/promises';

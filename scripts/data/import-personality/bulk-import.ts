@@ -5,7 +5,7 @@
  * Skips duplicates with same display names (keeps tzel shani and kokhav shenafal versions)
  *
  * Usage:
- *   pnpm tsx scripts/import-personality/bulk-import.ts [--dry-run] [--force]
+ *   pnpm tsx scripts/import-personality/bulk-import.ts --owner-id <uuid> [--dry-run] [--force]
  */
 
 import fs from 'fs/promises';
