@@ -244,6 +244,18 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.isGlobal).toBe(true);
     });
 
+    it('should return 403 if admin user not found in database', async () => {
+      prisma.user.findUnique.mockResolvedValue(null); // Admin not registered
+
+      const response = await request(app).post('/admin/llm-config').send({
+        name: 'New Config',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      expect(response.status).toBe(403);
+      expect(response.body.message).toMatch(/admin user not found/i);
+    });
+
     it('should reject when name is missing', async () => {
       const response = await request(app).post('/admin/llm-config').send({
         model: 'anthropic/claude-sonnet-4',
