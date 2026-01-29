@@ -139,6 +139,13 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     }
   }
 
+  // Clean up orphan closing tags (model truncation can leave closing tags without openers)
+  // Example: ".\n</think>\n\nResponse" -> ".\n\nResponse"
+  visibleContent = visibleContent.replace(
+    /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi,
+    ''
+  );
+
   // Clean up visible content (remove extra whitespace from removed blocks)
   visibleContent = visibleContent
     .replace(/^\s+/, '') // Leading whitespace
