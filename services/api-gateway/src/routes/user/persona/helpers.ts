@@ -5,17 +5,6 @@
 import { UserService, type PrismaClient } from '@tzurot/common-types';
 
 /**
- * Helper to safely extract string from body with trim
- */
-export function extractString(value: unknown, allowEmpty = false): string | null {
-  if (typeof value === 'string') {
-    const trimmed = value.trim();
-    return allowEmpty || trimmed.length > 0 ? trimmed : null;
-  }
-  return null;
-}
-
-/**
  * Get or create internal user from Discord ID
  * Uses centralized UserService to ensure users always get default personas
  */

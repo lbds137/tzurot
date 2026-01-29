@@ -3,32 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { extractString, getOrCreateInternalUser } from './helpers.js';
-
-describe('extractString', () => {
-  it('should return trimmed string for valid input', () => {
-    expect(extractString('  hello  ')).toBe('hello');
-    expect(extractString('test')).toBe('test');
-  });
-
-  it('should return null for empty string by default', () => {
-    expect(extractString('')).toBeNull();
-    expect(extractString('   ')).toBeNull();
-  });
-
-  it('should return empty string when allowEmpty is true', () => {
-    expect(extractString('', true)).toBe('');
-    expect(extractString('   ', true)).toBe('');
-  });
-
-  it('should return null for non-string values', () => {
-    expect(extractString(null)).toBeNull();
-    expect(extractString(undefined)).toBeNull();
-    expect(extractString(123)).toBeNull();
-    expect(extractString({})).toBeNull();
-    expect(extractString([])).toBeNull();
-  });
-});
+import { getOrCreateInternalUser } from './helpers.js';
 
 describe('getOrCreateInternalUser', () => {
   // Mock Prisma with UserService dependencies
