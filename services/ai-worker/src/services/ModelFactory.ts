@@ -158,17 +158,31 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   // The 'reasoning' object configures effort/tokens (OpenAI o1/o3 style)
   addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
 
-  // OpenRouter-specific: include_reasoning must be true to receive reasoning content
-  // This is separate from reasoning.exclude - it's the opt-in flag for OpenRouter
-  // to return the thinking content in the response (otherwise it's stripped)
+  // OpenRouter-specific parameters must go in extra_body
+  // The OpenAI SDK v4+ filters out unknown top-level keys, but passes through extra_body
+  const extraBody: Record<string, unknown> = {};
+
+  // include_reasoning: opt-in flag for OpenRouter to return thinking content
+  // Without this, reasoning models' thinking is stripped from the response
   if (modelConfig.reasoning !== undefined && modelConfig.reasoning.exclude !== true) {
-    kwargs.include_reasoning = true;
+    extraBody.include_reasoning = true;
   }
 
-  // OpenRouter-specific routing/transform
-  addIfNonEmpty(kwargs, 'transforms', modelConfig.transforms);
-  addIfDefined(kwargs, 'route', modelConfig.route);
-  addIfDefined(kwargs, 'verbosity', modelConfig.verbosity);
+  // OpenRouter-specific routing/transform options
+  if (modelConfig.transforms !== undefined && modelConfig.transforms.length > 0) {
+    extraBody.transforms = modelConfig.transforms;
+  }
+  if (modelConfig.route !== undefined) {
+    extraBody.route = modelConfig.route;
+  }
+  if (modelConfig.verbosity !== undefined) {
+    extraBody.verbosity = modelConfig.verbosity;
+  }
+
+  // Only add extra_body if we have OpenRouter-specific params
+  if (Object.keys(extraBody).length > 0) {
+    kwargs.extra_body = extraBody;
+  }
 
   return kwargs;
 }
