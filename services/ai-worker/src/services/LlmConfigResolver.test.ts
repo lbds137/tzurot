@@ -431,6 +431,73 @@ describe('LlmConfigResolver', () => {
       expect(result.config.topK).toBe(40);
       expect(result.config.maxTokens).toBe(4096);
     });
+
+    it('should merge advanced params from override with personality fallbacks', async () => {
+      const personalityWithAdvanced = {
+        ...mockPersonality,
+        reasoning: { effort: 'medium' as const, enabled: true },
+        showThinking: true,
+        minP: 0.05,
+      };
+
+      mockPrisma.user.findFirst.mockResolvedValue({
+        id: 'internal-user-id',
+        defaultLlmConfigId: 'config-id',
+        defaultLlmConfig: {
+          name: 'R1 Config',
+          model: 'deepseek/deepseek-r1',
+          visionModel: null,
+          advancedParameters: {
+            reasoning: { effort: 'high', enabled: true }, // Override reasoning
+            // showThinking not set - should use personality default
+            min_p: 0.1, // Override minP
+          },
+          memoryScoreThreshold: null,
+          memoryLimit: null,
+          contextWindowTokens: null,
+        },
+      });
+      mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue(null);
+
+      const result = await resolver.resolveConfig(
+        'user-123',
+        'personality-id',
+        personalityWithAdvanced
+      );
+
+      // Override takes precedence
+      expect(result.config.reasoning).toEqual({ effort: 'high', enabled: true });
+      expect(result.config.minP).toBe(0.1);
+      // Personality fallback when not in override
+      expect(result.config.showThinking).toBe(true);
+    });
+
+    it('should include advanced params when extracting personality defaults', async () => {
+      const personalityWithAdvanced = {
+        ...mockPersonality,
+        reasoning: { effort: 'high' as const, enabled: true },
+        showThinking: true,
+        minP: 0.05,
+        topA: 0.3,
+        transforms: ['middle-out'],
+        route: 'fallback' as const,
+      };
+
+      // No user - use personality defaults
+      const result = await resolver.resolveConfig(
+        undefined,
+        'personality-id',
+        personalityWithAdvanced
+      );
+
+      expect(result.source).toBe('personality');
+      expect(result.config.reasoning).toEqual({ effort: 'high', enabled: true });
+      expect(result.config.showThinking).toBe(true);
+      expect(result.config.minP).toBe(0.05);
+      expect(result.config.topA).toBe(0.3);
+      expect(result.config.transforms).toEqual(['middle-out']);
+      expect(result.config.route).toBe('fallback');
+    });
   });
 
   describe('cache cleanup', () => {
