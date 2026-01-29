@@ -13,9 +13,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _New items go here. Triage to appropriate section later._
 
-- ✨ `[FEAT]` **Message Reactions in XML** - Add reaction metadata to extended context messages showing emoji and who reacted (use same user/persona resolution as elsewhere)
-- 🏗️ `[LIFT]` **Audit and Reduce Re-exports** - Re-exports create spaghetti code and make it harder to understand module dependencies. Audit existing re-exports in `utils/` index files and eliminate non-essential ones. Update CLAUDE.md and/or skills to discourage re-exports except for truly public APIs (e.g., package entry points like `@tzurot/common-types`). Prefer direct imports from source modules.
-- 🧹 `[CHORE]` **Log Warning for Non-String Zod Values** - `optionalString`/`nullableString` preprocessors silently convert non-string values (objects, numbers) to undefined. Add `logger.warn` when this happens to surface malformed API requests.
+_(Empty - triage complete)_
 
 ---
 
@@ -96,6 +94,14 @@ Chat with personalities in DMs.
 - [ ] Allow personality selection in DMs (`/character chat` in DMs)
 - [ ] Handle first-time DM (no history yet)
 
+### ✨ Message Reactions in XML
+
+Add reaction metadata to extended context messages showing emoji and who reacted.
+
+- [ ] Extract reactions from Discord messages
+- [ ] Format as XML metadata (use same user/persona resolution as elsewhere)
+- [ ] Include in extended context output
+
 ---
 
 ## Epic: v2 Parity
@@ -156,6 +162,13 @@ Zod strips fields not in schema. When we add fields to TS interfaces but forget 
 - [ ] Use `.passthrough()` or `.strict()` during development
 - [ ] Audit: `schemas.ts`, `jobs.ts`, route schemas
 
+### 🧹 Log Warning for Non-String Zod Values
+
+`optionalString`/`nullableString` preprocessors silently convert non-string values (objects, numbers) to undefined.
+
+- [ ] Add `logger.warn` when coercion happens
+- [ ] Helps surface malformed API requests
+
 ---
 
 ## Epic: Observability & Debugging
@@ -174,15 +187,36 @@ Create `scripts/debug/view-failed-jobs.ts` to inspect failed BullMQ jobs.
 
 ---
 
+## Epic: Logging Review (Low Priority)
+
+_High effort, low reward. Do opportunistically._
+
+### 🏗️ Consistent Service Prefix Injection
+
+Currently manually hardcoding `[ServiceName]` in log messages. Should be injected automatically based on where the log originates.
+
+- [ ] Audit current `[Service]` prefix patterns across codebase
+- [ ] Design automatic prefix injection via logger factory
+- [ ] Migrate existing logs to use consistent pattern
+- [ ] Update `createLogger()` to auto-inject service context
+
+**Note**: Large refactor touching most files. Only do when logging becomes a pain point.
+
+### 🧹 Logging Verbosity Audit
+
+Some operations log at INFO when they should be DEBUG.
+
+- [ ] Duplicate detection: PASSED → DEBUG, keep NEAR-MISS/DUPLICATE at INFO
+- [ ] Audit other high-frequency INFO logs
+- [ ] Document logging level guidelines
+
+---
+
 ## Epic: Duplicate Detection Hardening
 
 ### 🏗️ Unbounded History Scanning
 
 Scans entire history looking for 5 assistant messages. Add `MAX_SCAN_DEPTH = 100`.
-
-### 🧹 Logging Verbosity
-
-INFO log for EVERY response. Downgrade PASSED to DEBUG, keep NEAR-MISS/DUPLICATE at INFO.
 
 ---
 
@@ -254,6 +288,14 @@ Currently, model capability detection (stop sequence support, reasoning model de
 - [ ] Cache capabilities with TTL to avoid DB hits on every request
 
 **Reference**: `MODELS_WITHOUT_STOP_SUPPORT` in `LLMInvoker.ts`, `REASONING_MODEL_PATTERNS` in `reasoningModelUtils.ts`
+
+### 🏗️ Audit and Reduce Re-exports
+
+Re-exports create spaghetti code and obscure module dependencies.
+
+- [ ] Audit existing re-exports in `utils/` index files
+- [ ] Eliminate non-essential re-exports
+- [ ] Exception: Package entry points (e.g., `@tzurot/common-types`)
 
 ### 🏗️ N+1 Query Pattern in UserReferenceResolver
 
