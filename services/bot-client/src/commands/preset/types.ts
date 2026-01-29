@@ -9,6 +9,14 @@ import type { EntityPermissions } from '@tzurot/common-types';
 import type { BrowseContext } from '../../utils/dashboard/types.js';
 
 /**
+ * API response wrapper for single preset endpoint
+ * Used by GET /user/llm-config/:id
+ */
+export interface PresetResponse {
+  config: PresetData;
+}
+
+/**
  * Preset data structure returned by API
  * Includes all LLM configuration params from advancedParameters
  */

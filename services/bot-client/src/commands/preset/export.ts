@@ -8,17 +8,9 @@ import { createLogger, isBotOwner, presetExportOptions } from '@tzurot/common-ty
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createJsonAttachment } from '../../utils/jsonFileUtils.js';
-import type { PresetData } from './types.js';
+import type { PresetData, PresetResponse } from './types.js';
 
 const logger = createLogger('preset-export');
-
-/**
- * API response type for preset endpoint
- * Note: API returns 'config' not 'preset' to match api.ts pattern
- */
-interface PresetResponse {
-  config: PresetData;
-}
 
 /**
  * Fields to include in exported JSON
@@ -34,44 +26,44 @@ const EXPORT_FIELDS = [
   'maxReferencedMessages',
 ] as const;
 
+/** Sampling parameter keys to extract from preset params */
+const SAMPLING_PARAMS = [
+  'temperature',
+  'top_p',
+  'top_k',
+  'max_tokens',
+  'seed',
+  'frequency_penalty',
+  'presence_penalty',
+  'repetition_penalty',
+  'min_p',
+  'top_a',
+] as const;
+
+/** Reasoning parameter keys to extract from reasoning config */
+const REASONING_PARAMS = ['effort', 'max_tokens', 'exclude', 'enabled'] as const;
+
+/**
+ * Extract defined parameters from an object using a list of keys
+ */
+function extractDefinedParams<T extends Record<string, unknown>>(
+  source: T,
+  keys: readonly string[]
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const key of keys) {
+    if (source[key] !== undefined) {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
 /**
  * Extract sampling parameters from preset params
  */
 function extractSamplingParams(params: PresetData['params']): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  if (params.temperature !== undefined) {
-    result.temperature = params.temperature;
-  }
-  if (params.top_p !== undefined) {
-    result.top_p = params.top_p;
-  }
-  if (params.top_k !== undefined) {
-    result.top_k = params.top_k;
-  }
-  if (params.max_tokens !== undefined) {
-    result.max_tokens = params.max_tokens;
-  }
-  if (params.seed !== undefined) {
-    result.seed = params.seed;
-  }
-  if (params.frequency_penalty !== undefined) {
-    result.frequency_penalty = params.frequency_penalty;
-  }
-  if (params.presence_penalty !== undefined) {
-    result.presence_penalty = params.presence_penalty;
-  }
-  if (params.repetition_penalty !== undefined) {
-    result.repetition_penalty = params.repetition_penalty;
-  }
-  if (params.min_p !== undefined) {
-    result.min_p = params.min_p;
-  }
-  if (params.top_a !== undefined) {
-    result.top_a = params.top_a;
-  }
-
-  return result;
+  return extractDefinedParams(params, SAMPLING_PARAMS);
 }
 
 /**
@@ -80,22 +72,7 @@ function extractSamplingParams(params: PresetData['params']): Record<string, unk
 function extractReasoningParams(
   reasoning: NonNullable<PresetData['params']['reasoning']>
 ): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
-
-  if (reasoning.effort !== undefined) {
-    result.effort = reasoning.effort;
-  }
-  if (reasoning.max_tokens !== undefined) {
-    result.max_tokens = reasoning.max_tokens;
-  }
-  if (reasoning.exclude !== undefined) {
-    result.exclude = reasoning.exclude;
-  }
-  if (reasoning.enabled !== undefined) {
-    result.enabled = reasoning.enabled;
-  }
-
-  return result;
+  return extractDefinedParams(reasoning, REASONING_PARAMS);
 }
 
 /**

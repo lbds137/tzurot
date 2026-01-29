@@ -8,14 +8,7 @@
 import type { EnvConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { adminFetch, adminPutJson } from '../../utils/adminApiClient.js';
-import type { PresetData } from './config.js';
-
-/**
- * API response type for single preset endpoint
- */
-interface PresetResponse {
-  config: PresetData;
-}
+import type { PresetData, PresetResponse } from './types.js';
 
 /**
  * Fetch a preset by ID (user endpoint)
