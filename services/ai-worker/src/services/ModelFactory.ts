@@ -155,7 +155,15 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   addIfDefined(kwargs, 'response_format', modelConfig.responseFormat);
 
   // Reasoning (CRITICAL for thinking models: o1/o3, Claude, Gemini, DeepSeek R1)
+  // The 'reasoning' object configures effort/tokens (OpenAI o1/o3 style)
   addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
+
+  // OpenRouter-specific: include_reasoning must be true to receive reasoning content
+  // This is separate from reasoning.exclude - it's the opt-in flag for OpenRouter
+  // to return the thinking content in the response (otherwise it's stripped)
+  if (modelConfig.reasoning !== undefined && modelConfig.reasoning.exclude !== true) {
+    kwargs.include_reasoning = true;
+  }
 
   // OpenRouter-specific routing/transform
   addIfNonEmpty(kwargs, 'transforms', modelConfig.transforms);

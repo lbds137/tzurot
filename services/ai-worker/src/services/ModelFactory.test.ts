@@ -348,7 +348,7 @@ describe('ModelFactory', () => {
     // Reasoning parameters (CRITICAL for thinking models)
     // ===================================
 
-    it('should pass reasoning with effort via modelKwargs', () => {
+    it('should pass reasoning with effort via modelKwargs and set include_reasoning', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: { effort: 'high' },
@@ -360,6 +360,8 @@ describe('ModelFactory', () => {
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
             reasoning: { effort: 'high' },
+            // OpenRouter flag to receive reasoning content in response
+            include_reasoning: true,
           }),
         })
       );
@@ -377,6 +379,7 @@ describe('ModelFactory', () => {
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
             reasoning: { max_tokens: 16000 },
+            include_reasoning: true,
           }),
         })
       );
@@ -406,32 +409,37 @@ describe('ModelFactory', () => {
               exclude: false,
               enabled: true,
             },
+            // include_reasoning is set because exclude !== true
+            include_reasoning: true,
           }),
         })
       );
     });
 
-    it('should use maxTokens when effort is not set', () => {
+    it('should use maxTokens when effort is not set and NOT set include_reasoning when exclude: true', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: {
           maxTokens: 16000,
-          exclude: true,
+          exclude: true, // exclude: true means don't return reasoning in response
         },
       };
 
       createChatModel(config);
 
-      expect(mockChatOpenAI).toHaveBeenCalledWith(
-        expect.objectContaining({
-          modelKwargs: expect.objectContaining({
-            reasoning: {
-              max_tokens: 16000,
-              exclude: true,
-            },
-          }),
-        })
-      );
+      // Get the actual call arguments
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
+      };
+      const modelKwargs = callArgs?.modelKwargs;
+
+      // reasoning object should be present
+      expect(modelKwargs?.reasoning).toEqual({
+        max_tokens: 16000,
+        exclude: true,
+      });
+      // include_reasoning should NOT be set when exclude: true
+      expect(modelKwargs?.include_reasoning).toBeUndefined();
     });
 
     // ===================================
