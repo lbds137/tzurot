@@ -386,7 +386,7 @@ export async function handleCloneButton(
 
     const clonedName = generateClonedName(sourceData.name);
 
-    // Create the cloned preset with just name and model (required fields)
+    // Create the cloned preset with basic fields
     const newPreset = await createPreset(
       {
         name: clonedName,
@@ -395,6 +395,10 @@ export async function handleCloneButton(
         description:
           sourceData.description !== undefined && sourceData.description.length > 0
             ? sourceData.description
+            : undefined,
+        visionModel:
+          sourceData.visionModel !== undefined && sourceData.visionModel.length > 0
+            ? sourceData.visionModel
             : undefined,
         maxReferencedMessages:
           sourceData.maxReferencedMessages !== undefined &&
@@ -406,14 +410,23 @@ export async function handleCloneButton(
       config
     );
 
-    // Copy advanced parameters if the source had any
+    // Build update payload for additional fields
     const advancedParams = unflattenPresetData(sourceData);
+    const updatePayload: Record<string, unknown> = {};
+
+    // Copy advanced parameters if the source had any
     if (advancedParams.advancedParameters !== undefined) {
-      await updatePreset(
-        newPreset.id,
-        { advancedParameters: advancedParams.advancedParameters },
-        interaction.user.id
-      );
+      updatePayload.advancedParameters = advancedParams.advancedParameters;
+    }
+
+    // Copy visibility setting (isGlobal)
+    if (sourceData.isGlobal === true) {
+      updatePayload.isGlobal = true;
+    }
+
+    // Apply updates if needed
+    if (Object.keys(updatePayload).length > 0) {
+      await updatePreset(newPreset.id, updatePayload, interaction.user.id);
     }
 
     // Fetch the complete cloned preset to get all fields
