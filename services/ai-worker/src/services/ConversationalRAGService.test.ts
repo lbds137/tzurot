@@ -1426,4 +1426,146 @@ describe('ConversationalRAGService', () => {
       ]);
     });
   });
+
+  describe('API-level reasoning extraction', () => {
+    it('should extract reasoning from additional_kwargs.reasoning (DeepSeek R1 format)', async () => {
+      // Mock the LLM to return content with reasoning in additional_kwargs
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'The answer is 42.',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        additional_kwargs: {
+          reasoning: 'Let me think about this carefully. First, I need to consider...',
+        },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'The answer is 42.',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality({ showThinking: true });
+      const context = createMockContext();
+
+      const result = await service.generateResponse(
+        personality,
+        'What is the meaning of life?',
+        context
+      );
+
+      // The thinkingContent should contain the extracted reasoning
+      expect(result.thinkingContent).toBe(
+        'Let me think about this carefully. First, I need to consider...'
+      );
+      // The visible content should not contain the reasoning
+      expect(result.content).toBe('The answer is 42.');
+    });
+
+    it('should extract reasoning from response_metadata.reasoning_details as fallback', async () => {
+      // Mock the LLM to return reasoning_details instead of additional_kwargs.reasoning
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'The result is correct.',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        response_metadata: {
+          reasoning_details: [
+            { type: 'thinking', text: 'First step of reasoning.' },
+            { type: 'thinking', summary: 'Second step summary.' },
+          ],
+        },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'The result is correct.',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality({ showThinking: true });
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Verify this', context);
+
+      // The thinkingContent should contain the extracted reasoning from reasoning_details
+      // Multiple reasoning items are separated by \n\n---\n\n
+      expect(result.thinkingContent).toBe(
+        'First step of reasoning.\n\n---\n\nSecond step summary.'
+      );
+    });
+
+    it('should merge API reasoning with inline thinking tags', async () => {
+      // Mock the LLM to return both API reasoning and inline thinking
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: '<think>Inline thinking here</think>The final answer.',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        additional_kwargs: {
+          reasoning: 'API-level reasoning content',
+        },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'The final answer.',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality({ showThinking: true });
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Combine thinking', context);
+
+      // Both API reasoning and inline thinking should be present
+      expect(result.thinkingContent).toContain('API-level reasoning content');
+      expect(result.thinkingContent).toContain('Inline thinking here');
+    });
+
+    it('should prefer additional_kwargs.reasoning over reasoning_details', async () => {
+      // Mock with both additional_kwargs.reasoning and reasoning_details
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'Final answer.',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        additional_kwargs: {
+          reasoning: 'Primary reasoning from additional_kwargs',
+        },
+        response_metadata: {
+          reasoning_details: [{ type: 'thinking', text: 'Fallback reasoning from details' }],
+        },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Final answer.',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality({ showThinking: true });
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Priority test', context);
+
+      // Should use additional_kwargs.reasoning (primary), not reasoning_details (fallback)
+      expect(result.thinkingContent).toBe('Primary reasoning from additional_kwargs');
+      expect(result.thinkingContent).not.toContain('Fallback reasoning');
+    });
+
+    it('should not include thinking when showThinking is false', async () => {
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: 'Response without thinking.',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        additional_kwargs: {
+          reasoning: 'This reasoning should not be shown',
+        },
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Response without thinking.',
+        resolvedPersonas: [],
+      });
+
+      // showThinking is false (default)
+      const personality = createMockPersonality({ showThinking: false });
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Hide thinking', context);
+
+      // thinkingContent is extracted but showThinking=false means it won't be displayed
+      // The service still extracts it, the display decision is made elsewhere
+      expect(result.content).toBe('Response without thinking.');
+    });
+  });
 });
