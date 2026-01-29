@@ -348,7 +348,7 @@ describe('ModelFactory', () => {
     // Reasoning parameters (CRITICAL for thinking models)
     // ===================================
 
-    it('should pass reasoning with effort via modelKwargs and set include_reasoning', () => {
+    it('should pass reasoning with effort via modelKwargs and set include_reasoning in extra_body', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: { effort: 'high' },
@@ -360,8 +360,8 @@ describe('ModelFactory', () => {
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
             reasoning: { effort: 'high' },
-            // OpenRouter flag to receive reasoning content in response
-            include_reasoning: true,
+            // OpenRouter flag to receive reasoning content in response (in extra_body)
+            extra_body: { include_reasoning: true },
           }),
         })
       );
@@ -379,7 +379,7 @@ describe('ModelFactory', () => {
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
             reasoning: { max_tokens: 16000 },
-            include_reasoning: true,
+            extra_body: { include_reasoning: true },
           }),
         })
       );
@@ -409,8 +409,8 @@ describe('ModelFactory', () => {
               exclude: false,
               enabled: true,
             },
-            // include_reasoning is set because exclude !== true
-            include_reasoning: true,
+            // include_reasoning is set in extra_body because exclude !== true
+            extra_body: { include_reasoning: true },
           }),
         })
       );
@@ -438,15 +438,15 @@ describe('ModelFactory', () => {
         max_tokens: 16000,
         exclude: true,
       });
-      // include_reasoning should NOT be set when exclude: true
-      expect(modelKwargs?.include_reasoning).toBeUndefined();
+      // extra_body should NOT be set when exclude: true (no include_reasoning)
+      expect(modelKwargs?.extra_body).toBeUndefined();
     });
 
     // ===================================
-    // OpenRouter-specific parameters
+    // OpenRouter-specific parameters (in extra_body)
     // ===================================
 
-    it('should pass transforms via modelKwargs', () => {
+    it('should pass transforms via extra_body in modelKwargs', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         transforms: ['middle-out'],
@@ -457,13 +457,13 @@ describe('ModelFactory', () => {
       expect(mockChatOpenAI).toHaveBeenCalledWith(
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
-            transforms: ['middle-out'],
+            extra_body: { transforms: ['middle-out'] },
           }),
         })
       );
     });
 
-    it('should pass route via modelKwargs', () => {
+    it('should pass route via extra_body in modelKwargs', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         route: 'fallback',
@@ -474,13 +474,13 @@ describe('ModelFactory', () => {
       expect(mockChatOpenAI).toHaveBeenCalledWith(
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
-            route: 'fallback',
+            extra_body: { route: 'fallback' },
           }),
         })
       );
     });
 
-    it('should pass verbosity via modelKwargs', () => {
+    it('should pass verbosity via extra_body in modelKwargs', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         verbosity: 'low',
@@ -491,7 +491,7 @@ describe('ModelFactory', () => {
       expect(mockChatOpenAI).toHaveBeenCalledWith(
         expect.objectContaining({
           modelKwargs: expect.objectContaining({
-            verbosity: 'low',
+            extra_body: { verbosity: 'low' },
           }),
         })
       );
@@ -525,8 +525,12 @@ describe('ModelFactory', () => {
             stop: ['END'],
             response_format: { type: 'text' },
             reasoning: { effort: 'high' },
-            transforms: ['middle-out'],
-            route: 'fallback',
+            // OpenRouter-specific params go in extra_body
+            extra_body: {
+              include_reasoning: true,
+              transforms: ['middle-out'],
+              route: 'fallback',
+            },
           }),
         })
       );
