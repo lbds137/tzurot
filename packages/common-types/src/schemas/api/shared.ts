@@ -84,6 +84,10 @@ export function optionalString(maxLength = 100): z.ZodType<string | undefined> {
         const trimmed = val.trim();
         return trimmed.length === 0 ? undefined : trimmed;
       }
+      // Non-string values (numbers, objects, etc.) become undefined for safety
+      if (val !== undefined) {
+        return undefined;
+      }
       return val;
     },
     z.union([z.undefined(), z.string().min(1).max(maxLength)])
@@ -114,6 +118,11 @@ export function nullableString(maxLength = 500): z.ZodType<string | null | undef
       if (typeof val === 'string') {
         const trimmed = val.trim();
         return trimmed.length === 0 ? null : trimmed;
+      }
+      // Non-string values (numbers, objects, etc.) become undefined for safety
+      // (preserves existing value rather than inadvertently clearing)
+      if (val !== null && val !== undefined) {
+        return undefined;
       }
       return val;
     },
