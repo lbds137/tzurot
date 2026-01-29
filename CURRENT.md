@@ -1,42 +1,30 @@
 # Current
 
 > **Session**: 2026-01-28
-> **Version**: v3.0.0-beta.54
+> **Version**: v3.0.0-beta.55
 
 ---
 
 ## Session Goal
 
-Fix bugs and improvements: model indicator for errors, extended context DB cap, persona edit error.
+_(No active task - ready for next work item)_
 
 ---
 
-## Active Task
+## Completed This Session
 
-### Bug Fixes (2026-01-28)
-
-1. **Model indicator for errors** ✅ - Display footer (model used, guest mode, etc.) on error responses too
-2. **Extended context DB cap** ✅ - Use `extended_context_max_messages` setting to limit DB query instead of dynamic context window
-3. **Persona edit error** ✅ - Fixed empty content validation causing update failures
-4. **Debug command for failures** ✅ - `/admin debug` now works for failed requests (stores diagnostics on error path)
-
----
-
-## Scratchpad
-
-### Issue 3 Root Cause (RESOLVED)
-
-- **Root Cause**: Identity section modal includes ALL 5 fields (name, preferredName, pronouns, description, content)
-- When content is empty in modal, `unflattenPersonaData` converted `''` to `null`
-- API saw `body.content = null` (not undefined), entered validation block
-- `extractString(null)` returns `null`, triggering "Content cannot be empty" error
-- **Fix**: Both API and bot-client updated - empty content now omitted from update payload instead of sending null
+- **PR #537**: Stop sequences fix for GLM 4.5 Air (filter unsupported params)
+- **PR #538**: Make ownerId NOT NULL on LlmConfig and Personality
+  - Sync table order fixed
+  - FK constraint updated (SetNull → Cascade)
+  - Migration includes orphaned FK safety check
+  - All tests updated with proper user mocks
 
 ---
 
 ## Recent Highlights
 
-- **beta.55** (pending): Tech Debt Sprint - 31→0 lint warnings, 40+ suppressions audited, PgvectorMemoryAdapter component test
+- **beta.55**: ownerId NOT NULL migration, stop sequences fix, model footer on errors
 - **beta.54**: Standardize button emoji usage, preserve browseContext in refresh handler
 - **beta.53**: Type-safe command option accessors, UX Standardization epic complete (114 files, 25 commits)
 - **beta.52**: Shared browse/dashboard utilities, `/persona` and `/settings` commands, customId standardization

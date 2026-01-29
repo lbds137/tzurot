@@ -14,7 +14,6 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 _New items go here. Triage to appropriate section later._
 
 - ✨ `[FEAT]` **Message Reactions in XML** - Add reaction metadata to extended context messages showing emoji and who reacted (use same user/persona resolution as elsewhere)
-- 🏗️ `[LIFT]` **Make ownerId NOT NULL** - `LlmConfig.ownerId` and `Personality.ownerId` are nullable but all records have owners. Migration to make non-nullable + clean up code paths handling null (removes dead "global/unowned" concept)
 - 🏗️ `[LIFT]` **Audit and Reduce Re-exports** - Re-exports create spaghetti code and make it harder to understand module dependencies. Audit existing re-exports in `utils/` index files and eliminate non-essential ones. Update CLAUDE.md and/or skills to discourage re-exports except for truly public APIs (e.g., package entry points like `@tzurot/common-types`). Prefer direct imports from source modules.
 
 ---
@@ -23,33 +22,7 @@ _New items go here. Triage to appropriate section later._
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. 🏗️ Slash Command & Dashboard UX Standardization ✅ DONE
-
-Comprehensive standardization of slash commands and dashboard interactions completed across 114 files.
-
-**Completed Work (beta.52-53):**
-
-- [x] Extracted shared browse utilities into `utils/browse/` (buttonBuilder, customIdFactory, constants, truncation, types)
-- [x] Extracted shared dashboard utilities into `utils/dashboard/` (closeHandler, refreshHandler, sessionHelpers, constants)
-- [x] Migrated all browse commands to use shared factory pattern
-- [x] Migrated all dashboards to use shared DASHBOARD_MESSAGES constants
-- [x] Added type-safe command option accessors (`scripts/generate-command-types.ts`)
-- [x] All 55 command handlers migrated to generated type-safe option accessors
-- [x] Fixed `isDashboardInteraction` checks to only match dashboard actions
-- [x] Added tests for non-dashboard actions (expand, browse, create) not matching dashboard checks
-- [x] Fixed `wallet::` → `settings::apikey::` customId prefix pattern
-- [x] Removed `componentPrefixes` hack - commands route naturally via matching prefixes
-- [x] Hardened clone name regex to prevent ReDoS
-- [x] Updated `tzurot-slash-command-ux` skill with file structure patterns
-- [x] Documented autocomplete patterns in skill
-
-**Remaining Polish (moved to Smaller Items):**
-
-- Dashboard refresh race condition - Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere
-
-**Stats**: 29 commits, +6510/-1433 lines (114 files changed)
-
-### 2. 🏗️ Extended Context Pipeline Refactor
+### 1. 🏗️ Extended Context Pipeline Refactor
 
 The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync. This is blocking reliable feature development.
 
@@ -60,7 +33,7 @@ The pipeline has two parallel code paths (extended context on/off) that constant
 
 **Files**: `DiscordChannelFetcher.ts`, `MessageContextBuilder.ts`, `conversationUtils.ts`, pipeline steps
 
-### 3. ✨ LTM Summarization (Shapes.inc Style)
+### 2. ✨ LTM Summarization (Shapes.inc Style)
 
 Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
 
@@ -70,7 +43,7 @@ Verbatim conversation storage is redundant with extended context. Replace with L
 
 **Depends on**: Pipeline Refactor
 
-### 4. 🏗️ Memories Table Migration
+### 3. 🏗️ Memories Table Migration
 
 Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
 
@@ -79,15 +52,6 @@ Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified for
 - [ ] Run existing verbatim memories through summarizer
 
 **Depends on**: LTM Summarization
-
-### 5. ✅ Admin Debug Doesn't Work with Failures (DONE)
-
-`/admin debug` now shows diagnostics for failed jobs.
-
-- [x] Record diagnostics on failure path, not just success path
-- [x] Capture partial state at failure point
-- [x] Add error field to DiagnosticPayload with category, message, referenceId
-- [x] Update debug embed to show error information with red color
 
 ---
 
@@ -270,10 +234,6 @@ SessionManager has acknowledged gap in testing Redis failure scenarios. Add fail
 
 Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere. Low priority - edge case.
 
-### 🐛 Thinking Tag Leaking ✅ DONE
-
-Fixed in beta.56 (PR #535). Added support for DeepSeek R1, Qwen QwQ, GLM-4.x, Kimi K2 model detection and comprehensive tag stripping (`<think>`, `<thinking>`, `<thought>`, `<reasoning>`, `<reflection>`, `<scratchpad>`, `<ant_thinking>`).
-
 ### 🏗️ Database-Configurable Model Capabilities
 
 Currently, model capability detection (stop sequence support, reasoning model detection) is hardcoded in `LLMInvoker.ts` and `reasoningModelUtils.ts`. When OpenRouter adds/changes models, we need code deployments.
@@ -301,29 +261,9 @@ Add Redis-based `processed:${discordMessageId}` check in `AIJobProcessor` to pre
 
 Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
 
-### 🧹 Lint Warnings ✅ DONE
-
-~~37 warnings~~ → **0 warnings** (beta.55 Tech Debt Sprint)
-
-- Refactored 8 route handlers to extract helper functions
-- Added documented suppressions where appropriate (40+ audited)
-- All suppressions now have inline justifications
-
 ### 🧹 Consolidate import-personality Scripts
 
 `scripts/data/import-personality/` workspace needs cleanup.
-
-### 🧹 Railway CLI Non-Interactive Mode & Docs Consolidation ✅ DONE
-
-Railway shipped non-interactive CLI options (January 2026) - "AI friendly" calls for all methods.
-
-**Completed (beta.55)**:
-
-- [x] Research Railway's new non-interactive CLI options (v4.27.4)
-- [x] Update `RAILWAY_CLI_REFERENCE.md` with non-interactive section (--json, --browserless, --2fa-code, --yes)
-- [x] Consolidate 3 deployment docs into `RAILWAY_OPERATIONS.md`
-- [x] Update `tzurot-deployment` skill with correct commands and references
-- [x] Tooling already uses `--json` where beneficial (env-runner.ts)
 
 ### 🧹 Railway Ops CLI Enhancements
 
