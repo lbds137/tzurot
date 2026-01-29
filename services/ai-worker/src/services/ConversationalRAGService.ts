@@ -421,6 +421,17 @@ export class ConversationalRAGService {
         promptTokens: usageMetadata?.input_tokens ?? 0,
         completionTokens: usageMetadata?.output_tokens ?? 0,
         modelUsed: modelName,
+        // Debug info for troubleshooting reasoning extraction
+        reasoningDebug: {
+          additionalKwargsKeys: additionalKwargs !== undefined ? Object.keys(additionalKwargs) : [],
+          hasReasoningInKwargs:
+            additionalKwargs?.reasoning !== undefined &&
+            typeof additionalKwargs.reasoning === 'string',
+          reasoningKwargsLength:
+            typeof additionalKwargs?.reasoning === 'string' ? additionalKwargs.reasoning.length : 0,
+          responseMetadataKeys: responseMetadata !== undefined ? Object.keys(responseMetadata) : [],
+          hasReasoningDetails: Array.isArray(responseMetadata?.reasoning_details),
+        },
       });
     }
 

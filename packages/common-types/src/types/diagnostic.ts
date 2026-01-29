@@ -206,6 +206,19 @@ export interface DiagnosticLlmResponse {
   completionTokens: number;
   /** Model actually used (may differ from requested) */
   modelUsed: string;
+  /** Debug info for reasoning extraction troubleshooting */
+  reasoningDebug?: {
+    /** Keys present in additional_kwargs from LangChain response */
+    additionalKwargsKeys: string[];
+    /** Whether reasoning field exists in additional_kwargs */
+    hasReasoningInKwargs: boolean;
+    /** Length of reasoning string (if present) */
+    reasoningKwargsLength: number;
+    /** Keys present in response_metadata */
+    responseMetadataKeys: string[];
+    /** Whether reasoning_details array exists in response_metadata */
+    hasReasoningDetails: boolean;
+  };
 }
 
 /**
