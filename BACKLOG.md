@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-01-29
-> **Version**: v3.0.0-beta.55
+> **Version**: v3.0.0-beta.56
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -15,6 +15,8 @@ _New items go here. Triage to appropriate section later._
 
 - ✨ `[FEAT]` **Message Reactions in XML** - Add reaction metadata to extended context messages showing emoji and who reacted (use same user/persona resolution as elsewhere)
 - 🏗️ `[LIFT]` **Audit and Reduce Re-exports** - Re-exports create spaghetti code and make it harder to understand module dependencies. Audit existing re-exports in `utils/` index files and eliminate non-essential ones. Update CLAUDE.md and/or skills to discourage re-exports except for truly public APIs (e.g., package entry points like `@tzurot/common-types`). Prefer direct imports from source modules.
+- 🧹 `[CHORE]` **Log Warning for Non-String Zod Values** - `optionalString`/`nullableString` preprocessors silently convert non-string values (objects, numbers) to undefined. Add `logger.warn` when this happens to surface malformed API requests.
+- 🧹 `[CHORE]` **Document Reasoning Model Formats** - Create reference doc listing which models use API-level reasoning (`additional_kwargs.reasoning` for DeepSeek R1) vs inline tags (`<think>` for Claude, etc.) to help users understand thinking extraction behavior.
 
 ---
 
