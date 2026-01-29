@@ -388,12 +388,18 @@ export class ConversationalRAGService {
         finishReason?: string;
         stop?: string;
         stop_sequence?: string;
-        // OpenRouter API-level reasoning (DeepSeek R1, Claude Extended Thinking, etc.)
+        // OpenRouter API-level reasoning (some providers use this format)
         reasoning_details?: unknown[];
+      };
+      // LangChain puts unknown fields from the API response here
+      // OpenRouter puts DeepSeek R1's reasoning content in additional_kwargs.reasoning
+      additional_kwargs?: {
+        reasoning?: string;
       };
     };
     const usageMetadata = responseData.usage_metadata;
     const responseMetadata = responseData.response_metadata;
+    const additionalKwargs = responseData.additional_kwargs;
 
     // Record LLM response for diagnostics
     if (diagnosticCollector) {
@@ -421,24 +427,43 @@ export class ConversationalRAGService {
     // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
     const deduplicatedContent = removeDuplicateResponse(rawContent);
 
-    // Extract thinking content from TWO sources:
-    // 1. API-level reasoning (OpenRouter's reasoning_details field)
-    // 2. Inline thinking tags (<think>, <thinking>, etc.)
+    // Extract thinking content from THREE sources (in priority order):
+    // 1. additional_kwargs.reasoning - OpenRouter puts DeepSeek R1 reasoning here
+    // 2. response_metadata.reasoning_details - Some providers use this format
+    // 3. Inline thinking tags (<think>, <thinking>, etc.) - In the content itself
     //
-    // API-level reasoning is returned by models like DeepSeek R1 via OpenRouter
-    // when reasoning.exclude: false is set. Inline tags are used by some models
-    // or when reasoning is prompted (e.g., "think step by step in <think> tags").
-    const apiReasoning = extractApiReasoningContent(responseMetadata?.reasoning_details);
+    // LangChain's ChatOpenAI puts unknown API response fields in additional_kwargs,
+    // which is where OpenRouter places the extracted thinking content for R1 models.
+    let apiReasoning: string | null = null;
+
+    // First check additional_kwargs.reasoning (primary location for DeepSeek R1)
+    if (
+      additionalKwargs?.reasoning !== undefined &&
+      typeof additionalKwargs.reasoning === 'string' &&
+      additionalKwargs.reasoning.length > 0
+    ) {
+      apiReasoning = additionalKwargs.reasoning;
+      logger.debug(
+        { reasoningLength: apiReasoning.length },
+        '[RAG] Found reasoning content in additional_kwargs.reasoning'
+      );
+    }
+    // Fall back to reasoning_details array (some providers use this format)
+    else {
+      apiReasoning = extractApiReasoningContent(responseMetadata?.reasoning_details);
+    }
+
+    // Extract inline thinking tags from content
     const { thinkingContent: inlineThinking, visibleContent } =
       extractThinkingBlocks(deduplicatedContent);
 
-    // Merge both sources - API reasoning first, then inline
+    // Merge all sources - API reasoning first, then inline
     const thinkingContent = mergeThinkingContent(apiReasoning, inlineThinking);
 
     if (apiReasoning !== null) {
       logger.debug(
         { apiReasoningLength: apiReasoning.length, hasInline: inlineThinking !== null },
-        '[RAG] Extracted API-level reasoning from response metadata'
+        '[RAG] Extracted API-level reasoning from response'
       );
     }
 
