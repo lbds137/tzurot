@@ -11,6 +11,7 @@ import {
   hasReasoningEnabled,
   validateReasoningConstraints,
   advancedParamsToConfigFormat,
+  LLM_CONFIG_OVERRIDE_KEYS,
   type AdvancedParams,
 } from './llmAdvancedParams.js';
 
@@ -629,6 +630,56 @@ describe('LLM Advanced Params Schema', () => {
       const result = advancedParamsToConfigFormat(input);
       expect(result.reasoning?.effort).toBe('medium');
       expect(result.reasoning?.maxTokens).toBeUndefined();
+    });
+  });
+
+  describe('LLM_CONFIG_OVERRIDE_KEYS', () => {
+    it('should contain all ConvertedLlmParams keys', () => {
+      // These are the keys from ConvertedLlmParams that come from advancedParamsToConfigFormat
+      const convertedParamKeys = [
+        'temperature',
+        'topP',
+        'topK',
+        'frequencyPenalty',
+        'presencePenalty',
+        'repetitionPenalty',
+        'minP',
+        'topA',
+        'seed',
+        'maxTokens',
+        'stop',
+        'logitBias',
+        'responseFormat',
+        'showThinking',
+        'reasoning',
+        'transforms',
+        'route',
+        'verbosity',
+      ];
+
+      for (const key of convertedParamKeys) {
+        expect(LLM_CONFIG_OVERRIDE_KEYS).toContain(key);
+      }
+    });
+
+    it('should contain database-specific keys', () => {
+      // These keys exist in LoadedPersonality/ResolvedLlmConfig but not in AdvancedParams
+      const dbSpecificKeys = [
+        'visionModel',
+        'memoryScoreThreshold',
+        'memoryLimit',
+        'contextWindowTokens',
+      ];
+
+      for (const key of dbSpecificKeys) {
+        expect(LLM_CONFIG_OVERRIDE_KEYS).toContain(key);
+      }
+    });
+
+    it('should have exactly 22 keys', () => {
+      // This test ensures we notice if keys are accidentally added or removed
+      // Update this number when intentionally adding new config params
+      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(22);
     });
   });
 });
