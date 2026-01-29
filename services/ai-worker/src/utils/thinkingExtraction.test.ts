@@ -283,6 +283,30 @@ The answer is 42.`;
       expect(result.visibleContent).toBe('');
       expect(result.blockCount).toBe(1);
     });
+
+    it('should strip orphan closing tags (truncated model output)', () => {
+      // This happens when model truncation loses the opening tag and content
+      // Example: chimera model returning ".\n</think>\n\n*Response*"
+      const content = '.\n</think>\n\n*Acknowledged. System status unchanged.*';
+      const result = extractThinkingBlocks(content);
+
+      // No thinking extracted (we don't know what was in the truncated part)
+      expect(result.thinkingContent).toBeNull();
+      // But the orphan closing tag should be stripped from visible content
+      expect(result.visibleContent).toBe('.\n\n*Acknowledged. System status unchanged.*');
+      expect(result.visibleContent).not.toContain('</think>');
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('should strip multiple orphan closing tags', () => {
+      const content = '</think>Response</thinking>More text</reasoning>';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('ResponseMore text');
+      expect(result.visibleContent).not.toContain('</');
+      expect(result.blockCount).toBe(0);
+    });
   });
 
   describe('real-world examples', () => {
