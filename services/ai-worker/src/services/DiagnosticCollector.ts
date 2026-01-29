@@ -141,6 +141,14 @@ export interface LlmResponseData {
   promptTokens: number;
   completionTokens: number;
   modelUsed: string;
+  /** Debug info for reasoning extraction troubleshooting */
+  reasoningDebug?: {
+    additionalKwargsKeys: string[];
+    hasReasoningInKwargs: boolean;
+    reasoningKwargsLength: number;
+    responseMetadataKeys: string[];
+    hasReasoningDetails: boolean;
+  };
 }
 
 /**
@@ -401,6 +409,7 @@ export class DiagnosticCollector {
       promptTokens: data.promptTokens,
       completionTokens: data.completionTokens,
       modelUsed: data.modelUsed,
+      reasoningDebug: data.reasoningDebug,
     };
   }
 

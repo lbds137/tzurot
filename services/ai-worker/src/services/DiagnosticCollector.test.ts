@@ -456,6 +456,49 @@ describe('DiagnosticCollector', () => {
       const payload = collector.finalize();
       expect(payload.llmResponse.stopSequenceTriggered).toBe('Human:');
     });
+
+    it('should record reasoning debug info when provided', () => {
+      collector.recordLlmResponse({
+        rawContent: 'Response with reasoning',
+        finishReason: 'stop',
+        stopSequenceTriggered: null,
+        promptTokens: 200,
+        completionTokens: 50,
+        modelUsed: 'deepseek/deepseek-r1',
+        reasoningDebug: {
+          additionalKwargsKeys: ['reasoning', 'usage'],
+          hasReasoningInKwargs: true,
+          reasoningKwargsLength: 1500,
+          responseMetadataKeys: ['finish_reason', 'model'],
+          hasReasoningDetails: false,
+        },
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmResponse.reasoningDebug).toEqual({
+        additionalKwargsKeys: ['reasoning', 'usage'],
+        hasReasoningInKwargs: true,
+        reasoningKwargsLength: 1500,
+        responseMetadataKeys: ['finish_reason', 'model'],
+        hasReasoningDetails: false,
+      });
+    });
+
+    it('should omit reasoning debug when not provided', () => {
+      collector.recordLlmResponse({
+        rawContent: 'Simple response',
+        finishReason: 'stop',
+        stopSequenceTriggered: null,
+        promptTokens: 50,
+        completionTokens: 10,
+        modelUsed: 'gpt-4o',
+      });
+
+      const payload = collector.finalize();
+
+      expect(payload.llmResponse.reasoningDebug).toBeUndefined();
+    });
   });
 
   describe('recordPostProcessing', () => {
