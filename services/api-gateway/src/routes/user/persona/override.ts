@@ -7,6 +7,7 @@
  */
 
 import { Router, type Response } from 'express';
+import { z } from 'zod';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
@@ -16,13 +17,27 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import { validateSlug, validateUuid } from '../../../utils/validators.js';
+import { validateSlug } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import type { PersonaOverrideSummary, OverrideBody } from './types.js';
-import { extractString, getOrCreateInternalUser } from './helpers.js';
+import type { PersonaOverrideSummary } from './types.js';
+import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-override');
+
+/**
+ * UUID format regex - validates format without strict RFC 4122 compliance.
+ * This matches the existing validateUuid helper behavior.
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Schema for setting a persona override.
+ * personaId must be a UUID format string.
+ */
+const SetOverrideBodySchema = z.object({
+  personaId: z.string().regex(UUID_REGEX, 'Invalid persona ID format'),
+});
 
 // --- Handler Factories ---
 
@@ -93,22 +108,20 @@ function createSetHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const personalitySlug = getParam(req.params.personalitySlug);
-    const body = req.body as Partial<OverrideBody>;
 
     const slugValidation = validateSlug(personalitySlug);
     if (!slugValidation.valid) {
       return sendError(res, slugValidation.error);
     }
 
-    const personaIdValue = extractString(body.personaId);
-    if (personaIdValue === null) {
-      return sendError(res, ErrorResponses.validationError('personaId is required'));
+    // Validate request body with Zod
+    const parseResult = SetOverrideBodySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      return sendError(res, ErrorResponses.validationError(firstIssue.message));
     }
 
-    const personaIdValidation = validateUuid(personaIdValue, 'persona ID');
-    if (!personaIdValidation.valid) {
-      return sendError(res, personaIdValidation.error);
-    }
+    const { personaId: personaIdValue } = parseResult.data;
 
     const user = await getOrCreateInternalUser(prisma, discordUserId);
 
