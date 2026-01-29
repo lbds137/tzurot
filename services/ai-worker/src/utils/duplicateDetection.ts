@@ -98,13 +98,27 @@ export const SEMANTIC_SIMILARITY_THRESHOLD = 0.88;
 // ============================================================================
 
 /**
- * Temperature to use on Attempt 2 when normal generation produced a duplicate.
+ * Temperature range for Attempt 2 when normal generation produced a duplicate.
  * Higher temperature increases randomness, helping to break API-level caching.
  *
- * Capped at 1.0 - some providers (Z.AI, etc.) reject temperature > 1.0
- * TODO: Investigate better cache-busting strategies that work across all providers
+ * Uses random jitter between 0.95-1.0 instead of a fixed value because:
+ * - Fixed values can still hit provider-level caches
+ * - Random variation ensures each retry has a different cache key
+ * - Capped at 1.0 since some providers (Z.AI, etc.) reject temperature > 1.0
  */
-export const RETRY_ATTEMPT_2_TEMPERATURE = 1.0;
+export const RETRY_TEMPERATURE_MIN = 0.95;
+export const RETRY_TEMPERATURE_MAX = 1.0;
+
+/**
+ * Generate a random temperature for retry attempts.
+ * Returns a value between RETRY_TEMPERATURE_MIN and RETRY_TEMPERATURE_MAX (inclusive).
+ *
+ * The random jitter helps bust API-level caches more effectively than a fixed value.
+ */
+export function getRetryTemperature(): number {
+  const range = RETRY_TEMPERATURE_MAX - RETRY_TEMPERATURE_MIN;
+  return RETRY_TEMPERATURE_MIN + Math.random() * range;
+}
 
 /**
  * Frequency penalty to use on Attempt 2.
@@ -135,16 +149,16 @@ export function buildRetryConfig(attempt: number): {
   }
 
   if (attempt === 2) {
-    // Attempt 2: Increase temperature and frequency penalty
+    // Attempt 2: Increase temperature (with jitter) and frequency penalty
     return {
-      temperatureOverride: RETRY_ATTEMPT_2_TEMPERATURE,
+      temperatureOverride: getRetryTemperature(),
       frequencyPenaltyOverride: RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
     };
   }
 
   // Attempt 3+: Also reduce history to break cache
   return {
-    temperatureOverride: RETRY_ATTEMPT_2_TEMPERATURE,
+    temperatureOverride: getRetryTemperature(),
     frequencyPenaltyOverride: RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
     historyReductionPercent: RETRY_ATTEMPT_3_HISTORY_REDUCTION,
   };

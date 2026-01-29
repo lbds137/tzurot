@@ -17,10 +17,12 @@ import {
   normalizeForComparison,
   wordJaccardSimilarity,
   buildRetryConfig,
+  getRetryTemperature,
   DEFAULT_SIMILARITY_THRESHOLD,
   NEAR_MISS_THRESHOLD,
   WORD_JACCARD_THRESHOLD,
-  RETRY_ATTEMPT_2_TEMPERATURE,
+  RETRY_TEMPERATURE_MIN,
+  RETRY_TEMPERATURE_MAX,
   RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
   RETRY_ATTEMPT_3_HISTORY_REDUCTION,
 } from './duplicateDetection.js';
@@ -756,6 +758,30 @@ Now sit there, be quiet, and try to learn something about how a real professiona
 // Escalating Retry Configuration Tests
 // ============================================================================
 
+describe('getRetryTemperature', () => {
+  it('should return a value within the configured range', () => {
+    for (let i = 0; i < 100; i++) {
+      const temp = getRetryTemperature();
+      expect(temp).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
+      expect(temp).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
+    }
+  });
+
+  it('should return varying values (jitter)', () => {
+    const temperatures = new Set<number>();
+    for (let i = 0; i < 20; i++) {
+      temperatures.add(getRetryTemperature());
+    }
+    // With random jitter, we should get multiple distinct values
+    // (extremely unlikely to get the same value 20 times in a row)
+    expect(temperatures.size).toBeGreaterThan(1);
+  });
+
+  it('should have a range of 0.05 (0.95 to 1.0)', () => {
+    expect(RETRY_TEMPERATURE_MAX - RETRY_TEMPERATURE_MIN).toBeCloseTo(0.05, 10);
+  });
+});
+
 describe('buildRetryConfig', () => {
   describe('attempt 1 (normal generation)', () => {
     it('should return empty config for attempt 1', () => {
@@ -774,7 +800,8 @@ describe('buildRetryConfig', () => {
   describe('attempt 2 (increased randomness)', () => {
     it('should return temperature and frequency penalty overrides', () => {
       const config = buildRetryConfig(2);
-      expect(config.temperatureOverride).toBe(RETRY_ATTEMPT_2_TEMPERATURE);
+      expect(config.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
+      expect(config.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
       expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
     });
 
@@ -783,8 +810,9 @@ describe('buildRetryConfig', () => {
       expect(config.historyReductionPercent).toBeUndefined();
     });
 
-    it('should use temperature 1.0 to break cache (capped for provider compatibility)', () => {
-      expect(RETRY_ATTEMPT_2_TEMPERATURE).toBe(1.0);
+    it('should use temperature in range 0.95-1.0 to break cache', () => {
+      expect(RETRY_TEMPERATURE_MIN).toBe(0.95);
+      expect(RETRY_TEMPERATURE_MAX).toBe(1.0);
     });
 
     it('should use frequency penalty 0.5 for variety', () => {
@@ -795,7 +823,8 @@ describe('buildRetryConfig', () => {
   describe('attempt 3+ (aggressive cache breaking)', () => {
     it('should include all overrides including history reduction', () => {
       const config = buildRetryConfig(3);
-      expect(config.temperatureOverride).toBe(RETRY_ATTEMPT_2_TEMPERATURE);
+      expect(config.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
+      expect(config.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
       expect(config.frequencyPenaltyOverride).toBe(RETRY_ATTEMPT_2_FREQUENCY_PENALTY);
       expect(config.historyReductionPercent).toBe(RETRY_ATTEMPT_3_HISTORY_REDUCTION);
     });
@@ -804,13 +833,26 @@ describe('buildRetryConfig', () => {
       expect(RETRY_ATTEMPT_3_HISTORY_REDUCTION).toBe(0.3);
     });
 
-    it('should return same config for attempt 4+', () => {
+    it('should return configs with same structure for attempt 4+ (temperature varies)', () => {
       const config3 = buildRetryConfig(3);
       const config4 = buildRetryConfig(4);
       const config5 = buildRetryConfig(5);
 
-      expect(config4).toEqual(config3);
-      expect(config5).toEqual(config3);
+      // All should have the same keys/structure
+      expect(Object.keys(config4)).toEqual(Object.keys(config3));
+      expect(Object.keys(config5)).toEqual(Object.keys(config3));
+
+      // Frequency penalty and history reduction should be identical
+      expect(config4.frequencyPenaltyOverride).toBe(config3.frequencyPenaltyOverride);
+      expect(config5.frequencyPenaltyOverride).toBe(config3.frequencyPenaltyOverride);
+      expect(config4.historyReductionPercent).toBe(config3.historyReductionPercent);
+      expect(config5.historyReductionPercent).toBe(config3.historyReductionPercent);
+
+      // Temperature values should be within valid range (but may vary due to jitter)
+      expect(config4.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
+      expect(config4.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
+      expect(config5.temperatureOverride).toBeGreaterThanOrEqual(RETRY_TEMPERATURE_MIN);
+      expect(config5.temperatureOverride).toBeLessThanOrEqual(RETRY_TEMPERATURE_MAX);
     });
   });
 
