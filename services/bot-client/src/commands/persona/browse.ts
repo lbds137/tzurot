@@ -35,6 +35,7 @@ import {
   type FlattenedPersonaData,
 } from './config.js';
 import { fetchPersona } from './api.js';
+import { buildPersonaDashboardOptions } from './dashboard.js';
 import type { PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-browse');
@@ -305,17 +306,13 @@ export async function handleBrowseSelect(interaction: StringSelectMenuInteractio
       sort,
     };
 
-    // Build dashboard embed and components
+    // Build dashboard embed and components using shared options builder
     const embed = buildDashboardEmbed(PERSONA_DASHBOARD_CONFIG, flattenedData);
     const components = buildDashboardComponents(
       PERSONA_DASHBOARD_CONFIG,
       personaId,
       flattenedData,
-      {
-        showBack: true, // Show "Back to Browse" instead of close
-        showRefresh: true,
-        showDelete: !flattenedData.isDefault, // Can't delete default
-      }
+      buildPersonaDashboardOptions(flattenedData)
     );
 
     // Update the message with the dashboard

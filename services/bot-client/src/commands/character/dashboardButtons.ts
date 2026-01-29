@@ -15,6 +15,7 @@ import {
   handleDashboardClose,
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
+  type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
 import { getCharacterDashboardConfig, type CharacterData } from './config.js';
 import type { CharacterSessionData } from './edit.js';
@@ -26,6 +27,23 @@ import {
 } from './browse.js';
 
 const logger = createLogger('character-dashboard-buttons');
+
+/**
+ * Build dashboard button options for characters.
+ * Centralizes the logic for showing back/close/delete buttons based on context.
+ *
+ * @param data - Character data with optional browseContext
+ * @returns ActionButtonOptions for buildDashboardComponents
+ */
+export function buildCharacterDashboardOptions(data: CharacterData): ActionButtonOptions {
+  const hasBackContext = data.browseContext !== undefined;
+  return {
+    showClose: !hasBackContext, // Only show close if not from browse
+    showBack: hasBackContext, // Show back if opened from browse
+    showRefresh: true,
+    showDelete: data.canEdit, // Only show delete for owned characters
+  };
+}
 
 /**
  * Handle back button - return to browse list
@@ -140,12 +158,12 @@ export async function handleRefreshButton(
   });
 
   const embed = buildDashboardEmbed(dashboardConfig, character);
-  const components = buildDashboardComponents(dashboardConfig, character.slug, character, {
-    showBack: existingBrowseContext !== undefined, // Show back if came from browse
-    showClose: existingBrowseContext === undefined, // Show close if opened directly
-    showRefresh: true,
-    showDelete: character.canEdit,
-  });
+  const components = buildDashboardComponents(
+    dashboardConfig,
+    character.slug,
+    character,
+    buildCharacterDashboardOptions(sessionData)
+  );
 
   await interaction.editReply({ embeds: [embed], components });
 }

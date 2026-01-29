@@ -28,6 +28,7 @@ import {
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
 import { characterDashboardConfig, characterSeedFields } from './config.js';
 import { createCharacter } from './api.js';
+import { buildCharacterDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('character-create');
 
@@ -104,15 +105,13 @@ export async function handleSeedModalSubmit(
 
     // Build and send dashboard
     // Use slug as entityId (not UUID) because fetchCharacter expects slug
+    // User just created this character, so they own it (canEdit: true from API)
     const embed = buildDashboardEmbed(characterDashboardConfig, character);
     const components = buildDashboardComponents(
       characterDashboardConfig,
       character.slug,
       character,
-      {
-        showClose: true,
-        showRefresh: true,
-      }
+      buildCharacterDashboardOptions(character)
     );
 
     const reply = await interaction.editReply({ embeds: [embed], components });

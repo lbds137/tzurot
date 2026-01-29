@@ -16,6 +16,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { PRESET_DASHBOARD_CONFIG, flattenPresetData } from './config.js';
 import { fetchPreset } from './api.js';
+import { buildPresetDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('preset-edit');
 
@@ -61,11 +62,14 @@ export async function handleEdit(context: DeferredCommandContext): Promise<void>
     const flattenedData = flattenPresetData(preset);
 
     // Build dashboard embed and components
+    // Use buildPresetDashboardOptions for consistent button configuration (includes delete for owned presets)
     const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, presetId, flattenedData, {
-      showClose: true,
-      showRefresh: true,
-    });
+    const components = buildDashboardComponents(
+      PRESET_DASHBOARD_CONFIG,
+      presetId,
+      flattenedData,
+      buildPresetDashboardOptions(flattenedData)
+    );
 
     // Send dashboard
     const reply = await context.editReply({ embeds: [embed], components });

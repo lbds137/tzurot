@@ -41,7 +41,12 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { handleSeedModalSubmit } from './create.js';
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
-import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
+import {
+  handleBackButton,
+  handleRefreshButton,
+  handleCloseButton,
+  buildCharacterDashboardOptions,
+} from './dashboardButtons.js';
 
 const logger = createLogger('character-dashboard');
 
@@ -136,14 +141,15 @@ async function handleSectionModalSubmit(
     // Update character via API (entityId is the slug)
     const updated = await updateCharacter(entityId, values, interaction.user.id, config);
 
-    // Update session (preserve _isAdmin flag and browseContext)
-    const hasBrowseContext = session?.data?.browseContext !== undefined;
+    // Build session data (preserve _isAdmin flag and browseContext)
+    const sessionData: CharacterSessionData = {
+      ...updated,
+      _isAdmin: isAdmin,
+      browseContext: session?.data?.browseContext, // Preserve browse context for back button
+    };
+
+    // Update session if it exists
     if (session) {
-      const sessionData: CharacterSessionData = {
-        ...updated,
-        _isAdmin: isAdmin,
-        browseContext: session.data.browseContext, // Preserve browse context for back button
-      };
       await sessionManager.update<CharacterSessionData>(
         interaction.user.id,
         'character',
@@ -152,16 +158,14 @@ async function handleSectionModalSubmit(
       );
     }
 
-    // Refresh dashboard (use slug as entityId)
-    // Use canEdit from session - it was verified when dashboard opened and doesn't change
-    const canEdit = session?.data?.canEdit === true;
+    // Refresh dashboard using shared options builder
     const embed = buildDashboardEmbed(dashboardConfig, updated);
-    const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
-      showClose: !hasBrowseContext, // Only show close if not from browse
-      showBack: hasBrowseContext, // Show back if opened from browse
-      showRefresh: true,
-      showDelete: canEdit, // Preserve delete button for owned characters
-    });
+    const components = buildDashboardComponents(
+      dashboardConfig,
+      updated.slug,
+      updated,
+      buildCharacterDashboardOptions(sessionData)
+    );
 
     await interaction.editReply({ embeds: [embed], components });
 
@@ -456,32 +460,38 @@ async function handleAction(
     const isAdmin = isBotOwner(interaction.user.id);
     const dashboardConfig = getCharacterDashboardConfig(isAdmin);
 
-    // Get session to check for browse context
+    // Get session to check for browse context and build session data
     const sessionManager = getSessionManager();
     const session = await sessionManager.get<CharacterSessionData>(
       interaction.user.id,
       'character',
       entityId
     );
-    const hasBrowseContext = session?.data?.browseContext !== undefined;
 
-    // Update session (preserve _isAdmin flag and browseContext)
-    await sessionManager.update<CharacterSessionData>(interaction.user.id, 'character', entityId, {
-      isPublic: result.isPublic,
+    // Build session data with preserved browse context
+    const sessionData: CharacterSessionData = {
+      ...updated,
+      canEdit: session?.data?.canEdit, // Preserve canEdit from original session
       _isAdmin: isAdmin,
       browseContext: session?.data?.browseContext, // Preserve browse context
-    });
+    };
 
-    // Refresh dashboard (use slug as entityId)
-    // Use canEdit from session - it was verified when dashboard opened and doesn't change
-    const canEdit = session?.data?.canEdit === true;
+    // Update session
+    await sessionManager.update<CharacterSessionData>(
+      interaction.user.id,
+      'character',
+      entityId,
+      sessionData
+    );
+
+    // Refresh dashboard using shared options builder
     const embed = buildDashboardEmbed(dashboardConfig, updated);
-    const components = buildDashboardComponents(dashboardConfig, updated.slug, updated, {
-      showClose: !hasBrowseContext, // Only show close if not from browse
-      showBack: hasBrowseContext, // Show back if opened from browse
-      showRefresh: true,
-      showDelete: canEdit, // Preserve delete button for owned characters
-    });
+    const components = buildDashboardComponents(
+      dashboardConfig,
+      updated.slug,
+      updated,
+      buildCharacterDashboardOptions(sessionData)
+    );
 
     await interaction.editReply({ embeds: [embed], components });
 

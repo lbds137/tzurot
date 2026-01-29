@@ -275,31 +275,34 @@ function buildUpdateData(
 ): PersonaUpdateData | { error: ReturnType<typeof ErrorResponses.validationError> } {
   const updateData: PersonaUpdateData = {};
 
+  // Required fields: empty string → don't update (preserve existing value)
+  // This matches the pattern clients use: clear field → send ""
   if (body.name !== undefined) {
     const nameValue = extractString(body.name);
-    if (nameValue === null) {
-      return { error: ErrorResponses.validationError('Name cannot be empty') };
+    // Only update if non-empty string provided; empty string means "don't change"
+    if (nameValue !== null) {
+      updateData.name = nameValue;
     }
-    updateData.name = nameValue;
   }
 
   // Content is required and cannot be set to null/empty, so only update if a valid string is provided.
-  // If body.content is null or undefined, preserve the existing value (don't include in update).
+  // Empty string means "don't change" (preserve existing value).
   if (body.content !== undefined && body.content !== null) {
     const contentValue = extractString(body.content);
-    if (contentValue === null) {
-      return { error: ErrorResponses.validationError('Content cannot be empty') };
+    // Only update if non-empty string provided
+    if (contentValue !== null) {
+      if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
+        return {
+          error: ErrorResponses.validationError(
+            `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
+          ),
+        };
+      }
+      updateData.content = contentValue;
     }
-    if (contentValue.length > DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH) {
-      return {
-        error: ErrorResponses.validationError(
-          `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-        ),
-      };
-    }
-    updateData.content = contentValue;
   }
 
+  // Nullable fields: empty string → null (clear the value)
   if (body.preferredName !== undefined) {
     updateData.preferredName = extractString(body.preferredName);
   }

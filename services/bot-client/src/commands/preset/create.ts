@@ -27,6 +27,7 @@ import {
 } from '../../utils/dashboard/index.js';
 import { PRESET_DASHBOARD_CONFIG, flattenPresetData, presetSeedFields } from './config.js';
 import { createPreset } from './api.js';
+import { buildPresetDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('preset-create');
 
@@ -98,15 +99,14 @@ export async function handleSeedModalSubmit(
     const flattenedData = flattenPresetData(preset);
 
     // Build and send dashboard
+    // Use buildPresetDashboardOptions for consistent button configuration (includes delete for owned presets)
     const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-    const components = buildDashboardComponents(PRESET_DASHBOARD_CONFIG, preset.id, flattenedData, {
-      showClose: true,
-      showRefresh: true,
-      toggleGlobal: {
-        isGlobal: flattenedData.isGlobal,
-        isOwned: flattenedData.isOwned,
-      },
-    });
+    const components = buildDashboardComponents(
+      PRESET_DASHBOARD_CONFIG,
+      preset.id,
+      flattenedData,
+      buildPresetDashboardOptions(flattenedData)
+    );
 
     const reply = await interaction.editReply({ embeds: [embed], components });
 

@@ -25,6 +25,8 @@ import {
   AdvancedParamsSchema,
   type AdvancedParams,
   AI_DEFAULTS,
+  optionalString,
+  nullableString,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -52,14 +54,19 @@ interface CreateConfigBody {
 
 /**
  * Zod schema for UpdateConfigBody request validation.
- * Uses proper type coercion and validation at the service boundary.
+ * Uses empty-to-undefined transforms so clients can send "" to "not update" a field.
+ * This is the standard pattern for handling form inputs where clearing a field
+ * sends empty string instead of omitting the field.
  */
 const UpdateConfigBodySchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  description: z.string().optional(),
-  provider: z.string().optional(),
-  model: z.string().min(1).optional(),
-  visionModel: z.string().nullable().optional(),
+  // Required DB fields: empty string → undefined (preserve existing value)
+  name: optionalString(100),
+  provider: optionalString(50),
+  model: optionalString(200),
+  // Nullable DB fields: empty string → null (clear the value)
+  description: nullableString(500),
+  visionModel: nullableString(200),
+  // Non-string fields
   maxReferencedMessages: z.number().int().positive().optional(),
   advancedParameters: AdvancedParamsSchema.optional(),
   /** Toggle global visibility - users can share their presets */

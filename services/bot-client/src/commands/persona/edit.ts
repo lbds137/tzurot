@@ -23,6 +23,7 @@ import {
   type FlattenedPersonaData,
 } from './config.js';
 import { fetchPersona, fetchDefaultPersona } from './api.js';
+import { buildPersonaDashboardOptions } from './dashboard.js';
 
 const logger = createLogger('persona-edit');
 
@@ -69,17 +70,13 @@ export async function handleEditPersona(
     // Flatten the data for dashboard display
     const flattenedData = flattenPersonaData(persona);
 
-    // Build dashboard embed and components
+    // Build dashboard embed and components using shared options builder
     const embed = buildDashboardEmbed(PERSONA_DASHBOARD_CONFIG, flattenedData);
     const components = buildDashboardComponents(
       PERSONA_DASHBOARD_CONFIG,
       persona.id,
       flattenedData,
-      {
-        showClose: true,
-        showRefresh: true,
-        showDelete: !persona.isDefault, // Can't delete default persona
-      }
+      buildPersonaDashboardOptions(flattenedData)
     );
 
     // Send dashboard
