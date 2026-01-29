@@ -236,5 +236,114 @@ describe('ConfigStep', () => {
 
       expect(result.config?.effectivePersonality.visionModel).toBe('openai/gpt-4o-vision');
     });
+
+    it('should apply reasoning config for thinking models', async () => {
+      vi.mocked(mockConfigResolver.resolveConfig).mockResolvedValue({
+        source: 'user-personality',
+        configName: 'R1 Config',
+        config: {
+          model: 'deepseek/deepseek-r1',
+          reasoning: {
+            effort: 'high',
+            enabled: true,
+          },
+          showThinking: true,
+        },
+      });
+
+      step = new ConfigStep(mockConfigResolver);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      expect(result.config?.effectivePersonality.model).toBe('deepseek/deepseek-r1');
+      expect(result.config?.effectivePersonality.reasoning).toEqual({
+        effort: 'high',
+        enabled: true,
+      });
+      expect(result.config?.effectivePersonality.showThinking).toBe(true);
+    });
+
+    it('should apply advanced sampling params', async () => {
+      vi.mocked(mockConfigResolver.resolveConfig).mockResolvedValue({
+        source: 'user-personality',
+        configName: 'Advanced Config',
+        config: {
+          model: 'openai/gpt-4o',
+          minP: 0.1,
+          topA: 0.5,
+          seed: 42,
+        },
+      });
+
+      step = new ConfigStep(mockConfigResolver);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      expect(result.config?.effectivePersonality.minP).toBe(0.1);
+      expect(result.config?.effectivePersonality.topA).toBe(0.5);
+      expect(result.config?.effectivePersonality.seed).toBe(42);
+    });
+
+    it('should apply OpenRouter-specific params', async () => {
+      vi.mocked(mockConfigResolver.resolveConfig).mockResolvedValue({
+        source: 'user-personality',
+        configName: 'OpenRouter Config',
+        config: {
+          model: 'openai/gpt-4o',
+          transforms: ['middle-out'],
+          route: 'fallback',
+          verbosity: 'high',
+        },
+      });
+
+      step = new ConfigStep(mockConfigResolver);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      expect(result.config?.effectivePersonality.transforms).toEqual(['middle-out']);
+      expect(result.config?.effectivePersonality.route).toBe('fallback');
+      expect(result.config?.effectivePersonality.verbosity).toBe('high');
+    });
+
+    it('should apply output control params', async () => {
+      vi.mocked(mockConfigResolver.resolveConfig).mockResolvedValue({
+        source: 'user-personality',
+        configName: 'Output Config',
+        config: {
+          model: 'openai/gpt-4o',
+          stop: ['###', '---'],
+          logitBias: { '123': -100 },
+          responseFormat: { type: 'json_object' },
+        },
+      });
+
+      step = new ConfigStep(mockConfigResolver);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+      };
+
+      const result = await step.process(context);
+
+      expect(result.config?.effectivePersonality.stop).toEqual(['###', '---']);
+      expect(result.config?.effectivePersonality.logitBias).toEqual({ '123': -100 });
+      expect(result.config?.effectivePersonality.responseFormat).toEqual({ type: 'json_object' });
+    });
   });
 });

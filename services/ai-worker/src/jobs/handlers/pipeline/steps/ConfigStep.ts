@@ -5,11 +5,73 @@
  * Hierarchy: user-personality > user-default > personality default
  */
 
-import { createLogger } from '@tzurot/common-types';
-import type { LlmConfigResolver } from '../../../../services/LlmConfigResolver.js';
+import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import type {
+  LlmConfigResolver,
+  ResolvedLlmConfig,
+} from '../../../../services/LlmConfigResolver.js';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 
 const logger = createLogger('ConfigStep');
+
+/**
+ * Keys from ResolvedLlmConfig that should be merged onto LoadedPersonality.
+ * Config values take precedence; personality values are fallbacks.
+ */
+const LLM_CONFIG_KEYS = [
+  // Core model
+  'visionModel',
+  // Basic sampling
+  'temperature',
+  'topP',
+  'topK',
+  'frequencyPenalty',
+  'presencePenalty',
+  'repetitionPenalty',
+  'maxTokens',
+  // Advanced sampling
+  'minP',
+  'topA',
+  'seed',
+  // Output control
+  'stop',
+  'logitBias',
+  'responseFormat',
+  'showThinking',
+  // Reasoning (for thinking models)
+  'reasoning',
+  // OpenRouter-specific
+  'transforms',
+  'route',
+  'verbosity',
+  // Memory/context
+  'memoryScoreThreshold',
+  'memoryLimit',
+  'contextWindowTokens',
+] as const;
+
+/**
+ * Merge user LLM config override with personality defaults.
+ * Config values take precedence; personality values are fallbacks.
+ */
+function mergeConfigWithPersonality(
+  personality: LoadedPersonality,
+  config: ResolvedLlmConfig
+): LoadedPersonality {
+  // Start with personality as base, override model (required field)
+  const result = { ...personality, model: config.model } as LoadedPersonality;
+
+  // For each config key, use config value if defined, else keep personality value
+  for (const key of LLM_CONFIG_KEYS) {
+    const configValue = config[key];
+    if (configValue !== undefined) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+      (result as any)[key] = configValue;
+    }
+  }
+
+  return result;
+}
 
 export class ConfigStep implements IPipelineStep {
   readonly name = 'ConfigResolution';
@@ -35,24 +97,7 @@ export class ConfigStep implements IPipelineStep {
 
         // If user has an override, apply it to the personality
         if (configResult.source !== 'personality') {
-          effectivePersonality = {
-            ...personality,
-            model: configResult.config.model,
-            visionModel: configResult.config.visionModel ?? personality.visionModel,
-            temperature: configResult.config.temperature ?? personality.temperature,
-            topP: configResult.config.topP ?? personality.topP,
-            topK: configResult.config.topK ?? personality.topK,
-            frequencyPenalty: configResult.config.frequencyPenalty ?? personality.frequencyPenalty,
-            presencePenalty: configResult.config.presencePenalty ?? personality.presencePenalty,
-            repetitionPenalty:
-              configResult.config.repetitionPenalty ?? personality.repetitionPenalty,
-            maxTokens: configResult.config.maxTokens ?? personality.maxTokens,
-            memoryScoreThreshold:
-              configResult.config.memoryScoreThreshold ?? personality.memoryScoreThreshold,
-            memoryLimit: configResult.config.memoryLimit ?? personality.memoryLimit,
-            contextWindowTokens:
-              configResult.config.contextWindowTokens ?? personality.contextWindowTokens,
-          };
+          effectivePersonality = mergeConfigWithPersonality(personality, configResult.config);
 
           logger.info(
             {

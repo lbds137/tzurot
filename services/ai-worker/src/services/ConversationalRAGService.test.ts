@@ -873,6 +873,73 @@ describe('ConversationalRAGService', () => {
       );
     });
 
+    it('should pass advanced sampling parameters to LLMInvoker', async () => {
+      const personality = createMockPersonality({
+        model: 'openrouter/deepseek-r1',
+        minP: 0.1,
+        topA: 0.5,
+        seed: 42,
+      });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'openrouter/deepseek-r1',
+          minP: 0.1,
+          topA: 0.5,
+          seed: 42,
+        })
+      );
+    });
+
+    it('should pass reasoning config for thinking models', async () => {
+      const personality = createMockPersonality({
+        model: 'openrouter/deepseek-r1',
+        reasoning: {
+          effort: 'high',
+          enabled: true,
+        },
+        showThinking: true,
+      });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'openrouter/deepseek-r1',
+          reasoning: {
+            effort: 'high',
+            enabled: true,
+          },
+          showThinking: true,
+        })
+      );
+    });
+
+    it('should pass OpenRouter-specific parameters to LLMInvoker', async () => {
+      const personality = createMockPersonality({
+        model: 'openrouter/gpt-4o',
+        transforms: ['middle-out'],
+        route: 'fallback',
+        verbosity: 'high',
+      });
+      const context = createMockContext();
+
+      await service.generateResponse(personality, 'Test', context);
+
+      expect(getLLMInvokerMock().getModel).toHaveBeenCalledWith(
+        expect.objectContaining({
+          modelName: 'openrouter/gpt-4o',
+          transforms: ['middle-out'],
+          route: 'fallback',
+          verbosity: 'high',
+        })
+      );
+    });
+
     it('should pass image and audio counts for timeout calculation', async () => {
       const attachments: AttachmentMetadata[] = [
         {
