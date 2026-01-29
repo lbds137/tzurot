@@ -382,3 +382,60 @@ export function advancedParamsToConfigFormat(params: AdvancedParams): ConvertedL
     verbosity: params.verbosity,
   };
 }
+
+// ============================================
+// RESOLVED CONFIG KEY CONSTANTS
+// ============================================
+
+/**
+ * Keys that can be overridden via LLM config (preset or user override).
+ *
+ * These keys are copied from ResolvedLlmConfig to LoadedPersonality during
+ * config resolution. Used by both LlmConfigResolver and ConfigStep for consistency.
+ *
+ * Categories:
+ * - Core: visionModel
+ * - Basic sampling: temperature, topP, topK, frequencyPenalty, presencePenalty, repetitionPenalty
+ * - Advanced sampling: minP, topA, seed
+ * - Output control: maxTokens, stop, logitBias, responseFormat, showThinking
+ * - Reasoning: reasoning (for thinking models)
+ * - OpenRouter-specific: transforms, route, verbosity
+ * - Memory/context: memoryScoreThreshold, memoryLimit, contextWindowTokens
+ */
+export const LLM_CONFIG_OVERRIDE_KEYS = [
+  // Core model
+  'visionModel',
+  // Basic sampling
+  'temperature',
+  'topP',
+  'topK',
+  'frequencyPenalty',
+  'presencePenalty',
+  'repetitionPenalty',
+  // Advanced sampling
+  'minP',
+  'topA',
+  'seed',
+  // Output control
+  'maxTokens',
+  'stop',
+  'logitBias',
+  'responseFormat',
+  'showThinking',
+  // Reasoning (for thinking models)
+  'reasoning',
+  // OpenRouter-specific
+  'transforms',
+  'route',
+  'verbosity',
+  // Memory/context
+  'memoryScoreThreshold',
+  'memoryLimit',
+  'contextWindowTokens',
+] as const;
+
+/**
+ * Type for LLM config override keys.
+ * Useful for type-safe iteration and validation.
+ */
+export type LlmConfigOverrideKey = (typeof LLM_CONFIG_OVERRIDE_KEYS)[number];

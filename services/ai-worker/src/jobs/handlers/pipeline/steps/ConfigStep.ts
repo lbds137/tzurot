@@ -5,7 +5,11 @@
  * Hierarchy: user-personality > user-default > personality default
  */
 
-import { createLogger, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  createLogger,
+  LLM_CONFIG_OVERRIDE_KEYS,
+  type LoadedPersonality,
+} from '@tzurot/common-types';
 import type {
   LlmConfigResolver,
   ResolvedLlmConfig,
@@ -13,42 +17,6 @@ import type {
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 
 const logger = createLogger('ConfigStep');
-
-/**
- * Keys from ResolvedLlmConfig that should be merged onto LoadedPersonality.
- * Config values take precedence; personality values are fallbacks.
- */
-const LLM_CONFIG_KEYS = [
-  // Core model
-  'visionModel',
-  // Basic sampling
-  'temperature',
-  'topP',
-  'topK',
-  'frequencyPenalty',
-  'presencePenalty',
-  'repetitionPenalty',
-  'maxTokens',
-  // Advanced sampling
-  'minP',
-  'topA',
-  'seed',
-  // Output control
-  'stop',
-  'logitBias',
-  'responseFormat',
-  'showThinking',
-  // Reasoning (for thinking models)
-  'reasoning',
-  // OpenRouter-specific
-  'transforms',
-  'route',
-  'verbosity',
-  // Memory/context
-  'memoryScoreThreshold',
-  'memoryLimit',
-  'contextWindowTokens',
-] as const;
 
 /**
  * Merge user LLM config override with personality defaults.
@@ -62,7 +30,7 @@ function mergeConfigWithPersonality(
   const result = { ...personality, model: config.model } as LoadedPersonality;
 
   // For each config key, use config value if defined, else keep personality value
-  for (const key of LLM_CONFIG_KEYS) {
+  for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
     const configValue = config[key];
     if (configValue !== undefined) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access

@@ -16,6 +16,7 @@ import {
   createLogger,
   INTERVALS,
   LLM_CONFIG_SELECT_WITH_NAME,
+  LLM_CONFIG_OVERRIDE_KEYS,
   mapLlmConfigFromDbWithName,
   type PrismaClient,
   type LoadedPersonality,
@@ -24,42 +25,6 @@ import {
 } from '@tzurot/common-types';
 
 const logger = createLogger('LlmConfigResolver');
-
-/**
- * Keys to copy from personality/override to ResolvedLlmConfig.
- * Used by both extractConfig() and mergeConfig() for consistency.
- */
-const LLM_CONFIG_KEYS = [
-  // Core
-  'visionModel',
-  // Basic sampling
-  'temperature',
-  'topP',
-  'topK',
-  'frequencyPenalty',
-  'presencePenalty',
-  'repetitionPenalty',
-  // Advanced sampling
-  'minP',
-  'topA',
-  'seed',
-  // Output control
-  'maxTokens',
-  'stop',
-  'logitBias',
-  'responseFormat',
-  'showThinking',
-  // Reasoning (for thinking models)
-  'reasoning',
-  // OpenRouter-specific
-  'transforms',
-  'route',
-  'verbosity',
-  // Memory/context
-  'memoryScoreThreshold',
-  'memoryLimit',
-  'contextWindowTokens',
-] as const;
 
 /**
  * Resolved LLM config values that can override personality defaults.
@@ -275,7 +240,7 @@ export class LlmConfigResolver {
     const result = { model: personality.model } as ResolvedLlmConfig;
 
     // Copy all config keys from personality
-    for (const key of LLM_CONFIG_KEYS) {
+    for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
       const value = personality[key];
       if (value !== undefined) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
@@ -299,7 +264,7 @@ export class LlmConfigResolver {
     const result = { model: override.model } as ResolvedLlmConfig;
 
     // For each config key, use override if defined, else personality
-    for (const key of LLM_CONFIG_KEYS) {
+    for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
       const overrideValue = override[key];
       const personalityValue = personality[key];
       const value = overrideValue ?? personalityValue;
