@@ -34,29 +34,81 @@ export interface OpenRouterExtraParams {
 }
 
 /**
- * Log the raw OpenRouter response structure for debugging reasoning extraction.
- * This helps identify whether reasoning content is present in the response.
+ * Inject reasoning content from OpenRouter response into the content field.
+ *
+ * Problem: The OpenAI SDK strips the `reasoning` field from responses before
+ * LangChain can preserve it in additional_kwargs.
+ *
+ * Solution: Intercept the response and prepend reasoning to content with
+ * `<reasoning>` tags. Our existing thinkingExtraction.ts will extract it.
+ *
+ * @returns Modified Response with reasoning injected into content, or original if no reasoning
  */
-async function logOpenRouterResponseStructure(response: Response): Promise<void> {
+async function injectReasoningIntoContent(response: Response): Promise<Response> {
   try {
-    const clonedResponse = response.clone();
-    const responseBody = (await clonedResponse.json()) as Record<string, unknown>;
+    const responseBody = (await response.json()) as Record<string, unknown>;
     const choices = responseBody.choices as Record<string, unknown>[] | undefined;
     const firstChoice = choices?.[0];
     const message = firstChoice?.message as Record<string, unknown> | undefined;
 
+    if (!message) {
+      // No message - return a fresh Response with the same body
+      return new Response(JSON.stringify(responseBody), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
+
+    // Check for reasoning content (OpenRouter uses `reasoning` field for DeepSeek R1)
+    const reasoning = message.reasoning;
+
+    logger.debug(
+      {
+        hasReasoning: reasoning !== undefined,
+        hasReasoningContent: message.reasoning_content !== undefined,
+        messageKeys: Object.keys(message),
+      },
+      '[ModelFactory] OpenRouter response structure'
+    );
+
+    if (typeof reasoning !== 'string' || reasoning.length === 0) {
+      // No reasoning to inject - return fresh Response
+      return new Response(JSON.stringify(responseBody), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
+
+    // Inject reasoning into content with <reasoning> tags
+    // Our thinkingExtraction.ts already handles this tag pattern
+    const originalContent = typeof message.content === 'string' ? message.content : '';
+    message.content = `<reasoning>\n${reasoning}\n</reasoning>\n\n${originalContent}`;
+
+    // Remove the reasoning field to avoid confusion
+    delete message.reasoning;
+
     logger.info(
       {
-        hasReasoning: message?.reasoning !== undefined,
-        hasReasoningContent: message?.reasoning_content !== undefined,
-        messageKeys: message !== undefined ? Object.keys(message) : [],
-        choiceKeys: firstChoice !== undefined ? Object.keys(firstChoice) : [],
-        responseKeys: Object.keys(responseBody),
+        reasoningLength: reasoning.length,
+        originalContentLength: originalContent.length,
+        newContentLength: (message.content as string).length,
       },
-      '[ModelFactory] Raw OpenRouter response structure'
+      '[ModelFactory] Injected reasoning into content with <reasoning> tags'
     );
-  } catch {
-    // Ignore logging errors
+
+    // Return new Response with modified body
+    return new Response(JSON.stringify(responseBody), {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
+  } catch (err) {
+    // On error, try to return a fresh response
+    // Note: we've already consumed the body, so create a minimal error response
+    logger.warn({ err }, '[ModelFactory] Failed to process response for reasoning injection');
+    throw err; // Let the SDK handle the error
   }
 }
 
@@ -120,9 +172,10 @@ function createOpenRouterFetch(
 
     const response = await fetch(url, init);
 
-    // Log the raw response to debug reasoning extraction
+    // Inject reasoning content into response before SDK strips it
+    // The SDK removes unknown fields like `reasoning`, so we move it to content
     if (extraParams.include_reasoning === true && init?.method === 'POST') {
-      await logOpenRouterResponseStructure(response);
+      return injectReasoningIntoContent(response);
     }
 
     return response;
