@@ -128,6 +128,20 @@ describe('POST /admin/personality', () => {
     expect(response.body.error).toBeDefined();
   });
 
+  it('should return 403 if admin user not found in database', async () => {
+    prisma.user.findUnique.mockResolvedValue(null); // Admin not registered
+
+    const response = await request(app).post('/admin/personality').send({
+      name: 'Test Bot',
+      slug: 'test-bot',
+      characterInfo: 'A helpful assistant',
+      personalityTraits: 'Friendly',
+    });
+
+    expect(response.status).toBe(403);
+    expect(response.body.message).toMatch(/admin user not found/i);
+  });
+
   it('should reject creation with invalid slug format', async () => {
     const response = await request(app).post('/admin/personality').send({
       name: 'Test Bot',
