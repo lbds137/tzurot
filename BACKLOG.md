@@ -102,6 +102,15 @@ Add reaction metadata to extended context messages showing emoji and who reacted
 - [ ] Format as XML metadata (use same user/persona resolution as elsewhere)
 - [ ] Include in extended context output
 
+### ✨ Multi-Personality Per Channel
+
+Allow multiple personalities active in a single channel.
+
+- [ ] Track multiple active personalities per channel
+- [ ] Natural order speaker selection (who responds next)
+- [ ] Handle @mentions when multiple personalities present
+- [ ] `/channel add-personality` and `/channel remove-personality` commands
+
 ---
 
 ## Epic: v2 Parity
@@ -131,6 +140,14 @@ Migration path from v2.
 ### ✨ PluralKit Proxy Support
 
 - [ ] Support PluralKit proxied messages
+
+### ✨ Character Card Import
+
+Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibility.
+
+- [ ] Parse PNG metadata (V2 JSON in tEXt chunk, V3 in separate format)
+- [ ] Map character card fields to v3 personality schema
+- [ ] `/character import` support for PNG files
 
 ---
 
@@ -185,6 +202,14 @@ Add `/admin debug recent` with personality/user/channel filters.
 
 Create `scripts/debug/view-failed-jobs.ts` to inspect failed BullMQ jobs.
 
+### 🏗️ Metrics & Monitoring (Prometheus)
+
+Production observability with metrics collection.
+
+- [ ] Add Prometheus metrics endpoint
+- [ ] Key metrics: request latency, token usage, error rates, queue depth
+- [ ] Grafana dashboards (or Railway's built-in metrics)
+
 ---
 
 ## Epic: Logging Review (Low Priority)
@@ -230,6 +255,22 @@ No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000)
 
 Reply to message in context stores it twice (context + `[Referenced content:]`).
 
+### 🏗️ OpenMemory Migration
+
+Waypoint graph architecture with multi-sector storage.
+
+- [ ] Design waypoint graph schema
+- [ ] Migration path from current flat memories
+- [ ] See `docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md`
+
+### 🏗️ Contrastive Retrieval for RAG
+
+Improve memory retrieval quality with contrastive methods.
+
+- [ ] Research contrastive retrieval approaches
+- [ ] Prototype with current embedding system
+- [ ] Benchmark against current similarity search
+
 ---
 
 ## Epic: Incognito Mode Improvements
@@ -241,6 +282,91 @@ Reply to message in context stores it twice (context + `[Referenced content:]`).
 ### 🏗️ Parallel API Calls for Session Names
 
 Status command fires up to 100 parallel API calls. Have API return names with sessions.
+
+---
+
+## Epic: Advanced Prompt Features
+
+_SillyTavern-inspired prompt engineering features._
+
+### ✨ Lorebooks / Sticky Context
+
+Keyword-triggered lore injection with TTL.
+
+- [ ] Design lorebook schema (keywords, content, activation rules)
+- [ ] Keyword detection in conversation context
+- [ ] Inject matched lore into system prompt or context
+- [ ] TTL/decay for injected content
+
+### ✨ Author's Note Depth Injection
+
+Insert author's notes at configurable depth in conversation.
+
+- [ ] Add author's note field to personality/preset config
+- [ ] Configurable injection depth (N messages from end)
+- [ ] Support multiple author's notes with different depths
+
+### 🏗️ Dynamic Directive Injection (Anti-Sycophancy)
+
+Dynamically inject directives to improve response quality.
+
+- [ ] Research anti-sycophancy prompt techniques
+- [ ] Configurable directive templates
+- [ ] A/B testing framework for directive effectiveness
+
+---
+
+## Epic: Agentic Features
+
+_Self-directed personality behaviors._
+
+### 🏗️ Agentic Scaffolding
+
+Think → Act → Observe loop for autonomous behavior.
+
+- [ ] Design agent loop architecture
+- [ ] Tool/action definitions for personalities
+- [ ] Observation and reflection mechanisms
+- [ ] Safety guardrails and intervention points
+
+### ✨ Dream Sequences
+
+Self-reflection and memory consolidation.
+
+- [ ] Scheduled "dream" processing (off-peak hours)
+- [ ] Memory review and consolidation
+- [ ] Personality growth/change over time
+
+### 🏗️ Relationship Graphs
+
+Track relationships between users and personalities.
+
+- [ ] Relationship schema (affinity, history, context)
+- [ ] Relationship-aware response generation
+- [ ] Visualization for users (`/me relationships`)
+
+---
+
+## Epic: Multi-Modality
+
+_Beyond text: voice and images._
+
+### ✨ Voice Synthesis
+
+Open-source TTS/STT for voice interactions.
+
+- [ ] Research open-source TTS options (Coqui, Bark, etc.)
+- [ ] Voice cloning for personality-specific voices
+- [ ] Discord voice channel integration
+- [ ] See `docs/research/voice-cloning-2026.md`
+
+### ✨ Image Generation
+
+AI-generated images from personalities.
+
+- [ ] Integration with image generation APIs
+- [ ] Personality-specific art styles
+- [ ] `/imagine` command or inline generation triggers
 
 ---
 
@@ -324,6 +450,30 @@ Low priority quality-of-life improvements leveraging Railway's `--json` output:
 - [ ] `pnpm ops railway:status` - Parse `railway status --json` for nicer formatted output
 - [ ] `pnpm ops railway:vars` - View variables with secret hiding and service grouping
 
+### 🏗️ Streaming Responses
+
+Stream LLM responses to Discord for better UX on long generations.
+
+- [ ] Research Discord message editing rate limits
+- [ ] Implement streaming from LangChain
+- [ ] Chunked updates to Discord (debounced edits)
+
+### 🧹 Free-Tier Model Strategy
+
+Sustainable free tier for users without API keys.
+
+- [ ] Define free-tier model allowlist
+- [ ] Usage quotas for free tier
+- [ ] Graceful upgrade prompts
+
+### 🧹 Release Notifications
+
+Notify users of new releases.
+
+- [ ] `/changelog` command showing recent releases
+- [ ] Optional announcement channel integration
+- [ ] GitHub releases webhook
+
 ### Testing Debt
 
 Component test gaps (use `pnpm ops test:audit-services`):
@@ -338,34 +488,7 @@ Component test gaps (use `pnpm ops test:audit-services`):
 
 _Ideas for later. Resist the shiny object._
 
-### Character & Prompt Features
-
-- Character Card Import (V2/V3 PNG metadata)
-- Lorebooks / Sticky Context - Keyword-triggered lore injection with TTL
-- Author's Note Depth Injection
-
-### Multi-Entity Features
-
-- Multi-personality per channel
-- Natural Order speaker selection
-- Dream sequences (self-reflection)
-- Relationship graphs
-
-### Agentic Features
-
-- Agentic Scaffolding (think → act → observe loop)
-- OpenMemory Migration (waypoint graph, multi-sector storage)
-- Contrastive Retrieval for RAG
-- Dynamic Directive Injection (anti-sycophancy)
-
-### Infrastructure
-
-- Streaming responses
-- Voice Synthesis (open-source TTS/STT)
-- Image Generation
-- Free-Tier Model Strategy
-- Metrics & monitoring (Prometheus)
-- Release Notifications
+_(Empty - all items triaged to appropriate epics)_
 
 ---
 
