@@ -776,6 +776,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: 'This is my reasoning process...',
+        showThinking: true,
       });
 
       // Thinking should be sent before main response
@@ -796,6 +797,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithoutThinking,
         message: mockMessage,
         thinkingContent: 'This reasoning should NOT be shown',
+        showThinking: false,
       });
 
       // Should only send main response, not thinking
@@ -818,6 +820,7 @@ describe('DiscordResponseSender', () => {
         content: 'Main response content',
         personality: personalityWithThinking,
         message: mockMessage,
+        showThinking: true,
         // thinkingContent not provided
       });
 
@@ -840,6 +843,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: '',
+        showThinking: true,
       });
 
       expect(mockWebhookManager.sendAsPersonality).toHaveBeenCalledTimes(1);
@@ -861,6 +865,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: 'My reasoning here',
+        showThinking: true,
       });
 
       // Find the thinking message call
@@ -890,6 +895,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: 'Content with ||existing spoilers|| inside',
+        showThinking: true,
       });
 
       const thinkingCall = mockWebhookManager.sendAsPersonality.mock.calls.find(call =>
@@ -916,6 +922,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: 'DM thinking content',
+        showThinking: true,
       });
 
       // First call should be thinking, second should be main response
@@ -946,6 +953,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: 'This thinking will fail',
+        showThinking: true,
       });
 
       // Main response should still be sent
@@ -970,6 +978,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: veryLongThinking,
+        showThinking: true,
       });
 
       // Find thinking calls (may be multiple chunks)
@@ -1002,6 +1011,7 @@ describe('DiscordResponseSender', () => {
         personality: personalityWithThinking,
         message: mockMessage,
         thinkingContent: longThinking,
+        showThinking: true,
       });
 
       // Should have multiple thinking calls plus the main response
