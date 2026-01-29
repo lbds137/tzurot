@@ -111,9 +111,9 @@ function buildReasoningParams(
   if (reasoning.effort !== undefined) {
     params.effort = reasoning.effort;
     if (reasoning.maxTokens !== undefined) {
-      logger.debug(
+      logger.warn(
         { effort: reasoning.effort, maxTokens: reasoning.maxTokens },
-        '[ModelFactory] Both reasoning.effort and reasoning.maxTokens set, using effort (OpenRouter constraint)'
+        '[ModelFactory] Both reasoning.effort and reasoning.maxTokens set, using effort (maxTokens ignored - OpenRouter constraint)'
       );
     }
   } else if (reasoning.maxTokens !== undefined) {
