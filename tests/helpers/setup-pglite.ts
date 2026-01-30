@@ -10,7 +10,7 @@
  *
  * PGLite Schema Management:
  * - Schema SQL is auto-generated from Prisma using `prisma migrate diff`
- * - Stored in tests/integration/schema/pglite-schema.sql
+ * - Stored in tests/schema/pglite-schema.sql
  * - Regenerate with: ./scripts/testing/regenerate-pglite-schema.sh
  * - This ensures PGLite always matches the current Prisma schema
  */
@@ -25,7 +25,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { Redis as IORedis } from 'ioredis';
-import { createRedisClientMock } from './helpers/RedisClientMock.js';
+import { createRedisClientMock } from './RedisClientMock.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -57,7 +57,7 @@ const __dirname = dirname(__filename);
  * Regenerate with: ./scripts/testing/regenerate-pglite-schema.sh
  */
 function loadPGliteSchema(): string {
-  const schemaPath = join(__dirname, 'schema', 'pglite-schema.sql');
+  const schemaPath = join(__dirname, '../schema/pglite-schema.sql');
   try {
     return readFileSync(schemaPath, 'utf-8');
   } catch {
@@ -149,8 +149,8 @@ function setupWithRealDatabase(): TestEnvironment {
  */
 function setupCI(): TestEnvironment {
   // In CI, use environment variables pointing to service containers
-  const databaseUrl =
-    process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/tzurot_test';
+  // prettier-ignore
+  const databaseUrl = process.env.DATABASE_URL ?? 'postgresql://postgres:postgres@localhost:5432/tzurot_test'; // secretlint-disable-line
   const redisUrl = process.env.REDIS_URL ?? 'redis://localhost:6379';
 
   // Use driver adapter pattern for Prisma 7

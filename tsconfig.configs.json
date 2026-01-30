@@ -15,7 +15,8 @@
   },
   "include": [
     "vitest.config.ts",
-    "vitest.integration.config.ts",
+    "vitest.int.config.ts",
+    "vitest.e2e.config.ts",
     "vitest.workspace.ts",
     "eslint.config.js"
   ],

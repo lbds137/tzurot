@@ -6,7 +6,7 @@ Integration tests in Tzurot v3 use PGLite (in-memory PostgreSQL with pgvector) f
 
 ```bash
 # Run integration tests (no DATABASE_URL needed)
-pnpm test:integration
+pnpm test:int
 
 # Schema is auto-generated from Prisma
 ./scripts/testing/regenerate-pglite-schema.sh
@@ -15,7 +15,7 @@ pnpm test:integration
 ## Schema Management (CRITICAL)
 
 - Schema SQL is auto-generated from `prisma/schema.prisma`
-- Stored in `tests/integration/schema/pglite-schema.sql`
+- Stored in `tests/schema/pglite-schema.sql`
 - **Regenerate after Prisma migrations**: `./scripts/testing/regenerate-pglite-schema.sh`
 - Uses `prisma migrate diff --from-empty --to-schema` - never write SQL manually
 
@@ -30,7 +30,10 @@ pnpm test:integration
 ## Test Setup Pattern
 
 ```typescript
-import { setupTestEnvironment, type TestEnvironment } from './setup';
+import {
+  setupTestEnvironment,
+  type TestEnvironment,
+} from '../../../../../tests/helpers/setup-pglite.js';
 
 let testEnv: TestEnvironment;
 
@@ -44,27 +47,43 @@ afterAll(async () => {
 });
 ```
 
+## Test File Naming
+
+| Type        | Pattern            | Location        | Infrastructure |
+| ----------- | ------------------ | --------------- | -------------- |
+| Unit        | `*.test.ts`        | Next to source  | Fully mocked   |
+| Integration | `*.int.test.ts`    | Next to source  | PGLite         |
+| Schema      | `*.schema.test.ts` | `common-types/` | Zod only       |
+| E2E         | `*.e2e.test.ts`    | `tests/e2e/`    | Real services  |
+
 ## When to Use Integration vs Unit Tests
 
-### Use Integration Tests For
+### Use Integration Tests (\*.int.test.ts) For
 
 - Database operations with complex queries (joins, transactions)
-- Cross-service communication (bot-client → api-gateway → ai-worker)
-- Business logic spanning multiple services
+- Services that depend on Prisma
+- Business logic that needs real database behavior
 
-### Use Unit Tests For
+### Use Unit Tests (\*.test.ts) For
 
 - Pure utility functions
-- UI/Discord interaction handlers (mock the session/API instead)
-- Simple CRUD operations
+- Discord interaction handlers (mock the session/API)
+- Logic that doesn't depend on database
+
+### Use E2E Tests (\*.e2e.test.ts) For
+
+- Cross-service flows (BullMQ contracts)
+- Database connectivity smoke tests
+- External service integration verification
 
 ## Key Differences
 
 - **Unit tests**: Mock all dependencies, test one function
-- **Integration tests**: Use real components (except external APIs like Discord, OpenRouter)
+- **Integration tests**: Use PGLite database, co-located next to source
+- **E2E tests**: Test cross-service flows, centralized in tests/e2e/
 
 ## Files
 
-- Setup: `tests/integration/setup.ts`
-- Schema: `tests/integration/schema/pglite-schema.sql`
+- Setup: `tests/helpers/setup-pglite.ts`
+- Schema: `tests/schema/pglite-schema.sql`
 - Regeneration script: `scripts/testing/regenerate-pglite-schema.sh`

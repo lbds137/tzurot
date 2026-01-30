@@ -40,6 +40,11 @@ flags:
   common-types:
     paths:
       - packages/common-types/
+  # Integration tests cover all services
+  integration:
+    paths:
+      - services/
+      - packages/
 
 ignore:
   - '**/*.test.ts'

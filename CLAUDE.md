@@ -163,7 +163,7 @@ Skill("tzurot-db-vector") # Before database work
 | `CLI`, `ops`, `script`                           | tzurot-tooling          |
 | `MCP`, `council`, `second opinion`               | tzurot-council-mcp      |
 
-**Why This Matters**: Skills contain project-specific patterns that override general knowledge. The tzurot-testing skill specifies `.component.test.ts` naming - ignoring it caused a misnamed test file.
+**Why This Matters**: Skills contain project-specific patterns that override general knowledge. The tzurot-testing skill specifies `.int.test.ts` naming for integration tests - ignoring it caused misnamed test files.
 
 **Common Mistake**: Reading skill descriptions but not actually invoking them. The skill content only loads into context when you use the Skill tool. If you're about to write tests but haven't invoked `tzurot-testing`, you're missing critical project-specific patterns.
 

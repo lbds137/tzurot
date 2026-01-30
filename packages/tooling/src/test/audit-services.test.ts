@@ -89,7 +89,7 @@ describe('audit-services', () => {
       mockExistsSync.mockImplementation((path: string) => {
         // IMPORTANT: Check specific patterns BEFORE general directory patterns!
         // The path to a component test file includes 'ai-worker/src' too
-        if (path.includes('.component.test.ts')) return false; // Must be first!
+        if (path.includes('.int.test.ts')) return false; // Must be first!
         if (path.includes('service-integration-baseline')) return true;
         if (path.includes('ai-worker/src')) return true;
         if (path.includes('api-gateway/src')) return true;
@@ -144,7 +144,7 @@ describe('audit-services', () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('baseline')) return true;
         if (path.includes('services/ai-worker/src')) return true;
-        if (path.includes('.component.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
         return false;
       });
 
@@ -193,7 +193,7 @@ describe('audit-services', () => {
     it('should fail in strict mode with any gaps', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         // IMPORTANT: Check specific patterns BEFORE general directory patterns!
-        if (path.includes('.component.test.ts')) return false; // Must be first!
+        if (path.includes('.int.test.ts')) return false; // Must be first!
         if (path.includes('service-integration-baseline')) return true;
         if (path.includes('ai-worker/src')) return true;
         if (path.includes('api-gateway/src')) return true;
@@ -339,7 +339,7 @@ export { NewService as LegacyService } from './NewService';`;
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('baseline')) return true;
         if (path.includes('services/ai-worker/src')) return true;
-        if (path.includes('.component.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
         return false;
       });
 
