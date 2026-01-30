@@ -43,6 +43,7 @@ interface IncognitoStatusResponse {
 interface IncognitoEnableResponse {
   session: IncognitoSession;
   timeRemaining: string;
+  wasAlreadyActive: boolean;
   message: string;
 }
 
@@ -123,10 +124,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
 
     const data = result.data;
 
-    // Check if it was already active (message contains "already")
-    const wasAlreadyActive = data.message.includes('already');
-
-    const embed = wasAlreadyActive
+    const embed = data.wasAlreadyActive
       ? createInfoEmbed(
           '👻 Incognito Already Active',
           `Incognito mode is already active for **${escapeMarkdown(resolved.name ?? personalityInput)}**.\n\n**Time remaining:** ${data.timeRemaining}\n\nDisable it first if you want to change the duration.`
@@ -139,7 +137,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
     await context.editReply({ embeds: [embed] });
 
     logger.info(
-      { userId, personalityId: resolved.id, duration, wasAlreadyActive },
+      { userId, personalityId: resolved.id, duration, wasAlreadyActive: data.wasAlreadyActive },
       '[Memory/Incognito] Mode enabled'
     );
   } catch (error) {

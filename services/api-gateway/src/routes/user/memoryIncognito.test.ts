@@ -410,7 +410,31 @@ describe('/user/memory/incognito routes', () => {
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
+          wasAlreadyActive: true,
           message: expect.stringContaining('already active'),
+        })
+      );
+    });
+
+    it('should return wasAlreadyActive: false when creating new session', async () => {
+      mockRedis.get.mockResolvedValue(null);
+
+      const router = createIncognitoRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockRedis as unknown as Redis
+      );
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        personalityId: TEST_PERSONALITY_ID,
+        duration: '1h',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          wasAlreadyActive: false,
         })
       );
     });

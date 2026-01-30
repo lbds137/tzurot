@@ -155,6 +155,7 @@ async function handleEnable(
       {
         session: existingSession,
         timeRemaining: manager.getTimeRemaining(existingSession),
+        wasAlreadyActive: true,
         message: `Incognito mode is already active for ${personalityName ?? 'this personality'}. Disable it first to change duration.`,
       },
       StatusCodes.OK
@@ -172,6 +173,7 @@ async function handleEnable(
     {
       session,
       timeRemaining: manager.getTimeRemaining(session),
+      wasAlreadyActive: false,
       message: `👻 Incognito mode enabled for ${personalityName ?? 'this personality'} (${getDurationLabel(duration)}). New memories will NOT be saved.`,
     },
     StatusCodes.CREATED
