@@ -38,6 +38,7 @@ export {
 
 // CustomId factory
 export {
+  MAX_CUSTOMID_QUERY_LENGTH,
   type BrowseCustomIdConfig,
   type BrowseCustomIdHelpers,
   createBrowseCustomIdHelpers,

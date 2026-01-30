@@ -188,6 +188,8 @@ const customId = `${prefix}:page:${pageNum}:${sortType}`;
 // Example: "memory:page:2:date" or "character:sort:0:name"
 ```
 
+**Query Length Limit:** Discord customIds have a 100-character maximum. The browse customId factory truncates search queries to **50 characters** (`MAX_CUSTOMID_QUERY_LENGTH`) to fit within this limit. Long queries are silently truncated in pagination buttons while the full query is preserved in browse context for display.
+
 ### Implementation Pattern
 
 ```typescript
