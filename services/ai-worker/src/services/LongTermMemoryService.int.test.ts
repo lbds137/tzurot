@@ -24,17 +24,8 @@ import type { ConversationContext } from './ConversationalRAGService.js';
 // We need to use the same PrismaClient type that the service uses
 import { PrismaClient } from '@tzurot/common-types';
 
-// Mock the getPrismaClient to return our test instance
+// Mock common-types: getPrismaClient returns test instance, logger is silenced
 let testPrisma: PrismaClient;
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
-  return {
-    ...actual,
-    getPrismaClient: () => testPrisma,
-  };
-});
-
-// Mock logger to avoid console noise
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {

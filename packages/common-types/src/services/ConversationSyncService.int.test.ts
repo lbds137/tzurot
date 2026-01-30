@@ -40,7 +40,10 @@ describe('ConversationSyncService Integration Test', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Create tables in dependency order
+    // Create tables manually for this test.
+    // Note: loadPGliteSchema() from @tzurot/test-utils requires schema generation setup
+    // which isn't fully implemented yet. Manual schema ensures test isolation and
+    // only includes tables needed for this specific test.
     await prisma.$executeRawUnsafe(`
       CREATE TABLE IF NOT EXISTS users (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
