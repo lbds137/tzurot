@@ -156,7 +156,7 @@ function createServices(): Services {
   const persistence = new ConversationPersistence(prisma);
   const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
-  const replyResolver = new ReplyResolutionService(personalityIdCache);
+  const replyResolver = new ReplyResolutionService(personalityIdCache, gatewayClient);
 
   // Extended context resolver for fetching recent channel messages
   const extendedContextResolver = new ExtendedContextResolver(gatewayClient);
