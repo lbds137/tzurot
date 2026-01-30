@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-01-29
-> **Version**: v3.0.0-beta.57
+> **Version**: v3.0.0-beta.59
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -57,17 +57,6 @@ Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified for
 ## Epic: User-Requested Features
 
 _Features requested by actual users._
-
-### ✨ Preset Import/Export/Template Commands
-
-Mirror the `/character import`, `/character export`, and `/character template` commands for presets.
-
-- [ ] `/preset template` - Download JSON template showing preset format
-- [ ] `/preset export <name>` - Export owned preset as JSON file
-- [ ] `/preset import <file>` - Import preset from JSON file
-- [ ] Factor out shared logic from character commands (JSON handling, file attachments, permission checks) into reusable utilities
-
-**Reference**: `commands/character/import.ts`, `export.ts`, `template.ts`
 
 ### ✨ User System Prompts
 
@@ -179,13 +168,6 @@ Zod strips fields not in schema. When we add fields to TS interfaces but forget 
 - [ ] Use `.passthrough()` or `.strict()` during development
 - [ ] Audit: `schemas.ts`, `jobs.ts`, route schemas
 
-### 🧹 Log Warning for Non-String Zod Values
-
-`optionalString`/`nullableString` preprocessors silently convert non-string values (objects, numbers) to undefined.
-
-- [ ] Add `logger.warn` when coercion happens
-- [ ] Helps surface malformed API requests
-
 ---
 
 ## Epic: Observability & Debugging
@@ -234,14 +216,6 @@ Some operations log at INFO when they should be DEBUG.
 - [ ] Duplicate detection: PASSED → DEBUG, keep NEAR-MISS/DUPLICATE at INFO
 - [ ] Audit other high-frequency INFO logs
 - [ ] Document logging level guidelines
-
----
-
-## Epic: Duplicate Detection Hardening
-
-### 🏗️ Unbounded History Scanning
-
-Scans entire history looking for 5 assistant messages. Add `MAX_SCAN_DEPTH = 100`.
 
 ---
 
