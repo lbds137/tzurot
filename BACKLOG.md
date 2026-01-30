@@ -487,6 +487,16 @@ Run `pnpm ops test:audit --category=services` to check coverage.
 
 _Note: Services without direct Prisma calls are auto-excluded from the audit._
 
+### 🧹 Standardize PGLite Schema Usage
+
+The generated schema from `loadPGliteSchema()` differs from manual schemas in tests (e.g., `updated_at` has no DEFAULT - Prisma handles it at runtime). Some tests use manual schema creation to include defaults for simpler INSERT statements.
+
+- [ ] Update `ConversationSyncService.int.test.ts` to use `loadPGliteSchema()` with explicit timestamps in INSERTs
+- [ ] Document that test INSERTs must include all required fields (no defaults for `@updatedAt`)
+- [ ] Consider adding a test helper for seeding common fixtures
+
+**Files**: `packages/test-utils/src/setup-pglite.ts`, `scripts/testing/regenerate-pglite-schema.sh`
+
 ### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention:
