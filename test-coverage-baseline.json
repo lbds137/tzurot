@@ -1,35 +1,10 @@
 {
-  "version": 4,
-  "lastUpdated": "2026-01-30T20:52:48.165Z",
+  "version": 5,
+  "lastUpdated": "2026-01-30T21:00:00.000Z",
   "services": {
     "knownGaps": [
-      "services/ai-worker/src/services/ConversationalRAGService.ts",
-      "services/ai-worker/src/services/KeyValidationService.ts",
-      "services/ai-worker/src/services/RedisService.ts",
-      "services/api-gateway/src/services/AttachmentStorageService.ts",
-      "services/api-gateway/src/services/DatabaseSyncService.ts",
-      "services/bot-client/src/services/ReferenceEnrichmentService.ts",
-      "services/bot-client/src/services/ReplyResolutionService.ts",
-      "services/bot-client/src/services/VoiceTranscriptionService.ts"
-    ],
-    "exempt": [
-      "packages/common-types/src/services/ApiKeyCacheInvalidationService.ts",
-      "packages/common-types/src/services/BaseCacheInvalidationService.ts",
-      "packages/common-types/src/services/CacheInvalidationService.ts",
-      "packages/common-types/src/services/ChannelActivationCacheInvalidationService.ts",
-      "packages/common-types/src/services/LlmConfigCacheInvalidationService.ts",
-      "packages/common-types/src/services/PersonaCacheInvalidationService.ts",
-      "services/ai-worker/src/services/ConversationalRAGService.ts",
-      "services/ai-worker/src/services/KeyValidationService.ts",
-      "services/ai-worker/src/services/RedisService.ts",
-      "services/api-gateway/src/services/AttachmentStorageService.ts",
-      "services/api-gateway/src/services/DatabaseSyncService.ts",
-      "services/api-gateway/src/services/EmbeddingService.ts",
-      "services/bot-client/src/services/RedisService.ts",
-      "services/bot-client/src/services/ReferenceEnrichmentService.ts",
-      "services/bot-client/src/services/ReplyResolutionService.ts",
-      "services/bot-client/src/services/ResponseOrderingService.ts",
-      "services/bot-client/src/services/VoiceTranscriptionService.ts"
+      "packages/common-types/src/services/ConversationSyncService.ts",
+      "services/ai-worker/src/services/ConversationalRAGService.ts"
     ]
   },
   "contracts": {
@@ -96,7 +71,7 @@
     ]
   },
   "notes": {
-    "serviceExemptionCriteria": "Services without direct Prisma calls are exempt. Service tests verify DB plumbing, so only services with prisma.* calls need them.",
+    "serviceExemptionCriteria": "Services are auto-detected for Prisma usage. Only services with Prisma calls need integration tests.",
     "contractExemptionCriteria": "None - all API schemas need contract tests"
   }
 }
