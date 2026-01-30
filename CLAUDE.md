@@ -126,11 +126,21 @@ When making changes that affect multiple files:
 
 ### Mandatory Skill Pre-Flight Check
 
-**Before writing ANY code, consult relevant skills:**
+**Before writing ANY code, ACTUALLY INVOKE relevant skills using the Skill tool.**
 
-1. **Check skill descriptions** in `.claude/skills/` for matching keywords
-2. **Invoke matching skills** to load project-specific patterns
-3. **Follow skill guidance** over general knowledge
+Skills are NOT automatically loaded. You must explicitly activate them:
+
+```
+# Use the Skill tool to load project-specific patterns
+Skill("tzurot-testing")   # Before writing tests
+Skill("tzurot-db-vector") # Before database work
+```
+
+**Pre-flight process:**
+
+1. **Identify matching keywords** from the table below
+2. **INVOKE the skill** using the Skill tool - don't just read about it
+3. **Follow skill guidance** over general knowledge - skills override defaults
 
 **Trigger Keywords → Skills**:
 
@@ -154,6 +164,8 @@ When making changes that affect multiple files:
 | `MCP`, `council`, `second opinion`               | tzurot-council-mcp      |
 
 **Why This Matters**: Skills contain project-specific patterns that override general knowledge. The tzurot-testing skill specifies `.component.test.ts` naming - ignoring it caused a misnamed test file.
+
+**Common Mistake**: Reading skill descriptions but not actually invoking them. The skill content only loads into context when you use the Skill tool. If you're about to write tests but haven't invoked `tzurot-testing`, you're missing critical project-specific patterns.
 
 ### Deterministic UUIDs Required
 
