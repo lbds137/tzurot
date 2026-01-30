@@ -341,6 +341,39 @@ describe('GenerationStep', () => {
       expect(result.result?.metadata?.isGuestMode).toBe(false);
     });
 
+    it('should return failure with EMPTY_RESPONSE when content is empty after post-processing', async () => {
+      // This simulates a reasoning model returning only thinking content but no visible response
+      const ragResponse: RAGResponse = {
+        content: '', // Empty content after thinking extraction
+        retrievedMemories: 2,
+        tokensIn: 100,
+        tokensOut: 50,
+        thinkingContent: 'I was thinking about the question...',
+        modelUsed: 'deepseek/deepseek-r1',
+      };
+
+      vi.mocked(mockRAGService.generateResponse).mockResolvedValue(ragResponse);
+
+      const context: GenerationContext = {
+        job: createMockJob(),
+        startTime: Date.now(),
+        config: baseConfig,
+        auth: baseAuth,
+        preparedContext: basePreparedContext,
+      };
+
+      const result = await step.process(context);
+
+      expect(result.result).toBeDefined();
+      expect(result.result?.success).toBe(false);
+      expect(result.result?.error).toContain('empty response');
+      expect(result.result?.personalityErrorMessage).toBe('Sorry, something went wrong.');
+      expect(result.result?.errorInfo?.category).toBe('empty_response');
+      expect(result.result?.errorInfo?.type).toBe('transient');
+      // Verify thinking content is preserved in metadata for display
+      expect(result.result?.metadata?.thinkingContent).toBe('I was thinking about the question...');
+    });
+
     it('should include referenced messages descriptions in result', async () => {
       const ragResponse: RAGResponse = {
         content: 'Response',

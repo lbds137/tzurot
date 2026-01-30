@@ -124,8 +124,12 @@ describe('handleDebug', () => {
   /**
    * Create a mock DeferredCommandContext for testing.
    * @param identifier - Can be a request UUID, message ID, or message link
+   * @param format - Output format: 'json', 'xml', or 'both'
    */
-  function createMockContext(identifier: string | null = 'test-req-123'): DeferredCommandContext {
+  function createMockContext(
+    identifier: string | null = 'test-req-123',
+    format: string | null = null
+  ): DeferredCommandContext {
     const mockEditReply = vi.fn().mockResolvedValue(undefined);
 
     return {
@@ -133,6 +137,7 @@ describe('handleDebug', () => {
         options: {
           getString: vi.fn((name: string) => {
             if (name === 'identifier') return identifier;
+            if (name === 'format') return format;
             return null;
           }),
           getBoolean: vi.fn(() => null),
@@ -150,6 +155,9 @@ describe('handleDebug', () => {
       getOption: vi.fn((name: string) => {
         if (name === 'identifier') {
           return identifier;
+        }
+        if (name === 'format') {
+          return format;
         }
         return null;
       }),
@@ -550,6 +558,103 @@ describe('handleDebug', () => {
           files: expect.arrayContaining([expect.any(Object)]),
         })
       );
+    });
+  });
+
+  describe('format option', () => {
+    function createSuccessResponse(payload: DiagnosticPayload) {
+      return new Response(
+        JSON.stringify({
+          log: {
+            id: 'log-uuid',
+            requestId: 'test-req-123',
+            personalityId: 'personality-uuid',
+            userId: '123456789',
+            guildId: '987654321',
+            channelId: '111222333',
+            model: 'test',
+            provider: 'test',
+            durationMs: 100,
+            createdAt: '2026-01-22T12:00:00Z',
+            data: payload,
+          },
+        }),
+        { status: 200 }
+      );
+    }
+
+    it('should return JSON attachment by default', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
+
+      const context = createMockContext('test-req-123');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        files: { name: string }[];
+      };
+      expect(editReplyArgs.files).toHaveLength(1);
+      expect(editReplyArgs.files[0].name).toContain('.json');
+    });
+
+    it('should return JSON attachment when format is "json"', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
+
+      const context = createMockContext('test-req-123', 'json');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        files: { name: string }[];
+      };
+      expect(editReplyArgs.files).toHaveLength(1);
+      expect(editReplyArgs.files[0].name).toContain('.json');
+    });
+
+    it('should return XML attachment when format is "xml"', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
+
+      const context = createMockContext('test-req-123', 'xml');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        files: { name: string }[];
+      };
+      expect(editReplyArgs.files).toHaveLength(1);
+      expect(editReplyArgs.files[0].name).toContain('.xml');
+    });
+
+    it('should return both JSON and XML attachments when format is "both"', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
+
+      const context = createMockContext('test-req-123', 'both');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        files: { name: string }[];
+      };
+      expect(editReplyArgs.files).toHaveLength(2);
+      expect(editReplyArgs.files.some(f => f.name.includes('.json'))).toBe(true);
+      expect(editReplyArgs.files.some(f => f.name.includes('.xml'))).toBe(true);
+    });
+
+    it('should wrap system prompt in SystemPrompt root tag for XML format', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      mockPayload.assembledPrompt.messages[0].content = '<persona>Test</persona>';
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
+
+      const context = createMockContext('test-req-123', 'xml');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        files: { attachment: Buffer; name: string }[];
+      };
+      const xmlContent = editReplyArgs.files[0].attachment.toString();
+      expect(xmlContent).toContain('<SystemPrompt>');
+      expect(xmlContent).toContain('</SystemPrompt>');
+      expect(xmlContent).toContain('<persona>Test</persona>');
     });
   });
 });

@@ -100,6 +100,57 @@ function getEmbedColor(payload: DiagnosticPayload): number {
   return 0x00ff00;
 }
 
+/** Output format options */
+type DebugFormat = 'json' | 'xml' | 'both';
+
+/**
+ * Extract and format the system prompt as XML
+ * Wraps in <SystemPrompt> root tag for valid XML structure
+ */
+function extractSystemPromptXml(payload: DiagnosticPayload): string {
+  const systemMessage = payload.assembledPrompt.messages.find(m => m.role === 'system');
+  if (!systemMessage) {
+    return '<SystemPrompt>\n  <!-- No system message found -->\n</SystemPrompt>';
+  }
+
+  // The content is already formatted with newlines in the source
+  // Just wrap it in a root tag for valid XML
+  return `<SystemPrompt>\n${systemMessage.content}\n</SystemPrompt>`;
+}
+
+/**
+ * Build attachments based on format option
+ */
+function buildAttachments(
+  payload: DiagnosticPayload,
+  requestId: string,
+  format: DebugFormat
+): AttachmentBuilder[] {
+  const files: AttachmentBuilder[] = [];
+
+  if (format === 'json' || format === 'both') {
+    const jsonContent = JSON.stringify(payload, null, 2);
+    files.push(
+      new AttachmentBuilder(Buffer.from(jsonContent), {
+        name: `debug-${requestId}.json`,
+        description: 'Full LLM debug data for prompt analysis',
+      })
+    );
+  }
+
+  if (format === 'xml' || format === 'both') {
+    const xmlContent = extractSystemPromptXml(payload);
+    files.push(
+      new AttachmentBuilder(Buffer.from(xmlContent), {
+        name: `system-prompt-${requestId}.xml`,
+        description: 'Formatted system prompt for analysis',
+      })
+    );
+  }
+
+  return files;
+}
+
 /**
  * Build a summary embed with key diagnostic stats
  */
@@ -212,6 +263,7 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
 export async function handleDebug(context: DeferredCommandContext): Promise<void> {
   const options = adminDebugOptions(context.interaction);
   const identifier = options.identifier();
+  const format = (options.format() ?? 'json') as DebugFormat;
 
   // Note: identifier() returns string (required option), so only empty check needed
   if (identifier === '') {
@@ -305,19 +357,13 @@ export async function handleDebug(context: DeferredCommandContext): Promise<void
       log = result.log;
     }
 
-    // Build summary embed
+    // Build summary embed and attachments
     const embed = buildDiagnosticEmbed(log.data);
-
-    // Attach full JSON for detailed analysis
-    const jsonContent = JSON.stringify(log.data, null, 2);
-    const attachment = new AttachmentBuilder(Buffer.from(jsonContent), {
-      name: `debug-${log.requestId}.json`,
-      description: 'Full LLM debug data for prompt analysis',
-    });
+    const files = buildAttachments(log.data, log.requestId, format);
 
     await context.editReply({
       embeds: [embed],
-      files: [attachment],
+      files,
     });
 
     logger.info(
