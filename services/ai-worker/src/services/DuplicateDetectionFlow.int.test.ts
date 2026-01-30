@@ -38,7 +38,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 function loadPGliteSchema(): string {
-  const schemaPath = join(__dirname, '../../../../../tests/schema/pglite-schema.sql');
+  const schemaPath = join(__dirname, '../../../../tests/schema/pglite-schema.sql');
   return readFileSync(schemaPath, 'utf-8');
 }
 
