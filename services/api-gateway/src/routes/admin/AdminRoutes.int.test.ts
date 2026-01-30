@@ -18,7 +18,7 @@ import { createAdminRouter } from './index.js';
 import {
   setupTestEnvironment,
   type TestEnvironment,
-} from '../../../../../../tests/helpers/setup-pglite.js';
+} from '../../../../../tests/helpers/setup-pglite.js';
 
 describe('Admin Routes Integration', () => {
   let testEnv: TestEnvironment;

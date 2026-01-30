@@ -14,7 +14,7 @@ import { VisionDescriptionCache } from '@tzurot/common-types';
 import {
   setupTestEnvironment,
   type TestEnvironment,
-} from '../../../../../tests/helpers/setup-pglite.js';
+} from '../../../../tests/helpers/setup-pglite.js';
 
 describe('VisionDescriptionCache Integration', () => {
   let testEnv: TestEnvironment;
