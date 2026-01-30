@@ -310,25 +310,28 @@ Before marking a feature complete:
 
 ## Test Coverage Audits (Ratchet System)
 
-The project uses ratchets to prevent new untested code:
+The project uses a unified ratchet audit to prevent new untested code:
 
 ```bash
-# Run both audits (CI does this automatically)
+# Run unified audit (CI does this automatically)
 pnpm ops test:audit
 
-# Contract coverage only
-pnpm ops test:audit-contracts
-
-# Service integration coverage only
-pnpm ops test:audit-services
+# Filter by category
+pnpm ops test:audit --category=services   # Service tests only
+pnpm ops test:audit --category=contracts  # Contract tests only
 
 # Update baseline (after closing gaps)
-pnpm ops test:audit-contracts --update
-pnpm ops test:audit-services --update
+pnpm ops test:audit --update
+pnpm ops test:audit --category=services --update  # Update only services
 
 # Strict mode (fails on ANY gap, not just new ones)
 pnpm ops test:audit --strict
+
+# Verbose output (show all covered items)
+pnpm ops test:audit --verbose
 ```
+
+**Unified Baseline**: `test-coverage-baseline.json` (project root)
 
 **📚 See**: `docs/reference/testing/COVERAGE_AUDIT_SYSTEM.md` for detailed audit workflows, chip-away process, and priority order.
 
@@ -371,8 +374,7 @@ pnpm --filter @tzurot/api-gateway test:coverage     # Specific service
 - Full testing guide: `docs/guides/TESTING.md`
 - Mock factories: `services/*/src/test/mocks/`
 - Global philosophy: `~/.claude/CLAUDE.md#universal-testing-philosophy`
-- PGLite setup: `tests/integration/setup.ts`
-- Test audit commands: `pnpm ops test:audit-*`
+- PGLite setup: `tests/e2e/setup.ts` (shared setup for service/e2e tests)
+- Test audit command: `pnpm ops test:audit`
 - Schema regeneration: `./scripts/testing/regenerate-pglite-schema.sh`
-- Contract baseline: `contract-coverage-baseline.json`
-- Service baseline: `service-integration-baseline.json`
+- Unified baseline: `test-coverage-baseline.json`
