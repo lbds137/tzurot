@@ -122,8 +122,8 @@ describe('audit-unified', () => {
 
     it('should pass when all gaps are known in baseline', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.component.test.ts')) return false;
-        if (path.includes('.service.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('service-integration-baseline')) return true;
         if (path.includes('contract-coverage-baseline')) return true;
@@ -200,8 +200,8 @@ describe('audit-unified', () => {
 
     it('should fail when new service gaps are found', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.component.test.ts')) return false;
-        if (path.includes('.service.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('service-integration-baseline')) return true;
         if (path.includes('contract-coverage-baseline')) return true;
@@ -273,8 +273,8 @@ describe('audit-unified', () => {
 
     it('should update baseline when --update flag is passed', async () => {
       mockExistsSync.mockImplementation((path: string) => {
-        if (path.includes('.component.test.ts')) return false;
-        if (path.includes('.service.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('.int.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
         if (path.includes('service-integration-baseline')) return true;
         if (path.includes('contract-coverage-baseline')) return true;

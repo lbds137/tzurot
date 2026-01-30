@@ -6,7 +6,7 @@
     "composite": true,
     "types": ["vitest/globals", "node"]
   },
-  "include": ["integration/**/*.ts"],
+  "include": ["helpers/**/*.ts", "e2e/**/*.ts"],
   "references": [
     { "path": "../packages/common-types" },
     { "path": "../services/api-gateway" },

@@ -66,7 +66,7 @@ function findTestedSchemas(projectRoot: string): string[] {
   const contractTestsDir = join(projectRoot, 'packages/common-types/src/types');
 
   const contractTestFiles = readdirSync(contractTestsDir).filter(f =>
-    f.endsWith('.contract.test.ts')
+    f.endsWith('.schema.test.ts')
   );
 
   for (const file of contractTestFiles) {
@@ -102,18 +102,18 @@ function findTestedSchemas(projectRoot: string): string[] {
     }
   }
 
-  // Also check integration tests for schema usage
-  const integrationTestsDir = join(projectRoot, 'tests/integration');
-  if (existsSync(integrationTestsDir)) {
-    const integrationFiles = readdirSync(integrationTestsDir).filter(f => f.endsWith('.test.ts'));
+  // Also check e2e tests for schema usage
+  const e2eTestsDir = join(projectRoot, 'tests/e2e');
+  if (existsSync(e2eTestsDir)) {
+    const e2eFiles = readdirSync(e2eTestsDir).filter(f => f.endsWith('.e2e.test.ts'));
 
-    for (const file of integrationFiles) {
-      const content = readFileSync(join(integrationTestsDir, file), 'utf-8');
+    for (const file of e2eFiles) {
+      const content = readFileSync(join(e2eTestsDir, file), 'utf-8');
 
-      // Find schemas used in integration tests
+      // Find schemas used in e2e tests
       const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
       for (const match of schemaUsageMatches) {
-        tested.push(`integration:${match[1]}`);
+        tested.push(`e2e:${match[1]}`);
       }
     }
   }

@@ -106,7 +106,7 @@ function findServiceFiles(projectRoot: string): string[] {
     const files = findFiles(dir, /Service\.ts$/);
     for (const file of files) {
       // Skip test files
-      if (file.endsWith('.test.ts') || file.endsWith('.component.test.ts')) continue;
+      if (file.endsWith('.test.ts') || file.endsWith('.int.test.ts')) continue;
 
       // Skip re-export files
       if (isReExportFile(file)) continue;
@@ -121,7 +121,7 @@ function findServiceFiles(projectRoot: string): string[] {
 }
 
 /**
- * Find services that have component tests
+ * Find services that have integration tests (*.int.test.ts)
  */
 function findTestedServices(projectRoot: string, services: string[]): string[] {
   const tested: string[] = [];
@@ -131,10 +131,10 @@ function findTestedServices(projectRoot: string, services: string[]): string[] {
     const dir = dirname(fullPath);
     const baseName = basename(service, '.ts');
 
-    // Check for component test file
-    const componentTestPath = join(dir, `${baseName}.component.test.ts`);
+    // Check for integration test file (.int.test.ts)
+    const intTestPath = join(dir, `${baseName}.int.test.ts`);
 
-    if (existsSync(componentTestPath)) {
+    if (existsSync(intTestPath)) {
       tested.push(service);
     }
   }
@@ -209,12 +209,12 @@ function printReport(result: ServiceAuditResult): void {
   console.log(`Total services:     ${result.allServices.length}`);
   console.log(`Exempt services:    ${result.baseline.exempt.length}`);
   console.log(`Auditable services: ${result.auditableServices.length}`);
-  console.log(`With component test: ${result.testedServices.length}`);
+  console.log(`With integration test: ${result.testedServices.length}`);
   console.log(`Missing tests:      ${result.untestedServices.length}`);
   console.log(`Coverage:           ${result.coverage.toFixed(1)}%\n`);
 
   if (result.testedServices.length > 0) {
-    console.log('✅ Services with component tests:');
+    console.log('✅ Services with integration tests:');
     for (const service of result.testedServices) {
       console.log(`   ✓ ${service}`);
     }
@@ -222,7 +222,7 @@ function printReport(result: ServiceAuditResult): void {
   }
 
   if (result.untestedServices.length > 0) {
-    console.log('📋 Services missing component tests:');
+    console.log('📋 Services missing integration tests:');
     for (const service of result.untestedServices) {
       console.log(`   - ${service}`);
     }
@@ -230,7 +230,7 @@ function printReport(result: ServiceAuditResult): void {
   }
 
   if (result.baseline.exempt.length > 0) {
-    console.log('⏭️  Exempt services (no component test required):');
+    console.log('⏭️  Exempt services (no integration test required):');
     for (const service of result.baseline.exempt) {
       console.log(`   ~ ${service}`);
     }
@@ -243,7 +243,7 @@ function printReport(result: ServiceAuditResult): void {
  */
 function printGapAnalysis(result: ServiceAuditResult): void {
   if (result.fixedGaps.length > 0) {
-    console.log('🎉 Fixed gaps (now have component tests):');
+    console.log('🎉 Fixed gaps (now have integration tests):');
     for (const gap of result.fixedGaps) {
       console.log(`   ✅ ${gap}`);
     }
@@ -251,13 +251,13 @@ function printGapAnalysis(result: ServiceAuditResult): void {
   }
 
   if (result.newGaps.length > 0) {
-    console.log('❌ NEW GAPS (services added without component tests):');
+    console.log('❌ NEW GAPS (services added without integration tests):');
     for (const gap of result.newGaps) {
       console.log(`   ❌ ${gap}`);
     }
     console.log();
-    console.log('💡 To fix: Add a .component.test.ts file for these services');
-    console.log('   Or add to "exempt" in baseline if no component test needed');
+    console.log('💡 To fix: Add a .int.test.ts file for these services');
+    console.log('   Or add to "exempt" in baseline if no integration test needed');
     console.log('   Or run: pnpm ops test:audit-services --update\n');
   }
 }
@@ -291,12 +291,12 @@ export function auditServices(options: AuditServicesOptions = {}): boolean {
 
   // Determine pass/fail (caller handles exit codes for flexibility)
   if (strict && result.untestedServices.length > 0) {
-    console.log('❌ STRICT MODE: All services must have component tests\n');
+    console.log('❌ STRICT MODE: All services must have integration tests\n');
     return false;
   }
 
   if (!strict && result.newGaps.length > 0) {
-    console.log('❌ RATCHET FAILED: New services added without component tests\n');
+    console.log('❌ RATCHET FAILED: New services added without integration tests\n');
     return false;
   }
 

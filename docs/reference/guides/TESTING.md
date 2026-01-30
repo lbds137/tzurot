@@ -106,16 +106,14 @@ services/bot-client/
 
 ### Test File Naming
 
-Tzurot uses a **hybrid naming strategy** combining suffixes and directories:
+Tzurot uses a **naming convention based on infrastructure needs**:
 
-**Colocated Tests (suffixes distinguish type):**
-
-- **Unit Tests:** `*.test.ts` - All dependencies mocked
-- **Component Tests:** `*.component.test.ts` - Real in-memory DB (PGlite), mocked external services
-
-**Integration Tests (directory-based):**
-
-- **Integration Tests:** `tests/integration/*.test.ts` - Real DB, Redis, external services
+| Extension          | Purpose             | Infrastructure  | Location               |
+| ------------------ | ------------------- | --------------- | ---------------------- |
+| `*.test.ts`        | Unit tests          | Fully mocked    | Co-located with source |
+| `*.int.test.ts`    | Integration tests   | PGLite database | Co-located with source |
+| `*.schema.test.ts` | Schema validation   | Zod only        | `common-types/`        |
+| `*.e2e.test.ts`    | Cross-service flows | Real services   | `tests/e2e/`           |
 
 **Examples:**
 
@@ -123,22 +121,26 @@ Tzurot uses a **hybrid naming strategy** combining suffixes and directories:
 services/ai-worker/src/
 ├── jobs/
 │   ├── AIJobProcessor.ts
-│   ├── AIJobProcessor.test.ts           ← Unit test (all mocked)
-│   └── AIJobProcessor.component.test.ts ← Component test (real PGlite)
+│   ├── AIJobProcessor.test.ts     ← Unit test (all mocked)
+│   └── AIJobProcessor.int.test.ts ← Integration test (PGLite)
 └── services/
     ├── PersonalityService.ts
-    └── PersonalityService.test.ts       ← Unit test (all mocked)
+    └── PersonalityService.test.ts ← Unit test (all mocked)
 
-tests/integration/
-├── AIRoutes.test.ts                     ← Integration test (real DB+Redis)
-└── PersonalityService.test.ts           ← Integration test (real DB+Redis)
+packages/common-types/src/types/
+├── personality.schema.test.ts     ← Schema test (Zod only)
+
+tests/e2e/
+├── database.e2e.test.ts           ← E2E test (real DB+Redis)
+└── contracts/
+    └── BullMQJobConsumer.e2e.test.ts ← Cross-service contract test
 ```
 
-**Why This Matters:**
+**Key Principles:**
 
-- File name immediately signals what's mocked vs real
-- Enables CI/CD optimization (run unit → component → integration)
-- Reduces cognitive load when reading tests
+- **Name by infrastructure**: If it needs PGLite → `.int.test.ts`
+- **Co-locate by default**: Tests live next to the code they test
+- **Centralize only cross-service**: `tests/e2e/` for multi-service flows
 
 ### Test Structure
 

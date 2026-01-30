@@ -14,8 +14,11 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { PersonalityService, CacheInvalidationService } from '@tzurot/common-types';
-import { createAdminRouter } from '../../services/api-gateway/src/routes/admin/index';
-import { setupTestEnvironment, type TestEnvironment } from './setup';
+import { createAdminRouter } from './index.js';
+import {
+  setupTestEnvironment,
+  type TestEnvironment,
+} from '../../../../../../tests/helpers/setup-pglite.js';
 
 describe('Admin Routes Integration', () => {
   let testEnv: TestEnvironment;

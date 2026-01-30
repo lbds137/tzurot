@@ -6,8 +6,11 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { RedisService } from '../../services/bot-client/src/services/RedisService';
-import { setupTestEnvironment, type TestEnvironment } from './setup';
+import { RedisService } from './RedisService.js';
+import {
+  setupTestEnvironment,
+  type TestEnvironment,
+} from '../../../../../tests/helpers/setup-pglite.js';
 
 describe('RedisService Integration', () => {
   let testEnv: TestEnvironment;

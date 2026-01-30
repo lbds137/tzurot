@@ -14,11 +14,14 @@ import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import type { Queue, QueueEvents } from 'bullmq';
-import type { AttachmentStorageService } from '../../services/api-gateway/src/services/AttachmentStorageService';
-import { setupTestEnvironment, type TestEnvironment } from './setup';
+import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
+import {
+  setupTestEnvironment,
+  type TestEnvironment,
+} from '../../../../../../tests/helpers/setup-pglite.js';
 
 // Mock the queue module to prevent BullMQ from trying to connect to Redis
-vi.mock('../../services/api-gateway/src/queue', () => ({
+vi.mock('../../../queue.js', () => ({
   aiQueue: {
     add: vi.fn().mockResolvedValue({ id: 'mock-job-id' }),
     getJob: vi.fn().mockResolvedValue(null),
@@ -35,7 +38,7 @@ vi.mock('../../services/api-gateway/src/queue', () => ({
 }));
 
 // Mock deduplication cache singleton
-vi.mock('../../services/api-gateway/src/utils/deduplicationCache', () => ({
+vi.mock('../../../utils/deduplicationCache.js', () => ({
   deduplicationCache: {
     get: vi.fn().mockResolvedValue(null),
     set: vi.fn().mockResolvedValue(undefined),
@@ -43,7 +46,7 @@ vi.mock('../../services/api-gateway/src/utils/deduplicationCache', () => ({
 }));
 
 // Import after mocking
-const { createAIRouter } = await import('../../services/api-gateway/src/routes/ai/index');
+const { createAIRouter } = await import('./index.js');
 
 describe('AI Routes Integration', () => {
   let testEnv: TestEnvironment;

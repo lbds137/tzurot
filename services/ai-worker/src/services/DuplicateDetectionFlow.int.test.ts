@@ -28,8 +28,8 @@ import {
   generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types';
-import { isRecentDuplicate } from '../../services/ai-worker/src/utils/duplicateDetection.js';
-import { getRecentAssistantMessages } from '../../services/ai-worker/src/utils/conversationHistoryUtils.js';
+import { isRecentDuplicate } from '../utils/duplicateDetection.js';
+import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +38,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 function loadPGliteSchema(): string {
-  const schemaPath = join(__dirname, 'schema', 'pglite-schema.sql');
+  const schemaPath = join(__dirname, '../../../../../tests/schema/pglite-schema.sql');
   return readFileSync(schemaPath, 'utf-8');
 }
 

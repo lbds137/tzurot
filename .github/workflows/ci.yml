@@ -48,8 +48,8 @@ jobs:
           DATABASE_URL: postgresql://dummy:dummy@localhost:5432/dummy
         run: |
           # Verify schema file exists
-          if [ ! -f "tests/integration/schema/pglite-schema.sql" ]; then
-            echo "❌ ERROR: tests/integration/schema/pglite-schema.sql not found"
+          if [ ! -f "tests/schema/pglite-schema.sql" ]; then
+            echo "❌ ERROR: tests/schema/pglite-schema.sql not found"
             echo "Run: ./scripts/testing/regenerate-pglite-schema.sh"
             exit 1
           fi
@@ -61,14 +61,14 @@ jobs:
             --script > /tmp/fresh-pglite-schema.sql
 
           # Compare with committed schema
-          if ! diff -q tests/integration/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql > /dev/null 2>&1; then
+          if ! diff -q tests/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql > /dev/null 2>&1; then
             echo "❌ ERROR: pglite-schema.sql is out of sync with prisma/schema.prisma"
             echo ""
             echo "The integration test schema must match the Prisma schema."
             echo "Run: ./scripts/testing/regenerate-pglite-schema.sh"
             echo ""
             echo "Diff:"
-            diff tests/integration/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql || true
+            diff tests/schema/pglite-schema.sql /tmp/fresh-pglite-schema.sql || true
             exit 1
           fi
           echo "✓ pglite-schema.sql is in sync with Prisma schema"
@@ -218,12 +218,22 @@ jobs:
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
 
-      - name: Run integration tests
-        run: pnpm test:integration
+      - name: Run integration tests with coverage
+        run: pnpm test:int -- --coverage
         env:
           DATABASE_URL: postgresql://postgres:test_ci_password@localhost:5432/tzurot_test
           REDIS_URL: redis://localhost:6379
           CI: true
+
+      - name: Upload integration coverage to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/integration/lcov.info
+          flags: integration
+          fail_ci_if_error: true
+          verbose: true
 
   build:
     runs-on: ubuntu-latest
