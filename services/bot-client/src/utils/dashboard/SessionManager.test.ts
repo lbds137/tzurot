@@ -624,6 +624,225 @@ describe('Singleton functions', () => {
   });
 });
 
+describe('Redis failure injection', () => {
+  /**
+   * The SessionManager uses fail-open strategy: Redis failures return
+   * graceful defaults (null, false, empty arrays) instead of throwing.
+   * These tests verify that behavior by injecting failures.
+   */
+
+  interface TestData {
+    name: string;
+    value: number;
+  }
+
+  it('set() should return session even when Redis pipeline fails', async () => {
+    const failingRedis = {
+      pipeline: () => ({
+        setex: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockRejectedValue(new Error('Redis connection lost')),
+      }),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const session = await manager.set<TestData>({
+      userId: 'user1',
+      entityType: 'test',
+      entityId: 'entity1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+    });
+
+    // Session is still returned (fail-open) even though Redis failed
+    expect(session).not.toBeNull();
+    expect(session.userId).toBe('user1');
+    expect(session.data.name).toBe('test');
+  });
+
+  it('get() should return null when Redis.get() throws', async () => {
+    const failingRedis = {
+      get: vi.fn().mockRejectedValue(new Error('Redis timeout')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const session = await manager.get<TestData>('user1', 'test', 'entity1');
+
+    expect(session).toBeNull();
+  });
+
+  it('update() should return null when underlying get() fails', async () => {
+    const failingRedis = {
+      get: vi.fn().mockRejectedValue(new Error('Connection refused')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const updated = await manager.update<TestData>('user1', 'test', 'entity1', { value: 99 });
+
+    expect(updated).toBeNull();
+  });
+
+  it('touch() should return false when Redis.get() throws', async () => {
+    const failingRedis = {
+      get: vi.fn().mockRejectedValue(new Error('Network error')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const result = await manager.touch('user1', 'test', 'entity1');
+
+    expect(result).toBe(false);
+  });
+
+  it('touch() should return false when pipeline fails after successful get', async () => {
+    const storedSession = {
+      entityType: 'test',
+      entityId: 'entity1',
+      userId: 'user1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+      createdAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    };
+
+    const failingRedis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(storedSession)),
+      pipeline: () => ({
+        setex: vi.fn().mockReturnThis(),
+        expire: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockRejectedValue(new Error('Pipeline execution failed')),
+      }),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const result = await manager.touch('user1', 'test', 'entity1');
+
+    expect(result).toBe(false);
+  });
+
+  it('delete() should return false when Redis.get() throws', async () => {
+    const failingRedis = {
+      get: vi.fn().mockRejectedValue(new Error('Redis unavailable')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const result = await manager.delete('user1', 'test', 'entity1');
+
+    expect(result).toBe(false);
+  });
+
+  it('findByMessageId() should return null when first get() throws', async () => {
+    const failingRedis = {
+      get: vi.fn().mockRejectedValue(new Error('DNS lookup failed')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const session = await manager.findByMessageId<TestData>('msg123');
+
+    expect(session).toBeNull();
+  });
+
+  it('findByMessageId() should return null when second get() throws', async () => {
+    const failingRedis = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce('session:user1:test:entity1') // First call returns index
+        .mockRejectedValueOnce(new Error('Connection reset')), // Second call fails
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const session = await manager.findByMessageId<TestData>('msg123');
+
+    expect(session).toBeNull();
+  });
+
+  it('getUserSessions() should return empty array when scan() throws', async () => {
+    const failingRedis = {
+      scan: vi.fn().mockRejectedValue(new Error('SCAN command failed')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const sessions = await manager.getUserSessions('user1');
+
+    expect(sessions).toEqual([]);
+  });
+
+  it('getUserSessions() should return empty array when mget() throws', async () => {
+    const failingRedis = {
+      scan: vi.fn().mockResolvedValue(['0', ['session:user1:test:entity1']]),
+      mget: vi.fn().mockRejectedValue(new Error('MGET command failed')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const sessions = await manager.getUserSessions('user1');
+
+    expect(sessions).toEqual([]);
+  });
+
+  it('getSessionCount() should return 0 when scan() throws', async () => {
+    const failingRedis = {
+      scan: vi.fn().mockRejectedValue(new Error('SCAN not available')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const count = await manager.getSessionCount();
+
+    expect(count).toBe(0);
+  });
+
+  it('clear() should not throw when scan() fails', async () => {
+    const failingRedis = {
+      scan: vi.fn().mockRejectedValue(new Error('Redis cluster unavailable')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+
+    // Should not throw
+    await expect(manager.clear()).resolves.not.toThrow();
+  });
+
+  it('clear() should not throw when del() fails', async () => {
+    const failingRedis = {
+      scan: vi
+        .fn()
+        .mockResolvedValueOnce(['0', ['session:user1:test:entity1']]) // session keys
+        .mockResolvedValueOnce(['0', ['session-msg:msg1']]), // msg index keys
+      del: vi.fn().mockRejectedValue(new Error('DEL command failed')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+
+    // Should not throw
+    await expect(manager.clear()).resolves.not.toThrow();
+  });
+
+  it('set() handles partial pipeline failures gracefully', async () => {
+    const partialFailRedis = {
+      pipeline: () => ({
+        setex: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue([
+          [new Error('First setex failed'), null],
+          [null, 'OK'], // Second succeeded
+        ]),
+      }),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(partialFailRedis, 60);
+    const session = await manager.set<TestData>({
+      userId: 'user1',
+      entityType: 'test',
+      entityId: 'entity1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+    });
+
+    // Session is still returned despite partial failure
+    expect(session).not.toBeNull();
+    expect(session.userId).toBe('user1');
+  });
+});
+
 describe('Dashboard types utilities', () => {
   describe('isDashboardInteraction', () => {
     it('should return true for matching entity type', () => {
