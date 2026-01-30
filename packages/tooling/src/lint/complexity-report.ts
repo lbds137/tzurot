@@ -42,6 +42,30 @@ interface ESLintResult {
 interface ReportOptions {
   verbose?: boolean;
   noFail?: boolean;
+  json?: boolean;
+}
+
+/**
+ * JSON output structure for CI integration
+ */
+export interface ComplexityReportJSON {
+  thresholds: {
+    thresholdPercent: number;
+    rules: Record<RuleId, { threshold: number; limit: number }>;
+  };
+  findings: Finding[];
+  summary: {
+    totalFindings: number;
+    byRule: Record<
+      string,
+      {
+        count: number;
+        atOrOverLimit: number;
+        approaching: number;
+      }
+    >;
+    hasFailures: boolean;
+  };
 }
 
 // Threshold percentages (catch issues at 80% of limit)
@@ -260,20 +284,85 @@ function printSummary(byRule: Map<RuleId, Finding[]>, findings: Finding[], noFai
   console.log('\n💡 Consider refactoring items above 80% before they hit the limit.');
 }
 
+function buildJSONOutput(
+  findings: Finding[],
+  byRule: Map<RuleId, Finding[]>
+): ComplexityReportJSON {
+  const summaryByRule: ComplexityReportJSON['summary']['byRule'] = {};
+
+  for (const [rule, items] of byRule) {
+    summaryByRule[rule] = {
+      count: items.length,
+      atOrOverLimit: items.filter(i => i.percentOfLimit >= 100).length,
+      approaching: items.filter(i => i.percentOfLimit >= 80 && i.percentOfLimit < 100).length,
+    };
+  }
+
+  const hasFailures = findings.some(f => f.percentOfLimit >= 100);
+
+  return {
+    thresholds: {
+      thresholdPercent: THRESHOLD_PERCENT * 100,
+      rules: {
+        'max-lines': {
+          threshold: WARNING_THRESHOLDS['max-lines'],
+          limit: ACTUAL_LIMITS['max-lines'],
+        },
+        'max-lines-per-function': {
+          threshold: WARNING_THRESHOLDS['max-lines-per-function'],
+          limit: ACTUAL_LIMITS['max-lines-per-function'],
+        },
+        complexity: {
+          threshold: WARNING_THRESHOLDS.complexity,
+          limit: ACTUAL_LIMITS.complexity,
+        },
+        'max-statements': {
+          threshold: WARNING_THRESHOLDS['max-statements'],
+          limit: ACTUAL_LIMITS['max-statements'],
+        },
+        'max-depth': {
+          threshold: WARNING_THRESHOLDS['max-depth'],
+          limit: ACTUAL_LIMITS['max-depth'],
+        },
+      },
+    },
+    findings,
+    summary: {
+      totalFindings: findings.length,
+      byRule: summaryByRule,
+      hasFailures,
+    },
+  };
+}
+
 export async function runComplexityReport(options: ReportOptions = {}): Promise<void> {
   const rootDir = resolve(process.cwd());
 
-  printThresholds();
+  if (!options.json) {
+    printThresholds();
+  }
 
   const results = runEslint(rootDir);
   const findings = extractFindings(results);
+  const byRule = categorizeFindings(findings);
 
+  // JSON output mode - for CI integration
+  if (options.json) {
+    const jsonOutput = buildJSONOutput(findings, byRule);
+    console.log(JSON.stringify(jsonOutput, null, 2));
+
+    // Exit with non-zero if failures (unless --no-fail)
+    if (jsonOutput.summary.hasFailures && !options.noFail) {
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Human-readable output mode
   if (findings.length === 0) {
     console.log('✅ No files or functions approaching complexity limits!\n');
     return;
   }
-
-  const byRule = categorizeFindings(findings);
 
   console.log(`⚠️  Found ${findings.length} items approaching limits:\n`);
 
