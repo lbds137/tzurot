@@ -465,11 +465,33 @@ export class ConversationalRAGService {
     }
 
     // Extract inline thinking tags from content
-    const { thinkingContent: inlineThinking, visibleContent } =
+    const { thinkingContent: inlineThinking, visibleContent: extractedVisibleContent } =
       extractThinkingBlocks(deduplicatedContent);
 
+    // Handle edge case: if visible content is empty but thinking content exists,
+    // the model likely wrapped its entire response in thinking tags (e.g., R1T Chimera).
+    // In this case, use the thinking content as the visible response.
+    let visibleContent = extractedVisibleContent;
+    let thinkingUsedAsResponse = false;
+
+    if (
+      visibleContent.trim().length === 0 &&
+      inlineThinking !== null &&
+      inlineThinking.length > 0
+    ) {
+      logger.warn(
+        { inlineThinkingLength: inlineThinking.length },
+        '[RAG] Empty visible content after thinking extraction - using thinking content as response'
+      );
+      visibleContent = inlineThinking;
+      thinkingUsedAsResponse = true;
+    }
+
     // Merge all sources - API reasoning first, then inline
-    const thinkingContent = mergeThinkingContent(apiReasoning, inlineThinking);
+    // If thinking was used as response, don't duplicate it as thinking content
+    const thinkingContent = thinkingUsedAsResponse
+      ? apiReasoning // Only include API-level reasoning if thinking was used as response
+      : mergeThinkingContent(apiReasoning, inlineThinking);
 
     if (apiReasoning !== null) {
       logger.debug(

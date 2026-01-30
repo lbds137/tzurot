@@ -125,6 +125,21 @@ describe('ReasoningModelUtils', () => {
         expect(detectReasoningModelType('deepseek-r1')).toBe(ReasoningModelType.DeepSeekR1);
       });
 
+      it('should detect R1T Chimera models (R1+V3 merge)', () => {
+        expect(detectReasoningModelType('tngtech/tng-r1t-chimera')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+        expect(detectReasoningModelType('tngtech/tng-r1t-chimera:free')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+        expect(detectReasoningModelType('tngtech/deepseek-r1t-chimera')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+        expect(detectReasoningModelType('tngtech/deepseek-r1t2-chimera:free')).toBe(
+          ReasoningModelType.DeepSeekR1
+        );
+      });
+
       it('should detect DeepSeek Reasoner models', () => {
         expect(detectReasoningModelType('deepseek/deepseek-reasoner')).toBe(
           ReasoningModelType.DeepSeekR1
