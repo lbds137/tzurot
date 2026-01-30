@@ -450,4 +450,61 @@ export class GatewayClient {
 
     return settings.extendedContextDefault;
   }
+
+  /**
+   * Lookup which personality sent a message by Discord message ID.
+   * Used by ReplyResolutionService to resolve DM reply targets.
+   *
+   * This is a database lookup fallback when Redis cache misses (messages >7 days old).
+   *
+   * @param discordMessageId - The Discord snowflake ID to look up
+   * @returns Personality info if found, null otherwise
+   */
+  async lookupPersonalityFromConversation(
+    discordMessageId: string
+  ): Promise<{ personalityId: string; personalityName?: string } | null> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/user/conversation/message-personality?discordMessageId=${encodeURIComponent(discordMessageId)}`,
+        {
+          headers: {
+            'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          },
+          signal: AbortSignal.timeout(5000), // 5s timeout
+        }
+      );
+
+      // 404 means no message found - not an error
+      if (response.status === 404) {
+        logger.debug(
+          { discordMessageId },
+          '[GatewayClient] No personality found for Discord message ID'
+        );
+        return null;
+      }
+
+      if (!response.ok) {
+        logger.warn(
+          { discordMessageId, status: response.status },
+          '[GatewayClient] Personality lookup failed'
+        );
+        return null;
+      }
+
+      const data = (await response.json()) as {
+        personalityId: string;
+        personalityName?: string;
+      };
+
+      logger.debug(
+        { discordMessageId, personalityId: data.personalityId },
+        '[GatewayClient] Found personality via conversation lookup'
+      );
+
+      return data;
+    } catch (error) {
+      logger.error({ err: error, discordMessageId }, '[GatewayClient] Personality lookup error');
+      return null;
+    }
+  }
 }
