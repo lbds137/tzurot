@@ -221,29 +221,29 @@ describe('Preset Import', () => {
           },
         }),
       });
-      vi.mocked(userGatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { id: 'new-preset-id' },
-        })
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { id: 'new-preset-id' },
-        });
+      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+        ok: true,
+        data: { id: 'new-preset-id' },
+      });
 
       const mockContext = createMockContext();
 
       await handleImport(mockContext);
 
-      // Should make two API calls: create then update with advanced params
-      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledTimes(2);
+      // Should make single API call with all fields including advancedParameters
+      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledTimes(1);
       expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
-        '/user/llm-config/new-preset-id',
+        '/user/llm-config',
         expect.objectContaining({
-          method: 'PUT',
+          method: 'POST',
           body: expect.objectContaining({
             advancedParameters: expect.objectContaining({
               temperature: 0.8,
+              max_tokens: 4096,
+              reasoning: expect.objectContaining({
+                effort: 'high',
+                enabled: true,
+              }),
             }),
           }),
         })
@@ -268,36 +268,31 @@ describe('Preset Import', () => {
       );
     });
 
-    it('should still succeed if advanced parameter update fails', async () => {
+    it('should import preset with memory and context window fields', async () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData({
-          advancedParameters: { temperature: 0.8 },
+          memoryScoreThreshold: 0.6,
+          memoryLimit: 30,
+          contextWindowTokens: 65536,
         }),
       });
-      vi.mocked(userGatewayClient.callGatewayApi)
-        .mockResolvedValueOnce({
-          ok: true,
-          data: { id: 'new-preset-id' },
-        })
-        .mockResolvedValueOnce({
-          ok: false,
-          error: 'Update failed',
-        });
+      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+        ok: true,
+        data: { id: 'new-preset-id' },
+      });
 
       const mockContext = createMockContext();
 
       await handleImport(mockContext);
 
-      // Should still show success (advanced params failure is logged but not fatal)
-      expect(mockContext.editReply).toHaveBeenCalledWith(
+      expect(userGatewayClient.callGatewayApi).toHaveBeenCalledWith(
+        '/user/llm-config',
         expect.objectContaining({
-          embeds: expect.arrayContaining([
-            expect.objectContaining({
-              data: expect.objectContaining({
-                title: 'Preset Imported Successfully',
-              }),
-            }),
-          ]),
+          body: expect.objectContaining({
+            memoryScoreThreshold: 0.6,
+            memoryLimit: 30,
+            contextWindowTokens: 65536,
+          }),
         })
       );
     });

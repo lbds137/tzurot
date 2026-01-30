@@ -63,6 +63,9 @@ describe('Preset Export', () => {
     isOwned: true,
     permissions: { canEdit: true, canDelete: true },
     maxReferencedMessages: 10,
+    memoryScoreThreshold: 0.5,
+    memoryLimit: 20,
+    contextWindowTokens: 131072,
     params: {
       temperature: 0.7,
       top_p: 0.9,
@@ -138,6 +141,30 @@ describe('Preset Export', () => {
       await handleExport(mockContext);
 
       expect(mockContext.editReply).toHaveBeenCalled();
+    });
+
+    it('should include memory and context window fields in export', async () => {
+      const presetWithMemoryConfig = {
+        ...mockPresetData,
+        memoryScoreThreshold: 0.6,
+        memoryLimit: 30,
+        contextWindowTokens: 65536,
+      };
+
+      vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
+        ok: true,
+        data: { config: presetWithMemoryConfig },
+      });
+
+      const mockContext = createMockContext();
+
+      await handleExport(mockContext);
+
+      expect(mockContext.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          files: expect.any(Array),
+        })
+      );
     });
 
     it('should handle preset not found (404)', async () => {
