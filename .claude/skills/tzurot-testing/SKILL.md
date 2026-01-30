@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: Vitest testing patterns for Tzurot v3. Use when writing tests, debugging test failures, or mocking dependencies. Covers mock factories, fake timers, and promise rejection handling.
-lastUpdated: '2026-01-26'
+lastUpdated: '2026-01-30'
 ---
 
 # Tzurot v3 Testing Patterns
@@ -374,10 +374,10 @@ pnpm --filter @tzurot/api-gateway test:coverage     # Specific service
 
 ## References
 
-- Full testing guide: `docs/guides/TESTING.md`
+- Full testing guide: `docs/reference/guides/TESTING.md`
 - Mock factories: `services/*/src/test/mocks/`
 - Global philosophy: `~/.claude/CLAUDE.md#universal-testing-philosophy`
-- PGLite setup: `tests/helpers/setup-pglite.ts` (shared setup for integration tests)
+- PGLite setup: `packages/test-utils/` (`loadPGliteSchema` from `@tzurot/test-utils`)
 - Test audit command: `pnpm ops test:audit`
 - Schema regeneration: `./scripts/testing/regenerate-pglite-schema.sh`
 - Unified baseline: `test-coverage-baseline.json`
