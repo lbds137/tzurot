@@ -431,6 +431,17 @@ Sequential DB queries in a loop for user references. Use batch extraction patter
 
 `DiscordChannelFetcher.ts` (~600 lines) and `conversationUtils.ts` (~720 lines) need splitting.
 
+### 🧹 Periodic Complexity/Filesize Audit
+
+Files and functions creep toward ESLint limits over time. Proactive audit prevents emergency extractions.
+
+- [ ] `pnpm ops lint:complexity-report` - Generate report of files/functions near limits
+- [ ] Review files >400 lines (limit is 500)
+- [ ] Review functions >80 statements (limit is 100) or complexity >12 (limit is 15)
+- [ ] Schedule quarterly or after major features
+
+**Trigger**: ConversationalRAGService.ts hit max-statements during beta.59 review feedback
+
 ### 🏗️ Job Idempotency Check
 
 Add Redis-based `processed:${discordMessageId}` check in `AIJobProcessor` to prevent duplicate replies.
