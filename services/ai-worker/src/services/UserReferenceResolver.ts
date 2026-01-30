@@ -143,6 +143,188 @@ interface ProcessMatchOptions {
 export class UserReferenceResolver {
   constructor(private prisma: PrismaClient) {}
 
+  // ============================================================================
+  // BATCH RESOLUTION METHODS
+  // These resolve multiple IDs in a single database query to avoid N+1 patterns
+  // ============================================================================
+
+  /**
+   * Batch resolve personas by shapes.inc user IDs
+   *
+   * Looks up multiple shapes user IDs in a single query and returns a map.
+   */
+  private async batchResolveByShapesUserIds(
+    shapesUserIds: string[]
+  ): Promise<Map<string, ResolvedPersona>> {
+    const result = new Map<string, ResolvedPersona>();
+    if (shapesUserIds.length === 0) {
+      return result;
+    }
+
+    try {
+      const mappings = await this.prisma.shapesPersonaMapping.findMany({
+        where: { shapesUserId: { in: shapesUserIds } },
+        include: {
+          persona: {
+            select: {
+              id: true,
+              name: true,
+              preferredName: true,
+              pronouns: true,
+              content: true,
+            },
+          },
+        },
+        take: shapesUserIds.length, // Bounded by input size
+      });
+
+      for (const mapping of mappings) {
+        if (mapping.persona !== null) {
+          result.set(mapping.shapesUserId, {
+            personaId: mapping.persona.id,
+            personaName: mapping.persona.preferredName ?? mapping.persona.name,
+            preferredName: mapping.persona.preferredName,
+            pronouns: mapping.persona.pronouns,
+            content: mapping.persona.content ?? '',
+          });
+        }
+      }
+    } catch (error) {
+      logger.error(
+        { err: error, count: shapesUserIds.length },
+        '[UserReferenceResolver] Error batch resolving shapes user IDs'
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Batch resolve personas by Discord user IDs
+   *
+   * Looks up multiple Discord user IDs in a single query and returns a map.
+   */
+  private async batchResolveByDiscordIds(
+    discordIds: string[]
+  ): Promise<Map<string, ResolvedPersona>> {
+    const result = new Map<string, ResolvedPersona>();
+    if (discordIds.length === 0) {
+      return result;
+    }
+
+    try {
+      const users = await this.prisma.user.findMany({
+        where: { discordId: { in: discordIds } },
+        include: {
+          defaultPersona: {
+            select: {
+              id: true,
+              name: true,
+              preferredName: true,
+              pronouns: true,
+              content: true,
+            },
+          },
+        },
+        take: discordIds.length, // Bounded by input size
+      });
+
+      for (const user of users) {
+        if (user.defaultPersona !== null) {
+          result.set(user.discordId, {
+            personaId: user.defaultPersona.id,
+            personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
+            preferredName: user.defaultPersona.preferredName,
+            pronouns: user.defaultPersona.pronouns,
+            content: user.defaultPersona.content ?? '',
+          });
+        }
+      }
+    } catch (error) {
+      logger.error(
+        { err: error, count: discordIds.length },
+        '[UserReferenceResolver] Error batch resolving Discord IDs'
+      );
+    }
+
+    return result;
+  }
+
+  /**
+   * Batch resolve personas by usernames
+   *
+   * Looks up multiple usernames in a single query and returns a map.
+   * Uses case-insensitive matching. For duplicate case-insensitive matches,
+   * keeps the first (oldest) user for consistency.
+   */
+  private async batchResolveByUsernames(
+    usernames: string[]
+  ): Promise<Map<string, ResolvedPersona>> {
+    const result = new Map<string, ResolvedPersona>();
+    if (usernames.length === 0) {
+      return result;
+    }
+
+    try {
+      // For case-insensitive batch lookup, use OR conditions for each username
+      const users = await this.prisma.user.findMany({
+        where: {
+          OR: usernames.map(username => ({
+            username: { equals: username, mode: 'insensitive' as const },
+          })),
+        },
+        include: {
+          defaultPersona: {
+            select: {
+              id: true,
+              name: true,
+              preferredName: true,
+              pronouns: true,
+              content: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'asc' },
+        take: usernames.length * 2, // Allow some buffer for case variants
+      });
+
+      // Group by lowercase username to handle case-insensitive matches
+      // Keep only the first (oldest) user per case-insensitive username
+      const seenUsernames = new Set<string>();
+
+      for (const user of users) {
+        const lowerUsername = user.username.toLowerCase();
+
+        // Skip if we already have a match for this case-insensitive username
+        if (seenUsernames.has(lowerUsername)) {
+          continue;
+        }
+
+        if (user.defaultPersona !== null) {
+          // Find the original case username from input that matches
+          const matchingInput = usernames.find(u => u.toLowerCase() === lowerUsername);
+          if (matchingInput !== undefined) {
+            seenUsernames.add(lowerUsername);
+            result.set(matchingInput, {
+              personaId: user.defaultPersona.id,
+              personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
+              preferredName: user.defaultPersona.preferredName,
+              pronouns: user.defaultPersona.pronouns,
+              content: user.defaultPersona.content ?? '',
+            });
+          }
+        }
+      }
+    } catch (error) {
+      logger.error(
+        { err: error, count: usernames.length },
+        '[UserReferenceResolver] Error batch resolving usernames'
+      );
+    }
+
+    return result;
+  }
+
   /**
    * Process a single match (pure function - no mutations)
    * Returns the updated text, persona to add, and ID to mark as seen
@@ -196,6 +378,9 @@ export class UserReferenceResolver {
    * Processes the text to find user references in any supported format,
    * looks up the user's default persona, and replaces references with persona names.
    *
+   * Uses batch queries to avoid N+1 database access patterns - all matches of each
+   * type are collected first, then resolved in a single query per type.
+   *
    * @param text - Text containing user references
    * @param activePersonaId - Optional ID of the currently active persona (for self-reference detection)
    *                          If a reference resolves to this persona, the reference is replaced with the name
@@ -216,6 +401,53 @@ export class UserReferenceResolver {
       return { processedText: text, resolvedPersonas: [] };
     }
 
+    // ========================================================================
+    // PHASE 1: Extract all matches (no DB queries yet)
+    // ========================================================================
+
+    // Shapes.inc format: @[username](user:uuid)
+    const shapesMatches = [...text.matchAll(USER_REFERENCE_PATTERNS.SHAPES_MARKDOWN)].map(
+      match => ({
+        fullMatch: match[0],
+        username: match[1],
+        shapesUserId: match[2],
+      })
+    );
+
+    // Discord format: <@discord_id>
+    const discordMatches = [...text.matchAll(USER_REFERENCE_PATTERNS.DISCORD_MENTION)].map(
+      match => ({
+        fullMatch: match[0],
+        discordId: match[1],
+      })
+    );
+
+    // Simple username format: @username
+    const usernameMatches = [...text.matchAll(USER_REFERENCE_PATTERNS.SIMPLE_USERNAME)].map(
+      match => ({
+        fullMatch: match[0],
+        username: match[1],
+      })
+    );
+
+    // ========================================================================
+    // PHASE 2: Batch resolve all IDs in parallel (3 queries max instead of N)
+    // ========================================================================
+
+    const uniqueShapesIds = [...new Set(shapesMatches.map(m => m.shapesUserId))];
+    const uniqueDiscordIds = [...new Set(discordMatches.map(m => m.discordId))];
+    const uniqueUsernames = [...new Set(usernameMatches.map(m => m.username))];
+
+    const [shapesMap, discordMap, usernameMap] = await Promise.all([
+      this.batchResolveByShapesUserIds(uniqueShapesIds),
+      this.batchResolveByDiscordIds(uniqueDiscordIds),
+      this.batchResolveByUsernames(uniqueUsernames),
+    ]);
+
+    // ========================================================================
+    // PHASE 3: Apply resolutions to text
+    // ========================================================================
+
     const ctx: MatchContext = {
       currentText: text,
       seenPersonaIds: new Set<string>(),
@@ -234,47 +466,44 @@ export class UserReferenceResolver {
       }
     };
 
-    // 1. Resolve shapes.inc markdown format: @[username](user:uuid)
-    for (const match of [...text.matchAll(USER_REFERENCE_PATTERNS.SHAPES_MARKDOWN)]) {
-      const [fullMatch, username, shapesUserId] = match;
-      const persona = await this.resolveByShapesUserId(shapesUserId);
+    // 1. Apply shapes.inc resolutions
+    for (const match of shapesMatches) {
+      const persona = shapesMap.get(match.shapesUserId) ?? null;
       applyResult(
         this.processMatch({
           ctx,
-          fullMatch,
+          fullMatch: match.fullMatch,
           persona,
-          logContext: { shapesUserId },
+          logContext: { shapesUserId: match.shapesUserId },
           refType: 'shapes.inc',
-          fallbackName: username,
+          fallbackName: match.username,
         })
       );
     }
 
-    // 2. Resolve Discord mention format: <@discord_id>
-    for (const match of [...ctx.currentText.matchAll(USER_REFERENCE_PATTERNS.DISCORD_MENTION)]) {
-      const [fullMatch, discordId] = match;
-      const persona = await this.resolveByDiscordId(discordId);
+    // 2. Apply Discord resolutions
+    for (const match of discordMatches) {
+      const persona = discordMap.get(match.discordId) ?? null;
       applyResult(
         this.processMatch({
           ctx,
-          fullMatch,
+          fullMatch: match.fullMatch,
           persona,
-          logContext: { discordId },
+          logContext: { discordId: match.discordId },
           refType: 'Discord',
         })
       );
     }
 
-    // 3. Resolve simple username format: @username
-    for (const match of [...ctx.currentText.matchAll(USER_REFERENCE_PATTERNS.SIMPLE_USERNAME)]) {
-      const [fullMatch, username] = match;
-      const persona = await this.resolveByUsername(username);
+    // 3. Apply username resolutions
+    for (const match of usernameMatches) {
+      const persona = usernameMap.get(match.username) ?? null;
       applyResult(
         this.processMatch({
           ctx,
-          fullMatch,
+          fullMatch: match.fullMatch,
           persona,
-          logContext: { username },
+          logContext: { username: match.username },
           refType: 'username',
         })
       );
@@ -395,144 +624,5 @@ export class UserReferenceResolver {
       resolvedPersonality,
       resolvedPersonas: allResolvedPersonas,
     };
-  }
-
-  /**
-   * Resolve persona by shapes.inc user ID
-   *
-   * Looks up the shapes_persona_mappings table to find the mapped persona.
-   */
-  private async resolveByShapesUserId(shapesUserId: string): Promise<ResolvedPersona | null> {
-    try {
-      // findUnique is inherently bounded (returns 0-1 rows by unique constraint)
-      const mapping = await this.prisma.shapesPersonaMapping.findUnique({
-        where: { shapesUserId },
-        include: {
-          persona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-      });
-
-      if (!mapping?.persona) {
-        logger.debug(
-          { shapesUserId },
-          '[UserReferenceResolver] No mapping found for shapes user ID'
-        );
-        return null;
-      }
-
-      return {
-        personaId: mapping.persona.id,
-        personaName: mapping.persona.preferredName ?? mapping.persona.name,
-        preferredName: mapping.persona.preferredName,
-        pronouns: mapping.persona.pronouns,
-        content: mapping.persona.content ?? '',
-      };
-    } catch (error) {
-      logger.error(
-        { err: error, shapesUserId },
-        '[UserReferenceResolver] Error resolving shapes user ID'
-      );
-      return null;
-    }
-  }
-
-  /**
-   * Resolve persona by Discord user ID
-   *
-   * Looks up the user by discordId and returns their default persona.
-   */
-  private async resolveByDiscordId(discordId: string): Promise<ResolvedPersona | null> {
-    try {
-      // findUnique is inherently bounded (returns 0-1 rows by unique constraint)
-      const user = await this.prisma.user.findUnique({
-        where: { discordId },
-        include: {
-          defaultPersona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-      });
-
-      if (!user?.defaultPersona) {
-        logger.debug({ discordId }, '[UserReferenceResolver] No user or default persona found');
-        return null;
-      }
-
-      return {
-        personaId: user.defaultPersona.id,
-        personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
-        preferredName: user.defaultPersona.preferredName,
-        pronouns: user.defaultPersona.pronouns,
-        content: user.defaultPersona.content ?? '',
-      };
-    } catch (error) {
-      logger.error({ err: error, discordId }, '[UserReferenceResolver] Error resolving Discord ID');
-      return null;
-    }
-  }
-
-  /**
-   * Resolve persona by username
-   *
-   * Looks up the user by username and returns their default persona.
-   *
-   * Case-insensitive matching behavior:
-   * - Matches any case variant (e.g., "Alice", "alice", "ALICE" all match)
-   * - When multiple users exist with the same case-insensitive username (rare edge case),
-   *   returns the oldest account (orderBy createdAt asc) for deterministic results
-   * - This is intentional: we prioritize stable matching over exact case matching
-   *   since shapes.inc references don't preserve original casing
-   */
-  private async resolveByUsername(username: string): Promise<ResolvedPersona | null> {
-    try {
-      // Case-insensitive lookup with stable ordering for edge case of duplicate usernames
-      // findFirst is bounded (take: 1 is redundant but explicit per CLAUDE.md bounded data access)
-      const user = await this.prisma.user.findFirst({
-        where: { username: { equals: username, mode: 'insensitive' } },
-        include: {
-          defaultPersona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: 1,
-      });
-
-      if (!user?.defaultPersona) {
-        logger.debug({ username }, '[UserReferenceResolver] No user or default persona found');
-        return null;
-      }
-
-      return {
-        personaId: user.defaultPersona.id,
-        personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
-        preferredName: user.defaultPersona.preferredName,
-        pronouns: user.defaultPersona.pronouns,
-        content: user.defaultPersona.content ?? '',
-      };
-    } catch (error) {
-      logger.error({ err: error, username }, '[UserReferenceResolver] Error resolving username');
-      return null;
-    }
   }
 }
