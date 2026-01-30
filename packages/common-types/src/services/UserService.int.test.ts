@@ -117,6 +117,7 @@ describe('UserService', () => {
       // Verify only one user exists
       const users = await prisma.user.findMany({
         where: { discordId: testDiscordId },
+        take: 100, // Bounded query best practice
       });
       expect(users).toHaveLength(1);
     });
