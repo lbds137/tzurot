@@ -282,6 +282,17 @@ export default defineCommand({
             .setDescription('Message ID, message link, or request UUID')
             .setRequired(true)
         )
+        .addStringOption(option =>
+          option
+            .setName('format')
+            .setDescription('Output format (default: JSON)')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Full JSON', value: 'json' },
+              { name: 'XML Prompt Only', value: 'xml' },
+              { name: 'Both', value: 'both' }
+            )
+        )
     ),
   deferralMode: 'ephemeral',
   execute,

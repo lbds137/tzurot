@@ -4,7 +4,16 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
-import { createLogger, MessageContent, RETRY_CONFIG, getPrismaClient } from '@tzurot/common-types';
+import {
+  createLogger,
+  MessageContent,
+  RETRY_CONFIG,
+  getPrismaClient,
+  ApiErrorCategory,
+  ApiErrorType,
+  generateErrorReferenceId,
+  USER_ERROR_MESSAGES,
+} from '@tzurot/common-types';
 import type {
   ConversationalRAGService,
   RAGResponse,
@@ -428,6 +437,64 @@ export class GenerationStep implements IPipelineStep {
         { jobId: job.id, processingTimeMs, duplicateRetries },
         '[GenerationStep] Generation completed'
       );
+
+      // Check for empty content after post-processing (e.g., only thinking blocks)
+      // This can happen when a reasoning model generates thinking but no visible response
+      if (response.content.length === 0) {
+        const emptyErrorMessage = 'LLM returned empty response after post-processing';
+        const emptyReferenceId = generateErrorReferenceId();
+
+        logger.warn(
+          {
+            jobId: job.id,
+            hasThinking: response.thinkingContent !== undefined,
+            thinkingLength: response.thinkingContent?.length ?? 0,
+          },
+          '[GenerationStep] Empty content detected after thinking extraction'
+        );
+
+        // Record error for diagnostic flight recorder
+        diagnosticCollector.recordError({
+          message: emptyErrorMessage,
+          category: ApiErrorCategory.EMPTY_RESPONSE,
+          referenceId: emptyReferenceId,
+          failedAtStage: 'GenerationStep (post-processing)',
+        });
+
+        // Store diagnostic data for failures (fire-and-forget)
+        this.storeDiagnosticLog(
+          diagnosticCollector,
+          response.modelUsed ?? 'unknown',
+          provider ?? 'unknown'
+        );
+
+        return {
+          ...context,
+          result: {
+            requestId,
+            success: false,
+            error: emptyErrorMessage,
+            personalityErrorMessage: personality.errorMessage,
+            errorInfo: {
+              type: ApiErrorType.TRANSIENT,
+              category: ApiErrorCategory.EMPTY_RESPONSE,
+              userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.EMPTY_RESPONSE],
+              referenceId: emptyReferenceId,
+              shouldRetry: false, // Not transient - model generated thinking but no response
+            },
+            metadata: {
+              processingTimeMs,
+              modelUsed: response.modelUsed,
+              providerUsed: provider,
+              configSource,
+              isGuestMode,
+              // Include thinking content so it can be shown even on failure
+              thinkingContent: response.thinkingContent,
+              showThinking: effectivePersonality.showThinking,
+            },
+          },
+        };
+      }
 
       // Fire-and-forget: Store diagnostic data for flight recorder
       // This runs async and doesn't block the response
