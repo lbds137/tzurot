@@ -43,6 +43,8 @@
  * - GET /user/memory/stats - Get memory statistics for a personality
  * - GET /user/memory/focus - Get focus mode status
  * - POST /user/memory/focus - Enable/disable focus mode
+ * - GET /user/nsfw - Get NSFW verification status
+ * - POST /user/nsfw/verify - Mark user as NSFW verified
  */
 
 import { Router } from 'express';
@@ -61,6 +63,7 @@ import { createPersonaRoutes } from './persona.js';
 import { createHistoryRoutes } from './history.js';
 import { createChannelRoutes } from './channel/index.js';
 import { createMemoryRoutes } from './memory.js';
+import { createNsfwRoutes } from './nsfw.js';
 
 /**
  * Create user router with injected dependencies
@@ -103,6 +106,9 @@ export function createUserRouter(
 
   // Memory routes (LTM management - stats, focus mode, search, browse, incognito)
   router.use('/memory', createMemoryRoutes(prisma, redis));
+
+  // NSFW verification routes (for DM interactions)
+  router.use('/nsfw', createNsfwRoutes(prisma));
 
   return router;
 }

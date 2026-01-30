@@ -30,12 +30,16 @@ Chat with personalities in DMs.
 - [ ] Allow personality selection in DMs (`/character chat` in DMs)
 - [ ] Handle first-time DM (no history yet)
 
-### 2. ✨ NSFW Verification
+### 2. ✨ NSFW Verification ✅
 
 User-level verification. User verifies once via Discord's native age-gating, unlocked everywhere after.
 
-- [ ] Track `nsfwVerified` boolean on User record
-- [ ] "Handshake" verification: interact with bot in a Discord age-gated channel
+- [x] Track `nsfwVerified` boolean on User record
+- [x] "Handshake" verification: interact with bot in a Discord age-gated channel
+- [x] Block unverified users in DMs with verification message
+- [x] Track pending verification messages in Redis
+- [x] Proactive cleanup: delete verification messages when user verifies
+- [x] Scheduled cleanup: delete messages before 13-day limit (avoid Discord's 14-day deletion restriction)
 
 ### 3. ✨ Multi-Personality Per Channel
 
@@ -510,7 +514,20 @@ Review all `*.test.ts` files to ensure they match their naming convention:
 
 _Ideas for later. Resist the shiny object._
 
-_(Empty - all items triaged to appropriate epics)_
+### 🏗️ File Naming Convention Audit
+
+Inconsistent casing between services across the monorepo:
+
+- **PascalCase** for class-based service files (e.g., `JobTracker.ts`, `VerificationMessageCleanup.ts`)
+- **camelCase** for function-based modules/utilities (e.g., `serviceRegistry.ts`)
+
+The distinction isn't consistently applied. Calling both kinds "services" while using different casing is potentially misleading.
+
+- [ ] Audit all services directories across packages
+- [ ] Document the intended convention
+- [ ] Consider renaming for consistency (or document the semantic distinction)
+
+**Note**: Large refactor touching many files. Low value / high effort.
 
 ---
 

@@ -15,6 +15,14 @@ import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 import { ExtendedContextResolver } from './ExtendedContextResolver.js';
+import {
+  isNsfwChannel,
+  isDMChannel,
+  checkNsfwVerification,
+  verifyNsfwUser,
+  trackPendingVerificationMessage,
+  NSFW_VERIFICATION_MESSAGE,
+} from '../utils/nsfwVerification.js';
 
 const logger = createLogger('PersonalityMessageHandler');
 
@@ -33,6 +41,52 @@ export class PersonalityMessageHandler {
   ) {}
 
   /**
+   * Handle NSFW verification flow for a message
+   * Returns true if message processing should continue, false if blocked
+   */
+  private async handleNsfwVerification(message: Message): Promise<boolean> {
+    const userId = message.author.id;
+    const { channel } = message;
+
+    // If user is in an NSFW channel, auto-verify them (enables DM access)
+    if (isNsfwChannel(channel)) {
+      // Fire-and-forget - don't block the message
+      void verifyNsfwUser(userId).catch(error => {
+        logger.warn({ err: error, userId }, '[PersonalityMessageHandler] NSFW verification failed');
+      });
+      return true; // Continue processing
+    }
+
+    // If user is in a DM, check verification and block if not verified
+    if (isDMChannel(channel)) {
+      const nsfwStatus = await checkNsfwVerification(userId);
+      if (!nsfwStatus.nsfwVerified) {
+        logger.info({ userId }, '[PersonalityMessageHandler] DM blocked - user not NSFW verified');
+        // Send verification message and track it for cleanup after verification
+        try {
+          const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
+          void trackPendingVerificationMessage(userId, verificationReply.id, channel.id).catch(
+            trackError => {
+              logger.warn(
+                { err: trackError, userId, messageId: verificationReply.id },
+                '[PersonalityMessageHandler] Failed to track verification message'
+              );
+            }
+          );
+        } catch (replyError) {
+          logger.warn(
+            { err: replyError, messageId: message.id },
+            '[PersonalityMessageHandler] Failed to send NSFW verification message'
+          );
+        }
+        return false; // Block the DM interaction
+      }
+    }
+
+    return true; // Continue processing
+  }
+
+  /**
    * Handle a message directed at a personality
    *
    * @param message - Discord message
@@ -48,6 +102,14 @@ export class PersonalityMessageHandler {
     options: { isAutoResponse?: boolean } = {}
   ): Promise<void> {
     try {
+      const { channel } = message;
+
+      // Handle NSFW verification (auto-verify in NSFW channels, block unverified DMs)
+      const shouldContinue = await this.handleNsfwVerification(message);
+      if (!shouldContinue) {
+        return;
+      }
+
       // Resolve all extended context settings for this channel + personality
       const extendedContextSettings = await this.extendedContextResolver.resolveAll(
         message.channel.id,
@@ -109,7 +171,6 @@ export class PersonalityMessageHandler {
       });
 
       // Verify channel type is compatible with JobTracker (TextChannel, DMChannel, or NewsChannel)
-      const { channel } = message;
       if (!isTypingChannel(channel)) {
         logger.warn(
           { channelType: channel.type },
