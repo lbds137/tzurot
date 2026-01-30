@@ -17,7 +17,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@electric-sql/pglite": "^0.3.3"
+    "@electric-sql/pglite": "^0.3.3",
+    "ioredis": "^5.9.2"
   },
   "devDependencies": {
     "@types/node": "^25.0.10",

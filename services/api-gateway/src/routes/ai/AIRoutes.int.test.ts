@@ -15,7 +15,11 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import type { Queue, QueueEvents } from 'bullmq';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
-import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
+import { PrismaClient } from '@tzurot/common-types';
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { setupTestEnvironment, loadPGliteSchema, type TestEnvironment } from '@tzurot/test-utils';
 
 // Mock the queue module to prevent BullMQ from trying to connect to Redis
 vi.mock('../../../queue.js', () => ({
@@ -48,9 +52,17 @@ const { createAIRouter } = await import('./index.js');
 describe('AI Routes Integration', () => {
   let testEnv: TestEnvironment;
   let app: Express;
+  let pglite: PGlite;
+  let prisma: PrismaClient;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+
+    // Set up PGLite with Prisma
+    pglite = new PGlite({ extensions: { vector } });
+    await pglite.exec(loadPGliteSchema());
+    const adapter = new PrismaPGlite(pglite);
+    prisma = new PrismaClient({ adapter }) as PrismaClient;
 
     // Create minimal Express app with AI routes
     app = express();
@@ -75,16 +87,13 @@ describe('AI Routes Integration', () => {
     } as unknown as AttachmentStorageService;
 
     // Mount AI router
-    const aiRouter = createAIRouter(
-      testEnv.prisma,
-      mockQueue,
-      mockQueueEvents,
-      mockAttachmentStorage
-    );
+    const aiRouter = createAIRouter(prisma, mockQueue, mockQueueEvents, mockAttachmentStorage);
     app.use('/ai', aiRouter);
-  });
+  }, 30000);
 
   afterAll(async () => {
+    await prisma.$disconnect();
+    await pglite.close();
     await testEnv.cleanup();
   });
 

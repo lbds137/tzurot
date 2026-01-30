@@ -5,6 +5,7 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 // Set up test environment variables before anything else
 // This prevents config validation errors when importing services
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
+process.env.REDIS_URL ??= 'redis://localhost:6379';
 
 /**
  * Vitest configuration for integration tests (*.int.test.ts)
