@@ -479,31 +479,13 @@ Notify users of new releases.
 
 ### Testing Debt
 
-Service integration test gaps (use `pnpm ops test:audit --category=services`):
+Service integration test coverage is now tracked via `test-coverage-baseline.json` with automated Prisma detection.
 
-**ai-worker** (4 gaps):
+**Current status**: 0 service gaps (5/5 services with Prisma have integration tests)
 
-- `ConversationalRAGService.ts` - Uses Prisma indirectly via UserReferenceResolver; comprehensive unit tests exist
-- `LongTermMemoryService.ts` - Direct pendingMemory CRUD; partially covered by PgvectorMemoryAdapter.int.test.ts
-- `KeyValidationService.ts` - API key validation with DB
-- `RedisService.ts` - Redis operations
+Run `pnpm ops test:audit --category=services` to check coverage.
 
-**api-gateway** (2 gaps):
-
-- `AttachmentStorageService.ts` - File storage operations
-- `DatabaseSyncService.ts` - Personality sync from JSON files
-
-**bot-client** (3 gaps):
-
-- `ReferenceEnrichmentService.ts` - Discord reference resolution
-- `ReplyResolutionService.ts` - Reply chain resolution
-- `VoiceTranscriptionService.ts` - Audio transcription
-
-**common-types** (1 gap):
-
-- `ConversationRetentionService.ts` - Conversation cleanup
-
-_Note: PersonalityService and UserService now have .int.test.ts files (beta.59)_
+_Note: Services without direct Prisma calls are auto-excluded from the audit._
 
 ### 🧹 Audit Existing Tests for Type Violations
 
