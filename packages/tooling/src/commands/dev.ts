@@ -95,11 +95,16 @@ export function registerDevCommands(cli: CAC): void {
     )
     .option('--verbose', 'Show all findings instead of top 5 per category')
     .option('--allow-failures', 'Exit 0 even if items are at/over limits (for local dev)')
+    .option('--json', 'Output JSON for CI integration')
     .example('ops lint:complexity-report')
     .example('ops lint:complexity-report --verbose')
-    .example('ops lint:complexity-report --allow-failures')
-    .action(async (options: { verbose?: boolean; allowFailures?: boolean }) => {
+    .example('ops lint:complexity-report --json')
+    .action(async (options: { verbose?: boolean; allowFailures?: boolean; json?: boolean }) => {
       const { runComplexityReport } = await import('../lint/complexity-report.js');
-      await runComplexityReport({ verbose: options.verbose, noFail: options.allowFailures });
+      await runComplexityReport({
+        verbose: options.verbose,
+        noFail: options.allowFailures,
+        json: options.json,
+      });
     });
 }
