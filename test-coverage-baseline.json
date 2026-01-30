@@ -5,7 +5,6 @@
     "knownGaps": [
       "services/ai-worker/src/services/ConversationalRAGService.ts",
       "services/ai-worker/src/services/KeyValidationService.ts",
-      "services/ai-worker/src/services/LongTermMemoryService.ts",
       "services/ai-worker/src/services/RedisService.ts",
       "services/api-gateway/src/services/AttachmentStorageService.ts",
       "services/api-gateway/src/services/DatabaseSyncService.ts",
