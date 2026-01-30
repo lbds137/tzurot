@@ -11,6 +11,8 @@ CREATE TABLE "users" (
     "username" VARCHAR(255) NOT NULL,
     "timezone" VARCHAR(50) NOT NULL DEFAULT 'UTC',
     "is_superuser" BOOLEAN NOT NULL DEFAULT false,
+    "nsfw_verified" BOOLEAN NOT NULL DEFAULT false,
+    "nsfw_verified_at" TIMESTAMP(3),
     "default_llm_config_id" UUID,
     "default_persona_id" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -32,10 +32,10 @@ if [ -n "$STAGED_PRISMA_SCHEMA" ]; then
     npx prisma migrate diff \
         --from-empty \
         --to-schema ./prisma/schema.prisma \
-        --script 2>/dev/null > tests/schema/pglite-schema.sql
+        --script 2>/dev/null > packages/test-utils/schema/pglite-schema.sql
 
     # Stage the regenerated file
-    git add tests/schema/pglite-schema.sql
+    git add packages/test-utils/schema/pglite-schema.sql
     echo "✓ pglite-schema.sql regenerated and staged"
 fi
 

@@ -49,6 +49,11 @@ import {
   startNotificationCacheCleanup,
   stopNotificationCacheCleanup,
 } from './processors/notificationCache.js';
+import { initVerificationCleanupService } from './services/VerificationCleanupService.js';
+import {
+  startVerificationCleanupScheduler,
+  stopVerificationCleanupScheduler,
+} from './services/VerificationCleanupScheduler.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
 import {
   createDeferredContext,
@@ -366,6 +371,10 @@ async function handleCommandWithContext(
 client.once(Events.ClientReady, () => {
   logger.info(`Logged in as ${client.user?.tag ?? 'unknown'}`);
   logger.info(`Gateway URL: ${config.gatewayUrl}`);
+
+  // Initialize verification message cleanup service and start scheduler
+  initVerificationCleanupService(client);
+  startVerificationCleanupScheduler();
 });
 
 // Error handling
@@ -399,6 +408,7 @@ process.on('SIGINT', () => {
       services.responseOrderingService.stopCleanup();
       services.webhookManager.destroy();
       stopNotificationCacheCleanup();
+      stopVerificationCleanupScheduler();
       void services.cacheInvalidationService.unsubscribe();
       void services.personaCacheInvalidationService.unsubscribe();
       void services.channelActivationCacheInvalidationService.unsubscribe();

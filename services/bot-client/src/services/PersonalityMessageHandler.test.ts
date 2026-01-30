@@ -12,6 +12,16 @@ import type {
   ReferencedMessage,
 } from '@tzurot/common-types';
 
+// Mock NSFW verification to not block normal test flow
+vi.mock('../utils/nsfwVerification.js', () => ({
+  isNsfwChannel: vi.fn().mockReturnValue(false),
+  isDMChannel: vi.fn().mockReturnValue(false),
+  checkNsfwVerification: vi.fn().mockResolvedValue({ nsfwVerified: true, nsfwVerifiedAt: null }),
+  verifyNsfwUser: vi.fn().mockResolvedValue(null),
+  trackPendingVerificationMessage: vi.fn().mockResolvedValue(undefined),
+  NSFW_VERIFICATION_MESSAGE: 'Mock NSFW verification message',
+}));
+
 describe('PersonalityMessageHandler', () => {
   let handler: PersonalityMessageHandler;
   let mockGatewayClient: {
@@ -149,8 +159,11 @@ describe('PersonalityMessageHandler', () => {
         referencedMessages: [],
       });
 
-      // Should submit job to gateway
-      expect(mockGatewayClient.generate).toHaveBeenCalledWith(mockPersonality, mockContext);
+      // Should submit job to gateway (with triggerMessageId added)
+      expect(mockGatewayClient.generate).toHaveBeenCalledWith(mockPersonality, {
+        ...mockContext,
+        triggerMessageId: mockMessage.id,
+      });
 
       // Should track job
       expect(mockJobTracker.trackJob).toHaveBeenCalledWith('job-123', mockMessage.channel, {
@@ -486,6 +499,11 @@ describe('PersonalityMessageHandler', () => {
 // Helper functions
 function createMockMessage(): Message {
   return {
+    id: 'message-123',
+    author: {
+      id: 'user-123',
+      bot: false,
+    },
     channel: {
       id: 'channel-123',
       type: ChannelType.GuildText,
