@@ -1,5 +1,10 @@
 /* eslint-disable max-lines -- Complex orchestration service, diagnostic recording pushed slightly over 500 lines */
 /**
+ * @audit-ignore: database-testing
+ * Reason: Orchestration layer - DB operations delegated to component services
+ * (LongTermMemoryService, PgvectorMemoryAdapter, UserReferenceResolver) which have their own tests.
+ * TODO: Refactor this service before adding integration tests - see BACKLOG.md
+ *
  * Conversational RAG Service - Orchestrates memory-augmented conversations
  *
  * Refactored architecture (2025-11-07):

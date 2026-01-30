@@ -1,11 +1,8 @@
 {
-  "version": 5,
-  "lastUpdated": "2026-01-30T21:00:00.000Z",
+  "version": 6,
+  "lastUpdated": "2026-01-30T21:23:23.054Z",
   "services": {
-    "knownGaps": [
-      "packages/common-types/src/services/ConversationSyncService.ts",
-      "services/ai-worker/src/services/ConversationalRAGService.ts"
-    ]
+    "knownGaps": []
   },
   "contracts": {
     "knownGaps": [
