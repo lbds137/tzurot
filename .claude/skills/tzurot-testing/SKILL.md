@@ -299,6 +299,10 @@ pnpm test:int
 ./scripts/testing/regenerate-pglite-schema.sh
 ```
 
+**⚠️ ALWAYS use `loadPGliteSchema()` - NEVER create tables manually!**
+
+Manual table creation (via `$executeRawUnsafe('CREATE TABLE...')`) breaks when migrations add new columns. The shared schema file stays in sync with Prisma migrations.
+
 **📚 See**: `docs/reference/testing/PGLITE_SETUP.md` for full setup, environment detection, and test patterns.
 
 ## Definition of Done
