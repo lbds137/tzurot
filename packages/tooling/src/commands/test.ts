@@ -18,62 +18,84 @@ export function registerTestCommands(cli: CAC): void {
       await generateSchema(options);
     });
 
+  // Unified audit command (primary)
   cli
-    .command('test:audit-contracts', 'Audit API contract test coverage')
+    .command('test:audit', 'Run unified test coverage audit')
     .option('--update', 'Update baseline with current gaps')
     .option('--strict', 'Fail if ANY gap exists (not just new ones)')
-    .example('ops test:audit-contracts')
-    .example('ops test:audit-contracts --update')
-    .example('ops test:audit-contracts --strict')
+    .option('--category <cat>', 'Only run: services, contracts')
+    .option('--verbose', 'Show detailed output')
+    .example('pnpm ops test:audit')
+    .example('pnpm ops test:audit --category=services')
+    .example('pnpm ops test:audit --update')
+    .example('pnpm ops test:audit --strict')
+    .action(
+      async (options: {
+        update?: boolean;
+        strict?: boolean;
+        category?: string;
+        verbose?: boolean;
+      }) => {
+        const { auditUnified } = await import('../test/audit-unified.js');
+
+        // Validate category option
+        const category = options.category as 'services' | 'contracts' | undefined;
+        if (category && category !== 'services' && category !== 'contracts') {
+          console.error(`❌ Invalid category: ${options.category}`);
+          console.error('   Valid options: services, contracts');
+          process.exitCode = 1;
+          return;
+        }
+
+        const passed = auditUnified({
+          update: options.update,
+          strict: options.strict,
+          category,
+          verbose: options.verbose,
+        });
+        if (!passed) {
+          process.exitCode = 1;
+        }
+      }
+    );
+
+  // Legacy command - contracts (deprecated)
+  cli
+    .command('test:audit-contracts', 'DEPRECATED: Use test:audit --category=contracts')
+    .option('--update', 'Update baseline with current gaps')
+    .option('--strict', 'Fail if ANY gap exists (not just new ones)')
+    .example('pnpm ops test:audit --category=contracts')
     .action(async (options: { update?: boolean; strict?: boolean }) => {
-      const { auditContracts } = await import('../test/audit-contracts.js');
-      const passed = auditContracts(options);
+      console.warn('⚠️  DEPRECATED: Use "pnpm ops test:audit --category=contracts"\n');
+
+      const { auditUnified } = await import('../test/audit-unified.js');
+      const passed = auditUnified({
+        update: options.update,
+        strict: options.strict,
+        category: 'contracts',
+      });
       if (!passed) {
         process.exitCode = 1;
       }
     });
 
+  // Legacy command - services (deprecated)
   cli
-    .command('test:audit-services', 'Audit service integration test coverage')
+    .command('test:audit-services', 'DEPRECATED: Use test:audit --category=services')
     .option('--update', 'Update baseline with current gaps')
     .option('--strict', 'Fail if ANY gap exists (not just new ones)')
-    .example('ops test:audit-services')
-    .example('ops test:audit-services --update')
-    .example('ops test:audit-services --strict')
+    .example('pnpm ops test:audit --category=services')
     .action(async (options: { update?: boolean; strict?: boolean }) => {
-      const { auditServices } = await import('../test/audit-services.js');
-      const passed = auditServices(options);
+      console.warn('⚠️  DEPRECATED: Use "pnpm ops test:audit --category=services"\n');
+
+      const { auditUnified } = await import('../test/audit-unified.js');
+      const passed = auditUnified({
+        update: options.update,
+        strict: options.strict,
+        category: 'services',
+      });
       if (!passed) {
         process.exitCode = 1;
       }
-    });
-
-  cli
-    .command('test:audit', 'Run all test coverage audits')
-    .option('--strict', 'Fail if ANY gap exists (not just new ones)')
-    .example('ops test:audit')
-    .example('ops test:audit --strict')
-    .action(async (options: { strict?: boolean }) => {
-      const { auditContracts } = await import('../test/audit-contracts.js');
-      const { auditServices } = await import('../test/audit-services.js');
-
-      console.log('═'.repeat(60));
-      console.log('Running all test coverage audits...');
-      console.log('═'.repeat(60) + '\n');
-
-      const contractsPass = auditContracts({ strict: options.strict });
-
-      console.log('═'.repeat(60) + '\n');
-
-      const servicesPass = auditServices({ strict: options.strict });
-
-      console.log('═'.repeat(60));
-      if (contractsPass && servicesPass) {
-        console.log('✅ All audits passed!');
-      } else {
-        console.log('❌ Some audits failed.');
-        process.exitCode = 1;
-      }
-      console.log('═'.repeat(60));
     });
 }

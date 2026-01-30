@@ -467,11 +467,21 @@ Notify users of new releases.
 
 ### Testing Debt
 
-Component test gaps (use `pnpm ops test:audit-services`):
+Service test gaps (use `pnpm ops test:audit --category=services`):
 
 - ~~`LongTermMemoryService.ts`~~ → Covered by `PgvectorMemoryAdapter.component.test.ts` (beta.55)
 - `ConversationalRAGService.ts`, `PersonalityService.ts` (high)
 - `ShortTermMemoryService.ts`, `SystemPromptService.ts`, `UserService.ts` (medium)
+
+### 🧹 Audit Existing Tests for Type Violations
+
+Review all `*.test.ts` files to ensure they match their naming convention:
+
+- [ ] Unit tests (`.test.ts`) should be fully mocked (no PGLite)
+- [ ] Service tests (`.service.test.ts`) should use PGLite
+- [ ] Component tests (`.component.test.ts`) should use PGLite + mocked externals
+- [ ] Contract tests (`.contract.test.ts`) should only test Zod schemas
+- [ ] Rename any misnamed test files to match their actual test type
 
 ---
 
