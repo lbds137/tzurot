@@ -186,9 +186,7 @@ function printServiceSection(result: ServiceAuditResult, verbose: boolean): void
   console.log(`Total services:     ${result.allServices.length}`);
   console.log(`Exempt:             ${result.baseline.exempt.length} (no direct Prisma calls)`);
   console.log(`Auditable:          ${result.auditableServices.length}`);
-  console.log(
-    `Covered:            ${result.testedServices.length} (via .service.test.ts or .component.test.ts)`
-  );
+  console.log(`Covered:            ${result.testedServices.length} (via .int.test.ts)`);
   console.log(`Gaps:               ${result.untestedServices.length}`);
   console.log();
 
@@ -219,7 +217,7 @@ function printServiceSection(result: ServiceAuditResult, verbose: boolean): void
   }
 
   if (result.newGaps.length > 0) {
-    console.log('💡 To fix: Add a .service.test.ts file for these services');
+    console.log('💡 To fix: Add a .int.test.ts file for these services');
     console.log('   Or add to "exempt" in baseline if no test needed');
     console.log('   Or run: pnpm ops test:audit --update\n');
   }

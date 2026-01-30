@@ -54,7 +54,7 @@ Prevents new `*Service.ts` files from being added without tests.
 ### How It Works
 
 1. Finds all `*Service.ts` files in services/ and packages/
-2. Checks which have `.service.test.ts` or `.component.test.ts` files
+2. Checks which have `.int.test.ts` files
 3. Compares against baseline's `services.knownGaps`
 4. **Fails CI** if NEW services are added without tests
 
@@ -62,24 +62,24 @@ Prevents new `*Service.ts` files from being added without tests.
 
 Some services don't need tests (re-exports, thin wrappers, no DB access). Add to `services.exempt` in baseline.
 
-## Contract Coverage Audit
+## Schema Coverage Audit
 
-Prevents new API schemas from being added without contract tests.
+Prevents new API schemas from being added without schema tests.
 
 ### How It Works
 
 1. Finds all Zod schemas in `packages/common-types/src/schemas/api/`
-2. Checks which have `.safeParse()` calls in contract tests
+2. Checks which have `.safeParse()` calls in `.schema.test.ts` files
 3. Compares against baseline's `contracts.knownGaps`
 4. **Fails CI** if NEW untested schemas are added
 
-### Adding Contract Tests
+### Adding Schema Tests
 
 ```typescript
-// packages/common-types/src/types/MyFeature.contract.test.ts
+// packages/common-types/src/types/MyFeature.schema.test.ts
 import { MyResponseSchema } from '../schemas/api/myFeature.js';
 
-describe('MyFeature API Contract', () => {
+describe('MyFeature API Schema', () => {
   it('should validate response structure', () => {
     const response = { id: '123', name: 'Test' };
     expect(MyResponseSchema.safeParse(response).success).toBe(true);
@@ -102,7 +102,7 @@ pnpm ops test:audit --verbose
 
 # 2. Pick a gap and write tests
 # Example: Close gap for PersonalityService
-# Create: services/api-gateway/src/services/PersonalityService.service.test.ts
+# Create: services/api-gateway/src/services/PersonalityService.int.test.ts
 
 # 3. Update baseline to record progress
 pnpm ops test:audit --update
@@ -157,7 +157,7 @@ Codecov runs on every PR. Coverage report shows:
 Total services:     23
 Exempt:             17 (no direct Prisma calls)
 Auditable:          6
-Covered:            3 (via .service.test.ts or .component.test.ts)
+Covered:            3 (via .int.test.ts)
 Gaps:               3
 
 📋 Known gaps (from baseline):
@@ -167,7 +167,7 @@ Gaps:               3
 
 ════════════════════════════════════════════════════════════
 
-📜 CONTRACT TESTS (API schema validation)
+📜 SCHEMA TESTS (API schema validation)
 ────────────────────────────────────────────────────────────
 Total schemas:      62
 Tested:             0
@@ -182,7 +182,7 @@ Gaps:               62
 🎯 RATCHET SUMMARY
 ────────────────────────────────────────────────────────────
 Service tests:  ✅ PASS (no new gaps)
-Contract tests: ✅ PASS (no new gaps)
+Schema tests:   ✅ PASS (no new gaps)
 
 Overall:        ✅ ALL AUDITS PASSED
 ════════════════════════════════════════════════════════════

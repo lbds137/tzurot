@@ -37,8 +37,8 @@ import { isBotOwner } from '../utils/ownerMiddleware.js';
  * This SQL is generated from Prisma schema using `prisma migrate diff`.
  */
 function loadPGliteSchema(): string {
-  // Path from packages/common-types/src/services/ to tests/e2e/schema/
-  const schemaPath = join(__dirname, '../../../../tests/e2e/schema/pglite-schema.sql');
+  // Path from packages/common-types/src/services/ to tests/schema/
+  const schemaPath = join(__dirname, '../../../../tests/schema/pglite-schema.sql');
   try {
     return readFileSync(schemaPath, 'utf-8');
   } catch {

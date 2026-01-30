@@ -84,7 +84,7 @@ describe('generateSchema', () => {
       expect(fsMock.writeFileSync).toHaveBeenCalled();
       const [path] = fsMock.writeFileSync.mock.calls[0] as [string, string];
       expect(path).toContain('pglite-schema.sql');
-      expect(path).toContain('tests/integration/schema');
+      expect(path).toContain('tests/schema');
     });
 
     it('should use custom output path when provided', async () => {

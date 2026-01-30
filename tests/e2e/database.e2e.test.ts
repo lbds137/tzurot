@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupTestEnvironment, type TestEnvironment } from './setup';
+import { setupTestEnvironment, type TestEnvironment } from '../helpers/setup-pglite.js';
 
 describe('Integration Test Infrastructure', () => {
   let testEnv: TestEnvironment;

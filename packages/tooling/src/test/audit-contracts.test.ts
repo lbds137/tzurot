@@ -50,7 +50,7 @@ describe('audit-contracts', () => {
       // Setup: schemas directory exists with one schema
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('schemas/api')) return true;
-        if (path.includes('integration')) return false;
+        if (path.includes('e2e')) return false;
         if (path.includes('baseline')) return true;
         return false;
       });
@@ -85,7 +85,7 @@ describe('audit-contracts', () => {
     it('should fail when new gaps are found', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('schemas/api')) return true;
-        if (path.includes('integration')) return false;
+        if (path.includes('e2e')) return false;
         if (path.includes('baseline')) return true;
         return false;
       });
@@ -121,7 +121,7 @@ describe('audit-contracts', () => {
     it('should update baseline when --update flag is passed', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('schemas/api')) return true;
-        if (path.includes('integration')) return false;
+        if (path.includes('e2e')) return false;
         if (path.includes('baseline')) return true;
         return false;
       });
@@ -162,7 +162,7 @@ describe('audit-contracts', () => {
     it('should fail in strict mode with any gaps', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('schemas/api')) return true;
-        if (path.includes('integration')) return false;
+        if (path.includes('e2e')) return false;
         if (path.includes('baseline')) return true;
         return false;
       });
@@ -242,22 +242,22 @@ describe('audit-contracts', () => {
     it('should return correct coverage statistics', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('schemas/api')) return true;
-        if (path.includes('integration')) return false;
+        if (path.includes('e2e')) return false;
         if (path.includes('baseline')) return true;
         return false;
       });
 
       mockReaddirSync.mockImplementation((path: string) => {
         if (path.includes('schemas/api')) return ['test.ts'];
-        if (path.includes('types')) return ['test.contract.test.ts'];
+        if (path.includes('types')) return ['test.schema.test.ts'];
         return [];
       });
 
       mockReadFileSync.mockImplementation((path: string) => {
-        if (path.endsWith('test.ts') && !path.includes('contract')) {
+        if (path.endsWith('test.ts') && !path.includes('schema.test')) {
           return 'export const TestSchema = z.object({});\nexport const OtherSchema = z.object({});';
         }
-        if (path.includes('contract.test.ts')) {
+        if (path.includes('schema.test.ts')) {
           return `
             import { TestSchema } from '../schemas/api/test';
             TestSchema.safeParse({});

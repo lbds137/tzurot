@@ -7,13 +7,13 @@ import { TEST_TIMEOUTS } from './packages/common-types/src/constants/timing.js';
 process.env.PROD_DATABASE_URL ??= process.env.DATABASE_URL ?? '';
 
 /**
- * Vitest configuration for integration tests
+ * Vitest configuration for E2E tests (*.e2e.test.ts)
  *
- * Integration tests use:
- * - Real timing (no fake timers)
- * - Longer timeouts
- * - Real databases (CI) or in-process databases (local)
- * - Global setup/teardown for environment initialization
+ * E2E tests:
+ * - Test cross-service flows (api-gateway + ai-worker, BullMQ contracts)
+ * - Live in tests/e2e/ directory
+ * - Use real timing (no fake timers)
+ * - Coverage disabled (tests real external services)
  */
 export default defineConfig({
   resolve: {
@@ -26,22 +26,20 @@ export default defineConfig({
     globals: true,
     environment: 'node',
 
-    // Only run integration tests
-    include: ['tests/integration/**/*.test.ts'],
+    // Only run E2E tests in tests/e2e/
+    include: ['tests/e2e/**/*.e2e.test.ts'],
     exclude: ['**/node_modules/**', '**/dist/**', '**/*.d.ts'],
 
-    // Integration tests need longer timeouts
+    // E2E tests need longer timeouts
     testTimeout: TEST_TIMEOUTS.INTEGRATION_TEST,
     hookTimeout: TEST_TIMEOUTS.INTEGRATION_HOOK,
 
-    // Use REAL timers for integration tests (not fake timers)
-    // Integration tests verify real behavior including timing
+    // Use REAL timers for E2E tests
     fakeTimers: {
       toFake: [],
     },
 
-    // Run integration tests sequentially (not in parallel)
-    // This prevents database conflicts and makes debugging easier
+    // Run E2E tests sequentially
     pool: 'forks',
     poolOptions: {
       forks: {
@@ -49,12 +47,9 @@ export default defineConfig({
       },
     },
 
-    // Coverage configuration
-    // Integration tests focus on behavior, not coverage metrics
+    // E2E tests don't contribute coverage (test real external services)
     coverage: {
-      provider: 'v8',
-      reporter: ['text'],
-      enabled: false, // Disable by default, enable with --coverage flag
+      enabled: false,
     },
   },
 });
