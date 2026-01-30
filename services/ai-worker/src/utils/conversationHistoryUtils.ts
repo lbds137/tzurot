@@ -41,6 +41,14 @@ function isAssistantRole(role: string): boolean {
 const DEFAULT_MAX_ASSISTANT_MESSAGES = 5;
 
 /**
+ * Maximum number of messages to scan when searching for assistant messages.
+ * This prevents O(n) scans of unbounded conversation history.
+ * Set to 100 which is more than enough to find 5 assistant messages
+ * in normal conversation patterns (even with lots of user messages).
+ */
+const MAX_SCAN_DEPTH = 100;
+
+/**
  * Get the last assistant message from raw conversation history.
  *
  * @param history Raw conversation history entries
@@ -88,7 +96,10 @@ export function getRecentAssistantMessages(
 
   // Find assistant messages from end (most recent first)
   // Uses case-insensitive comparison to handle legacy data with capitalized roles
-  for (let i = history.length - 1; i >= 0 && messages.length < maxMessages; i--) {
+  // Bounded by MAX_SCAN_DEPTH to prevent O(n) scans of unbounded history
+  const startIndex = history.length - 1;
+  const minIndex = Math.max(0, history.length - MAX_SCAN_DEPTH);
+  for (let i = startIndex; i >= minIndex && messages.length < maxMessages; i--) {
     if (isAssistantRole(history[i].role)) {
       messages.push(history[i].content);
     }

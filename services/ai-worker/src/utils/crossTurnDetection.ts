@@ -23,9 +23,8 @@ import {
 } from './duplicateDetection.js';
 import type { EmbeddingServiceInterface } from './duplicateDetectionTypes.js';
 
-// Re-export types and history utils for backward compatibility
+// Re-export types for convenience
 export type { EmbeddingServiceInterface, DuplicateCheckResult } from './duplicateDetectionTypes.js';
-export { getLastAssistantMessage, getRecentAssistantMessages } from './conversationHistoryUtils.js';
 
 const logger = createLogger('CrossTurnDetection');
 

@@ -14,7 +14,7 @@
  * - Intra-turn detection (removeDuplicateResponse)
  * - Similarity functions (stringSimilarity, wordJaccardSimilarity)
  * - Retry configuration (buildRetryConfig)
- * - Re-exports from crossTurnDetection.ts for backward compatibility
+ * - Cross-turn detection functions from crossTurnDetection.ts
  */
 
 import { createHash } from 'node:crypto';
@@ -23,19 +23,17 @@ import { createLogger } from '@tzurot/common-types';
 const logger = createLogger('DuplicateDetection');
 
 // ============================================================================
-// Re-exports from crossTurnDetection.ts (for backward compatibility)
+// Cross-Turn Detection Functions
 // ============================================================================
 
 // Re-export types from dedicated types file
 export type { EmbeddingServiceInterface, DuplicateCheckResult } from './duplicateDetectionTypes.js';
 
-// Re-export cross-turn detection functions and history helpers
+// Re-export cross-turn detection functions
 export {
   isCrossTurnDuplicate,
   isRecentDuplicate,
   isRecentDuplicateAsync,
-  getLastAssistantMessage,
-  getRecentAssistantMessages,
 } from './crossTurnDetection.js';
 
 // ============================================================================
