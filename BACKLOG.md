@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-01-29
+> **Last Updated**: 2026-01-30
 > **Version**: v3.0.0-beta.59
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -21,7 +21,38 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. 🏗️ Extended Context Pipeline Refactor
+### 1. ✨ DM Personality Chat
+
+Chat with personalities in DMs.
+
+- [ ] Detect DM context in message handler
+- [ ] Use conversation history to identify which personality user was chatting with
+- [ ] Allow personality selection in DMs (`/character chat` in DMs)
+- [ ] Handle first-time DM (no history yet)
+
+### 2. ✨ NSFW Verification
+
+User-level verification. User verifies once via Discord's native age-gating, unlocked everywhere after.
+
+- [ ] Track `nsfwVerified` boolean on User record
+- [ ] "Handshake" verification: interact with bot in a Discord age-gated channel
+
+### 3. ✨ Multi-Personality Per Channel
+
+Allow multiple personalities active in a single channel.
+
+- [ ] Track multiple active personalities per channel
+- [ ] Natural order speaker selection (who responds next)
+- [ ] Handle @mentions when multiple personalities present
+- [ ] `/channel add-personality` and `/channel remove-personality` commands
+
+---
+
+## Medium Priority
+
+_Significant refactors that can wait._
+
+### 🏗️ Extended Context Pipeline Refactor
 
 The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync. This is blocking reliable feature development.
 
@@ -32,7 +63,7 @@ The pipeline has two parallel code paths (extended context on/off) that constant
 
 **Files**: `DiscordChannelFetcher.ts`, `MessageContextBuilder.ts`, `conversationUtils.ts`, pipeline steps
 
-### 2. ✨ LTM Summarization (Shapes.inc Style)
+### ✨ LTM Summarization (Shapes.inc Style)
 
 Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
 
@@ -42,7 +73,7 @@ Verbatim conversation storage is redundant with extended context. Replace with L
 
 **Depends on**: Pipeline Refactor
 
-### 3. 🏗️ Memories Table Migration
+### 🏗️ Memories Table Migration
 
 Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
 
@@ -74,15 +105,6 @@ Prevents bot from spamming unwanted channels, reduces server kicks.
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### ✨ DM Personality Chat
-
-Chat with personalities in DMs.
-
-- [ ] Detect DM context in message handler
-- [ ] Use conversation history to identify which personality user was chatting with
-- [ ] Allow personality selection in DMs (`/character chat` in DMs)
-- [ ] Handle first-time DM (no history yet)
-
 ### ✨ Message Reactions in XML
 
 Add reaction metadata to extended context messages showing emoji and who reacted.
@@ -91,27 +113,11 @@ Add reaction metadata to extended context messages showing emoji and who reacted
 - [ ] Format as XML metadata (use same user/persona resolution as elsewhere)
 - [ ] Include in extended context output
 
-### ✨ Multi-Personality Per Channel
-
-Allow multiple personalities active in a single channel.
-
-- [ ] Track multiple active personalities per channel
-- [ ] Natural order speaker selection (who responds next)
-- [ ] Handle @mentions when multiple personalities present
-- [ ] `/channel add-personality` and `/channel remove-personality` commands
-
 ---
 
 ## Epic: v2 Parity
 
 _Eventually kill v2, but not urgent._
-
-### ✨ NSFW Verification
-
-User-level verification. User verifies once via Discord's native age-gating, unlocked everywhere after.
-
-- [ ] Track `nsfwVerified` boolean on User record
-- [ ] "Handshake" verification: interact with bot in a Discord age-gated channel
 
 ### ✨ Shapes.inc Import
 
