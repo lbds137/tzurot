@@ -487,6 +487,13 @@ Run `pnpm ops test:audit --category=services` to check coverage.
 
 _Note: Services without direct Prisma calls are auto-excluded from the audit._
 
+### 🧹 Test Tooling Polish
+
+Minor improvements from PR #547 review:
+
+- [ ] Add `servicesWithPrisma` array to `test-coverage-baseline.json` showing which services were detected (for audit transparency)
+- [ ] Document `--json` flag use case in `complexity-report.ts` (intended for CI dashboard integration)
+
 ### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention:
