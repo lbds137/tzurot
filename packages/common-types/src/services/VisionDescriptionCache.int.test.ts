@@ -11,10 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { VisionDescriptionCache } from '@tzurot/common-types';
-import {
-  setupTestEnvironment,
-  type TestEnvironment,
-} from '../../../../tests/helpers/setup-pglite.js';
+import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
 
 describe('VisionDescriptionCache Integration', () => {
   let testEnv: TestEnvironment;

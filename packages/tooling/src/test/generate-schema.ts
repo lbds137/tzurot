@@ -28,7 +28,8 @@ export interface GenerateSchemaOptions {
  */
 export async function generateSchema(options: GenerateSchemaOptions = {}): Promise<void> {
   const rootDir = process.cwd();
-  const outputPath = options.output ?? join(rootDir, 'tests', 'schema', 'pglite-schema.sql');
+  const outputPath =
+    options.output ?? join(rootDir, 'packages', 'test-utils', 'schema', 'pglite-schema.sql');
 
   console.log(chalk.cyan('Generating PGLite schema from Prisma...'));
 
