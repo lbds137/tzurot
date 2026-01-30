@@ -107,20 +107,26 @@ git branch -d feat/your-feature
 
 ## Git Safety Protocol
 
-### 🚨 NEVER Run Without Permission:
+### 🚨 NEVER Run Without Explicit User Permission:
 
-| Command            | Risk                       |
-| ------------------ | -------------------------- |
-| `git restore`      | Discards uncommitted work  |
-| `git reset --hard` | Undoes commits permanently |
-| `git clean -fd`    | Deletes untracked files    |
-| `git push --force` | Rewrites history           |
+**These commands destroy work. ALWAYS ask before running:**
+
+| Command            | Risk                       | Ask First? |
+| ------------------ | -------------------------- | ---------- |
+| `git restore`      | Discards uncommitted work  | **YES**    |
+| `git checkout .`   | Discards all changes       | **YES**    |
+| `git reset --hard` | Undoes commits permanently | **YES**    |
+| `git clean -fd`    | Deletes untracked files    | **YES**    |
+| `git push --force` | Rewrites history           | **YES**    |
+| `git stash drop`   | Permanently removes stash  | **YES**    |
 
 ### Golden Rules
 
 1. **Uncommitted changes = HOURS OF WORK** - Never discard without confirmation
 2. **Use safe alternatives:** `--force-with-lease`, `git branch -d` (not -D)
 3. **When user says "get changes"** → They mean COMMIT, not DISCARD
+4. **NEVER unilaterally abandon agreed-upon work** - Ask before changing scope
+5. **When work is complex** - Explain and ask, don't skip silently
 
 ## Git Hooks (Husky)
 
