@@ -97,6 +97,7 @@ describe('Memory Incognito Handlers', () => {
             duration: '1h',
           },
           timeRemaining: '1h remaining',
+          wasAlreadyActive: false,
           message: 'Incognito mode enabled for Lilith (1 hour)',
         },
       });
@@ -129,6 +130,7 @@ describe('Memory Incognito Handlers', () => {
             duration: 'forever',
           },
           timeRemaining: 'Until manually disabled',
+          wasAlreadyActive: false,
           message: 'Incognito mode enabled for all personalities',
         },
       });
@@ -159,6 +161,7 @@ describe('Memory Incognito Handlers', () => {
             duration: '1h',
           },
           timeRemaining: '30m remaining',
+          wasAlreadyActive: true,
           message: 'Incognito mode is already active for Lilith',
         },
       });
