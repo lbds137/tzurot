@@ -12,6 +12,12 @@ import type { BrowseSortType } from './constants.js';
 import type { ParsedBrowseCustomId } from './types.js';
 
 /**
+ * Maximum query length in customIds.
+ * Discord customIds have a 100-char limit, and the base format uses ~45-50 chars.
+ */
+export const MAX_CUSTOMID_QUERY_LENGTH = 50;
+
+/**
  * Configuration for creating browse customId helpers
  */
 export interface BrowseCustomIdConfig<TFilter extends string> {
@@ -34,13 +40,24 @@ interface ParseConfig<TFilter extends string> {
 
 /**
  * Truncate query to fit within Discord's 100-char customId limit.
- * Base format is ~40 chars, leaving ~60 for query.
+ *
+ * Discord customIds have a 100 character maximum. The base format uses ~45-50 chars
+ * for prefix, browse marker, page, filter, and sort (e.g., "character::browse::0::all::date::").
+ * To be safe, we limit query strings to 50 characters max.
+ *
+ * Example: "character::browse::0::public::name::searchquery" (47 chars base + query)
+ *
+ * Note: This means long search queries will be silently truncated when stored in
+ * pagination buttons. The full query should be preserved in the browse context for
+ * display purposes, even though the customId uses the truncated version for navigation.
  */
 function truncateQuery(query: string | null): string {
   if (query === null) {
     return '';
   }
-  return query.length > 50 ? query.slice(0, 50) : query;
+  return query.length > MAX_CUSTOMID_QUERY_LENGTH
+    ? query.slice(0, MAX_CUSTOMID_QUERY_LENGTH)
+    : query;
 }
 
 /**
