@@ -32,7 +32,8 @@ export const REASONING_MODEL_PATTERNS = {
   GEMINI_THINKING: /gemini-2\.[0-9].*-thinking|gemini-3.*think/i,
 
   // DeepSeek R1 reasoning models - emit <think> tags
-  DEEPSEEK_R1: /deepseek.*r1|deepseek.*reasoner/i,
+  // Includes R1T variants like tng-r1t-chimera (R1+V3 merge)
+  DEEPSEEK_R1: /deepseek.*r1|deepseek.*reasoner|r1t.*chimera/i,
 
   // Qwen QwQ reasoning models - emit <think> tags
   QWEN_REASONING: /qwen.*qwq|qwq/i,

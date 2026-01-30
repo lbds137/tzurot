@@ -1567,5 +1567,31 @@ describe('ConversationalRAGService', () => {
       // The service still extracts it, the display decision is made elsewhere
       expect(result.content).toBe('Response without thinking.');
     });
+
+    it('should use thinking content as response when visible content is empty (R1T Chimera edge case)', async () => {
+      // Some models like R1T Chimera wrap their entire response in reasoning tags
+      // instead of having separate thinking and response sections
+      getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
+        content: '<reasoning>Actual response content inside reasoning tags.</reasoning>',
+        usage_metadata: { input_tokens: 100, output_tokens: 50 },
+        additional_kwargs: {},
+        response_metadata: {},
+      });
+
+      getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
+        processedText: 'Actual response content inside reasoning tags.',
+        resolvedPersonas: [],
+      });
+
+      const personality = createMockPersonality({ showThinking: true });
+      const context = createMockContext();
+
+      const result = await service.generateResponse(personality, 'Test message', context);
+
+      // When all content is inside thinking tags, the thinking content should become the visible response
+      expect(result.content).toBe('Actual response content inside reasoning tags.');
+      // thinkingContent should be undefined since it was used as the response (null is converted to undefined)
+      expect(result.thinkingContent).toBeUndefined();
+    });
   });
 });
