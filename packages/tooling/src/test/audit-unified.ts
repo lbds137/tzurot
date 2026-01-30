@@ -1,31 +1,30 @@
 /**
  * Unified Test Coverage Audit
  *
- * Combines service and contract audits into a single tool with unified baseline.
- * Replaces separate audit-services.ts and audit-contracts.ts tools.
+ * Audits both service integration tests and contract tests.
+ * Services are auto-detected for Prisma usage (no manual exempt list).
  */
 
-import { readFileSync, writeFileSync, existsSync } from 'node:fs';
-import { join } from 'node:path';
+import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { join, basename } from 'node:path';
 
-import { collectContractAuditData, type ContractAuditResult } from './audit-contracts.js';
-import { collectServiceAuditData, type ServiceAuditResult } from './audit-services.js';
+import {
+  type UnifiedBaseline,
+  type ServiceAuditResult,
+  type ContractAuditResult,
+  findFiles,
+  isReExportFile,
+  hasPrismaUsage,
+  hasAuditIgnoreComment,
+  createEmptyBaseline,
+  getRelativePath,
+  dirname,
+  fileExists,
+  readFile,
+} from './audit-utils.js';
 
-export interface UnifiedBaseline {
-  version: number;
-  lastUpdated: string;
-  services: {
-    knownGaps: string[];
-    exempt: string[];
-  };
-  contracts: {
-    knownGaps: string[];
-  };
-  notes: {
-    serviceExemptionCriteria: string;
-    contractExemptionCriteria: string;
-  };
-}
+// Re-export types for consumers
+export type { UnifiedBaseline, ServiceAuditResult, ContractAuditResult };
 
 export interface UnifiedAuditResult {
   services: ServiceAuditResult;
@@ -43,87 +42,265 @@ export interface AuditUnifiedOptions {
 }
 
 const UNIFIED_BASELINE_PATH = 'test-coverage-baseline.json';
-const LEGACY_SERVICE_BASELINE_PATH = 'service-integration-baseline.json';
-const LEGACY_CONTRACT_BASELINE_PATH = 'contract-coverage-baseline.json';
+
+// ============================================================================
+// Service Audit Logic
+// ============================================================================
 
 /**
- * Check if a category should be included in the audit
+ * Find all service files in the project
  */
-function includesServices(category?: 'services' | 'contracts'): boolean {
-  return !category || category === 'services';
-}
+function findServiceFiles(projectRoot: string): string[] {
+  const services: string[] = [];
 
-function includesContracts(category?: 'services' | 'contracts'): boolean {
-  return !category || category === 'contracts';
-}
+  const serviceDirs = [
+    join(projectRoot, 'services/ai-worker/src'),
+    join(projectRoot, 'services/api-gateway/src'),
+    join(projectRoot, 'services/bot-client/src'),
+    join(projectRoot, 'packages/common-types/src'),
+  ];
 
-/**
- * Create default empty baseline
- */
-function createEmptyBaseline(): UnifiedBaseline {
-  return {
-    version: 1,
-    lastUpdated: new Date().toISOString(),
-    services: {
-      knownGaps: [],
-      exempt: [],
-    },
-    contracts: {
-      knownGaps: [],
-    },
-    notes: {
-      serviceExemptionCriteria: 'Services without direct Prisma calls are exempt',
-      contractExemptionCriteria: 'None - all API schemas need contract tests',
-    },
-  };
-}
+  for (const dir of serviceDirs) {
+    const files = findFiles(dir, /Service\.ts$/);
+    for (const file of files) {
+      // Skip test files
+      if (file.endsWith('.test.ts') || file.endsWith('.int.test.ts')) continue;
 
-/**
- * Migrate from legacy baselines to unified format
- */
-export function migrateFromLegacyBaselines(projectRoot: string): UnifiedBaseline {
-  const baseline = createEmptyBaseline();
+      // Skip re-export files
+      if (isReExportFile(file)) continue;
 
-  // Load legacy service baseline
-  const legacyServicePath = join(projectRoot, LEGACY_SERVICE_BASELINE_PATH);
-  if (existsSync(legacyServicePath)) {
-    const legacyService = JSON.parse(readFileSync(legacyServicePath, 'utf-8')) as {
-      knownGaps?: string[];
-      exempt?: string[];
-      notes?: { exemptionCriteria?: string };
-    };
-    baseline.services.knownGaps = legacyService.knownGaps ?? [];
-    baseline.services.exempt = legacyService.exempt ?? [];
-    if (legacyService.notes?.exemptionCriteria) {
-      baseline.notes.serviceExemptionCriteria = legacyService.notes.exemptionCriteria;
+      const relativePath = getRelativePath(projectRoot, file);
+      services.push(relativePath);
     }
   }
 
-  // Load legacy contract baseline
-  const legacyContractPath = join(projectRoot, LEGACY_CONTRACT_BASELINE_PATH);
-  if (existsSync(legacyContractPath)) {
-    const legacyContract = JSON.parse(readFileSync(legacyContractPath, 'utf-8')) as {
-      knownGaps?: string[];
-    };
-    baseline.contracts.knownGaps = legacyContract.knownGaps ?? [];
-  }
-
-  return baseline;
+  return services.sort();
 }
 
 /**
- * Load unified baseline, migrating from legacy if needed
+ * Find services that have integration tests (*.int.test.ts)
+ */
+function findTestedServices(projectRoot: string, services: string[]): string[] {
+  const tested: string[] = [];
+
+  for (const service of services) {
+    const fullPath = join(projectRoot, service);
+    const dir = dirname(fullPath);
+    const baseName = basename(service, '.ts');
+
+    const intTestPath = join(dir, `${baseName}.int.test.ts`);
+
+    if (fileExists(intTestPath)) {
+      tested.push(service);
+    }
+  }
+
+  return tested.sort();
+}
+
+/**
+ * Collect service audit data with auto-detection of Prisma usage
+ */
+function collectServiceAuditData(
+  projectRoot: string,
+  baseline: UnifiedBaseline
+): ServiceAuditResult {
+  const allServices = findServiceFiles(projectRoot);
+
+  // Auto-detect which services use Prisma (need integration tests)
+  const servicesWithPrisma: string[] = [];
+  const servicesWithoutPrisma: string[] = [];
+
+  for (const service of allServices) {
+    const fullPath = join(projectRoot, service);
+
+    // Check for @audit-ignore comment (escape hatch)
+    if (hasAuditIgnoreComment(fullPath)) {
+      servicesWithoutPrisma.push(service);
+      continue;
+    }
+
+    if (hasPrismaUsage(fullPath)) {
+      servicesWithPrisma.push(service);
+    } else {
+      servicesWithoutPrisma.push(service);
+    }
+  }
+
+  // Only services with Prisma need integration tests
+  const testedServices = findTestedServices(projectRoot, servicesWithPrisma);
+  const untestedServices = servicesWithPrisma.filter(s => !testedServices.includes(s));
+
+  const coverage =
+    servicesWithPrisma.length > 0
+      ? ((servicesWithPrisma.length - untestedServices.length) / servicesWithPrisma.length) * 100
+      : 100;
+
+  const newGaps = untestedServices.filter(s => !baseline.services.knownGaps.includes(s));
+  const fixedGaps = baseline.services.knownGaps.filter(s => !untestedServices.includes(s));
+
+  return {
+    allServices,
+    servicesWithPrisma,
+    servicesWithoutPrisma,
+    testedServices,
+    untestedServices,
+    coverage,
+    newGaps,
+    fixedGaps,
+  };
+}
+
+// ============================================================================
+// Contract Audit Logic
+// ============================================================================
+
+/**
+ * Find all Zod schema exports in API schema files
+ */
+function findApiSchemas(projectRoot: string): string[] {
+  const schemas: string[] = [];
+  const schemasDir = join(projectRoot, 'packages/common-types/src/schemas/api');
+
+  if (!existsSync(schemasDir)) {
+    return schemas;
+  }
+
+  const files = readdirSync(schemasDir).filter(
+    f => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'index.ts'
+  );
+
+  for (const file of files) {
+    const content = readFileSync(join(schemasDir, file), 'utf-8');
+
+    // Find exported Zod schemas (export const *Schema = z.*)
+    const schemaMatches = content.matchAll(/export const (\w+Schema)\s*=/g);
+    for (const match of schemaMatches) {
+      schemas.push(`${basename(file, '.ts')}:${match[1]}`);
+    }
+  }
+
+  return schemas.sort();
+}
+
+/**
+ * Find schemas that have corresponding contract tests
+ */
+function findTestedSchemas(projectRoot: string): string[] {
+  const tested: string[] = [];
+  const contractTestsDir = join(projectRoot, 'packages/common-types/src/types');
+
+  if (!existsSync(contractTestsDir)) {
+    return tested;
+  }
+
+  const contractTestFiles = readdirSync(contractTestsDir).filter(f =>
+    f.endsWith('.schema.test.ts')
+  );
+
+  for (const file of contractTestFiles) {
+    const content = readFile(join(contractTestsDir, file));
+
+    // Find schema imports from schemas/api
+    const importMatches = content.matchAll(/from ['"].*schemas\/api\/(\w+)['"]/g);
+    for (const match of importMatches) {
+      const schemaFile = match[1];
+
+      // Find which schemas from this file are actually used
+      const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
+      for (const usageMatch of schemaUsageMatches) {
+        tested.push(`${schemaFile}:${usageMatch[1]}`);
+      }
+    }
+
+    // Also check for inline schema tests
+    const inlineMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
+    for (const match of inlineMatches) {
+      if (
+        match[1].includes('Request') ||
+        match[1].includes('Response') ||
+        match[1].includes('Schema')
+      ) {
+        const possibleFiles = ['api-types', 'schemas'];
+        for (const f of possibleFiles) {
+          tested.push(`${f}:${match[1]}`);
+        }
+      }
+    }
+  }
+
+  // Also check e2e tests for schema usage
+  const e2eTestsDir = join(projectRoot, 'tests/e2e');
+  if (existsSync(e2eTestsDir)) {
+    const e2eFiles = readdirSync(e2eTestsDir).filter(f => f.endsWith('.e2e.test.ts'));
+
+    for (const file of e2eFiles) {
+      const content = readFile(join(e2eTestsDir, file));
+
+      const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
+      for (const match of schemaUsageMatches) {
+        tested.push(`e2e:${match[1]}`);
+      }
+    }
+  }
+
+  return [...new Set(tested)].sort();
+}
+
+/**
+ * Collect contract audit data
+ */
+function collectContractAuditData(
+  projectRoot: string,
+  baseline: UnifiedBaseline
+): ContractAuditResult {
+  const allSchemas = findApiSchemas(projectRoot);
+  const testedSchemas = findTestedSchemas(projectRoot);
+
+  const testedSchemaNames = new Set(testedSchemas.map(s => s.split(':')[1]));
+  const untestedSchemas = allSchemas.filter(s => !testedSchemaNames.has(s.split(':')[1]));
+
+  const coverage =
+    allSchemas.length > 0
+      ? ((allSchemas.length - untestedSchemas.length) / allSchemas.length) * 100
+      : 100;
+
+  const newGaps = untestedSchemas.filter(s => !baseline.contracts.knownGaps.includes(s));
+  const fixedGaps = baseline.contracts.knownGaps.filter(s => !untestedSchemas.includes(s));
+
+  return {
+    allSchemas,
+    testedSchemas,
+    untestedSchemas,
+    coverage,
+    newGaps,
+    fixedGaps,
+  };
+}
+
+// ============================================================================
+// Baseline Management
+// ============================================================================
+
+/**
+ * Load unified baseline
  */
 export function loadUnifiedBaseline(projectRoot: string): UnifiedBaseline {
   const unifiedPath = join(projectRoot, UNIFIED_BASELINE_PATH);
 
   if (existsSync(unifiedPath)) {
     const content = readFileSync(unifiedPath, 'utf-8');
-    return JSON.parse(content) as UnifiedBaseline;
+    const baseline = JSON.parse(content) as UnifiedBaseline;
+
+    // Ensure services section exists (migrate from old format)
+    if (!baseline.services) {
+      baseline.services = { knownGaps: [] };
+    }
+
+    return baseline;
   }
 
-  // Migrate from legacy baselines
-  return migrateFromLegacyBaselines(projectRoot);
+  return createEmptyBaseline();
 }
 
 /**
@@ -134,47 +311,16 @@ export function saveUnifiedBaseline(projectRoot: string, baseline: UnifiedBaseli
   writeFileSync(unifiedPath, JSON.stringify(baseline, null, 2) + '\n');
 }
 
-/**
- * Collect unified audit data from both service and contract audits
- */
-export function collectUnifiedAuditData(
-  projectRoot: string,
-  baseline: UnifiedBaseline
-): UnifiedAuditResult {
-  // Get service audit data - this uses its own baseline loading
-  const services = collectServiceAuditData(projectRoot);
+// ============================================================================
+// Reporting
+// ============================================================================
 
-  // Get contract audit data - this uses its own baseline loading
-  const contracts = collectContractAuditData(projectRoot);
+function includesServices(category?: 'services' | 'contracts'): boolean {
+  return !category || category === 'services';
+}
 
-  // Override the new/fixed gaps based on unified baseline
-  const serviceNewGaps = services.untestedServices.filter(
-    s => !baseline.services.knownGaps.includes(s)
-  );
-  const serviceFixedGaps = baseline.services.knownGaps.filter(
-    s => !services.untestedServices.includes(s)
-  );
-
-  const contractNewGaps = contracts.untestedSchemas.filter(
-    s => !baseline.contracts.knownGaps.includes(s)
-  );
-  const contractFixedGaps = baseline.contracts.knownGaps.filter(
-    s => !contracts.untestedSchemas.includes(s)
-  );
-
-  // Update results with unified baseline gap info
-  services.newGaps = serviceNewGaps;
-  services.fixedGaps = serviceFixedGaps;
-  contracts.newGaps = contractNewGaps;
-  contracts.fixedGaps = contractFixedGaps;
-
-  return {
-    services,
-    contracts,
-    baseline,
-    servicesPass: serviceNewGaps.length === 0,
-    contractsPass: contractNewGaps.length === 0,
-  };
+function includesContracts(category?: 'services' | 'contracts'): boolean {
+  return !category || category === 'contracts';
 }
 
 /**
@@ -184,11 +330,22 @@ function printServiceSection(result: ServiceAuditResult, verbose: boolean): void
   console.log('📦 SERVICE TESTS (DB interaction testing)');
   console.log('─'.repeat(60));
   console.log(`Total services:     ${result.allServices.length}`);
-  console.log(`Exempt:             ${result.baseline.exempt.length} (no direct Prisma calls)`);
-  console.log(`Auditable:          ${result.auditableServices.length}`);
-  console.log(`Covered:            ${result.testedServices.length} (via .int.test.ts)`);
+  console.log(`With Prisma:        ${result.servicesWithPrisma.length} (need .int.test.ts)`);
+  console.log(`Without Prisma:     ${result.servicesWithoutPrisma.length} (auto-exempt)`);
+  console.log(`Covered:            ${result.testedServices.length}`);
   console.log(`Gaps:               ${result.untestedServices.length}`);
   console.log();
+
+  if (verbose && result.servicesWithoutPrisma.length > 0) {
+    console.log('⏭️  Auto-exempt (no Prisma usage detected):');
+    for (const service of result.servicesWithoutPrisma.slice(0, 10)) {
+      console.log(`   ~ ${service}`);
+    }
+    if (result.servicesWithoutPrisma.length > 10) {
+      console.log(`   ... and ${result.servicesWithoutPrisma.length - 10} more`);
+    }
+    console.log();
+  }
 
   if (verbose && result.testedServices.length > 0) {
     console.log('✅ Covered:');
@@ -218,7 +375,7 @@ function printServiceSection(result: ServiceAuditResult, verbose: boolean): void
 
   if (result.newGaps.length > 0) {
     console.log('💡 To fix: Add a .int.test.ts file for these services');
-    console.log('   Or add to "exempt" in baseline if no test needed');
+    console.log('   Or add @audit-ignore: database-testing comment to opt out');
     console.log('   Or run: pnpm ops test:audit --update\n');
   }
 }
@@ -315,83 +472,27 @@ function printRatchetSummary(
   }
 }
 
+// ============================================================================
+// Main Entry Point
+// ============================================================================
+
 /**
- * Create updated baseline for save
+ * Collect unified audit data
  */
-function createUpdatedBaseline(
-  baseline: UnifiedBaseline,
-  result: UnifiedAuditResult,
-  category?: 'services' | 'contracts'
-): UnifiedBaseline {
+export function collectUnifiedAuditData(
+  projectRoot: string,
+  baseline: UnifiedBaseline
+): UnifiedAuditResult {
+  const services = collectServiceAuditData(projectRoot, baseline);
+  const contracts = collectContractAuditData(projectRoot, baseline);
+
   return {
-    ...baseline,
-    version: baseline.version + 1,
-    lastUpdated: new Date().toISOString(),
-    services: {
-      ...baseline.services,
-      knownGaps: includesServices(category)
-        ? result.services.untestedServices
-        : baseline.services.knownGaps,
-    },
-    contracts: {
-      ...baseline.contracts,
-      knownGaps: includesContracts(category)
-        ? result.contracts.untestedSchemas
-        : baseline.contracts.knownGaps,
-    },
+    services,
+    contracts,
+    baseline,
+    servicesPass: services.newGaps.length === 0,
+    contractsPass: contracts.newGaps.length === 0,
   };
-}
-
-/**
- * Determine if audit passes based on mode and category
- */
-function checkAuditResult(
-  result: UnifiedAuditResult,
-  strict: boolean,
-  category?: 'services' | 'contracts'
-): { pass: boolean; message?: string } {
-  // Strict mode: all gaps must be closed
-  if (strict) {
-    const servicesEmpty =
-      !includesServices(category) || result.services.untestedServices.length === 0;
-    const contractsEmpty =
-      !includesContracts(category) || result.contracts.untestedSchemas.length === 0;
-
-    if (!servicesEmpty || !contractsEmpty) {
-      return { pass: false, message: '\n❌ STRICT MODE: All gaps must be closed\n' };
-    }
-  }
-
-  // Ratchet mode: no new gaps
-  const servicesPass = !includesServices(category) || result.servicesPass;
-  const contractsPass = !includesContracts(category) || result.contractsPass;
-
-  if (!servicesPass || !contractsPass) {
-    return { pass: false, message: '\n❌ RATCHET FAILED: New untested code detected\n' };
-  }
-
-  return { pass: true };
-}
-
-/**
- * Print audit sections based on category filter
- */
-function printAuditSections(
-  result: UnifiedAuditResult,
-  category: 'services' | 'contracts' | undefined,
-  verbose: boolean
-): void {
-  if (includesServices(category)) {
-    printServiceSection(result.services, verbose);
-    console.log('═'.repeat(60));
-    console.log();
-  }
-
-  if (includesContracts(category)) {
-    printContractSection(result.contracts, verbose);
-    console.log('═'.repeat(60));
-    console.log();
-  }
 }
 
 /**
@@ -410,12 +511,36 @@ export function auditUnified(options: AuditUnifiedOptions = {}): boolean {
   const result = collectUnifiedAuditData(projectRoot, baseline);
 
   // Print requested sections
-  printAuditSections(result, category, verbose);
+  if (includesServices(category)) {
+    printServiceSection(result.services, verbose);
+    console.log('═'.repeat(60));
+    console.log();
+  }
+
+  if (includesContracts(category)) {
+    printContractSection(result.contracts, verbose);
+    console.log('═'.repeat(60));
+    console.log();
+  }
 
   // Handle update mode
   if (update) {
     console.log('📝 Updating baseline file...\n');
-    const updatedBaseline = createUpdatedBaseline(baseline, result, category);
+    const updatedBaseline: UnifiedBaseline = {
+      ...baseline,
+      version: baseline.version + 1,
+      lastUpdated: new Date().toISOString(),
+      services: {
+        knownGaps: includesServices(category)
+          ? result.services.untestedServices
+          : baseline.services.knownGaps,
+      },
+      contracts: {
+        knownGaps: includesContracts(category)
+          ? result.contracts.untestedSchemas
+          : baseline.contracts.knownGaps,
+      },
+    };
     saveUnifiedBaseline(projectRoot, updatedBaseline);
     console.log(`✅ Baseline updated: ${UNIFIED_BASELINE_PATH}\n`);
     return true;
@@ -425,9 +550,25 @@ export function auditUnified(options: AuditUnifiedOptions = {}): boolean {
   printRatchetSummary(result, category);
   console.log('═'.repeat(60));
 
-  const auditResult = checkAuditResult(result, strict, category);
-  if (!auditResult.pass) {
-    console.log(auditResult.message);
+  // Strict mode: all gaps must be closed
+  if (strict) {
+    const servicesEmpty =
+      !includesServices(category) || result.services.untestedServices.length === 0;
+    const contractsEmpty =
+      !includesContracts(category) || result.contracts.untestedSchemas.length === 0;
+
+    if (!servicesEmpty || !contractsEmpty) {
+      console.log('\n❌ STRICT MODE: All gaps must be closed\n');
+      return false;
+    }
+  }
+
+  // Ratchet mode: no new gaps
+  const servicesPass = !includesServices(category) || result.servicesPass;
+  const contractsPass = !includesContracts(category) || result.contractsPass;
+
+  if (!servicesPass || !contractsPass) {
+    console.log('\n❌ RATCHET FAILED: New untested code detected\n');
     return false;
   }
 
