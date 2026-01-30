@@ -285,7 +285,7 @@ export class UserReferenceResolver {
           },
         },
         orderBy: { createdAt: 'asc' },
-        take: usernames.length * 2, // Allow some buffer for case variants
+        take: Math.min(usernames.length * 2, 1000), // Allow buffer for case variants, capped for safety
       });
 
       // Group by lowercase username to handle case-insensitive matches

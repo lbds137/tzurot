@@ -348,11 +348,27 @@ pnpm with-env dev tsx scripts/src/db/backfill-local-embeddings.ts
 - Push migration files to git → Railway auto-deploys
 - For manual migrations: `pnpm ops db:migrate --env dev`
 
+## PGLite Schema Regeneration
+
+Integration tests use PGLite (in-memory PostgreSQL via WASM). After Prisma schema changes:
+
+```bash
+# Regenerate PGLite schema from current Prisma migrations
+./scripts/testing/regenerate-pglite-schema.sh
+
+# Output: packages/test-utils/schema/pglite-schema.sql
+```
+
+This generates SQL that PGLite executes to create the same schema as your production database.
+
+**📚 See**: `tzurot-testing` skill for integration test patterns, `docs/reference/testing/PGLITE_SETUP.md` for full setup.
+
 ## Related Skills
 
 - **tzurot-types** - Prisma schema and type definitions
 - **tzurot-observability** - Query logging
 - **tzurot-architecture** - Database service placement
+- **tzurot-testing** - PGLite integration test patterns
 
 ## References
 
