@@ -52,6 +52,18 @@ Allow multiple personalities active in a single channel.
 
 _Significant refactors that can wait._
 
+### 🏗️ ConversationalRAGService Refactor
+
+The main RAG orchestration service has grown unwieldy (~900 lines, max-lines override). It coordinates multiple components but has accumulated complexity. Needs refactoring before adding integration tests.
+
+- [ ] Break down `generateResponse` method (currently 180+ lines)
+- [ ] Extract model invocation logic to separate service
+- [ ] Reduce parameter passing (options objects instead of many params)
+- [ ] Consider splitting orchestration vs actual response generation
+- [ ] After refactor: add integration tests (currently has @audit-ignore)
+
+**Files**: `services/ai-worker/src/services/ConversationalRAGService.ts`
+
 ### 🏗️ Extended Context Pipeline Refactor
 
 The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync. This is blocking reliable feature development.
