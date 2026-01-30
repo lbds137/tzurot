@@ -29,10 +29,10 @@ import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorPar
 import { RetryError } from '../../../../utils/retry.js';
 import {
   isRecentDuplicateAsync,
-  getRecentAssistantMessages,
   buildRetryConfig,
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
+import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import { sanitizeForJsonb } from '../../../../utils/jsonSanitizer.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';

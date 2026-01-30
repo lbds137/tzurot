@@ -11,8 +11,6 @@ import {
   removeDuplicateResponse,
   isCrossTurnDuplicate,
   isRecentDuplicate,
-  getLastAssistantMessage,
-  getRecentAssistantMessages,
   contentHash,
   normalizeForComparison,
   wordJaccardSimilarity,
@@ -26,6 +24,7 @@ import {
   RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
   RETRY_ATTEMPT_3_HISTORY_REDUCTION,
 } from './duplicateDetection.js';
+import { getRecentAssistantMessages } from './conversationHistoryUtils.js';
 
 describe('removeDuplicateResponse', () => {
   describe('exact duplication', () => {
@@ -428,103 +427,8 @@ describe('isCrossTurnDuplicate', () => {
   });
 });
 
-describe('getLastAssistantMessage', () => {
-  it('should return undefined for empty history', () => {
-    expect(getLastAssistantMessage([])).toBeUndefined();
-    expect(getLastAssistantMessage(undefined)).toBeUndefined();
-  });
-
-  it('should return the last assistant message', () => {
-    const history = [
-      { role: 'user', content: 'Hello' },
-      { role: 'assistant', content: 'Hi there!' },
-      { role: 'user', content: 'How are you?' },
-      { role: 'assistant', content: 'I am doing well!' },
-    ];
-    expect(getLastAssistantMessage(history)).toBe('I am doing well!');
-  });
-
-  it('should return undefined if no assistant messages exist', () => {
-    const history = [
-      { role: 'user', content: 'Hello' },
-      { role: 'user', content: 'Anyone there?' },
-    ];
-    expect(getLastAssistantMessage(history)).toBeUndefined();
-  });
-
-  it('should find assistant message even if last message is from user', () => {
-    const history = [
-      { role: 'assistant', content: 'First response' },
-      { role: 'user', content: 'Last message from user' },
-    ];
-    expect(getLastAssistantMessage(history)).toBe('First response');
-  });
-});
-
-describe('getRecentAssistantMessages', () => {
-  it('should return empty array for empty history', () => {
-    expect(getRecentAssistantMessages([])).toEqual([]);
-    expect(getRecentAssistantMessages(undefined)).toEqual([]);
-  });
-
-  it('should return assistant messages in reverse order (most recent first)', () => {
-    const history = [
-      { role: 'user', content: 'Hello' },
-      { role: 'assistant', content: 'First response' },
-      { role: 'user', content: 'Question' },
-      { role: 'assistant', content: 'Second response' },
-      { role: 'user', content: 'Follow-up' },
-      { role: 'assistant', content: 'Third response' },
-    ];
-    expect(getRecentAssistantMessages(history)).toEqual([
-      'Third response',
-      'Second response',
-      'First response',
-    ]);
-  });
-
-  it('should return empty array if no assistant messages exist', () => {
-    const history = [
-      { role: 'user', content: 'Hello' },
-      { role: 'user', content: 'Anyone there?' },
-    ];
-    expect(getRecentAssistantMessages(history)).toEqual([]);
-  });
-
-  it('should respect maxMessages parameter', () => {
-    const history = [
-      { role: 'assistant', content: 'Message 1' },
-      { role: 'user', content: 'User' },
-      { role: 'assistant', content: 'Message 2' },
-      { role: 'user', content: 'User' },
-      { role: 'assistant', content: 'Message 3' },
-      { role: 'user', content: 'User' },
-      { role: 'assistant', content: 'Message 4' },
-      { role: 'user', content: 'User' },
-      { role: 'assistant', content: 'Message 5' },
-      { role: 'user', content: 'User' },
-      { role: 'assistant', content: 'Message 6' },
-    ];
-    // Default is 5
-    expect(getRecentAssistantMessages(history)).toEqual([
-      'Message 6',
-      'Message 5',
-      'Message 4',
-      'Message 3',
-      'Message 2',
-    ]);
-    // Custom limit
-    expect(getRecentAssistantMessages(history, 2)).toEqual(['Message 6', 'Message 5']);
-  });
-
-  it('should handle history ending with user message', () => {
-    const history = [
-      { role: 'assistant', content: 'First response' },
-      { role: 'user', content: 'Last message from user' },
-    ];
-    expect(getRecentAssistantMessages(history)).toEqual(['First response']);
-  });
-});
+// Unit tests for getLastAssistantMessage and getRecentAssistantMessages
+// are in conversationHistoryUtils.test.ts
 
 describe('isRecentDuplicate', () => {
   const longResponse1 = '*The darkness ripples with amusement* I taste your words, little one.';
@@ -716,42 +620,7 @@ Now sit there, be quiet, and try to learn something about how a real professiona
     });
   });
 
-  describe('Role comparison edge cases', () => {
-    it('should match uppercase "ASSISTANT" (case-insensitive for legacy data)', () => {
-      // Legacy data may have capitalized roles - we handle this gracefully
-      const historyWithUppercaseRole = [
-        { role: 'user', content: 'Hello' },
-        { role: 'ASSISTANT', content: 'A long enough response to pass the minimum length check.' },
-      ];
-
-      const messages = getRecentAssistantMessages(historyWithUppercaseRole);
-      expect(messages.length).toBe(1); // Case-insensitive matching finds it
-      expect(messages[0]).toBe('A long enough response to pass the minimum length check.');
-    });
-
-    it('should match mixed-case "Assistant" (case-insensitive for legacy data)', () => {
-      // Legacy data may have PascalCase roles from enum serialization
-      const historyWithMixedCase = [
-        { role: 'User', content: 'Hello' },
-        { role: 'Assistant', content: 'A long enough response to pass the minimum length check.' },
-      ];
-
-      const messages = getRecentAssistantMessages(historyWithMixedCase);
-      expect(messages.length).toBe(1); // Case-insensitive matching finds it
-      expect(messages[0]).toBe('A long enough response to pass the minimum length check.');
-    });
-
-    it('should NOT match if role has extra whitespace', () => {
-      // Whitespace in role is a genuine data bug, not legacy capitalization
-      const historyWithWhitespace = [
-        { role: 'user', content: 'Hello' },
-        { role: ' assistant', content: 'A long enough response to pass the minimum length check.' },
-      ];
-
-      const messages = getRecentAssistantMessages(historyWithWhitespace);
-      expect(messages.length).toBe(0); // Whitespace is not tolerated
-    });
-  });
+  // Role comparison edge cases tests are in conversationHistoryUtils.test.ts
 });
 
 // ============================================================================

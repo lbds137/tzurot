@@ -28,10 +28,8 @@ import {
   generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types';
-import {
-  getRecentAssistantMessages,
-  isRecentDuplicate,
-} from '../../services/ai-worker/src/utils/duplicateDetection.js';
+import { isRecentDuplicate } from '../../services/ai-worker/src/utils/duplicateDetection.js';
+import { getRecentAssistantMessages } from '../../services/ai-worker/src/utils/conversationHistoryUtils.js';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
