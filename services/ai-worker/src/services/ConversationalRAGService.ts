@@ -251,6 +251,58 @@ export class ConversationalRAGService {
     return { participantPersonas, processedPersonality };
   }
 
+  /**
+   * Process thinking content from model response.
+   * Handles edge case where model wraps entire response in thinking tags (e.g., R1T Chimera).
+   */
+  private processThinkingContent(
+    deduplicatedContent: string,
+    apiReasoning: string | null
+  ): { visibleContent: string; thinkingContent: string | null } {
+    const { thinkingContent: inlineThinking, visibleContent: extractedVisibleContent } =
+      extractThinkingBlocks(deduplicatedContent);
+
+    let visibleContent = extractedVisibleContent;
+    let thinkingUsedAsResponse = false;
+
+    // Handle edge case: if visible content is empty but thinking content exists,
+    // the model likely wrapped its entire response in thinking tags
+    if (
+      visibleContent.trim().length === 0 &&
+      inlineThinking !== null &&
+      inlineThinking.length > 0
+    ) {
+      logger.warn(
+        { inlineThinkingLength: inlineThinking.length },
+        '[RAG] Empty visible content after thinking extraction - using thinking content as response'
+      );
+      visibleContent = inlineThinking;
+      thinkingUsedAsResponse = true;
+    }
+
+    // Merge all sources - API reasoning first, then inline
+    // If thinking was used as response, don't duplicate it as thinking content
+    const thinkingContent = thinkingUsedAsResponse
+      ? apiReasoning
+      : mergeThinkingContent(apiReasoning, inlineThinking);
+
+    if (thinkingUsedAsResponse) {
+      logger.debug(
+        { hasApiReasoning: apiReasoning !== null, inlineThinkingLength: inlineThinking?.length },
+        '[RAG] Using thinking content as response - inline thinking discarded to avoid duplication'
+      );
+    }
+
+    if (apiReasoning !== null) {
+      logger.debug(
+        { apiReasoningLength: apiReasoning.length, hasInline: inlineThinking !== null },
+        '[RAG] Extracted API-level reasoning from response'
+      );
+    }
+
+    return { visibleContent, thinkingContent };
+  }
+
   /** Invoke the model and clean up the response */
   // eslint-disable-next-line max-lines-per-function, complexity -- Core orchestration method with diagnostic logging
   private async invokeModelAndClean(opts: ModelInvocationOptions): Promise<ModelInvocationResult> {
@@ -464,41 +516,11 @@ export class ConversationalRAGService {
       apiReasoning = extractApiReasoningContent(responseMetadata?.reasoning_details);
     }
 
-    // Extract inline thinking tags from content
-    const { thinkingContent: inlineThinking, visibleContent: extractedVisibleContent } =
-      extractThinkingBlocks(deduplicatedContent);
-
-    // Handle edge case: if visible content is empty but thinking content exists,
-    // the model likely wrapped its entire response in thinking tags (e.g., R1T Chimera).
-    // In this case, use the thinking content as the visible response.
-    let visibleContent = extractedVisibleContent;
-    let thinkingUsedAsResponse = false;
-
-    if (
-      visibleContent.trim().length === 0 &&
-      inlineThinking !== null &&
-      inlineThinking.length > 0
-    ) {
-      logger.warn(
-        { inlineThinkingLength: inlineThinking.length },
-        '[RAG] Empty visible content after thinking extraction - using thinking content as response'
-      );
-      visibleContent = inlineThinking;
-      thinkingUsedAsResponse = true;
-    }
-
-    // Merge all sources - API reasoning first, then inline
-    // If thinking was used as response, don't duplicate it as thinking content
-    const thinkingContent = thinkingUsedAsResponse
-      ? apiReasoning // Only include API-level reasoning if thinking was used as response
-      : mergeThinkingContent(apiReasoning, inlineThinking);
-
-    if (apiReasoning !== null) {
-      logger.debug(
-        { apiReasoningLength: apiReasoning.length, hasInline: inlineThinking !== null },
-        '[RAG] Extracted API-level reasoning from response'
-      );
-    }
+    // Process thinking content (handles R1T Chimera edge case where response is wrapped in thinking tags)
+    const { visibleContent, thinkingContent } = this.processThinkingContent(
+      deduplicatedContent,
+      apiReasoning
+    );
 
     // Strip artifacts from visible content only
     let cleanedContent = stripResponseArtifacts(visibleContent, personality.name);
