@@ -18,7 +18,7 @@ import type { AttachmentStorageService } from '../../services/AttachmentStorageS
 import {
   setupTestEnvironment,
   type TestEnvironment,
-} from '../../../../../../tests/helpers/setup-pglite.js';
+} from '../../../../../tests/helpers/setup-pglite.js';
 
 // Mock the queue module to prevent BullMQ from trying to connect to Redis
 vi.mock('../../../queue.js', () => ({

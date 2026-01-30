@@ -10,7 +10,7 @@ import { VoiceTranscriptCache } from '@tzurot/common-types';
 import {
   setupTestEnvironment,
   type TestEnvironment,
-} from '../../../../../tests/helpers/setup-pglite.js';
+} from '../../../../tests/helpers/setup-pglite.js';
 
 describe('VoiceTranscriptCache Integration', () => {
   let testEnv: TestEnvironment;

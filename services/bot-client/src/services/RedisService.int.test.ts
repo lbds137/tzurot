@@ -10,7 +10,7 @@ import { RedisService } from './RedisService.js';
 import {
   setupTestEnvironment,
   type TestEnvironment,
-} from '../../../../../tests/helpers/setup-pglite.js';
+} from '../../../../tests/helpers/setup-pglite.js';
 
 describe('RedisService Integration', () => {
   let testEnv: TestEnvironment;
