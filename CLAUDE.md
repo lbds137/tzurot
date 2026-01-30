@@ -75,6 +75,31 @@ mcp__council__ask({ question: "Why might X not be working?" })
 
 **📚 See**: `tzurot-council-mcp` skill for full usage patterns
 
+### Never Unilaterally Abandon Work
+
+**NEVER decide to skip or abandon agreed-upon work without consulting the user first.**
+
+This project uses a collaborative workflow. When work gets complex:
+
+- ❌ NEVER unilaterally decide "this is too complex, let's skip it"
+- ❌ NEVER revert changes without explicit permission
+- ❌ NEVER run destructive git commands (`git restore`, `git checkout .`, `git reset`) without user approval
+- ✅ ASK before changing scope of agreed work
+- ✅ EXPLAIN the complexity and let the user decide
+- ✅ COMMIT partial work before changing direction
+
+**Destructive git commands require explicit user permission:**
+
+| Command                                     | Risk                      | Ask First? |
+| ------------------------------------------- | ------------------------- | ---------- |
+| `git restore <file>`                        | Discards file changes     | **YES**    |
+| `git checkout .` / `git checkout -- <file>` | Discards all changes      | **YES**    |
+| `git reset --hard`                          | Undoes commits            | **YES**    |
+| `git clean -fd`                             | Deletes untracked files   | **YES**    |
+| `git stash drop`                            | Permanently removes stash | **YES**    |
+
+**Golden Rule**: Uncommitted changes may represent hours of work. Treat them as sacred.
+
 ### Mandatory Global Discovery ("Grep Rule")
 
 **Before modifying ANY configuration, infrastructure, or shared pattern:**
@@ -455,18 +480,19 @@ execSync('git log --oneline -5');
 
 ## Post-Mortems
 
-| Date       | Incident                      | Rule                               |
-| ---------- | ----------------------------- | ---------------------------------- |
-| 2026-01-28 | Error metadata missing model  | Update both producer and consumer  |
-| 2026-01-24 | execSync with string commands | Use execFileSync with arrays       |
-| 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch |
-| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files  |
-| 2026-01-07 | PR merged without approval    | Never merge PRs without user okay  |
-| 2025-07-25 | Untested push broke develop   | Always run tests before pushing    |
-| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git     |
-| 2025-10-31 | DB URL committed              | Never commit database URLs         |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients                |
-| 2025-12-06 | API contract mismatch         | Use shared Zod schemas             |
+| Date       | Incident                      | Rule                                |
+| ---------- | ----------------------------- | ----------------------------------- |
+| 2026-01-30 | Work reverted without consent | Never abandon/revert without asking |
+| 2026-01-28 | Error metadata missing model  | Update both producer and consumer   |
+| 2026-01-24 | execSync with string commands | Use execFileSync with arrays        |
+| 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch  |
+| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files   |
+| 2026-01-07 | PR merged without approval    | Never merge PRs without user okay   |
+| 2025-07-25 | Untested push broke develop   | Always run tests before pushing     |
+| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git      |
+| 2025-10-31 | DB URL committed              | Never commit database URLs          |
+| 2025-12-05 | Direct fetch broke /character | Use gateway clients                 |
+| 2025-12-06 | API contract mismatch         | Use shared Zod schemas              |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 
