@@ -59,8 +59,6 @@ describe('audit-unified', () => {
   function setupCleanBaseline(): void {
     mockExistsSync.mockImplementation((path: string) => {
       if (path.includes('test-coverage-baseline')) return true;
-      if (path.includes('service-integration-baseline')) return true;
-      if (path.includes('contract-coverage-baseline')) return true;
       if (path.includes('common-types/src/schemas/api')) return true;
       if (path.includes('common-types/src/types')) return true;
       if (path.includes('ai-worker/src')) return true;
@@ -78,31 +76,44 @@ describe('audit-unified', () => {
         return JSON.stringify({
           version: 1,
           lastUpdated: '2024-01-01',
-          services: { knownGaps: [], exempt: [] },
+          services: { knownGaps: [] },
           contracts: { knownGaps: [] },
           notes: {
-            serviceExemptionCriteria: 'Services without direct Prisma calls',
+            serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
             contractExemptionCriteria: 'None',
           },
         });
       }
-      if (path.includes('service-integration-baseline')) {
-        return JSON.stringify({
-          knownGaps: [],
-          exempt: [],
-          lastUpdated: '2024-01-01',
-          version: 1,
-        });
-      }
-      if (path.includes('contract-coverage-baseline')) {
-        return JSON.stringify({
-          knownGaps: [],
-          lastUpdated: '2024-01-01',
-          version: 1,
-        });
-      }
       return '';
     });
+  }
+
+  /**
+   * Helper to create a service file with Prisma usage
+   */
+  function createServiceWithPrisma(): string {
+    return `
+import { getPrismaClient } from '@tzurot/common-types';
+
+export class TestService {
+  private prisma = getPrismaClient();
+
+  async findUser(id: string) {
+    return this.prisma.user.findUnique({ where: { id } });
+  }
+}`;
+  }
+
+  /**
+   * Helper to create a service file WITHOUT Prisma usage
+   */
+  function createServiceWithoutPrisma(): string {
+    return `
+export class SimpleService {
+  process(data: string) {
+    return data.toUpperCase();
+  }
+}`;
   }
 
   describe('auditUnified', () => {
@@ -123,10 +134,7 @@ describe('audit-unified', () => {
     it('should pass when all gaps are known in baseline', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('.int.test.ts')) return false;
-        if (path.includes('.int.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
-        if (path.includes('service-integration-baseline')) return true;
-        if (path.includes('contract-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;
         if (path.includes('ai-worker/src')) return true;
@@ -156,34 +164,18 @@ describe('audit-unified', () => {
             lastUpdated: '2024-01-01',
             services: {
               knownGaps: ['services/ai-worker/src/KnownService.ts'],
-              exempt: [],
             },
             contracts: {
               knownGaps: ['test-schema:TestSchema'],
             },
             notes: {
-              serviceExemptionCriteria: 'Services without direct Prisma calls',
+              serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
           });
         }
-        if (path.includes('service-integration-baseline')) {
-          return JSON.stringify({
-            knownGaps: ['services/ai-worker/src/KnownService.ts'],
-            exempt: [],
-            lastUpdated: '2024-01-01',
-            version: 1,
-          });
-        }
-        if (path.includes('contract-coverage-baseline')) {
-          return JSON.stringify({
-            knownGaps: ['test-schema:TestSchema'],
-            lastUpdated: '2024-01-01',
-            version: 1,
-          });
-        }
         if (path.includes('KnownService.ts')) {
-          return `export class KnownService { doSomething() { return true; } }`;
+          return createServiceWithPrisma();
         }
         if (path.includes('test-schema.ts')) {
           return 'export const TestSchema = z.object({ id: z.string() });';
@@ -198,13 +190,10 @@ describe('audit-unified', () => {
       expect(result).toBe(true);
     });
 
-    it('should fail when new service gaps are found', async () => {
+    it('should fail when new service gaps are found (services with Prisma)', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('.int.test.ts')) return false;
-        if (path.includes('.int.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
-        if (path.includes('service-integration-baseline')) return true;
-        if (path.includes('contract-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;
         if (path.includes('ai-worker/src')) return true;
@@ -232,35 +221,17 @@ describe('audit-unified', () => {
           return JSON.stringify({
             version: 1,
             lastUpdated: '2024-01-01',
-            services: { knownGaps: [], exempt: [] }, // NewService is NOT in baseline
+            services: { knownGaps: [] }, // NewService is NOT in baseline
             contracts: { knownGaps: [] },
             notes: {
-              serviceExemptionCriteria: 'Services without direct Prisma calls',
+              serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
           });
         }
-        if (path.includes('service-integration-baseline')) {
-          return JSON.stringify({
-            knownGaps: [],
-            exempt: [],
-            lastUpdated: '2024-01-01',
-            version: 1,
-          });
-        }
-        if (path.includes('contract-coverage-baseline')) {
-          return JSON.stringify({
-            knownGaps: [],
-            lastUpdated: '2024-01-01',
-            version: 1,
-          });
-        }
         if (path.includes('NewService.ts')) {
-          return `export class NewService {
-  process() {
-    return true;
-  }
-}`;
+          // Service WITH Prisma - should be flagged
+          return createServiceWithPrisma();
         }
         return '';
       });
@@ -271,13 +242,63 @@ describe('audit-unified', () => {
       expect(result).toBe(false);
     });
 
+    it('should auto-exempt services without Prisma usage', async () => {
+      mockExistsSync.mockImplementation((path: string) => {
+        if (path.includes('.int.test.ts')) return false;
+        if (path.includes('test-coverage-baseline')) return true;
+        if (path.includes('common-types/src/schemas/api')) return true;
+        if (path.includes('common-types/src/types')) return true;
+        if (path.includes('ai-worker/src')) return true;
+        if (path.includes('api-gateway/src')) return true;
+        if (path.includes('bot-client/src')) return true;
+        if (path.includes('common-types/src')) return true;
+        if (path.includes('tests/e2e')) return false;
+        return false;
+      });
+
+      mockReaddirSync.mockImplementation((dir: string) => {
+        if (dir.includes('ai-worker/src')) return ['SimpleService.ts'];
+        if (dir.includes('common-types/src/schemas/api')) return [];
+        if (dir.includes('common-types/src/types')) return [];
+        return [];
+      });
+
+      mockStatSync.mockImplementation((path: string) => ({
+        isDirectory: () => !path.includes('.ts'),
+        isFile: () => path.includes('.ts'),
+      }));
+
+      mockReadFileSync.mockImplementation((path: string) => {
+        if (path.includes('test-coverage-baseline')) {
+          return JSON.stringify({
+            version: 1,
+            lastUpdated: '2024-01-01',
+            services: { knownGaps: [] },
+            contracts: { knownGaps: [] },
+            notes: {
+              serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
+              contractExemptionCriteria: 'None',
+            },
+          });
+        }
+        if (path.includes('SimpleService.ts')) {
+          // Service WITHOUT Prisma - should be auto-exempt
+          return createServiceWithoutPrisma();
+        }
+        return '';
+      });
+
+      const { auditUnified } = await import('./audit-unified.js');
+      const result = auditUnified();
+
+      // Should pass because service without Prisma is auto-exempt
+      expect(result).toBe(true);
+    });
+
     it('should update baseline when --update flag is passed', async () => {
       mockExistsSync.mockImplementation((path: string) => {
         if (path.includes('.int.test.ts')) return false;
-        if (path.includes('.int.test.ts')) return false;
         if (path.includes('test-coverage-baseline')) return true;
-        if (path.includes('service-integration-baseline')) return true;
-        if (path.includes('contract-coverage-baseline')) return true;
         if (path.includes('common-types/src/schemas/api')) return true;
         if (path.includes('common-types/src/types')) return true;
         if (path.includes('ai-worker/src')) return true;
@@ -305,31 +326,16 @@ describe('audit-unified', () => {
           return JSON.stringify({
             version: 1,
             lastUpdated: '2024-01-01',
-            services: { knownGaps: [], exempt: [] },
+            services: { knownGaps: [] },
             contracts: { knownGaps: [] },
             notes: {
-              serviceExemptionCriteria: 'Services without direct Prisma calls',
+              serviceExemptionCriteria: 'Services are auto-detected for Prisma usage',
               contractExemptionCriteria: 'None',
             },
           });
         }
-        if (path.includes('service-integration-baseline')) {
-          return JSON.stringify({
-            knownGaps: [],
-            exempt: [],
-            lastUpdated: '2024-01-01',
-            version: 1,
-          });
-        }
-        if (path.includes('contract-coverage-baseline')) {
-          return JSON.stringify({
-            knownGaps: [],
-            lastUpdated: '2024-01-01',
-            version: 1,
-          });
-        }
         if (path.includes('NewService.ts')) {
-          return 'export class NewService { doSomething() {} }';
+          return createServiceWithPrisma();
         }
         return '';
       });
@@ -346,10 +352,6 @@ describe('audit-unified', () => {
       const writtenContent = JSON.parse(writeCall[1] as string);
       expect(writtenContent.version).toBe(2);
     });
-
-    // Note: Strict mode functionality is tested in audit-services.test.ts.
-    // The unified audit passes options through to the underlying audits,
-    // so we only need to verify the option is passed correctly via CLI tests.
 
     it('should only audit services when --category=services', async () => {
       setupCleanBaseline();
@@ -405,7 +407,7 @@ describe('audit-unified', () => {
         return JSON.stringify({
           version: 5,
           lastUpdated: '2024-06-15',
-          services: { knownGaps: ['svc1'], exempt: ['svc2'] },
+          services: { knownGaps: ['svc1'] },
           contracts: { knownGaps: ['schema1'] },
           notes: {
             serviceExemptionCriteria: 'Test',
@@ -419,59 +421,17 @@ describe('audit-unified', () => {
 
       expect(baseline.version).toBe(5);
       expect(baseline.services.knownGaps).toContain('svc1');
-      expect(baseline.services.exempt).toContain('svc2');
       expect(baseline.contracts.knownGaps).toContain('schema1');
     });
-  });
 
-  describe('migrateFromLegacyBaselines', () => {
-    it('should export migrateFromLegacyBaselines function', async () => {
-      const module = await import('./audit-unified.js');
-      expect(typeof module.migrateFromLegacyBaselines).toBe('function');
-    });
-
-    it('should migrate from legacy baselines', async () => {
-      mockExistsSync.mockImplementation((path: string) => {
-        return (
-          path.includes('service-integration-baseline') ||
-          path.includes('contract-coverage-baseline')
-        );
-      });
-
-      mockReadFileSync.mockImplementation((path: string) => {
-        if (path.includes('service-integration-baseline')) {
-          return JSON.stringify({
-            knownGaps: ['svc-gap-1'],
-            exempt: ['svc-exempt-1'],
-            notes: { exemptionCriteria: 'Legacy exemption reason' },
-          });
-        }
-        if (path.includes('contract-coverage-baseline')) {
-          return JSON.stringify({
-            knownGaps: ['contract-gap-1'],
-          });
-        }
-        return '';
-      });
-
-      const { migrateFromLegacyBaselines } = await import('./audit-unified.js');
-      const baseline = migrateFromLegacyBaselines('/mock/project');
-
-      expect(baseline.services.knownGaps).toContain('svc-gap-1');
-      expect(baseline.services.exempt).toContain('svc-exempt-1');
-      expect(baseline.contracts.knownGaps).toContain('contract-gap-1');
-      expect(baseline.notes.serviceExemptionCriteria).toBe('Legacy exemption reason');
-    });
-
-    it('should create empty baseline when no legacy baselines exist', async () => {
+    it('should create empty baseline when no baseline exists', async () => {
       mockExistsSync.mockReturnValue(false);
 
-      const { migrateFromLegacyBaselines } = await import('./audit-unified.js');
-      const baseline = migrateFromLegacyBaselines('/mock/project');
+      const { loadUnifiedBaseline } = await import('./audit-unified.js');
+      const baseline = loadUnifiedBaseline('/mock/project');
 
       expect(baseline.version).toBe(1);
       expect(baseline.services.knownGaps).toEqual([]);
-      expect(baseline.services.exempt).toEqual([]);
       expect(baseline.contracts.knownGaps).toEqual([]);
     });
   });
@@ -488,7 +448,7 @@ describe('audit-unified', () => {
       const baseline = {
         version: 3,
         lastUpdated: '2024-01-15',
-        services: { knownGaps: [], exempt: [] },
+        services: { knownGaps: [] },
         contracts: { knownGaps: [] },
         notes: {
           serviceExemptionCriteria: 'Test',
