@@ -87,4 +87,19 @@ export function registerDevCommands(cli: CAC): void {
       const { checkBoundaries } = await import('../dev/check-boundaries.js');
       await checkBoundaries(options);
     });
+
+  cli
+    .command(
+      'lint:complexity-report',
+      'Report files/functions approaching ESLint complexity limits'
+    )
+    .option('--verbose', 'Show all findings instead of top 5 per category')
+    .option('--allow-failures', 'Exit 0 even if items are at/over limits (for local dev)')
+    .example('ops lint:complexity-report')
+    .example('ops lint:complexity-report --verbose')
+    .example('ops lint:complexity-report --allow-failures')
+    .action(async (options: { verbose?: boolean; allowFailures?: boolean }) => {
+      const { runComplexityReport } = await import('../lint/complexity-report.js');
+      await runComplexityReport({ verbose: options.verbose, noFail: options.allowFailures });
+    });
 }
