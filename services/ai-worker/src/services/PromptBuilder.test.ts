@@ -325,14 +325,13 @@ describe('PromptBuilder', () => {
       expect(result.contentForStorage).not.toContain('**Referenced Message**');
     });
 
-    it('should work with activePersonaName (name only used for storage)', () => {
+    it('should include speaker identification when activePersonaName is provided', () => {
       const result = promptBuilder.buildHumanMessage('Hello', [], 'Alice');
 
-      // User message is sent as-is without XML wrapper
-      // ActivePersonaName does not affect the prompt content (used elsewhere)
-      expect(result.message.content).toBe('Hello');
+      // User message includes <from> tag for speaker identification
+      expect(result.message.content).toBe('<from>Alice</from>\n\nHello');
 
-      // Storage should NOT have XML wrapper
+      // Storage should NOT have the from wrapper (only semantic content)
       expect(result.contentForStorage).toBe('Hello');
     });
 

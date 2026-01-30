@@ -117,11 +117,16 @@ export class PromptBuilder {
    * - Simplifies the code (no multimodal complexity)
    * - Reduces API costs (vision/audio APIs are expensive)
    * - Provides consistent behavior between current turn and history
+   *
+   * The message includes speaker identification via a <from> tag to help the LLM
+   * know who is speaking. This is critical because while the system prompt has
+   * a participants section with active="true", and chat_log has from= attributes,
+   * the raw HumanMessage content also needs explicit speaker identification.
    */
   buildHumanMessage(
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
-    _activePersonaName?: string, // Preserved for API compatibility; persona info is in system prompt
+    activePersonaName?: string,
     referencedMessagesDescriptions?: string
   ): { message: HumanMessage; contentForStorage: string } {
     // Build the message content
@@ -171,16 +176,22 @@ export class PromptBuilder {
       );
     }
 
-    // User message is sent as-is without XML wrapper
-    // The LLM API already distinguishes system vs user messages via role
-    // Any behavioral instructions (don't simulate users, etc.) go in system prompt
-    //
-    // Note: We still escape content to prevent accidental XML-like patterns from
+    // Escape content to prevent accidental XML-like patterns from
     // being interpreted as structure, since system prompt uses XML
     const safeContent = escapeXmlContent(messageContent);
 
+    // Add speaker identification at the start of the message
+    // This is critical for the LLM to know who is speaking, especially in
+    // multi-user conversations. The format matches chat_log entries for consistency.
+    // Format: <from>PersonaName</from>\n\ncontent
+    let finalContent = safeContent;
+    if (activePersonaName !== undefined && activePersonaName.length > 0) {
+      const safeSpeaker = escapeXmlContent(activePersonaName);
+      finalContent = `<from>${safeSpeaker}</from>\n\n${safeContent}`;
+    }
+
     return {
-      message: new HumanMessage(safeContent),
+      message: new HumanMessage(finalContent),
       contentForStorage,
     };
   }
