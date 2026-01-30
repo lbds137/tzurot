@@ -24,6 +24,9 @@ const EXPORT_FIELDS = [
   'model',
   'visionModel',
   'maxReferencedMessages',
+  'memoryScoreThreshold',
+  'memoryLimit',
+  'contextWindowTokens',
 ] as const;
 
 /** Sampling parameter keys to extract from preset params */

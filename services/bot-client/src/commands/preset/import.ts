@@ -23,6 +23,9 @@ interface ImportedPresetData {
   model?: string;
   visionModel?: string;
   maxReferencedMessages?: number;
+  memoryScoreThreshold?: number;
+  memoryLimit?: number;
+  contextWindowTokens?: number;
   advancedParameters?: {
     temperature?: number;
     top_p?: number;
@@ -64,6 +67,9 @@ export const PRESET_JSON_TEMPLATE = `{
   "model": "anthropic/claude-sonnet-4",
   "visionModel": "anthropic/claude-sonnet-4 (optional)",
   "maxReferencedMessages": 10,
+  "memoryScoreThreshold": 0.5,
+  "memoryLimit": 20,
+  "contextWindowTokens": 131072,
   "advancedParameters": {
     "temperature": 0.7,
     "top_p": 0.9,
@@ -89,6 +95,9 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'model', label: 'Model' },
   { key: 'visionModel', label: 'Vision Model' },
   { key: 'maxReferencedMessages', label: 'Max Referenced Messages' },
+  { key: 'memoryScoreThreshold', label: 'Memory Score Threshold' },
+  { key: 'memoryLimit', label: 'Memory Limit' },
+  { key: 'contextWindowTokens', label: 'Context Window Tokens' },
   { key: 'advancedParameters', label: 'Advanced Parameters' },
 ];
 
@@ -161,6 +170,15 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
   if (data.maxReferencedMessages !== undefined) {
     payload.maxReferencedMessages = data.maxReferencedMessages;
   }
+  if (data.memoryScoreThreshold !== undefined) {
+    payload.memoryScoreThreshold = data.memoryScoreThreshold;
+  }
+  if (data.memoryLimit !== undefined) {
+    payload.memoryLimit = data.memoryLimit;
+  }
+  if (data.contextWindowTokens !== undefined) {
+    payload.contextWindowTokens = data.contextWindowTokens;
+  }
   if (data.advancedParameters !== undefined && Object.keys(data.advancedParameters).length > 0) {
     payload.advancedParameters = data.advancedParameters;
   }
@@ -188,7 +206,7 @@ async function createPresetFromImport(
   userId: string,
   payload: Record<string, unknown>
 ): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
-  // First create with minimal fields
+  // Create preset with all fields - API supports all fields in create endpoint
   const createResult = await callGatewayApi<{ id: string }>('/user/llm-config', {
     userId,
     method: 'POST',
@@ -199,6 +217,10 @@ async function createPresetFromImport(
       description: payload.description,
       visionModel: payload.visionModel,
       maxReferencedMessages: payload.maxReferencedMessages,
+      memoryScoreThreshold: payload.memoryScoreThreshold,
+      memoryLimit: payload.memoryLimit,
+      contextWindowTokens: payload.contextWindowTokens,
+      advancedParameters: payload.advancedParameters,
     },
   });
 
@@ -207,31 +229,7 @@ async function createPresetFromImport(
     return { ok: false, error: createResult.error };
   }
 
-  const presetId = createResult.data.id;
-
-  // If there are advanced parameters, update the preset in a second call.
-  // The create endpoint doesn't support advancedParameters, so we update after creation.
-  // If this fails, we log but don't fail the import because:
-  // 1. The preset was successfully created with all basic fields
-  // 2. Default advanced parameters are functional (temperature, etc.)
-  // 3. Users can manually configure advanced parameters via /preset edit
-  // 4. Failing the import after successful creation would leave an orphan preset
-  if (payload.advancedParameters !== undefined) {
-    const updateResult = await callGatewayApi<{ id: string }>(`/user/llm-config/${presetId}`, {
-      userId,
-      method: 'PUT',
-      body: { advancedParameters: payload.advancedParameters },
-    });
-
-    if (!updateResult.ok) {
-      logger.warn(
-        { error: updateResult.error, presetId },
-        '[Preset/Import] Failed to update advanced parameters (preset created with defaults)'
-      );
-    }
-  }
-
-  return { ok: true, id: presetId };
+  return { ok: true, id: createResult.data.id };
 }
 
 /**

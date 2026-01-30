@@ -34,6 +34,12 @@ export interface PresetData {
   /** Server-computed permissions for the requesting user */
   permissions: EntityPermissions;
   maxReferencedMessages: number;
+  /** Memory retrieval score threshold (0.0-1.0) */
+  memoryScoreThreshold: number | null;
+  /** Maximum number of memories to retrieve */
+  memoryLimit: number | null;
+  /** Context window token budget */
+  contextWindowTokens: number;
   params: {
     temperature?: number;
     top_p?: number;

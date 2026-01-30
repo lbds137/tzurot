@@ -48,6 +48,9 @@ interface CreateConfigBody {
   model: string;
   visionModel?: string;
   maxReferencedMessages?: number;
+  memoryScoreThreshold?: number;
+  memoryLimit?: number;
+  contextWindowTokens?: number;
   // All params stored in advancedParameters
   advancedParameters?: AdvancedParams;
 }
@@ -68,6 +71,9 @@ const UpdateConfigBodySchema = z.object({
   visionModel: nullableString(200),
   // Non-string fields
   maxReferencedMessages: z.number().int().positive().optional(),
+  memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
+  memoryLimit: z.number().int().positive().optional().nullable(),
+  contextWindowTokens: z.number().int().positive().optional(),
   advancedParameters: AdvancedParamsSchema.optional(),
   /** Toggle global visibility - users can share their presets */
   isGlobal: z.boolean().optional(),
@@ -96,6 +102,7 @@ const CONFIG_DETAIL_SELECT = {
   maxReferencedMessages: true,
   memoryScoreThreshold: true,
   memoryLimit: true,
+  contextWindowTokens: true,
   ownerId: true,
 } as const;
 
@@ -204,6 +211,7 @@ function createGetHandler(prisma: PrismaClient) {
       maxReferencedMessages: config.maxReferencedMessages,
       memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
       memoryLimit: config.memoryLimit,
+      contextWindowTokens: config.contextWindowTokens,
       params,
     };
 
@@ -213,6 +221,7 @@ function createGetHandler(prisma: PrismaClient) {
 }
 
 function createCreateHandler(prisma: PrismaClient, userService: UserService) {
+  // eslint-disable-next-line complexity -- straightforward field validation in POST handler
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const body = req.body as CreateConfigBody;
@@ -265,8 +274,9 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
         model: body.model.trim(),
         visionModel: body.visionModel ?? null,
         maxReferencedMessages: body.maxReferencedMessages ?? AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
-        memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
-        memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
+        memoryScoreThreshold: body.memoryScoreThreshold ?? AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
+        memoryLimit: body.memoryLimit ?? AI_DEFAULTS.MEMORY_LIMIT,
+        contextWindowTokens: body.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
         advancedParameters: body.advancedParameters ?? undefined,
       },
       select: CONFIG_DETAIL_SELECT,
@@ -303,6 +313,7 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
           maxReferencedMessages: config.maxReferencedMessages,
           memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
           memoryLimit: config.memoryLimit,
+          contextWindowTokens: config.contextWindowTokens,
           params,
         },
       },
@@ -316,7 +327,7 @@ function createUpdateHandler(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ) {
-  // eslint-disable-next-line max-lines-per-function, complexity -- straightforward field validation in PUT handler
+  // eslint-disable-next-line max-lines-per-function, complexity, max-statements -- straightforward field validation in PUT handler
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
@@ -386,6 +397,15 @@ function createUpdateHandler(
     if (body.maxReferencedMessages !== undefined) {
       updateData.maxReferencedMessages = body.maxReferencedMessages;
     }
+    if (body.memoryScoreThreshold !== undefined) {
+      updateData.memoryScoreThreshold = body.memoryScoreThreshold;
+    }
+    if (body.memoryLimit !== undefined) {
+      updateData.memoryLimit = body.memoryLimit;
+    }
+    if (body.contextWindowTokens !== undefined) {
+      updateData.contextWindowTokens = body.contextWindowTokens;
+    }
     if (body.isGlobal !== undefined) {
       updateData.isGlobal = body.isGlobal;
     }
@@ -427,6 +447,7 @@ function createUpdateHandler(
       maxReferencedMessages: updated.maxReferencedMessages,
       memoryScoreThreshold: updated.memoryScoreThreshold?.toNumber() ?? null,
       memoryLimit: updated.memoryLimit,
+      contextWindowTokens: updated.contextWindowTokens,
       params,
     };
 
