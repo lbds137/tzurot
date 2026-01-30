@@ -1,36 +1,42 @@
 # Current
 
-> **Session**: 2026-01-29
-> **Version**: v3.0.0-beta.57
+> **Session**: 2026-01-30
+> **Version**: v3.0.0-beta.59
 
 ---
 
 ## Session Goal
 
-_Pull next item from High Priority when ready._
+_DM personality chat support and speaker identification fix._
 
 ---
 
 ## Completed This Session
 
-- **DeepSeek R1 Reasoning Extraction** - Fixed thinking content not being displayed in Discord
-  - Added `injectReasoningIntoContent()` in ModelFactory to inject API-level reasoning into content
-  - Fixed showThinking resolution chain (was using base personality instead of resolved config)
-  - Added 6 unit tests for reasoning injection
-- **Reasoning Model Formats Reference Doc** - New `docs/reference/REASONING_MODEL_FORMATS.md`
-- **Temperature Jitter for Duplicate Detection** - Changed from fixed 1.0 to random 0.95-1.0
-  - New `getRetryTemperature()` function for cache-busting variety
-- **Consolidated LLM Config Key Lists** - Created `LLM_CONFIG_OVERRIDE_KEYS` in @tzurot/common-types
-  - Removed duplicate key lists from ConfigStep.ts and LlmConfigResolver.ts
+- **DM Personality Chat Support** - Users can now chat with personalities in DMs by replying to bot messages
+  - 3-tier lookup strategy: Redis (fast) → Database (authoritative) → Display name parsing (fallback)
+  - New endpoint: `GET /user/conversation/message-personality`
+  - Updated `ReplyResolutionService` to handle DM replies (bot messages don't use webhooks)
+  - 6 new test cases for DM reply resolution
+- **Speaker Identification Fix** - Fixed regression where LLM didn't know who current speaker was
+  - Added `<from>PersonaName</from>` prefix to user messages
+  - Matches the `from=` attribute format used in `<chat_log>` for consistency
+- **Integration Test Fix** - AIJobProcessor.int.test.ts now uses `loadPGliteSchema()`
+  - Removed manual table creation (was missing `nsfw_verified` column)
+  - Added pgvector extension support
+  - CI integration tests now pass
+
+**PR**: #548 - feat: DM personality chat support with speaker identification fix
 
 ---
 
 ## Recent Highlights
 
+- **beta.59**: NSFW verification with proactive message cleanup
+- **beta.58**: ConversationSyncService standardization, testing infrastructure
 - **beta.57**: DeepSeek R1 reasoning fix, temperature jitter, LLM config key consolidation
 - **beta.56**: Reasoning param conflict warning, API-level reasoning extraction tests
 - **beta.55**: ownerId NOT NULL migration, stop sequences fix, model footer on errors
-- **beta.54**: Standardize button emoji usage, preserve browseContext in refresh handler
 
 ---
 
