@@ -804,6 +804,86 @@ describe('GatewayClient', () => {
     });
   });
 
+  describe('lookupPersonalityFromConversation()', () => {
+    it('should return personality data when found', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            personalityId: 'personality-uuid-123',
+            personalityName: 'TestBot',
+          }),
+      });
+
+      const result = await client.lookupPersonalityFromConversation('msg-123');
+
+      expect(result).toEqual({
+        personalityId: 'personality-uuid-123',
+        personalityName: 'TestBot',
+      });
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test.gateway/user/conversation/message-personality?discordMessageId=msg-123',
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            'X-Service-Auth': 'test-secret',
+          }),
+        })
+      );
+    });
+
+    it('should return null on 404 (message not found)', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      const result = await client.lookupPersonalityFromConversation('nonexistent-msg');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on non-ok response (other errors)', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      const result = await client.lookupPersonalityFromConversation('msg-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null on network error', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      const result = await client.lookupPersonalityFromConversation('msg-123');
+
+      expect(result).toBeNull();
+    });
+
+    it('should URL-encode the discordMessageId', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            personalityId: 'personality-uuid-123',
+          }),
+      });
+
+      await client.lookupPersonalityFromConversation('msg with spaces');
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test.gateway/user/conversation/message-personality?discordMessageId=msg%20with%20spaces',
+        expect.any(Object)
+      );
+    });
+  });
+
   describe('cache invalidation functions', () => {
     it('invalidateChannelSettingsCache should clear specific channel from cache', async () => {
       const client = new GatewayClient('http://test.gateway');
