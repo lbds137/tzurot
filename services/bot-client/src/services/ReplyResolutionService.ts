@@ -2,13 +2,20 @@
  * Reply Resolution Service
  *
  * Resolves which personality a reply is targeting by examining the replied-to message.
- * Handles webhook detection, personality lookup, and cross-instance filtering.
+ * Handles webhook detection (guild channels), bot message detection (DMs),
+ * personality lookup, and cross-instance filtering.
+ *
+ * Lookup Strategy (Tiered):
+ * 1. Redis (fast path) - 7-day TTL, stores personality ID directly
+ * 2. Database (authoritative) - Query by Discord message ID via api-gateway (DMs only)
+ * 3. Display name parsing (last resort) - Parse **Name:** prefix or webhook username
  */
 
-import type { Message } from 'discord.js';
+import { ChannelType, type Message } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
+import type { GatewayClient } from '../utils/GatewayClient.js';
 import { redisService } from '../redis.js';
 
 const logger = createLogger('ReplyResolutionService');
@@ -17,7 +24,10 @@ const logger = createLogger('ReplyResolutionService');
  * Resolves personality from replied-to messages
  */
 export class ReplyResolutionService {
-  constructor(private readonly personalityService: IPersonalityLoader) {}
+  constructor(
+    private readonly personalityService: IPersonalityLoader,
+    private readonly gatewayClient?: GatewayClient
+  ) {}
 
   /**
    * Resolve which personality a reply is targeting
@@ -27,11 +37,15 @@ export class ReplyResolutionService {
    * (public personalities or ones they own). This prevents the "Reply Loophole"
    * where User B could reply to User A's private personality messages.
    *
+   * DM vs Guild:
+   * - In guild channels, personality messages are sent via webhooks (webhookId present)
+   * - In DMs, personality messages are sent as regular bot messages (author.id === bot.id)
+   *
    * @param message - Message that is a reply (message.reference must not be null)
    * @param userId - Discord user ID for access control
    * @returns LoadedPersonality if reply targets an accessible personality, null otherwise
    */
-  // eslint-disable-next-line complexity -- Discord API returns nullable fields requiring explicit checks (webhookId, applicationId, author). Redis lookup with UUID detection adds necessary branching. Webhook username parsing is a fallback path. All branches are related to the single task of resolving personality identity.
+  // eslint-disable-next-line complexity, max-lines-per-function -- Multi-tier lookup (Redis → Database → Display name parsing) for both DM and guild channels requires sequential validation. Discord API nullable fields add necessary checks. All tiers are cohesive to the single task of resolving personality identity.
   async resolvePersonality(message: Message, userId: string): Promise<LoadedPersonality | null> {
     try {
       const messageId = message.reference?.messageId;
@@ -42,33 +56,45 @@ export class ReplyResolutionService {
 
       // Fetch the message being replied to
       const referencedMessage = await message.channel.messages.fetch(messageId);
+      const isDM = message.channel.type === ChannelType.DM;
 
-      // Check if it's from a webhook (personality message)
-      if (referencedMessage.webhookId === undefined || referencedMessage.webhookId === null) {
-        logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
-        return null;
+      // Validate the replied-to message is from a personality
+      if (isDM) {
+        // In DMs, bot messages don't have webhookId
+        // Check if the replied-to message is from this bot
+        if (referencedMessage.author?.id !== message.client.user?.id) {
+          logger.debug('[ReplyResolutionService] Reply in DM is not to a bot message, skipping');
+          return null;
+        }
+        logger.debug('[ReplyResolutionService] DM reply to bot message detected');
+      } else {
+        // In guild channels, require webhookId (personality messages are sent via webhooks)
+        if (referencedMessage.webhookId === undefined || referencedMessage.webhookId === null) {
+          logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
+          return null;
+        }
+
+        // Check if this webhook belongs to the current bot instance
+        // This prevents both dev and prod bots from responding to the same personality webhook
+        if (
+          referencedMessage.applicationId !== undefined &&
+          referencedMessage.applicationId !== null &&
+          referencedMessage.applicationId.length > 0 &&
+          referencedMessage.applicationId !== message.client.user.id
+        ) {
+          logger.debug(
+            {
+              webhookApplicationId: referencedMessage.applicationId,
+              currentBotId: message.client.user.id,
+            },
+            '[ReplyResolutionService] Ignoring reply to webhook from different bot instance'
+          );
+          return null;
+        }
       }
 
-      // Check if this webhook belongs to the current bot instance
-      // This prevents both dev and prod bots from responding to the same personality webhook
-      if (
-        referencedMessage.applicationId !== undefined &&
-        referencedMessage.applicationId !== null &&
-        referencedMessage.applicationId.length > 0 &&
-        referencedMessage.applicationId !== message.client.user.id
-      ) {
-        logger.debug(
-          {
-            webhookApplicationId: referencedMessage.applicationId,
-            currentBotId: message.client.user.id,
-          },
-          '[ReplyResolutionService] Ignoring reply to webhook from different bot instance'
-        );
-        return null;
-      }
-
-      // Try Redis lookup first (fast path for recent messages)
-      // Redis now stores personality ID (UUID), not name, to avoid slug/name collisions
+      // Tier 1: Try Redis lookup first (fast path for recent messages)
+      // Redis stores personality ID (UUID), not name, to avoid slug/name collisions
       let personalityIdOrName = await redisService.getWebhookPersonality(referencedMessage.id);
 
       // Check if Redis value is a UUID (new format) vs name (legacy format)
@@ -80,32 +106,61 @@ export class ReplyResolutionService {
       if (isUUID) {
         logger.debug(
           { personalityId: personalityIdOrName },
-          '[ReplyResolutionService] Found personality ID in Redis (new format)'
+          '[ReplyResolutionService] Found personality ID in Redis (tier 1)'
         );
       }
 
-      // Fallback: Parse webhook username if Redis lookup fails or returns legacy name
+      // Tier 2: Database lookup (authoritative - handles display name collisions)
+      // Only for DMs when Redis misses, since guild webhooks have username fallback
       if (
         (personalityIdOrName === undefined ||
           personalityIdOrName === null ||
           personalityIdOrName.length === 0) &&
-        referencedMessage.author !== undefined &&
-        referencedMessage.author !== null
+        isDM &&
+        this.gatewayClient !== undefined
       ) {
-        const webhookUsername = referencedMessage.author.username;
-        logger.debug(
-          { webhookUsername },
-          '[ReplyResolutionService] Redis lookup failed, parsing webhook username'
+        const dbResult = await this.gatewayClient.lookupPersonalityFromConversation(
+          referencedMessage.id
         );
-
-        // Extract personality name by removing bot suffix
-        // Format: "Personality | suffix" -> "Personality"
-        if (webhookUsername.includes(' | ')) {
-          personalityIdOrName = webhookUsername.split(' | ')[0].trim();
+        if (dbResult !== null) {
+          personalityIdOrName = dbResult.personalityId;
           logger.debug(
-            { personalityName: personalityIdOrName },
-            '[ReplyResolutionService] Extracted personality name from webhook username'
+            { personalityId: personalityIdOrName },
+            '[ReplyResolutionService] Found personality via database lookup (tier 2)'
           );
+        }
+      }
+
+      // Tier 3: Display name parsing (last resort)
+      if (
+        personalityIdOrName === undefined ||
+        personalityIdOrName === null ||
+        personalityIdOrName.length === 0
+      ) {
+        if (isDM && referencedMessage.content) {
+          // DM format: **DisplayName:** message content
+          const prefixMatch = /^\*\*(.+?):\*\*/.exec(referencedMessage.content);
+          if (prefixMatch) {
+            personalityIdOrName = prefixMatch[1];
+            logger.debug(
+              { displayName: personalityIdOrName },
+              '[ReplyResolutionService] Parsed display name from DM message prefix (tier 3)'
+            );
+          }
+        } else if (
+          !isDM &&
+          referencedMessage.author !== undefined &&
+          referencedMessage.author !== null
+        ) {
+          // Guild format: Webhook username is "DisplayName | BotName"
+          const webhookUsername = referencedMessage.author.username;
+          if (webhookUsername.includes(' | ')) {
+            personalityIdOrName = webhookUsername.split(' | ')[0].trim();
+            logger.debug(
+              { personalityName: personalityIdOrName },
+              '[ReplyResolutionService] Extracted personality name from webhook username (tier 3)'
+            );
+          }
         }
       }
 
@@ -114,7 +169,7 @@ export class ReplyResolutionService {
         personalityIdOrName === null ||
         personalityIdOrName.length === 0
       ) {
-        logger.debug('[ReplyResolutionService] No personality found for webhook message');
+        logger.debug('[ReplyResolutionService] No personality found for replied message');
         return null;
       }
 
@@ -136,7 +191,7 @@ export class ReplyResolutionService {
       }
 
       logger.info(
-        { personalityName: personality.displayName, userId },
+        { personalityName: personality.displayName, userId, isDM },
         '[ReplyResolutionService] Resolved personality from reply'
       );
 

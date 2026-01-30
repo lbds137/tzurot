@@ -45,6 +45,7 @@
  * - POST /user/memory/focus - Enable/disable focus mode
  * - GET /user/nsfw - Get NSFW verification status
  * - POST /user/nsfw/verify - Mark user as NSFW verified
+ * - GET /user/conversation/message-personality - Get personality from Discord message ID (internal)
  */
 
 import { Router } from 'express';
@@ -64,6 +65,7 @@ import { createHistoryRoutes } from './history.js';
 import { createChannelRoutes } from './channel/index.js';
 import { createMemoryRoutes } from './memory.js';
 import { createNsfwRoutes } from './nsfw.js';
+import { createConversationLookupRoutes } from './conversationLookup.js';
 
 /**
  * Create user router with injected dependencies
@@ -109,6 +111,9 @@ export function createUserRouter(
 
   // NSFW verification routes (for DM interactions)
   router.use('/nsfw', createNsfwRoutes(prisma));
+
+  // Conversation lookup routes (internal service-to-service, no user auth)
+  router.use('/conversation', createConversationLookupRoutes(prisma));
 
   return router;
 }
