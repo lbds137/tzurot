@@ -40,6 +40,7 @@
     "@types/node": "^25.0.10",
     "@types/pg": "^8.16.0",
     "@types/supertest": "^6.0.3",
+    "@tzurot/test-utils": "workspace:*",
     "supertest": "^7.2.2"
   }
 }

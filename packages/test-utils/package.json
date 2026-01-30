@@ -1,0 +1,26 @@
+{
+  "name": "@tzurot/test-utils",
+  "version": "3.0.0-beta.59",
+  "private": true,
+  "type": "module",
+  "description": "Shared test utilities for Tzurot services",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "typescript": "^5.8.2"
+  }
+}

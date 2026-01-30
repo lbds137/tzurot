@@ -30,17 +30,7 @@ import {
 } from '@tzurot/common-types';
 import { isRecentDuplicate } from '../utils/duplicateDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
-import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-function loadPGliteSchema(): string {
-  const schemaPath = join(__dirname, '../../../../tests/schema/pglite-schema.sql');
-  return readFileSync(schemaPath, 'utf-8');
-}
+import { loadPGliteSchema } from '@tzurot/test-utils';
 
 describe('Duplicate Detection Data Flow', () => {
   let pglite: PGlite;

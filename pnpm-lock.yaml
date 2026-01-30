@@ -183,6 +183,9 @@ importers:
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       pino-pretty:
         specifier: ^13.1.3
         version: 13.1.3
@@ -205,6 +208,19 @@ importers:
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10
+
+  packages/test-utils:
+    dependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.3.3
+        version: 0.3.15
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.10
+        version: 25.1.0
+      typescript:
+        specifier: ^5.8.2
+        version: 5.9.3
 
   packages/tooling:
     dependencies:
@@ -316,6 +332,9 @@ importers:
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../../packages/test-utils
 
   services/api-gateway:
     dependencies:
@@ -374,6 +393,9 @@ importers:
       '@types/supertest':
         specifier: ^6.0.3
         version: 6.0.3
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../../packages/test-utils
       supertest:
         specifier: ^7.2.2
         version: 7.2.2
@@ -408,15 +430,15 @@ importers:
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../../packages/test-utils
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
 
   tests:
     dependencies:
-      '@prisma/adapter-pg':
-        specifier: ^7.3.0
-        version: 7.3.0
       '@tzurot/ai-worker':
         specifier: workspace:*
         version: link:../services/ai-worker
@@ -429,13 +451,13 @@ importers:
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../packages/common-types
+      '@tzurot/test-utils':
+        specifier: workspace:*
+        version: link:../packages/test-utils
     devDependencies:
       '@types/node':
         specifier: ^25.0.10
         version: 25.0.10
-      ioredis:
-        specifier: ^5.9.2
-        version: 5.9.2
       vitest:
         specifier: ^4.0.18
         version: 4.0.18(@types/node@25.0.10)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2)
@@ -8176,7 +8198,7 @@ snapshots:
 
   '@types/pg@8.16.0':
     dependencies:
-      '@types/node': 25.0.10
+      '@types/node': 25.1.0
       pg-protocol: 1.11.0
       pg-types: 2.2.0
 
@@ -8213,7 +8235,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 25.0.10
+      '@types/node': 25.1.0
 
   '@typescript-eslint/eslint-plugin@8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)':
     dependencies:
@@ -8342,6 +8364,14 @@ snapshots:
       '@vitest/utils': 4.0.18
       chai: 6.2.2
       tinyrainbow: 3.0.3
+
+  '@vitest/mocker@4.0.18(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))':
+    dependencies:
+      '@vitest/spy': 4.0.18
+      estree-walker: 3.0.3
+      magic-string: 0.30.21
+    optionalDependencies:
+      vite: 7.3.1(@types/node@25.0.10)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2)
 
   '@vitest/mocker@4.0.18(vite@7.3.1(@types/node@25.1.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))':
     dependencies:
@@ -10079,7 +10109,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.0
-      '@types/node': 25.0.10
+      '@types/node': 25.1.0
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -10717,7 +10747,7 @@ snapshots:
   vitest@4.0.18(@types/node@25.0.10)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2):
     dependencies:
       '@vitest/expect': 4.0.18
-      '@vitest/mocker': 4.0.18(vite@7.3.1(@types/node@25.1.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))
+      '@vitest/mocker': 4.0.18(vite@7.3.1(@types/node@25.0.10)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2))
       '@vitest/pretty-format': 4.0.18
       '@vitest/runner': 4.0.18
       '@vitest/snapshot': 4.0.18
