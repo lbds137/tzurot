@@ -1,7 +1,7 @@
 ---
 name: tzurot-code-quality
 description: Code quality rules enforced by CI. Use when refactoring, hitting ESLint limits, or extracting complex functions. Covers complexity thresholds, extraction patterns, and rule suppression.
-lastUpdated: '2026-01-21'
+lastUpdated: '2026-01-30'
 ---
 
 # Code Quality & Linting
@@ -231,6 +231,29 @@ async function getUser(id: string): Promise<Result<User, GetUserError>> {
   return { ok: true, data: user };
 }
 ```
+
+## Module Organization
+
+### Avoid Re-exports
+
+**Import from source modules, not index files.**
+
+Re-exports create spaghetti code and obscure dependencies. They make refactoring harder and cause circular import issues (see: Turbo 2.x cyclic dependency that required splitting test-utils).
+
+```typescript
+// ❌ BAD - Re-exporting for convenience
+// utils/index.ts
+export { formatDate } from './dateUtils.js';
+export { parseUrl } from './urlUtils.js';
+
+// ✅ GOOD - Import from source
+import { formatDate } from './utils/dateUtils.js';
+import { parseUrl } from './utils/urlUtils.js';
+```
+
+**Exceptions**: Package entry points (e.g., `@tzurot/common-types`) are acceptable.
+
+**📚 See**: `CLAUDE.md#avoid-re-exports` for full guidance
 
 ## Common Lint Fixes
 
