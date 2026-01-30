@@ -18,12 +18,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { UserService } from './UserService.js';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+import { loadPGliteSchema } from '@tzurot/test-utils';
 
 // Mock isBotOwner - will be configured per test
 vi.mock('../utils/ownerMiddleware.js', () => ({
@@ -31,23 +26,6 @@ vi.mock('../utils/ownerMiddleware.js', () => ({
 }));
 
 import { isBotOwner } from '../utils/ownerMiddleware.js';
-
-/**
- * Load the pre-generated PGLite schema SQL.
- * This SQL is generated from Prisma schema using `prisma migrate diff`.
- */
-function loadPGliteSchema(): string {
-  // Path from packages/common-types/src/services/ to tests/schema/
-  const schemaPath = join(__dirname, '../../../../tests/schema/pglite-schema.sql');
-  try {
-    return readFileSync(schemaPath, 'utf-8');
-  } catch {
-    throw new Error(
-      `Failed to load PGLite schema from ${schemaPath}. ` +
-        `Run pnpm generate:pglite to generate it.`
-    );
-  }
-}
 
 describe('UserService', () => {
   let prisma: PrismaClient;

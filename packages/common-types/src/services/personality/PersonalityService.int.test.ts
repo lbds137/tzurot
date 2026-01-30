@@ -18,29 +18,7 @@ import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { PersonalityService } from './PersonalityService.js';
-import { readFileSync } from 'node:fs';
-import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-/**
- * Load the pre-generated PGLite schema SQL.
- * This SQL is generated from Prisma schema using `prisma migrate diff`.
- */
-function loadPGliteSchema(): string {
-  // Path from packages/common-types/src/services/personality/ to tests/schema/
-  const schemaPath = join(__dirname, '../../../../../tests/schema/pglite-schema.sql');
-  try {
-    return readFileSync(schemaPath, 'utf-8');
-  } catch {
-    throw new Error(
-      `Failed to load PGLite schema from ${schemaPath}. ` +
-        `Run pnpm generate:pglite to generate it.`
-    );
-  }
-}
+import { loadPGliteSchema } from '@tzurot/test-utils';
 
 describe('PersonalityService', () => {
   let prisma: PrismaClient;

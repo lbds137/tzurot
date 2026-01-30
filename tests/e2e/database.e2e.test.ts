@@ -1,115 +1,110 @@
 /**
- * Integration Test: Database and Redis Operations
+ * E2E Test: Database Infrastructure
  *
  * This test verifies:
- * - Environment setup works (PGlite locally, real Postgres in CI)
- * - Database connection and Prisma client work
- * - Redis mock/real Redis works
- * - Basic operations are functional
+ * - PGLite schema loading works
+ * - Database connection and Prisma client work with PGLite
+ * - Basic CRUD operations are functional
  *
- * This is a "smoke test" to prove the integration test infrastructure works.
+ * This is a "smoke test" to prove the test infrastructure works.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { setupTestEnvironment, type TestEnvironment } from '../helpers/setup-pglite.js';
+import { PrismaClient } from '@tzurot/common-types';
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { loadPGliteSchema } from '@tzurot/test-utils';
 
-describe('Integration Test Infrastructure', () => {
-  let testEnv: TestEnvironment;
+describe('Database Infrastructure', () => {
+  let prisma: PrismaClient;
+  let pglite: PGlite;
 
   beforeAll(async () => {
-    testEnv = await setupTestEnvironment();
-  });
+    // Set up PGlite with pgvector
+    pglite = new PGlite({
+      extensions: { vector },
+    });
+
+    // Load schema from test-utils
+    const schemaSql = loadPGliteSchema();
+    await pglite.exec(schemaSql);
+
+    // Create Prisma client
+    const adapter = new PrismaPGlite(pglite);
+    prisma = new PrismaClient({ adapter }) as PrismaClient;
+  }, 30000);
 
   afterAll(async () => {
-    await testEnv.cleanup();
-  });
+    await prisma.$disconnect();
+    await pglite.close();
+  }, 30000);
 
   describe('Database Connection', () => {
     it('should connect to database and execute raw SQL', async () => {
-      // Simple query to verify database connection
-      const result = await testEnv.prisma.$queryRaw<Array<{ result: number }>>`SELECT 1 as result`;
+      const result = await prisma.$queryRaw<Array<{ result: number }>>`SELECT 1 as result`;
 
       expect(result).toBeDefined();
       expect(result[0].result).toBe(1);
     });
 
-    it('should query existing personalities from database', async () => {
-      // Query existing personalities (assumes development database has some)
-      const personalities = await testEnv.prisma.personality.findMany({
-        take: 5,
-      });
+    it('should have the user table available', async () => {
+      // Verify the schema was loaded correctly
+      const users = await prisma.user.findMany({ take: 1 });
+      expect(Array.isArray(users)).toBe(true);
+    });
 
-      // We expect at least one personality in dev database
-      // If this fails, you may need to seed your database
+    it('should have the personality table available', async () => {
+      const personalities = await prisma.personality.findMany({ take: 1 });
       expect(Array.isArray(personalities)).toBe(true);
-      console.log(`Found ${personalities.length} personalities in database`);
     });
+  });
 
-    it('should query existing personas from database', async () => {
-      // Query existing personas
-      const personas = await testEnv.prisma.persona.findMany({
-        take: 5,
+  describe('CRUD Operations', () => {
+    const testUserId = '00000000-0000-0000-0000-000000000001';
+    const testDiscordId = '123456789012345678';
+
+    it('should create a user', async () => {
+      const user = await prisma.user.create({
+        data: {
+          id: testUserId,
+          discordId: testDiscordId,
+          username: 'testuser',
+        },
       });
 
-      expect(Array.isArray(personas)).toBe(true);
-      console.log(`Found ${personas.length} personas in database`);
-    });
-  });
-
-  describe('Redis Operations', () => {
-    it('should store and retrieve a value from Redis', async () => {
-      // Store a value
-      await testEnv.redis.set('test-key', 'test-value');
-
-      // Retrieve the value
-      const value = await testEnv.redis.get('test-key');
-
-      expect(value).toBe('test-value');
-
-      // Clean up
-      await testEnv.redis.del('test-key');
+      expect(user.id).toBe(testUserId);
+      expect(user.username).toBe('testuser');
     });
 
-    it('should delete a key', async () => {
-      // Store a value
-      await testEnv.redis.set('delete-me', 'test-value');
+    it('should read the created user', async () => {
+      const user = await prisma.user.findUnique({
+        where: { id: testUserId },
+      });
 
-      // Delete it
-      await testEnv.redis.del('delete-me');
-
-      // Verify it's gone
-      const value = await testEnv.redis.get('delete-me');
-      expect(value).toBeNull();
+      expect(user).not.toBeNull();
+      expect(user?.username).toBe('testuser');
     });
 
-    it('should handle non-existent keys', async () => {
-      const value = await testEnv.redis.get('non-existent-key');
-      expect(value).toBeNull();
+    it('should update the user', async () => {
+      const user = await prisma.user.update({
+        where: { id: testUserId },
+        data: { username: 'updateduser' },
+      });
+
+      expect(user.username).toBe('updateduser');
     });
-  });
 
-  describe('Environment Detection', () => {
-    it('should correctly identify the test environment', () => {
-      const isGitHubActions = process.env.GITHUB_ACTIONS === 'true';
-      const hasDatabaseUrl = !!process.env.DATABASE_URL;
+    it('should delete the user', async () => {
+      await prisma.user.delete({
+        where: { id: testUserId },
+      });
 
-      // Determine which mode we're running in
-      let mode: string;
-      if (isGitHubActions) {
-        mode = 'CI (GitHub Actions)';
-      } else if (hasDatabaseUrl) {
-        mode = 'Local with real database';
-      } else {
-        mode = 'Local with PGlite (in-memory)';
-      }
+      const user = await prisma.user.findUnique({
+        where: { id: testUserId },
+      });
 
-      console.log(`Running in ${mode} environment`);
-
-      // Verify the test environment was set up successfully
-      // (if we got this far, the environment is working)
-      expect(testEnv).toBeDefined();
-      expect(testEnv.prisma).toBeDefined();
-      expect(testEnv.redis).toBeDefined();
+      expect(user).toBeNull();
     });
   });
 });

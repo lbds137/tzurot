@@ -15,10 +15,7 @@ import express, { type Express } from 'express';
 import request from 'supertest';
 import type { Queue, QueueEvents } from 'bullmq';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
-import {
-  setupTestEnvironment,
-  type TestEnvironment,
-} from '../../../../../tests/helpers/setup-pglite.js';
+import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
 
 // Mock the queue module to prevent BullMQ from trying to connect to Redis
 vi.mock('../../../queue.js', () => ({

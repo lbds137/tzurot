@@ -15,7 +15,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-OUTPUT_FILE="$PROJECT_ROOT/tests/schema/pglite-schema.sql"
+OUTPUT_FILE="$PROJECT_ROOT/packages/test-utils/schema/pglite-schema.sql"
 
 # Use dummy URL - prisma migrate diff doesn't actually connect to the database.
 # It just needs the provider hint (postgresql://) to generate the right SQL syntax.

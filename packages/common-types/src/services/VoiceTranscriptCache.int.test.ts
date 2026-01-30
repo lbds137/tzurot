@@ -7,10 +7,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { VoiceTranscriptCache } from '@tzurot/common-types';
-import {
-  setupTestEnvironment,
-  type TestEnvironment,
-} from '../../../../tests/helpers/setup-pglite.js';
+import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
 
 describe('VoiceTranscriptCache Integration', () => {
   let testEnv: TestEnvironment;
