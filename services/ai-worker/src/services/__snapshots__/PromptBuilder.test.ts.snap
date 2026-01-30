@@ -226,7 +226,9 @@ exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot for simple message 2`] = `"Hello, how are you today?"`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 1`] = `
-"Here is my updated implementation based on your feedback
+"<from>ImplementerUser</from>
+
+Here is my updated implementation based on your feedback
 
 A flowchart showing the message processing pipeline
 
@@ -244,7 +246,9 @@ A flowchart showing the message processing pipeline"
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with forwarded/referenced message context 1`] = `
-"What do you think about this?
+"<from>ForwardUser</from>
+
+What do you think about this?
 
 **Forwarded from Alice:**
 This is the original message that was forwarded. It contains important context about the discussion.
@@ -255,7 +259,9 @@ This is the original message that was forwarded. It contains important context a
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with forwarded/referenced message context 2`] = `"What do you think about this?"`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with image attachments 1`] = `
-"Can you explain what went wrong here?
+"<from>DebugUser</from>
+
+Can you explain what went wrong here?
 
 A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.
 
@@ -270,7 +276,11 @@ A screenshot showing an error message in the Discord bot. The error says "Rate l
 A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker"."
 `;
 
-exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 1`] = `"Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."`;
+exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 1`] = `
+"<from>VoiceUser</from>
+
+Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."
+`;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with voice transcript 2`] = `"Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly."`;
 
