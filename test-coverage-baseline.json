@@ -1,16 +1,14 @@
 {
-  "version": 3,
-  "lastUpdated": "2026-01-30T17:48:30.603Z",
+  "version": 4,
+  "lastUpdated": "2026-01-30T20:52:48.165Z",
   "services": {
     "knownGaps": [
-      "packages/common-types/src/services/ConversationRetentionService.ts",
       "services/ai-worker/src/services/ConversationalRAGService.ts",
       "services/ai-worker/src/services/KeyValidationService.ts",
       "services/ai-worker/src/services/LongTermMemoryService.ts",
       "services/ai-worker/src/services/RedisService.ts",
       "services/api-gateway/src/services/AttachmentStorageService.ts",
       "services/api-gateway/src/services/DatabaseSyncService.ts",
-      "services/bot-client/src/services/RedisService.ts",
       "services/bot-client/src/services/ReferenceEnrichmentService.ts",
       "services/bot-client/src/services/ReplyResolutionService.ts",
       "services/bot-client/src/services/VoiceTranscriptionService.ts"
