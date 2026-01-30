@@ -32,10 +32,9 @@ import {
 import type { Job } from 'bullmq';
 import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
-import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { loadPGliteSchema } from '@tzurot/test-utils';
 
 // Mock Redis service to avoid real Redis dependency
 vi.mock('../redis.js', () => ({
@@ -57,124 +56,22 @@ describe('AIJobProcessor Component Test', () => {
   let jobProcessor: AIJobProcessor;
 
   beforeAll(async () => {
-    // Set up PGlite (in-memory Postgres via WASM)
+    // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
     // Note: PGlite initialization is CPU-intensive and may be slow when running
     // in parallel with other tests, hence the extended timeout
-    pglite = new PGlite();
+    pglite = new PGlite({
+      extensions: { vector },
+    });
+
+    // Load the complete schema from the shared schema file
+    // This ensures integration tests stay in sync with migrations
+    await pglite.exec(loadPGliteSchema());
 
     // Create Prisma adapter for PGlite
     const adapter = new PrismaPGlite(pglite);
 
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
-
-    // Apply minimal schema to PGlite (using actual table names from Prisma schema)
-    // Execute each CREATE TABLE separately
-
-    // Users table first (referenced by llm_configs and personalities)
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        discord_id VARCHAR(20) UNIQUE NOT NULL,
-        username VARCHAR(255) NOT NULL,
-        timezone VARCHAR(50) DEFAULT 'UTC',
-        is_superuser BOOLEAN DEFAULT FALSE,
-        default_llm_config_id UUID,
-        default_persona_id UUID,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS system_prompts (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        content TEXT NOT NULL,
-        is_default BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS llm_configs (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        owner_id UUID NOT NULL REFERENCES users(id),
-        is_global BOOLEAN DEFAULT FALSE,
-        is_default BOOLEAN DEFAULT FALSE,
-        is_free_default BOOLEAN DEFAULT FALSE,
-        provider VARCHAR(20) DEFAULT 'openrouter',
-        model VARCHAR(255) NOT NULL,
-        vision_model VARCHAR(255),
-        temperature DECIMAL(3, 2),
-        top_p DECIMAL(3, 2),
-        top_k INTEGER,
-        frequency_penalty DECIMAL(3, 2),
-        presence_penalty DECIMAL(3, 2),
-        repetition_penalty DECIMAL(3, 2),
-        max_tokens INTEGER,
-        memory_score_threshold DECIMAL(3, 2),
-        memory_limit INTEGER,
-        context_window_tokens INTEGER DEFAULT 131072,
-        advanced_parameters JSONB,
-        max_referenced_messages INTEGER DEFAULT 20,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS personalities (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        display_name VARCHAR(255),
-        slug VARCHAR(255) UNIQUE NOT NULL,
-        system_prompt_id UUID REFERENCES system_prompts(id),
-        owner_id UUID NOT NULL REFERENCES users(id),
-        character_info TEXT NOT NULL,
-        personality_traits TEXT NOT NULL,
-        personality_tone TEXT,
-        personality_age TEXT,
-        personality_appearance TEXT,
-        personality_likes TEXT,
-        personality_dislikes TEXT,
-        conversational_goals TEXT,
-        conversational_examples TEXT,
-        custom_fields JSONB,
-        voice_enabled BOOLEAN DEFAULT FALSE,
-        voice_settings JSONB,
-        image_enabled BOOLEAN DEFAULT FALSE,
-        image_settings JSONB,
-        avatar_data BYTEA,
-        error_message TEXT,
-        birth_month INTEGER,
-        birth_day INTEGER,
-        birth_year INTEGER,
-        is_public BOOLEAN DEFAULT TRUE,
-        extended_context BOOLEAN,
-        extended_context_max_messages INTEGER,
-        extended_context_max_age INTEGER,
-        extended_context_max_images INTEGER,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS job_results (
-        job_id VARCHAR(255) PRIMARY KEY,
-        request_id VARCHAR(255) NOT NULL,
-        result JSONB NOT NULL,
-        status VARCHAR(50) NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        completed_at TIMESTAMP,
-        delivered_at TIMESTAMP
-      )
-    `);
 
     // Seed test data (using deterministic UUIDs for consistency)
 
