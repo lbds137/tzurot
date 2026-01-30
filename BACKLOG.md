@@ -498,6 +498,14 @@ Minor improvements from PR #547 review:
 - [ ] Add `servicesWithPrisma` array to `test-coverage-baseline.json` showing which services were detected (for audit transparency)
 - [ ] Document `--json` flag use case in `complexity-report.ts` (intended for CI dashboard integration)
 
+### 🏗️ Audit Integration Tests for Manual Table Creation
+
+AIJobProcessor.int.test.ts was manually creating tables with raw SQL instead of using `loadPGliteSchema()`. This caused CI failures when migrations added new columns (e.g., `nsfw_verified`).
+
+- [ ] Search for `$executeRawUnsafe.*CREATE TABLE` in `.int.test.ts` files
+- [ ] Migrate any manual table creation to use `loadPGliteSchema()` from `@tzurot/test-utils`
+- [ ] Document the standard integration test pattern in tzurot-testing skill
+
 ### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention:
