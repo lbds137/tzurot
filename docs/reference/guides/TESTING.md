@@ -1,6 +1,6 @@
 # Testing Guide
 
-**Last Updated:** 2026-01-03
+**Last Updated:** 2026-01-30
 **Status:** Foundation complete, expanding coverage
 
 > **Purpose:** Guidelines and patterns for writing tests in Tzurot v3
@@ -141,6 +141,133 @@ tests/e2e/
 - **Name by infrastructure**: If it needs PGLite → `.int.test.ts`
 - **Co-locate by default**: Tests live next to the code they test
 - **Centralize only cross-service**: `tests/e2e/` for multi-service flows
+
+### When to Use Each Test Type
+
+Use this decision guide when creating new tests:
+
+#### Unit Tests (`.test.ts`)
+
+**Use when:**
+
+- Testing pure functions and utilities
+- Testing business logic with mocked dependencies
+- Testing error handling paths
+- Testing data transformations
+
+**Characteristics:**
+
+- All dependencies mocked (Prisma, Redis, Discord, AI)
+- Fast execution (milliseconds)
+- No network or database calls
+- Should run offline
+
+**Example scenarios:**
+
+- Testing a message parser
+- Testing validation logic
+- Testing retry logic (with fake timers)
+- Testing formatters and helpers
+
+#### Integration Tests (`.int.test.ts`)
+
+**Use when:**
+
+- Testing code that writes to or reads from the database
+- Testing queries, transactions, and constraints
+- Testing service methods that interact with Prisma
+- Verifying database schema compatibility
+
+**Characteristics:**
+
+- Uses PGLite (in-memory PostgreSQL via WASM)
+- Tests real SQL queries and Prisma behavior
+- Slower than unit tests (~1-5 seconds setup)
+- Still mocks external APIs (Discord, AI)
+
+**Example scenarios:**
+
+- Testing UserService creates user with default persona
+- Testing PersonalityService caching behavior
+- Testing conversation history persistence
+- Testing upsert/race condition handling
+
+**Setup:**
+
+```typescript
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { PrismaClient } from '@tzurot/common-types';
+import { loadPGliteSchema } from '@tzurot/test-utils';
+
+let pglite: PGlite;
+let prisma: PrismaClient;
+
+beforeAll(async () => {
+  pglite = new PGlite({ extensions: { vector } });
+  await pglite.exec(loadPGliteSchema());
+  const adapter = new PrismaPGlite(pglite);
+  prisma = new PrismaClient({ adapter }) as PrismaClient;
+}, 30000);
+```
+
+#### Schema Tests (`.schema.test.ts`)
+
+**Use when:**
+
+- Testing Zod schema validation
+- Verifying API contract shapes
+- Testing type guards
+- Testing serialization/deserialization
+
+**Characteristics:**
+
+- Tests only Zod schemas - no database, no mocks
+- Very fast execution
+- Tests what shapes are valid/invalid
+- Located in `common-types/`
+
+**Example scenarios:**
+
+- Testing PersonalityConfigSchema accepts valid config
+- Testing API response schemas reject invalid data
+- Testing job payload schemas
+
+#### E2E Tests (`.e2e.test.ts`)
+
+**Use when:**
+
+- Testing cross-service communication
+- Testing the full request/response flow
+- Testing infrastructure contracts (BullMQ producer/consumer)
+- Testing database + Redis together
+
+**Characteristics:**
+
+- Uses real services (Postgres, Redis)
+- Lives in `tests/e2e/` directory
+- Slowest test type
+- Run separately in CI
+
+**Example scenarios:**
+
+- Testing BullMQ job producer/consumer contract
+- Testing API gateway to worker flow
+- Testing database connectivity
+
+### Decision Flowchart
+
+```
+Does it need a real database?
+├── NO → Does it test a Zod schema?
+│        ├── YES → .schema.test.ts
+│        └── NO  → .test.ts (unit test)
+│
+└── YES → Does it cross service boundaries?
+          ├── YES → .e2e.test.ts
+          └── NO  → .int.test.ts
+```
 
 ### Test Structure
 
