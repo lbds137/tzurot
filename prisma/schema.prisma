@@ -19,6 +19,10 @@ model User {
   username              String                     @db.VarChar(255)
   timezone              String                     @default("UTC") @db.VarChar(50)
   isSuperuser           Boolean                    @default(false) @map("is_superuser")
+  /// NSFW verification status - required for DM interactions
+  /// Auto-verified when user interacts with bot in an NSFW-marked channel
+  nsfwVerified          Boolean                    @default(false) @map("nsfw_verified")
+  nsfwVerifiedAt        DateTime?                  @map("nsfw_verified_at")
   defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
   defaultPersonaId      String?                    @map("default_persona_id") @db.Uuid
   createdAt             DateTime                   @default(now()) @map("created_at")

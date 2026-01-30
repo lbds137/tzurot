@@ -83,6 +83,10 @@ redis.on('reconnecting', () => {
   logger.info('[Redis] Reconnecting to Redis');
 });
 
+// Export raw Redis client for direct access (e.g., pending verification messages)
+// eslint-disable-next-line @tzurot/no-singleton-export -- Redis requires singleton pattern for connection reuse
+export { redis };
+
 // Export singleton RedisService instance
 // eslint-disable-next-line @tzurot/no-singleton-export -- Redis requires singleton pattern for connection reuse
 export const redisService = new RedisService(redis);
