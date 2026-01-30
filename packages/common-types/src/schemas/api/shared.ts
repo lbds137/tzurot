@@ -5,6 +5,9 @@
  */
 
 import { z } from 'zod';
+import { createLogger } from '../../utils/logger.js';
+
+const logger = createLogger('ZodSchemas');
 
 // ===========================================
 // EMPTY STRING HANDLING
@@ -86,6 +89,10 @@ export function optionalString(maxLength = 100): z.ZodType<string | undefined> {
       }
       // Non-string values (numbers, objects, etc.) become undefined for safety
       if (val !== undefined) {
+        logger.warn(
+          { receivedType: typeof val, receivedValue: val },
+          '[ZodSchemas] optionalString received non-string value, coercing to undefined'
+        );
         return undefined;
       }
       return val;
@@ -122,6 +129,10 @@ export function nullableString(maxLength = 500): z.ZodType<string | null | undef
       // Non-string values (numbers, objects, etc.) become undefined for safety
       // (preserves existing value rather than inadvertently clearing)
       if (val !== null && val !== undefined) {
+        logger.warn(
+          { receivedType: typeof val, receivedValue: val },
+          '[ZodSchemas] nullableString received non-string value, coercing to undefined'
+        );
         return undefined;
       }
       return val;
