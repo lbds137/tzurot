@@ -13,34 +13,47 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
-import { PersonalityService, CacheInvalidationService } from '@tzurot/common-types';
+import { PersonalityService, CacheInvalidationService, PrismaClient } from '@tzurot/common-types';
+import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
+import { PrismaPGlite } from 'pglite-prisma-adapter';
 import { createAdminRouter } from './index.js';
-import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
+import { setupTestEnvironment, loadPGliteSchema, type TestEnvironment } from '@tzurot/test-utils';
 
 describe('Admin Routes Integration', () => {
   let testEnv: TestEnvironment;
   let app: Express;
+  let pglite: PGlite;
+  let prisma: PrismaClient;
 
   beforeAll(async () => {
     testEnv = await setupTestEnvironment();
+
+    // Set up PGLite with Prisma
+    pglite = new PGlite({ extensions: { vector } });
+    await pglite.exec(loadPGliteSchema());
+    const adapter = new PrismaPGlite(pglite);
+    prisma = new PrismaClient({ adapter }) as PrismaClient;
 
     // Create minimal Express app with admin routes
     app = express();
     app.use(express.json());
 
     // Create dependencies
-    const personalityService = new PersonalityService(testEnv.prisma);
+    const personalityService = new PersonalityService(prisma);
     const cacheInvalidationService = new CacheInvalidationService(
       testEnv.redis,
       personalityService
     );
 
     // Mount admin router
-    const adminRouter = createAdminRouter(testEnv.prisma, cacheInvalidationService);
+    const adminRouter = createAdminRouter(prisma, cacheInvalidationService);
     app.use('/admin', adminRouter);
-  });
+  }, 30000);
 
   afterAll(async () => {
+    await prisma.$disconnect();
+    await pglite.close();
     await testEnv.cleanup();
   });
 
