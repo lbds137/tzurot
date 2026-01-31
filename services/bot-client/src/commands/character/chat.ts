@@ -15,7 +15,7 @@
  *    - Uses conversation history to generate a contextual response
  */
 
-import type { TextChannel, ThreadChannel } from 'discord.js';
+import type { TextChannel, ThreadChannel, Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import {
   createLogger,
@@ -36,8 +36,8 @@ import {
   getMessageContextBuilder,
   getConversationPersistence,
   getExtendedContextResolver,
+  getPersonaResolver,
 } from '../../services/serviceRegistry.js';
-import type { InteractionContextParams } from '../../services/MessageContextBuilder.js';
 import type { MessageContext } from '../../types.js';
 import { redisService } from '../../redis.js';
 
@@ -129,23 +129,6 @@ async function pollAndSendResponse(
 }
 
 /**
- * Extract channel type string from DeferredCommandContext
- */
-function getChannelType(context: DeferredCommandContext): string {
-  const channel = context.channel;
-  if (!channel || !('type' in channel)) {
-    return 'unknown';
-  }
-  if (channel.type === ChannelType.GuildText) {
-    return 'text';
-  }
-  if (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread) {
-    return 'thread';
-  }
-  return 'unknown';
-}
-
-/**
  * Weigh-in mode indicator message
  * Minimal prompt that tells the AI to respond to conversation context
  * without meta-awareness of being explicitly invoked.
@@ -153,27 +136,64 @@ function getChannelType(context: DeferredCommandContext): string {
 const WEIGH_IN_MESSAGE = '[Reply naturally to the context above]';
 
 /**
- * Build interaction context parameters from a DeferredCommandContext.
- * Extracted to reduce complexity of main handler.
+ * Result of getting the anchor message for context building
  */
-function buildInteractionParams(
-  context: DeferredCommandContext,
+interface AnchorMessageResult {
+  success: true;
+  message: Message;
+}
+
+interface AnchorMessageError {
+  success: false;
+  error: string;
+}
+
+type GetAnchorMessageResult = AnchorMessageResult | AnchorMessageError;
+
+/**
+ * Get an anchor message for context building.
+ * Chat mode: send user message and return it.
+ * Weigh-in mode: fetch the latest message in channel.
+ */
+async function getAnchorMessage(
   channel: WebhookChannel,
-  displayName: string
-): InteractionContextParams {
-  const channelName = 'name' in channel && channel.name !== null ? channel.name : 'channel';
-  return {
-    userId: context.user.id,
-    username: context.user.username,
-    displayName,
-    isBot: context.user.bot,
-    channelId: channel.id,
-    guildId: context.guild?.id,
-    guildName: context.guild?.name,
-    channelName,
-    channelType: getChannelType(context),
-    member: context.member,
-  };
+  isWeighInMode: boolean,
+  sendUserMessageParams: SendUserMessageParams | null
+): Promise<GetAnchorMessageResult> {
+  if (!isWeighInMode && sendUserMessageParams !== null) {
+    const message = await sendAndPersistUserMessage(sendUserMessageParams);
+    return { success: true, message };
+  }
+
+  // Weigh-in mode: Fetch the most recent message in channel as anchor
+  const recentMessages = await channel.messages.fetch({ limit: 1 });
+  const latestMessage = recentMessages.first();
+  if (latestMessage === undefined) {
+    return { success: false, error: '❌ No conversation history found in this channel.' };
+  }
+  return { success: true, message: latestMessage };
+}
+
+/**
+ * Adjust context for weigh-in mode by clearing persona info.
+ * In weigh-in mode, the prompt is a system instruction, not a user message.
+ */
+function adjustContextForWeighInMode(
+  buildResult: { context: MessageContext; conversationHistory: unknown[] },
+  isWeighInMode: boolean
+): boolean {
+  // Check for conversation history in weigh-in mode
+  if (isWeighInMode && buildResult.conversationHistory.length === 0) {
+    return false;
+  }
+
+  // In weigh-in mode, clear persona info so no <from> tag is added
+  if (isWeighInMode) {
+    buildResult.context.activePersonaId = undefined;
+    buildResult.context.activePersonaName = undefined;
+  }
+
+  return true;
 }
 
 /**
@@ -192,9 +212,9 @@ interface SendUserMessageParams {
 
 /**
  * Send user message to Discord and save to conversation history.
- * Returns the message ID for trigger tracking.
+ * Returns the Message object for context building and trigger tracking.
  */
-async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise<string> {
+async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise<Message> {
   const { channel, displayName, message, personality, personaId, guildId, timestamp } = params;
 
   const userMsg = await channel.send(`**${displayName}:** ${message}`);
@@ -217,7 +237,7 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
       logger.warn({ err, messageId: userMsg.id }, '[Character Chat] Failed to save user message');
     });
 
-  return userMsg.id;
+  return userMsg;
 }
 
 /**
@@ -338,8 +358,9 @@ export async function handleChat(
       return;
     }
 
-    // 3. Build interaction context parameters
-    const interactionParams = buildInteractionParams(context, channel, discordDisplayName);
+    // 3. Resolve persona to get display name (quick lookup before sending message)
+    const personaResult = await getPersonaResolver().resolve(userId, personality.id);
+    const displayName = personaResult.config.preferredName ?? discordDisplayName;
 
     // 4. Resolve extended context settings for this channel + personality
     const extendedContextSettings = await getExtendedContextResolver().resolveAll(
@@ -347,60 +368,64 @@ export async function handleChat(
       personality
     );
 
-    // 5. Build context using MessageContextBuilder
-    // This provides: persona resolution, context epoch, guild member info, user timezone
-    const contextBuilder = getMessageContextBuilder();
-    // In weigh-in mode, use special prompt. In chat mode, message is guaranteed non-null.
-    const messageContent =
-      message !== null && message.trim().length > 0 ? message : WEIGH_IN_MESSAGE;
-    const buildResult = await contextBuilder.buildContextFromInteraction(
-      interactionParams,
-      personality,
-      messageContent,
-      { extendedContext: extendedContextSettings }
-    );
-
-    // 6. Weigh-in mode requires existing conversation in the channel
-    // With extended context, conversationHistory contains all messages from the channel
-    if (isWeighInMode && buildResult.conversationHistory.length === 0) {
-      await context.editReply({
-        content: `❌ No conversation history found in this channel.\nStart a conversation first, or provide a message.`,
-      });
-      return;
-    }
-
-    // 6b. In weigh-in mode, clear persona info so no <from> tag is added
-    // The weigh-in prompt is a system instruction, not a user message
-    if (isWeighInMode) {
-      buildResult.context.activePersonaId = undefined;
-      buildResult.context.activePersonaName = undefined;
-    }
-
-    // 7. Get display name from context build (persona name or Discord name)
-    const displayName = buildResult.personaName ?? discordDisplayName;
-
-    // 8. Delete deferred reply and send user message (chat mode only)
+    // 5. Delete deferred reply before sending messages
     await context.deleteReply();
 
     // Capture timestamp for conversation ordering (user message < assistant message)
     const userMessageTime = new Date();
 
-    if (!isWeighInMode) {
-      // Send user message and save to conversation history
-      const userMsgId = await sendAndPersistUserMessage({
-        channel,
-        displayName,
-        message,
-        personality,
-        personaId: buildResult.personaId,
-        guildId: context.guild?.id ?? null,
-        timestamp: userMessageTime,
-      });
-      // Set trigger message ID for diagnostic tracking
-      buildResult.context.triggerMessageId = userMsgId;
+    // 6. Get a Discord Message object to use for context building with extended context
+    const anchorResult = await getAnchorMessage(
+      channel,
+      isWeighInMode,
+      isWeighInMode
+        ? null
+        : {
+            channel,
+            displayName,
+            message,
+            personality,
+            personaId: personaResult.config.personaId,
+            guildId: context.guild?.id ?? null,
+            timestamp: userMessageTime,
+          }
+    );
+
+    if (!anchorResult.success) {
+      await channel.send(anchorResult.error);
+      return;
+    }
+    const anchorMessage = anchorResult.message;
+
+    // 7. Build full context using buildContext with the anchor message
+    // This provides: extended context (Discord message fetching), persona, context epoch, guild info
+    const contextBuilder = getMessageContextBuilder();
+    const messageContent = isWeighInMode ? WEIGH_IN_MESSAGE : message;
+    const buildResult = await contextBuilder.buildContext(
+      anchorMessage,
+      personality,
+      messageContent,
+      {
+        extendedContext: extendedContextSettings,
+        botUserId: anchorMessage.client.user?.id,
+      }
+    );
+
+    // 8. Adjust context for weigh-in mode (validate history + clear persona)
+    const hasValidContext = adjustContextForWeighInMode(buildResult, isWeighInMode);
+    if (!hasValidContext) {
+      await channel.send(
+        '❌ No conversation history found in this channel.\nStart a conversation first, or provide a message.'
+      );
+      return;
     }
 
-    // 9. Submit job, poll for response, and track diagnostics + persistence
+    // 9. Set trigger message ID for diagnostic tracking (chat mode only)
+    if (!isWeighInMode) {
+      buildResult.context.triggerMessageId = anchorMessage.id;
+    }
+
+    // 10. Submit job, poll for response, and track diagnostics + persistence
     await submitAndTrackJob({
       channel,
       personality,
