@@ -19,7 +19,7 @@ import type { ConversationPersistence } from './ConversationPersistence.js';
 import type { ExtendedContextResolver } from './ExtendedContextResolver.js';
 
 const mockMessageContextBuilder = {
-  buildContextFromInteraction: vi.fn(),
+  buildContext: vi.fn(),
 } as unknown as MessageContextBuilder;
 
 const mockConversationPersistence = {
@@ -127,7 +127,7 @@ describe('serviceRegistry', () => {
       invalidateChannel: vi.fn(),
     } as unknown as ChannelActivationCacheInvalidationService;
     const mockMessageContextBuilder = {
-      buildContextFromInteraction: vi.fn(),
+      buildContext: vi.fn(),
     } as unknown as MessageContextBuilder;
     const mockLocalExtendedContextResolver = {
       resolveAll: vi.fn(),
@@ -400,7 +400,7 @@ describe('serviceRegistry', () => {
         invalidateChannel: vi.fn(),
       } as unknown as ChannelActivationCacheInvalidationService;
       const localMockMessageContextBuilder = {
-        buildContextFromInteraction: vi.fn(),
+        buildContext: vi.fn(),
       } as unknown as MessageContextBuilder;
       const localMockConversationPersistence = {
         saveUserMessageFromFields: vi.fn(),
