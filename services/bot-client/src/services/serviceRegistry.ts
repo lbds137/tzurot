@@ -19,6 +19,7 @@ import type {
 import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
+import type { MessageContextBuilder } from './MessageContextBuilder.js';
 
 // Service references - set during app initialization
 let jobTracker: JobTracker | undefined;
@@ -30,6 +31,7 @@ let personaResolver: PersonaResolver | undefined;
 let channelActivationCacheInvalidationService:
   | ChannelActivationCacheInvalidationService
   | undefined;
+let messageContextBuilder: MessageContextBuilder | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -42,6 +44,7 @@ export interface RegisteredServices {
   conversationHistoryService: ConversationHistoryService;
   personaResolver: PersonaResolver;
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
+  messageContextBuilder: MessageContextBuilder;
 }
 
 /**
@@ -56,6 +59,7 @@ export function registerServices(services: RegisteredServices): void {
   conversationHistoryService = services.conversationHistoryService;
   personaResolver = services.personaResolver;
   channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
+  messageContextBuilder = services.messageContextBuilder;
 }
 
 /**
@@ -139,6 +143,18 @@ export function getChannelActivationCacheInvalidationService(): ChannelActivatio
 }
 
 /**
+ * Get the MessageContextBuilder instance
+ * Used by /character chat to build context from interactions
+ * @throws Error if services not registered
+ */
+export function getMessageContextBuilder(): MessageContextBuilder {
+  if (messageContextBuilder === undefined) {
+    throw new Error('MessageContextBuilder not registered. Call registerServices() first.');
+  }
+  return messageContextBuilder;
+}
+
+/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -149,7 +165,8 @@ export function areServicesRegistered(): boolean {
     personalityService !== undefined &&
     conversationHistoryService !== undefined &&
     personaResolver !== undefined &&
-    channelActivationCacheInvalidationService !== undefined
+    channelActivationCacheInvalidationService !== undefined &&
+    messageContextBuilder !== undefined
   );
 }
 
@@ -170,4 +187,5 @@ export function resetServices(): void {
   conversationHistoryService = undefined;
   personaResolver = undefined;
   channelActivationCacheInvalidationService = undefined;
+  messageContextBuilder = undefined;
 }

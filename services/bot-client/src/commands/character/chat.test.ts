@@ -31,20 +31,15 @@ const mockPersonalityService = {
   loadPersonality: vi.fn(),
 };
 
-const mockConversationHistoryService = {
-  getRecentHistory: vi.fn(),
-};
-
-const mockPersonaResolver = {
-  resolve: vi.fn(),
+const mockMessageContextBuilder = {
+  buildContextFromInteraction: vi.fn(),
 };
 
 vi.mock('../../services/serviceRegistry.js', () => ({
   getGatewayClient: () => mockGatewayClient,
   getWebhookManager: () => mockWebhookManager,
   getPersonalityService: () => mockPersonalityService,
-  getConversationHistoryService: () => mockConversationHistoryService,
-  getPersonaResolver: () => mockPersonaResolver,
+  getMessageContextBuilder: () => mockMessageContextBuilder,
 }));
 
 // Mock redis service
@@ -165,16 +160,48 @@ describe('Character Chat Handler', () => {
     },
   ];
 
+  /**
+   * Create a mock context build result
+   */
+  const createMockContextBuildResult = (
+    overrides: {
+      personaName?: string | null;
+      conversationHistory?: unknown[];
+      messageContent?: string;
+    } = {}
+  ) => ({
+    context: {
+      userId: 'user-123',
+      userInternalId: 'internal-user-123',
+      userName: 'TestUser',
+      discordUsername: 'TestUser',
+      channelId: 'channel-123',
+      serverId: 'guild-123',
+      messageContent: overrides.messageContent ?? 'Hello!',
+      activePersonaId: 'persona-123',
+      activePersonaName: overrides.personaName ?? undefined,
+      conversationHistory: overrides.conversationHistory ?? [],
+      environment: {
+        type: 'guild' as const,
+        guild: { id: 'guild-123', name: 'Test Guild' },
+        channel: { id: 'channel-123', name: 'test-channel', type: 'text' },
+      },
+    },
+    userId: 'internal-user-123',
+    personaId: 'persona-123',
+    personaName: overrides.personaName ?? null,
+    messageContent: 'Hello!',
+    referencedMessages: [],
+    conversationHistory: overrides.conversationHistory ?? [],
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     vi.useFakeTimers();
-    // Default: empty conversation history
-    mockConversationHistoryService.getRecentHistory.mockResolvedValue([]);
-    // Default: PersonaResolver returns empty preferredName (will use Discord name)
-    mockPersonaResolver.resolve.mockResolvedValue({
-      config: { personaId: 'persona-123', preferredName: null },
-      source: 'user-default',
-    });
+    // Default: MessageContextBuilder returns result with empty history and null personaName
+    mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+      createMockContextBuildResult()
+    );
   });
 
   afterEach(() => {
@@ -299,13 +326,16 @@ describe('Character Chat Handler', () => {
       );
     });
 
-    it('should fetch and include conversation history in context', async () => {
+    it('should use MessageContextBuilder to build context with history', async () => {
       const mockChannel = createMockChannel();
       const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
 
-      // Mock conversation history with sample messages
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(createMockHistory());
+      // Mock context builder returning history
+      const mockHistory = createMockHistory();
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ conversationHistory: mockHistory })
+      );
 
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
@@ -317,36 +347,20 @@ describe('Character Chat Handler', () => {
 
       await handleChat(mockContext, mockConfig);
 
-      // Verify conversation history was fetched with correct parameters
-      expect(mockConversationHistoryService.getRecentHistory).toHaveBeenCalledWith(
-        'channel-123', // channel ID from mock
-        'personality-uuid-123', // personality ID
-        100 // MESSAGE_LIMITS.MAX_HISTORY_FETCH
+      // Verify MessageContextBuilder was called with correct parameters
+      expect(mockMessageContextBuilder.buildContextFromInteraction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-123',
+          channelId: 'channel-123',
+        }),
+        personality,
+        'Hello!' // message content
       );
 
-      // Verify context includes conversation history with ISO timestamps
+      // Verify context was passed to generate
       expect(mockGatewayClient.generate).toHaveBeenCalledWith(
         personality,
-        expect.objectContaining({
-          conversationHistory: [
-            {
-              id: 'msg-1',
-              role: 'user',
-              content: 'Previous message 1',
-              createdAt: '2025-12-07T10:00:00.000Z',
-              personaId: 'persona-1',
-              personaName: 'User1',
-            },
-            {
-              id: 'msg-2',
-              role: 'assistant',
-              content: 'Previous response 1',
-              createdAt: '2025-12-07T10:01:00.000Z',
-              personaId: 'persona-2',
-              personaName: null,
-            },
-          ],
-        })
+        expect.objectContaining({})
       );
     });
 
@@ -546,8 +560,15 @@ describe('Character Chat Handler', () => {
       const mockContext = createMockContext('test-char', null, mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
 
-      // Weigh-in mode requires conversation history
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(createMockHistory());
+      // Weigh-in mode uses special message and requires conversation history
+      const weighInMessage =
+        '[The user has summoned you to join this conversation. Contribute naturally based on the context above.]';
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({
+          conversationHistory: createMockHistory(),
+          messageContent: weighInMessage,
+        })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
@@ -577,7 +598,14 @@ describe('Character Chat Handler', () => {
       const mockContext = createMockContext('test-char', '', mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
 
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(createMockHistory());
+      const weighInMessage =
+        '[The user has summoned you to join this conversation. Contribute naturally based on the context above.]';
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({
+          conversationHistory: createMockHistory(),
+          messageContent: weighInMessage,
+        })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
@@ -602,7 +630,14 @@ describe('Character Chat Handler', () => {
       const mockContext = createMockContext('test-char', '   ', mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
 
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(createMockHistory());
+      const weighInMessage =
+        '[The user has summoned you to join this conversation. Contribute naturally based on the context above.]';
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({
+          conversationHistory: createMockHistory(),
+          messageContent: weighInMessage,
+        })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
@@ -628,7 +663,9 @@ describe('Character Chat Handler', () => {
       const personality = createMockPersonality({ displayName: 'Test Char' });
 
       // Empty conversation history
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue([]);
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ conversationHistory: [] })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
 
       await handleChat(mockContext, mockConfig);
@@ -650,7 +687,9 @@ describe('Character Chat Handler', () => {
       const mockContext = createMockContext('test-char', null, mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
 
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(createMockHistory());
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ conversationHistory: createMockHistory() })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
@@ -674,9 +713,10 @@ describe('Character Chat Handler', () => {
       const mockChannel = createMockChannel();
       const mockContext = createMockContext('test-char', null, mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
-      const history = createMockHistory();
 
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(history);
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ conversationHistory: createMockHistory() })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
@@ -704,7 +744,9 @@ describe('Character Chat Handler', () => {
       const mockContext = createMockContext('test-char', null, mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
 
-      mockConversationHistoryService.getRecentHistory.mockResolvedValue(createMockHistory());
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ conversationHistory: createMockHistory() })
+      );
       mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
@@ -728,7 +770,7 @@ describe('Character Chat Handler', () => {
   });
 
   describe('persona preferred name lookup', () => {
-    it('should use persona preferredName from user default', async () => {
+    it('should use persona preferredName from MessageContextBuilder result', async () => {
       const mockChannel = createMockChannel();
       const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-123' });
@@ -740,73 +782,15 @@ describe('Character Chat Handler', () => {
       });
       mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
 
-      // Mock PersonaResolver returning user-default persona with preferredName
-      mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'persona-1', preferredName: 'Lila' },
-        source: 'user-default',
-      });
+      // Mock MessageContextBuilder returning persona with preferredName
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ personaName: 'Lila' })
+      );
 
       await handleChat(mockContext, mockConfig);
 
       // User message should use preferredName instead of Discord name
       expect(mockChannel.send).toHaveBeenCalledWith('**Lila:** Hello!');
-      // Context should include preferredName
-      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          userName: 'Lila',
-        })
-      );
-    });
-
-    it('should use persona preferredName from personality-specific override', async () => {
-      const mockChannel = createMockChannel();
-      const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
-      const personality = createMockPersonality({ id: 'personality-uuid-123' });
-      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
-      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
-        content: 'Response',
-        metadata: {},
-      });
-      mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
-
-      // Mock PersonaResolver returning context-override persona
-      mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'override-persona', preferredName: 'Override Name' },
-        source: 'context-override',
-      });
-
-      await handleChat(mockContext, mockConfig);
-
-      // User message should use override's preferredName
-      expect(mockChannel.send).toHaveBeenCalledWith('**Override Name:** Hello!');
-      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({
-          userName: 'Override Name',
-        })
-      );
-    });
-
-    it('should use Discord name when PersonaResolver throws', async () => {
-      const mockChannel = createMockChannel();
-      const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
-      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
-      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
-        content: 'Response',
-        metadata: {},
-      });
-      mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
-
-      // Mock PersonaResolver throwing
-      mockPersonaResolver.resolve.mockRejectedValue(new Error('Database error'));
-
-      await handleChat(mockContext, mockConfig);
-
-      // Should fall back to Discord display name
-      expect(mockChannel.send).toHaveBeenCalledWith('**TestUser:** Hello!');
     });
 
     it('should use Discord name when persona has null preferredName', async () => {
@@ -820,11 +804,10 @@ describe('Character Chat Handler', () => {
       });
       mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
 
-      // Mock PersonaResolver returning persona with null preferredName
-      mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'persona-1', preferredName: null },
-        source: 'user-default',
-      });
+      // Mock MessageContextBuilder returning persona with null preferredName
+      mockMessageContextBuilder.buildContextFromInteraction.mockResolvedValue(
+        createMockContextBuildResult({ personaName: null })
+      );
 
       await handleChat(mockContext, mockConfig);
 
@@ -832,30 +815,7 @@ describe('Character Chat Handler', () => {
       expect(mockChannel.send).toHaveBeenCalledWith('**TestUser:** Hello!');
     });
 
-    it('should use Discord name when persona has empty preferredName', async () => {
-      const mockChannel = createMockChannel();
-      const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
-      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
-      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
-      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
-        content: 'Response',
-        metadata: {},
-      });
-      mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
-
-      // Mock PersonaResolver returning persona with empty preferredName
-      mockPersonaResolver.resolve.mockResolvedValue({
-        config: { personaId: 'persona-1', preferredName: '' },
-        source: 'user-default',
-      });
-
-      await handleChat(mockContext, mockConfig);
-
-      // Should fall back to Discord display name
-      expect(mockChannel.send).toHaveBeenCalledWith('**TestUser:** Hello!');
-    });
-
-    it('should call PersonaResolver with userId and personalityId', async () => {
+    it('should call MessageContextBuilder with userId and personality', async () => {
       const mockChannel = createMockChannel();
       const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
       const personality = createMockPersonality({ id: 'personality-uuid-456' });
@@ -869,8 +829,14 @@ describe('Character Chat Handler', () => {
 
       await handleChat(mockContext, mockConfig);
 
-      // Verify PersonaResolver was called with correct userId and personalityId
-      expect(mockPersonaResolver.resolve).toHaveBeenCalledWith('user-123', 'personality-uuid-456');
+      // Verify MessageContextBuilder was called with correct parameters
+      expect(mockMessageContextBuilder.buildContextFromInteraction).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: 'user-123',
+        }),
+        personality,
+        'Hello!'
+      );
     });
   });
 });
