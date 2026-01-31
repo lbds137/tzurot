@@ -5,7 +5,7 @@
  * Manages message chunking, model indicators, and webhook storage.
  */
 
-import type { Message } from 'discord.js';
+import type { Message, DMChannel } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
 import {
   splitMessage,
@@ -232,7 +232,8 @@ export class DiscordResponseSender {
     }
 
     for (const chunk of chunks) {
-      const sentMessage = await message.reply(chunk);
+      // Send as plain message (not reply) - DMs don't need reply indicators
+      const sentMessage = await (message.channel as DMChannel).send(chunk);
 
       // Store DM message in Redis for reply routing (7 day TTL)
       // Store personality ID (not name) to avoid slug/name collisions
@@ -321,8 +322,10 @@ export class DiscordResponseSender {
             chunkContent
           );
         } else {
-          // Send via DM (with personality prefix)
-          await message.reply(`**${personality.displayName}:** ${chunkContent}`);
+          // Send via DM (with personality prefix, no reply indicator)
+          await (message.channel as DMChannel).send(
+            `**${personality.displayName}:** ${chunkContent}`
+          );
         }
       } catch (error) {
         logger.warn(
