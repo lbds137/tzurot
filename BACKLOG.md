@@ -21,7 +21,21 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. ✨ Multi-Personality Per Channel
+### 1. 🐛 /character chat Missing Conversation History Storage
+
+`/character chat` doesn't store conversation history (both user and assistant messages). This breaks LTM and extended context for slash command conversations.
+
+**Root Cause**: `ConversationPersistence` expects a Discord `Message` object but slash commands only have interaction data.
+
+**Fix Options**:
+
+- [ ] Refactor `ConversationPersistence.saveUserMessage()` to accept fields instead of `Message`
+- [ ] Add `saveUserMessageFromInteraction()` variant
+- [ ] Or: create a synthetic Message-like object from interaction + channel.send() result
+
+**Files**: `ConversationPersistence.ts`, `character/chat.ts`
+
+### 2. ✨ Multi-Personality Per Channel
 
 Allow multiple personalities active in a single channel.
 
