@@ -175,7 +175,10 @@ function createOpenRouterFetch(
 
     // Inject reasoning content into response before SDK strips it
     // The SDK removes unknown fields like `reasoning`, so we move it to content
-    if (extraParams.include_reasoning === true && init?.method === 'POST') {
+    // IMPORTANT: Only process successful responses - error responses have different
+    // structure ({ error: ... } instead of { choices: ... }) and should pass through
+    // to LangChain's error handling directly
+    if (extraParams.include_reasoning === true && init?.method === 'POST' && response.ok) {
       return injectReasoningIntoContent(response);
     }
 
