@@ -10,6 +10,15 @@ import { MessageHandler } from './MessageHandler.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
 
+// Mock serviceRegistry to provide getGatewayClient
+const mockGatewayClient = {
+  updateDiagnosticResponseIds: vi.fn().mockResolvedValue(undefined),
+};
+
+vi.mock('../services/serviceRegistry.js', () => ({
+  getGatewayClient: () => mockGatewayClient,
+}));
+
 // Mock dependencies
 const mockResponseSender = {
   sendResponse: vi.fn(),
@@ -33,6 +42,7 @@ describe('MessageHandler', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mockGatewayClient.updateDiagnosticResponseIds.mockResolvedValue(undefined);
 
     // Create mock processors
     mockProcessor1 = {

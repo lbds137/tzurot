@@ -233,6 +233,19 @@ export class MessageHandler {
         chunkMessageIds,
         userMessageTime,
       });
+
+      // Update diagnostic log with response message IDs (fire-and-forget)
+      // This enables /admin debug to lookup by AI error message ID
+      if (chunkMessageIds.length > 0) {
+        void getGatewayClient()
+          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
+          .catch(err => {
+            logger.warn(
+              { err },
+              '[MessageHandler] Failed to update diagnostic response IDs for error'
+            );
+          });
+      }
     } catch (sendError) {
       logger.error(
         { err: sendError, jobId },
