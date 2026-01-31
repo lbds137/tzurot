@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { truncateText, splitMessage, stripBotFooters } from './discord.js';
+import { truncateText, splitMessage, stripBotFooters, stripDmPrefix } from './discord.js';
 
 describe('discord utils', () => {
   describe('truncateText', () => {
@@ -246,6 +246,57 @@ Another paragraph here with more content.`;
     it('should strip standalone auto-response footer', () => {
       const content = '-# 📍 auto-response';
       expect(stripBotFooters(content)).toBe('');
+    });
+  });
+
+  describe('stripDmPrefix', () => {
+    it('should strip DM personality prefix', () => {
+      const content = '**Lilith:** Hello, my daughter.';
+      expect(stripDmPrefix(content)).toBe('Hello, my daughter.');
+    });
+
+    it('should strip DM prefix with multi-word display name', () => {
+      const content = '**Test Bot Name:** Some response here.';
+      expect(stripDmPrefix(content)).toBe('Some response here.');
+    });
+
+    it('should handle content without DM prefix', () => {
+      const content = 'Just normal content without any prefix.';
+      expect(stripDmPrefix(content)).toBe(content);
+    });
+
+    it('should not strip bold text that is not a prefix', () => {
+      const content = 'Some text with **bold** in the middle.';
+      expect(stripDmPrefix(content)).toBe(content);
+    });
+
+    it('should not strip prefix if not at start of content', () => {
+      const content = 'Hello **Name:** this is not a prefix.';
+      expect(stripDmPrefix(content)).toBe(content);
+    });
+
+    it('should handle prefix with special characters in name', () => {
+      const content = '**Test-Name_123:** Response content.';
+      expect(stripDmPrefix(content)).toBe('Response content.');
+    });
+
+    it('should handle prefix with emoji in name', () => {
+      const content = '**🌙 Luna:** Moonlit response.';
+      expect(stripDmPrefix(content)).toBe('Moonlit response.');
+    });
+
+    it('should preserve content after prefix', () => {
+      const content = '**Selah:** *I lean in closer.*\n\nThe night whispers secrets.';
+      expect(stripDmPrefix(content)).toBe('*I lean in closer.*\n\nThe night whispers secrets.');
+    });
+
+    it('should handle empty string', () => {
+      expect(stripDmPrefix('')).toBe('');
+    });
+
+    it('should handle prefix-only content', () => {
+      const content = '**Name:** ';
+      expect(stripDmPrefix(content)).toBe('');
     });
   });
 });
