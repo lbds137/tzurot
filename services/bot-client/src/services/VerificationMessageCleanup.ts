@@ -6,7 +6,15 @@
  * 2. Scheduled cleanup for messages approaching 13-day limit
  */
 
-import type { Client, DMChannel, TextChannel, NewsChannel } from 'discord.js';
+import type {
+  Client,
+  DMChannel,
+  TextChannel,
+  NewsChannel,
+  PublicThreadChannel,
+  PrivateThreadChannel,
+  AnyThreadChannel,
+} from 'discord.js';
 import type { Redis } from 'ioredis';
 import { ChannelType } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
@@ -149,12 +157,15 @@ export class VerificationMessageCleanup {
     try {
       const channel = await this.client.channels.fetch(msg.channelId);
 
-      // Check if channel supports message operations (DM, GuildText, GuildNews)
+      // Check if channel supports message operations (DM, GuildText, GuildNews, threads)
       const isMessageChannel =
         channel !== null &&
         (channel.type === ChannelType.DM ||
           channel.type === ChannelType.GuildText ||
-          channel.type === ChannelType.GuildNews);
+          channel.type === ChannelType.GuildNews ||
+          channel.type === ChannelType.PublicThread ||
+          channel.type === ChannelType.PrivateThread ||
+          channel.type === ChannelType.AnnouncementThread);
 
       if (!isMessageChannel) {
         logger.debug(
@@ -164,7 +175,13 @@ export class VerificationMessageCleanup {
         return false;
       }
 
-      const textChannel = channel as DMChannel | TextChannel | NewsChannel;
+      const textChannel = channel as
+        | DMChannel
+        | TextChannel
+        | NewsChannel
+        | PublicThreadChannel
+        | PrivateThreadChannel
+        | AnyThreadChannel;
       const message = await textChannel.messages.fetch(msg.messageId);
       await message.delete();
 

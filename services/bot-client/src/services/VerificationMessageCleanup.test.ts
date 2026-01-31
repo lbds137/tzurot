@@ -114,6 +114,44 @@ describe('VerificationMessageCleanup', () => {
       expect(clearPendingVerificationMessages).toHaveBeenCalledWith(mockRedis, 'user-123');
     });
 
+    it('should delete messages in thread channels', async () => {
+      const mockMessage = { delete: vi.fn().mockResolvedValue(undefined) };
+      const mockThreadChannel = {
+        type: ChannelType.PublicThread,
+        messages: { fetch: vi.fn().mockResolvedValue(mockMessage) },
+      };
+
+      vi.mocked(getPendingVerificationMessages).mockResolvedValue([
+        { messageId: 'msg-1', channelId: 'thread-1', timestamp: Date.now() },
+      ]);
+      mockClient.channels.fetch.mockResolvedValue(mockThreadChannel);
+
+      await cleanup.cleanupForUser('user-123');
+
+      expect(mockClient.channels.fetch).toHaveBeenCalledWith('thread-1');
+      expect(mockThreadChannel.messages.fetch).toHaveBeenCalledWith('msg-1');
+      expect(mockMessage.delete).toHaveBeenCalled();
+      expect(clearPendingVerificationMessages).toHaveBeenCalledWith(mockRedis, 'user-123');
+    });
+
+    it('should delete messages in private thread channels', async () => {
+      const mockMessage = { delete: vi.fn().mockResolvedValue(undefined) };
+      const mockThreadChannel = {
+        type: ChannelType.PrivateThread,
+        messages: { fetch: vi.fn().mockResolvedValue(mockMessage) },
+      };
+
+      vi.mocked(getPendingVerificationMessages).mockResolvedValue([
+        { messageId: 'msg-1', channelId: 'thread-1', timestamp: Date.now() },
+      ]);
+      mockClient.channels.fetch.mockResolvedValue(mockThreadChannel);
+
+      await cleanup.cleanupForUser('user-123');
+
+      expect(mockThreadChannel.messages.fetch).toHaveBeenCalledWith('msg-1');
+      expect(mockMessage.delete).toHaveBeenCalled();
+    });
+
     it('should skip channels that do not support message deletion', async () => {
       const mockVoiceChannel = {
         type: ChannelType.GuildVoice,
