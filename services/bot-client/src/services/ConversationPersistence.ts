@@ -130,6 +130,8 @@ export interface SaveUserMessageFromFieldsOptions {
   }[];
   /** Referenced messages (optional) */
   referencedMessages?: ReferencedMessage[];
+  /** Explicit timestamp (optional, for ensuring user < assistant ordering) */
+  timestamp?: Date;
 }
 
 /**
@@ -277,6 +279,7 @@ export class ConversationPersistence {
       messageContent,
       attachments,
       referencedMessages,
+      timestamp,
     } = options;
 
     // Build content with placeholder descriptions (but NOT references - those go in metadata)
@@ -306,6 +309,7 @@ export class ConversationPersistence {
       guildId,
       discordMessageId,
       messageMetadata: metadata,
+      timestamp,
     });
 
     logger.debug(

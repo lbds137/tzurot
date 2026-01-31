@@ -185,6 +185,8 @@ interface SendUserMessageParams {
   personality: LoadedPersonality;
   personaId: string;
   guildId: string | null;
+  /** Timestamp for ensuring user < assistant ordering */
+  timestamp: Date;
 }
 
 /**
@@ -192,11 +194,12 @@ interface SendUserMessageParams {
  * Returns the message ID for trigger tracking.
  */
 async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise<string> {
-  const { channel, displayName, message, personality, personaId, guildId } = params;
+  const { channel, displayName, message, personality, personaId, guildId, timestamp } = params;
 
   const userMsg = await channel.send(`**${displayName}:** ${message}`);
 
   // Save user message to conversation history (fire-and-forget)
+  // Pass explicit timestamp to ensure user message < assistant message ordering
   void getConversationPersistence()
     .saveUserMessageFromFields({
       channelId: channel.id,
@@ -205,6 +208,7 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
       personality,
       personaId,
       messageContent: message,
+      timestamp,
     })
     .catch(err => {
       logger.warn({ err, messageId: userMsg.id }, '[Character Chat] Failed to save user message');
@@ -371,6 +375,7 @@ export async function handleChat(
         personality,
         personaId: buildResult.personaId,
         guildId: context.guild?.id ?? null,
+        timestamp: userMessageTime,
       });
       // Set trigger message ID for diagnostic tracking
       buildResult.context.triggerMessageId = userMsgId;
