@@ -1145,16 +1145,15 @@ describe('DatabaseSyncService', () => {
       expect(usersIndex).toBeGreaterThanOrEqual(0);
 
       // users must come before personas (personas.owner_id -> users.id is NOT NULL)
-      // users.default_persona_id is handled via two-pass deferred FK approach
+      // Note: users.default_persona_id is now excluded from sync entirely (user preference)
       expect(
         usersIndex,
         'users must be synced before personas to satisfy FK constraint (personas.owner_id is NOT NULL)'
       ).toBeLessThan(personasIndex);
     });
 
-    it('should defer FK columns during pass 1 and update them in pass 2', async () => {
-      // Track all queries to both clients to verify two-pass behavior
-      const devQueries: string[] = [];
+    it('should exclude user preference columns from sync (default_persona_id, default_llm_config_id)', async () => {
+      // Track all queries to verify excluded columns are not synced
       const prodQueries: string[] = [];
       const userId = '00000000-0000-5000-a000-000000000001';
       const personaId = '00000000-0000-5000-a000-000000000002';
@@ -1162,33 +1161,19 @@ describe('DatabaseSyncService', () => {
       // Mock dev client to return a user with default_persona_id set
       devClient.$queryRawUnsafe.mockImplementation(async query => {
         const queryStr = String(query);
-        devQueries.push(queryStr);
 
-        // Return user data with default_persona_id
+        // Return user data with default_persona_id (excluded column)
         if (queryStr.includes('FROM "users"') && !queryStr.includes('UPDATE')) {
           return [
             {
               id: userId,
               discord_id: '123456789',
-              default_persona_id: personaId, // This should be deferred
-              default_llm_config_id: null,
+              default_persona_id: personaId, // This should be excluded from sync
+              default_llm_config_id: null, // This should be excluded from sync
               created_at: new Date('2024-01-01'),
               updated_at: new Date('2024-01-02'),
               timezone: 'UTC',
               preferences: {},
-            },
-          ];
-        }
-
-        // Return persona data
-        if (queryStr.includes('FROM "personas"') && !queryStr.includes('UPDATE')) {
-          return [
-            {
-              id: personaId,
-              name: 'default',
-              owner_id: userId,
-              created_at: new Date('2024-01-01'),
-              updated_at: new Date('2024-01-02'),
             },
           ];
         }
@@ -1212,15 +1197,22 @@ describe('DatabaseSyncService', () => {
 
       await service.sync({ dryRun: false });
 
-      // Check that users INSERT/UPSERT was called on prod (pass 1)
+      // Check that users INSERT/UPSERT was called on prod
       const usersUpsertQuery = prodQueries.find(q => q.includes('INSERT') && q.includes('"users"'));
       expect(usersUpsertQuery).toBeDefined();
 
-      // Check that there's an UPDATE for deferred FK columns on prod (pass 2)
+      // Verify that excluded columns are NOT in the INSERT query
+      // (they should be completely excluded from sync, not deferred)
+      if (usersUpsertQuery) {
+        expect(usersUpsertQuery).not.toContain('default_persona_id');
+        expect(usersUpsertQuery).not.toContain('default_llm_config_id');
+      }
+
+      // Verify no separate UPDATE for deferred columns (we no longer defer anything)
       const updateDeferredQuery = prodQueries.find(
         q => q.includes('UPDATE') && q.includes('"users"') && q.includes('default_persona_id')
       );
-      expect(updateDeferredQuery).toBeDefined();
+      expect(updateDeferredQuery).toBeUndefined();
     });
 
     it('should return stats for all tables in SYNC_TABLE_ORDER', async () => {

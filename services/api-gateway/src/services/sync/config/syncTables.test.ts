@@ -111,15 +111,7 @@ describe('syncTables Configuration', () => {
       assertParentBeforeChild('users', 'llm_configs', 'owner_id');
     });
 
-    // personality_default_configs.personality_id -> personalities.id
-    it('should sync personalities before personality_default_configs', () => {
-      assertParentBeforeChild('personalities', 'personality_default_configs', 'personality_id');
-    });
-
-    // personality_default_configs.llm_config_id -> llm_configs.id
-    it('should sync llm_configs before personality_default_configs', () => {
-      assertParentBeforeChild('llm_configs', 'personality_default_configs', 'llm_config_id');
-    });
+    // NOTE: personality_default_configs moved to EXCLUDED_TABLES (settings, not raw data)
 
     // personality_owners.personality_id -> personalities.id
     it('should sync personalities before personality_owners', () => {
@@ -238,21 +230,19 @@ describe('syncTables Configuration', () => {
   });
 
   describe('Deferred FK columns (two-pass sync)', () => {
-    it('should have users.default_persona_id as a deferred FK column', () => {
-      // This is critical for the circular dependency between users and personas
+    it('should not have any deferred FK columns (all user preference FKs are excluded)', () => {
+      // Previously users.default_persona_id was deferred for circular dependency,
+      // but now all user preference columns are excluded from sync entirely.
+      // This simplifies sync by eliminating the need for two-pass updates.
       const usersConfig = SYNC_CONFIG.users;
-      expect(usersConfig.deferredFkColumns).toBeDefined();
-      expect(usersConfig.deferredFkColumns).toContain('default_persona_id');
+      expect(usersConfig.deferredFkColumns).toBeUndefined();
     });
 
-    it('should only defer nullable FK columns that need syncing', () => {
-      // Deferred FK columns must be nullable because they're set to NULL in pass 1
-      // users.default_persona_id is deferred (circular dep: users ↔ personas)
-      // users.default_llm_config_id is EXCLUDED from sync (not deferred) - env-specific
+    it('should exclude user preference columns instead of deferring them', () => {
+      // User preference columns are excluded from sync (settings, not raw data)
       const usersConfig = SYNC_CONFIG.users;
-      expect(usersConfig.deferredFkColumns).toEqual(['default_persona_id']);
-      // Verify default_llm_config_id is excluded instead of deferred
       expect(usersConfig.excludeColumns).toContain('default_llm_config_id');
+      expect(usersConfig.excludeColumns).toContain('default_persona_id');
     });
 
     it('should have deferredFkColumns as array or undefined for all tables', () => {
@@ -266,32 +256,22 @@ describe('syncTables Configuration', () => {
       }
     });
 
-    it('should include deferred FK columns in uuidColumns if they reference UUIDs', () => {
-      // Deferred FK columns that reference UUID primary keys should also be in uuidColumns
-      // for proper UUID format handling
+    it('should include excluded FK columns in uuidColumns for validation', () => {
+      // Excluded FK columns that reference UUID primary keys should still be in uuidColumns
+      // so the sync validation can handle them properly if they appear in data
       const usersConfig = SYNC_CONFIG.users;
       expect(usersConfig.uuidColumns).toContain('default_persona_id');
+      expect(usersConfig.uuidColumns).toContain('default_llm_config_id');
     });
 
-    it('should only defer known nullable FK columns (schema drift guard)', () => {
-      // This test prevents accidentally deferring non-nullable FKs which would cause
-      // NOT NULL constraint violations. If schema changes, update this mapping.
-      const knownNullableFks: Record<string, string[]> = {
-        users: ['default_persona_id', 'default_llm_config_id'], // Both nullable in schema
-        // Add other tables here if they ever need deferred FKs
-      };
-
+    it('should not defer any FK columns currently (verify no deferred FKs)', () => {
+      // Guard test: if we add deferred FKs in the future, we need to verify they're nullable
       for (const [tableName, config] of Object.entries(SYNC_CONFIG)) {
         const deferredFks = config.deferredFkColumns ?? [];
-        const allowedNullableFks = knownNullableFks[tableName] ?? [];
-
-        for (const fkColumn of deferredFks) {
-          expect(
-            allowedNullableFks,
-            `Table "${tableName}" defers "${fkColumn}" but it's not in knownNullableFks. ` +
-              `If this FK is nullable, add it to knownNullableFks. If not, remove it from deferredFkColumns.`
-          ).toContain(fkColumn);
-        }
+        expect(
+          deferredFks.length,
+          `Table "${tableName}" has deferred FKs - add validation for nullable constraint`
+        ).toBe(0);
       }
     });
 
