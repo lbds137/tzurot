@@ -208,6 +208,7 @@ function createServices(): Services {
     channelActivationCacheInvalidationService,
     messageContextBuilder: contextBuilder,
     conversationPersistence: persistence,
+    extendedContextResolver,
   });
 
   return {
