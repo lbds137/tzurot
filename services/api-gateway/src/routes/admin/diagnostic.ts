@@ -4,8 +4,10 @@
  *
  * Endpoints:
  * - GET /admin/diagnostic/recent - List recent diagnostic logs (last 100)
- * - GET /admin/diagnostic/by-message/:messageId - Get logs by Discord message ID
+ * - GET /admin/diagnostic/by-message/:messageId - Get logs by Discord trigger message ID
+ * - GET /admin/diagnostic/by-response/:messageId - Get logs by AI response message ID
  * - GET /admin/diagnostic/:requestId - Get diagnostic log by request ID
+ * - PATCH /admin/diagnostic/:requestId/response-ids - Update response message IDs
  *
  * Note: Diagnostic logs are ephemeral (24h retention) and stored for debugging
  * prompt construction issues.
@@ -193,6 +195,100 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
 }
 
 /**
+ * Handler: GET /admin/diagnostic/by-response/:messageId
+ * Get diagnostic log by AI response message ID (array containment query)
+ */
+function handleGetByResponse(prisma: PrismaClient): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const messageId = getParam(req.params.messageId);
+
+    if (messageId === undefined || messageId === '') {
+      sendError(res, ErrorResponses.validationError('Message ID is required'));
+      return;
+    }
+
+    // Use array containment query - responseMessageIds contains messageId
+    const log = await prisma.llmDiagnosticLog.findFirst({
+      where: {
+        responseMessageIds: { has: messageId },
+      },
+    });
+
+    if (!log) {
+      sendError(
+        res,
+        ErrorResponses.notFound(
+          'Diagnostic log for response message (may have expired - 24h retention)'
+        )
+      );
+      return;
+    }
+
+    logger.info(
+      { messageId, requestId: log.requestId },
+      '[AdminDiagnostic] Retrieved diagnostic log by response message ID'
+    );
+
+    sendCustomSuccess(res, { log: formatLogResponse(log) }, StatusCodes.OK);
+  });
+}
+
+/**
+ * Handler: PATCH /admin/diagnostic/:requestId/response-ids
+ * Update the response message IDs for a diagnostic log
+ * Called by bot-client after sending response to Discord
+ */
+function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
+  return asyncHandler(async (req: Request, res: Response) => {
+    const requestId = getParam(req.params.requestId);
+    const { responseMessageIds } = req.body as { responseMessageIds?: string[] };
+
+    if (requestId === null || requestId === '') {
+      sendError(res, ErrorResponses.validationError('Request ID is required'));
+      return;
+    }
+
+    if (!Array.isArray(responseMessageIds)) {
+      sendError(res, ErrorResponses.validationError('responseMessageIds must be an array'));
+      return;
+    }
+
+    // Validate all IDs are strings
+    if (!responseMessageIds.every(id => typeof id === 'string' && id.length > 0)) {
+      sendError(
+        res,
+        ErrorResponses.validationError('All response message IDs must be non-empty strings')
+      );
+      return;
+    }
+
+    try {
+      await prisma.llmDiagnosticLog.update({
+        where: { requestId },
+        data: { responseMessageIds },
+      });
+
+      logger.info(
+        { requestId, responseMessageIds },
+        '[AdminDiagnostic] Updated response message IDs'
+      );
+
+      sendCustomSuccess(res, { success: true }, StatusCodes.OK);
+    } catch (error) {
+      // Handle not found case (Prisma throws if record doesn't exist)
+      if ((error as { code?: string }).code === 'P2025') {
+        sendError(
+          res,
+          ErrorResponses.notFound('Diagnostic log (may have expired - 24h retention)')
+        );
+        return;
+      }
+      throw error;
+    }
+  });
+}
+
+/**
  * Create diagnostic routes with injected dependencies
  * @param prisma - Prisma client for database operations
  */
@@ -201,7 +297,10 @@ export function createDiagnosticRoutes(prisma: PrismaClient): Router {
 
   router.get('/recent', handleGetRecent(prisma));
   router.get('/by-message/:messageId', handleGetByMessage(prisma));
+  router.get('/by-response/:messageId', handleGetByResponse(prisma));
+  // Note: /:requestId must come after /by-* routes to avoid matching 'by-message' as a requestId
   router.get('/:requestId', handleGetByRequestId(prisma));
+  router.patch('/:requestId/response-ids', handleUpdateResponseIds(prisma));
 
   return router;
 }

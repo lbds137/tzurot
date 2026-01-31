@@ -19,6 +19,7 @@ import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { DiscordResponseSender } from '../services/DiscordResponseSender.js';
 import { ConversationPersistence } from '../services/ConversationPersistence.js';
 import { JobTracker, type PendingJobContext } from '../services/JobTracker.js';
+import { getGatewayClient } from '../services/serviceRegistry.js';
 
 const logger = createLogger('MessageHandler');
 
@@ -177,6 +178,16 @@ export class MessageHandler {
         chunkMessageIds,
         userMessageTime,
       });
+
+      // Update diagnostic log with response message IDs (fire-and-forget)
+      // This enables /admin debug to lookup by AI response message ID
+      if (chunkMessageIds.length > 0) {
+        void getGatewayClient()
+          .updateDiagnosticResponseIds(result.requestId, chunkMessageIds)
+          .catch(err => {
+            logger.warn({ err }, '[MessageHandler] Failed to update diagnostic response IDs');
+          });
+      }
 
       logger.info(
         { jobId, chunks: chunkMessageIds.length },
