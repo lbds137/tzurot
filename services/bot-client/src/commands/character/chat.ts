@@ -36,6 +36,7 @@ import {
   getMessageContextBuilder,
 } from '../../services/serviceRegistry.js';
 import type { InteractionContextParams } from '../../services/MessageContextBuilder.js';
+import type { MessageContext } from '../../types.js';
 import { redisService } from '../../redis.js';
 
 const logger = createLogger('character-chat');
@@ -63,8 +64,17 @@ function validateWebhookChannel(context: DeferredCommandContext): WebhookChannel
 }
 
 /**
+ * Result of polling and sending the response
+ */
+interface PollAndSendResult {
+  success: boolean;
+  /** Message IDs of the response chunks sent via webhook */
+  responseMessageIds: string[];
+}
+
+/**
  * Poll for job completion and send the character response.
- * Returns true if successful, false if there was an error.
+ * Returns success status and the message IDs of sent responses.
  */
 async function pollAndSendResponse(
   jobId: string,
@@ -72,7 +82,7 @@ async function pollAndSendResponse(
   personality: LoadedPersonality,
   characterSlug: string,
   isWeighInMode: boolean
-): Promise<boolean> {
+): Promise<PollAndSendResult> {
   const gatewayClient = getGatewayClient();
 
   // Show typing indicator while waiting
@@ -93,10 +103,10 @@ async function pollAndSendResponse(
 
     if (result?.content === undefined || result.content === null || result.content === '') {
       await channel.send(`*${personality.displayName} is having trouble responding right now.*`);
-      return false;
+      return { success: false, responseMessageIds: [] };
     }
 
-    await sendCharacterResponse(
+    const responseMessageIds = await sendCharacterResponse(
       channel,
       personality,
       result.content,
@@ -105,10 +115,10 @@ async function pollAndSendResponse(
     );
 
     logger.info(
-      { jobId, characterSlug, isWeighInMode },
+      { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },
       '[Character Chat] Response sent successfully'
     );
-    return true;
+    return { success: true, responseMessageIds };
   } finally {
     clearInterval(typingInterval);
   }
@@ -138,6 +148,41 @@ function getChannelType(context: DeferredCommandContext): string {
  */
 const WEIGH_IN_MESSAGE =
   '[The user has summoned you to join this conversation. Contribute naturally based on the context above.]';
+
+/**
+ * Submit job, poll for response, and handle diagnostic tracking.
+ * Extracted to reduce complexity of main handler.
+ */
+async function submitAndTrackJob(
+  channel: WebhookChannel,
+  personality: LoadedPersonality,
+  context: MessageContext,
+  characterSlug: string,
+  isWeighInMode: boolean
+): Promise<void> {
+  const { jobId, requestId } = await getGatewayClient().generate(personality, context);
+  logger.info({ jobId, requestId, characterSlug, isWeighInMode }, '[Character Chat] Job submitted');
+
+  const pollResult = await pollAndSendResponse(
+    jobId,
+    channel,
+    personality,
+    characterSlug,
+    isWeighInMode
+  );
+
+  // Store response message IDs for diagnostic lookup (fire-and-forget)
+  if (pollResult.responseMessageIds.length > 0) {
+    void getGatewayClient()
+      .updateDiagnosticResponseIds(requestId, pollResult.responseMessageIds)
+      .catch(err => {
+        logger.warn(
+          { err, requestId },
+          '[Character Chat] Failed to update diagnostic response IDs'
+        );
+      });
+  }
+}
 
 /**
  * Handle /character chat subcommand
@@ -225,14 +270,19 @@ export async function handleChat(
     // 7. Delete deferred reply and send user message (chat mode only)
     await context.deleteReply();
     if (!isWeighInMode) {
-      await channel.send(`**${displayName}:** ${message}`);
+      const userMsg = await channel.send(`**${displayName}:** ${message}`);
+      // Set trigger message ID for diagnostic tracking
+      buildResult.context.triggerMessageId = userMsg.id;
     }
 
-    // 8. Submit job and poll for response
-    const { jobId } = await getGatewayClient().generate(personality, buildResult.context);
-    logger.info({ jobId, characterSlug, isWeighInMode }, '[Character Chat] Job submitted');
-
-    await pollAndSendResponse(jobId, channel, personality, characterSlug, isWeighInMode);
+    // 8. Submit job, poll for response, and track diagnostics
+    await submitAndTrackJob(
+      channel,
+      personality,
+      buildResult.context,
+      characterSlug,
+      isWeighInMode
+    );
   } catch (error) {
     logger.error({ err: error, characterSlug }, '[Character Chat] Error processing chat');
     await handleChatError(context);
@@ -258,6 +308,7 @@ async function handleChatError(context: DeferredCommandContext): Promise<void> {
 
 /**
  * Send character response via webhook
+ * Returns the message IDs of all sent chunks
  */
 async function sendCharacterResponse(
   channel: TextChannel | ThreadChannel,
@@ -265,8 +316,9 @@ async function sendCharacterResponse(
   content: string,
   modelUsed?: string,
   isGuestMode?: boolean
-): Promise<void> {
+): Promise<string[]> {
   const webhookManager = getWebhookManager();
+  const messageIds: string[] = [];
 
   // Build footer
   let footer = '';
@@ -297,6 +349,10 @@ async function sendCharacterResponse(
     if (sentMessage !== undefined && sentMessage !== null) {
       // Store in Redis for reply routing
       await redisService.storeWebhookMessage(sentMessage.id, personality.id);
+      // Collect message ID for diagnostic tracking
+      messageIds.push(sentMessage.id);
     }
   }
+
+  return messageIds;
 }
