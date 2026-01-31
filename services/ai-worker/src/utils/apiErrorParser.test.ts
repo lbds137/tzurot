@@ -157,6 +157,27 @@ describe('parseApiError', () => {
       expect(result.category).toBe(ApiErrorCategory.SERVER_ERROR);
       expect(result.shouldRetry).toBe(true);
     });
+
+    it('should detect SDK parsing error (Cannot read properties of undefined)', () => {
+      const error = new Error("Cannot read properties of undefined (reading 'message')");
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.SERVER_ERROR);
+      expect(result.shouldRetry).toBe(true);
+    });
+
+    it('should detect SDK parsing error (unexpected end of JSON)', () => {
+      const error = new Error('Unexpected end of JSON input');
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.SERVER_ERROR);
+      expect(result.shouldRetry).toBe(true);
+    });
+
+    it('should detect SDK parsing error (is not a function)', () => {
+      const error = new Error('response.json is not a function');
+      const result = parseApiError(error);
+      expect(result.category).toBe(ApiErrorCategory.SERVER_ERROR);
+      expect(result.shouldRetry).toBe(true);
+    });
   });
 
   describe('content error detection', () => {
