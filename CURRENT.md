@@ -32,10 +32,11 @@ Two features on current branch:
 - [x] Feature 2: Update MessageHandler to store response IDs (fire-and-forget after send)
 - [x] Feature 2: Update debug command with fallback lookup (trigger → response)
 - [x] Feature 2: **COMMITTED** (275998f1)
-- [x] Feature 1: Add `buildContextFromInteraction()` to MessageContextBuilder
 - [x] Feature 1: Add messageContextBuilder to service registry
 - [x] Feature 1: Refactor `/character chat` to use MessageContextBuilder
 - [x] Feature 1: **COMMITTED** (11d17dad)
+- [x] Fix: `/character chat` extended context not working (use buildContext with Message object)
+- [x] Cleanup: Delete unused `buildContextFromInteraction` method and tests (YAGNI)
 
 **Branch ready for PR**: `feature/character-chat-debug-parity`
 
