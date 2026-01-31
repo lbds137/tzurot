@@ -60,6 +60,111 @@ interface DiagnosticLogsResponse {
   count: number;
 }
 
+/** Result of a diagnostic log lookup */
+type LookupResult =
+  | { success: true; log: DiagnosticLog }
+  | { success: false; errorMessage: string };
+
+/**
+ * Lookup diagnostic log by Discord message ID
+ * Tries trigger message first, then response message as fallback
+ */
+async function lookupByMessageId(messageId: string): Promise<LookupResult> {
+  // First try: Lookup by Discord trigger message ID (user's message)
+  let response = await adminFetch(`/admin/diagnostic/by-message/${encodeURIComponent(messageId)}`);
+
+  // If not found as trigger message, try as response message (AI's reply)
+  if (response.status === 404) {
+    logger.debug(
+      { messageId },
+      '[AdminDebug] Not found as trigger message, trying response message lookup'
+    );
+    response = await adminFetch(`/admin/diagnostic/by-response/${encodeURIComponent(messageId)}`);
+
+    // Handle by-response result (returns single log, not array)
+    if (response.ok) {
+      const result = (await response.json()) as DiagnosticLogResponse;
+      return { success: true, log: result.log };
+    }
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return {
+        success: false,
+        errorMessage:
+          '❌ No diagnostic logs found for this message.\n' +
+          '• The log may have expired (24h retention)\n' +
+          '• The message may not have triggered or been an AI response\n' +
+          '• The message ID may be incorrect',
+      };
+    }
+
+    const errorText = await response.text();
+    logger.error(
+      { status: response.status, error: errorText },
+      '[AdminDebug] Fetch by message failed'
+    );
+    return {
+      success: false,
+      errorMessage: `❌ Failed to fetch diagnostic logs (HTTP ${response.status})`,
+    };
+  }
+
+  // Parse by-message response (returns array)
+  const { logs } = (await response.json()) as DiagnosticLogsResponse;
+
+  if (logs.length === 0) {
+    return {
+      success: false,
+      errorMessage:
+        '❌ No diagnostic logs found for this message.\n' +
+        '• The log may have expired (24h retention)\n' +
+        '• The message may not have triggered an AI response',
+    };
+  }
+
+  // Use the most recent log if multiple exist
+  if (logs.length > 1) {
+    logger.info(
+      { messageId, count: logs.length },
+      '[AdminDebug] Multiple logs found for message, using most recent'
+    );
+  }
+
+  return { success: true, log: logs[0] };
+}
+
+/**
+ * Lookup diagnostic log by request UUID
+ */
+async function lookupByRequestId(requestId: string): Promise<LookupResult> {
+  const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(requestId)}`);
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      return {
+        success: false,
+        errorMessage:
+          '❌ Diagnostic log not found.\n' +
+          '• The log may have expired (24h retention)\n' +
+          '• The request ID may be incorrect\n' +
+          '• The request may not have completed successfully',
+      };
+    }
+
+    const errorText = await response.text();
+    logger.error({ status: response.status, error: errorText }, '[AdminDebug] Fetch failed');
+    return {
+      success: false,
+      errorMessage: `❌ Failed to fetch diagnostic log (HTTP ${response.status})`,
+    };
+  }
+
+  const result = (await response.json()) as DiagnosticLogResponse;
+  return { success: true, log: result.log };
+}
+
 /**
  * Parse identifier to extract message ID if it's a Discord link
  */
@@ -276,86 +381,18 @@ export async function handleDebug(context: DeferredCommandContext): Promise<void
   try {
     const parsed = parseIdentifier(identifier);
 
-    // Call appropriate endpoint based on identifier type
-    let log: DiagnosticLog;
+    // Call appropriate lookup function based on identifier type
+    const result =
+      parsed.type === 'messageId'
+        ? await lookupByMessageId(parsed.value)
+        : await lookupByRequestId(parsed.value);
 
-    if (parsed.type === 'messageId') {
-      // Lookup by Discord message ID
-      const response = await adminFetch(
-        `/admin/diagnostic/by-message/${encodeURIComponent(parsed.value)}`
-      );
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          await context.editReply({
-            content:
-              '❌ No diagnostic logs found for this message.\n' +
-              '• The log may have expired (24h retention)\n' +
-              '• The message may not have triggered an AI response\n' +
-              '• The message ID may be incorrect',
-          });
-          return;
-        }
-
-        const errorText = await response.text();
-        logger.error(
-          { status: response.status, error: errorText },
-          '[AdminDebug] Fetch by message failed'
-        );
-        await context.editReply({
-          content: `❌ Failed to fetch diagnostic logs (HTTP ${response.status})`,
-        });
-        return;
-      }
-
-      const { logs } = (await response.json()) as DiagnosticLogsResponse;
-
-      if (logs.length === 0) {
-        await context.editReply({
-          content:
-            '❌ No diagnostic logs found for this message.\n' +
-            '• The log may have expired (24h retention)\n' +
-            '• The message may not have triggered an AI response',
-        });
-        return;
-      }
-
-      // Use the most recent log if multiple exist
-      log = logs[0];
-
-      if (logs.length > 1) {
-        logger.info(
-          { messageId: parsed.value, count: logs.length },
-          '[AdminDebug] Multiple logs found for message, using most recent'
-        );
-      }
-    } else {
-      // Lookup by request UUID
-      const response = await adminFetch(`/admin/diagnostic/${encodeURIComponent(parsed.value)}`);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          await context.editReply({
-            content:
-              '❌ Diagnostic log not found.\n' +
-              '• The log may have expired (24h retention)\n' +
-              '• The request ID may be incorrect\n' +
-              '• The request may not have completed successfully',
-          });
-          return;
-        }
-
-        const errorText = await response.text();
-        logger.error({ status: response.status, error: errorText }, '[AdminDebug] Fetch failed');
-        await context.editReply({
-          content: `❌ Failed to fetch diagnostic log (HTTP ${response.status})`,
-        });
-        return;
-      }
-
-      const result = (await response.json()) as DiagnosticLogResponse;
-      log = result.log;
+    if (!result.success) {
+      await context.editReply({ content: result.errorMessage });
+      return;
     }
+
+    const log = result.log;
 
     // Build summary embed and attachments
     const embed = buildDiagnosticEmbed(log.data);
