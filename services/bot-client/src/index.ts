@@ -1,4 +1,4 @@
-import { Client, GatewayIntentBits, Events, MessageFlags } from 'discord.js';
+import { Client, GatewayIntentBits, Events, MessageFlags, Partials } from 'discord.js';
 import { Redis } from 'ioredis';
 import {
   createLogger,
@@ -79,6 +79,7 @@ const config = {
 // Note: GuildMembers is a privileged intent requiring Discord Portal approval for 100+ servers.
 // It's required because without it, message.member is null and we can't access user roles,
 // display color, or join date for the AI context (activePersonaGuildInfo).
+// Note: Partials.Channel is required for DM message events to fire properly.
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -88,6 +89,7 @@ const client = new Client({
     GatewayIntentBits.DirectMessages,
     GatewayIntentBits.GuildMembers,
   ],
+  partials: [Partials.Channel],
 });
 
 /**
