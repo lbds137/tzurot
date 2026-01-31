@@ -160,7 +160,7 @@ describe('LongTermMemoryService', () => {
       );
 
       // Assert: pending_memory was created and then deleted (should be empty)
-      const pendingMemories = await prisma.pendingMemory.findMany();
+      const pendingMemories = await prisma.pendingMemory.findMany({ take: 100 });
       expect(pendingMemories).toHaveLength(0);
     });
 
@@ -182,7 +182,7 @@ describe('LongTermMemoryService', () => {
       );
 
       // Assert: pending_memory still exists with error details
-      const pendingMemories = await prisma.pendingMemory.findMany();
+      const pendingMemories = await prisma.pendingMemory.findMany({ take: 100 });
       expect(pendingMemories).toHaveLength(1);
       expect(pendingMemories[0].attempts).toBe(1);
       expect(pendingMemories[0].error).toBe('Vector storage failed');
@@ -197,7 +197,7 @@ describe('LongTermMemoryService', () => {
       await service.storeInteraction(testPersonality, 'Hello', 'Hi!', testContext, testPersonaId);
 
       // Assert: No pending_memory created
-      const pendingMemories = await prisma.pendingMemory.findMany();
+      const pendingMemories = await prisma.pendingMemory.findMany({ take: 100 });
       expect(pendingMemories).toHaveLength(0);
     });
 
@@ -287,7 +287,7 @@ describe('LongTermMemoryService', () => {
       // Assert: Only one pending_memory (deterministic ID = upsert behavior via unique constraint)
       // Note: The service uses create(), so this will actually create 2 records with same ID
       // unless there's a unique constraint. Let's verify the ID is deterministic.
-      const pendingMemories = await prisma.pendingMemory.findMany();
+      const pendingMemories = await prisma.pendingMemory.findMany({ take: 100 });
 
       // With deterministic UUIDs, duplicate creates should fail with unique constraint
       // But the service catches errors, so we just verify at least one exists

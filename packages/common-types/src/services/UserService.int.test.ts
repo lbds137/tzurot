@@ -403,7 +403,7 @@ describe('UserService', () => {
       expect(result.size).toBe(2);
 
       // Verify only 2 users total exist
-      const allUsers = await prisma.user.findMany();
+      const allUsers = await prisma.user.findMany({ take: 100 });
       expect(allUsers).toHaveLength(2);
     });
   });
