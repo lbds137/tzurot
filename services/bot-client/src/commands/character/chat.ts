@@ -23,21 +23,19 @@ import {
   DISCORD_LIMITS,
   INTERVALS,
   TIMEOUTS,
-  MESSAGE_LIMITS,
   GUEST_MODE,
   AI_ENDPOINTS,
   characterChatOptions,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import type { MessageContext } from '../../types.js';
 import {
   getGatewayClient,
   getPersonalityService,
   getWebhookManager,
-  getConversationHistoryService,
-  getPersonaResolver,
+  getMessageContextBuilder,
 } from '../../services/serviceRegistry.js';
+import type { InteractionContextParams } from '../../services/MessageContextBuilder.js';
 import { redisService } from '../../redis.js';
 
 const logger = createLogger('character-chat');
@@ -46,35 +44,6 @@ const logger = createLogger('character-chat');
  * Channel types that support webhook responses
  */
 type WebhookChannel = TextChannel | ThreadChannel;
-
-/**
- * Resolve the user's display name using persona resolver.
- * Falls back to Discord display name if persona resolution fails.
- */
-async function resolveDisplayName(
-  userId: string,
-  personalityId: string,
-  discordDisplayName: string
-): Promise<string> {
-  try {
-    const personaResolver = getPersonaResolver();
-    const personaResult = await personaResolver.resolve(userId, personalityId);
-    if (
-      personaResult.config.preferredName !== null &&
-      personaResult.config.preferredName !== undefined &&
-      personaResult.config.preferredName.length > 0
-    ) {
-      logger.debug(
-        { userId, personalityId, source: personaResult.source },
-        '[Character Chat] Using persona preferredName'
-      );
-      return personaResult.config.preferredName;
-    }
-  } catch {
-    logger.debug({ userId }, '[Character Chat] Failed to resolve persona, using Discord name');
-  }
-  return discordDisplayName;
-}
 
 /**
  * Validate that the channel supports webhook responses.
@@ -146,62 +115,20 @@ async function pollAndSendResponse(
 }
 
 /**
- * Build Discord environment context from a deferred command context.
- *
- * Extracts guild, channel, and type information to provide context
- * for AI personality responses about where the conversation is happening.
- *
- * @param context - The deferred command context
- * @returns Environment object with guild/channel metadata
- * @throws Error if channel is unavailable (should never happen in valid interactions)
- *
- * @example
- * const env = buildEnvironment(context);
- * // Returns: { type: 'guild', guild: { id: '123', name: 'My Server' }, channel: { id: '456', name: 'general', type: 'text' } }
+ * Extract channel type string from DeferredCommandContext
  */
-function buildEnvironment(context: DeferredCommandContext): {
-  type: 'guild' | 'dm';
-  guild?: { id: string; name: string };
-  channel: { id: string; name: string; type: string };
-} {
+function getChannelType(context: DeferredCommandContext): string {
   const channel = context.channel;
-  const guild = context.guild;
-
-  if (!channel) {
-    throw new Error('No channel available');
+  if (!channel || !('type' in channel)) {
+    return 'unknown';
   }
-
-  // Determine channel type string
-  let channelType = 'unknown';
-  if ('type' in channel) {
-    if (channel.type === ChannelType.GuildText) {
-      channelType = 'text';
-    } else if (
-      channel.type === ChannelType.PublicThread ||
-      channel.type === ChannelType.PrivateThread
-    ) {
-      channelType = 'thread';
-    }
+  if (channel.type === ChannelType.GuildText) {
+    return 'text';
   }
-
-  const channelName = 'name' in channel && channel.name !== null ? channel.name : 'DM';
-
-  const environment = {
-    type: guild ? ('guild' as const) : ('dm' as const),
-    guild: guild
-      ? {
-          id: guild.id,
-          name: guild.name,
-        }
-      : undefined,
-    channel: {
-      id: channel.id,
-      name: channelName,
-      type: channelType,
-    },
-  };
-
-  return environment;
+  if (channel.type === ChannelType.PublicThread || channel.type === ChannelType.PrivateThread) {
+    return 'thread';
+  }
+  return 'unknown';
 }
 
 /**
@@ -218,6 +145,11 @@ const WEIGH_IN_MESSAGE =
  * Supports two modes:
  * - Chat mode (message provided): User sends message, character responds
  * - Weigh-in mode (no message): Character contributes to ongoing conversation
+ *
+ * Uses MessageContextBuilder for feature parity with @mentions:
+ * - Context epoch support (/history clear honored)
+ * - Guild member info (roles, color, join date)
+ * - User timezone for date/time formatting
  */
 export async function handleChat(
   context: DeferredCommandContext,
@@ -252,50 +184,52 @@ export async function handleChat(
       return;
     }
 
-    // 3. Resolve display name (persona override or Discord name)
-    const displayName = await resolveDisplayName(userId, personality.id, discordDisplayName);
+    // 3. Build interaction context parameters
+    const channelName = 'name' in channel && channel.name !== null ? channel.name : 'channel';
+    const interactionParams: InteractionContextParams = {
+      userId: context.user.id,
+      username: context.user.username,
+      displayName: discordDisplayName,
+      isBot: context.user.bot,
+      channelId: channel.id,
+      guildId: context.guild?.id,
+      guildName: context.guild?.name,
+      channelName,
+      channelType: getChannelType(context),
+      member: context.member,
+    };
 
-    // 4. Fetch conversation history
-    const history = await getConversationHistoryService().getRecentHistory(
-      channel.id,
-      personality.id,
-      MESSAGE_LIMITS.MAX_HISTORY_FETCH
+    // 4. Build context using MessageContextBuilder
+    // This provides: persona resolution, context epoch, guild member info, user timezone
+    const contextBuilder = getMessageContextBuilder();
+    // In weigh-in mode, use special prompt. In chat mode, message is guaranteed non-null.
+    const messageContent =
+      message !== null && message.trim().length > 0 ? message : WEIGH_IN_MESSAGE;
+    const buildResult = await contextBuilder.buildContextFromInteraction(
+      interactionParams,
+      personality,
+      messageContent
     );
 
     // 5. Weigh-in mode requires existing conversation
-    if (isWeighInMode && history.length === 0) {
+    if (isWeighInMode && buildResult.conversationHistory.length === 0) {
       await context.editReply({
         content: `❌ No conversation history found for **${personality.displayName}** in this channel.\nStart a conversation first, or provide a message.`,
       });
       return;
     }
 
-    // 6. Delete deferred reply and send user message (chat mode only)
+    // 6. Get display name from context build (persona name or Discord name)
+    const displayName = buildResult.personaName ?? discordDisplayName;
+
+    // 7. Delete deferred reply and send user message (chat mode only)
     await context.deleteReply();
     if (!isWeighInMode) {
       await channel.send(`**${displayName}:** ${message}`);
     }
 
-    // 7. Build message context for AI
-    const conversationHistory = history.map(msg => ({
-      id: msg.id,
-      role: msg.role,
-      content: msg.content,
-      createdAt: msg.createdAt.toISOString(),
-      personaId: msg.personaId,
-      personaName: msg.personaName,
-    }));
-
-    const messageContext: MessageContext = {
-      messageContent: isWeighInMode ? WEIGH_IN_MESSAGE : message,
-      userId,
-      userName: displayName,
-      environment: buildEnvironment(context),
-      conversationHistory,
-    };
-
     // 8. Submit job and poll for response
-    const { jobId } = await getGatewayClient().generate(personality, messageContext);
+    const { jobId } = await getGatewayClient().generate(personality, buildResult.context);
     logger.info({ jobId, characterSlug, isWeighInMode }, '[Character Chat] Job submitted');
 
     await pollAndSendResponse(jobId, channel, personality, characterSlug, isWeighInMode);
