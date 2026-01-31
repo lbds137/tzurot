@@ -423,9 +423,16 @@ Re-exports create spaghetti code and obscure module dependencies.
 
 Sequential DB queries in a loop for user references. Use batch extraction pattern.
 
-### 🏗️ Split Large Fetcher/Formatter Files
+### 🏗️ Split Large Service Files
 
-`DiscordChannelFetcher.ts` (~600 lines) and `conversationUtils.ts` (~720 lines) need splitting.
+Several files have grown past the 500-line ESLint limit and use `eslint-disable max-lines`:
+
+- [ ] `MessageContextBuilder.ts` (~980 lines) - Extract `buildContextFromInteraction()` to separate `InteractionContextBuilder.ts`
+- [ ] `conversationUtils.ts` (~720 lines) - Split formatting vs retrieval
+- [ ] `DiscordChannelFetcher.ts` (~600 lines) - Extract sync logic
+- [ ] `GatewayClient.ts` (~560 lines) - Consider splitting cache management vs API calls
+
+**Note**: These files work correctly, just need refactoring for maintainability.
 
 ### 🧹 Periodic Complexity/Filesize Audit
 

@@ -941,4 +941,64 @@ describe('GatewayClient', () => {
       expect(mockFetch).toHaveBeenCalledTimes(4);
     });
   });
+
+  describe('updateDiagnosticResponseIds()', () => {
+    it('should send PATCH request with response message IDs', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+      });
+
+      await client.updateDiagnosticResponseIds('req-123', ['msg-1', 'msg-2']);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test.gateway/admin/diagnostic/req-123/response-ids',
+        expect.objectContaining({
+          method: 'PATCH',
+          headers: expect.objectContaining({
+            'Content-Type': 'application/json',
+            'X-Service-Auth': 'test-secret',
+          }),
+          body: JSON.stringify({ responseMessageIds: ['msg-1', 'msg-2'] }),
+        })
+      );
+    });
+
+    it('should URL-encode the requestId', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+      });
+
+      await client.updateDiagnosticResponseIds('req with spaces', ['msg-1']);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        'http://test.gateway/admin/diagnostic/req%20with%20spaces/response-ids',
+        expect.any(Object)
+      );
+    });
+
+    it('should not throw on non-ok response (fire-and-forget)', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+      });
+
+      // Should not throw
+      await expect(
+        client.updateDiagnosticResponseIds('req-123', ['msg-1'])
+      ).resolves.toBeUndefined();
+    });
+
+    it('should not throw on network error (fire-and-forget)', async () => {
+      const client = new GatewayClient('http://test.gateway');
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      // Should not throw
+      await expect(
+        client.updateDiagnosticResponseIds('req-123', ['msg-1'])
+      ).resolves.toBeUndefined();
+    });
+  });
 });
