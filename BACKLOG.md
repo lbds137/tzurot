@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-01-30
-> **Version**: v3.0.0-beta.59
+> **Version**: v3.0.0-beta.60
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -21,27 +21,7 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. ✨ DM Personality Chat
-
-Chat with personalities in DMs.
-
-- [ ] Detect DM context in message handler
-- [ ] Use conversation history to identify which personality user was chatting with
-- [ ] Allow personality selection in DMs (`/character chat` in DMs)
-- [ ] Handle first-time DM (no history yet)
-
-### 2. ✨ NSFW Verification ✅
-
-User-level verification. User verifies once via Discord's native age-gating, unlocked everywhere after.
-
-- [x] Track `nsfwVerified` boolean on User record
-- [x] "Handshake" verification: interact with bot in a Discord age-gated channel
-- [x] Block unverified users in DMs with verification message
-- [x] Track pending verification messages in Redis
-- [x] Proactive cleanup: delete verification messages when user verifies
-- [x] Scheduled cleanup: delete messages before 13-day limit (avoid Discord's 14-day deletion restriction)
-
-### 3. ✨ Multi-Personality Per Channel
+### 1. ✨ Multi-Personality Per Channel
 
 Allow multiple personalities active in a single channel.
 

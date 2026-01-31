@@ -1,6 +1,6 @@
 {
   "name": "@tzurot/embeddings",
-  "version": "3.0.0-beta.59",
+  "version": "3.0.0-beta.60",
   "private": true,
   "type": "module",
   "description": "Local embedding service using bge-small-en-v1.5 for semantic similarity",

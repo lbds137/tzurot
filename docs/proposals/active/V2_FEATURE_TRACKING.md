@@ -2,7 +2,7 @@
 
 This document tracks which features from Tzurot v2 have been ported to v3, which are planned, and which are intentionally avoided.
 
-**Last Updated:** 2026-01-22
+**Last Updated:** 2026-01-30
 
 ## Legend
 
@@ -46,17 +46,17 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ### Message Handling
 
-| Feature               | Status     | Notes                                                                       |
-| --------------------- | ---------- | --------------------------------------------------------------------------- |
-| @personality mentions | ✅ Ported  | @lilith triggers personality                                                |
-| Bot @mentions         | ✅ Ported  | Shows help message                                                          |
-| DM personality chat   | 📋 Planned | v2 had full DM support with personality prefix parsing - **USER REQUESTED** |
-| Guild channel support | ✅ Ported  | Uses webhooks                                                               |
-| Referenced messages   | ✅ Ported  | MessageReferenceExtractor + Discord link parsing                            |
-| Reply detection       | ✅ Ported  | Reply to bot to continue conversation                                       |
-| Conversation history  | ✅ Ported  | ConversationPersistence service                                             |
-| Auto-response system  | ✅ Ported  | `/channel activate` and `/channel deactivate` commands                      |
-| Reset conversation    | ✅ Ported  | `/history clear` command clears conversation with personality               |
+| Feature               | Status    | Notes                                                         |
+| --------------------- | --------- | ------------------------------------------------------------- |
+| @personality mentions | ✅ Ported | @lilith triggers personality                                  |
+| Bot @mentions         | ✅ Ported | Shows help message                                            |
+| DM personality chat   | ✅ Ported | 3-tier lookup: Redis → Database → Display name parsing        |
+| Guild channel support | ✅ Ported | Uses webhooks                                                 |
+| Referenced messages   | ✅ Ported | MessageReferenceExtractor + Discord link parsing              |
+| Reply detection       | ✅ Ported | Reply to bot to continue conversation                         |
+| Conversation history  | ✅ Ported | ConversationPersistence service                               |
+| Auto-response system  | ✅ Ported | `/channel activate` and `/channel deactivate` commands        |
+| Reset conversation    | ✅ Ported | `/history clear` command clears conversation with personality |
 
 ### AI Integration
 
@@ -79,14 +79,14 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ### User Management
 
-| Feature            | Status     | Notes                           |
-| ------------------ | ---------- | ------------------------------- |
-| User personas      | ✅ Ported  | /me profile commands            |
-| Model overrides    | ✅ Ported  | Per-personality model selection |
-| LLM configurations | ✅ Ported  | /llm-config commands            |
-| Timezone settings  | ✅ Ported  | /settings timezone              |
-| Admin commands     | ✅ Ported  | /admin servers, kick, usage     |
-| NSFW verification  | 📋 Planned | One-time per-user verification  |
+| Feature            | Status    | Notes                                                  |
+| ------------------ | --------- | ------------------------------------------------------ |
+| User personas      | ✅ Ported | /me profile commands                                   |
+| Model overrides    | ✅ Ported | Per-personality model selection                        |
+| LLM configurations | ✅ Ported | /llm-config commands                                   |
+| Timezone settings  | ✅ Ported | /settings timezone                                     |
+| Admin commands     | ✅ Ported | /admin servers, kick, usage                            |
+| NSFW verification  | ✅ Ported | Discord age-gated channel handshake, proactive cleanup |
 
 ---
 
@@ -131,12 +131,7 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 ### High Priority 🔥 (User-Requested)
 
-1. **DM Personality Chat** - Talk to characters in DMs
-   - **v3 Improvement**: Use conversation history table for personality matching (not name-based like v2, since multiple personalities can have same name)
-   - Parse `**PersonalityName:** ` prefix for display only
-   - Multi-chunk reply detection
-   - Falls back to regular bot messages (no webhooks in DMs)
-   - **Requested multiple times by loyal beta user**
+1. ~~**DM Personality Chat**~~ ✅ COMPLETE - 3-tier lookup (Redis → Database → Display name parsing)
 
 2. ~~**Auto-Response System**~~ ✅ COMPLETE - `/channel activate` and `/channel deactivate`
 
@@ -148,10 +143,7 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 5. ~~**Request Deduplication**~~ ✅ COMPLETE - Multi-layer duplicate detection with embeddings
 
-6. **NSFW Verification** - Age verification system
-   - One-time verification per user (not per-channel like v2)
-   - Auto-verify by using bot in NSFW-marked Discord channel
-   - Store verified user IDs persistently
+6. ~~**NSFW Verification**~~ ✅ COMPLETE - Discord age-gated channel handshake with proactive cleanup
 
 ### Low Priority ⏸️
 
@@ -232,9 +224,9 @@ These are improvements over v2's architecture:
 - [x] Auto-response system (`/channel activate`)
 - [x] Rate limiting (Redis token bucket)
 - [x] Request deduplication (multi-layer detection)
-- [ ] NSFW verification
+- [x] NSFW verification
 - [ ] Personality aliases
-- [ ] DM personality chat
+- [x] DM personality chat
 - [x] Memory management (`/memory` commands)
 - [x] LLM presets (`/preset` commands)
 - [x] Extended context mode
