@@ -17,7 +17,6 @@ import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 import { ExtendedContextResolver } from './ExtendedContextResolver.js';
 import {
   isNsfwChannel,
-  isDMChannel,
   checkNsfwVerification,
   verifyNsfwUser,
   trackPendingVerificationMessage,
@@ -48,7 +47,7 @@ export class PersonalityMessageHandler {
     const userId = message.author.id;
     const { channel } = message;
 
-    // If user is in an NSFW channel, auto-verify them (enables DM access)
+    // If user is in an NSFW channel, auto-verify them and continue
     if (isNsfwChannel(channel)) {
       // Fire-and-forget - don't block the message
       void verifyNsfwUser(userId).catch(error => {
@@ -57,30 +56,35 @@ export class PersonalityMessageHandler {
       return true; // Continue processing
     }
 
-    // If user is in a DM, check verification and block if not verified
-    if (isDMChannel(channel)) {
-      const nsfwStatus = await checkNsfwVerification(userId);
-      if (!nsfwStatus.nsfwVerified) {
-        logger.info({ userId }, '[PersonalityMessageHandler] DM blocked - user not NSFW verified');
-        // Send verification message and track it for cleanup after verification
-        try {
-          const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
-          void trackPendingVerificationMessage(userId, verificationReply.id, channel.id).catch(
-            trackError => {
-              logger.warn(
-                { err: trackError, userId, messageId: verificationReply.id },
-                '[PersonalityMessageHandler] Failed to track verification message'
-              );
-            }
-          );
-        } catch (replyError) {
+    // For all other channels (DMs and non-NSFW guild channels), check verification
+    const nsfwStatus = await checkNsfwVerification(userId);
+    if (!nsfwStatus.nsfwVerified) {
+      logger.info(
+        { userId, channelType: channel.type },
+        '[PersonalityMessageHandler] Interaction blocked - user not NSFW verified'
+      );
+
+      // Send verification message and track for cleanup after verification
+      try {
+        const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
+        void trackPendingVerificationMessage(
+          userId,
+          verificationReply.id,
+          verificationReply.channelId
+        ).catch(trackError => {
           logger.warn(
-            { err: replyError, messageId: message.id },
-            '[PersonalityMessageHandler] Failed to send NSFW verification message'
+            { err: trackError, userId, messageId: verificationReply.id },
+            '[PersonalityMessageHandler] Failed to track verification message'
           );
-        }
-        return false; // Block the DM interaction
+        });
+      } catch (replyError) {
+        logger.warn(
+          { err: replyError, messageId: message.id },
+          '[PersonalityMessageHandler] Failed to send NSFW verification message'
+        );
       }
+
+      return false; // Block the interaction
     }
 
     return true; // Continue processing

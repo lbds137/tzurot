@@ -97,17 +97,17 @@ export function isDMChannel(channel: Channel): boolean {
 }
 
 /**
- * NSFW verification requirement message for DM users
+ * NSFW verification requirement message
  */
 export const NSFW_VERIFICATION_MESSAGE = `
 **Age Verification Required**
 
-To chat with me in DMs, I need to verify that you're an adult. This is a one-time verification.
+To chat with me, I need to verify that you're an adult. This is a one-time verification.
 
 **How to verify:**
 1. Go to any Discord server with an **NSFW (age-restricted) channel**
 2. Send me a message there using \`@personality_name hello\`
-3. Once verified, you can chat with me in DMs anytime!
+3. Once verified, you can chat with me anywhere!
 
 *Note: Discord only shows NSFW channels to users who have confirmed they're 18+ in their Discord settings.*
 `.trim();
