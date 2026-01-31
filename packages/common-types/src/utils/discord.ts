@@ -258,3 +258,26 @@ export function stripBotFooters(content: string): string {
   }
   return result;
 }
+
+/**
+ * Pattern for DM personality prefix added by DiscordResponseSender.
+ * Format: **Display Name:** at the start of the message
+ *
+ * This prefix is added for DM messages so users can see which personality
+ * is responding (since webhooks don't work in DMs). However, it should
+ * NOT be stored in conversation history - it pollutes long-term memory.
+ */
+const DM_PREFIX_PATTERN = /^\*\*[^*]+:\*\*\s*/;
+
+/**
+ * Strip the DM personality prefix from message content.
+ *
+ * In DMs, we add "**Display Name:** " prefix for display purposes.
+ * This should be stripped when syncing back to conversation history.
+ *
+ * @param content - Message content that may have DM prefix
+ * @returns Content with DM prefix removed
+ */
+export function stripDmPrefix(content: string): string {
+  return content.replace(DM_PREFIX_PATTERN, '');
+}

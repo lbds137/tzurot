@@ -17,6 +17,7 @@ import {
   MESSAGE_LIMITS,
   ConversationSyncService,
   stripBotFooters,
+  stripDmPrefix,
 } from '@tzurot/common-types';
 import type { ConversationMessage, AttachmentMetadata } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
@@ -890,8 +891,10 @@ export class DiscordChannelFetcher {
     // Concatenate all chunk contents
     let collatedContent = chunks.map(c => c.content).join('');
 
-    // Strip bot-added footer lines (model indicator, guest mode, auto-response)
-    // These are for Discord display only and NOT stored in the database
+    // Strip bot-added display elements that are NOT stored in the database:
+    // 1. DM prefix: "**Display Name:** " added for DM messages (webhooks don't work in DMs)
+    // 2. Footer lines: model indicator, guest mode, auto-response notices
+    collatedContent = stripDmPrefix(collatedContent);
     collatedContent = stripBotFooters(collatedContent);
 
     // SAFEGUARD: Skip sync if stripping left us with significantly less content
