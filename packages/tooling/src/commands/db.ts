@@ -75,10 +75,14 @@ export function registerDbCommands(cli: CAC): void {
     });
 
   // Safe migrate - create new migration with validation
-  cli.command('db:safe-migrate', 'Create a safe migration with validation').action(async () => {
-    const { createSafeMigration } = await import('../db/create-safe-migration.js');
-    await createSafeMigration();
-  });
+  cli
+    .command('db:safe-migrate', 'Create a safe migration with validation')
+    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'local' })
+    .option('--name <name>', 'Migration name (will prompt if not provided)')
+    .action(async (options: { env?: Environment; name?: string }) => {
+      const { createSafeMigration } = await import('../db/create-safe-migration.js');
+      await createSafeMigration(options);
+    });
 
   // Check migration safety - detect dangerous patterns like dropped indexes
   cli
