@@ -38,8 +38,8 @@ export class WebhookManager {
 
   /**
    * Get bot suffix from bot tag
-   * Format: "BotName | suffix" -> " | suffix"
-   * Or: "BotName" -> " | BotName"
+   * Format: "BotName · suffix" -> " · suffix"
+   * Or: "BotName" -> " · BotName"
    */
   private getBotSuffix(): string {
     if (this.botSuffix !== null) {
@@ -56,16 +56,16 @@ export class WebhookManager {
     const botTag = clientUser.tag;
     logger.debug(`[WebhookManager] Extracting suffix from bot tag: ${botTag}`);
 
-    // Check if tag contains " | " delimiter
-    if (botTag.includes(' | ')) {
-      const parts = botTag.split(' | ');
-      // Get the part after " | " and remove discriminator if present
+    // Check if tag contains " · " delimiter (middle dot)
+    if (botTag.includes(' · ')) {
+      const parts = botTag.split(' · ');
+      // Get the part after " · " and remove discriminator if present
       const suffix = parts[1].replace(/\s*#\d{4}$/, '').trim();
-      this.botSuffix = ` | ${suffix}`;
+      this.botSuffix = ` · ${suffix}`;
     } else {
       // No delimiter - use full username (without discriminator) as suffix
       const username = botTag.replace(/\s*#\d{4}$/, '').trim();
-      this.botSuffix = ` | ${username}`;
+      this.botSuffix = ` · ${username}`;
     }
 
     logger.debug(`[WebhookManager] Using bot suffix: "${this.botSuffix}"`);

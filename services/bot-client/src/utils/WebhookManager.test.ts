@@ -153,7 +153,7 @@ describe('WebhookManager', () => {
 
   describe('getBotSuffix (via getStandardizedUsername)', () => {
     it('should extract suffix from tag with delimiter', () => {
-      const client = createMockClient('Tzurot | Dev#0000');
+      const client = createMockClient('Tzurot · Dev#0000');
       manager = new WebhookManager(client);
 
       const personality = createMockPersonality('Lilith');
@@ -176,10 +176,10 @@ describe('WebhookManager', () => {
       const webhook = await manager.getWebhook(channel);
       await manager.sendAsPersonality(channel, personality, 'Test');
 
-      // The username should be "Lilith | SingleName"
+      // The username should be "Lilith · SingleName"
       expect(webhook.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          username: 'Lilith | SingleName',
+          username: 'Lilith · SingleName',
         })
       );
     });
@@ -197,7 +197,7 @@ describe('WebhookManager', () => {
       // Should not contain #1234
       expect(webhook.send).toHaveBeenCalledWith(
         expect.objectContaining({
-          username: 'TestPersonality | BotName',
+          username: 'TestPersonality · BotName',
         })
       );
     });
@@ -236,13 +236,13 @@ describe('WebhookManager', () => {
       expect(webhook.send).toHaveBeenNthCalledWith(
         1,
         expect.objectContaining({
-          username: 'First | CachedBot',
+          username: 'First · CachedBot',
         })
       );
       expect(webhook.send).toHaveBeenNthCalledWith(
         2,
         expect.objectContaining({
-          username: 'Second | CachedBot',
+          username: 'Second · CachedBot',
         })
       );
     });
@@ -452,7 +452,7 @@ describe('WebhookManager', () => {
       const webhook = await manager.getWebhook(channel);
       expect(webhook.send).toHaveBeenCalledWith({
         content: 'Hello world!',
-        username: 'Lilith | TestBot',
+        username: 'Lilith · TestBot',
         avatarURL: 'https://example.com/avatar.png',
       });
       expect(message.id).toBe('message-from-new-webhook');
@@ -470,7 +470,7 @@ describe('WebhookManager', () => {
       const webhook = await manager.getWebhook(channel);
       expect(webhook.send).toHaveBeenCalledWith({
         content: 'Test message',
-        username: 'NoAvatar | TestBot',
+        username: 'NoAvatar · TestBot',
         avatarURL: undefined,
       });
     });
@@ -488,7 +488,7 @@ describe('WebhookManager', () => {
       const webhook = await manager.getWebhook(thread);
       expect(webhook.send).toHaveBeenCalledWith({
         content: 'Thread message',
-        username: 'ThreadBot | TestBot',
+        username: 'ThreadBot · TestBot',
         avatarURL: undefined,
         threadId: 'thread-456',
       });
@@ -521,7 +521,7 @@ describe('WebhookManager', () => {
         const webhook = await manager.getWebhook(channel);
         expect(webhook.send).toHaveBeenCalledWith(
           expect.objectContaining({
-            username: 'Lilith Display | TestBot',
+            username: 'Lilith Display · TestBot',
           })
         );
       });
