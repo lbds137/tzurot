@@ -202,6 +202,24 @@ describe('WebhookManager', () => {
       );
     });
 
+    it('should convert legacy pipe delimiter to middle dot', async () => {
+      const client = createMockClient('Rotzot | תשב#0000');
+      manager = new WebhookManager(client);
+
+      const personality = createMockPersonality('COLD');
+      const channel = createMockTextChannel('channel-123', 'bot-123');
+
+      const webhook = await manager.getWebhook(channel);
+      await manager.sendAsPersonality(channel, personality, 'Test');
+
+      // Should extract suffix and use middle dot, not pipe
+      expect(webhook.send).toHaveBeenCalledWith(
+        expect.objectContaining({
+          username: 'COLD · תשב',
+        })
+      );
+    });
+
     it('should return empty suffix when client.user is null', async () => {
       const client = createMockClient(); // No user
       manager = new WebhookManager(client);
