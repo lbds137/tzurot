@@ -19,6 +19,10 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   channel_settings: 'Environment-specific channel activations (different bot instances)',
   user_api_keys: 'User API keys should not sync between environments (security)',
 
+  // Settings tables - user preferences that may differ between dev/prod
+  personality_default_configs:
+    'Character-level LLM preset defaults - dev/prod may use different models for testing',
+
   // Transient/ephemeral data
   pending_memories: 'Transient queue data for memory processing',
   image_description_cache: 'Cache data that can be regenerated',
@@ -57,7 +61,7 @@ export type SyncTableName =
   | 'system_prompts'
   | 'llm_configs'
   | 'personalities'
-  | 'personality_default_configs'
+  // NOTE: personality_default_configs moved to EXCLUDED_TABLES - settings, not raw data
   | 'personality_owners'
   | 'personality_aliases'
   | 'user_personality_configs'
@@ -79,11 +83,10 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // default_persona_id creates circular dependency: users ↔ personas
-    // Deferred: sync users first with NULL, then update after personas sync
-    deferredFkColumns: ['default_persona_id'],
-    // Exclude user's global LLM preset default - dev/prod may use different models for testing
-    excludeColumns: ['default_llm_config_id'],
+    // Exclude user preference columns - settings, not raw data
+    // - default_llm_config_id: user's global LLM preset default
+    // - default_persona_id: user's default persona across all characters
+    excludeColumns: ['default_llm_config_id', 'default_persona_id'],
   },
   personas: {
     pk: 'id',
@@ -115,14 +118,7 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'system_prompt_id', 'owner_id'],
     timestampColumns: ['created_at', 'updated_at'],
   },
-  personality_default_configs: {
-    pk: 'personality_id',
-    updatedAt: 'updated_at',
-    uuidColumns: ['personality_id', 'llm_config_id'],
-    timestampColumns: ['updated_at'],
-    // Exclude character-level LLM preset defaults - dev/prod may use different models
-    excludeColumns: ['llm_config_id'],
-  },
+  // NOTE: personality_default_configs moved to EXCLUDED_TABLES - settings table, not raw data
   personality_owners: {
     pk: ['personality_id', 'user_id'], // Composite key
     createdAt: 'created_at',
@@ -146,8 +142,11 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
     timestampColumns: ['created_at', 'updated_at'],
-    // Exclude user-specific LLM preset overrides - these are personal preferences per environment
-    excludeColumns: ['llm_config_id'],
+    // Exclude user preference columns - settings, not raw data
+    // - llm_config_id: user's LLM preset override for this character
+    // - persona_id: user's active persona for this character
+    // - focus_mode_enabled: user's focus mode setting (disables LTM retrieval)
+    excludeColumns: ['llm_config_id', 'persona_id', 'focus_mode_enabled'],
   },
   user_persona_history_configs: {
     pk: 'id',
@@ -155,6 +154,9 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id'],
     timestampColumns: ['created_at', 'updated_at', 'last_context_reset', 'previous_context_reset'],
+    // Exclude context reset timestamps - settings, not raw data
+    // Dev may have different reset points than prod (frequent resets during testing)
+    excludeColumns: ['last_context_reset', 'previous_context_reset'],
   },
   conversation_history: {
     pk: 'id',
@@ -191,46 +193,39 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
 /**
  * Sync order that respects foreign key dependencies.
  *
- * CIRCULAR DEPENDENCY: users ↔ personas
- * - personas.owner_id → users.id (REQUIRED, NOT NULL)
- * - users.default_persona_id → personas.id (NULLABLE)
- *
- * Solution: Two-pass sync
- * 1. Users synced first with default_persona_id deferred (set to NULL)
- * 2. Personas synced (can now reference users via owner_id)
- * 3. Deferred FK columns updated after all tables synced
- *
- * Other dependencies:
+ * Dependencies:
  * - system_prompts: no FK deps
+ * - users: no synced FK deps (default_persona_id and default_llm_config_id are excluded)
  * - llm_configs: owner_id → users (NOT NULL)
+ * - personas: owner_id → users (NOT NULL)
  * - personalities: system_prompt_id → system_prompts, owner_id → users (NOT NULL)
- * - personality_default_configs: personality_id → personalities, llm_config_id → llm_configs
  * - personality_owners: personality_id → personalities, user_id → users
  * - personality_aliases: personality_id → personalities
- * - user_personality_configs: user_id → users, personality_id → personalities, etc.
+ * - user_personality_configs: user_id → users, personality_id → personalities
  * - user_persona_history_configs: user_id → users, personality_id → personalities, persona_id → personas
  * - conversation_history: persona_id → personas, personality_id → personalities
  * - memories: persona_id → personas, personality_id → personalities
- * NOTE: activated_channels intentionally NOT synced (different bot instances per environment)
  * - shapes_persona_mappings: persona_id → personas, mapped_by → users
+ *
+ * NOTE: personality_default_configs moved to EXCLUDED_TABLES (settings, not raw data)
+ * NOTE: activated_channels/channel_settings in EXCLUDED_TABLES (different bot instances)
  */
 /**
  * CRITICAL: users MUST come before personas because:
  * - personas.owner_id -> users.id is NOT NULL (required FK, cannot defer)
- * - users.default_persona_id -> personas.id is NULLABLE (can defer to pass 2)
  *
  * If you change this order, sync will fail with FK constraint violations!
  */
 export const SYNC_TABLE_ORDER: SyncTableName[] = [
   // Base tables - users first because llm_configs/personas/personalities.owner_id is REQUIRED
   'system_prompts',
-  'users', // Synced with default_persona_id=NULL (deferred)
+  'users',
   'llm_configs', // Requires users.id via owner_id (NOT NULL)
   'personas', // Can now reference users via owner_id
   // Personalities depends on system_prompts and users (owner_id NOT NULL)
   'personalities',
   // Junction/config tables that depend on the above
-  'personality_default_configs',
+  // NOTE: personality_default_configs excluded - settings table, not raw data
   'personality_owners',
   'personality_aliases',
   'user_personality_configs',
