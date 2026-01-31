@@ -366,6 +366,13 @@ export async function handleChat(
       return;
     }
 
+    // 6b. In weigh-in mode, clear persona info so no <from> tag is added
+    // The weigh-in prompt is a system instruction, not a user message
+    if (isWeighInMode) {
+      buildResult.context.activePersonaId = undefined;
+      buildResult.context.activePersonaName = undefined;
+    }
+
     // 7. Get display name from context build (persona name or Discord name)
     const displayName = buildResult.personaName ?? discordDisplayName;
 
