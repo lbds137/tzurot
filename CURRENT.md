@@ -45,7 +45,13 @@ Two features on current branch:
 
 ## Session Summary (2026-01-31)
 
-Major cleanup session:
+Bug fixes deployed:
+
+- **Thread Verification Cleanup Fix**: `VerificationMessageCleanup.deleteMessage()` now supports thread channels (PublicThread, PrivateThread, AnnouncementThread). Previously these channels were silently skipped.
+- **DM Message Link Fix**: `/admin debug` now supports DM message links (`@me` format). The regex only matched guild channel links, causing "Diagnostic log not found" errors for DM links.
+- **Added Backlog Item**: DRY refactoring for shared channel type utilities (duplicated in VerificationMessageCleanup and sendNsfwVerificationMessage).
+
+Earlier cleanup session:
 
 - **v2 Legacy Cleanup**: Removed scripts/ and tests/ from tzurot-legacy (Jest-based, not useful for v3). Kept src/ for feature porting reference and useful docs (Shapes API, features).
 - **v3 Scripts Cleanup**: Removed v2 cruft from v3 scripts/ (git helpers, Jest-based testing scripts). Added Steam Deck SSH docs.
