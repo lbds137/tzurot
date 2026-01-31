@@ -3,8 +3,10 @@
  *
  * Tests the LLM diagnostic log retrieval endpoints:
  * - GET /admin/diagnostic/recent - List recent logs with filtering
- * - GET /admin/diagnostic/by-message/:messageId - Get logs by Discord message ID
+ * - GET /admin/diagnostic/by-message/:messageId - Get logs by Discord trigger message ID
+ * - GET /admin/diagnostic/by-response/:messageId - Get logs by AI response message ID
  * - GET /admin/diagnostic/:requestId - Get full diagnostic payload
+ * - PATCH /admin/diagnostic/:requestId/response-ids - Update response message IDs
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -32,6 +34,8 @@ describe('Admin Diagnostic Routes', () => {
     llmDiagnosticLog: {
       findMany: ReturnType<typeof vi.fn>;
       findUnique: ReturnType<typeof vi.fn>;
+      findFirst: ReturnType<typeof vi.fn>;
+      update: ReturnType<typeof vi.fn>;
     };
   };
   let app: express.Express;
@@ -110,6 +114,8 @@ describe('Admin Diagnostic Routes', () => {
       llmDiagnosticLog: {
         findMany: vi.fn(),
         findUnique: vi.fn(),
+        findFirst: vi.fn(),
+        update: vi.fn(),
       },
     };
 
@@ -486,6 +492,163 @@ describe('Admin Diagnostic Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.log.personalityId).toBeNull();
       expect(response.body.log.guildId).toBeNull();
+    });
+  });
+
+  describe('GET /admin/diagnostic/by-response/:messageId', () => {
+    it('should return log for a valid response message ID', async () => {
+      mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue({
+        id: 'log-uuid',
+        requestId: 'test-req-123',
+        triggerMessageId: '1234567890123456789',
+        responseMessageIds: ['9999888877776666555', '9999888877776666556'],
+        personalityId: 'personality-uuid',
+        userId: '123456789',
+        guildId: '987654321',
+        channelId: '111222333',
+        model: 'claude-3-5-sonnet',
+        provider: 'anthropic',
+        durationMs: 1500,
+        createdAt: new Date('2026-01-22T12:00:00Z'),
+        data: mockDiagnosticPayload,
+      });
+
+      const response = await request(app).get('/admin/diagnostic/by-response/9999888877776666555');
+
+      expect(response.status).toBe(200);
+      expect(response.body.log.requestId).toBe('test-req-123');
+      expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
+        where: {
+          responseMessageIds: { has: '9999888877776666555' },
+        },
+      });
+    });
+
+    it('should return 404 when no log contains the response message ID', async () => {
+      mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).get('/admin/diagnostic/by-response/nonexistent');
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toContain('not found');
+    });
+
+    it('should work with any chunk in a multi-chunk response', async () => {
+      // Response was split into 3 chunks, looking up by the middle chunk
+      mockPrisma.llmDiagnosticLog.findFirst.mockResolvedValue({
+        id: 'log-uuid',
+        requestId: 'chunked-req',
+        triggerMessageId: '1111111111111111111',
+        responseMessageIds: ['chunk-1', 'chunk-2', 'chunk-3'],
+        personalityId: 'p-uuid',
+        userId: 'u-123',
+        guildId: 'g-456',
+        channelId: 'c-789',
+        model: 'test',
+        provider: 'test',
+        durationMs: 1000,
+        createdAt: new Date(),
+        data: mockDiagnosticPayload,
+      });
+
+      const response = await request(app).get('/admin/diagnostic/by-response/chunk-2');
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.llmDiagnosticLog.findFirst).toHaveBeenCalledWith({
+        where: { responseMessageIds: { has: 'chunk-2' } },
+      });
+    });
+  });
+
+  describe('PATCH /admin/diagnostic/:requestId/response-ids', () => {
+    it('should update response message IDs', async () => {
+      mockPrisma.llmDiagnosticLog.update.mockResolvedValue({
+        requestId: 'test-req-123',
+        responseMessageIds: ['msg-1', 'msg-2'],
+      });
+
+      const response = await request(app)
+        .patch('/admin/diagnostic/test-req-123/response-ids')
+        .send({ responseMessageIds: ['msg-1', 'msg-2'] });
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(mockPrisma.llmDiagnosticLog.update).toHaveBeenCalledWith({
+        where: { requestId: 'test-req-123' },
+        data: { responseMessageIds: ['msg-1', 'msg-2'] },
+      });
+    });
+
+    it('should accept single message ID array', async () => {
+      mockPrisma.llmDiagnosticLog.update.mockResolvedValue({
+        requestId: 'test-req',
+        responseMessageIds: ['single-msg'],
+      });
+
+      const response = await request(app)
+        .patch('/admin/diagnostic/test-req/response-ids')
+        .send({ responseMessageIds: ['single-msg'] });
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.llmDiagnosticLog.update).toHaveBeenCalledWith({
+        where: { requestId: 'test-req' },
+        data: { responseMessageIds: ['single-msg'] },
+      });
+    });
+
+    it('should return 400 if responseMessageIds is not an array', async () => {
+      const response = await request(app)
+        .patch('/admin/diagnostic/test-req/response-ids')
+        .send({ responseMessageIds: 'not-an-array' });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('must be an array');
+    });
+
+    it('should return 400 if responseMessageIds is missing', async () => {
+      const response = await request(app).patch('/admin/diagnostic/test-req/response-ids').send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('must be an array');
+    });
+
+    it('should return 400 if array contains non-strings', async () => {
+      const response = await request(app)
+        .patch('/admin/diagnostic/test-req/response-ids')
+        .send({ responseMessageIds: ['valid', 123, 'also-valid'] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('non-empty strings');
+    });
+
+    it('should return 400 if array contains empty strings', async () => {
+      const response = await request(app)
+        .patch('/admin/diagnostic/test-req/response-ids')
+        .send({ responseMessageIds: ['valid', '', 'also-valid'] });
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('non-empty strings');
+    });
+
+    it('should return 404 when diagnostic log not found', async () => {
+      mockPrisma.llmDiagnosticLog.update.mockRejectedValue({ code: 'P2025' });
+
+      const response = await request(app)
+        .patch('/admin/diagnostic/nonexistent/response-ids')
+        .send({ responseMessageIds: ['msg-1'] });
+
+      expect(response.status).toBe(404);
+      expect(response.body.message).toContain('not found');
+    });
+
+    it('should propagate other errors', async () => {
+      mockPrisma.llmDiagnosticLog.update.mockRejectedValue(new Error('Database error'));
+
+      const response = await request(app)
+        .patch('/admin/diagnostic/test-req/response-ids')
+        .send({ responseMessageIds: ['msg-1'] });
+
+      expect(response.status).toBe(500);
     });
   });
 });

@@ -550,6 +550,10 @@ model LlmDiagnosticLog {
   /// Discord message ID that triggered this request (for diagnostic lookup by message)
   triggerMessageId String? @map("trigger_message_id") @db.VarChar(20)
 
+  /// Discord message IDs for AI response chunks (for lookup by response message)
+  /// Populated after response is sent to Discord via PATCH endpoint
+  responseMessageIds String[] @default([]) @map("response_message_ids")
+
   /// Top-level indexed fields for filtering/queries
   personalityId String? @map("personality_id") @db.Uuid
   userId        String? @map("user_id") @db.VarChar(20)
@@ -565,6 +569,7 @@ model LlmDiagnosticLog {
 
   @@index([createdAt])
   @@index([triggerMessageId])
+  @@index([responseMessageIds], type: Gin)
   @@index([personalityId])
   @@index([userId])
   @@index([guildId])

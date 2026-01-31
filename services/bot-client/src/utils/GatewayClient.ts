@@ -507,4 +507,56 @@ export class GatewayClient {
       return null;
     }
   }
+
+  /**
+   * Update diagnostic log with response message IDs
+   *
+   * Called after sending AI response to Discord to link the diagnostic log
+   * with the Discord message IDs for the response chunks.
+   * This enables /admin debug to lookup by response message ID.
+   *
+   * Fire-and-forget pattern - errors are logged but don't affect the response flow.
+   *
+   * @param requestId - The request ID from the AI generation
+   * @param responseMessageIds - Array of Discord message IDs for the response chunks
+   */
+  async updateDiagnosticResponseIds(
+    requestId: string,
+    responseMessageIds: string[]
+  ): Promise<void> {
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/admin/diagnostic/${encodeURIComponent(requestId)}/response-ids`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': CONTENT_TYPES.JSON,
+            'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+          },
+          body: JSON.stringify({ responseMessageIds }),
+          signal: AbortSignal.timeout(5000), // 5s timeout
+        }
+      );
+
+      if (!response.ok) {
+        // Log but don't throw - this is best-effort
+        logger.warn(
+          { requestId, status: response.status },
+          '[GatewayClient] Failed to update diagnostic response IDs'
+        );
+        return;
+      }
+
+      logger.debug(
+        { requestId, responseMessageIds },
+        '[GatewayClient] Updated diagnostic response IDs'
+      );
+    } catch (error) {
+      // Log but don't throw - this is fire-and-forget
+      logger.warn(
+        { err: error, requestId },
+        '[GatewayClient] Error updating diagnostic response IDs'
+      );
+    }
+  }
 }
