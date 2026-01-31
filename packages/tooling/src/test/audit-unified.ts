@@ -41,7 +41,7 @@ export interface AuditUnifiedOptions {
   verbose?: boolean;
 }
 
-const UNIFIED_BASELINE_PATH = 'test-coverage-baseline.json';
+const UNIFIED_BASELINE_PATH = '.github/baselines/test-coverage-baseline.json';
 
 // ============================================================================
 // Service Audit Logic

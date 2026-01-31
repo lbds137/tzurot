@@ -167,7 +167,7 @@ Ratchet audits to enforce test coverage (CI runs these automatically):
 
 **How ratchets work:**
 
-- Baselines track known gaps (`contract-coverage-baseline.json`, `service-integration-baseline.json`)
+- Baselines track known gaps (`.github/baselines/*.json`)
 - CI passes if no NEW gaps are introduced
 - Use `--update` to accept current state after closing gaps
 - Use `--strict` to see ALL gaps (existing + new)
