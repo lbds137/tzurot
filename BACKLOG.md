@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-01-31
-> **Version**: v3.0.0-beta.60
+> **Version**: v3.0.0-beta.61
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -21,21 +21,7 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 1. 🐛 /character chat Missing Conversation History Storage
-
-`/character chat` doesn't store conversation history (both user and assistant messages). This breaks LTM and extended context for slash command conversations.
-
-**Root Cause**: `ConversationPersistence` expects a Discord `Message` object but slash commands only have interaction data.
-
-**Fix Options**:
-
-- [ ] Refactor `ConversationPersistence.saveUserMessage()` to accept fields instead of `Message`
-- [ ] Add `saveUserMessageFromInteraction()` variant
-- [ ] Or: create a synthetic Message-like object from interaction + channel.send() result
-
-**Files**: `ConversationPersistence.ts`, `character/chat.ts`
-
-### 2. ✨ Multi-Personality Per Channel
+### ✨ Multi-Personality Per Channel
 
 Allow multiple personalities active in a single channel.
 
@@ -72,26 +58,6 @@ The pipeline has two parallel code paths (extended context on/off) that constant
 - [ ] Consolidate types - `ConversationHistoryEntry` carries ALL data through pipeline
 
 **Files**: `DiscordChannelFetcher.ts`, `MessageContextBuilder.ts`, `conversationUtils.ts`, pipeline steps
-
-### ✨ LTM Summarization (Shapes.inc Style)
-
-Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
-
-- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
-- [ ] Separate LLM call for summarization (fast/cheap model)
-- [ ] Store summaries as LTM instead of verbatim turns
-
-**Depends on**: Pipeline Refactor
-
-### 🏗️ Memories Table Migration
-
-Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
-
-- [ ] Design unified memory format (draw from both sources)
-- [ ] One-time migration of existing tzurot-v3 memories
-- [ ] Run existing verbatim memories through summarizer
-
-**Depends on**: LTM Summarization
 
 ---
 
@@ -145,26 +111,9 @@ Support tagging multiple characters in one message, each responding in order.
 
 ---
 
-## Epic: v2 Parity
+## Epic: Character Portability
 
-_Eventually kill v2, but not urgent._
-
-### ✨ Shapes.inc Import
-
-Migration path from v2.
-
-- [ ] Parse shapes.inc backup JSON format
-- [ ] Import wizard slash command (`/character import`)
-- [ ] Map shapes.inc fields to v3 personality schema
-- [ ] Handle avatar migration
-
-### 🧹 Rate Limiting
-
-- [ ] Token bucket rate limiting
-
-### ✨ PluralKit Proxy Support
-
-- [ ] Support PluralKit proxied messages
+_Import characters from various sources into v3._
 
 ### ✨ Character Card Import
 
@@ -174,11 +123,38 @@ Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibi
 - [ ] Map character card fields to v3 personality schema
 - [ ] `/character import` support for PNG files
 
+### 🏗️ Shapes.inc Import
+
+Migration path from v2. Legacy data migration.
+
+- [ ] Parse shapes.inc backup JSON format
+- [ ] Import wizard slash command (`/character import --source shapes`)
+- [ ] Map shapes.inc fields to v3 personality schema
+- [ ] Handle avatar migration
+
 ---
 
-## Epic: API & Validation Hardening
+## Epic: v2 Parity
 
-### 🏗️ Inconsistent Request Validation
+_Eventually kill v2, but not urgent._
+
+### 🧹 Rate Limiting
+
+- [ ] Token bucket rate limiting
+
+### ✨ PluralKit Proxy Support
+
+- [ ] Support PluralKit proxied messages
+
+---
+
+## Epic: Infrastructure & Stability
+
+_Backend health: API hardening, observability, logging. Consolidated for maintenance sprints._
+
+### API & Validation Hardening
+
+#### 🏗️ Inconsistent Request Validation
 
 Mix of manual type checks, Zod schemas, and `as Type` casting.
 
@@ -186,17 +162,17 @@ Mix of manual type checks, Zod schemas, and `as Type` casting.
 - [ ] Create `schemas/` directory, use `safeParse` consistently
 - [ ] Audit: `routes/user/*.ts`, `routes/admin/*.ts`, `routes/internal/*.ts`
 
-### 🐛 API Response Consistency
+#### 🐛 API Response Consistency
 
 Same resource returns different fields from GET vs POST vs PUT.
 
 - [ ] Shared response builder functions per resource type
 
-### 🐛 Date String Validation for Memory Search
+#### 🐛 Date String Validation for Memory Search
 
 `dateFrom`/`dateTo` accepted without validation - invalid dates cause PostgreSQL errors.
 
-### 🏗️ Zod Schema/TypeScript Interface Mismatch
+#### 🏗️ Zod Schema/TypeScript Interface Mismatch
 
 Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data disappears.
 
@@ -204,23 +180,21 @@ Zod strips fields not in schema. When we add fields to TS interfaces but forget 
 - [ ] Use `.passthrough()` or `.strict()` during development
 - [ ] Audit: `schemas.ts`, `jobs.ts`, route schemas
 
----
+### Observability & Debugging
 
-## Epic: Observability & Debugging
-
-### 🏗️ Basic Structured Logging
+#### 🏗️ Basic Structured Logging
 
 Add event types: `rate_limit_hit`, `dedup_cache_hit`, `pipeline_step_failed`, `llm_request` with latency/tokens.
 
-### ✨ Admin Debug Filtering
+#### ✨ Admin Debug Filtering
 
 Add `/admin debug recent` with personality/user/channel filters.
 
-### 🧹 DLQ Viewing Script
+#### 🧹 DLQ Viewing Script
 
 Create `scripts/debug/view-failed-jobs.ts` to inspect failed BullMQ jobs.
 
-### 🏗️ Metrics & Monitoring (Prometheus)
+#### 🏗️ Metrics & Monitoring (Prometheus)
 
 Production observability with metrics collection.
 
@@ -228,13 +202,11 @@ Production observability with metrics collection.
 - [ ] Key metrics: request latency, token usage, error rates, queue depth
 - [ ] Grafana dashboards (or Railway's built-in metrics)
 
----
-
-## Epic: Logging Review (Low Priority)
+### Logging Review (Low Priority)
 
 _High effort, low reward. Do opportunistically._
 
-### 🏗️ Consistent Service Prefix Injection
+#### 🏗️ Consistent Service Prefix Injection
 
 Currently manually hardcoding `[ServiceName]` in log messages. Should be injected automatically based on where the log originates.
 
@@ -245,7 +217,7 @@ Currently manually hardcoding `[ServiceName]` in log messages. Should be injecte
 
 **Note**: Large refactor touching most files. Only do when logging becomes a pain point.
 
-### 🧹 Logging Verbosity Audit
+#### 🧹 Logging Verbosity Audit
 
 Some operations log at INFO when they should be DEBUG.
 
@@ -255,23 +227,39 @@ Some operations log at INFO when they should be DEBUG.
 
 ---
 
-## Epic: Memory System
+## Epic: Memory System Overhaul
 
-### 🏗️ Per-User Quotas
+_Dependency chain: Pipeline Refactor → LTM Summarization → Table Migration → OpenMemory_
 
-No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000).
+### 1. ✨ LTM Summarization (Shapes.inc Style) ⛔ Blocked by Pipeline Refactor
 
-### 🐛 Redundant Referenced Messages
+Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
 
-Reply to message in context stores it twice (context + `[Referenced content:]`).
+- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
+- [ ] Separate LLM call for summarization (fast/cheap model)
+- [ ] Store summaries as LTM instead of verbatim turns
 
-### 🏗️ OpenMemory Migration
+**Depends on**: Extended Context Pipeline Refactor (Medium Priority)
+
+### 2. 🏗️ Memories Table Migration ⛔ Blocked by LTM Summarization
+
+Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
+
+- [ ] Design unified memory format (draw from both sources)
+- [ ] One-time migration of existing tzurot-v3 memories
+- [ ] Run existing verbatim memories through summarizer
+
+### 3. 🏗️ OpenMemory Migration
 
 Waypoint graph architecture with multi-sector storage.
 
 - [ ] Design waypoint graph schema
 - [ ] Migration path from current flat memories
 - [ ] See `docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md`
+
+### 🏗️ Per-User Quotas
+
+No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000).
 
 ### 🏗️ Contrastive Retrieval for RAG
 
@@ -295,11 +283,15 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 ---
 
-## Epic: Advanced Prompt Features
+## Epic: Next-Gen AI Capabilities
 
-_SillyTavern-inspired prompt engineering features._
+_Future features: agentic behavior, multi-modality, advanced prompts._
 
-### ✨ Lorebooks / Sticky Context
+### Advanced Prompt Features
+
+_SillyTavern-inspired prompt engineering._
+
+#### ✨ Lorebooks / Sticky Context
 
 Keyword-triggered lore injection with TTL.
 
@@ -308,7 +300,7 @@ Keyword-triggered lore injection with TTL.
 - [ ] Inject matched lore into system prompt or context
 - [ ] TTL/decay for injected content
 
-### ✨ Author's Note Depth Injection
+#### ✨ Author's Note Depth Injection
 
 Insert author's notes at configurable depth in conversation.
 
@@ -316,7 +308,7 @@ Insert author's notes at configurable depth in conversation.
 - [ ] Configurable injection depth (N messages from end)
 - [ ] Support multiple author's notes with different depths
 
-### 🏗️ Dynamic Directive Injection (Anti-Sycophancy)
+#### 🏗️ Dynamic Directive Injection (Anti-Sycophancy)
 
 Dynamically inject directives to improve response quality.
 
@@ -324,13 +316,11 @@ Dynamically inject directives to improve response quality.
 - [ ] Configurable directive templates
 - [ ] A/B testing framework for directive effectiveness
 
----
-
-## Epic: Agentic Features
+### Agentic Features
 
 _Self-directed personality behaviors._
 
-### 🏗️ Agentic Scaffolding
+#### 🏗️ Agentic Scaffolding
 
 Think → Act → Observe loop for autonomous behavior.
 
@@ -339,7 +329,7 @@ Think → Act → Observe loop for autonomous behavior.
 - [ ] Observation and reflection mechanisms
 - [ ] Safety guardrails and intervention points
 
-### ✨ Dream Sequences
+#### ✨ Dream Sequences
 
 Self-reflection and memory consolidation.
 
@@ -347,7 +337,7 @@ Self-reflection and memory consolidation.
 - [ ] Memory review and consolidation
 - [ ] Personality growth/change over time
 
-### 🏗️ Relationship Graphs
+#### 🏗️ Relationship Graphs
 
 Track relationships between users and personalities.
 
@@ -355,13 +345,11 @@ Track relationships between users and personalities.
 - [ ] Relationship-aware response generation
 - [ ] Visualization for users (`/me relationships`)
 
----
-
-## Epic: Multi-Modality
+### Multi-Modality
 
 _Beyond text: voice and images._
 
-### ✨ Voice Synthesis
+#### ✨ Voice Synthesis
 
 Open-source TTS/STT for voice interactions.
 
@@ -370,7 +358,7 @@ Open-source TTS/STT for voice interactions.
 - [ ] Discord voice channel integration
 - [ ] See `docs/research/voice-cloning-2026.md`
 
-### ✨ Image Generation
+#### ✨ Image Generation
 
 AI-generated images from personalities.
 
@@ -447,10 +435,6 @@ Both have similar patterns checking `PublicThread`, `PrivateThread`, `Announceme
 - [ ] Consider placing in `packages/common-types/src/utils/discordChannelUtils.ts`
 
 **Files**: `services/bot-client/src/utils/nsfwVerification.ts`, `services/bot-client/src/services/VerificationMessageCleanup.ts`
-
-### 🏗️ N+1 Query Pattern in UserReferenceResolver
-
-Sequential DB queries in a loop for user references. Use batch extraction pattern.
 
 ### 🏗️ Split Large Service Files
 
