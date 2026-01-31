@@ -460,7 +460,7 @@ export class SimpleService {
 
       expect(mockWriteFileSync).toHaveBeenCalledTimes(1);
       const [path, content] = mockWriteFileSync.mock.calls[0];
-      expect(path).toBe('/mock/project/test-coverage-baseline.json');
+      expect(path).toBe('/mock/project/.github/baselines/test-coverage-baseline.json');
 
       const written = JSON.parse(content as string);
       expect(written.version).toBe(3);
