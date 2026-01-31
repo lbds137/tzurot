@@ -74,8 +74,8 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
 
 ### Prerequisites
 
-- Node.js 20+
-- pnpm 8+
+- Node.js 25+
+- pnpm 10+
 - Redis (for BullMQ)
 - Discord Bot Token
 - OpenRouter API Key
@@ -94,8 +94,9 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
    cp .env.example .env
    # Edit .env with your tokens and keys
    # Required: DISCORD_TOKEN, DATABASE_URL (PostgreSQL with pgvector)
-   # Required: AI provider keys (OpenRouter or Gemini), OPENAI_API_KEY (for embeddings)
+   # Required: OPENROUTER_API_KEY (for AI responses)
    # Optional: REDIS_URL (Railway provides this automatically)
+   # Note: Embeddings use local model (Xenova/bge-small-en-v1.5), no API key needed
    ```
 
 3. **Start services:**
@@ -167,6 +168,8 @@ const provider = AIProviderFactory.create('openai', {
 - **BYOK (Bring Your Own Key)**: Users provide their own OpenRouter API keys
 - **Guest Mode**: Free model access for users without API keys
 - **Channel Activation**: Personalities can auto-respond to all messages in a channel
+- **NSFW Verification**: Age verification via Discord's native age-gated channels
+- **DM Chat**: Chat with personalities in DMs by replying to bot messages
 - **Slash Commands**:
   - `/persona view/edit/create/browse/default` - User persona management
   - `/persona share-ltm` - Share long-term memory between personas
@@ -191,9 +194,9 @@ const provider = AIProviderFactory.create('openai', {
 
 ### 📋 Planned Features
 
-- Rate limiting per user/channel
-- NSFW verification system
-- Advanced memory features (OpenMemory integration)
+- Multi-personality per channel (multiple bots responding naturally)
+- Advanced memory features (LTM summarization, OpenMemory integration)
+- Lorebooks / sticky context (keyword-triggered lore injection)
 
 ## Development
 
@@ -260,7 +263,7 @@ pnpm dev
 
 ### Project Status & Planning
 
-- **[CURRENT_WORK.md](CURRENT_WORK.md)** - Current project status and what's being worked on
+- **[CURRENT.md](CURRENT.md)** - Current session status and active work
 - **[GitHub Releases](https://github.com/lbds137/tzurot/releases)** - Version history and changelogs
 - **[V2 Feature Tracking](docs/proposals/active/V2_FEATURE_TRACKING.md)** - What's been ported from v2
 
