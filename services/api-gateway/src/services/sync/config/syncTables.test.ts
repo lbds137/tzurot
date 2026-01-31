@@ -93,8 +93,8 @@ describe('syncTables Configuration', () => {
       assertParentBeforeChild('users', 'personas', 'owner_id');
     });
 
-    // users.default_llm_config_id -> llm_configs.id (DEFERRED - synced in pass 2)
-    // No order test needed - users synced first with NULL, then updated after llm_configs
+    // users.default_llm_config_id -> llm_configs.id (EXCLUDED from sync - env-specific)
+    // No order test needed - column is not synced between environments
 
     // personalities.system_prompt_id -> system_prompts.id
     it('should sync system_prompts before personalities (personalities.system_prompt_id FK)', () => {
@@ -245,15 +245,14 @@ describe('syncTables Configuration', () => {
       expect(usersConfig.deferredFkColumns).toContain('default_persona_id');
     });
 
-    it('should only defer nullable FK columns', () => {
+    it('should only defer nullable FK columns that need syncing', () => {
       // Deferred FK columns must be nullable because they're set to NULL in pass 1
-      // users.default_persona_id and users.default_llm_config_id are deferred
-      // (circular deps: users ↔ personas, users ↔ llm_configs)
+      // users.default_persona_id is deferred (circular dep: users ↔ personas)
+      // users.default_llm_config_id is EXCLUDED from sync (not deferred) - env-specific
       const usersConfig = SYNC_CONFIG.users;
-      expect(usersConfig.deferredFkColumns).toEqual([
-        'default_persona_id',
-        'default_llm_config_id',
-      ]);
+      expect(usersConfig.deferredFkColumns).toEqual(['default_persona_id']);
+      // Verify default_llm_config_id is excluded instead of deferred
+      expect(usersConfig.excludeColumns).toContain('default_llm_config_id');
     });
 
     it('should have deferredFkColumns as array or undefined for all tables', () => {
