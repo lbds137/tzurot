@@ -27,6 +27,7 @@ import {
 } from './ModelFactory.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError } from '../utils/apiErrorParser.js';
+import { recordStopSequenceActivation } from './StopSequenceTracker.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,
@@ -417,6 +418,10 @@ export class LLMInvoker {
       logger.debug(logContext, '[LLMInvoker] Model completed naturally');
     } else if (stoppedAt !== null) {
       // Our stop sequence triggered - safety measure worked
+      // Record in memory tracker for admin visibility
+      // stoppedAt is usually a string, but could be object from some providers
+      const sequenceStr = typeof stoppedAt === 'string' ? stoppedAt : JSON.stringify(stoppedAt);
+      recordStopSequenceActivation(sequenceStr, modelName);
       logger.info(
         logContext,
         '[LLMInvoker] Stop sequence triggered - prevented potential identity bleeding or hallucination'
