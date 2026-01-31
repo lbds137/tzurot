@@ -13,7 +13,7 @@
  */
 
 import type { Message, DMChannel } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, getConfig } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -26,6 +26,7 @@ import {
   NSFW_VERIFICATION_MESSAGE,
 } from '../utils/nsfwVerification.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
 const logger = createLogger('DMSessionProcessor');
 
@@ -72,7 +73,25 @@ export class DMSessionProcessor implements IMessageProcessor {
       return true; // Consume message
     }
 
-    // 3. Find active personality from recent DM messages
+    // 3. Check for explicit personality mention - let PersonalityMentionProcessor handle it
+    const config = getConfig();
+    const effectiveContent = getEffectiveContent(message);
+    const mentionMatch = await findPersonalityMention(
+      effectiveContent,
+      config.BOT_MENTION_CHAR,
+      this.personalityService,
+      userId
+    );
+
+    if (mentionMatch !== null) {
+      logger.debug(
+        { userId, mentionedPersonality: mentionMatch.personalityName },
+        '[DMSessionProcessor] Explicit mention found, deferring to PersonalityMentionProcessor'
+      );
+      return false; // Let PersonalityMentionProcessor handle it
+    }
+
+    // 5. Find active personality from recent DM messages
     const personalityId = await this.findActivePersonality(message.channel as DMChannel, botId);
 
     if (personalityId === null || personalityId.length === 0) {
@@ -82,7 +101,7 @@ export class DMSessionProcessor implements IMessageProcessor {
       return true; // Consume message (don't continue chain)
     }
 
-    // 3. Load personality with access control
+    // 6. Load personality with access control
     const personality = await this.personalityService.loadPersonality(personalityId, userId);
 
     if (!personality) {
@@ -95,7 +114,7 @@ export class DMSessionProcessor implements IMessageProcessor {
       return true;
     }
 
-    // 4. Handle the message via existing infrastructure
+    // 7. Handle the message via existing infrastructure
     const voiceTranscript = VoiceMessageProcessor.getVoiceTranscript(message);
     const content = voiceTranscript ?? getEffectiveContent(message);
 

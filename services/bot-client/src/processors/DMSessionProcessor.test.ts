@@ -28,12 +28,18 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   NSFW_VERIFICATION_MESSAGE: '**Age Verification Required**\n\nMocked message',
 }));
 
+// Mock personalityMentionParser
+vi.mock('../utils/personalityMentionParser.js', () => ({
+  findPersonalityMention: vi.fn(),
+}));
+
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
   isDMChannel,
   checkNsfwVerification,
   trackPendingVerificationMessage,
 } from '../utils/nsfwVerification.js';
+import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
 function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChannel {
   const messagesCollection = new Collection<string, Message>();
@@ -129,6 +135,8 @@ describe('DMSessionProcessor', () => {
       nsfwVerifiedAt: new Date().toISOString(),
     });
     vi.mocked(trackPendingVerificationMessage).mockResolvedValue(undefined);
+    // Default: no explicit personality mention (override in specific tests)
+    vi.mocked(findPersonalityMention).mockResolvedValue(null);
 
     mockGatewayClient = {
       lookupPersonalityFromConversation: vi.fn(),
@@ -547,6 +555,81 @@ describe('DMSessionProcessor', () => {
         expect.anything(),
         expect.anything(),
         expect.anything(),
+        { isAutoResponse: true }
+      );
+    });
+  });
+
+  describe('Explicit mention handling', () => {
+    it('should defer to PersonalityMentionProcessor when explicit mention found', async () => {
+      const botId = 'bot-123';
+      const botMessage = createMockBotMessage({
+        id: 'bot-msg-123',
+        content: '**COLD:** Hello',
+        botId,
+      });
+
+      const messagesCollection = new Collection<string, Message>();
+      messagesCollection.set(botMessage.id, botMessage);
+
+      const channel = createMockDMChannel();
+      (channel.messages.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(messagesCollection);
+
+      const message = createMockMessage({ channel, botId, content: '&Selah hi' });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+
+      // Setup: COLD is active, but user mentioned Selah
+      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+        personalityId: 'cold-id',
+      });
+      vi.mocked(findPersonalityMention).mockResolvedValue({
+        personalityName: 'Selah',
+        cleanContent: 'hi',
+      });
+
+      const result = await processor.process(message);
+
+      // Should return false to let PersonalityMentionProcessor handle it
+      expect(result).toBe(false);
+      // Should NOT route to COLD
+      expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
+      // Should NOT show help message
+      expect(message.reply).not.toHaveBeenCalled();
+    });
+
+    it('should process normally when no explicit mention', async () => {
+      const botId = 'bot-123';
+      const botMessage = createMockBotMessage({
+        id: 'bot-msg-123',
+        content: '**Lilith:** Hello',
+        botId,
+      });
+
+      const messagesCollection = new Collection<string, Message>();
+      messagesCollection.set(botMessage.id, botMessage);
+
+      const channel = createMockDMChannel();
+      (channel.messages.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(messagesCollection);
+
+      const message = createMockMessage({ channel, botId, content: 'just a normal message' });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+
+      // No explicit mention
+      vi.mocked(findPersonalityMention).mockResolvedValue(null);
+
+      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+        personalityId: 'lilith-id',
+      });
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      const result = await processor.process(message);
+
+      // Should process via active session
+      expect(result).toBe(true);
+      expect(mockPersonalityHandler.handleMessage).toHaveBeenCalledWith(
+        message,
+        mockLilithPersonality,
+        'just a normal message',
         { isAutoResponse: true }
       );
     });
