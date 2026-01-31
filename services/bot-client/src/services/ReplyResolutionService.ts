@@ -28,6 +28,14 @@ function isValidIdentifier(value: string | null | undefined): value is string {
 }
 
 /**
+ * Check if an error is an expected Discord error (e.g., deleted message)
+ * DiscordAPIError with code 10008 = Unknown Message (deleted)
+ */
+function isExpectedDiscordError(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && (error as { code: unknown }).code === 10008;
+}
+
+/**
  * Resolves personality from replied-to messages
  */
 export class ReplyResolutionService {
@@ -189,11 +197,15 @@ export class ReplyResolutionService {
 
       return personality;
     } catch (error) {
-      // If we can't fetch the referenced message, it might be deleted or inaccessible
-      logger.debug(
-        { err: error },
-        '[ReplyResolutionService] Could not fetch or process referenced message'
-      );
+      // Log at appropriate level: expected errors (deleted messages) vs unexpected (Redis, network)
+      if (isExpectedDiscordError(error)) {
+        logger.debug({ err: error }, '[ReplyResolutionService] Referenced message was deleted');
+      } else {
+        logger.warn(
+          { err: error },
+          '[ReplyResolutionService] Unexpected error fetching or processing referenced message'
+        );
+      }
       return null;
     }
   }
