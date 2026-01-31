@@ -199,8 +199,10 @@ async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise
 
   const userMsg = await channel.send(`**${displayName}:** ${message}`);
 
-  // Save user message to conversation history (fire-and-forget)
-  // Pass explicit timestamp to ensure user message < assistant message ordering
+  // Fire-and-forget persistence: Trade-off between responsiveness and guaranteed persistence.
+  // If save fails (DB issues), the Discord message is still sent but won't be in history.
+  // This matches the @mention pattern and prioritizes UX over perfect data consistency.
+  // Pass explicit timestamp to ensure user message < assistant message ordering.
   void getConversationPersistence()
     .saveUserMessageFromFields({
       channelId: channel.id,
@@ -261,6 +263,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
   );
 
   // Store response message IDs for diagnostic lookup (fire-and-forget)
+  // May fail if diagnostic log expired (24h TTL) - acceptable for debug data
   if (pollResult.responseMessageIds.length > 0) {
     void getGatewayClient()
       .updateDiagnosticResponseIds(requestId, pollResult.responseMessageIds)
@@ -272,7 +275,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
       });
   }
 
-  // Save assistant message to conversation history (fire-and-forget)
+  // Fire-and-forget persistence (see comment at line 202 for trade-off rationale)
   if (pollResult.success && pollResult.content !== undefined) {
     void getConversationPersistence()
       .saveAssistantMessageFromFields({

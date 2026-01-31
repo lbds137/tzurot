@@ -208,6 +208,8 @@ function handleGetByResponse(prisma: PrismaClient): RequestHandler {
     }
 
     // Use array containment query - responseMessageIds contains messageId
+    // findFirst is acceptable since response message IDs are unique per Discord message;
+    // even if multiple chunks exist, they all point to the same diagnostic log
     const log = await prisma.llmDiagnosticLog.findFirst({
       where: {
         responseMessageIds: { has: messageId },
@@ -250,6 +252,18 @@ function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
 
     if (!Array.isArray(responseMessageIds)) {
       sendError(res, ErrorResponses.validationError('responseMessageIds must be an array'));
+      return;
+    }
+
+    // Validate array length (prevent abuse)
+    const MAX_RESPONSE_MESSAGE_IDS = 100;
+    if (responseMessageIds.length > MAX_RESPONSE_MESSAGE_IDS) {
+      sendError(
+        res,
+        ErrorResponses.validationError(
+          `responseMessageIds exceeds maximum length of ${MAX_RESPONSE_MESSAGE_IDS}`
+        )
+      );
       return;
     }
 
