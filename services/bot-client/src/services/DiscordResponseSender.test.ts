@@ -398,10 +398,10 @@ describe('DiscordResponseSender', () => {
   });
 
   describe('sendResponse - DM Channel', () => {
-    it('should send response as bot reply in DM', async () => {
+    it('should send response via channel.send in DM (no reply indicator)', async () => {
       const mockChannel = createMockTextChannel('dm-123');
       const mockMessage = createMockMessage(mockChannel, null); // DM has no guild
-      (mockMessage.reply as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'reply-123' });
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'dm-msg-123' });
 
       const result = await sender.sendResponse({
         content: 'Hello in DM!',
@@ -409,17 +409,17 @@ describe('DiscordResponseSender', () => {
         message: mockMessage,
       });
 
-      expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Test Bot:'));
-      expect(mockMessage.reply).toHaveBeenCalledWith(expect.stringContaining('Hello in DM!'));
-      expect(result.chunkMessageIds).toEqual(['reply-123']);
+      expect(mockChannel.send).toHaveBeenCalledWith(expect.stringContaining('Test Bot:'));
+      expect(mockChannel.send).toHaveBeenCalledWith(expect.stringContaining('Hello in DM!'));
+      expect(result.chunkMessageIds).toEqual(['dm-msg-123']);
     });
 
     it('should add personality prefix before chunking in DMs', async () => {
       const mockChannel = createMockTextChannel('dm-123');
       const mockMessage = createMockMessage(mockChannel, null);
-      (mockMessage.reply as ReturnType<typeof vi.fn>)
-        .mockResolvedValueOnce({ id: 'reply-1' })
-        .mockResolvedValueOnce({ id: 'reply-2' });
+      (mockChannel.send as ReturnType<typeof vi.fn>)
+        .mockResolvedValueOnce({ id: 'dm-msg-1' })
+        .mockResolvedValueOnce({ id: 'dm-msg-2' });
 
       // Long content for chunking
       const longContent = 'x'.repeat(3000);
@@ -431,10 +431,10 @@ describe('DiscordResponseSender', () => {
       });
 
       // Should have added prefix before chunking
-      const firstCallContent = mockMessage.reply.mock.calls[0][0];
+      const firstCallContent = (mockChannel.send as ReturnType<typeof vi.fn>).mock.calls[0][0];
       expect(firstCallContent).toContain('**Test Bot:**');
 
-      expect(result.chunkMessageIds).toEqual(['reply-1', 'reply-2']);
+      expect(result.chunkMessageIds).toEqual(['dm-msg-1', 'dm-msg-2']);
       expect(result.chunkCount).toBe(2);
     });
   });
@@ -910,7 +910,7 @@ describe('DiscordResponseSender', () => {
     it('should send thinking via DM with personality prefix when not in guild', async () => {
       const mockChannel = createMockTextChannel('dm-123');
       const mockMessage = createMockMessage(mockChannel, null); // No guild = DM
-      (mockMessage.reply as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'reply-123' });
+      (mockChannel.send as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'dm-msg-123' });
 
       const personalityWithThinking = {
         ...mockPersonality,
@@ -926,9 +926,10 @@ describe('DiscordResponseSender', () => {
       });
 
       // First call should be thinking, second should be main response
-      expect(mockMessage.reply).toHaveBeenCalledTimes(2);
+      expect(mockChannel.send).toHaveBeenCalledTimes(2);
 
-      const thinkingCall = mockMessage.reply.mock.calls[0][0] as string;
+      const thinkingCall = (mockChannel.send as ReturnType<typeof vi.fn>).mock
+        .calls[0][0] as string;
       expect(thinkingCall).toContain('**Test Bot:**');
       expect(thinkingCall).toContain('💭 **Thinking:**');
       expect(thinkingCall).toContain('||DM thinking content||');
@@ -1032,6 +1033,7 @@ describe('DiscordResponseSender', () => {
 function createMockTextChannel(id: string) {
   const mockChannel = Object.create(TextChannel.prototype);
   mockChannel.id = id;
+  mockChannel.send = vi.fn(); // For DM responses (message.channel.send)
   return mockChannel;
 }
 
