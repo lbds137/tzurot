@@ -20,13 +20,20 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
   },
 }));
 
-// Mock isDMChannel from nsfwVerification
+// Mock nsfwVerification
 vi.mock('../utils/nsfwVerification.js', () => ({
   isDMChannel: vi.fn(),
+  checkNsfwVerification: vi.fn(),
+  trackPendingVerificationMessage: vi.fn(),
+  NSFW_VERIFICATION_MESSAGE: '**Age Verification Required**\n\nMocked message',
 }));
 
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
-import { isDMChannel } from '../utils/nsfwVerification.js';
+import {
+  isDMChannel,
+  checkNsfwVerification,
+  trackPendingVerificationMessage,
+} from '../utils/nsfwVerification.js';
 
 function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChannel {
   const messagesCollection = new Collection<string, Message>();
@@ -116,6 +123,12 @@ describe('DMSessionProcessor', () => {
     // Default: isDMChannel returns false (override in specific tests)
     vi.mocked(isDMChannel).mockReturnValue(false);
     vi.mocked(VoiceMessageProcessor.getVoiceTranscript).mockReturnValue(undefined);
+    // Default: user is NSFW verified (override in specific tests)
+    vi.mocked(checkNsfwVerification).mockResolvedValue({
+      nsfwVerified: true,
+      nsfwVerifiedAt: new Date().toISOString(),
+    });
+    vi.mocked(trackPendingVerificationMessage).mockResolvedValue(undefined);
 
     mockGatewayClient = {
       lookupPersonalityFromConversation: vi.fn(),
@@ -536,6 +549,79 @@ describe('DMSessionProcessor', () => {
         expect.anything(),
         { isAutoResponse: true }
       );
+    });
+  });
+
+  describe('NSFW verification', () => {
+    it('should block unverified users and send verification message', async () => {
+      const channel = createMockDMChannel();
+      const message = createMockMessage({ channel });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+      vi.mocked(checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: false,
+        nsfwVerifiedAt: null,
+      });
+
+      const result = await processor.process(message);
+
+      expect(result).toBe(true); // Consumed message
+      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('Age Verification'));
+      expect(trackPendingVerificationMessage).toHaveBeenCalled();
+      // Should NOT check for active session or send help message
+      expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
+    });
+
+    it('should allow verified users to continue', async () => {
+      const channel = createMockDMChannel();
+      const message = createMockMessage({ channel });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+      vi.mocked(checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: true,
+        nsfwVerifiedAt: new Date().toISOString(),
+      });
+
+      // No active session - should get help message (not verification message)
+      const result = await processor.process(message);
+
+      expect(result).toBe(true);
+      expect(message.reply).toHaveBeenCalledWith({
+        content: expect.stringContaining('No active conversation'),
+      });
+      expect(trackPendingVerificationMessage).not.toHaveBeenCalled();
+    });
+
+    it('should check NSFW verification before checking for active personality', async () => {
+      const botId = 'bot-123';
+      const botMessage = createMockBotMessage({
+        id: 'bot-msg-123',
+        content: '**Lilith:** Hello',
+        botId,
+      });
+
+      const messagesCollection = new Collection<string, Message>();
+      messagesCollection.set(botMessage.id, botMessage);
+
+      const channel = createMockDMChannel();
+      (channel.messages.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(messagesCollection);
+
+      const message = createMockMessage({ channel, botId });
+      vi.mocked(isDMChannel).mockReturnValue(true);
+      vi.mocked(checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: false,
+        nsfwVerifiedAt: null,
+      });
+
+      mockGatewayClient.lookupPersonalityFromConversation.mockResolvedValue({
+        personalityId: 'lilith-id',
+      });
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      const result = await processor.process(message);
+
+      // Even though there's an active personality, should block for verification
+      expect(result).toBe(true);
+      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('Age Verification'));
+      expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
     });
   });
 });

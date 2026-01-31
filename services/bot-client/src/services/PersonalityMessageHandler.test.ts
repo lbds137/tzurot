@@ -572,6 +572,7 @@ describe('PersonalityMessageHandler', () => {
       });
       (mockMessage.reply as ReturnType<typeof vi.fn>).mockResolvedValue({
         id: 'verification-msg-1',
+        channelId: 'channel-123',
       });
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
