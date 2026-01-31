@@ -7,13 +7,39 @@
 
 ## Session Goal
 
-_Pull next item from BACKLOG High Priority._
+Implement Character Chat Feature Parity and Admin Debug AI Response Support.
 
 ---
 
 ## Active Task
 
-_(No active task - pull from BACKLOG)_
+**Character Chat Feature Parity & Admin Debug AI Response Support**
+
+Two features on current branch:
+
+1. **Feature 1: Character Chat Feature Parity** - Refactor `/character chat` to use `MessageContextBuilder` for extended context, context epoch support, guild member info, timezone, message references
+
+2. **Feature 2: Admin Debug AI Response Support** - Enable `/admin debug` to look up diagnostics by AI response message IDs
+
+**Progress**:
+
+- [x] Schema migration: Added `responseMessageIds` to `LlmDiagnosticLog` with GIN index
+- [x] Migration applied to dev and **prod** databases
+- [x] PGLite schema regenerated
+- [x] Side quest: Fully implemented `db:safe-migrate` ops command with tests
+- [x] Feature 2: Add API endpoints for response ID lookup/update (`by-response/:id`, `PATCH response-ids`)
+- [x] Feature 2: GatewayClient method `updateDiagnosticResponseIds`
+- [x] Feature 2: Update MessageHandler to store response IDs (fire-and-forget after send)
+- [x] Feature 2: Update debug command with fallback lookup (trigger → response)
+- [x] Feature 2: **COMMITTED** (275998f1)
+- [x] Feature 1: Add `buildContextFromInteraction()` to MessageContextBuilder
+- [x] Feature 1: Add messageContextBuilder to service registry
+- [x] Feature 1: Refactor `/character chat` to use MessageContextBuilder
+- [x] Feature 1: **COMMITTED** (11d17dad)
+
+**Branch ready for PR**: `feature/character-chat-debug-parity`
+
+**Plan file**: `.claude/plans/elegant-herding-cocoa.md`
 
 ---
 
