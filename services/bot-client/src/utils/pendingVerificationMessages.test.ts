@@ -17,6 +17,13 @@ async function* createMockScanStream(keys: string[]): AsyncGenerator<string[], v
   yield keys;
 }
 
+// Mock Redis pipeline
+const mockPipeline = {
+  rpush: vi.fn().mockReturnThis(),
+  expire: vi.fn().mockReturnThis(),
+  exec: vi.fn().mockResolvedValue([]),
+};
+
 // Mock Redis
 const mockRedis = {
   rpush: vi.fn(),
@@ -24,18 +31,18 @@ const mockRedis = {
   lrange: vi.fn(),
   del: vi.fn(),
   scanStream: vi.fn(),
+  pipeline: vi.fn().mockReturnValue(mockPipeline),
 };
 
 describe('Pending Verification Messages', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Reset pipeline mock return values
+    mockPipeline.exec.mockResolvedValue([]);
   });
 
   describe('storePendingVerificationMessage', () => {
-    it('should store a message in Redis', async () => {
-      mockRedis.rpush.mockResolvedValue(1);
-      mockRedis.expire.mockResolvedValue(1);
-
+    it('should store a message in Redis using pipeline', async () => {
       const message: PendingVerificationMessage = {
         messageId: 'msg-123',
         channelId: 'channel-456',
@@ -44,18 +51,21 @@ describe('Pending Verification Messages', () => {
 
       await storePendingVerificationMessage(mockRedis as any, 'user-789', message);
 
-      expect(mockRedis.rpush).toHaveBeenCalledWith(
+      // Should use pipeline for atomic operation
+      expect(mockRedis.pipeline).toHaveBeenCalled();
+      expect(mockPipeline.rpush).toHaveBeenCalledWith(
         'nsfw:verification:pending:user-789',
         JSON.stringify(message)
       );
-      expect(mockRedis.expire).toHaveBeenCalledWith(
+      expect(mockPipeline.expire).toHaveBeenCalledWith(
         'nsfw:verification:pending:user-789',
         14 * 24 * 60 * 60 // 14 days
       );
+      expect(mockPipeline.exec).toHaveBeenCalled();
     });
 
     it('should handle Redis errors gracefully', async () => {
-      mockRedis.rpush.mockRejectedValue(new Error('Redis error'));
+      mockPipeline.exec.mockRejectedValue(new Error('Redis error'));
 
       const message: PendingVerificationMessage = {
         messageId: 'msg-123',
@@ -67,6 +77,9 @@ describe('Pending Verification Messages', () => {
       await expect(
         storePendingVerificationMessage(mockRedis as any, 'user-789', message)
       ).resolves.not.toThrow();
+
+      // Reset mock for other tests
+      mockPipeline.exec.mockResolvedValue([]);
     });
   });
 

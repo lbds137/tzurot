@@ -12,7 +12,7 @@
  */
 
 import { ChannelType, type Message } from 'discord.js';
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, isUuidFormat } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import type { IPersonalityLoader } from '../types/IPersonalityLoader.js';
 import type { GatewayClient } from '../utils/GatewayClient.js';
@@ -103,9 +103,7 @@ export class ReplyResolutionService {
       let personalityIdOrName = await redisService.getWebhookPersonality(referencedMessage.id);
 
       // Check if Redis value is a UUID (new format) vs name (legacy format)
-      const isUUID =
-        isValidIdentifier(personalityIdOrName) &&
-        /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personalityIdOrName);
+      const isUUID = isValidIdentifier(personalityIdOrName) && isUuidFormat(personalityIdOrName);
 
       if (isUUID) {
         logger.debug(
@@ -129,7 +127,10 @@ export class ReplyResolutionService {
         }
       }
 
-      // Tier 3: Display name parsing (last resort)
+      // Tier 3: Display name parsing (last resort, best-effort UX)
+      // This is purely for user convenience when Redis/DB miss. Security is NOT
+      // dependent on this parsing - loadPersonality() enforces access control below.
+      // Even if parsing extracts the wrong name, unauthorized access is still blocked.
       if (!isValidIdentifier(personalityIdOrName)) {
         if (isDM && referencedMessage.content) {
           // DM format: **DisplayName:** message content

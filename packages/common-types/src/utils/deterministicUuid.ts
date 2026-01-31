@@ -204,3 +204,17 @@ export function generatePendingMemoryUuid(
 export function generateUserApiKeyUuid(userId: string, provider: string): string {
   return uuidv5(`user_api_key:${userId}:${provider}`, TZUROT_NAMESPACE);
 }
+
+/**
+ * UUID v4 format regex pattern
+ * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+ */
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Check if a string is in valid UUID format
+ * Used to distinguish between UUID and name/slug in lookup scenarios
+ */
+export function isUuidFormat(value: string): boolean {
+  return UUID_REGEX.test(value);
+}

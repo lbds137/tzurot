@@ -20,6 +20,7 @@ import {
   generateUsageLogUuid,
   generatePendingMemoryUuid,
   generateUserApiKeyUuid,
+  isUuidFormat,
 } from './deterministicUuid.js';
 
 describe('Deterministic UUID Generation', () => {
@@ -269,6 +270,41 @@ describe('Deterministic UUID Generation', () => {
       const uuid1 = generateUserApiKeyUuid('user-1', 'openrouter');
       const uuid2 = generateUserApiKeyUuid('user-1', 'openai');
       expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('isUuidFormat', () => {
+    it('should return true for valid UUIDs', () => {
+      expect(isUuidFormat('550e8400-e29b-41d4-a716-446655440000')).toBe(true);
+      expect(isUuidFormat('6ba7b810-9dad-11d1-80b4-00c04fd430c8')).toBe(true);
+      expect(isUuidFormat('d3ba618d-42e0-5a62-9fdf-31c10da1a7a7')).toBe(true);
+    });
+
+    it('should return true for uppercase UUIDs', () => {
+      expect(isUuidFormat('550E8400-E29B-41D4-A716-446655440000')).toBe(true);
+    });
+
+    it('should return false for non-UUID strings', () => {
+      expect(isUuidFormat('not-a-uuid')).toBe(false);
+      expect(isUuidFormat('personality-name')).toBe(false);
+      expect(isUuidFormat('')).toBe(false);
+      expect(isUuidFormat('123456')).toBe(false);
+    });
+
+    it('should return false for malformed UUIDs', () => {
+      // Missing segment
+      expect(isUuidFormat('550e8400-e29b-41d4-a716')).toBe(false);
+      // Wrong separator
+      expect(isUuidFormat('550e8400_e29b_41d4_a716_446655440000')).toBe(false);
+      // Wrong length
+      expect(isUuidFormat('550e8400-e29b-41d4-a716-44665544000')).toBe(false);
+      // Extra characters
+      expect(isUuidFormat('550e8400-e29b-41d4-a716-446655440000-extra')).toBe(false);
+    });
+
+    it('should correctly identify generated UUIDs', () => {
+      const uuid = generateUserUuid('test-user');
+      expect(isUuidFormat(uuid)).toBe(true);
     });
   });
 });
