@@ -318,19 +318,8 @@ export class MessageContextBuilder {
     );
 
     // Look up context epoch (STM clear feature)
-    const historyConfig = await this.prisma.userPersonaHistoryConfig.findUnique({
-      where: {
-        userId_personalityId_personaId: {
-          userId: internalUserId,
-          personalityId: personality.id,
-          personaId,
-        },
-      },
-      select: { lastContextReset: true },
-    });
-    const contextEpoch = historyConfig?.lastContextReset ?? undefined;
-
-    if (contextEpoch !== undefined && contextEpoch !== null) {
+    const contextEpoch = await this.lookupContextEpoch(internalUserId, personality.id, personaId);
+    if (contextEpoch !== undefined) {
       logger.debug(
         { personaId, contextEpoch: contextEpoch.toISOString() },
         '[MessageContextBuilder] Applying context epoch filter (STM clear)'
@@ -785,4 +774,206 @@ export class MessageContextBuilder {
       conversationHistory: history, // Return for reference enrichment
     };
   }
+
+  /**
+   * Look up the context epoch for STM clear feature.
+   * Returns undefined if no epoch is set.
+   */
+  private async lookupContextEpoch(
+    internalUserId: string,
+    personalityId: string,
+    personaId: string
+  ): Promise<Date | undefined> {
+    const historyConfig = await this.prisma.userPersonaHistoryConfig.findUnique({
+      where: {
+        userId_personalityId_personaId: {
+          userId: internalUserId,
+          personalityId,
+          personaId,
+        },
+      },
+      select: { lastContextReset: true },
+    });
+    return historyConfig?.lastContextReset ?? undefined;
+  }
+
+  /**
+   * Build context from a slash command interaction.
+   *
+   * This is a simplified version of buildContext() for /character chat:
+   * - Resolves user identity and persona
+   * - Fetches conversation history (with context epoch support)
+   * - Includes guild member info, user timezone
+   * - Does NOT include extended context (requires Message for Discord fetching)
+   * - Does NOT include reference extraction (requires Message for reply/link parsing)
+   *
+   * @param params - Interaction context parameters
+   * @param personality - The target personality
+   * @param content - Message content from slash command
+   * @param options - Additional options including extended context
+   */
+  // eslint-disable-next-line max-lines-per-function -- Coordinator method for interaction context building
+  async buildContextFromInteraction(
+    params: InteractionContextParams,
+    personality: LoadedPersonality,
+    content: string,
+    options: ContextBuildOptions = {}
+  ): Promise<ContextBuildResult> {
+    const {
+      userId: discordUserId,
+      username,
+      displayName,
+      isBot,
+      channelId,
+      guildId,
+      guildName,
+      channelName,
+      channelType,
+      member,
+    } = params;
+
+    // Step 1: Extract guild member info if available
+    const guildMemberInfo = this.extractGuildMemberInfo(member, guildId);
+
+    // Step 2: Resolve user identity, persona, and context epoch
+    const internalUserId = await this.userService.getOrCreateUser(
+      discordUserId,
+      username,
+      displayName,
+      undefined,
+      isBot
+    );
+
+    if (internalUserId === null) {
+      throw new Error('Cannot process messages from bots');
+    }
+
+    const personaResult = await this.personaResolver.resolve(discordUserId, personality.id);
+    const personaId = personaResult.config.personaId;
+    const personaName = personaResult.config.preferredName;
+    const userTimezone = await this.userService.getUserTimezone(internalUserId);
+
+    logger.debug(
+      { personaId, personaName, internalUserId, discordUserId, personalityId: personality.id },
+      '[MessageContextBuilder] Interaction user persona lookup complete'
+    );
+
+    // Look up context epoch (STM clear feature)
+    const contextEpoch = await this.lookupContextEpoch(internalUserId, personality.id, personaId);
+    if (contextEpoch !== undefined) {
+      logger.debug(
+        { personaId, contextEpoch: contextEpoch.toISOString() },
+        '[MessageContextBuilder] Applying context epoch filter for interaction'
+      );
+    }
+
+    // Step 3: Fetch conversation history from PostgreSQL
+    // Extended context for interactions uses channel history (all messages in channel)
+    const useChannelHistory = options.extendedContext?.enabled === true;
+    const dbLimit = options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH;
+    const history = await this.fetchDbHistory(
+      channelId,
+      personality.id,
+      contextEpoch,
+      useChannelHistory,
+      dbLimit
+    );
+
+    // Step 4: Convert conversation history to API format
+    const conversationHistory = history.map(msg => ({
+      id: msg.id,
+      role: msg.role,
+      content: msg.content,
+      tokenCount: msg.tokenCount,
+      createdAt: msg.createdAt.toISOString(),
+      isForwarded: msg.isForwarded,
+      personaId: msg.personaId,
+      personaName: msg.personaName,
+      discordUsername: msg.discordUsername,
+      discordMessageId: msg.discordMessageId,
+      personalityId: msg.personalityId,
+      personalityName: msg.personalityName,
+      messageMetadata: msg.messageMetadata,
+    }));
+
+    // Step 5: Build environment context
+    const isGuild = guildId !== undefined && guildId.length > 0;
+    const environment = {
+      type: isGuild ? ('guild' as const) : ('dm' as const),
+      guild:
+        isGuild && guildName !== undefined && guildName.length > 0
+          ? { id: guildId, name: guildName }
+          : undefined,
+      channel: {
+        id: channelId,
+        name: channelName,
+        type: channelType,
+      },
+    };
+
+    // Step 6: Build complete context
+    const context: MessageContext = {
+      userId: discordUserId,
+      userInternalId: internalUserId,
+      userName: username,
+      discordUsername: username,
+      userTimezone,
+      channelId,
+      serverId: guildId,
+      messageContent: content,
+      activePersonaId: personaId,
+      activePersonaName: personaName ?? undefined,
+      activePersonaGuildInfo: guildMemberInfo,
+      conversationHistory,
+      environment,
+      // No attachments, extendedContextAttachments, referencedMessages, mentionedPersonas
+      // since these require Message object for extraction
+    };
+
+    logger.debug(
+      {
+        activePersonaId: context.activePersonaId,
+        activePersonaName: context.activePersonaName,
+        historyLength: conversationHistory.length,
+      },
+      '[MessageContextBuilder] Interaction context built successfully'
+    );
+
+    return {
+      context,
+      userId: internalUserId,
+      personaId,
+      personaName,
+      messageContent: content,
+      referencedMessages: [],
+      conversationHistory: history,
+    };
+  }
+}
+
+/**
+ * Parameters for building context from a slash command interaction.
+ * Captures what buildContextFromInteraction needs from the interaction.
+ */
+export interface InteractionContextParams {
+  /** Discord user ID */
+  userId: string;
+  /** Discord username */
+  username: string;
+  /** Display name (from member or global name) */
+  displayName: string;
+  /** Is the user a bot */
+  isBot: boolean;
+  /** Channel ID */
+  channelId: string;
+  /** Guild ID (null for DMs) */
+  guildId: string | undefined;
+  /** Guild name (null for DMs) */
+  guildName: string | undefined;
+  /** Channel name */
+  channelName: string;
+  /** Channel type string */
+  channelType: string;
+  /** Guild member (for roles, color, join date) - can be null */
+  member: GuildMember | null;
 }

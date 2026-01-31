@@ -206,6 +206,7 @@ function createServices(): Services {
     conversationHistoryService,
     personaResolver,
     channelActivationCacheInvalidationService,
+    messageContextBuilder: contextBuilder,
   });
 
   return {
