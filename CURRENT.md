@@ -19,7 +19,7 @@ _(No active task - pull from BACKLOG)_
 
 ## Recent Highlights
 
-- **beta.60**: DM personality chat support, speaker identification fix, model indicator storage bug fix
+- **beta.60**: DM personality chat support, sticky DM sessions, speaker identification fix, model indicator storage bug fix
 - **beta.58**: ConversationSyncService standardization, testing infrastructure
 - **beta.57**: DeepSeek R1 reasoning fix, temperature jitter, LLM config key consolidation
 - **beta.56**: Reasoning param conflict warning, API-level reasoning extraction tests
