@@ -1,0 +1,3298 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Message Formatting Pipeline - Golden Masters Basic Message Formatting formats empty message 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Basic Message Formatting formats message with Discord markdown 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "**Bold** *italic* __underline__ ~~strikethrough~~ \`code\`",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Basic Message Formatting formats message with emoji 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Hello 👋 world! 🌍",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Basic Message Formatting formats simple text message 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Hello world!",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Basic Message Formatting formats whitespace-only message 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "   
+	  ",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Complex Scenarios formats conversation history with multiple messages 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "First message",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Second message",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+      {
+        "attachments": Map {
+          "333333333333333333" => {
+            "contentType": "image/png",
+            "height": 500,
+            "id": "333333333333333333",
+            "name": "image.png",
+            "proxyURL": "https://media.discordapp.net/attachments/123/456/image.png",
+            "size": 1024,
+            "url": "https://example.com/file.pdf",
+            "width": 500,
+          },
+        },
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Third with attachment",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "webhook_avatar",
+          "avatarURL": [MockFunction],
+          "bot": true,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "System Member",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Fourth from PluralKit",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": null,
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": "888888888888888888",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Complex Scenarios formats long message with mentions, code, and splitting 1`] = `
+{
+  "chunkCount": 1,
+  "chunks": [
+    "[object Object]
+
+-# Primary Model Used (Free)",
+  ],
+  "extractedContent": [
+    {
+      "attachments": Map {},
+      "author": {
+        "avatar": "avatar_hash",
+        "avatarURL": [MockFunction],
+        "bot": false,
+        "discriminator": "0001",
+        "displayAvatarURL": [MockFunction],
+        "id": "123456789012345678",
+        "system": false,
+        "tag": "TestUser#0001",
+        "username": "TestUser",
+      },
+      "channel": {
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "id": "555555555555555555",
+        "isDMBased": [MockFunction],
+        "isTextBased": [MockFunction],
+        "isThread": [MockFunction],
+        "messages": {
+          "cache": {},
+        },
+        "name": "general",
+        "nsfw": false,
+        "parent": null,
+        "parentId": null,
+        "send": [MockFunction],
+        "topic": null,
+        "type": 0,
+      },
+      "channelId": "555555555555555555",
+      "components": [],
+      "content": "@claude Can you review this code?
+
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+
+
+Thanks!",
+      "createdAt": "2024-01-15T12:00:00.000Z",
+      "createdTimestamp": 1705320000000,
+      "delete": [MockFunction],
+      "edit": [MockFunction],
+      "editedAt": null,
+      "editedTimestamp": null,
+      "embeds": [],
+      "fetch": [MockFunction],
+      "fetchReference": [MockFunction],
+      "guild": {
+        "available": true,
+        "channels": {},
+        "id": "987654321098765432",
+        "members": {},
+        "name": "Test Guild",
+        "ownerId": "111111111111111111",
+        "roles": {},
+      },
+      "guildId": "987654321098765432",
+      "id": "999999999999999999",
+      "member": {
+        "displayName": "TestUser",
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "id": "123456789012345678",
+        "joinedAt": "2024-01-15T12:00:00.000Z",
+        "nickname": null,
+        "permissions": {},
+        "roles": {},
+        "user": {
+          "avatar": "avatar_hash",
+          "bot": false,
+          "discriminator": "0001",
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+      },
+      "mentions": {
+        "channels": Map {},
+        "everyone": false,
+        "members": Map {},
+        "roles": Map {},
+        "users": Map {},
+      },
+      "nonce": null,
+      "pinned": false,
+      "react": [MockFunction],
+      "reference": null,
+      "reply": [MockFunction],
+      "stickers": Map {},
+      "system": false,
+      "tts": false,
+      "type": "DEFAULT",
+      "webhookId": null,
+    },
+  ],
+  "formattedMessages": [
+    {
+      "content": [
+        {
+          "attachments": Map {},
+          "author": {
+            "avatar": "avatar_hash",
+            "avatarURL": [MockFunction],
+            "bot": false,
+            "discriminator": "0001",
+            "displayAvatarURL": [MockFunction],
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+          "channel": {
+            "guild": {
+              "available": true,
+              "channels": {},
+              "id": "987654321098765432",
+              "members": {},
+              "name": "Test Guild",
+              "ownerId": "111111111111111111",
+              "roles": {},
+            },
+            "id": "555555555555555555",
+            "isDMBased": [MockFunction],
+            "isTextBased": [MockFunction],
+            "isThread": [MockFunction],
+            "messages": {
+              "cache": {},
+            },
+            "name": "general",
+            "nsfw": false,
+            "parent": null,
+            "parentId": null,
+            "send": [MockFunction],
+            "topic": null,
+            "type": 0,
+          },
+          "channelId": "555555555555555555",
+          "components": [],
+          "content": "@claude Can you review this code?
+
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+\`\`\`javascript
+function example() {
+  console.log("test");
+}
+\`\`\`
+
+
+Thanks!",
+          "createdAt": "2024-01-15T12:00:00.000Z",
+          "createdTimestamp": 1705320000000,
+          "delete": [MockFunction],
+          "edit": [MockFunction],
+          "editedAt": null,
+          "editedTimestamp": null,
+          "embeds": [],
+          "fetch": [MockFunction],
+          "fetchReference": [MockFunction],
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "guildId": "987654321098765432",
+          "id": "999999999999999999",
+          "member": {
+            "displayName": "TestUser",
+            "guild": {
+              "available": true,
+              "channels": {},
+              "id": "987654321098765432",
+              "members": {},
+              "name": "Test Guild",
+              "ownerId": "111111111111111111",
+              "roles": {},
+            },
+            "id": "123456789012345678",
+            "joinedAt": "2024-01-15T12:00:00.000Z",
+            "nickname": null,
+            "permissions": {},
+            "roles": {},
+            "user": {
+              "avatar": "avatar_hash",
+              "bot": false,
+              "discriminator": "0001",
+              "id": "123456789012345678",
+              "system": false,
+              "tag": "TestUser#0001",
+              "username": "TestUser",
+            },
+          },
+          "mentions": {
+            "channels": Map {},
+            "everyone": false,
+            "members": Map {},
+            "roles": Map {},
+            "users": Map {},
+          },
+          "nonce": null,
+          "pinned": false,
+          "react": [MockFunction],
+          "reference": null,
+          "reply": [MockFunction],
+          "stickers": Map {},
+          "system": false,
+          "tts": false,
+          "type": "DEFAULT",
+          "webhookId": null,
+        },
+      ],
+      "role": "user",
+    },
+  ],
+}
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Complex Scenarios formats message with everything combined 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {
+          "333333333333333333" => {
+            "contentType": "image/png",
+            "height": 500,
+            "id": "333333333333333333",
+            "name": "image.png",
+            "proxyURL": "https://media.discordapp.net/attachments/123/456/image.png",
+            "size": 1024,
+            "url": "https://example.com/diagram.png",
+            "width": 500,
+          },
+        },
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Tech Server",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "bot-testing",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "@claude **Check this out!** Here's some \`code\` and an image:",
+        "createdAt": "2024-01-15T16:45:30.000Z",
+        "createdTimestamp": 1705337130000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [
+          {
+            "author": null,
+            "color": null,
+            "description": "Some interesting content here",
+            "fields": [],
+            "footer": null,
+            "image": null,
+            "thumbnail": null,
+            "timestamp": null,
+            "title": "Related Article",
+            "url": null,
+          },
+        ],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Tech Server",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Tech Server",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": {
+          "channelId": "555555555555555555",
+          "guildId": "987654321098765432",
+          "messageId": "999999999999999999",
+        },
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Context Metadata formats DM without context metadata 1`] = `"[Discord: Direct Messages | 2024-01-15T12:00:00.000Z]"`;
+
+exports[`Message Formatting Pipeline - Golden Masters Context Metadata formats guild message with context metadata 1`] = `"[Discord: Cool Server > #general | 2024-01-15T12:30:45.000Z]"`;
+
+exports[`Message Formatting Pipeline - Golden Masters Context Metadata formats thread message with parent context 1`] = `"[Discord: Dev Server > #general > bug-discussion | 2024-01-15T14:00:00.000Z]"`;
+
+exports[`Message Formatting Pipeline - Golden Masters Edge Cases handles messages with special characters 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Test <@123> & "quotes" 'apostrophes' \\ backslash",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Edge Cases handles null/undefined values gracefully 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": null,
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": null,
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Edge Cases handles very long single word 1`] = `
+[
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Message Splitting adds model indicator before splitting 1`] = `
+[
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "-# Fallback Model Used",
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Message Splitting does not split message under 2000 chars 1`] = `
+[
+  "This is a normal length message that fits comfortably within limits.",
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Message Splitting preserves code blocks when splitting 1`] = `
+[
+  "\`\`\`javascript
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");",
+  "console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+console.log("hello");
+\`\`\`",
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Message Splitting splits message at 2001 chars 1`] = `
+[
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "a",
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Message Splitting splits message at exactly 2000 chars 1`] = `
+[
+  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Personality Mentions formats message with multi-word mention 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "@cash money Can you help me?",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Personality Mentions formats message with multiple mentions 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "@claude @gpt4 @bard Which of you is best?",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Personality Mentions formats message with only mentions 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "@claude @gpt4",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Personality Mentions formats message with single mention 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "@claude Hello!",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Special Message Types formats message with audio attachment 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {
+          "333333333333333333" => {
+            "contentType": "audio/mpeg",
+            "height": 500,
+            "id": "333333333333333333",
+            "name": "recording.mp3",
+            "proxyURL": "https://media.discordapp.net/attachments/123/456/image.png",
+            "size": 1024,
+            "url": "https://example.com/audio.mp3",
+            "width": 500,
+          },
+        },
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Listen to this!",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Special Message Types formats message with embed 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Check this out:",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [
+          {
+            "author": null,
+            "color": 5793266,
+            "description": "This is an embed description",
+            "fields": [],
+            "footer": null,
+            "image": null,
+            "thumbnail": null,
+            "timestamp": null,
+            "title": "Embedded Content",
+            "url": "https://example.com",
+          },
+        ],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Special Message Types formats message with image attachment 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {
+          "333333333333333333" => {
+            "contentType": "image/png",
+            "height": 500,
+            "id": "333333333333333333",
+            "name": "screenshot.png",
+            "proxyURL": "https://media.discordapp.net/attachments/123/456/image.png",
+            "size": 1024,
+            "url": "https://example.com/image.png",
+            "width": 500,
+          },
+        },
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "Check out this image!",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Special Message Types formats reply with referenced content 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "avatar_hash",
+          "avatarURL": [MockFunction],
+          "bot": false,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "TestUser",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "This is my reply",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": {
+          "displayName": "TestUser",
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "123456789012345678",
+          "joinedAt": "2024-01-15T12:00:00.000Z",
+          "nickname": null,
+          "permissions": {},
+          "roles": {},
+          "user": {
+            "avatar": "avatar_hash",
+            "bot": false,
+            "discriminator": "0001",
+            "id": "123456789012345678",
+            "system": false,
+            "tag": "TestUser#0001",
+            "username": "TestUser",
+          },
+        },
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": {
+          "channelId": "555555555555555555",
+          "guildId": "987654321098765432",
+          "messageId": "999999999999999999",
+        },
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": null,
+      },
+    ],
+    "role": "user",
+  },
+]
+`;
+
+exports[`Message Formatting Pipeline - Golden Masters Special Message Types formats webhook message from PluralKit 1`] = `
+[
+  {
+    "content": [
+      {
+        "attachments": Map {},
+        "author": {
+          "avatar": "webhook_avatar",
+          "avatarURL": [MockFunction],
+          "bot": true,
+          "discriminator": "0001",
+          "displayAvatarURL": [MockFunction],
+          "id": "123456789012345678",
+          "system": false,
+          "tag": "TestUser#0001",
+          "username": "Alice | Wonderland System",
+        },
+        "channel": {
+          "guild": {
+            "available": true,
+            "channels": {},
+            "id": "987654321098765432",
+            "members": {},
+            "name": "Test Guild",
+            "ownerId": "111111111111111111",
+            "roles": {},
+          },
+          "id": "555555555555555555",
+          "isDMBased": [MockFunction],
+          "isTextBased": [MockFunction],
+          "isThread": [MockFunction],
+          "messages": {
+            "cache": {},
+          },
+          "name": "general",
+          "nsfw": false,
+          "parent": null,
+          "parentId": null,
+          "send": [MockFunction],
+          "topic": null,
+          "type": 0,
+        },
+        "channelId": "555555555555555555",
+        "components": [],
+        "content": "This is from a system member",
+        "createdAt": "2024-01-15T12:00:00.000Z",
+        "createdTimestamp": 1705320000000,
+        "delete": [MockFunction],
+        "edit": [MockFunction],
+        "editedAt": null,
+        "editedTimestamp": null,
+        "embeds": [],
+        "fetch": [MockFunction],
+        "fetchReference": [MockFunction],
+        "guild": {
+          "available": true,
+          "channels": {},
+          "id": "987654321098765432",
+          "members": {},
+          "name": "Test Guild",
+          "ownerId": "111111111111111111",
+          "roles": {},
+        },
+        "guildId": "987654321098765432",
+        "id": "999999999999999999",
+        "member": null,
+        "mentions": {
+          "channels": Map {},
+          "everyone": false,
+          "members": Map {},
+          "roles": Map {},
+          "users": Map {},
+        },
+        "nonce": null,
+        "pinned": false,
+        "react": [MockFunction],
+        "reference": null,
+        "reply": [MockFunction],
+        "stickers": Map {},
+        "system": false,
+        "tts": false,
+        "type": "DEFAULT",
+        "webhookId": "888888888888888888",
+      },
+    ],
+    "role": "user",
+  },
+]
+`;

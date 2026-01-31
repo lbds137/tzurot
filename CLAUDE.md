@@ -100,6 +100,44 @@ This project uses a collaborative workflow. When work gets complex:
 
 **Golden Rule**: Uncommitted changes may represent hours of work. Treat them as sacred.
 
+### 🚨 NEVER Delete Files Without Explicit Approval
+
+**NEVER use `rm -rf`, `rm -r`, or bulk file deletion without explicit user permission.**
+
+This rule exists because of a real incident where gitignored data was permanently lost.
+
+**Destructive file commands that REQUIRE explicit approval:**
+
+| Command                           | Risk                              | Ask First? |
+| --------------------------------- | --------------------------------- | ---------- |
+| `rm -rf <directory>`              | Permanent deletion, unrecoverable | **YES**    |
+| `rm -r <directory>`               | Recursive deletion                | **YES**    |
+| `rm <file>` (multiple files)      | Bulk deletion                     | **YES**    |
+| Deleting gitignored files/dirs    | Cannot be restored from git       | **YES**    |
+| Deleting `data/`, `node_modules/` | May contain irreplaceable data    | **YES**    |
+
+**Before ANY file deletion:**
+
+1. **List exactly what will be deleted** - show the user the files/directories
+2. **Check if gitignored** - gitignored files CANNOT be restored from git
+3. **Wait for explicit "yes, delete these"** - don't assume from context
+4. **Prefer moving over deleting** - `mv` to a temp location first if uncertain
+
+**What NOT to do:**
+
+```bash
+# ❌ NEVER do this without explicit approval
+rm -rf tzurot-legacy/
+rm -rf data/
+rm -r some-directory/
+
+# ✅ Instead, list what would be deleted and ASK
+ls -la tzurot-legacy/
+# "These files would be deleted: [list]. Should I proceed?"
+```
+
+**Golden Rule**: If it's not tracked by git, it may be irreplaceable. ASK FIRST.
+
 ### Mandatory Global Discovery ("Grep Rule")
 
 **Before modifying ANY configuration, infrastructure, or shared pattern:**
@@ -494,6 +532,7 @@ execSync('git log --oneline -5');
 
 | Date       | Incident                      | Rule                                |
 | ---------- | ----------------------------- | ----------------------------------- |
+| 2026-01-30 | Gitignored data/ deleted      | NEVER rm -rf without explicit okay  |
 | 2026-01-30 | Work reverted without consent | Never abandon/revert without asking |
 | 2026-01-28 | Error metadata missing model  | Update both producer and consumer   |
 | 2026-01-24 | execSync with string commands | Use execFileSync with arrays        |

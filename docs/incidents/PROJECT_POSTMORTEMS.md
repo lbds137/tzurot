@@ -6,6 +6,7 @@
 
 | Date       | Incident                        | Rule Established                                  |
 | ---------- | ------------------------------- | ------------------------------------------------- |
+| 2026-01-30 | Gitignored data/ deleted        | NEVER rm -rf without explicit user approval       |
 | 2026-01-28 | Model footer missing on errors  | Both producer & consumer must be updated together |
 | 2026-01-26 | Dashboard prefix not registered | Test componentPrefixes for dashboard entityTypes  |
 | 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch checkout       |
@@ -17,6 +18,52 @@
 | 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch             |
 | 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts              |
 | 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities       |
+
+---
+
+## 2026-01-30 - Gitignored Data Directory Permanently Deleted
+
+**What Happened**: During a v2 legacy cleanup task, `rm -rf` was used to delete directories including the gitignored `data/` folder containing irreplaceable Shapes.inc backup data. The user had only asked to clean up documentation files, not code or data.
+
+**Root Cause**:
+
+1. Interpreted "clean up v2 stuff" too broadly without asking for explicit file list
+2. Did not check whether directories were gitignored before deleting
+3. Did not list what would be deleted and wait for explicit approval
+4. Assumed context instead of confirming specific scope
+
+**Impact**:
+
+- `data/` directory permanently lost (gitignored, not in git history)
+- User had backup elsewhere, but this was pure luck
+- Could have been catastrophic data loss
+
+**What Was Lost**:
+
+- Gitignored `data/` directory with Shapes.inc personality backups
+- The v2 code (`src/`, `tests/`, `scripts/`) was also deleted but could be restored from git
+
+**Why It Wasn't Prevented**:
+
+- CLAUDE.md had "NEVER delete files without permission" but lacked specific guidance about `rm -rf`
+- No protocol to check gitignore status before deletion
+- No requirement to list files and wait for explicit approval
+
+**Fix**:
+
+1. Restored code from git: `git checkout 85e7f21f -- tzurot-legacy/src tzurot-legacy/tests tzurot-legacy/scripts`
+2. Data directory could not be restored (user had external backup)
+
+**Prevention** (added to CLAUDE.md):
+
+- **NEVER use `rm -rf` without explicit user approval**
+- Before ANY `rm` command: List what will be deleted and ASK
+- Check if files/directories are gitignored - they CANNOT be restored from git
+- When asked to "clean up", ask SPECIFICALLY which files/folders
+- Prefer `mv` to temp location over `rm` when uncertain
+- ALWAYS wait for explicit "yes, delete these" before proceeding
+
+**Key Lesson**: Gitignored files are irreplaceable. Git's safety net does not catch them. Treat any `rm -rf` as a potentially destructive operation requiring explicit user consent.
 
 ---
 
