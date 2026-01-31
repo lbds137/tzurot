@@ -94,9 +94,11 @@ describe('VerificationMessageCleanup', () => {
       expect(clearPendingVerificationMessages).toHaveBeenCalledWith(mockRedis, 'user-123');
     });
 
-    it('should skip non-DM channels', async () => {
+    it('should delete messages in guild text channels', async () => {
+      const mockMessage = { delete: vi.fn().mockResolvedValue(undefined) };
       const mockGuildChannel = {
         type: ChannelType.GuildText,
+        messages: { fetch: vi.fn().mockResolvedValue(mockMessage) },
       };
 
       vi.mocked(getPendingVerificationMessages).mockResolvedValue([
@@ -106,6 +108,25 @@ describe('VerificationMessageCleanup', () => {
 
       await cleanup.cleanupForUser('user-123');
 
+      expect(mockClient.channels.fetch).toHaveBeenCalledWith('ch-1');
+      expect(mockGuildChannel.messages.fetch).toHaveBeenCalledWith('msg-1');
+      expect(mockMessage.delete).toHaveBeenCalled();
+      expect(clearPendingVerificationMessages).toHaveBeenCalledWith(mockRedis, 'user-123');
+    });
+
+    it('should skip channels that do not support message deletion', async () => {
+      const mockVoiceChannel = {
+        type: ChannelType.GuildVoice,
+      };
+
+      vi.mocked(getPendingVerificationMessages).mockResolvedValue([
+        { messageId: 'msg-1', channelId: 'ch-1', timestamp: Date.now() },
+      ]);
+      mockClient.channels.fetch.mockResolvedValue(mockVoiceChannel);
+
+      await cleanup.cleanupForUser('user-123');
+
+      // Should still clear Redis even if channel doesn't support deletion
       expect(clearPendingVerificationMessages).toHaveBeenCalled();
     });
   });

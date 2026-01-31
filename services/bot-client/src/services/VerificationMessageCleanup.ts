@@ -6,7 +6,7 @@
  * 2. Scheduled cleanup for messages approaching 13-day limit
  */
 
-import type { Client, DMChannel } from 'discord.js';
+import type { Client, DMChannel, TextChannel, NewsChannel } from 'discord.js';
 import type { Redis } from 'ioredis';
 import { ChannelType } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
@@ -143,21 +143,29 @@ export class VerificationMessageCleanup {
 
   /**
    * Delete a single message from Discord
+   * Works for DM channels and guild text channels
    */
   private async deleteMessage(msg: PendingVerificationMessage): Promise<boolean> {
     try {
       const channel = await this.client.channels.fetch(msg.channelId);
 
-      if (channel?.type !== ChannelType.DM) {
+      // Check if channel supports message operations (DM, GuildText, GuildNews)
+      const isMessageChannel =
+        channel !== null &&
+        (channel.type === ChannelType.DM ||
+          channel.type === ChannelType.GuildText ||
+          channel.type === ChannelType.GuildNews);
+
+      if (!isMessageChannel) {
         logger.debug(
-          { messageId: msg.messageId, channelId: msg.channelId },
-          '[VerificationCleanup] Channel not found or not a DM'
+          { messageId: msg.messageId, channelId: msg.channelId, channelType: channel?.type },
+          '[VerificationCleanup] Channel not found or does not support message deletion'
         );
         return false;
       }
 
-      const dmChannel = channel as DMChannel;
-      const message = await dmChannel.messages.fetch(msg.messageId);
+      const textChannel = channel as DMChannel | TextChannel | NewsChannel;
+      const message = await textChannel.messages.fetch(msg.messageId);
       await message.delete();
 
       logger.debug(
