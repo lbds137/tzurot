@@ -112,7 +112,8 @@ export class ContentBudgetManager {
       userMessage,
       processedAttachments,
       context.activePersonaName,
-      referencedMessagesDescriptions
+      referencedMessagesDescriptions,
+      context.activePersonaId
     );
 
     const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({

@@ -127,7 +127,8 @@ export class PromptBuilder {
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
     activePersonaName?: string,
-    referencedMessagesDescriptions?: string
+    referencedMessagesDescriptions?: string,
+    activePersonaId?: string
   ): { message: HumanMessage; contentForStorage: string } {
     // Build the message content
     let messageContent = userMessage;
@@ -183,11 +184,18 @@ export class PromptBuilder {
     // Add speaker identification at the start of the message
     // This is critical for the LLM to know who is speaking, especially in
     // multi-user conversations. The format matches chat_log entries for consistency.
-    // Format: <from>PersonaName</from>\n\ncontent
+    // Format: <from id="personaId">PersonaName</from>\n\ncontent
+    // The id attribute allows the LLM to correlate the current speaker with their
+    // messages in chat_log, even if multiple users share the same display name.
     let finalContent = safeContent;
     if (activePersonaName !== undefined && activePersonaName.length > 0) {
       const safeSpeaker = escapeXmlContent(activePersonaName);
-      finalContent = `<from>${safeSpeaker}</from>\n\n${safeContent}`;
+      if (activePersonaId !== undefined && activePersonaId.length > 0) {
+        const safeId = escapeXmlContent(activePersonaId);
+        finalContent = `<from id="${safeId}">${safeSpeaker}</from>\n\n${safeContent}`;
+      } else {
+        finalContent = `<from>${safeSpeaker}</from>\n\n${safeContent}`;
+      }
     }
 
     return {
