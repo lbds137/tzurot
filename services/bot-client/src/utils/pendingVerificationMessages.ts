@@ -44,6 +44,10 @@ export interface PendingVerificationMessage {
 
 /**
  * Store a pending verification message for a user
+ *
+ * Uses Redis pipeline to atomically execute RPUSH + EXPIRE together,
+ * preventing race condition where key could persist forever if process
+ * crashes between operations.
  */
 export async function storePendingVerificationMessage(
   redis: Redis,
@@ -53,10 +57,11 @@ export async function storePendingVerificationMessage(
   const key = `${REDIS_KEY_PREFIX}${userId}`;
 
   try {
-    // Store as JSON in a list (user might have multiple pending messages)
-    await redis.rpush(key, JSON.stringify(message));
-    // Set TTL to auto-expire after 14 days
-    await redis.expire(key, REDIS_TTL_SECONDS);
+    // Use pipeline for atomic RPUSH + EXPIRE (prevents orphaned keys on crash)
+    const pipeline = redis.pipeline();
+    pipeline.rpush(key, JSON.stringify(message));
+    pipeline.expire(key, REDIS_TTL_SECONDS);
+    await pipeline.exec();
 
     logger.debug(
       { userId, messageId: message.messageId, channelId: message.channelId },

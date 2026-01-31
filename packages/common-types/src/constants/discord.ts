@@ -186,6 +186,10 @@ export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['v
  * IMPORTANT: These patterns must match ONLY our bot-added footers, not
  * user content. Users can legitimately use `-#` for small text formatting.
  *
+ * Patterns use (?:^|\n) to match:
+ * - Inline footers: "content\n-# Model:..." (newline before footer)
+ * - Standalone footers: "-# Model:..." (entire message is footer)
+ *
  * Used by:
  * - stripBotFooters (utils/discord.ts): Utility function to remove footers
  * - DiscordChannelFetcher: Strips footers during opportunistic sync
@@ -193,9 +197,9 @@ export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['v
  */
 export const BOT_FOOTER_PATTERNS = {
   /** Model indicator (with optional auto badge on same line) */
-  MODEL: /\n-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • 📍 auto)?/g,
+  MODEL: /(?:^|\n)-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • 📍 auto)?/g,
   /** Guest mode notice */
-  GUEST_MODE: /\n-# 🆓 Using free model \(no API key required\)/g,
+  GUEST_MODE: /(?:^|\n)-# 🆓 Using free model \(no API key required\)/g,
   /** Auto-response indicator (standalone) */
-  AUTO_RESPONSE: /\n-# 📍 auto-response/g,
+  AUTO_RESPONSE: /(?:^|\n)-# 📍 auto-response/g,
 } as const;
