@@ -12,6 +12,7 @@ import {
   type LoadedPersonality,
   type MessageContent,
   countTextTokens,
+  escapeXml,
   escapeXmlContent,
 } from '@tzurot/common-types';
 import type {
@@ -191,7 +192,8 @@ export class PromptBuilder {
     if (activePersonaName !== undefined && activePersonaName.length > 0) {
       const safeSpeaker = escapeXmlContent(activePersonaName);
       if (activePersonaId !== undefined && activePersonaId.length > 0) {
-        const safeId = escapeXmlContent(activePersonaId);
+        // Use escapeXml for attribute values (escapes quotes) vs escapeXmlContent for element content
+        const safeId = escapeXml(activePersonaId);
         finalContent = `<from id="${safeId}">${safeSpeaker}</from>\n\n${safeContent}`;
       } else {
         finalContent = `<from>${safeSpeaker}</from>\n\n${safeContent}`;
