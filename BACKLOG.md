@@ -446,6 +446,30 @@ Add Redis-based `processed:${discordMessageId}` check in `AIJobProcessor` to pre
 
 Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
 
+### 🧹 Ops CLI Command Migration
+
+Several commands in `pnpm ops` are stubs pointing to original shell/JS scripts. Migrate to proper TypeScript implementations in `packages/tooling/`.
+
+**Priority order** (per MCP council recommendation):
+
+1. **verify-build** (deployment) - High frequency, low risk. Good test of `execa` patterns
+2. **Data scripts** - Reuse db:safe-migrate's Prisma patterns
+   - [ ] `data:import` - Merge `import-personality` and `bulk-import` into single command with `--bulk` flag
+   - [ ] `data:backup-personalities` - Standardize backup location
+3. **Deployment** (last - high risk)
+   - [ ] `deploy:dev` - Railway CLI wrapper, needs careful `stdio` handling
+   - [ ] `deploy:update-gateway-url` - Rewrite with `fetch` instead of shell curl
+
+**Migration patterns**:
+
+- Shell scripts → Use `execa`, port Bash logic to TypeScript
+- Standalone TS → Extract logic to service functions, CLI handles args
+
+**Files**:
+
+- Stubs: `packages/tooling/src/deployment/`, `packages/tooling/src/data/`
+- Originals: `scripts/deployment/*.sh`, `scripts/data/`
+
 ### 🧹 Consolidate import-personality Scripts
 
 `scripts/data/import-personality/` workspace needs cleanup.

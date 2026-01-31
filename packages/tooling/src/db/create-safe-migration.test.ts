@@ -1,30 +1,211 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { sanitizeMigrationSql } from './create-safe-migration.js';
 
-// Mock chalk
-vi.mock('chalk', () => ({
-  default: {
-    yellow: (s: string) => s,
-    dim: (s: string) => s,
-  },
-}));
+/**
+ * Tests for create-safe-migration
+ *
+ * The core sanitization logic is tested directly via the exported `sanitizeMigrationSql`.
+ * The full command flow (createSafeMigration) requires:
+ * - Real filesystem operations
+ * - Real prisma command execution
+ * - Proper module isolation for mocking
+ *
+ * Integration testing of the full command is done manually via:
+ *   pnpm ops db:safe-migrate --name test_migration
+ */
 
-describe('createSafeMigration', () => {
-  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+describe('sanitizeMigrationSql', () => {
+  const defaultPatterns = [
+    {
+      pattern: 'DROP INDEX.*idx_memories_embedding',
+      reason: 'IVFFlat vector index cannot be represented in Prisma schema',
+      action: 'remove' as const,
+    },
+    {
+      pattern: 'CREATE INDEX.*memories_chunk_group_id_idx(?!.*WHERE)',
+      reason: 'Prisma generates non-partial index, but we need the partial version',
+      action: 'remove' as const,
+    },
+    {
+      pattern: 'DROP INDEX.*memories_chunk_group_id_idx',
+      reason: 'Partial index cannot be represented in Prisma schema',
+      action: 'remove' as const,
+    },
+  ];
 
-  beforeEach(() => {
-    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  describe('vector index protection', () => {
+    it('should remove DROP INDEX for protected vector index', () => {
+      const sql = `-- DropIndex
+DROP INDEX "idx_memories_embedding";
+
+-- AlterTable
+ALTER TABLE "test" ADD COLUMN "foo" TEXT;
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(1);
+      expect(removed[0].statement).toContain('idx_memories_embedding');
+      expect(removed[0].reason).toContain('IVFFlat');
+      expect(sanitized).toContain('-- REMOVED:');
+      expect(sanitized).toContain('ALTER TABLE "test"');
+    });
   });
 
-  afterEach(() => {
-    consoleLogSpy.mockRestore();
+  describe('partial index protection', () => {
+    it('should remove CREATE INDEX without WHERE clause for partial index', () => {
+      const sql = `-- CreateIndex
+CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");
+
+-- AlterTable
+ALTER TABLE "test" ADD COLUMN "bar" TEXT;
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(1);
+      expect(removed[0].statement).toContain('memories_chunk_group_id_idx');
+      expect(removed[0].reason).toContain('non-partial');
+      expect(sanitized).toContain('-- REMOVED:');
+      expect(sanitized).toContain('ALTER TABLE "test"');
+    });
+
+    it('should NOT remove CREATE INDEX with WHERE clause (proper partial index)', () => {
+      const sql = `-- CreateIndex (proper partial index)
+CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id") WHERE "chunk_group_id" IS NOT NULL;
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(0);
+      expect(sanitized).not.toContain('-- REMOVED:');
+      expect(sanitized).toContain('WHERE');
+    });
+
+    it('should remove DROP INDEX for partial index', () => {
+      const sql = `-- DropIndex
+DROP INDEX "memories_chunk_group_id_idx";
+
+-- AlterTable
+ALTER TABLE "test" ADD COLUMN "baz" TEXT;
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(1);
+      expect(removed[0].statement).toContain('memories_chunk_group_id_idx');
+      expect(sanitized).toContain('-- REMOVED:');
+    });
   });
 
-  it('should be a placeholder function', async () => {
-    const { createSafeMigration } = await import('./create-safe-migration.js');
-    await createSafeMigration();
+  describe('multiple patterns', () => {
+    it('should handle multiple dangerous patterns in one migration', () => {
+      const sql = `-- DropIndex
+DROP INDEX "idx_memories_embedding";
 
-    const output = consoleLogSpy.mock.calls.flat().join(' ');
-    expect(output).toContain('not yet migrated');
-    expect(output).toContain('prisma migrate dev');
+-- DropIndex
+DROP INDEX "memories_chunk_group_id_idx";
+
+-- AlterTable
+ALTER TABLE "test" ADD COLUMN "foo" TEXT;
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(2);
+      expect(removed.some(r => r.statement.includes('idx_memories_embedding'))).toBe(true);
+      expect(removed.some(r => r.statement.includes('memories_chunk_group_id_idx'))).toBe(true);
+      // Both lines should be marked as removed
+      expect((sanitized.match(/-- REMOVED:/g) || []).length).toBe(2);
+    });
+  });
+
+  describe('no matches', () => {
+    it('should return empty removed array when no patterns match', () => {
+      const sql = `-- AlterTable
+ALTER TABLE "users" ADD COLUMN "email" TEXT;
+
+-- CreateIndex
+CREATE INDEX "users_email_idx" ON "users"("email");
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(0);
+      expect(sanitized).not.toContain('-- REMOVED:');
+      expect(sanitized).toBe(sql);
+    });
+
+    it('should work with empty patterns array', () => {
+      const sql = `DROP INDEX "idx_memories_embedding";`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, []);
+
+      expect(removed).toHaveLength(0);
+      expect(sanitized).toBe(sql);
+    });
+  });
+
+  describe('formatting', () => {
+    it('should clean up multiple blank lines left by removals', () => {
+      const sql = `-- DropIndex
+DROP INDEX "idx_memories_embedding";
+
+
+
+-- AlterTable
+ALTER TABLE "test" ADD COLUMN "foo" TEXT;
+`;
+
+      const { sanitized } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      // Should not have more than 2 consecutive newlines
+      expect(sanitized).not.toMatch(/\n{4,}/);
+    });
+
+    it('should preserve line context in removed statements', () => {
+      const sql = `-- This is a comment before
+DROP INDEX "idx_memories_embedding"; -- inline comment
+-- This is a comment after`;
+
+      const { removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(1);
+      // The full line including inline comment should be captured
+      expect(removed[0].statement).toContain('inline comment');
+    });
+  });
+
+  describe('custom patterns', () => {
+    it('should handle custom patterns', () => {
+      const customPatterns = [
+        {
+          pattern: 'DROP TABLE.*deprecated_table',
+          reason: 'Custom protection for deprecated table',
+          action: 'remove' as const,
+        },
+      ];
+
+      const sql = `DROP TABLE "deprecated_table";
+
+ALTER TABLE "users" ADD COLUMN "new_col" TEXT;
+`;
+
+      const { sanitized, removed } = sanitizeMigrationSql(sql, customPatterns);
+
+      expect(removed).toHaveLength(1);
+      expect(removed[0].reason).toContain('Custom protection');
+      expect(sanitized).toContain('-- REMOVED:');
+    });
+  });
+
+  describe('case insensitivity', () => {
+    it('should match patterns case-insensitively', () => {
+      const sql = `drop index "idx_memories_embedding";`;
+
+      const { removed } = sanitizeMigrationSql(sql, defaultPatterns);
+
+      expect(removed).toHaveLength(1);
+    });
   });
 });
