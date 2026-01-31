@@ -40,12 +40,23 @@ const mockConversationPersistence = {
   saveAssistantMessageFromFields: vi.fn().mockResolvedValue(undefined),
 };
 
+const mockExtendedContextResolver = {
+  resolveAll: vi.fn().mockResolvedValue({
+    enabled: true,
+    maxMessages: 100,
+    maxAge: undefined,
+    maxImages: 10,
+    sources: ['database', 'discord'],
+  }),
+};
+
 vi.mock('../../services/serviceRegistry.js', () => ({
   getGatewayClient: () => mockGatewayClient,
   getWebhookManager: () => mockWebhookManager,
   getPersonalityService: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
   getConversationPersistence: () => mockConversationPersistence,
+  getExtendedContextResolver: () => mockExtendedContextResolver,
 }));
 
 // Mock redis service
@@ -360,7 +371,8 @@ describe('Character Chat Handler', () => {
           channelId: 'channel-123',
         }),
         personality,
-        'Hello!' // message content
+        'Hello!', // message content
+        expect.objectContaining({ extendedContext: expect.any(Object) })
       );
 
       // Verify context was passed to generate
@@ -680,12 +692,9 @@ describe('Character Chat Handler', () => {
 
       await handleChat(mockContext, mockConfig);
 
-      // Should return error about no conversation history
+      // Should return error about no conversation history in this channel
       expect(mockContext.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('No conversation history found'),
-      });
-      expect(mockContext.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Test Char'),
+        content: expect.stringContaining('No conversation history found in this channel'),
       });
 
       // Should NOT submit job
@@ -845,7 +854,8 @@ describe('Character Chat Handler', () => {
           userId: 'user-123',
         }),
         personality,
-        'Hello!'
+        'Hello!',
+        expect.objectContaining({ extendedContext: expect.any(Object) })
       );
     });
   });

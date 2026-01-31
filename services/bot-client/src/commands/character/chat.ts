@@ -35,6 +35,7 @@ import {
   getWebhookManager,
   getMessageContextBuilder,
   getConversationPersistence,
+  getExtendedContextResolver,
 } from '../../services/serviceRegistry.js';
 import type { InteractionContextParams } from '../../services/MessageContextBuilder.js';
 import type { MessageContext } from '../../types.js';
@@ -337,7 +338,13 @@ export async function handleChat(
     // 3. Build interaction context parameters
     const interactionParams = buildInteractionParams(context, channel, discordDisplayName);
 
-    // 4. Build context using MessageContextBuilder
+    // 4. Resolve extended context settings for this channel + personality
+    const extendedContextSettings = await getExtendedContextResolver().resolveAll(
+      channel.id,
+      personality
+    );
+
+    // 5. Build context using MessageContextBuilder
     // This provides: persona resolution, context epoch, guild member info, user timezone
     const contextBuilder = getMessageContextBuilder();
     // In weigh-in mode, use special prompt. In chat mode, message is guaranteed non-null.
@@ -346,21 +353,23 @@ export async function handleChat(
     const buildResult = await contextBuilder.buildContextFromInteraction(
       interactionParams,
       personality,
-      messageContent
+      messageContent,
+      { extendedContext: extendedContextSettings }
     );
 
-    // 5. Weigh-in mode requires existing conversation
+    // 6. Weigh-in mode requires existing conversation in the channel
+    // With extended context, conversationHistory contains all messages from the channel
     if (isWeighInMode && buildResult.conversationHistory.length === 0) {
       await context.editReply({
-        content: `❌ No conversation history found for **${personality.displayName}** in this channel.\nStart a conversation first, or provide a message.`,
+        content: `❌ No conversation history found in this channel.\nStart a conversation first, or provide a message.`,
       });
       return;
     }
 
-    // 6. Get display name from context build (persona name or Discord name)
+    // 7. Get display name from context build (persona name or Discord name)
     const displayName = buildResult.personaName ?? discordDisplayName;
 
-    // 7. Delete deferred reply and send user message (chat mode only)
+    // 8. Delete deferred reply and send user message (chat mode only)
     await context.deleteReply();
 
     // Capture timestamp for conversation ordering (user message < assistant message)
@@ -381,7 +390,7 @@ export async function handleChat(
       buildResult.context.triggerMessageId = userMsgId;
     }
 
-    // 8. Submit job, poll for response, and track diagnostics + persistence
+    // 9. Submit job, poll for response, and track diagnostics + persistence
     await submitAndTrackJob({
       channel,
       personality,
