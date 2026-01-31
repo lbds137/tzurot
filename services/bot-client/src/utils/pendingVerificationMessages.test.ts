@@ -12,13 +12,18 @@ import {
   type PendingVerificationMessage,
 } from './pendingVerificationMessages.js';
 
+// Mock async generator for scanStream
+async function* createMockScanStream(keys: string[]): AsyncGenerator<string[], void, unknown> {
+  yield keys;
+}
+
 // Mock Redis
 const mockRedis = {
   rpush: vi.fn(),
   expire: vi.fn(),
   lrange: vi.fn(),
   del: vi.fn(),
-  keys: vi.fn(),
+  scanStream: vi.fn(),
 };
 
 describe('Pending Verification Messages', () => {
@@ -87,6 +92,39 @@ describe('Pending Verification Messages', () => {
 
       expect(result).toEqual([]);
     });
+
+    it('should skip invalid JSON entries gracefully', async () => {
+      // Mix of valid JSON and invalid JSON
+      mockRedis.lrange.mockResolvedValue([
+        JSON.stringify({ messageId: 'msg-1', channelId: 'ch-1', timestamp: 1000 }),
+        'not valid json {{{',
+        JSON.stringify({ messageId: 'msg-2', channelId: 'ch-2', timestamp: 2000 }),
+      ]);
+
+      const result = await getPendingVerificationMessages(mockRedis as any, 'user-123');
+
+      // Should return only valid entries
+      expect(result).toHaveLength(2);
+      expect(result[0].messageId).toBe('msg-1');
+      expect(result[1].messageId).toBe('msg-2');
+    });
+
+    it('should skip entries with invalid schema', async () => {
+      // Valid JSON but wrong schema
+      mockRedis.lrange.mockResolvedValue([
+        JSON.stringify({ messageId: 'msg-1', channelId: 'ch-1', timestamp: 1000 }),
+        JSON.stringify({ messageId: 123, channelId: 'ch-2' }), // Wrong type + missing field
+        JSON.stringify({ wrongField: 'value' }), // Completely wrong schema
+        JSON.stringify({ messageId: 'msg-3', channelId: 'ch-3', timestamp: 3000 }),
+      ]);
+
+      const result = await getPendingVerificationMessages(mockRedis as any, 'user-123');
+
+      // Should return only valid entries
+      expect(result).toHaveLength(2);
+      expect(result[0].messageId).toBe('msg-1');
+      expect(result[1].messageId).toBe('msg-3');
+    });
   });
 
   describe('clearPendingVerificationMessages', () => {
@@ -108,20 +146,30 @@ describe('Pending Verification Messages', () => {
   });
 
   describe('getAllPendingVerificationUserIds', () => {
-    it('should return user IDs from Redis keys', async () => {
-      mockRedis.keys.mockResolvedValue([
-        'nsfw:verification:pending:user-1',
-        'nsfw:verification:pending:user-2',
-        'nsfw:verification:pending:user-3',
-      ]);
+    it('should return user IDs from Redis scanStream', async () => {
+      mockRedis.scanStream.mockReturnValue(
+        createMockScanStream([
+          'nsfw:verification:pending:user-1',
+          'nsfw:verification:pending:user-2',
+          'nsfw:verification:pending:user-3',
+        ])
+      );
 
       const result = await getAllPendingVerificationUserIds(mockRedis as any);
 
       expect(result).toEqual(['user-1', 'user-2', 'user-3']);
+      expect(mockRedis.scanStream).toHaveBeenCalledWith({
+        match: 'nsfw:verification:pending:*',
+        count: 100,
+      });
     });
 
     it('should return empty array on Redis error', async () => {
-      mockRedis.keys.mockRejectedValue(new Error('Redis error'));
+      // Create an async generator that throws
+      async function* throwingStream(): AsyncGenerator<string[], void, unknown> {
+        throw new Error('Redis error');
+      }
+      mockRedis.scanStream.mockReturnValue(throwingStream());
 
       const result = await getAllPendingVerificationUserIds(mockRedis as any);
 

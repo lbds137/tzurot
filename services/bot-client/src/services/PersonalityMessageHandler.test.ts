@@ -19,8 +19,11 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   checkNsfwVerification: vi.fn().mockResolvedValue({ nsfwVerified: true, nsfwVerifiedAt: null }),
   verifyNsfwUser: vi.fn().mockResolvedValue(null),
   trackPendingVerificationMessage: vi.fn().mockResolvedValue(undefined),
-  NSFW_VERIFICATION_MESSAGE: 'Mock NSFW verification message',
+  NSFW_VERIFICATION_MESSAGE: 'Please verify your age by interacting in an NSFW channel first.',
 }));
+
+// Import mocked functions for per-test manipulation
+import * as nsfwVerification from '../utils/nsfwVerification.js';
 
 describe('PersonalityMessageHandler', () => {
   let handler: PersonalityMessageHandler;
@@ -492,6 +495,153 @@ describe('PersonalityMessageHandler', () => {
           attachments: mockAttachments,
         })
       );
+    });
+  });
+
+  describe('NSFW verification', () => {
+    it('should auto-verify user when in NSFW channel', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Setup: NSFW channel
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(false);
+
+      const mockContext = {
+        userMessage: 'Hello from NSFW channel',
+        conversationHistory: [],
+        attachments: [],
+        referencedMessages: [],
+        environment: {},
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue({
+        context: mockContext,
+        personaId: 'persona-123',
+        messageContent: 'Hello from NSFW channel',
+        referencedMessages: [],
+        conversationHistory: [],
+      });
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Hello from NSFW channel');
+
+      // Should auto-verify the user
+      expect(nsfwVerification.verifyNsfwUser).toHaveBeenCalledWith('user-123');
+
+      // Should continue processing (generate called)
+      expect(mockGatewayClient.generate).toHaveBeenCalled();
+    });
+
+    it('should block DM from unverified user and send verification message', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Setup: DM channel, user not verified
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
+      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: false,
+        nsfwVerifiedAt: null,
+      });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
+
+      // Should check verification
+      expect(nsfwVerification.checkNsfwVerification).toHaveBeenCalledWith('user-123');
+
+      // Should send verification message
+      expect(mockMessage.reply).toHaveBeenCalledWith(
+        'Please verify your age by interacting in an NSFW channel first.'
+      );
+
+      // Should NOT process message (generate not called)
+      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
+    });
+
+    it('should track verification message for cleanup', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Setup: DM channel, user not verified
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
+      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: false,
+        nsfwVerifiedAt: null,
+      });
+      (mockMessage.reply as ReturnType<typeof vi.fn>).mockResolvedValue({
+        id: 'verification-msg-1',
+      });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
+
+      // Should track the verification message for later cleanup
+      expect(nsfwVerification.trackPendingVerificationMessage).toHaveBeenCalledWith(
+        'user-123',
+        'verification-msg-1',
+        'channel-123'
+      );
+    });
+
+    it('should allow DM from verified user', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Setup: DM channel, user IS verified
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
+      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: true,
+        nsfwVerifiedAt: new Date(),
+      });
+
+      const mockContext = {
+        userMessage: 'Hello via DM',
+        conversationHistory: [],
+        attachments: [],
+        referencedMessages: [],
+        environment: {},
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue({
+        context: mockContext,
+        personaId: 'persona-123',
+        messageContent: 'Hello via DM',
+        referencedMessages: [],
+        conversationHistory: [],
+      });
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
+
+      // Should check verification
+      expect(nsfwVerification.checkNsfwVerification).toHaveBeenCalledWith('user-123');
+
+      // Should continue processing (generate called)
+      expect(mockGatewayClient.generate).toHaveBeenCalled();
+    });
+
+    it('should handle verification reply failure gracefully', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Setup: DM channel, user not verified, reply fails
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
+      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
+        nsfwVerified: false,
+        nsfwVerifiedAt: null,
+      });
+      (mockMessage.reply as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Cannot send'));
+
+      // Should not throw even if reply fails
+      await expect(
+        handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM')
+      ).resolves.toBeUndefined();
+
+      // Should NOT process message (generate not called)
+      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
     });
   });
 });

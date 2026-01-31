@@ -21,6 +21,13 @@ import { redisService } from '../redis.js';
 const logger = createLogger('ReplyResolutionService');
 
 /**
+ * Check if a string identifier is valid (non-null, non-empty)
+ */
+function isValidIdentifier(value: string | null | undefined): value is string {
+  return value !== undefined && value !== null && value.length > 0;
+}
+
+/**
  * Resolves personality from replied-to messages
  */
 export class ReplyResolutionService {
@@ -49,7 +56,7 @@ export class ReplyResolutionService {
   async resolvePersonality(message: Message, userId: string): Promise<LoadedPersonality | null> {
     try {
       const messageId = message.reference?.messageId;
-      if (messageId === undefined || messageId === null || messageId.length === 0) {
+      if (!isValidIdentifier(messageId)) {
         logger.warn({}, '[ReplyResolutionService] Called with message that has no reference');
         return null;
       }
@@ -69,7 +76,7 @@ export class ReplyResolutionService {
         logger.debug('[ReplyResolutionService] DM reply to bot message detected');
       } else {
         // In guild channels, require webhookId (personality messages are sent via webhooks)
-        if (referencedMessage.webhookId === undefined || referencedMessage.webhookId === null) {
+        if (!isValidIdentifier(referencedMessage.webhookId)) {
           logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
           return null;
         }
@@ -77,9 +84,7 @@ export class ReplyResolutionService {
         // Check if this webhook belongs to the current bot instance
         // This prevents both dev and prod bots from responding to the same personality webhook
         if (
-          referencedMessage.applicationId !== undefined &&
-          referencedMessage.applicationId !== null &&
-          referencedMessage.applicationId.length > 0 &&
+          isValidIdentifier(referencedMessage.applicationId) &&
           referencedMessage.applicationId !== message.client.user.id
         ) {
           logger.debug(
@@ -99,8 +104,7 @@ export class ReplyResolutionService {
 
       // Check if Redis value is a UUID (new format) vs name (legacy format)
       const isUUID =
-        personalityIdOrName !== null &&
-        personalityIdOrName !== undefined &&
+        isValidIdentifier(personalityIdOrName) &&
         /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personalityIdOrName);
 
       if (isUUID) {
@@ -112,13 +116,7 @@ export class ReplyResolutionService {
 
       // Tier 2: Database lookup (authoritative - handles display name collisions)
       // Only for DMs when Redis misses, since guild webhooks have username fallback
-      if (
-        (personalityIdOrName === undefined ||
-          personalityIdOrName === null ||
-          personalityIdOrName.length === 0) &&
-        isDM &&
-        this.gatewayClient !== undefined
-      ) {
+      if (!isValidIdentifier(personalityIdOrName) && isDM && this.gatewayClient !== undefined) {
         const dbResult = await this.gatewayClient.lookupPersonalityFromConversation(
           referencedMessage.id
         );
@@ -132,14 +130,11 @@ export class ReplyResolutionService {
       }
 
       // Tier 3: Display name parsing (last resort)
-      if (
-        personalityIdOrName === undefined ||
-        personalityIdOrName === null ||
-        personalityIdOrName.length === 0
-      ) {
+      if (!isValidIdentifier(personalityIdOrName)) {
         if (isDM && referencedMessage.content) {
           // DM format: **DisplayName:** message content
-          const prefixMatch = /^\*\*(.+?):\*\*/.exec(referencedMessage.content);
+          // Regex excludes colons and newlines from display name to prevent edge cases
+          const prefixMatch = /^\*\*([^:\n]+?):\*\*/.exec(referencedMessage.content);
           if (prefixMatch) {
             personalityIdOrName = prefixMatch[1];
             logger.debug(
@@ -164,11 +159,7 @@ export class ReplyResolutionService {
         }
       }
 
-      if (
-        personalityIdOrName === undefined ||
-        personalityIdOrName === null ||
-        personalityIdOrName.length === 0
-      ) {
+      if (!isValidIdentifier(personalityIdOrName)) {
         logger.debug('[ReplyResolutionService] No personality found for replied message');
         return null;
       }
