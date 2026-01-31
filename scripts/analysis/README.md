@@ -4,26 +4,25 @@ Code quality and pattern analysis utilities.
 
 ## Migration to ESLint Rules
 
-Static analysis scripts are being migrated to ESLint rules in `@tzurot/tooling/eslint`. This provides:
+Static analysis scripts have been migrated to ESLint rules in `@tzurot/tooling/eslint`. This provides:
 
 - Automatic execution on save (via IDE integration)
 - CI enforcement
 - Better developer experience (inline errors)
 
-### Migrated
+### Migrated Scripts
 
 | Script                       | ESLint Rule                   | Status                 |
 | ---------------------------- | ----------------------------- | ---------------------- |
-| `check-singleton-exports.js` | `@tzurot/no-singleton-export` | ✅ Migrated            |
-| `check-hardcoded-prefix.js`  | N/A                           | 🗑️ Deleted (v2 relic)  |
-| `check-module-size.sh`       | Built-in `max-lines`          | 🗑️ Deleted (redundant) |
+| `check-singleton-exports.js` | `@tzurot/no-singleton-export` | ✅ Deleted (migrated)  |
+| `check-hardcoded-prefix.js`  | N/A                           | ✅ Deleted (v2 relic)  |
+| `check-module-size.sh`       | Built-in `max-lines`          | ✅ Deleted (redundant) |
 
 ### Remaining Scripts
 
-| Script                       | Purpose                           | Migration Plan                                      |
-| ---------------------------- | --------------------------------- | --------------------------------------------------- |
-| `check-singleton-exports.js` | Detect singleton anti-patterns    | Keep as reference until ESLint rule is fully tested |
-| `check-job-validation.sh`    | Ensure BullMQ jobs use validation | → ESLint rule (future)                              |
+| Script                    | Purpose                           | Notes             |
+| ------------------------- | --------------------------------- | ----------------- |
+| `check-job-validation.sh` | Ensure BullMQ jobs use validation | → ESLint (future) |
 
 ## Using the ESLint Rules
 

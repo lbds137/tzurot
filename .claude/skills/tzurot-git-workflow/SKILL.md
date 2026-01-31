@@ -202,6 +202,25 @@ gh pr create --base main --head develop \
   --title "Release v3.0.0-beta.31: Description"
 ```
 
+### After Release: Sync Develop with Main
+
+After merging release PR to main:
+
+```bash
+# Fetch and update local branches
+git fetch --all
+git checkout main && git pull origin main
+git checkout develop && git pull origin develop
+
+# Rebase develop onto main
+git rebase origin/main
+
+# Push (force needed after rebase)
+git push origin develop --force-with-lease
+```
+
+**Why this is needed:** After a release PR merges to main, develop needs to be rebased onto main to incorporate any merge commit and keep history clean.
+
 ## Anti-Patterns
 
 | ❌ Don't                      | ✅ Do                            |
