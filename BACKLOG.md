@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-01-30
+> **Last Updated**: 2026-01-31
 > **Version**: v3.0.0-beta.60
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -108,6 +108,26 @@ Add reaction metadata to extended context messages showing emoji and who reacted
 - [ ] Extract reactions from Discord messages
 - [ ] Format as XML metadata (use same user/persona resolution as elsewhere)
 - [ ] Include in extended context output
+
+### ✨ Multi-Character Invocation Per Message
+
+Support tagging multiple characters in one message, each responding in order.
+
+**Example**: `@character1 @character2 hello both` → both respond sequentially
+**Example**: Reply to character1 + tag @character2 → character1 responds first, then character2
+
+**Implementation sketch**:
+
+- [ ] Modify mention extraction to return array of all valid mentions
+- [ ] Combine reply target + mentions into ordered list (reply first, then mentions L→R)
+- [ ] Add max limit (3-4 characters per message) to prevent abuse
+- [ ] Sequential execution in processor (order matters for conversation flow)
+- [ ] Each response logged separately to conversation history
+- [ ] Error handling: continue with remaining characters if one fails
+
+**DM consideration**: Last character becomes sticky session, but extended context still provides continuity.
+
+**Complexity**: Medium (~1-2 days). Main challenge is refactoring processor chain from single-match to multi-match.
 
 ---
 
