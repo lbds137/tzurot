@@ -6,9 +6,14 @@
  * Last processor in the chain - fallback for unhandled mentions.
  */
 
-import type { Message } from 'discord.js';
+import type { Message, SendableChannels } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
+import {
+  isNsfwChannel,
+  verifyNsfwUser,
+  sendVerificationConfirmation,
+} from '../utils/nsfwVerification.js';
 
 const logger = createLogger('BotMentionProcessor');
 
@@ -38,6 +43,19 @@ export class BotMentionProcessor implements IMessageProcessor {
       { userId: message.author.id, channelId: message.channelId },
       '[BotMentionProcessor] Processing generic bot mention, sending help'
     );
+
+    // Auto-verify in NSFW channels (fire-and-forget with feedback)
+    if (isNsfwChannel(message.channel)) {
+      void verifyNsfwUser(message.author.id)
+        .then(result => {
+          if (result !== null && !result.alreadyVerified) {
+            void sendVerificationConfirmation(message.channel as SendableChannels);
+          }
+        })
+        .catch(() => {
+          // Ignore verification errors - non-critical
+        });
+    }
 
     const config = getConfig();
     const mentionChar = config.BOT_MENTION_CHAR;
