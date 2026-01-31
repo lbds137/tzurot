@@ -1,0 +1,63 @@
+{
+  "name": "tzurot",
+  "version": "2.2.10",
+  "description": "A Discord bot that uses webhooks to represent multiple AI personalities",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "dev:bot": "node scripts/start-dev.js",
+    "test": "jest",
+    "test:fast": "jest --no-coverage --silent --maxWorkers=4",
+    "test:dev": "NODE_ENV=development jest",
+    "test:dev:watch": "NODE_ENV=development jest --watch",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:debug": "jest --detectOpenHandles --verbose",
+    "test:handles": "jest --detectOpenHandles",
+    "test:commands": "./scripts/test-commands.sh",
+    "test:summary": "jest --json --outputFile=test-results.json > /dev/null 2>&1 && node -e \"const r=require('./test-results.json'); console.log('Test Suites: ' + r.numFailedTestSuites + ' failed, ' + r.numPassedTestSuites + ' passed, ' + r.numTotalTestSuites + ' total'); console.log('Tests: ' + r.numFailedTests + ' failed, ' + r.numPassedTests + ' passed, ' + r.numTotalTests + ' total'); process.exit(r.success ? 0 : 1)\"",
+    "test:failures": "jest --onlyFailures",
+    "test:list-failing": "jest --listTests --findRelatedTests --passWithNoTests $(jest --listTests 2>/dev/null | xargs -I {} sh -c 'jest {} --listTests >/dev/null 2>&1 || echo {}')",
+    "coverage": "jest --coverage && node scripts/update-coverage-summary.js",
+    "lint": "eslint src/ --ext .js",
+    "lint:fix": "eslint src/ --ext .js --fix",
+    "lint:errors": "eslint src/ --ext .js --quiet",
+    "lint:timers": "node scripts/check-timer-patterns.js",
+    "lint:module-size": "./scripts/check-module-size.sh",
+    "lint:test-mocks": "node scripts/check-test-mock-patterns.js",
+    "lint:antipatterns": "node scripts/check-singleton-exports.js",
+    "lint:prefix": "node scripts/check-hardcoded-prefix.js",
+    "format": "prettier --write \"src/**/*.js\"",
+    "format:check": "prettier --check \"src/**/*.js\"",
+    "quality": "npm run lint && npm run format:check && npm run lint:timers && npm run lint:module-size && npm run lint:antipatterns && npm run lint:prefix",
+    "quality:tests": "npm run lint:test-mocks && npm run lint:test-boundaries",
+    "lint:test-boundaries": "node scripts/check-test-mocking-patterns.js"
+  },
+  "dependencies": {
+    "discord.js": "14.25.0",
+    "dotenv": "16.5.0",
+    "jszip": "^3.10.1",
+    "node-fetch": "2.7.0",
+    "openai": "4.100.0",
+    "winston": "3.17.0"
+  },
+  "devDependencies": {
+    "@babel/preset-env": "^7.27.2",
+    "@eslint/js": "^9.27.0",
+    "babel-jest": "^29.7.0",
+    "eslint": "^9.27.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-jest": "^28.11.0",
+    "glob": "^11.1.0",
+    "globals": "^16.1.0",
+    "jest": "29.7.0",
+    "jest-environment-node": "^29.7.0",
+    "nodemon": "3.1.10",
+    "prettier": "^3.5.3"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}
