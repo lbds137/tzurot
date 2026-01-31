@@ -419,6 +419,21 @@ Re-exports create spaghetti code and obscure module dependencies.
 - [ ] Eliminate non-essential re-exports
 - [ ] Exception: Package entry points (e.g., `@tzurot/common-types`)
 
+### 🏗️ Extract Shared Channel Type Utilities
+
+Thread channel type checking is duplicated across:
+
+- `nsfwVerification.ts` - `isNsfwChannel()` checks if channel (including threads) is NSFW
+- `VerificationMessageCleanup.ts` - `deleteMessage()` checks if channel supports message operations
+
+Both have similar patterns checking `PublicThread`, `PrivateThread`, `AnnouncementThread` types. Extract shared utilities:
+
+- [ ] `isTextBasedChannel()` - returns true for DM, GuildText, GuildNews, and thread types
+- [ ] `getThreadParent()` - safely extract parent from thread channels
+- [ ] Consider placing in `packages/common-types/src/utils/discordChannelUtils.ts`
+
+**Files**: `services/bot-client/src/utils/nsfwVerification.ts`, `services/bot-client/src/services/VerificationMessageCleanup.ts`
+
 ### 🏗️ N+1 Query Pattern in UserReferenceResolver
 
 Sequential DB queries in a loop for user references. Use batch extraction pattern.
