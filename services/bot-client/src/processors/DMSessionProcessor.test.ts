@@ -24,6 +24,7 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
 vi.mock('../utils/nsfwVerification.js', () => ({
   isDMChannel: vi.fn(),
   checkNsfwVerification: vi.fn(),
+  sendNsfwVerificationMessage: vi.fn().mockResolvedValue(undefined),
   trackPendingVerificationMessage: vi.fn(),
   NSFW_VERIFICATION_MESSAGE: '**Age Verification Required**\n\nMocked message',
 }));
@@ -37,6 +38,7 @@ import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
   isDMChannel,
   checkNsfwVerification,
+  sendNsfwVerificationMessage,
   trackPendingVerificationMessage,
 } from '../utils/nsfwVerification.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
@@ -648,8 +650,7 @@ describe('DMSessionProcessor', () => {
       const result = await processor.process(message);
 
       expect(result).toBe(true); // Consumed message
-      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('Age Verification'));
-      expect(trackPendingVerificationMessage).toHaveBeenCalled();
+      expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message, 'DMSessionProcessor');
       // Should NOT check for active session or send help message
       expect(mockGatewayClient.lookupPersonalityFromConversation).not.toHaveBeenCalled();
     });
@@ -670,7 +671,7 @@ describe('DMSessionProcessor', () => {
       expect(message.reply).toHaveBeenCalledWith({
         content: expect.stringContaining('No active conversation'),
       });
-      expect(trackPendingVerificationMessage).not.toHaveBeenCalled();
+      expect(sendNsfwVerificationMessage).not.toHaveBeenCalled();
     });
 
     it('should check NSFW verification before checking for active personality', async () => {
@@ -703,7 +704,7 @@ describe('DMSessionProcessor', () => {
 
       // Even though there's an active personality, should block for verification
       expect(result).toBe(true);
-      expect(message.reply).toHaveBeenCalledWith(expect.stringContaining('Age Verification'));
+      expect(sendNsfwVerificationMessage).toHaveBeenCalledWith(message, 'DMSessionProcessor');
       expect(mockPersonalityHandler.handleMessage).not.toHaveBeenCalled();
     });
   });

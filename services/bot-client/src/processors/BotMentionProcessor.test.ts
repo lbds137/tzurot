@@ -5,8 +5,10 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { ChannelType } from 'discord.js';
 import { BotMentionProcessor } from './BotMentionProcessor.js';
 import type { Message } from 'discord.js';
+import * as nsfwVerification from '../utils/nsfwVerification.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async () => {
@@ -25,10 +27,18 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+// Mock NSFW verification utilities
+vi.mock('../utils/nsfwVerification.js', () => ({
+  isNsfwChannel: vi.fn(),
+  verifyNsfwUser: vi.fn(),
+  sendVerificationConfirmation: vi.fn(),
+}));
+
 function createMockMessage(options?: {
   hasBotMention?: boolean;
   content?: string;
   isReply?: boolean;
+  isNsfwChannel?: boolean;
 }): Message {
   const botId = '987654321';
   return {
@@ -40,6 +50,10 @@ function createMockMessage(options?: {
       bot: false,
     },
     channelId: 'channel-123',
+    channel: {
+      type: ChannelType.GuildText,
+      nsfw: options?.isNsfwChannel ?? false,
+    },
     reference: options?.isReply ? { messageId: 'ref-123' } : null,
     client: {
       user: {
@@ -151,6 +165,83 @@ describe('BotMentionProcessor', () => {
 
       expect(result).toBe(false);
       expect(message.reply).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('NSFW auto-verification', () => {
+    it('should auto-verify user when mentioned in NSFW channel', async () => {
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.verifyNsfwUser).mockResolvedValue({
+        nsfwVerified: true,
+        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
+        alreadyVerified: false,
+      });
+
+      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
+
+      await processor.process(message);
+
+      expect(nsfwVerification.isNsfwChannel).toHaveBeenCalledWith(message.channel);
+      expect(nsfwVerification.verifyNsfwUser).toHaveBeenCalledWith('111222333');
+    });
+
+    it('should send confirmation on first-time verification', async () => {
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.verifyNsfwUser).mockResolvedValue({
+        nsfwVerified: true,
+        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
+        alreadyVerified: false,
+      });
+
+      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
+
+      await processor.process(message);
+
+      // Wait for the fire-and-forget promise to settle
+      await vi.waitFor(() => {
+        expect(nsfwVerification.sendVerificationConfirmation).toHaveBeenCalledWith(message.channel);
+      });
+    });
+
+    it('should not send confirmation when already verified', async () => {
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.verifyNsfwUser).mockResolvedValue({
+        nsfwVerified: true,
+        nsfwVerifiedAt: '2024-01-15T10:00:00.000Z',
+        alreadyVerified: true,
+      });
+
+      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
+
+      await processor.process(message);
+
+      // Wait a tick for promise to settle
+      await new Promise(resolve => setTimeout(resolve, 10));
+
+      expect(nsfwVerification.sendVerificationConfirmation).not.toHaveBeenCalled();
+    });
+
+    it('should not auto-verify in non-NSFW channel', async () => {
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
+
+      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: false });
+
+      await processor.process(message);
+
+      expect(nsfwVerification.verifyNsfwUser).not.toHaveBeenCalled();
+    });
+
+    it('should handle verification failure gracefully', async () => {
+      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
+      vi.mocked(nsfwVerification.verifyNsfwUser).mockRejectedValue(new Error('API error'));
+
+      const message = createMockMessage({ hasBotMention: true, isNsfwChannel: true });
+
+      // Should not throw, still sends help message
+      const result = await processor.process(message);
+
+      expect(result).toBe(true);
+      expect(message.reply).toHaveBeenCalled();
     });
   });
 });
