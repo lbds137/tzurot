@@ -80,9 +80,10 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     uuidColumns: ['id', 'default_llm_config_id', 'default_persona_id'],
     timestampColumns: ['created_at', 'updated_at'],
     // default_persona_id creates circular dependency: users ↔ personas
-    // default_llm_config_id creates circular dependency: users ↔ llm_configs
-    // Deferred: sync users first with NULL, then update after llm_configs/personas sync
-    deferredFkColumns: ['default_persona_id', 'default_llm_config_id'],
+    // Deferred: sync users first with NULL, then update after personas sync
+    deferredFkColumns: ['default_persona_id'],
+    // Exclude user's global LLM preset default - dev/prod may use different models for testing
+    excludeColumns: ['default_llm_config_id'],
   },
   personas: {
     pk: 'id',
@@ -119,6 +120,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['personality_id', 'llm_config_id'],
     timestampColumns: ['updated_at'],
+    // Exclude character-level LLM preset defaults - dev/prod may use different models
+    excludeColumns: ['llm_config_id'],
   },
   personality_owners: {
     pk: ['personality_id', 'user_id'], // Composite key
@@ -143,6 +146,8 @@ export const SYNC_CONFIG: Record<SyncTableName, TableSyncConfig> = {
     updatedAt: 'updated_at',
     uuidColumns: ['id', 'user_id', 'personality_id', 'persona_id', 'llm_config_id'],
     timestampColumns: ['created_at', 'updated_at'],
+    // Exclude user-specific LLM preset overrides - these are personal preferences per environment
+    excludeColumns: ['llm_config_id'],
   },
   user_persona_history_configs: {
     pk: 'id',
