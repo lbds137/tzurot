@@ -247,6 +247,8 @@ export async function sendVerificationConfirmation(
     const msg = await channel.send(
       '✅ **NSFW verification complete!** You can now chat with personalities anywhere.'
     );
+    // Short-lived timer (10s) - acceptable if lost on restart; worst case is
+    // an extra confirmation message in channel. Not worth Redis tracking.
     setTimeout(() => {
       msg.delete().catch(() => {
         // Ignore deletion errors (message may already be deleted)
