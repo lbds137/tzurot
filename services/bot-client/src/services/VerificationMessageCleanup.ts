@@ -15,6 +15,7 @@ import {
   clearPendingVerificationMessages,
   getAllPendingVerificationUserIds,
   MAX_MESSAGE_AGE_MS,
+  REDIS_KEY_PREFIX,
   type PendingVerificationMessage,
 } from '../utils/pendingVerificationMessages.js';
 
@@ -101,12 +102,20 @@ export class VerificationMessageCleanup {
       }
 
       // Update Redis with only remaining messages
+      // Note: Uses pipeline for performance, but not atomic - a new message could
+      // be added between clear and rpush. This is acceptable since worst case is
+      // a verification message doesn't get auto-deleted (it expires via 14-day TTL anyway).
       if (expiredMessages.length > 0) {
+        const key = `${REDIS_KEY_PREFIX}${userId}`;
         await clearPendingVerificationMessages(this.redis, userId);
-        for (const msg of remainingMessages) {
-          const key = `nsfw:verification:pending:${userId}`;
-          await this.redis.rpush(key, JSON.stringify(msg));
-          await this.redis.expire(key, 14 * 24 * 60 * 60);
+
+        if (remainingMessages.length > 0) {
+          const pipeline = this.redis.pipeline();
+          for (const msg of remainingMessages) {
+            pipeline.rpush(key, JSON.stringify(msg));
+          }
+          pipeline.expire(key, 14 * 24 * 60 * 60);
+          await pipeline.exec();
         }
       }
     }
@@ -120,6 +129,17 @@ export class VerificationMessageCleanup {
 
     return { processed, deleted, failed };
   }
+
+  /**
+   * Discord API error codes that are expected during message deletion
+   * These don't indicate bugs and are logged at debug level
+   */
+  private static readonly EXPECTED_ERROR_CODES = new Set([
+    10008, // Unknown Message - message already deleted
+    10003, // Unknown Channel - channel deleted
+    50001, // Missing Access - bot lost permissions or user blocked
+    50013, // Missing Permissions - can't delete in this context
+  ]);
 
   /**
    * Delete a single message from Discord
@@ -147,11 +167,23 @@ export class VerificationMessageCleanup {
 
       return true;
     } catch (error) {
-      // Common reasons: message already deleted, channel deleted, permissions
-      logger.debug(
-        { err: error, messageId: msg.messageId, channelId: msg.channelId },
-        '[VerificationCleanup] Failed to delete message (may already be deleted)'
-      );
+      const errorCode = (error as { code?: number }).code;
+      const isExpected =
+        errorCode !== undefined && VerificationMessageCleanup.EXPECTED_ERROR_CODES.has(errorCode);
+
+      if (isExpected) {
+        // Expected errors: message/channel deleted, permissions changed
+        logger.debug(
+          { err: error, messageId: msg.messageId, channelId: msg.channelId, errorCode },
+          '[VerificationCleanup] Failed to delete message (expected condition)'
+        );
+      } else {
+        // Unexpected errors: network issues, API bugs, rate limits
+        logger.warn(
+          { err: error, messageId: msg.messageId, channelId: msg.channelId, errorCode },
+          '[VerificationCleanup] Unexpected error deleting message'
+        );
+      }
       return false;
     }
   }

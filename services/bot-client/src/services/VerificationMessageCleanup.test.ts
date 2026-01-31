@@ -12,6 +12,7 @@ vi.mock('../utils/pendingVerificationMessages.js', () => ({
   clearPendingVerificationMessages: vi.fn(),
   getAllPendingVerificationUserIds: vi.fn(),
   MAX_MESSAGE_AGE_MS: 13 * 24 * 60 * 60 * 1000,
+  REDIS_KEY_PREFIX: 'nsfw:verification:pending:',
 }));
 
 import {
@@ -19,6 +20,7 @@ import {
   clearPendingVerificationMessages,
   getAllPendingVerificationUserIds,
   MAX_MESSAGE_AGE_MS,
+  REDIS_KEY_PREFIX,
 } from '../utils/pendingVerificationMessages.js';
 
 describe('VerificationMessageCleanup', () => {
@@ -40,6 +42,11 @@ describe('VerificationMessageCleanup', () => {
     mockRedis = {
       rpush: vi.fn(),
       expire: vi.fn(),
+      pipeline: vi.fn().mockReturnValue({
+        rpush: vi.fn().mockReturnThis(),
+        expire: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue([]),
+      }),
     };
 
     cleanup = new VerificationMessageCleanup(mockClient as any, mockRedis as any);
