@@ -51,6 +51,7 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 | @personality mentions | ✅ Ported | @lilith triggers personality                                  |
 | Bot @mentions         | ✅ Ported | Shows help message                                            |
 | DM personality chat   | ✅ Ported | 3-tier lookup: Redis → Database → Display name parsing        |
+| DM sticky sessions    | ✅ Ported | Continue DM conversation without @mention after first message |
 | Guild channel support | ✅ Ported | Uses webhooks                                                 |
 | Referenced messages   | ✅ Ported | MessageReferenceExtractor + Discord link parsing              |
 | Reply detection       | ✅ Ported | Reply to bot to continue conversation                         |
