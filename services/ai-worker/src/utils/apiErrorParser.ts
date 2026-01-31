@@ -72,6 +72,14 @@ const ERROR_PATTERNS = {
   TIMEOUT: [/timeout/i, /timed.*out/i, /deadline.*exceeded/i],
   // Server errors
   SERVER_ERROR: [/internal.*server/i, /bad.*gateway/i, /service.*unavailable/i, /server.*error/i],
+  // SDK parsing errors - LangChain fails to parse malformed API responses
+  // Common with free-tier models that may return unexpected response formats
+  SDK_PARSING: [
+    /Cannot read properties of undefined/i,
+    /Cannot read property.*of undefined/i,
+    /is not a function/i,
+    /unexpected end of JSON/i,
+  ],
 };
 
 /**
@@ -169,6 +177,9 @@ function detectCategoryFromMessage(message: string): ApiErrorCategory | null {
           case 'TIMEOUT':
             return ApiErrorCategory.TIMEOUT;
           case 'SERVER_ERROR':
+            return ApiErrorCategory.SERVER_ERROR;
+          case 'SDK_PARSING':
+            // SDK parsing errors are usually transient - model returned malformed response
             return ApiErrorCategory.SERVER_ERROR;
         }
       }
