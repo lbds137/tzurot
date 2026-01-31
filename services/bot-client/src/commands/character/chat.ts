@@ -34,6 +34,7 @@ import {
   getPersonalityService,
   getWebhookManager,
   getMessageContextBuilder,
+  getConversationPersistence,
 } from '../../services/serviceRegistry.js';
 import type { InteractionContextParams } from '../../services/MessageContextBuilder.js';
 import type { MessageContext } from '../../types.js';
@@ -70,6 +71,8 @@ interface PollAndSendResult {
   success: boolean;
   /** Message IDs of the response chunks sent via webhook */
   responseMessageIds: string[];
+  /** The response content (for conversation persistence) */
+  content?: string;
 }
 
 /**
@@ -118,7 +121,7 @@ async function pollAndSendResponse(
       { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },
       '[Character Chat] Response sent successfully'
     );
-    return { success: true, responseMessageIds };
+    return { success: true, responseMessageIds, content: result.content };
   } finally {
     clearInterval(typingInterval);
   }
@@ -143,23 +146,104 @@ function getChannelType(context: DeferredCommandContext): string {
 
 /**
  * Weigh-in mode indicator message
- * This signals to the AI that the character is being summoned to contribute
- * to an ongoing conversation rather than responding to a specific user message.
+ * Minimal prompt that tells the AI to respond to conversation context
+ * without meta-awareness of being explicitly invoked.
  */
-const WEIGH_IN_MESSAGE =
-  '[The user has summoned you to join this conversation. Contribute naturally based on the context above.]';
+const WEIGH_IN_MESSAGE = '[Reply naturally to the context above]';
 
 /**
- * Submit job, poll for response, and handle diagnostic tracking.
+ * Build interaction context parameters from a DeferredCommandContext.
  * Extracted to reduce complexity of main handler.
  */
-async function submitAndTrackJob(
+function buildInteractionParams(
+  context: DeferredCommandContext,
   channel: WebhookChannel,
-  personality: LoadedPersonality,
-  context: MessageContext,
-  characterSlug: string,
-  isWeighInMode: boolean
-): Promise<void> {
+  displayName: string
+): InteractionContextParams {
+  const channelName = 'name' in channel && channel.name !== null ? channel.name : 'channel';
+  return {
+    userId: context.user.id,
+    username: context.user.username,
+    displayName,
+    isBot: context.user.bot,
+    channelId: channel.id,
+    guildId: context.guild?.id,
+    guildName: context.guild?.name,
+    channelName,
+    channelType: getChannelType(context),
+    member: context.member,
+  };
+}
+
+/**
+ * Parameters for sending user message to Discord
+ */
+interface SendUserMessageParams {
+  channel: WebhookChannel;
+  displayName: string;
+  message: string;
+  personality: LoadedPersonality;
+  personaId: string;
+  guildId: string | null;
+}
+
+/**
+ * Send user message to Discord and save to conversation history.
+ * Returns the message ID for trigger tracking.
+ */
+async function sendAndPersistUserMessage(params: SendUserMessageParams): Promise<string> {
+  const { channel, displayName, message, personality, personaId, guildId } = params;
+
+  const userMsg = await channel.send(`**${displayName}:** ${message}`);
+
+  // Save user message to conversation history (fire-and-forget)
+  void getConversationPersistence()
+    .saveUserMessageFromFields({
+      channelId: channel.id,
+      guildId,
+      discordMessageId: userMsg.id,
+      personality,
+      personaId,
+      messageContent: message,
+    })
+    .catch(err => {
+      logger.warn({ err, messageId: userMsg.id }, '[Character Chat] Failed to save user message');
+    });
+
+  return userMsg.id;
+}
+
+/**
+ * Parameters for submitting job and tracking diagnostics/persistence
+ */
+interface SubmitJobParams {
+  channel: WebhookChannel;
+  personality: LoadedPersonality;
+  context: MessageContext;
+  characterSlug: string;
+  isWeighInMode: boolean;
+  /** For conversation persistence */
+  personaId: string;
+  guildId: string | null;
+  userMessageTime: Date;
+}
+
+/**
+ * Submit job, poll for response, and handle diagnostic tracking + persistence.
+ * Extracted to reduce complexity of main handler.
+ */
+async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
+  const {
+    channel,
+    personality,
+    context,
+    characterSlug,
+    isWeighInMode,
+    personaId,
+    guildId,
+    userMessageTime,
+  } = params;
+
   const { jobId, requestId } = await getGatewayClient().generate(personality, context);
   logger.info({ jobId, requestId, characterSlug, isWeighInMode }, '[Character Chat] Job submitted');
 
@@ -180,6 +264,23 @@ async function submitAndTrackJob(
           { err, requestId },
           '[Character Chat] Failed to update diagnostic response IDs'
         );
+      });
+  }
+
+  // Save assistant message to conversation history (fire-and-forget)
+  if (pollResult.success && pollResult.content !== undefined) {
+    void getConversationPersistence()
+      .saveAssistantMessageFromFields({
+        channelId: channel.id,
+        guildId,
+        personality,
+        personaId,
+        content: pollResult.content,
+        chunkMessageIds: pollResult.responseMessageIds,
+        userMessageTime,
+      })
+      .catch(err => {
+        logger.warn({ err, jobId }, '[Character Chat] Failed to save assistant message');
       });
   }
 }
@@ -230,19 +331,7 @@ export async function handleChat(
     }
 
     // 3. Build interaction context parameters
-    const channelName = 'name' in channel && channel.name !== null ? channel.name : 'channel';
-    const interactionParams: InteractionContextParams = {
-      userId: context.user.id,
-      username: context.user.username,
-      displayName: discordDisplayName,
-      isBot: context.user.bot,
-      channelId: channel.id,
-      guildId: context.guild?.id,
-      guildName: context.guild?.name,
-      channelName,
-      channelType: getChannelType(context),
-      member: context.member,
-    };
+    const interactionParams = buildInteractionParams(context, channel, discordDisplayName);
 
     // 4. Build context using MessageContextBuilder
     // This provides: persona resolution, context epoch, guild member info, user timezone
@@ -269,20 +358,35 @@ export async function handleChat(
 
     // 7. Delete deferred reply and send user message (chat mode only)
     await context.deleteReply();
+
+    // Capture timestamp for conversation ordering (user message < assistant message)
+    const userMessageTime = new Date();
+
     if (!isWeighInMode) {
-      const userMsg = await channel.send(`**${displayName}:** ${message}`);
+      // Send user message and save to conversation history
+      const userMsgId = await sendAndPersistUserMessage({
+        channel,
+        displayName,
+        message,
+        personality,
+        personaId: buildResult.personaId,
+        guildId: context.guild?.id ?? null,
+      });
       // Set trigger message ID for diagnostic tracking
-      buildResult.context.triggerMessageId = userMsg.id;
+      buildResult.context.triggerMessageId = userMsgId;
     }
 
-    // 8. Submit job, poll for response, and track diagnostics
-    await submitAndTrackJob(
+    // 8. Submit job, poll for response, and track diagnostics + persistence
+    await submitAndTrackJob({
       channel,
       personality,
-      buildResult.context,
+      context: buildResult.context,
       characterSlug,
-      isWeighInMode
-    );
+      isWeighInMode,
+      personaId: buildResult.personaId,
+      guildId: context.guild?.id ?? null,
+      userMessageTime,
+    });
   } catch (error) {
     logger.error({ err: error, characterSlug }, '[Character Chat] Error processing chat');
     await handleChatError(context);

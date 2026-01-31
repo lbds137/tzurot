@@ -20,6 +20,7 @@ import type { GatewayClient } from '../utils/GatewayClient.js';
 import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
+import type { ConversationPersistence } from './ConversationPersistence.js';
 
 // Service references - set during app initialization
 let jobTracker: JobTracker | undefined;
@@ -32,6 +33,7 @@ let channelActivationCacheInvalidationService:
   | ChannelActivationCacheInvalidationService
   | undefined;
 let messageContextBuilder: MessageContextBuilder | undefined;
+let conversationPersistence: ConversationPersistence | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -45,6 +47,7 @@ export interface RegisteredServices {
   personaResolver: PersonaResolver;
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   messageContextBuilder: MessageContextBuilder;
+  conversationPersistence: ConversationPersistence;
 }
 
 /**
@@ -60,6 +63,7 @@ export function registerServices(services: RegisteredServices): void {
   personaResolver = services.personaResolver;
   channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
   messageContextBuilder = services.messageContextBuilder;
+  conversationPersistence = services.conversationPersistence;
 }
 
 /**
@@ -155,6 +159,18 @@ export function getMessageContextBuilder(): MessageContextBuilder {
 }
 
 /**
+ * Get the ConversationPersistence instance
+ * Used by /character chat to save messages to conversation history
+ * @throws Error if services not registered
+ */
+export function getConversationPersistence(): ConversationPersistence {
+  if (conversationPersistence === undefined) {
+    throw new Error('ConversationPersistence not registered. Call registerServices() first.');
+  }
+  return conversationPersistence;
+}
+
+/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -166,7 +182,8 @@ export function areServicesRegistered(): boolean {
     conversationHistoryService !== undefined &&
     personaResolver !== undefined &&
     channelActivationCacheInvalidationService !== undefined &&
-    messageContextBuilder !== undefined
+    messageContextBuilder !== undefined &&
+    conversationPersistence !== undefined
   );
 }
 
@@ -188,4 +205,5 @@ export function resetServices(): void {
   personaResolver = undefined;
   channelActivationCacheInvalidationService = undefined;
   messageContextBuilder = undefined;
+  conversationPersistence = undefined;
 }
