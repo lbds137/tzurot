@@ -102,6 +102,58 @@ export interface UpdateUserMessageOptions {
 }
 
 /**
+ * Options for saving a user message from fields (core implementation).
+ * Used directly by slash commands, or via saveUserMessage() wrapper for Message objects.
+ */
+export interface SaveUserMessageFromFieldsOptions {
+  /** Discord channel ID */
+  channelId: string;
+  /** Discord guild ID (null for DMs) */
+  guildId: string | null;
+  /** Discord message ID of the sent user message */
+  discordMessageId: string;
+  /** Personality being addressed */
+  personality: LoadedPersonality;
+  /** User's persona ID */
+  personaId: string;
+  /** Message content (with links replaced) */
+  messageContent: string;
+  /** Attachments metadata (optional) */
+  attachments?: {
+    url: string;
+    contentType: string;
+    name?: string;
+    size?: number;
+    isVoiceMessage?: boolean;
+    duration?: number;
+    waveform?: string;
+  }[];
+  /** Referenced messages (optional) */
+  referencedMessages?: ReferencedMessage[];
+}
+
+/**
+ * Options for saving an assistant message from fields (core implementation).
+ * Used directly by slash commands, or via saveAssistantMessage() wrapper for Message objects.
+ */
+export interface SaveAssistantMessageFromFieldsOptions {
+  /** Discord channel ID */
+  channelId: string;
+  /** Discord guild ID (null for DMs) */
+  guildId: string | null;
+  /** Personality that responded */
+  personality: LoadedPersonality;
+  /** User's persona ID */
+  personaId: string;
+  /** Assistant response content */
+  content: string;
+  /** Discord message IDs for all chunks */
+  chunkMessageIds: string[];
+  /** User message timestamp (assistant will be +1ms) */
+  userMessageTime: Date;
+}
+
+/**
  * Manages conversation history storage and updates
  */
 export class ConversationPersistence {
@@ -129,46 +181,17 @@ export class ConversationPersistence {
     const { message, personality, personaId, messageContent, attachments, referencedMessages } =
       options;
 
-    // Build content with placeholder descriptions (but NOT references - those go in metadata)
-    let userMessageContent = messageContent || '[no text content]';
-
-    // Add placeholder attachment descriptions to content
-    if (attachments && attachments.length > 0) {
-      const attachmentPlaceholders = generateAttachmentPlaceholders(attachments);
-      userMessageContent += attachmentPlaceholders;
-    }
-
-    // Build message metadata with referenced messages (stored structurally, not as text)
-    let metadata: MessageMetadata | undefined;
-    if (referencedMessages && referencedMessages.length > 0) {
-      metadata = {
-        referencedMessages: convertToStoredReferences(referencedMessages),
-      };
-    }
-
-    // Save atomically with placeholder descriptions and structured metadata
-    await this.conversationHistory.addMessage({
+    // Delegate to field-based implementation with Message fields extracted
+    await this.saveUserMessageFromFields({
       channelId: message.channel.id,
-      personalityId: personality.id,
-      personaId,
-      role: MessageRole.User,
-      content: userMessageContent,
       guildId: message.guild?.id ?? null,
-      discordMessageId: message.id, // Discord message ID for deduplication
-      messageMetadata: metadata, // Structured metadata with referenced messages
+      discordMessageId: message.id,
+      personality,
+      personaId,
+      messageContent,
+      attachments,
+      referencedMessages,
     });
-
-    logger.debug(
-      {
-        hasAttachments: attachments && attachments.length > 0,
-        attachmentCount: attachments?.length ?? 0,
-        hasReferences: referencedMessages && referencedMessages.length > 0,
-        referenceCount: referencedMessages?.length ?? 0,
-        contentLength: userMessageContent.length,
-        hasMetadata: metadata !== undefined,
-      },
-      '[ConversationPersistence] Saved user message with placeholder descriptions and metadata'
-    );
   }
 
   /**
@@ -228,6 +251,94 @@ export class ConversationPersistence {
   async saveAssistantMessage(options: SaveAssistantMessageOptions): Promise<void> {
     const { message, personality, personaId, content, chunkMessageIds, userMessageTime } = options;
 
+    // Delegate to field-based implementation with Message fields extracted
+    await this.saveAssistantMessageFromFields({
+      channelId: message.channel.id,
+      guildId: message.guild?.id ?? null,
+      personality,
+      personaId,
+      content,
+      chunkMessageIds,
+      userMessageTime,
+    });
+  }
+
+  /**
+   * Save user message from fields (core implementation).
+   * Called directly by slash commands, or via saveUserMessage() wrapper.
+   */
+  async saveUserMessageFromFields(options: SaveUserMessageFromFieldsOptions): Promise<void> {
+    const {
+      channelId,
+      guildId,
+      discordMessageId,
+      personality,
+      personaId,
+      messageContent,
+      attachments,
+      referencedMessages,
+    } = options;
+
+    // Build content with placeholder descriptions (but NOT references - those go in metadata)
+    let userMessageContent = messageContent || '[no text content]';
+
+    // Add placeholder attachment descriptions to content
+    if (attachments && attachments.length > 0) {
+      const attachmentPlaceholders = generateAttachmentPlaceholders(attachments);
+      userMessageContent += attachmentPlaceholders;
+    }
+
+    // Build message metadata with referenced messages (stored structurally, not as text)
+    let metadata: MessageMetadata | undefined;
+    if (referencedMessages && referencedMessages.length > 0) {
+      metadata = {
+        referencedMessages: convertToStoredReferences(referencedMessages),
+      };
+    }
+
+    // Save atomically with placeholder descriptions and structured metadata
+    await this.conversationHistory.addMessage({
+      channelId,
+      personalityId: personality.id,
+      personaId,
+      role: MessageRole.User,
+      content: userMessageContent,
+      guildId,
+      discordMessageId,
+      messageMetadata: metadata,
+    });
+
+    logger.debug(
+      {
+        channelId,
+        hasAttachments: attachments && attachments.length > 0,
+        attachmentCount: attachments?.length ?? 0,
+        hasReferences: referencedMessages && referencedMessages.length > 0,
+        referenceCount: referencedMessages?.length ?? 0,
+        contentLength: userMessageContent.length,
+        hasMetadata: metadata !== undefined,
+      },
+      '[ConversationPersistence] Saved user message'
+    );
+  }
+
+  /**
+   * Save assistant message from fields (core implementation).
+   * Called directly by slash commands, or via saveAssistantMessage() wrapper.
+   */
+  async saveAssistantMessageFromFields(
+    options: SaveAssistantMessageFromFieldsOptions
+  ): Promise<void> {
+    const {
+      channelId,
+      guildId,
+      personality,
+      personaId,
+      content,
+      chunkMessageIds,
+      userMessageTime,
+    } = options;
+
     if (chunkMessageIds.length === 0) {
       logger.warn(
         {},
@@ -241,32 +352,30 @@ export class ConversationPersistence {
 
     logger.debug(
       {
-        channelId: message.channel.id,
-        isThread: message.channel.isThread(),
+        channelId,
         personalityId: personality.id,
         personaId: personaId.substring(0, 8),
         chunkCount: chunkMessageIds.length,
-        discordMessageIds: chunkMessageIds,
         userMessageTime: userMessageTime.toISOString(),
         assistantMessageTime: assistantMessageTime.toISOString(),
       },
-      '[ConversationPersistence] Creating assistant message with Discord chunk IDs'
+      '[ConversationPersistence] Saving assistant message'
     );
 
     await this.conversationHistory.addMessage({
-      channelId: message.channel.id,
+      channelId,
       personalityId: personality.id,
       personaId,
       role: MessageRole.Assistant,
-      content, // Clean content without model indicator
-      guildId: message.guild?.id ?? null,
-      discordMessageId: chunkMessageIds, // Array of Discord message IDs
-      timestamp: assistantMessageTime, // Explicit timestamp for chronological ordering
+      content,
+      guildId,
+      discordMessageId: chunkMessageIds,
+      timestamp: assistantMessageTime,
     });
 
     logger.info(
       { chunks: chunkMessageIds.length },
-      '[ConversationPersistence] Saved assistant message to history'
+      '[ConversationPersistence] Saved assistant message'
     );
   }
 }

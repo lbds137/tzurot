@@ -35,11 +35,17 @@ const mockMessageContextBuilder = {
   buildContextFromInteraction: vi.fn(),
 };
 
+const mockConversationPersistence = {
+  saveUserMessageFromFields: vi.fn().mockResolvedValue(undefined),
+  saveAssistantMessageFromFields: vi.fn().mockResolvedValue(undefined),
+};
+
 vi.mock('../../services/serviceRegistry.js', () => ({
   getGatewayClient: () => mockGatewayClient,
   getWebhookManager: () => mockWebhookManager,
   getPersonalityService: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
+  getConversationPersistence: () => mockConversationPersistence,
 }));
 
 // Mock redis service
@@ -456,7 +462,11 @@ describe('Character Chat Handler', () => {
 
       await handleChat(mockContext, mockConfig);
 
-      expect(mockChannel.send).toHaveBeenCalledWith(
+      // First call is user message, second is fallback
+      expect(mockChannel.send).toHaveBeenCalledTimes(2);
+      expect(mockChannel.send).toHaveBeenNthCalledWith(1, '**TestUser:** Hello!');
+      expect(mockChannel.send).toHaveBeenNthCalledWith(
+        2,
         expect.stringContaining('having trouble responding')
       );
     });
