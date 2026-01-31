@@ -422,7 +422,7 @@ describe('handleDebug', () => {
       );
     });
 
-    it('should extract message ID from Discord message link', async () => {
+    it('should extract message ID from Discord message link (guild channel)', async () => {
       const mockPayload = createMockDiagnosticPayload();
       vi.mocked(fetch).mockResolvedValue(
         new Response(
@@ -461,6 +461,45 @@ describe('handleDebug', () => {
       );
     });
 
+    it('should extract message ID from Discord DM message link (@me format)', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            logs: [
+              {
+                id: 'log-uuid',
+                requestId: 'internal-req-uuid',
+                triggerMessageId: '9876543210987654321',
+                personalityId: 'personality-uuid',
+                userId: '123456789',
+                guildId: null,
+                channelId: '222222222222222222',
+                model: 'test',
+                provider: 'test',
+                durationMs: 100,
+                createdAt: '2026-01-22T12:00:00Z',
+                data: mockPayload,
+              },
+            ],
+            count: 1,
+          }),
+          { status: 200 }
+        )
+      );
+
+      // Discord DM message link uses @me instead of guild ID
+      const context = createMockContext(
+        'https://discord.com/channels/@me/222222222222222222/9876543210987654321'
+      );
+      await handleDebug(context);
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/admin/diagnostic/by-message/9876543210987654321'),
+        expect.any(Object)
+      );
+    });
+
     it('should use direct endpoint for UUIDs', async () => {
       vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
@@ -478,8 +517,65 @@ describe('handleDebug', () => {
       );
     });
 
-    it('should handle 404 for message ID lookup', async () => {
-      vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+    it('should fall back to by-response endpoint when by-message returns 404', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+
+      // First call (by-message) returns 404, second call (by-response) returns success
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              log: {
+                id: 'log-uuid',
+                requestId: 'internal-req-uuid',
+                triggerMessageId: '0000000000000000000',
+                personalityId: 'personality-uuid',
+                userId: '123456789',
+                guildId: null,
+                channelId: '222222222222222222',
+                model: 'test',
+                provider: 'test',
+                durationMs: 100,
+                createdAt: '2026-01-22T12:00:00Z',
+                data: mockPayload,
+              },
+            }),
+            { status: 200 }
+          )
+        );
+
+      // This message ID is the bot's response, not the trigger
+      const context = createMockContext('1234567890123456789');
+      await handleDebug(context);
+
+      // Should have called both endpoints
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(fetch).toHaveBeenNthCalledWith(
+        1,
+        expect.stringContaining('/admin/diagnostic/by-message/1234567890123456789'),
+        expect.any(Object)
+      );
+      expect(fetch).toHaveBeenNthCalledWith(
+        2,
+        expect.stringContaining('/admin/diagnostic/by-response/1234567890123456789'),
+        expect.any(Object)
+      );
+
+      // Should succeed with the log from by-response
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.arrayContaining([expect.any(Object)]),
+          files: expect.arrayContaining([expect.any(Object)]),
+        })
+      );
+    });
+
+    it('should handle 404 for message ID lookup when both endpoints fail', async () => {
+      // Both by-message and by-response return 404
+      vi.mocked(fetch)
+        .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
+        .mockResolvedValueOnce(new Response('Not found', { status: 404 }));
 
       const context = createMockContext('1234567890123456789');
       await handleDebug(context);
