@@ -2,10 +2,61 @@
 
 > **Session**: 2026-01-31
 > **Version**: v3.0.0-beta.61
+> **Branch**: `feature/reaction-personas-in-context`
 
 ---
 
-## Session Summary (2026-01-31)
+## Active Task: Message Reactions in XML
+
+**Goal**: Add reaction metadata to extended context and include reactor personas in participant context.
+
+### Scope
+
+1. **Extract reactions from Discord messages** - Get emoji and users who reacted
+2. **Include reactor personas in participants** - Bump limit from 5 → 10 personas
+3. **Smart participant selection** - Dedupe with existing conversation participants, fill remaining slots with recent reactors
+4. **Format reactions as XML metadata** - Add to message context
+
+### Technical Findings
+
+**Discord.js Limitation**: Reaction timestamps are NOT exposed via the API. We cannot order reactions by "most recent". Alternative approaches:
+
+- Use message timestamp as proxy (reactions on recent messages are likely recent)
+- Use arbitrary order from Discord.js reaction collection
+- Fetch reactions in order they appear on the message
+
+**Current Hard Limit of 5 Participants**: Located in `RAGUtils.ts:140-150`, constrained by stop sequence budget:
+
+- 16 total stop sequences allowed (Gemini API limit)
+- 11 reserved for safety (XML markers, hallucination prevention, etc.)
+- 5 remaining for participant names
+
+**Key Files**:
+
+- `services/ai-worker/src/services/RAGUtils.ts` - Stop sequence limit (lines 140-150)
+- `services/ai-worker/src/services/prompt/ParticipantFormatter.ts` - XML formatting
+- `services/ai-worker/src/services/MemoryRetriever.ts` - Participant population (lines 211-317)
+- `services/bot-client/src/services/MessageContextBuilder.ts` - Context building
+
+### Implementation Plan
+
+- [ ] Bump participant limit from 5 → 10 in RAGUtils.ts
+- [ ] Add reaction extraction to MessageContextBuilder
+- [ ] Pass reactions through ConversationHistory pipeline
+- [ ] Resolve reactor personas (same pattern as other participants)
+- [ ] Dedupe reactors with existing conversation participants
+- [ ] Fill remaining participant slots with reactor personas
+- [ ] Add reactions XML to message format in conversationUtils.ts
+
+### Questions to Resolve
+
+1. **Stop sequence budget**: Can we safely reduce reserved sequences to accommodate 10 participants?
+2. **Reaction ordering**: Without timestamps, how do we prioritize which reactors to include?
+3. **Performance**: How many API calls does fetching reactor user info require?
+
+---
+
+## Session Summary (2026-01-31 - Earlier)
 
 Character Chat Feature Parity completed:
 
