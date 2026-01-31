@@ -231,5 +231,21 @@ Another paragraph here with more content.`;
       const content = 'Just regular content';
       expect(stripBotFooters(content)).toBe(content);
     });
+
+    it('should strip standalone model footer (entire message is footer)', () => {
+      const content =
+        '-# Model: [deepseek/deepseek-r1-0528:free](<https://openrouter.ai/deepseek/deepseek-r1-0528:free>) • 📍 auto';
+      expect(stripBotFooters(content)).toBe('');
+    });
+
+    it('should strip standalone guest mode footer', () => {
+      const content = '-# 🆓 Using free model (no API key required)';
+      expect(stripBotFooters(content)).toBe('');
+    });
+
+    it('should strip standalone auto-response footer', () => {
+      const content = '-# 📍 auto-response';
+      expect(stripBotFooters(content)).toBe('');
+    });
   });
 });

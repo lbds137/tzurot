@@ -784,16 +784,11 @@ export class DiscordChannelFetcher {
 
       // Process each unique DB record
       for (const [dbId, { dbMsg, chunks }] of dbRecordToChunks) {
-        // Sort chunks by their order in the DB's discordMessageId array
-        const orderMap = new Map(dbMsg.discordMessageId.map((id, idx) => [id, idx]));
-        chunks.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
-
-        // Concatenate all chunk contents
-        let collatedContent = chunks.map(c => c.content).join('');
-
-        // Strip bot-added footer lines (model indicator, guest mode, auto-response)
-        // These are for Discord display only and NOT stored in the database
-        collatedContent = stripBotFooters(collatedContent);
+        // Collate chunks and validate for sync (returns null to skip)
+        const collatedContent = this.collateChunksForSync(dbId, dbMsg, chunks);
+        if (collatedContent === null) {
+          continue;
+        }
 
         // Compare and update
         if (this.contentsDiffer(collatedContent, dbMsg.content)) {
@@ -857,6 +852,65 @@ export class DiscordChannelFetcher {
       );
       return result;
     }
+  }
+
+  /**
+   * Collate message chunks and prepare content for sync
+   * Returns the collated content, or null if sync should be skipped
+   *
+   * @param dbId - Database message ID (for logging)
+   * @param dbMsg - Database message record
+   * @param chunks - Discord message chunks to collate
+   * @returns Collated content string, or null to skip this sync
+   */
+  private collateChunksForSync(
+    dbId: string,
+    dbMsg: { discordMessageId: string[]; content: string },
+    chunks: Message[]
+  ): string | null {
+    // SAFEGUARD: Skip sync if we don't have all expected chunks
+    // This prevents overwriting good data when Discord API returns partial results
+    const expectedChunkCount = dbMsg.discordMessageId.length;
+    if (chunks.length < expectedChunkCount) {
+      logger.warn(
+        {
+          messageId: dbId,
+          expectedChunks: expectedChunkCount,
+          fetchedChunks: chunks.length,
+        },
+        '[DiscordChannelFetcher] Skipping sync - missing chunks from Discord fetch'
+      );
+      return null;
+    }
+
+    // Sort chunks by their order in the DB's discordMessageId array
+    const orderMap = new Map(dbMsg.discordMessageId.map((id, idx) => [id, idx]));
+    chunks.sort((a, b) => (orderMap.get(a.id) ?? 0) - (orderMap.get(b.id) ?? 0));
+
+    // Concatenate all chunk contents
+    let collatedContent = chunks.map(c => c.content).join('');
+
+    // Strip bot-added footer lines (model indicator, guest mode, auto-response)
+    // These are for Discord display only and NOT stored in the database
+    collatedContent = stripBotFooters(collatedContent);
+
+    // SAFEGUARD: Skip sync if stripping left us with significantly less content
+    // This protects against cases where footer stripping is too aggressive
+    // or Discord returned corrupt/empty messages for some chunks
+    const originalDbLength = dbMsg.content.length;
+    if (originalDbLength > 50 && collatedContent.length < originalDbLength * 0.2) {
+      logger.warn(
+        {
+          messageId: dbId,
+          originalLength: originalDbLength,
+          newLength: collatedContent.length,
+        },
+        '[DiscordChannelFetcher] Skipping sync - content would shrink by >80%'
+      );
+      return null;
+    }
+
+    return collatedContent;
   }
 
   /**
