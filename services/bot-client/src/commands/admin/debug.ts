@@ -27,8 +27,10 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 
 const logger = createLogger('admin-debug');
 
-/** Discord message link regex - captures guild/channel/message IDs */
-const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/;
+/** Discord message link regex - captures channel and message IDs
+ * Supports both guild channels (/channels/<guild_id>/...) and DMs (/channels/@me/...)
+ */
+const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(?:@me|\d+)\/(\d+)\/(\d+)/;
 
 /** UUID v4 regex for request IDs */
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -169,10 +171,11 @@ async function lookupByRequestId(requestId: string): Promise<LookupResult> {
  * Parse identifier to extract message ID if it's a Discord link
  */
 function parseIdentifier(identifier: string): { type: 'messageId' | 'requestId'; value: string } {
-  // Check if it's a Discord message link
+  // Check if it's a Discord message link (guild channel or DM)
   const linkMatch = MESSAGE_LINK_REGEX.exec(identifier);
   if (linkMatch !== null) {
-    return { type: 'messageId', value: linkMatch[3] };
+    // linkMatch[1] = channel ID, linkMatch[2] = message ID
+    return { type: 'messageId', value: linkMatch[2] };
   }
 
   // Check if it's a UUID (request ID)
