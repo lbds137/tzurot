@@ -662,6 +662,7 @@ describe('ConversationalRAGService', () => {
         'formatted user message',
         processedAttachments,
         undefined,
+        undefined,
         undefined
       );
     });

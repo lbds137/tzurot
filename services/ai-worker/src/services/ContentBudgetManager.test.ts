@@ -100,6 +100,7 @@ describe('ContentBudgetManager', () => {
         'Hello, how are you?',
         [],
         undefined,
+        undefined,
         undefined
       );
     });

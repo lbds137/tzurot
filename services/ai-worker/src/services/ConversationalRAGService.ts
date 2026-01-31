@@ -328,7 +328,8 @@ export class ConversationalRAGService {
       userMessage,
       processedAttachments,
       context.activePersonaName,
-      referencedMessagesDescriptions
+      referencedMessagesDescriptions,
+      context.activePersonaId
     );
 
     // Build messages array

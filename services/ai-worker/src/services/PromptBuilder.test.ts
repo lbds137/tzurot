@@ -328,8 +328,24 @@ describe('PromptBuilder', () => {
     it('should include speaker identification when activePersonaName is provided', () => {
       const result = promptBuilder.buildHumanMessage('Hello', [], 'Alice');
 
-      // User message includes <from> tag for speaker identification
+      // User message includes <from> tag for speaker identification (no ID)
       expect(result.message.content).toBe('<from>Alice</from>\n\nHello');
+
+      // Storage should NOT have the from wrapper (only semantic content)
+      expect(result.contentForStorage).toBe('Hello');
+    });
+
+    it('should include persona ID in from tag when both name and ID are provided', () => {
+      const result = promptBuilder.buildHumanMessage(
+        'Hello',
+        [],
+        'Alice',
+        undefined,
+        'persona-123'
+      );
+
+      // User message includes <from id="..."> tag for speaker identification
+      expect(result.message.content).toBe('<from id="persona-123">Alice</from>\n\nHello');
 
       // Storage should NOT have the from wrapper (only semantic content)
       expect(result.contentForStorage).toBe('Hello');
