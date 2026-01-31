@@ -6,7 +6,7 @@
  * Used by multiple processors (Reply, Mention, etc.)
  */
 
-import type { Message } from 'discord.js';
+import type { Message, SendableChannels } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { createLogger, isTypingChannel } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
@@ -15,13 +15,7 @@ import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 import { ExtendedContextResolver } from './ExtendedContextResolver.js';
-import {
-  isNsfwChannel,
-  checkNsfwVerification,
-  verifyNsfwUser,
-  trackPendingVerificationMessage,
-  NSFW_VERIFICATION_MESSAGE,
-} from '../utils/nsfwVerification.js';
+import { handleNsfwVerification, sendVerificationConfirmation } from '../utils/nsfwVerification.js';
 
 const logger = createLogger('PersonalityMessageHandler');
 
@@ -38,57 +32,6 @@ export class PersonalityMessageHandler {
     private readonly referenceEnricher: ReferenceEnrichmentService,
     private readonly extendedContextResolver: ExtendedContextResolver
   ) {}
-
-  /**
-   * Handle NSFW verification flow for a message
-   * Returns true if message processing should continue, false if blocked
-   */
-  private async handleNsfwVerification(message: Message): Promise<boolean> {
-    const userId = message.author.id;
-    const { channel } = message;
-
-    // If user is in an NSFW channel, auto-verify them and continue
-    if (isNsfwChannel(channel)) {
-      // Fire-and-forget - don't block the message
-      void verifyNsfwUser(userId).catch(error => {
-        logger.warn({ err: error, userId }, '[PersonalityMessageHandler] NSFW verification failed');
-      });
-      return true; // Continue processing
-    }
-
-    // For all other channels (DMs and non-NSFW guild channels), check verification
-    const nsfwStatus = await checkNsfwVerification(userId);
-    if (!nsfwStatus.nsfwVerified) {
-      logger.info(
-        { userId, channelType: channel.type },
-        '[PersonalityMessageHandler] Interaction blocked - user not NSFW verified'
-      );
-
-      // Send verification message and track for cleanup after verification
-      try {
-        const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
-        void trackPendingVerificationMessage(
-          userId,
-          verificationReply.id,
-          verificationReply.channelId
-        ).catch(trackError => {
-          logger.warn(
-            { err: trackError, userId, messageId: verificationReply.id },
-            '[PersonalityMessageHandler] Failed to track verification message'
-          );
-        });
-      } catch (replyError) {
-        logger.warn(
-          { err: replyError, messageId: message.id },
-          '[PersonalityMessageHandler] Failed to send NSFW verification message'
-        );
-      }
-
-      return false; // Block the interaction
-    }
-
-    return true; // Continue processing
-  }
 
   /**
    * Handle a message directed at a personality
@@ -109,9 +52,14 @@ export class PersonalityMessageHandler {
       const { channel } = message;
 
       // Handle NSFW verification (auto-verify in NSFW channels, block unverified DMs)
-      const shouldContinue = await this.handleNsfwVerification(message);
-      if (!shouldContinue) {
+      const verificationResult = await handleNsfwVerification(message, 'PersonalityMessageHandler');
+      if (!verificationResult.allowed) {
         return;
+      }
+
+      // Show confirmation message on first-time verification (self-destructs after 10s)
+      if (verificationResult.wasNewVerification) {
+        void sendVerificationConfirmation(channel as SendableChannels);
       }
 
       // Resolve all extended context settings for this channel + personality

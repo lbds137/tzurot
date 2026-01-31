@@ -21,9 +21,8 @@ import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import {
   isDMChannel,
+  sendNsfwVerificationMessage,
   checkNsfwVerification,
-  trackPendingVerificationMessage,
-  NSFW_VERIFICATION_MESSAGE,
 } from '../utils/nsfwVerification.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
@@ -69,7 +68,7 @@ export class DMSessionProcessor implements IMessageProcessor {
     const nsfwStatus = await checkNsfwVerification(userId);
     if (!nsfwStatus.nsfwVerified) {
       logger.info({ userId }, '[DMSessionProcessor] DM blocked - user not NSFW verified');
-      await this.sendVerificationMessage(message);
+      await sendNsfwVerificationMessage(message, 'DMSessionProcessor');
       return true; // Consume message
     }
 
@@ -181,27 +180,6 @@ export class DMSessionProcessor implements IMessageProcessor {
     } catch (error) {
       logger.error({ err: error }, '[DMSessionProcessor] Error fetching DM messages');
       return null;
-    }
-  }
-
-  /**
-   * Send NSFW verification message and track for cleanup
-   */
-  private async sendVerificationMessage(message: Message): Promise<void> {
-    try {
-      const verificationReply = await message.reply(NSFW_VERIFICATION_MESSAGE);
-      void trackPendingVerificationMessage(
-        message.author.id,
-        verificationReply.id,
-        verificationReply.channelId
-      ).catch(trackError => {
-        logger.warn(
-          { err: trackError, userId: message.author.id, messageId: verificationReply.id },
-          '[DMSessionProcessor] Failed to track verification message'
-        );
-      });
-    } catch (error) {
-      logger.debug({ err: error }, '[DMSessionProcessor] Failed to send verification message');
     }
   }
 

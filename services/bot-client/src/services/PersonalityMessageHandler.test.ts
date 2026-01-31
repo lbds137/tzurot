@@ -14,11 +14,15 @@ import type {
 
 // Mock NSFW verification to not block normal test flow
 vi.mock('../utils/nsfwVerification.js', () => ({
+  handleNsfwVerification: vi.fn().mockResolvedValue({ allowed: true, wasNewVerification: false }),
+  sendVerificationConfirmation: vi.fn().mockResolvedValue(undefined),
+  // Keep these for backward-compatible tests
   isNsfwChannel: vi.fn().mockReturnValue(false),
   isDMChannel: vi.fn().mockReturnValue(false),
   checkNsfwVerification: vi.fn().mockResolvedValue({ nsfwVerified: true, nsfwVerifiedAt: null }),
   verifyNsfwUser: vi.fn().mockResolvedValue(null),
   trackPendingVerificationMessage: vi.fn().mockResolvedValue(undefined),
+  sendNsfwVerificationMessage: vi.fn().mockResolvedValue(undefined),
   NSFW_VERIFICATION_MESSAGE: 'Please verify your age by interacting in an NSFW channel first.',
 }));
 
@@ -499,13 +503,15 @@ describe('PersonalityMessageHandler', () => {
   });
 
   describe('NSFW verification', () => {
-    it('should auto-verify user when in NSFW channel', async () => {
+    it('should auto-verify user when in NSFW channel and continue processing', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
 
-      // Setup: NSFW channel
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(false);
+      // Setup: handleNsfwVerification returns allowed + wasNewVerification
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: true,
+        wasNewVerification: true,
+      });
 
       const mockContext = {
         userMessage: 'Hello from NSFW channel',
@@ -526,75 +532,82 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello from NSFW channel');
 
-      // Should auto-verify the user
-      expect(nsfwVerification.verifyNsfwUser).toHaveBeenCalledWith('user-123');
+      // Should call handleNsfwVerification
+      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalledWith(
+        mockMessage,
+        'PersonalityMessageHandler'
+      );
+
+      // Should send confirmation for new verification
+      expect(nsfwVerification.sendVerificationConfirmation).toHaveBeenCalled();
 
       // Should continue processing (generate called)
       expect(mockGatewayClient.generate).toHaveBeenCalled();
     });
 
-    it('should block DM from unverified user and send verification message', async () => {
+    it('should block unverified user and not process message', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
 
-      // Setup: DM channel, user not verified
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
-      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: false,
-        nsfwVerifiedAt: null,
+      // Setup: handleNsfwVerification blocks the message
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: false,
+        wasNewVerification: false,
       });
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
 
-      // Should check verification
-      expect(nsfwVerification.checkNsfwVerification).toHaveBeenCalledWith('user-123');
-
-      // Should send verification message
-      expect(mockMessage.reply).toHaveBeenCalledWith(
-        'Please verify your age by interacting in an NSFW channel first.'
-      );
+      // Should call handleNsfwVerification
+      expect(nsfwVerification.handleNsfwVerification).toHaveBeenCalled();
 
       // Should NOT process message (generate not called)
       expect(mockGatewayClient.generate).not.toHaveBeenCalled();
     });
 
-    it('should track verification message for cleanup', async () => {
+    it('should not send confirmation when already verified', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
 
-      // Setup: DM channel, user not verified
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
-      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: false,
-        nsfwVerifiedAt: null,
-      });
-      (mockMessage.reply as ReturnType<typeof vi.fn>).mockResolvedValue({
-        id: 'verification-msg-1',
-        channelId: 'channel-123',
+      // Setup: handleNsfwVerification allows but not new verification
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: true,
+        wasNewVerification: false,
       });
 
-      await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
+      const mockContext = {
+        userMessage: 'Hello',
+        conversationHistory: [],
+        attachments: [],
+        referencedMessages: [],
+        environment: {},
+      };
 
-      // Should track the verification message for later cleanup
-      expect(nsfwVerification.trackPendingVerificationMessage).toHaveBeenCalledWith(
-        'user-123',
-        'verification-msg-1',
-        'channel-123'
-      );
+      mockContextBuilder.buildContext.mockResolvedValue({
+        context: mockContext,
+        personaId: 'persona-123',
+        messageContent: 'Hello',
+        referencedMessages: [],
+        conversationHistory: [],
+      });
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Hello');
+
+      // Should NOT send confirmation (not new verification)
+      expect(nsfwVerification.sendVerificationConfirmation).not.toHaveBeenCalled();
+
+      // Should continue processing
+      expect(mockGatewayClient.generate).toHaveBeenCalled();
     });
 
-    it('should allow DM from verified user', async () => {
+    it('should allow verified user to proceed', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
 
-      // Setup: DM channel, user IS verified
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
-      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: true,
-        nsfwVerifiedAt: new Date(),
+      // Setup: handleNsfwVerification allows
+      vi.mocked(nsfwVerification.handleNsfwVerification).mockResolvedValue({
+        allowed: true,
+        wasNewVerification: false,
       });
 
       const mockContext = {
@@ -616,33 +629,8 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM');
 
-      // Should check verification
-      expect(nsfwVerification.checkNsfwVerification).toHaveBeenCalledWith('user-123');
-
       // Should continue processing (generate called)
       expect(mockGatewayClient.generate).toHaveBeenCalled();
-    });
-
-    it('should handle verification reply failure gracefully', async () => {
-      const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Setup: DM channel, user not verified, reply fails
-      vi.mocked(nsfwVerification.isNsfwChannel).mockReturnValue(false);
-      vi.mocked(nsfwVerification.isDMChannel).mockReturnValue(true);
-      vi.mocked(nsfwVerification.checkNsfwVerification).mockResolvedValue({
-        nsfwVerified: false,
-        nsfwVerifiedAt: null,
-      });
-      (mockMessage.reply as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Cannot send'));
-
-      // Should not throw even if reply fails
-      await expect(
-        handler.handleMessage(mockMessage, mockPersonality, 'Hello via DM')
-      ).resolves.toBeUndefined();
-
-      // Should NOT process message (generate not called)
-      expect(mockGatewayClient.generate).not.toHaveBeenCalled();
     });
   });
 });
