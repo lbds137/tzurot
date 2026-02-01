@@ -6,18 +6,13 @@
  * Verification is required for DM interactions with personalities.
  */
 
-import {
-  ChannelType,
-  type Channel,
-  type AnyThreadChannel,
-  type Message,
-  type SendableChannels,
-} from 'discord.js';
+import { ChannelType, type Channel, type Message, type SendableChannels } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from './userGatewayClient.js';
 import { redis } from '../redis.js';
 import { storePendingVerificationMessage } from './pendingVerificationMessages.js';
 import { cleanupVerificationMessagesForUser } from '../services/VerificationCleanupService.js';
+import { isThreadChannel, getThreadParent } from './discordChannelTypes.js';
 
 const logger = createLogger('nsfw-verification');
 
@@ -94,12 +89,8 @@ export function isNsfwChannel(channel: Channel): boolean {
   }
 
   // Thread channels - check parent's NSFW status
-  if (
-    channel.type === ChannelType.PublicThread ||
-    channel.type === ChannelType.PrivateThread ||
-    channel.type === ChannelType.AnnouncementThread
-  ) {
-    const parent = (channel as AnyThreadChannel).parent;
+  if (isThreadChannel(channel)) {
+    const parent = getThreadParent(channel);
     if (parent === null) {
       return false;
     }
