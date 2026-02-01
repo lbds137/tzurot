@@ -44,6 +44,16 @@ _Top 3-5 items to pull into CURRENT next._
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
 
+### 🐛 Clear Default Preset Returns VALIDATION_ERROR
+
+Attempting to clear default preset via `/settings preset` returns `VALIDATION_ERROR` with no details. Needs investigation.
+
+- [ ] Reproduce and debug the error
+- [ ] Check DELETE `/user/model-override/default` endpoint logic
+- [ ] Add proper error messaging
+
+**Files**: `services/api-gateway/src/routes/user/model-override.ts`, `services/bot-client/src/commands/settings/preset/`
+
 ### 🐛 Preset Edit Authorization Bug
 
 Global preset edit incorrectly checks admin/bot owner status. Should only check if the user is the **preset owner**.
