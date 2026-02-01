@@ -23,6 +23,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     MESSAGE_LIMITS: {
       ...actual.MESSAGE_LIMITS,
       MAX_EXTENDED_CONTEXT: 100,
+      MAX_REACTION_MESSAGES: 5,
+      MAX_REACTIONS_PER_MESSAGE: 3,
+      MAX_USERS_PER_REACTION: 5,
     },
   };
 });
@@ -46,6 +49,21 @@ interface MockAttachment {
   waveform?: string;
 }
 
+// Mock reaction interface for testing
+interface MockReaction {
+  emoji: { id: string | null; name: string | null };
+  users: {
+    fetch: (options?: { limit?: number }) => Promise<Collection<string, MockReactorUser>>;
+  };
+}
+
+interface MockReactorUser {
+  id: string;
+  username: string;
+  displayName?: string;
+  bot: boolean;
+}
+
 function createMockMessage(
   overrides: Partial<{
     id: string;
@@ -63,6 +81,7 @@ function createMockMessage(
     createdAt: Date;
     attachments: Map<string, MockAttachment>;
     reference: { messageId: string } | null;
+    reactions: Map<string, MockReaction>;
   }>
 ): Message {
   const defaults = {
@@ -81,6 +100,7 @@ function createMockMessage(
     createdAt: new Date('2024-01-01T12:00:00Z'),
     attachments: new Map(),
     reference: null,
+    reactions: new Map<string, MockReaction>(),
   };
 
   const config = { ...defaults, ...overrides };
@@ -119,9 +139,32 @@ function createMockMessage(
     createdTimestamp: config.createdAt.getTime(),
     attachments: new Collection(config.attachments),
     reference: config.reference,
-    // Empty reactions cache for extended context processing
-    reactions: { cache: new Collection() },
+    // Reactions cache for extended context processing
+    reactions: { cache: new Collection(config.reactions) },
   } as unknown as Message;
+}
+
+/**
+ * Helper to create a mock reaction with user fetching
+ */
+function createMockReaction(
+  emoji: { id: string | null; name: string | null },
+  users: MockReactorUser[]
+): MockReaction {
+  return {
+    emoji,
+    users: {
+      fetch: vi.fn().mockImplementation((options?: { limit?: number }) => {
+        const userCollection = new Collection<string, MockReactorUser>();
+        const limit = options?.limit ?? users.length;
+        const usersToAdd = users.slice(0, limit);
+        for (const user of usersToAdd) {
+          userCollection.set(user.id, user);
+        }
+        return Promise.resolve(userCollection);
+      }),
+    },
+  };
 }
 
 // Helper to create mock channel
@@ -1960,6 +2003,482 @@ describe('DiscordChannelFetcher', () => {
       expect(
         result.extendedContextUsers === undefined || result.extendedContextUsers.length === 0
       ).toBe(true);
+    });
+  });
+
+  describe('extractReactions', () => {
+    it('should extract reactions with unicode emojis', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          { id: 'user1', username: 'alice', displayName: 'Alice', bot: false },
+          { id: 'user2', username: 'bob', displayName: 'Bob', bot: false },
+        ])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Great news!',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].emoji).toBe('👍');
+      expect(result[0].isCustom).toBe(false);
+      expect(result[0].reactors).toHaveLength(2);
+      expect(result[0].reactors[0].personaId).toBe('discord:user1');
+      expect(result[0].reactors[0].displayName).toBe('Alice');
+      expect(result[0].reactors[1].personaId).toBe('discord:user2');
+      expect(result[0].reactors[1].displayName).toBe('Bob');
+    });
+
+    it('should extract reactions with custom emojis', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        'custom123',
+        createMockReaction({ id: 'custom123', name: 'pepe' }, [
+          { id: 'user1', username: 'alice', displayName: 'Alice', bot: false },
+        ])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Funny meme',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].emoji).toBe(':pepe:');
+      expect(result[0].isCustom).toBe(true);
+      expect(result[0].reactors).toHaveLength(1);
+    });
+
+    it('should exclude bot reactions', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          { id: 'user1', username: 'alice', displayName: 'Alice', bot: false },
+          { id: 'bot1', username: 'SomeBot', displayName: 'SomeBot', bot: true },
+        ])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Hello',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].reactors).toHaveLength(1);
+      expect(result[0].reactors[0].displayName).toBe('Alice');
+    });
+
+    it('should skip reactions with only bot reactors', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '🤖',
+        createMockReaction({ id: null, name: '🤖' }, [
+          { id: 'bot1', username: 'Bot1', displayName: 'Bot1', bot: true },
+          { id: 'bot2', username: 'Bot2', displayName: 'Bot2', bot: true },
+        ])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Hello',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result).toHaveLength(0);
+    });
+
+    it('should limit reactions to MAX_REACTIONS_PER_MESSAGE', async () => {
+      // Create 5 reactions (more than limit of 3)
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          { id: 'user1', username: 'alice', bot: false },
+        ])
+      );
+      reactions.set(
+        '👎',
+        createMockReaction({ id: null, name: '👎' }, [{ id: 'user2', username: 'bob', bot: false }])
+      );
+      reactions.set(
+        '❤️',
+        createMockReaction({ id: null, name: '❤️' }, [
+          { id: 'user3', username: 'carol', bot: false },
+        ])
+      );
+      reactions.set(
+        '🎉',
+        createMockReaction({ id: null, name: '🎉' }, [
+          { id: 'user4', username: 'dave', bot: false },
+        ])
+      );
+      reactions.set(
+        '🚀',
+        createMockReaction({ id: null, name: '🚀' }, [{ id: 'user5', username: 'eve', bot: false }])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Popular message',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      // Should only have 3 reactions (MAX_REACTIONS_PER_MESSAGE)
+      expect(result).toHaveLength(3);
+    });
+
+    it('should limit users per reaction to MAX_USERS_PER_REACTION', async () => {
+      // Create 10 users (more than limit of 5)
+      const users: MockReactorUser[] = [];
+      for (let i = 1; i <= 10; i++) {
+        users.push({ id: `user${i}`, username: `user${i}`, displayName: `User ${i}`, bot: false });
+      }
+
+      const reactions = new Map<string, MockReaction>();
+      reactions.set('👍', createMockReaction({ id: null, name: '👍' }, users));
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Very popular message',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result).toHaveLength(1);
+      // Should only have 5 reactors (MAX_USERS_PER_REACTION)
+      expect(result[0].reactors).toHaveLength(5);
+    });
+
+    it('should use username as displayName when displayName not available', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          { id: 'user1', username: 'alice_123', bot: false }, // No displayName
+        ])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Hello',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result[0].reactors[0].displayName).toBe('alice_123');
+    });
+
+    it('should handle reaction user fetch errors gracefully', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set('👍', {
+        emoji: { id: null, name: '👍' },
+        users: {
+          fetch: vi.fn().mockRejectedValue(new Error('Discord API error')),
+        },
+      });
+      reactions.set(
+        '❤️',
+        createMockReaction({ id: null, name: '❤️' }, [
+          { id: 'user1', username: 'alice', displayName: 'Alice', bot: false },
+        ])
+      );
+
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Hello',
+        reactions,
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      // Should skip the failed reaction but include the successful one
+      expect(result).toHaveLength(1);
+      expect(result[0].emoji).toBe('❤️');
+    });
+
+    it('should return empty array for messages with no reactions', async () => {
+      const msg = createMockMessage({
+        id: 'msg1',
+        content: 'Hello',
+        // No reactions
+      });
+
+      const result = await fetcher.extractReactions(msg);
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('collectReactorUsers', () => {
+    it('should collect unique reactor users from reactions', () => {
+      const reactions = [
+        {
+          emoji: '👍',
+          isCustom: false,
+          reactors: [
+            { personaId: 'discord:user1', displayName: 'Alice' },
+            { personaId: 'discord:user2', displayName: 'Bob' },
+          ],
+        },
+        {
+          emoji: '❤️',
+          isCustom: false,
+          reactors: [
+            { personaId: 'discord:user1', displayName: 'Alice' }, // Duplicate
+            { personaId: 'discord:user3', displayName: 'Carol' },
+          ],
+        },
+      ];
+
+      const existingUsers = new Set<string>();
+      const result = fetcher.collectReactorUsers(reactions, existingUsers);
+
+      expect(result).toHaveLength(3);
+      expect(result.map(u => u.discordId).sort()).toEqual(['user1', 'user2', 'user3']);
+    });
+
+    it('should dedupe with existing users', () => {
+      const reactions = [
+        {
+          emoji: '👍',
+          isCustom: false,
+          reactors: [
+            { personaId: 'discord:user1', displayName: 'Alice' },
+            { personaId: 'discord:user2', displayName: 'Bob' },
+          ],
+        },
+      ];
+
+      // user1 already exists in extended context
+      const existingUsers = new Set(['user1']);
+      const result = fetcher.collectReactorUsers(reactions, existingUsers);
+
+      // Should only have user2 (user1 already exists)
+      expect(result).toHaveLength(1);
+      expect(result[0].discordId).toBe('user2');
+    });
+
+    it('should return empty array when all users already exist', () => {
+      const reactions = [
+        {
+          emoji: '👍',
+          isCustom: false,
+          reactors: [{ personaId: 'discord:user1', displayName: 'Alice' }],
+        },
+      ];
+
+      const existingUsers = new Set(['user1']);
+      const result = fetcher.collectReactorUsers(reactions, existingUsers);
+
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  describe('reaction integration with fetchRecentMessages', () => {
+    it('should attach reactions to messages in fetchRecentMessages result', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          { id: 'user2', username: 'bob', displayName: 'Bob', bot: false },
+        ])
+      );
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          reactions,
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      expect(result.messages).toHaveLength(1);
+      expect(result.messages[0].messageMetadata?.reactions).toBeDefined();
+      expect(result.messages[0].messageMetadata?.reactions).toHaveLength(1);
+      expect(result.messages[0].messageMetadata?.reactions?.[0].emoji).toBe('👍');
+      expect(result.messages[0].messageMetadata?.reactions?.[0].reactors[0].displayName).toBe(
+        'Bob'
+      );
+    });
+
+    it('should collect reactor users separate from extended context users', async () => {
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          // Reactor not in message authors
+          { id: 'user3', username: 'carol', displayName: 'Carol', bot: false },
+        ])
+      );
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          reactions,
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Hi there',
+          authorId: 'user2',
+          authorUsername: 'bob',
+          memberDisplayName: 'Bob',
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // Extended context users should have alice and bob (message authors)
+      expect(result.extendedContextUsers).toHaveLength(2);
+      expect(result.extendedContextUsers?.map(u => u.discordId).sort()).toEqual(['user1', 'user2']);
+
+      // Reactor users should have carol (reacted but didn't author messages)
+      expect(result.reactorUsers).toHaveLength(1);
+      expect(result.reactorUsers?.[0].discordId).toBe('user3');
+    });
+
+    it('should dedupe reactor users with extended context users', async () => {
+      // User1 is both a message author AND a reactor
+      const reactions = new Map<string, MockReaction>();
+      reactions.set(
+        '👍',
+        createMockReaction({ id: null, name: '👍' }, [
+          { id: 'user1', username: 'alice', displayName: 'Alice', bot: false },
+        ])
+      );
+
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello from Alice',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          memberDisplayName: 'Alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+        }),
+        createMockMessage({
+          id: '2',
+          content: 'Another message',
+          authorId: 'user2',
+          authorUsername: 'bob',
+          memberDisplayName: 'Bob',
+          createdAt: new Date('2024-01-01T12:01:00Z'),
+          reactions, // user1 reacted to this
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // Alice is in extended context users (message author)
+      expect(result.extendedContextUsers?.some(u => u.discordId === 'user1')).toBe(true);
+
+      // Alice should NOT be in reactor users (already in extended context)
+      // reactorUsers may be undefined if all reactors are already in extended context
+      const hasUser1InReactors = result.reactorUsers?.some(u => u.discordId === 'user1') ?? false;
+      expect(hasUser1InReactors).toBe(false);
+    });
+
+    it('should only extract reactions from last MAX_REACTION_MESSAGES messages', async () => {
+      // Create 10 messages, only last 5 should have reactions extracted
+      const messages = [];
+      for (let i = 1; i <= 10; i++) {
+        const reactions = new Map<string, MockReaction>();
+        // Each message has a unique reactor
+        reactions.set(
+          '👍',
+          createMockReaction({ id: null, name: '👍' }, [
+            { id: `reactor${i}`, username: `reactor${i}`, displayName: `Reactor ${i}`, bot: false },
+          ])
+        );
+
+        messages.push(
+          createMockMessage({
+            id: String(i),
+            content: `Message ${i}`,
+            authorId: `user${i}`,
+            authorUsername: `user${i}`,
+            memberDisplayName: `User ${i}`,
+            createdAt: new Date(`2024-01-01T12:${String(i).padStart(2, '0')}:00Z`),
+            reactions,
+          })
+        );
+      }
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // Reactor users should only be from last 5 messages (6-10)
+      // And dedupe with extended context users
+      const reactorIds = result.reactorUsers?.map(u => u.discordId) ?? [];
+      // Reactors 1-5 should NOT be in reactor users (from older messages)
+      expect(reactorIds).not.toContain('reactor1');
+      expect(reactorIds).not.toContain('reactor5');
+    });
+
+    it('should return undefined reactorUsers when no reactions', async () => {
+      const messages = [
+        createMockMessage({
+          id: '1',
+          content: 'Hello',
+          authorId: 'user1',
+          authorUsername: 'alice',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          // No reactions
+        }),
+      ];
+
+      const channel = createMockChannel(messages);
+
+      const result = await fetcher.fetchRecentMessages(channel, {
+        botUserId: 'bot123',
+      });
+
+      // No reactions, so reactorUsers should be undefined
+      expect(result.reactorUsers).toBeUndefined();
     });
   });
 });
