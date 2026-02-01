@@ -594,6 +594,10 @@ describe('AIJobProcessor', () => {
 
         expect(result.success).toBe(false);
         expect(result.error).toBe('Duplicate message - already processed');
+        expect(result.metadata).toEqual({
+          triggerMessageId: 'discord-msg-123',
+          skipReason: 'idempotency_check_failed',
+        });
         expect(mockProcessJob).not.toHaveBeenCalled();
         expect(redisService.releaseMessageLock).not.toHaveBeenCalled();
       });

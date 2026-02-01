@@ -178,13 +178,19 @@ export class RedisService {
    * IMPORTANT: If processing fails after acquiring the lock, call releaseMessageLock()
    * to allow BullMQ retries. Otherwise the retry will be blocked as a "duplicate".
    *
+   * TTL Rationale (1 hour):
+   * - Long enough to cover: queue backlog, retries, and processing time
+   * - Short enough to not block legitimate re-triggers (e.g., bot restart scenarios)
+   * - Message edits create new Discord events with the SAME message ID, so edits
+   *   within the TTL window will be deduplicated (intentional - prevents spam)
+   *
    * @param messageId Discord message ID that triggered the request
    * @returns true if lock acquired (should process), false if already locked/processed
    */
   async markMessageProcessing(messageId: string): Promise<boolean> {
     try {
       const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}`;
-      // SET key value NX EX ttl - sets only if key doesn't exist, with 1 hour TTL
+      // 1 hour TTL - see docstring for rationale
       const result = await this.redis.set(key, '1', 'EX', 3600, 'NX');
 
       // Result is 'OK' if key was set (new message), null if key already exists (duplicate)
