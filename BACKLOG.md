@@ -54,6 +54,31 @@ _Top 3-5 items to pull into CURRENT next._
 
 **References**: MCP council brainstorm session 2026-02-01
 
+### 🏗️ Include Test Files in TypeScript Type Checking
+
+**Problem**: Test files are excluded from `tsconfig.json` (`"exclude": ["**/*.test.ts"]`), creating a "lawless wild west" where type errors in tests go unnoticed. This caused confusion when tests passed `ownerId: null` to functions expecting `ownerId: string` - reviewers saw the tests and incorrectly assumed null was valid.
+
+**Impact**:
+
+- Tests can call functions with wrong types (caught at runtime, not compile time)
+- Tests can create mock data that doesn't match actual types
+- Reviewers trust test behavior as specification, but tests may be type-incorrect
+
+**Solution options**:
+
+1. **Include tests in typecheck** - May require `@ts-expect-error` for intentional type violations
+2. **Separate test tsconfig** - `tsconfig.test.json` extends base but includes tests
+3. **Hybrid** - Type-check tests in CI but not in `pnpm typecheck` (speed tradeoff)
+
+**Tasks**:
+
+- [ ] Audit current type errors if tests were included
+- [ ] Decide approach (include in main vs separate config)
+- [ ] Add `@ts-expect-error` where intentional violations exist
+- [ ] Update CI to catch test type errors
+
+**References**: PR #556 review confusion about ownerId nullability (2026-02-01)
+
 ### 🏗️ LLM Config Single Source of Truth (CRITICAL)
 
 **Root cause of thinking/reasoning breakage in beta.60-62.** Config field definitions are scattered across 5+ files that must stay in sync manually. When `reasoning` was added, it was missed in `PersonalityDefaults.getReasoningConfig()`, causing silent data loss.
