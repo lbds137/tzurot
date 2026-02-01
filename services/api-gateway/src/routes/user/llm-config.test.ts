@@ -304,17 +304,18 @@ describe('/user/llm-config routes', () => {
       );
     });
 
-    it('should return config with isOwned=false for global config', async () => {
+    it('should return config with isOwned=false for other user global config', async () => {
+      // Global config owned by another user - still visible but not owned
       mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
         name: 'Global Config',
-        description: 'System default',
+        description: 'Shared preset',
         provider: 'openrouter',
         model: 'gpt-4',
         visionModel: null,
         isGlobal: true,
         isDefault: true,
-        ownerId: null,
+        ownerId: 'other-user-uuid', // Different user owns this
         maxReferencedMessages: 20,
         advancedParameters: null,
       });
@@ -330,7 +331,7 @@ describe('/user/llm-config routes', () => {
         expect.objectContaining({
           config: expect.objectContaining({
             id: 'config-123',
-            isOwned: false,
+            isOwned: false, // Not owned by requesting user
             params: {},
           }),
         })
@@ -563,26 +564,8 @@ describe('/user/llm-config routes', () => {
       expect(mockPrisma.llmConfig.update).toHaveBeenCalled();
     });
 
-    it('should reject editing system global config', async () => {
-      // System global configs have no owner (ownerId is null)
-      mockPrisma.llmConfig.findUnique.mockResolvedValue({
-        id: 'config-123',
-        ownerId: null,
-        isGlobal: true,
-        name: 'System Global Config',
-      });
-
-      const router = createLlmConfigRoutes(
-        mockPrisma as unknown as PrismaClient,
-        mockCacheInvalidation
-      );
-      const handler = getHandler(router, 'put', '/:id');
-      const { req, res } = createMockReqRes({ name: 'New Name' }, { id: 'config-123' });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
+    // Note: LlmConfig.ownerId is NOT nullable in the schema - all configs have an owner
+    // "Global" just means visible to all users, not system-owned
 
     it('should reject editing other user config', async () => {
       mockPrisma.llmConfig.findUnique.mockResolvedValue({
@@ -793,23 +776,8 @@ describe('/user/llm-config routes', () => {
       });
     });
 
-    it('should reject deleting system global config (no owner)', async () => {
-      // System global configs have ownerId: null - only admins can delete
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
-        id: 'config-123',
-        ownerId: null,
-        isGlobal: true,
-        name: 'System Global Config',
-      });
-
-      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'delete', '/:id');
-      const { req, res } = createMockReqRes({}, { id: 'config-123' });
-
-      await handler(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
+    // Note: LlmConfig.ownerId is NOT nullable in the schema - all configs have an owner
+    // "Global" just means visible to all users, not system-owned
 
     it('should reject deleting other user config', async () => {
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
