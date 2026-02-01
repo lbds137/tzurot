@@ -2,57 +2,78 @@
 
 > **Session**: 2026-01-31
 > **Version**: v3.0.0-beta.61
-> **Branch**: `feature/reaction-personas-in-context`
+> **Branch**: `feature/reaction-personas-in-context` (ready for PR)
 
 ---
 
-## Active Task: Message Reactions in XML
+## Completed: Message Reactions in XML
 
 **Goal**: Add reaction metadata to extended context and include reactor personas in participant context.
 
-### Scope
+### What Was Implemented
 
-1. **Extract reactions from Discord messages** - Get emoji and users who reacted
-2. **Include reactor personas in participants** - Bump limit from 5 → 10 personas
-3. **Smart participant selection** - Dedupe with existing conversation participants, fill remaining slots with recent reactors
-4. **Format reactions as XML metadata** - Add to message context
+1. **Reaction extraction from Discord messages** - Last 5 messages have reactions extracted
+2. **Reactor personas in participant context** - Dedupe with existing participants, batch create personas
+3. **XML formatting** - Reactions included as nested elements in message XML
+4. **Stop sequence tracking** - In-memory scoreboard for monitoring activations
 
-### Technical Findings
+### Implementation Details
 
-**Discord.js Limitation**: Reaction timestamps are NOT exposed via the API. We cannot order reactions by "most recent". Alternative approaches:
+**New Constants** (common-types):
 
-- Use message timestamp as proxy (reactions on recent messages are likely recent)
-- Use arbitrary order from Discord.js reaction collection
-- Fetch reactions in order they appear on the message
+- `MAX_REACTION_MESSAGES`: 5 (extract reactions from last 5 messages)
+- `MAX_PARTICIPANT_PERSONAS`: 10 (separate from stop sequence limit of 5)
 
-**Current Hard Limit of 5 Participants**: Located in `RAGUtils.ts:140-150`, constrained by stop sequence budget:
+**New Types** (common-types):
 
-- 16 total stop sequences allowed (Gemini API limit)
-- 11 reserved for safety (XML markers, hallucination prevention, etc.)
-- 5 remaining for participant names
+- `MessageReaction`: emoji, isCustom flag, reactors array
+- `ReactionReactor`: personaId, displayName
 
-**Key Files**:
+**XML Format**:
 
-- `services/ai-worker/src/services/RAGUtils.ts` - Stop sequence limit (lines 140-150)
-- `services/ai-worker/src/services/prompt/ParticipantFormatter.ts` - XML formatting
-- `services/ai-worker/src/services/MemoryRetriever.ts` - Participant population (lines 211-317)
-- `services/bot-client/src/services/MessageContextBuilder.ts` - Context building
+```xml
+<message from="Alice" role="user" t="...">
+Hello everyone!
+<reactions>
+<reaction emoji="👍">Bob, Carol</reaction>
+<reaction emoji=":custom:" custom="true">Dave</reaction>
+</reactions>
+</message>
+```
 
-### Implementation Plan
+**Key Files Changed**:
 
-- [ ] Bump participant limit from 5 → 10 in RAGUtils.ts
-- [ ] Add reaction extraction to MessageContextBuilder
-- [ ] Pass reactions through ConversationHistory pipeline
-- [ ] Resolve reactor personas (same pattern as other participants)
-- [ ] Dedupe reactors with existing conversation participants
-- [ ] Fill remaining participant slots with reactor personas
-- [ ] Add reactions XML to message format in conversationUtils.ts
+- `DiscordChannelFetcher.ts`: extractReactions(), processReactions(), collectReactorUsers()
+- `MessageContextBuilder.ts`: includes reactor users in batch persona creation
+- `conversationUtils.ts`: formatSingleHistoryEntryAsXml() includes <reactions> section
+- `StopSequenceTracker.ts`: in-memory tracker for stop sequence activations
 
-### Questions to Resolve
+### Technical Notes
 
-1. **Stop sequence budget**: Can we safely reduce reserved sequences to accommodate 10 participants?
-2. **Reaction ordering**: Without timestamps, how do we prioritize which reactors to include?
-3. **Performance**: How many API calls does fetching reactor user info require?
+- Stop sequence limit (5) remains separate from participant persona limit (10)
+- Reactions are only extracted from extended context messages (Discord fetch), not DB history
+- Reactor users are deduped with existing conversation participants before persona resolution
+- Stop sequence activations are logged with structured JSON for Railway log search
+
+---
+
+## Also Completed This Session
+
+**db-sync Improvements**:
+
+- Exclude all user preference columns (`default_llm_config_id`, `default_persona_id`)
+- Exclude `personality_default_configs` table entirely
+- Add exclusions for `user_personality_configs` and `user_persona_history_configs`
+
+**/admin debug Fix**:
+
+- AI error message IDs now work for log lookup
+- Added `updateDiagnosticResponseIds` call in error response path
+
+**DeepSeek R1 Error Handling**:
+
+- Added SDK parsing error patterns to apiErrorParser
+- Added `response.ok` check before reasoning injection
 
 ---
 
