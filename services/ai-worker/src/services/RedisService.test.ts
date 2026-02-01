@@ -33,6 +33,7 @@ describe('RedisService', () => {
     xadd: ReturnType<typeof vi.fn>;
     xtrim: ReturnType<typeof vi.fn>;
     setex: ReturnType<typeof vi.fn>;
+    set: ReturnType<typeof vi.fn>;
     get: ReturnType<typeof vi.fn>;
     del: ReturnType<typeof vi.fn>;
     quit: ReturnType<typeof vi.fn>;
@@ -45,6 +46,7 @@ describe('RedisService', () => {
       xadd: vi.fn(),
       xtrim: vi.fn(),
       setex: vi.fn(),
+      set: vi.fn(),
       get: vi.fn(),
       del: vi.fn(),
       quit: vi.fn(),
@@ -325,6 +327,56 @@ describe('RedisService', () => {
 
       // Should not throw, should return false to allow normal operation
       expect(result).toBe(false);
+    });
+  });
+
+  describe('markMessageProcessing', () => {
+    it('should return true when message is new (key was set)', async () => {
+      mockRedis.set.mockResolvedValue('OK');
+
+      const result = await redisService.markMessageProcessing('discord-msg-123');
+
+      expect(result).toBe(true);
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123`,
+        '1',
+        'EX',
+        3600,
+        'NX'
+      );
+    });
+
+    it('should return false when message already exists (duplicate)', async () => {
+      // When key already exists, SET NX returns null
+      mockRedis.set.mockResolvedValue(null);
+
+      const result = await redisService.markMessageProcessing('discord-msg-123');
+
+      expect(result).toBe(false);
+    });
+
+    it('should return true on Redis error (fail open)', async () => {
+      mockRedis.set.mockRejectedValue(new Error('Connection lost'));
+
+      const result = await redisService.markMessageProcessing('discord-msg-123');
+
+      // Should not throw, should return true to allow processing
+      expect(result).toBe(true);
+    });
+
+    it('should use 1 hour TTL for idempotency key', async () => {
+      mockRedis.set.mockResolvedValue('OK');
+
+      await redisService.markMessageProcessing('discord-msg-123');
+
+      // Verify TTL is 3600 seconds (1 hour)
+      expect(mockRedis.set).toHaveBeenCalledWith(
+        expect.any(String),
+        '1',
+        'EX',
+        3600, // 1 hour TTL
+        'NX'
+      );
     });
   });
 
