@@ -15,6 +15,7 @@ import { PrismaClient } from '@tzurot/common-types';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { loadPGliteSchema } from '@tzurot/test-utils';
 import { PgvectorMemoryAdapter, type MemoryMetadata } from './PgvectorMemoryAdapter.js';
 import type { IEmbeddingService } from '@tzurot/embeddings';
 
@@ -67,117 +68,35 @@ describe('PgvectorMemoryAdapter Component Test', () => {
       extensions: { vector },
     });
 
+    // Load the complete schema from the shared schema file
+    // This ensures integration tests stay in sync with migrations
+    await pglite.exec(loadPGliteSchema());
+
     // Create Prisma adapter for PGlite
     const pgliteAdapter = new PrismaPGlite(pglite);
     prisma = new PrismaClient({ adapter: pgliteAdapter }) as PrismaClient;
-
-    // Enable pgvector extension
-    await prisma.$executeRawUnsafe('CREATE EXTENSION IF NOT EXISTS vector');
-
-    // Create tables in dependency order
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        discord_id VARCHAR(20) UNIQUE NOT NULL,
-        username VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS personas (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        content TEXT NOT NULL,
-        preferred_name VARCHAR(255),
-        pronouns VARCHAR(100),
-        owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS system_prompts (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        content TEXT NOT NULL,
-        is_default BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS personalities (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        display_name VARCHAR(255),
-        slug VARCHAR(255) UNIQUE NOT NULL,
-        system_prompt_id UUID REFERENCES system_prompts(id),
-        character_info TEXT NOT NULL,
-        personality_traits TEXT NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    // Create memories table with pgvector column (384 dimensions for bge-small-en-v1.5)
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS memories (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        persona_id UUID NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
-        personality_id UUID NOT NULL REFERENCES personalities(id) ON DELETE CASCADE,
-        source_system VARCHAR(50) NOT NULL DEFAULT 'tzurot-v3',
-        content TEXT NOT NULL,
-        embedding vector(384) NOT NULL,
-        session_id VARCHAR(255),
-        canon_scope VARCHAR(50),
-        summary_type VARCHAR(50),
-        channel_id VARCHAR(20),
-        guild_id VARCHAR(20),
-        message_ids TEXT[],
-        senders TEXT[],
-        is_summarized BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        chunk_group_id UUID,
-        chunk_index INTEGER,
-        total_chunks INTEGER
-      )
-    `);
-
-    // Create index for vector similarity search (cosine distance)
-    // Use HNSW index instead of IVFFlat - HNSW doesn't require minimum training rows
-    // and is generally better for small datasets (typical in testing)
-    await prisma.$executeRawUnsafe(`
-      CREATE INDEX IF NOT EXISTS memories_embedding_idx ON memories
-      USING hnsw (embedding vector_cosine_ops)
-    `);
 
     // Seed test data using parameterized queries (not string interpolation)
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
 
     await prisma.$executeRaw`
-      INSERT INTO users (id, discord_id, username)
-      VALUES (${testUserId}::uuid, '111111111111111111', 'testuser')
+      INSERT INTO users (id, discord_id, username, updated_at)
+      VALUES (${testUserId}::uuid, '111111111111111111', 'testuser', NOW())
     `;
 
     await prisma.$executeRaw`
-      INSERT INTO personas (id, name, content, preferred_name, owner_id)
-      VALUES (${testPersonaId}::uuid, 'Test Persona', 'A test persona', 'Tester', ${testUserId}::uuid)
+      INSERT INTO personas (id, name, content, preferred_name, owner_id, updated_at)
+      VALUES (${testPersonaId}::uuid, 'Test Persona', 'A test persona', 'Tester', ${testUserId}::uuid, NOW())
     `;
 
     await prisma.$executeRaw`
-      INSERT INTO system_prompts (id, name, content)
-      VALUES (${systemPromptId}::uuid, 'Test Prompt', 'You are a test bot.')
+      INSERT INTO system_prompts (id, name, content, updated_at)
+      VALUES (${systemPromptId}::uuid, 'Test Prompt', 'You are a test bot.', NOW())
     `;
 
     await prisma.$executeRaw`
-      INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits)
-      VALUES (${testPersonalityId}::uuid, 'TestBot', 'Test Bot', 'testbot', ${systemPromptId}::uuid, 'Test character', 'Helpful')
+      INSERT INTO personalities (id, name, display_name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+      VALUES (${testPersonalityId}::uuid, 'TestBot', 'Test Bot', 'testbot', ${systemPromptId}::uuid, 'Test character', 'Helpful', ${testUserId}::uuid, NOW())
     `;
 
     // Create embedding service and adapter
@@ -322,8 +241,8 @@ describe('PgvectorMemoryAdapter Component Test', () => {
       // Create a second persona using parameterized query
       const otherPersonaId = '00000000-0000-0000-0000-000000000099';
       await prisma.$executeRaw`
-        INSERT INTO personas (id, name, content, preferred_name, owner_id)
-        VALUES (${otherPersonaId}::uuid, 'Other Persona', 'Another persona', 'Other', ${testUserId}::uuid)
+        INSERT INTO personas (id, name, content, preferred_name, owner_id, updated_at)
+        VALUES (${otherPersonaId}::uuid, 'Other Persona', 'Another persona', 'Other', ${testUserId}::uuid, NOW())
         ON CONFLICT (id) DO NOTHING
       `;
 
