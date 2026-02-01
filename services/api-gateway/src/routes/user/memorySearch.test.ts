@@ -10,14 +10,29 @@ function validateDateFilters(
   dateFrom: string | undefined,
   dateTo: string | undefined
 ): { dateFrom?: string; dateTo?: string } | { error: string } {
-  const isValidDate = (str: string): boolean => !Number.isNaN(new Date(str).getTime());
+  // Require full date format: YYYY-MM-DD with optional time component
+  const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+  const isValidDate = (str: string): boolean => {
+    if (!ISO_DATE_REGEX.test(str)) {
+      return false;
+    }
+    const date = new Date(str);
+    if (Number.isNaN(date.getTime())) {
+      return false;
+    }
+    // PostgreSQL-safe year range
+    const year = date.getUTCFullYear();
+    return year >= 1900 && year <= 2200;
+  };
+
   const hasValue = (str: string | undefined): str is string => str !== undefined && str.length > 0;
 
   if (hasValue(dateFrom) && !isValidDate(dateFrom)) {
-    return { error: 'dateFrom is not a valid date format' };
+    return { error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)' };
   }
   if (hasValue(dateTo) && !isValidDate(dateTo)) {
-    return { error: 'dateTo is not a valid date format' };
+    return { error: 'dateTo must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)' };
   }
 
   return {
@@ -55,28 +70,57 @@ describe('memorySearch date validation', () => {
 
     it('returns error for invalid dateFrom', () => {
       const result = validateDateFilters('not-a-date', '2024-01-15');
-      expect(result).toEqual({ error: 'dateFrom is not a valid date format' });
+      expect(result).toEqual({
+        error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
     });
 
     it('returns error for invalid dateTo', () => {
       const result = validateDateFilters('2024-01-15', 'not-a-date');
-      expect(result).toEqual({ error: 'dateTo is not a valid date format' });
+      expect(result).toEqual({
+        error: 'dateTo must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
     });
 
     it('returns error for malformed dateFrom', () => {
       const result = validateDateFilters('2024-13-45', undefined);
-      expect(result).toEqual({ error: 'dateFrom is not a valid date format' });
+      expect(result).toEqual({
+        error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
     });
 
     it('returns error for SQL injection attempts', () => {
       const result = validateDateFilters("'; DROP TABLE memories; --", undefined);
-      expect(result).toEqual({ error: 'dateFrom is not a valid date format' });
+      expect(result).toEqual({
+        error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
     });
 
-    it('accepts partial dates (JS parses as first of month)', () => {
-      // JavaScript Date parses '2024-01' as Jan 1, 2024 which PostgreSQL also accepts
+    it('rejects partial dates (requires full YYYY-MM-DD)', () => {
+      // Partial dates like '2024-01' are now rejected to ensure consistent behavior
       const result = validateDateFilters('2024-01', undefined);
-      expect(result).toEqual({ dateFrom: '2024-01', dateTo: undefined });
+      expect(result).toEqual({
+        error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
+    });
+
+    it('rejects dates with years outside PostgreSQL-safe range', () => {
+      // Year too far in past
+      const pastResult = validateDateFilters('1800-01-01', undefined);
+      expect(pastResult).toEqual({
+        error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
+
+      // Year too far in future
+      const futureResult = validateDateFilters('2300-01-01', undefined);
+      expect(futureResult).toEqual({
+        error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)',
+      });
+    });
+
+    it('accepts dates within reasonable year range', () => {
+      const result = validateDateFilters('1900-01-01', '2200-12-31');
+      expect(result).toEqual({ dateFrom: '1900-01-01', dateTo: '2200-12-31' });
     });
   });
 });
