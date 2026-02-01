@@ -645,38 +645,13 @@ export class DiscordChannelFetcher {
   }
 
   /**
-   * Merge extended context messages with database conversation history
-   *
-   * This handles deduplication when the same message appears in both sources.
-   * Priority: DB history (more complete metadata) > Discord fetch
-   *
-   * @param extendedMessages - Messages from Discord channel fetch
-   * @param dbHistory - Messages from database conversation history (chronological order)
-   * @returns Merged and deduplicated message list in chronological order (oldest first)
+   * Recover empty DB message content from extended context.
+   * Handles cases where voice messages were stored but content was cleared by a bug.
    */
-  mergeWithHistory(
-    extendedMessages: ConversationMessage[],
-    dbHistory: ConversationMessage[]
-  ): ConversationMessage[] {
-    // Build map of message IDs to DB messages for deduplication and content comparison
-    const dbMessageMap = new Map<string, ConversationMessage>();
-    for (const msg of dbHistory) {
-      for (const id of msg.discordMessageId) {
-        dbMessageMap.set(id, msg);
-      }
-    }
-
-    // Build map of extended context messages by ID for content recovery
-    const extendedMessageMap = new Map<string, ConversationMessage>();
-    for (const msg of extendedMessages) {
-      const msgId = msg.discordMessageId[0];
-      if (msgId !== undefined) {
-        extendedMessageMap.set(msgId, msg);
-      }
-    }
-
-    // Recover empty DB content from extended context (e.g., voice messages with corrupted DB entries)
-    // This handles the case where a voice message was stored but content was cleared by a bug
+  private recoverEmptyDbContent(
+    dbHistory: ConversationMessage[],
+    extendedMessageMap: Map<string, ConversationMessage>
+  ): number {
     let recoveredCount = 0;
     for (const dbMsg of dbHistory) {
       const dbContent = dbMsg.content ?? '';
@@ -708,6 +683,91 @@ export class DiscordChannelFetcher {
         '[DiscordChannelFetcher] Recovered empty DB message content from extended context'
       );
     }
+    return recoveredCount;
+  }
+
+  /**
+   * Enrich DB messages with extended context metadata (reactions, embeds).
+   * Reactions are only available from live Discord fetch, not stored in DB.
+   */
+  private enrichDbMessagesWithExtendedMetadata(
+    dbHistory: ConversationMessage[],
+    extendedMessageMap: Map<string, ConversationMessage>
+  ): number {
+    let reactionsEnrichedCount = 0;
+    for (const dbMsg of dbHistory) {
+      const msgId = dbMsg.discordMessageId[0];
+      if (msgId === undefined) {
+        continue;
+      }
+
+      const extendedMsg = extendedMessageMap.get(msgId);
+      if (extendedMsg === undefined) {
+        continue;
+      }
+
+      // Copy reactions from extended context to DB message
+      if (extendedMsg.messageMetadata?.reactions !== undefined) {
+        dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
+        dbMsg.messageMetadata.reactions = extendedMsg.messageMetadata.reactions;
+        reactionsEnrichedCount++;
+      }
+
+      // Copy embeds from extended context if not already present
+      if (
+        extendedMsg.messageMetadata?.embedsXml !== undefined &&
+        dbMsg.messageMetadata?.embedsXml === undefined
+      ) {
+        dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
+        dbMsg.messageMetadata.embedsXml = extendedMsg.messageMetadata.embedsXml;
+      }
+    }
+
+    if (reactionsEnrichedCount > 0) {
+      logger.debug(
+        { reactionsEnrichedCount },
+        '[DiscordChannelFetcher] Enriched DB messages with reactions from extended context'
+      );
+    }
+    return reactionsEnrichedCount;
+  }
+
+  /**
+   * Merge extended context messages with database conversation history
+   *
+   * This handles deduplication when the same message appears in both sources.
+   * Priority: DB history (more complete metadata) > Discord fetch
+   *
+   * @param extendedMessages - Messages from Discord channel fetch
+   * @param dbHistory - Messages from database conversation history (chronological order)
+   * @returns Merged and deduplicated message list in chronological order (oldest first)
+   */
+  mergeWithHistory(
+    extendedMessages: ConversationMessage[],
+    dbHistory: ConversationMessage[]
+  ): ConversationMessage[] {
+    // Build map of message IDs to DB messages for deduplication and content comparison
+    const dbMessageMap = new Map<string, ConversationMessage>();
+    for (const msg of dbHistory) {
+      for (const id of msg.discordMessageId) {
+        dbMessageMap.set(id, msg);
+      }
+    }
+
+    // Build map of extended context messages by ID for content recovery
+    const extendedMessageMap = new Map<string, ConversationMessage>();
+    for (const msg of extendedMessages) {
+      const msgId = msg.discordMessageId[0];
+      if (msgId !== undefined) {
+        extendedMessageMap.set(msgId, msg);
+      }
+    }
+
+    // Recover empty DB content from extended context
+    const recoveredCount = this.recoverEmptyDbContent(dbHistory, extendedMessageMap);
+
+    // Enrich DB messages with extended context metadata (reactions, embeds)
+    this.enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
 
     // Filter extended messages to exclude those already in DB history
     const uniqueExtendedMessages = extendedMessages.filter(msg => {
