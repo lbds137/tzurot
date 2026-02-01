@@ -13,6 +13,8 @@ export interface UnifiedBaseline {
   version: number;
   lastUpdated: string;
   services: {
+    /** Services detected as using Prisma (for audit transparency) */
+    detectedPrismaServices?: string[];
     knownGaps: string[];
   };
   contracts: {

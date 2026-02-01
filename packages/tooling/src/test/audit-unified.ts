@@ -531,6 +531,10 @@ export function auditUnified(options: AuditUnifiedOptions = {}): boolean {
       version: baseline.version + 1,
       lastUpdated: new Date().toISOString(),
       services: {
+        // Include detected Prisma services for audit transparency
+        detectedPrismaServices: includesServices(category)
+          ? result.services.servicesWithPrisma
+          : baseline.services.detectedPrismaServices,
         knownGaps: includesServices(category)
           ? result.services.untestedServices
           : baseline.services.knownGaps,

@@ -160,9 +160,9 @@ Same resource returns different fields from GET vs POST vs PUT.
 
 - [ ] Shared response builder functions per resource type
 
-#### 🐛 Date String Validation for Memory Search
+#### ✅ Date String Validation for Memory Search (DONE)
 
-`dateFrom`/`dateTo` accepted without validation - invalid dates cause PostgreSQL errors.
+Added date validation to memory search - invalid dates now return validation errors.
 
 #### 🏗️ Zod Schema/TypeScript Interface Mismatch
 
@@ -197,9 +197,9 @@ Add event types: `rate_limit_hit`, `dedup_cache_hit`, `pipeline_step_failed`, `l
 
 Add `/admin debug recent` with personality/user/channel filters.
 
-#### 🧹 DLQ Viewing Script
+#### ✅ DLQ Viewing Script (DONE)
 
-Create `scripts/debug/view-failed-jobs.ts` to inspect failed BullMQ jobs.
+Added `pnpm ops dlq:view` command to inspect failed BullMQ jobs.
 
 #### 🏗️ Metrics & Monitoring (Prometheus)
 
@@ -279,10 +279,6 @@ Improve memory retrieval quality with contrastive methods.
 ---
 
 ## Epic: Incognito Mode Improvements
-
-### 🐛 String Matching for Status
-
-`data.message.includes('already')` is brittle. Add explicit `wasAlreadyActive` boolean.
 
 ### 🏗️ Parallel API Calls for Session Names
 
@@ -428,20 +424,9 @@ Re-exports create spaghetti code and obscure module dependencies.
 - [ ] Eliminate non-essential re-exports
 - [ ] Exception: Package entry points (e.g., `@tzurot/common-types`)
 
-### 🏗️ Extract Shared Channel Type Utilities
+### ✅ Extract Shared Channel Type Utilities (DONE)
 
-Thread channel type checking is duplicated across:
-
-- `nsfwVerification.ts` - `isNsfwChannel()` checks if channel (including threads) is NSFW
-- `VerificationMessageCleanup.ts` - `deleteMessage()` checks if channel supports message operations
-
-Both have similar patterns checking `PublicThread`, `PrivateThread`, `AnnouncementThread` types. Extract shared utilities:
-
-- [ ] `isTextBasedChannel()` - returns true for DM, GuildText, GuildNews, and thread types
-- [ ] `getThreadParent()` - safely extract parent from thread channels
-- [ ] Consider placing in `packages/common-types/src/utils/discordChannelUtils.ts`
-
-**Files**: `services/bot-client/src/utils/nsfwVerification.ts`, `services/bot-client/src/services/VerificationMessageCleanup.ts`
+Created `discordChannelTypes.ts` with `isThreadChannel()`, `getThreadParent()`, and `isTextBasedMessageChannel()`. Refactored nsfwVerification.ts and VerificationMessageCleanup.ts to use shared utilities.
 
 ### 🏗️ Split Large Service Files
 
@@ -546,8 +531,8 @@ _Note: Services without direct Prisma calls are auto-excluded from the audit._
 
 Minor improvements from PR #547 review:
 
-- [ ] Add `servicesWithPrisma` array to `test-coverage-baseline.json` showing which services were detected (for audit transparency)
-- [ ] Document `--json` flag use case in `complexity-report.ts` (intended for CI dashboard integration)
+- [x] Add `servicesWithPrisma` array to `test-coverage-baseline.json` showing which services were detected (for audit transparency)
+- [x] Document `--json` flag use case in `complexity-report.ts` (intended for CI dashboard integration)
 
 ### 🏗️ Audit Integration Tests for Manual Table Creation
 
