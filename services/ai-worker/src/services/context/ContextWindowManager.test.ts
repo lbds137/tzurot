@@ -9,7 +9,7 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    formatTimestampWithDelta: vi.fn((date: Date) => ({
+    formatTimestampWithDelta: vi.fn((_date: Date) => ({
       absolute: 'Mon, Jan 15, 2024',
       relative: '2 weeks ago',
     })),

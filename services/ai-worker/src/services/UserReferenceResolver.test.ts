@@ -306,7 +306,7 @@ describe('UserReferenceResolver', () => {
 
         mockPrisma.user.findMany.mockResolvedValue([]);
 
-        const result = await resolver.resolveUserReferences(text);
+        await resolver.resolveUserReferences(text);
 
         // Should have Discord batch query (no usernames found, so only 1 call)
         expect(mockPrisma.user.findMany).toHaveBeenCalledTimes(1);

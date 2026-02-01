@@ -6,7 +6,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   LlmConfigCacheInvalidationService,
   isValidLlmConfigInvalidationEvent,
-  type LlmConfigInvalidationEvent,
 } from './LlmConfigCacheInvalidationService.js';
 import { REDIS_CHANNELS } from '../constants/queue.js';
 
@@ -175,7 +174,7 @@ describe('LlmConfigCacheInvalidationService', () => {
 
       // Get the message handler that was registered
       const messageHandler = mockSubscriber.on.mock.calls.find(
-        (call: [string, (...args: unknown[]) => void]) => call[0] === 'message'
+        call => call[0] === 'message'
       )?.[1] as ((channel: string, message: string) => void) | undefined;
 
       expect(messageHandler).toBeDefined();
@@ -196,7 +195,7 @@ describe('LlmConfigCacheInvalidationService', () => {
       await service.subscribe(callback);
 
       const messageHandler = mockSubscriber.on.mock.calls.find(
-        (call: [string, (...args: unknown[]) => void]) => call[0] === 'message'
+        call => call[0] === 'message'
       )?.[1] as ((channel: string, message: string) => void) | undefined;
 
       // Simulate receiving a message from another channel

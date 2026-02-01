@@ -61,14 +61,8 @@ describe('createLogger', () => {
     const { createLogger } = await import('./logger.js');
     const logger = createLogger('test');
 
-    // Create a writable stream to capture output
-    const output: string[] = [];
-    const testLogger = logger.child(
-      {},
-      {
-        // Intercept log output
-      }
-    );
+    // Create a child logger - the sanitization happens in the serializer
+    const testLogger = logger.child({});
 
     // The sanitization happens in the serializer, which is tested indirectly
     expect(testLogger).toBeDefined();
@@ -403,14 +397,6 @@ describe('createLogger', () => {
         status: 'unauthorized',
       };
 
-      const logs: string[] = [];
-      const stream = {
-        write: (chunk: string) => {
-          logs.push(chunk);
-        },
-      };
-
-      const { pino } = await import('pino');
       const { createLogger } = await import('./logger.js');
 
       // We need to create a logger that writes to our capture stream

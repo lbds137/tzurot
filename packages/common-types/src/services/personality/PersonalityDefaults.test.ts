@@ -5,7 +5,43 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { replacePlaceholders, deriveAvatarUrl, mapToPersonality } from './PersonalityDefaults.js';
-import type { DatabasePersonality, LlmConfig } from './PersonalityValidator.js';
+import type { DatabasePersonality } from './PersonalityValidator.js';
+import type { MappedLlmConfig } from '../LlmConfigMapper.js';
+
+/**
+ * Factory function to create a complete DatabasePersonality mock with sensible defaults.
+ * Override specific fields as needed in individual tests.
+ */
+function createMockDatabasePersonality(
+  overrides: Partial<DatabasePersonality> = {}
+): DatabasePersonality {
+  return {
+    id: 'test-id',
+    name: 'TestBot',
+    displayName: null,
+    slug: 'test-bot',
+    isPublic: true,
+    ownerId: 'owner-123',
+    updatedAt: new Date('2024-01-21T12:00:00.000Z'),
+    extendedContext: null,
+    extendedContextMaxMessages: null,
+    extendedContextMaxAge: null,
+    extendedContextMaxImages: null,
+    systemPrompt: null,
+    defaultConfigLink: null,
+    characterInfo: 'A helpful AI assistant',
+    personalityTraits: 'Friendly and knowledgeable',
+    personalityTone: null,
+    personalityAge: null,
+    personalityAppearance: null,
+    personalityLikes: null,
+    personalityDislikes: null,
+    conversationalGoals: null,
+    conversationalExamples: null,
+    errorMessage: null,
+    ...overrides,
+  };
+}
 
 describe('PersonalityDefaults', () => {
   describe('replacePlaceholders', () => {
@@ -131,11 +167,8 @@ describe('PersonalityDefaults', () => {
     });
 
     it('should map database personality with personality-specific config', () => {
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
-        name: 'TestBot',
+      const dbPersonality = createMockDatabasePersonality({
         displayName: 'Test Bot',
-        slug: 'test-bot',
         updatedAt: testDate,
         systemPrompt: {
           content: 'You are a helpful assistant named {assistant}',
@@ -144,27 +177,16 @@ describe('PersonalityDefaults', () => {
           llmConfig: {
             model: 'anthropic/claude-sonnet-4.5',
             visionModel: 'anthropic/claude-sonnet-4.5',
-            temperature: 0.7 as any,
-            topP: null,
-            topK: null,
-            frequencyPenalty: null,
-            presencePenalty: null,
-            maxTokens: 4096,
-            memoryScoreThreshold: 0.7 as any,
+            advancedParameters: {
+              temperature: 0.7,
+              max_tokens: 4096,
+            },
+            memoryScoreThreshold: { toNumber: () => 0.7 } as never,
             memoryLimit: 10,
             contextWindowTokens: 200000,
           },
         },
-        characterInfo: 'A helpful AI assistant',
-        personalityTraits: 'Friendly and knowledgeable',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-      };
+      });
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
@@ -184,34 +206,16 @@ describe('PersonalityDefaults', () => {
     });
 
     it('should use global default config when personality has no specific config', () => {
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
-        name: 'TestBot',
-        displayName: null,
-        slug: 'test-bot',
+      const dbPersonality = createMockDatabasePersonality({
         updatedAt: testDate,
-        systemPrompt: null,
-        defaultConfigLink: null,
-        characterInfo: 'A helpful AI assistant',
         personalityTraits: 'Friendly',
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-      };
+      });
 
-      const globalConfig: LlmConfig = {
+      const globalConfig: MappedLlmConfig = {
         model: 'global-model',
         visionModel: 'global-vision-model',
         temperature: 0.8,
         maxTokens: 2048,
-        topP: undefined,
-        topK: undefined,
-        frequencyPenalty: undefined,
-        presencePenalty: undefined,
         memoryScoreThreshold: 0.6,
         memoryLimit: 20,
         contextWindowTokens: 100000,
@@ -230,24 +234,12 @@ describe('PersonalityDefaults', () => {
       // SMP characters like Mathematical Bold Italic are codepoints > U+FFFF
       // They require UTF-16 surrogate pairs in JavaScript
       const unicodeDisplayName = '𝑷𝒆𝒓𝒔𝒆𝒑𝒉𝒐𝒏𝒆 ☠🥀'; // Mathematical Bold Italic + emojis
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
+      const dbPersonality = createMockDatabasePersonality({
         name: 'persephone',
         displayName: unicodeDisplayName,
         slug: 'persephone',
         updatedAt: testDate,
-        systemPrompt: null,
-        defaultConfigLink: null,
-        characterInfo: null,
-        personalityTraits: null,
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-      };
+      });
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
@@ -261,24 +253,11 @@ describe('PersonalityDefaults', () => {
     });
 
     it('should fall back to name when displayName is null', () => {
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
+      const dbPersonality = createMockDatabasePersonality({
         name: 'FallbackBot',
-        displayName: null,
         slug: 'fallback-bot',
         updatedAt: testDate,
-        systemPrompt: null,
-        defaultConfigLink: null,
-        characterInfo: null,
-        personalityTraits: null,
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-      };
+      });
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
@@ -286,13 +265,10 @@ describe('PersonalityDefaults', () => {
     });
 
     it('should include reasoning config from personality LlmConfig', () => {
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
+      const dbPersonality = createMockDatabasePersonality({
         name: 'ReasoningBot',
-        displayName: null,
         slug: 'reasoning-bot',
         updatedAt: testDate,
-        systemPrompt: null,
         defaultConfigLink: {
           llmConfig: {
             model: 'deepseek/deepseek-r1',
@@ -307,21 +283,12 @@ describe('PersonalityDefaults', () => {
                 exclude: false,
               },
             },
-            memoryScoreThreshold: 0.5 as any,
+            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
             memoryLimit: 10,
             contextWindowTokens: 131072,
           },
         },
-        characterInfo: null,
-        personalityTraits: null,
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-      };
+      });
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
@@ -335,34 +302,17 @@ describe('PersonalityDefaults', () => {
     });
 
     it('should include reasoning config from global default when personality has none', () => {
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
+      const dbPersonality = createMockDatabasePersonality({
         name: 'NoConfigBot',
-        displayName: null,
         slug: 'no-config-bot',
         updatedAt: testDate,
-        systemPrompt: null,
-        defaultConfigLink: null,
-        characterInfo: null,
-        personalityTraits: null,
-        personalityTone: null,
-        personalityAge: null,
-        personalityAppearance: null,
-        personalityLikes: null,
-        personalityDislikes: null,
-        conversationalGoals: null,
-        conversationalExamples: null,
-      };
+      });
 
-      const globalConfig: LlmConfig = {
+      const globalConfig: MappedLlmConfig = {
         model: 'global-model',
-        visionModel: undefined,
+        visionModel: null,
         temperature: 0.8,
         maxTokens: 2048,
-        topP: undefined,
-        topK: undefined,
-        frequencyPenalty: undefined,
-        presencePenalty: undefined,
         memoryScoreThreshold: 0.6,
         memoryLimit: 20,
         contextWindowTokens: 100000,
@@ -382,16 +332,11 @@ describe('PersonalityDefaults', () => {
     });
 
     it('should replace placeholders in all character fields', () => {
-      const dbPersonality: DatabasePersonality = {
-        id: 'test-id',
-        name: 'TestBot',
-        displayName: null,
-        slug: 'test-bot',
+      const dbPersonality = createMockDatabasePersonality({
         updatedAt: testDate,
         systemPrompt: {
           content: 'I am {assistant}',
         },
-        defaultConfigLink: null,
         characterInfo: '{assistant} is helpful',
         personalityTraits: '{assistant} is friendly',
         personalityTone: '{assistant} speaks casually',
@@ -401,7 +346,7 @@ describe('PersonalityDefaults', () => {
         personalityDislikes: '{assistant} dislikes bugs',
         conversationalGoals: 'Help {{user}} learn',
         conversationalExamples: '{assistant}: How can I help?',
-      };
+      });
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 

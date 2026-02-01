@@ -382,7 +382,9 @@ describe('getErrorLogContext', () => {
     const error = new Error(longMessage);
     const context = getErrorLogContext(error);
 
-    expect(context.technicalMessage.length).toBeLessThanOrEqual(MAX_ERROR_MESSAGE_LENGTH);
+    expect((context.technicalMessage as string).length).toBeLessThanOrEqual(
+      MAX_ERROR_MESSAGE_LENGTH
+    );
   });
 
   it('should not include sensitive data', () => {

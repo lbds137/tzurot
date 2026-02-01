@@ -21,38 +21,44 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### ✅ Static Analysis & DRY Detection (COMPLETED)
-
-**Status**: Tooling implemented in PR #557. Baseline violations documented below.
-
-**Implemented**:
-
-- [x] Install `jscpd` for copy-paste detection across monorepo
-- [x] Add `pnpm cpd` and `pnpm cpd:report` commands
-- [x] Install `eslint-plugin-sonarjs` for cognitive complexity rules
-- [x] Enable `sonarjs/no-identical-functions`, `sonarjs/no-duplicate-string`, `sonarjs/cognitive-complexity`
-- [x] Add `pnpm typecheck:spec` for type-checking test files separately
-- [x] Add `pnpm quality` command combining lint + cpd + typecheck:spec
-- [x] Add to CI pipeline (cpd runs with continue-on-error, typecheck:spec runs)
-- [x] Add to pre-push hook (typecheck:spec and cpd as warnings until baseline fixed)
-- [x] Documentation at `docs/reference/STATIC_ANALYSIS.md`
-
-**References**: PR #557, `docs/reference/STATIC_ANALYSIS.md`
-
 ### 🏗️ Fix Static Analysis Baseline Violations (NEXT)
 
 **Context**: Static analysis tooling added in PR #557. Tools are installed and configured. Now need to fix baseline violations to make checks blocking.
 
 **Test File Type Errors** (high priority - types are broken):
 
-- [ ] Fix `PersonalityDefaults.test.ts` - missing properties in mock DatabasePersonality (isPublic, ownerId, etc.)
-- [ ] Fix `PersonalityDefaults.test.ts` - `showThinking` property doesn't exist in config type
-- [ ] Fix `ConversationSyncService.test.ts` - argument type mismatches (50 vs 200)
-- [ ] Fix `LlmConfigCacheInvalidationService.test.ts` - mock.calls type assertions
-- [ ] Fix `VisionDescriptionCache.int.test.ts` and `VoiceTranscriptCache.int.test.ts` - can't find @tzurot/common-types module
-- [ ] Fix `textChunker.test.ts` - property 'content' doesn't exist on metadata type
-- [ ] Remove unused imports (vi, BaseInvalidationEvent, etc.) flagged by TS6133
-- [ ] After fixing: make `typecheck:spec` blocking in pre-push hook
+**common-types (DONE):**
+
+- [x] Fix `PersonalityDefaults.test.ts` - missing properties in mock DatabasePersonality
+- [x] Fix `PersonalityDefaults.test.ts` - use `MappedLlmConfig` instead of `LlmConfig`
+- [x] Fix `ConversationSyncService.ts` - add explicit `number` type to limit parameter
+- [x] Fix `LlmConfigCacheInvalidationService.test.ts` - mock.calls type assertions
+- [x] Fix `VisionDescriptionCache.int.test.ts` and `VoiceTranscriptCache.int.test.ts` - use relative imports
+- [x] Fix `textChunker.test.ts` - add content property to metadata type
+- [x] Remove unused imports (vi, BaseInvalidationEvent, etc.) flagged by TS6133
+- [x] Fix `logger.test.ts` - remove unused variables
+
+**ai-worker (PARTIAL - ~152 errors remain):**
+
+- [x] Fix `AIJobProcessor.test.ts` - unused import, transcript→content, type assertions
+- [x] Fix `AIJobProcessor.int.test.ts` - unused variable
+- [x] Fix `MemoryFormatter.test.ts` - createdAt Date→number conversion, mock update
+- [x] Fix `PersonalityFieldsFormatter.test.ts` - remove `description` field, add required fields
+- [x] Fix `VisionProcessor.test.ts` - add createMockPersonality helper, fix visionModel null→undefined
+- [x] Fix `AudioProcessor.test.ts` - add missing personality fields
+- [x] Fix `UserReferenceResolver.test.ts` - unused variable
+- [x] Fix `ContextWindowManager.test.ts` - unused parameter
+- [x] Fix `apiErrorParser.test.ts` - type assertion for unknown context
+
+**Remaining ai-worker errors (~152 - deferred to next PR):**
+
+- [ ] Many `role: string` should be `role: MessageRole` enum
+- [ ] Various missing required properties in mock LoadedPersonality objects
+- [ ] `parentChannel` missing in thread mock objects
+- [ ] `possibly undefined` errors on optional result fields
+- [ ] Type assertions needed for Prisma mock return types
+
+**After fixing remaining:** make `typecheck:spec` blocking in pre-push hook
 
 **Cognitive Complexity** (medium priority - refactoring):
 
@@ -92,9 +98,7 @@ Functions exceeding 15 cognitive complexity limit:
 
 **Problem**: AI assistance accelerates code generation but has no memory of existing patterns, leading to accidental duplication.
 
-- [ ] Create repo mapping script that generates `CONTEXT.md` (exports by file)
-- [ ] Document workflow: paste map before asking AI to write new features
-- [ ] Consider ast-grep for semantic pattern matching (future)
+- [ ] Thoroughly review Claude Code mastery - A solo developer's complete optimization guide.md and act on its recommendations. Use MCP council to fill in gaps or get additional inspiration. This entails a significant refactoring of our documentation and related practices so it should go on its own PR. USE PLAN MODE TO BE THOROUGH.
 
 ### 🏗️ LLM Config Single Source of Truth (CRITICAL)
 
@@ -118,36 +122,6 @@ Functions exceeding 15 cognitive complexity limit:
 - [ ] Add end-to-end integration test: DB JSONB → mapToPersonality → ModelFactory → OpenRouter API call
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
-
-### ✅ Clear Default Preset Returns VALIDATION_ERROR (FIXED)
-
-~~Attempting to clear default preset via `/settings preset` returns `VALIDATION_ERROR` with no details.~~
-
-**Root causes found and fixed**:
-
-1. `parseErrorResponse()` in bot-client preferred `error` (code) over `message` (human-readable) - now prefers message
-2. DELETE `/default` endpoint returned error if no default was set - now idempotent like per-personality delete
-
-- [x] Reproduce and debug the error
-- [x] Check DELETE `/user/model-override/default` endpoint logic
-- [x] Fix parseErrorResponse to prefer message over error code
-- [x] Make DELETE /default idempotent (matches DELETE /:personalityId behavior)
-- [x] Add test coverage
-
-**Files**: `services/api-gateway/src/routes/user/model-override.ts`, `services/bot-client/src/utils/userGatewayClient.ts`
-
-### ✅ Preset Edit Authorization Bug (FIXED)
-
-~~Global preset edit incorrectly checks admin/bot owner status.~~
-
-**Root cause**: `computeLlmConfigPermissions()` returned `canEdit: false` for global configs unless user was admin, even if user was the owner. When a user shares their preset globally (`isGlobal: true`), they lost edit permissions on the UI.
-
-**Fix**: Updated `computeLlmConfigPermissions()` to always allow creator (owner) to edit/delete, regardless of `isGlobal` status. The `isGlobal` flag controls **visibility**, not **ownership**.
-
-- [x] Fix authorization check in computeLlmConfigPermissions
-- [x] Update test coverage
-
-**Files**: `packages/common-types/src/utils/permissions.ts`
 
 ### 🏗️ Footer Handling DRY Refactor (Model Hallucination Bug)
 
@@ -183,8 +157,7 @@ Using `/character chat` with a message parameter errors out with empty error obj
 
 **Observed behavior**:
 
-- Dev: Both variants fail
-- Prod: Works but uses free model instead of configured paid model (as if no API key)
+Both variants fail, but sometimes it works but uses free model instead of configured paid model (as if no API key)
 
 **Hypothesis**: Webhook/bot identity confusion when mixing dev and prod bots in same channel. Bot may not recognize its own webhooks since it's a different bot instance, causing user/context resolution issues.
 
