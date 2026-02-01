@@ -329,8 +329,13 @@ export function createModelOverrideRoutes(
         return sendError(res, ErrorResponses.notFound('User not found'));
       }
 
+      // Idempotent: if no default config is set, return success with wasSet: false
       if (user.defaultLlmConfigId === null) {
-        return sendError(res, ErrorResponses.validationError('No default config set'));
+        logger.info(
+          { discordUserId, hadDefault: false },
+          '[ModelDefault] Clear called but no default was set (idempotent success)'
+        );
+        return sendCustomSuccess(res, { deleted: true, wasSet: false }, StatusCodes.OK);
       }
 
       await prisma.user.update({

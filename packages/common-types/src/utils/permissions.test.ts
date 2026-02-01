@@ -90,8 +90,8 @@ describe('permissions utilities', () => {
         expect(result).toEqual({ canEdit: false, canDelete: false });
       });
 
-      it('should deny permissions even if user claims to be owner of global config', () => {
-        // Edge case: global config with an ownerId (shouldn't happen but test defensively)
+      it('should grant permissions to creator of global config (user shared their preset)', () => {
+        // Users can share their presets by making them global while retaining control
         const globalConfigWithOwner = { ownerId: OWNER_ID, isGlobal: true };
 
         const result = computeLlmConfigPermissions(
@@ -100,8 +100,8 @@ describe('permissions utilities', () => {
           USER_DISCORD_ID
         );
 
-        // isGlobal takes precedence - only admin can edit
-        expect(result).toEqual({ canEdit: false, canDelete: false });
+        // Creator retains permissions even when config is global
+        expect(result).toEqual({ canEdit: true, canDelete: true });
       });
     });
 

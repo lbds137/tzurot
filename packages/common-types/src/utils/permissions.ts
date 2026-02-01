@@ -52,9 +52,11 @@ export function computePersonalityPermissions(
  * Compute permissions for an LLM config (preset)
  *
  * Rules:
- * - Global configs: only admin can edit/delete
- * - User configs: only creator can edit/delete
- * - Admin can also edit/delete user configs (for cleanup)
+ * - Creator can always edit/delete their own configs (including global ones they shared)
+ * - Admin can edit/delete any config (for cleanup)
+ *
+ * Note: `isGlobal` controls visibility, not ownership. A user who makes their
+ * preset global to share it should retain full control over it.
  *
  * @param config - The config object with ownerId and isGlobal flags
  * @param requestingUserId - The requesting user's internal ID (null if not logged in)
@@ -68,15 +70,7 @@ export function computeLlmConfigPermissions(
   const isCreator = requestingUserId !== null && config.ownerId === requestingUserId;
   const isAdmin = isBotOwner(discordUserId);
 
-  // Global configs: only admin can edit/delete
-  // User configs: creator or admin can edit/delete
-  if (config.isGlobal) {
-    return {
-      canEdit: isAdmin,
-      canDelete: isAdmin,
-    };
-  }
-
+  // Creator or admin can edit/delete (regardless of isGlobal)
   return {
     canEdit: isCreator || isAdmin,
     canDelete: isCreator || isAdmin,

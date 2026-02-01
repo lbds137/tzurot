@@ -109,6 +109,22 @@ describe('userGatewayClient', () => {
       expect(error).toBe('Test message');
     });
 
+    it('should prefer message over error code when both present', async () => {
+      // API returns { error: 'VALIDATION_ERROR', message: 'No default config set' }
+      // We want the human-readable message, not the error code
+      const mockResponse = {
+        json: vi.fn().mockResolvedValue({
+          error: 'VALIDATION_ERROR',
+          message: 'No default config set',
+        }),
+        status: 400,
+      } as unknown as Response;
+
+      const error = await parseErrorResponse(mockResponse);
+
+      expect(error).toBe('No default config set');
+    });
+
     it('should return HTTP status when JSON parsing fails', async () => {
       const mockResponse = {
         json: vi.fn().mockRejectedValue(new Error('Invalid JSON')),
