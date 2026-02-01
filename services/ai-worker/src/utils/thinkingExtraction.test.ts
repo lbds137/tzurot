@@ -284,18 +284,77 @@ The answer is 42.`;
       expect(result.blockCount).toBe(1);
     });
 
-    it('should strip orphan closing tags (truncated model output)', () => {
-      // This happens when model truncation loses the opening tag and content
+    it('should strip orphan closing tags AND preceding short garbage', () => {
+      // This happens when model truncation or chimera stutter leaves garbage before orphan tag
       // Example: chimera model returning ".\n</think>\n\n*Response*"
       const content = '.\n</think>\n\n*Acknowledged. System status unchanged.*';
       const result = extractThinkingBlocks(content);
 
-      // No thinking extracted (we don't know what was in the truncated part)
+      // No thinking extracted (short garbage is not meaningful content)
       expect(result.thinkingContent).toBeNull();
-      // But the orphan closing tag should be stripped from visible content
-      expect(result.visibleContent).toBe('.\n\n*Acknowledged. System status unchanged.*');
+      // Both the orphan tag AND the preceding garbage should be stripped
+      expect(result.visibleContent).toBe('*Acknowledged. System status unchanged.*');
+      expect(result.visibleContent).not.toContain('</think>');
+      expect(result.visibleContent).not.toContain('.\n\n*'); // garbage removed
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('should strip chimera stutter artifacts (tng-r1t-chimera pattern)', () => {
+      // Chimera models output: </reasoning> + stutter fragment + </think>
+      // The stutter is typically the last few chars of reasoning + period
+      // Example: reasoning ends with "sarcasm", stutter is "sm."
+      const content = 'sm.\n</think>\n\n*leans back in chair*';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('*leans back in chair*');
+      expect(result.visibleContent).not.toContain('sm.');
       expect(result.visibleContent).not.toContain('</think>');
       expect(result.blockCount).toBe(0);
+    });
+
+    it('should strip various chimera stutter patterns', () => {
+      // Test multiple stutter variants seen in production
+      const patterns = [
+        { input: 'ys.\n</think>\n\nResponse', expected: 'Response' },
+        { input: 'ng.\n</think>\n\nResponse', expected: 'Response' },
+        { input: 'ty.\n</think>\n\nResponse', expected: 'Response' },
+        { input: 'g.\n</think>\n\nResponse', expected: 'Response' },
+      ];
+
+      for (const { input, expected } of patterns) {
+        const result = extractThinkingBlocks(input);
+        expect(result.visibleContent).toBe(expected);
+        expect(result.thinkingContent).toBeNull();
+      }
+    });
+
+    it('should handle full chimera model output (reasoning + stutter + orphan think)', () => {
+      // Full pattern from tng-r1t-chimera: <reasoning>...</reasoning> + stutter + </think>
+      const content = `<reasoning>
+The user is asking about sarcasm.
+I should respond with dry humor and technical metaphors.
+</reasoning>
+
+sm.
+</think>
+
+*leans back in a creaking office chair*
+
+Sarcasm is just encrypted honesty.`;
+
+      const result = extractThinkingBlocks(content);
+
+      // Reasoning should be extracted
+      expect(result.thinkingContent).toContain('The user is asking about sarcasm');
+      expect(result.thinkingContent).toContain('technical metaphors');
+      // Visible content should have no stutter or orphan tags
+      expect(result.visibleContent).toBe(
+        '*leans back in a creaking office chair*\n\nSarcasm is just encrypted honesty.'
+      );
+      expect(result.visibleContent).not.toContain('sm.');
+      expect(result.visibleContent).not.toContain('</think>');
+      expect(result.blockCount).toBe(1);
     });
 
     it('should strip multiple orphan closing tags', () => {
