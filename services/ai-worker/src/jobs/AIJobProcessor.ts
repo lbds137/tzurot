@@ -286,6 +286,24 @@ export class AIJobProcessor {
   private async processLLMGenerationJob(
     job: Job<LLMGenerationJobData>
   ): Promise<LLMGenerationResult> {
+    // Idempotency check: prevent duplicate processing of the same Discord message
+    const triggerMessageId = job.data.context.triggerMessageId;
+    if (triggerMessageId !== undefined) {
+      const isNew = await redisService.markMessageProcessing(triggerMessageId);
+      if (!isNew) {
+        // Message already being processed - return early without publishing to stream
+        logger.warn(
+          { jobId: job.id, triggerMessageId },
+          '[AIJobProcessor] Skipping duplicate message - already processed'
+        );
+        return {
+          requestId: job.data.requestId,
+          success: false,
+          error: 'Duplicate message - already processed',
+        };
+      }
+    }
+
     // Delegate to LLM generation handler
     const result = await this.llmGenerationHandler.processJob(job);
 

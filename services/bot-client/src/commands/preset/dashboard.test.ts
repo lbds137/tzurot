@@ -587,6 +587,8 @@ describe('handleButton', () => {
       mockSessionManagerGet.mockResolvedValue({
         data: { id: 'preset-123', isGlobal: false, isOwned: true },
       });
+      // Mock fetchPreset to return fresh data (race condition fix fetches before toggle)
+      mockFetchPreset.mockResolvedValue({ ...mockPresetData, isGlobal: false });
       mockUpdatePreset.mockResolvedValue({ ...mockPresetData, isGlobal: true });
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
@@ -606,6 +608,8 @@ describe('handleButton', () => {
       mockSessionManagerGet.mockResolvedValue({
         data: { id: 'preset-123', isGlobal: true, isOwned: true },
       });
+      // Mock fetchPreset to return fresh data (race condition fix fetches before toggle)
+      mockFetchPreset.mockResolvedValue({ ...mockPresetData, isGlobal: true });
       mockUpdatePreset.mockResolvedValue({ ...mockPresetData, isGlobal: false });
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
@@ -659,6 +663,8 @@ describe('handleButton', () => {
       mockSessionManagerGet.mockResolvedValue({
         data: { id: 'preset-123', isGlobal: false, isOwned: true },
       });
+      // Mock fetchPreset to return valid preset (needed for fresh data fetch before toggle)
+      mockFetchPreset.mockResolvedValue({ ...mockPresetData, isGlobal: false });
       mockUpdatePreset.mockRejectedValue(new Error('API Error'));
 
       await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));

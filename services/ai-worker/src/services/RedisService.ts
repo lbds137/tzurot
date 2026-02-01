@@ -172,6 +172,40 @@ export class RedisService {
   }
 
   /**
+   * Check if a Discord message has already been processed (idempotency check).
+   * Uses SET NX EX to atomically set a key only if it doesn't exist.
+   *
+   * @param messageId Discord message ID that triggered the request
+   * @returns true if this is a NEW message (should process), false if already processed
+   */
+  async markMessageProcessing(messageId: string): Promise<boolean> {
+    try {
+      const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}`;
+      // SET key value NX EX ttl - sets only if key doesn't exist, with 1 hour TTL
+      const result = await this.redis.set(key, '1', 'EX', 3600, 'NX');
+
+      // Result is 'OK' if key was set (new message), null if key already exists (duplicate)
+      const isNew = result === 'OK';
+
+      if (!isNew) {
+        logger.info(
+          { messageId },
+          '[RedisService] Duplicate message detected - skipping processing'
+        );
+      }
+
+      return isNew;
+    } catch (error) {
+      logger.error(
+        { err: error, messageId },
+        '[RedisService] Error checking message idempotency - allowing processing'
+      );
+      // On error, default to allowing processing (fail open)
+      return true;
+    }
+  }
+
+  /**
    * Graceful shutdown
    */
   async close(): Promise<void> {
