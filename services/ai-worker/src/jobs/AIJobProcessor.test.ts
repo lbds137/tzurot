@@ -30,6 +30,8 @@ vi.mock('../redis.js', () => ({
     storeJobResult: vi.fn().mockResolvedValue(undefined),
     publishJobResult: vi.fn().mockResolvedValue(undefined),
     getJobResult: vi.fn().mockResolvedValue(null),
+    markMessageProcessing: vi.fn().mockResolvedValue(true),
+    releaseMessageLock: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -575,6 +577,70 @@ describe('AIJobProcessor', () => {
           tokensIn: 0,
           tokensOut: 0,
         }),
+      });
+    });
+
+    describe('idempotency', () => {
+      it('should skip processing when message was already processed', async () => {
+        vi.mocked(redisService.markMessageProcessing).mockResolvedValueOnce(false);
+
+        const jobDataWithTriggerMessageId = {
+          ...baseLLMJobData,
+          context: { ...baseLLMJobData.context, triggerMessageId: 'discord-msg-123' },
+        };
+        const job = createMockJob(jobDataWithTriggerMessageId, 'llm-job-123');
+
+        const result = await processor.processJob(job);
+
+        expect(result.success).toBe(false);
+        expect(result.error).toBe('Duplicate message - already processed');
+        expect(mockProcessJob).not.toHaveBeenCalled();
+        expect(redisService.releaseMessageLock).not.toHaveBeenCalled();
+      });
+
+      it('should process message and keep lock on success', async () => {
+        vi.mocked(redisService.markMessageProcessing).mockResolvedValueOnce(true);
+
+        const jobDataWithTriggerMessageId = {
+          ...baseLLMJobData,
+          context: { ...baseLLMJobData.context, triggerMessageId: 'discord-msg-123' },
+        };
+        const job = createMockJob(jobDataWithTriggerMessageId, 'llm-job-123');
+
+        const result = await processor.processJob(job);
+
+        expect(result.success).toBe(true);
+        expect(mockProcessJob).toHaveBeenCalled();
+        // Lock should NOT be released on success
+        expect(redisService.releaseMessageLock).not.toHaveBeenCalled();
+      });
+
+      it('should release lock when processing fails', async () => {
+        vi.mocked(redisService.markMessageProcessing).mockResolvedValueOnce(true);
+        mockProcessJob.mockRejectedValueOnce(new Error('LLM API timeout'));
+
+        const jobDataWithTriggerMessageId = {
+          ...baseLLMJobData,
+          context: { ...baseLLMJobData.context, triggerMessageId: 'discord-msg-123' },
+        };
+        const job = createMockJob(jobDataWithTriggerMessageId, 'llm-job-123');
+
+        await expect(processor.processJob(job)).rejects.toThrow('LLM API timeout');
+
+        // Lock should be released on failure to allow retries
+        expect(redisService.releaseMessageLock).toHaveBeenCalledWith('discord-msg-123');
+      });
+
+      it('should not check idempotency when triggerMessageId is undefined', async () => {
+        const jobDataWithoutTriggerMessageId = {
+          ...baseLLMJobData,
+          context: { ...baseLLMJobData.context }, // No triggerMessageId
+        };
+        const job = createMockJob(jobDataWithoutTriggerMessageId, 'llm-job-123');
+
+        await processor.processJob(job);
+
+        expect(redisService.markMessageProcessing).not.toHaveBeenCalled();
       });
     });
   });
