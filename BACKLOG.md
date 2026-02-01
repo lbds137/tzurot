@@ -78,6 +78,14 @@ Functions exceeding 15 cognitive complexity limit:
 - [ ] Make CPD blocking in CI (remove `continue-on-error: true`)
 - [ ] Make `typecheck:spec` blocking in pre-push hook
 
+**Documentation & Polish** (from PR #558 review):
+
+- [ ] Add comment to `tsconfig.spec.json` files explaining test file inclusion pattern
+- [ ] Document which sonarjs rules were considered and rejected in STATIC_ANALYSIS.md
+- [ ] Add CPD suppression (`/* jscpd:ignore-start */`) guidance to code review checklist
+- [ ] Add link from CLAUDE.md "Code Quality Limits" section to `STATIC_ANALYSIS.md`
+- [ ] Rename CI step "Type-check test files" → "Run typecheck:spec" for consistency
+
 **References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
 ### 🏗️ AI Context Bridge (Process)
