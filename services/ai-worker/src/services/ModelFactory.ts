@@ -492,6 +492,7 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     cacheVal(modelConfig.maxTokens),
     cacheArr(modelConfig.stop),
     cacheVal(modelConfig.responseFormat?.type),
+    cacheVal(modelConfig.showThinking), // Affects include_reasoning in custom fetch
     // Reasoning
     cacheVal(modelConfig.reasoning?.effort),
     cacheVal(modelConfig.reasoning?.maxTokens),
