@@ -13,7 +13,9 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PrismaClient } from './prisma.js';
 import { PGlite } from '@electric-sql/pglite';
+import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';
+import { loadPGliteSchema } from '@tzurot/test-utils';
 import { ConversationHistoryService } from './ConversationHistoryService.js';
 import { ConversationRetentionService } from './ConversationRetentionService.js';
 import { MessageRole } from '../constants/index.js';
@@ -32,10 +34,16 @@ describe('ConversationHistoryService Component Test', () => {
   const testGuildId = '987654321098765432';
 
   beforeAll(async () => {
-    // Set up PGlite (in-memory Postgres via WASM)
+    // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
     // Note: PGlite initialization is CPU-intensive and may be slow when running
     // in parallel with other tests, hence the extended timeout
-    pglite = new PGlite();
+    pglite = new PGlite({
+      extensions: { vector },
+    });
+
+    // Load the complete schema from the shared schema file
+    // This ensures integration tests stay in sync with migrations
+    await pglite.exec(loadPGliteSchema());
 
     // Create Prisma adapter for PGlite
     const adapter = new PrismaPGlite(pglite);
@@ -43,121 +51,26 @@ describe('ConversationHistoryService Component Test', () => {
     // Create Prisma client with PGlite adapter
     prisma = new PrismaClient({ adapter }) as PrismaClient;
 
-    // Create tables in dependency order
+    // Seed test data (include updated_at since schema doesn't have DEFAULT for @updatedAt fields)
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS users (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        discord_id VARCHAR(20) UNIQUE NOT NULL,
-        username VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
+      INSERT INTO users (id, discord_id, username, updated_at)
+      VALUES ('${testUserId}', '111111111111111111', 'testuser', NOW())
     `);
 
     await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS personas (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        content TEXT NOT NULL,
-        preferred_name VARCHAR(255),
-        pronouns VARCHAR(100),
-        owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS system_prompts (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        description TEXT,
-        content TEXT NOT NULL,
-        is_default BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS personalities (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        name VARCHAR(255) NOT NULL,
-        display_name VARCHAR(255),
-        slug VARCHAR(255) UNIQUE NOT NULL,
-        system_prompt_id UUID REFERENCES system_prompts(id),
-        character_info TEXT NOT NULL,
-        personality_traits TEXT NOT NULL,
-        personality_tone TEXT,
-        personality_age TEXT,
-        personality_appearance TEXT,
-        personality_likes TEXT,
-        personality_dislikes TEXT,
-        conversational_goals TEXT,
-        conversational_examples TEXT,
-        custom_fields JSONB,
-        voice_enabled BOOLEAN DEFAULT FALSE,
-        voice_settings JSONB,
-        image_enabled BOOLEAN DEFAULT FALSE,
-        image_settings JSONB,
-        avatar_data BYTEA,
-        supports_extended_context BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS conversation_history (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        channel_id VARCHAR(20) NOT NULL,
-        guild_id VARCHAR(20),
-        personality_id UUID NOT NULL REFERENCES personalities(id) ON DELETE CASCADE,
-        persona_id UUID NOT NULL REFERENCES personas(id) ON DELETE CASCADE,
-        role VARCHAR(20) NOT NULL,
-        content TEXT NOT NULL,
-        token_count INTEGER,
-        discord_message_id TEXT[] DEFAULT '{}',
-        message_metadata JSONB DEFAULT '{}',
-        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-        deleted_at TIMESTAMP,
-        edited_at TIMESTAMP
-      )
-    `);
-
-    // Tombstones table for tracking hard-deleted conversation history
-    // Used to prevent db-sync from restoring deleted messages
-    await prisma.$executeRawUnsafe(`
-      CREATE TABLE IF NOT EXISTS conversation_history_tombstones (
-        id UUID PRIMARY KEY,
-        channel_id VARCHAR(20) NOT NULL,
-        personality_id UUID NOT NULL,
-        persona_id UUID NOT NULL,
-        deleted_at TIMESTAMP NOT NULL DEFAULT NOW()
-      )
-    `);
-
-    // Seed test data
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO users (id, discord_id, username)
-      VALUES ('${testUserId}', '111111111111111111', 'testuser')
-    `);
-
-    await prisma.$executeRawUnsafe(`
-      INSERT INTO personas (id, name, content, preferred_name, owner_id)
-      VALUES ('${testPersonaId}', 'Test Persona', 'A test persona', 'Tester', '${testUserId}')
+      INSERT INTO personas (id, name, content, preferred_name, owner_id, updated_at)
+      VALUES ('${testPersonaId}', 'Test Persona', 'A test persona', 'Tester', '${testUserId}', NOW())
     `);
 
     const systemPromptId = '00000000-0000-0000-0000-000000000004';
     await prisma.$executeRawUnsafe(`
-      INSERT INTO system_prompts (id, name, content)
-      VALUES ('${systemPromptId}', 'Test Prompt', 'You are a test bot.')
+      INSERT INTO system_prompts (id, name, content, updated_at)
+      VALUES ('${systemPromptId}', 'Test Prompt', 'You are a test bot.', NOW())
     `);
 
     await prisma.$executeRawUnsafe(`
-      INSERT INTO personalities (id, name, slug, system_prompt_id, character_info, personality_traits)
-      VALUES ('${testPersonalityId}', 'TestBot', 'testbot', '${systemPromptId}', 'Test bot', 'Helpful')
+      INSERT INTO personalities (id, name, slug, system_prompt_id, character_info, personality_traits, owner_id, updated_at)
+      VALUES ('${testPersonalityId}', 'TestBot', 'testbot', '${systemPromptId}', 'Test bot', 'Helpful', '${testUserId}', NOW())
     `);
 
     // Create service instances
@@ -836,11 +749,12 @@ describe('ConversationHistoryService Component Test', () => {
       const oldDate = new Date();
       oldDate.setDate(oldDate.getDate() - 40); // 40 days ago
 
-      // Insert directly with old timestamp
+      // Insert directly with old timestamp (need explicit id for schema constraints)
+      const oldMessageId = '00000000-0000-0000-0000-000000000099';
       await prisma.$executeRawUnsafe(`
         INSERT INTO conversation_history
-        (channel_id, guild_id, personality_id, persona_id, role, content, created_at)
-        VALUES ('${testChannelId}', '${testGuildId}', '${testPersonalityId}', '${testPersonaId}', 'user', 'Old message', '${oldDate.toISOString()}')
+        (id, channel_id, guild_id, personality_id, persona_id, role, content, created_at)
+        VALUES ('${oldMessageId}', '${testChannelId}', '${testGuildId}', '${testPersonalityId}', '${testPersonaId}', 'user', 'Old message', '${oldDate.toISOString()}')
       `);
 
       // Add a recent message
