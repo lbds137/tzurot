@@ -19,7 +19,11 @@ import {
   stripBotFooters,
   stripDmPrefix,
 } from '@tzurot/common-types';
-import type { ConversationMessage, AttachmentMetadata } from '@tzurot/common-types';
+import type {
+  ConversationMessage,
+  AttachmentMetadata,
+  MessageReaction,
+} from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
 import { resolveHistoryLinks } from '../utils/HistoryLinkResolver.js';
@@ -76,6 +80,8 @@ export interface FetchResult {
   participantGuildInfo?: Record<string, ParticipantGuildInfo>;
   /** Unique users from extended context for batch persona creation */
   extendedContextUsers?: ExtendedContextUser[];
+  /** Unique users who reacted to messages (for participant persona resolution) */
+  reactorUsers?: ExtendedContextUser[];
 }
 
 /**
@@ -175,6 +181,7 @@ export class DiscordChannelFetcher {
 
       const participantCount = Object.keys(processResult.participantGuildInfo).length;
       const userCount = processResult.extendedContextUsers.length;
+      const reactorCount = processResult.reactorUsers.length;
       logger.info(
         {
           channelId: channel.id,
@@ -183,6 +190,7 @@ export class DiscordChannelFetcher {
           imageAttachmentCount: processResult.imageAttachments.length,
           participantGuildInfoCount: participantCount,
           extendedContextUserCount: userCount,
+          reactorUserCount: reactorCount,
         },
         '[DiscordChannelFetcher] Fetched and processed channel messages'
       );
@@ -196,6 +204,7 @@ export class DiscordChannelFetcher {
           processResult.imageAttachments.length > 0 ? processResult.imageAttachments : undefined,
         participantGuildInfo: participantCount > 0 ? processResult.participantGuildInfo : undefined,
         extendedContextUsers: userCount > 0 ? processResult.extendedContextUsers : undefined,
+        reactorUsers: reactorCount > 0 ? processResult.reactorUsers : undefined,
       };
     } catch (error) {
       logger.error(
@@ -222,14 +231,16 @@ export class DiscordChannelFetcher {
     messages: ConversationMessage[],
     imageAttachments: AttachmentMetadata[],
     participantGuildInfo: Record<string, ParticipantGuildInfo>,
-    extendedContextUsers: ExtendedContextUser[]
+    extendedContextUsers: ExtendedContextUser[],
+    reactorUsers: ExtendedContextUser[]
   ): {
     messages: ConversationMessage[];
     imageAttachments: AttachmentMetadata[];
     participantGuildInfo: Record<string, ParticipantGuildInfo>;
     extendedContextUsers: ExtendedContextUser[];
+    reactorUsers: ExtendedContextUser[];
   } {
-    return { messages, imageAttachments, participantGuildInfo, extendedContextUsers };
+    return { messages, imageAttachments, participantGuildInfo, extendedContextUsers, reactorUsers };
   }
 
   /**
@@ -309,12 +320,15 @@ export class DiscordChannelFetcher {
     imageAttachments: AttachmentMetadata[];
     participantGuildInfo: Record<string, ParticipantGuildInfo>;
     extendedContextUsers: ExtendedContextUser[];
+    reactorUsers: ExtendedContextUser[];
   }> {
     const result: ConversationMessage[] = [];
     const collectedImageAttachments: AttachmentMetadata[] = [];
     const participantGuildInfo: Record<string, ParticipantGuildInfo> = {};
     // Collect unique users for batch persona creation
     const uniqueUsers = new Map<string, ExtendedContextUser>();
+    // Map Discord message ID to its index in result array for reaction attachment
+    const messageIdToIndex = new Map<string, number>();
 
     // Build fallback map: voiceMessageId → bot reply transcript
     // Used when DB lookup fails (corrupted/missing records, old messages not in DB)
@@ -409,6 +423,8 @@ export class DiscordChannelFetcher {
         getTranscript: getTranscriptWithFallback,
       });
       if (conversionResult) {
+        // Track index for reaction attachment later
+        messageIdToIndex.set(msg.id, result.length);
         result.push(conversionResult.message);
         // Collect image attachments (only images, not voice messages)
         // Add sourceDiscordMessageId to track which message each image came from
@@ -453,6 +469,15 @@ export class DiscordChannelFetcher {
     // Convert unique users map to array
     const extendedContextUsers = Array.from(uniqueUsers.values());
 
+    // Extract reactions from recent messages and collect reactor users
+    const existingUserIds = new Set(uniqueUsers.keys());
+    const reactorUsers = await this.processReactions(
+      sortedMessages,
+      result,
+      messageIdToIndex,
+      existingUserIds
+    );
+
     // Return messages in reverse order (newest first) - these get re-sorted chronologically
     // by mergeWithHistory() to optimize for LLM recency bias (newest messages at end of prompt).
     // Image attachments stay in chronological order (oldest message's images first, preserving
@@ -461,7 +486,8 @@ export class DiscordChannelFetcher {
       result.reverse(),
       collectedImageAttachments,
       limitedParticipantGuildInfo,
-      extendedContextUsers
+      extendedContextUsers,
+      reactorUsers
     );
   }
 
@@ -958,6 +984,157 @@ export class DiscordChannelFetcher {
       }
     }
     return oldest;
+  }
+
+  // ============================================================================
+  // Reaction Extraction Methods
+  // ============================================================================
+
+  /**
+   * Process reactions from recent messages and attach to ConversationMessages
+   *
+   * @param sortedMessages - All Discord messages in ascending order (oldest first)
+   * @param result - ConversationMessage array to attach reactions to
+   * @param messageIdToIndex - Map from Discord message ID to result array index
+   * @param existingUserIds - Set of user IDs already in participants (for deduplication)
+   * @returns Array of reactor users to add to participant resolution
+   */
+  private async processReactions(
+    sortedMessages: Message[],
+    result: ConversationMessage[],
+    messageIdToIndex: Map<string, number>,
+    existingUserIds: Set<string>
+  ): Promise<ExtendedContextUser[]> {
+    // Extract reactions from the last N messages (most recent)
+    // sortedMessages is in ascending order (oldest first), so slice from the end
+    const reactionMessages = sortedMessages.slice(-MESSAGE_LIMITS.MAX_REACTION_MESSAGES);
+    const allReactions: MessageReaction[] = [];
+
+    for (const msg of reactionMessages) {
+      // Skip messages with no reactions
+      if (msg.reactions.cache.size === 0) {
+        continue;
+      }
+
+      // Extract reactions from this message
+      const reactions = await this.extractReactions(msg);
+      if (reactions.length === 0) {
+        continue;
+      }
+
+      // Find the corresponding ConversationMessage and add reactions to its metadata
+      const msgIndex = messageIdToIndex.get(msg.id);
+      if (msgIndex !== undefined) {
+        const convMsg = result[msgIndex];
+        if (convMsg !== undefined) {
+          convMsg.messageMetadata = convMsg.messageMetadata ?? {};
+          convMsg.messageMetadata.reactions = reactions;
+        }
+      }
+
+      // Collect reactions for reactor user extraction
+      allReactions.push(...reactions);
+    }
+
+    // Collect unique reactor users (dedupe with existing participants)
+    const reactorUsers = this.collectReactorUsers(allReactions, existingUserIds);
+
+    if (allReactions.length > 0) {
+      logger.debug(
+        {
+          reactionMessageCount: reactionMessages.length,
+          totalReactions: allReactions.length,
+          reactorUserCount: reactorUsers.length,
+        },
+        '[DiscordChannelFetcher] Extracted reactions from recent messages'
+      );
+    }
+
+    return reactorUsers;
+  }
+
+  /**
+   * Extract reactions from a Discord message
+   *
+   * @param msg - Discord message to extract reactions from
+   * @returns Array of reactions with emoji and reactor info
+   */
+  async extractReactions(msg: Message): Promise<MessageReaction[]> {
+    const reactions: MessageReaction[] = [];
+
+    // Iterate through cached reactions
+    for (const reaction of msg.reactions.cache.values()) {
+      try {
+        // Fetch all users who reacted (may require API call)
+        const users = await reaction.users.fetch();
+
+        const reactors = users
+          .filter(user => !user.bot) // Exclude bot reactions
+          .map(user => ({
+            personaId: `discord:${user.id}`,
+            displayName: user.displayName ?? user.username,
+          }));
+
+        if (reactors.length === 0) {
+          continue; // Skip reactions with only bot reactors
+        }
+
+        // Format emoji string
+        // Unicode emojis: use the emoji directly
+        // Custom emojis: use :name: format (id is needed for rendering but not context)
+        const emoji = reaction.emoji;
+        const emojiString = emoji.id !== null ? `:${emoji.name}:` : (emoji.name ?? '');
+        const isCustom = emoji.id !== null;
+
+        reactions.push({
+          emoji: emojiString,
+          isCustom,
+          reactors,
+        });
+      } catch (error) {
+        logger.warn(
+          { messageId: msg.id, emoji: reaction.emoji.name, error },
+          '[DiscordChannelFetcher] Failed to fetch reaction users'
+        );
+      }
+    }
+
+    return reactions;
+  }
+
+  /**
+   * Collect unique reactor users from reactions
+   *
+   * @param reactions - Array of reactions to collect users from
+   * @param existingUsers - Set of user IDs already collected (for deduplication)
+   * @returns Array of unique reactor users
+   */
+  collectReactorUsers(
+    reactions: MessageReaction[],
+    existingUsers: Set<string>
+  ): ExtendedContextUser[] {
+    const reactorUsers: ExtendedContextUser[] = [];
+    const seenIds = new Set(existingUsers);
+
+    for (const reaction of reactions) {
+      for (const reactor of reaction.reactors) {
+        // Extract Discord ID from personaId format ('discord:123456')
+        const discordId = reactor.personaId.replace('discord:', '');
+        if (seenIds.has(discordId)) {
+          continue;
+        }
+        seenIds.add(discordId);
+
+        reactorUsers.push({
+          discordId,
+          username: reactor.displayName, // Best we have from reaction data
+          displayName: reactor.displayName,
+          isBot: false,
+        });
+      }
+    }
+
+    return reactorUsers;
   }
 }
 

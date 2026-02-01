@@ -56,6 +56,17 @@ export const MESSAGE_LIMITS = {
    * Prevents unbounded growth in busy public channels
    */
   MAX_EXTENDED_CONTEXT_PARTICIPANTS: 20,
+  /**
+   * Maximum number of recent messages to extract reactions from
+   * Reactions provide social context without timestamps (Discord API limitation)
+   */
+  MAX_REACTION_MESSAGES: 5,
+  /**
+   * Maximum number of participant personas to include in AI prompt context
+   * These get full persona details (name, pronouns, about text)
+   * Separate from stop sequence limit (5) which stays fixed
+   */
+  MAX_PARTICIPANT_PERSONAS: 10,
 } as const;
 
 /**
