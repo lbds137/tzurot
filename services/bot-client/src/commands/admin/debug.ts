@@ -208,8 +208,20 @@ function getEmbedColor(payload: DiagnosticPayload): number {
   return 0x00ff00;
 }
 
-/** Output format options */
-type DebugFormat = 'json' | 'xml' | 'both';
+/**
+ * Output format options for /admin debug
+ * Must match the choices in admin/index.ts SlashCommandBuilder
+ */
+export enum DebugFormat {
+  /** Full JSON with complete prompt content */
+  Json = 'json',
+  /** Abbreviated JSON with prompt content summarized */
+  Brief = 'brief',
+  /** XML system prompt only */
+  Xml = 'xml',
+  /** Both full JSON and XML */
+  Both = 'both',
+}
 
 /**
  * Extract and format the system prompt as XML
@@ -227,6 +239,36 @@ function extractSystemPromptXml(payload: DiagnosticPayload): string {
 }
 
 /**
+ * Create abbreviated payload for 'brief' format
+ * Replaces full prompt messages with summary to reduce noise
+ */
+function createBriefPayload(payload: DiagnosticPayload): object {
+  const { assembledPrompt, ...rest } = payload;
+
+  // Summarize each message with role, length, and preview
+  const messagesSummary = assembledPrompt.messages.map((msg, idx) => {
+    const preview = msg.content.substring(0, 100).replace(/\n/g, ' ');
+    const truncated = msg.content.length > 100 ? '...' : '';
+    return {
+      index: idx,
+      role: msg.role,
+      contentLength: msg.content.length,
+      preview: `${preview}${truncated}`,
+    };
+  });
+
+  return {
+    ...rest,
+    assembledPrompt: {
+      messageCount: assembledPrompt.messages.length,
+      totalContentLength: assembledPrompt.messages.reduce((sum, m) => sum + m.content.length, 0),
+      messages: messagesSummary,
+      _note: 'Use format:json for full prompt content',
+    },
+  };
+}
+
+/**
  * Build attachments based on format option
  */
 function buildAttachments(
@@ -236,7 +278,7 @@ function buildAttachments(
 ): AttachmentBuilder[] {
   const files: AttachmentBuilder[] = [];
 
-  if (format === 'json' || format === 'both') {
+  if (format === DebugFormat.Json || format === DebugFormat.Both) {
     const jsonContent = JSON.stringify(payload, null, 2);
     files.push(
       new AttachmentBuilder(Buffer.from(jsonContent), {
@@ -246,7 +288,18 @@ function buildAttachments(
     );
   }
 
-  if (format === 'xml' || format === 'both') {
+  if (format === DebugFormat.Brief) {
+    const briefPayload = createBriefPayload(payload);
+    const jsonContent = JSON.stringify(briefPayload, null, 2);
+    files.push(
+      new AttachmentBuilder(Buffer.from(jsonContent), {
+        name: `debug-brief-${requestId}.json`,
+        description: 'Abbreviated LLM debug data (prompt content omitted)',
+      })
+    );
+  }
+
+  if (format === DebugFormat.Xml || format === DebugFormat.Both) {
     const xmlContent = extractSystemPromptXml(payload);
     files.push(
       new AttachmentBuilder(Buffer.from(xmlContent), {
@@ -371,7 +424,7 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
 export async function handleDebug(context: DeferredCommandContext): Promise<void> {
   const options = adminDebugOptions(context.interaction);
   const identifier = options.identifier();
-  const format = (options.format() ?? 'json') as DebugFormat;
+  const format = (options.format() ?? DebugFormat.Json) as DebugFormat;
 
   // Note: identifier() returns string (required option), so only empty check needed
   if (identifier === '') {
