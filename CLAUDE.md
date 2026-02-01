@@ -280,6 +280,14 @@ await prisma.userPersonalityConfig.upsert({
 
 **📚 See**: `tzurot-code-quality` skill for full limits table, refactoring patterns, and extraction techniques.
 
+### Static Analysis
+
+- **Duplication**: Zero tolerance. Run `pnpm cpd` to detect. Refactor to shared utils.
+- **Complexity**: Cognitive complexity limit 15 (sonarjs). Break down complex functions.
+- **Test Types**: Tests type-checked separately via `pnpm typecheck:spec`.
+
+**📚 See**: `docs/reference/STATIC_ANALYSIS.md` for detailed guidance.
+
 ### Type Safety (TypeScript Strict Mode)
 
 - `strict: true` - All strict checks enabled
@@ -419,6 +427,12 @@ pnpm build            # Build all
 pnpm typecheck        # Type check all
 pnpm lint             # Lint all
 pnpm test             # Run all tests
+
+# Code Quality
+pnpm cpd              # Copy-paste detection
+pnpm cpd:report       # CPD with HTML report
+pnpm typecheck:spec   # Type-check including tests
+pnpm quality          # Full quality check (lint + cpd + typecheck:spec)
 
 # Service-specific
 pnpm --filter @tzurot/bot-client dev

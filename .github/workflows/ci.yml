@@ -42,6 +42,13 @@ jobs:
       - name: Run linter
         run: pnpm run lint
 
+      - name: Run copy-paste detection
+        run: pnpm cpd
+        continue-on-error: true
+
+      - name: Type-check test files
+        run: pnpm typecheck:spec
+
       - name: Check pglite schema is in sync with Prisma
         # Dummy URL - prisma migrate diff doesn't connect, just needs provider hint
         env:

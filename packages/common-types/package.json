@@ -16,7 +16,8 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.3.0",

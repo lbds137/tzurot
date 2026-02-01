@@ -3,6 +3,7 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import sonarjs from 'eslint-plugin-sonarjs';
 import tzurotPlugin from './packages/tooling/dist/eslint/index.js';
 
 // Get the directory name of the current module (monorepo root)
@@ -78,6 +79,7 @@ export default tseslint.config(
     files: ['**/*.ts'],
     plugins: {
       '@tzurot': tzurotPlugin,
+      sonarjs,
     },
     languageOptions: {
       ecmaVersion: 2022,
@@ -213,6 +215,25 @@ export default tseslint.config(
       // Detect singleton anti-patterns (export instantiated objects at module level)
       // Makes code harder to test because instances are created at import time
       '@tzurot/no-singleton-export': 'warn',
+
+      // ============================================================================
+      // SONARJS RULES - Additional code quality checks
+      // ============================================================================
+
+      // Cognitive complexity measures mental effort to understand code
+      // More nuanced than cyclomatic complexity - penalizes nesting
+      'sonarjs/cognitive-complexity': ['warn', 15],
+
+      // Detect duplicate functions within the same file
+      'sonarjs/no-identical-functions': 'warn',
+
+      // Detect repeated string literals (magic strings)
+      'sonarjs/no-duplicate-string': ['warn', { threshold: 3 }],
+
+      // Additional quality rules
+      'sonarjs/no-collapsible-if': 'warn',
+      'sonarjs/no-redundant-jump': 'warn',
+      'sonarjs/prefer-immediate-return': 'warn',
     },
   },
 

@@ -18,6 +18,7 @@
     "lint:fix": "eslint src --fix",
     "format": "prettier --write .",
     "typecheck": "tsc --noEmit",
+    "typecheck:spec": "tsc --noEmit --project tsconfig.spec.json",
     "deploy-commands": "tsx scripts/deploy-commands.ts",
     "deploy-commands:railway": "railway run --service bot-client pnpm deploy-commands"
   },
