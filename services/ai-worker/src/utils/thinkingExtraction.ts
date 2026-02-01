@@ -72,6 +72,15 @@ const UNCLOSED_TAG_PATTERN =
   /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>([\s\S]*)$/gi;
 
 /**
+ * Pattern to match orphan closing tags with preceding content (no opening tag).
+ * Some models (e.g., Kimi K2.5) may output thinking content without an opening tag,
+ * just closing with </think>. This captures the content before the closing tag.
+ * Matches: "thinking content here</think>visible response"
+ */
+const ORPHAN_CLOSING_TAG_PATTERN =
+  /^([\s\S]*?)<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/i;
+
+/**
  * Extract thinking blocks from AI response content.
  *
  * Models like DeepSeek R1, Qwen QwQ, GLM-4.x, and Claude with prompted thinking
@@ -139,7 +148,30 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     }
   }
 
-  // Clean up orphan closing tags (model truncation can leave closing tags without openers)
+  // Handle orphan closing tags with preceding content (no opening tag)
+  // Some models (e.g., Kimi K2.5) output thinking without opening tag: "thinking</think>response"
+  // Only if no complete tags or unclosed opening tags were found
+  // Require substantial content (20+ chars) to avoid extracting residual punctuation from truncation
+  const MIN_ORPHAN_CONTENT_LENGTH = 20;
+  if (thinkingParts.length === 0) {
+    const orphanMatch = ORPHAN_CLOSING_TAG_PATTERN.exec(visibleContent);
+    if (orphanMatch !== null) {
+      const orphanContent = orphanMatch[1].trim();
+      const tagName = orphanMatch[2];
+      if (orphanContent.length >= MIN_ORPHAN_CONTENT_LENGTH) {
+        thinkingParts.push(orphanContent);
+        logger.warn(
+          { tagName, contentLength: orphanContent.length },
+          '[ThinkingExtraction] Found orphan closing tag - extracted preceding content as thinking'
+        );
+        // Remove the orphan content and closing tag from visible content
+        visibleContent = visibleContent.replace(ORPHAN_CLOSING_TAG_PATTERN, '');
+      }
+      // If content is too short, just strip the orphan closing tag (handled below)
+    }
+  }
+
+  // Clean up any remaining orphan closing tags (e.g., multiple orphans or mid-content)
   // Example: ".\n</think>\n\nResponse" -> ".\n\nResponse"
   visibleContent = visibleContent.replace(
     /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi,
