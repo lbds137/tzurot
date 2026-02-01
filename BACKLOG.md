@@ -44,30 +44,42 @@ _Top 3-5 items to pull into CURRENT next._
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
 
-### 🐛 Clear Default Preset Returns VALIDATION_ERROR
+### ✅ Clear Default Preset Returns VALIDATION_ERROR (FIXED)
 
-Attempting to clear default preset via `/settings preset` returns `VALIDATION_ERROR` with no details. Needs investigation.
+~~Attempting to clear default preset via `/settings preset` returns `VALIDATION_ERROR` with no details.~~
 
-- [ ] Reproduce and debug the error
-- [ ] Check DELETE `/user/model-override/default` endpoint logic
-- [ ] Add proper error messaging
+**Root causes found and fixed**:
 
-**Files**: `services/api-gateway/src/routes/user/model-override.ts`, `services/bot-client/src/commands/settings/preset/`
+1. `parseErrorResponse()` in bot-client preferred `error` (code) over `message` (human-readable) - now prefers message
+2. DELETE `/default` endpoint returned error if no default was set - now idempotent like per-personality delete
 
-### 🐛 Preset Edit Authorization Bug
+- [x] Reproduce and debug the error
+- [x] Check DELETE `/user/model-override/default` endpoint logic
+- [x] Fix parseErrorResponse to prefer message over error code
+- [x] Make DELETE /default idempotent (matches DELETE /:personalityId behavior)
+- [x] Add test coverage
 
-Global preset edit incorrectly checks admin/bot owner status. Should only check if the user is the **preset owner**.
+**Files**: `services/api-gateway/src/routes/user/model-override.ts`, `services/bot-client/src/utils/userGatewayClient.ts`
 
-- [ ] Fix authorization check in preset edit endpoint to use `ownerId` instead of admin check
-- [ ] Add test coverage for non-admin preset owners
+### ✅ Preset Edit Authorization Bug (FIXED)
 
-**Files**: `services/api-gateway/src/routes/user/llm-config.ts` (likely)
+~~Global preset edit incorrectly checks admin/bot owner status.~~
+
+**Root cause**: `computeLlmConfigPermissions()` returned `canEdit: false` for global configs unless user was admin, even if user was the owner. When a user shares their preset globally (`isGlobal: true`), they lost edit permissions on the UI.
+
+**Fix**: Updated `computeLlmConfigPermissions()` to always allow creator (owner) to edit/delete, regardless of `isGlobal` status. The `isGlobal` flag controls **visibility**, not **ownership**.
+
+- [x] Fix authorization check in computeLlmConfigPermissions
+- [x] Update test coverage
+
+**Files**: `packages/common-types/src/utils/permissions.ts`
 
 ### 🐛 /character chat Errors with Message + API Key Resolution
 
 Using `/character chat` with a message parameter errors out with empty error object `{}`. Without a message it works but uses free tier instead of user's API key.
 
 **Observed behavior**:
+
 - Dev: Both variants fail
 - Prod: Works but uses free model instead of configured paid model (as if no API key)
 
@@ -75,11 +87,20 @@ Using `/character chat` with a message parameter errors out with empty error obj
 
 **Confirmed**: Fails in prod too when channel has another bot's webhooks present.
 
-- [ ] Debug empty error in character chat with message
-- [ ] Fix API key resolution for /character chat (not using user's BYOK key)
-- [ ] Check if webhook ownership validation is causing user context issues
+**Investigation notes (2026-02-01)**:
 
-**Files**: `services/bot-client/src/commands/character/chat.ts`
+- Code path traced: `handleChat` → `buildContext` → sets `context.userId = discordUserId` (correct)
+- `ApiKeyResolver.resolveApiKey()` uses `discordId` correctly for lookup
+- Empty `{}` error might be caught/sanitized somewhere upstream - needs error tracing
+- The user ID flow LOOKS correct but behavior suggests it's lost/overwritten somewhere
+- Needs hands-on debugging with dev environment and logging to trace actual values
+
+- [ ] Add debug logging to trace userId through the request
+- [ ] Check for any catch blocks that might sanitize errors to `{}`
+- [ ] Verify userId is not overwritten by webhook-related code
+- [ ] Test in clean channel without other bot webhooks
+
+**Files**: `services/bot-client/src/commands/character/chat.ts`, `services/ai-worker/src/services/ApiKeyResolver.ts`
 
 ### 🏗️ ConversationalRAGService Refactor
 
