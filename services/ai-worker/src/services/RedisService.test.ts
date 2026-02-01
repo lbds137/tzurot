@@ -380,6 +380,32 @@ describe('RedisService', () => {
     });
   });
 
+  describe('releaseMessageLock', () => {
+    it('should delete the idempotency key', async () => {
+      mockRedis.del.mockResolvedValue(1);
+
+      await redisService.releaseMessageLock('discord-msg-123');
+
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}discord-msg-123`
+      );
+    });
+
+    it('should not throw on Redis error', async () => {
+      mockRedis.del.mockRejectedValue(new Error('Connection lost'));
+
+      // Should not throw - just log the error
+      await expect(redisService.releaseMessageLock('discord-msg-123')).resolves.toBeUndefined();
+    });
+
+    it('should handle non-existent key gracefully', async () => {
+      // del returns 0 when key doesn't exist
+      mockRedis.del.mockResolvedValue(0);
+
+      await expect(redisService.releaseMessageLock('discord-msg-123')).resolves.toBeUndefined();
+    });
+  });
+
   describe('close', () => {
     it('should call redis.quit on close', async () => {
       mockRedis.quit.mockResolvedValue('OK');
