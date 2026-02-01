@@ -177,6 +177,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
             "value": "json",
           },
           {
+            "name": "JSON (Brief - no prompt)",
+            "name_localizations": undefined,
+            "value": "brief",
+          },
+          {
             "name": "XML Prompt Only",
             "name_localizations": undefined,
             "value": "xml",
