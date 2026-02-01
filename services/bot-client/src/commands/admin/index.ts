@@ -40,7 +40,7 @@ import {
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
-import { handleDebug } from './debug.js';
+import { handleDebug, DebugFormat } from './debug.js';
 import {
   handleSettings,
   handleAdminSettingsSelectMenu,
@@ -288,9 +288,10 @@ export default defineCommand({
             .setDescription('Output format (default: JSON)')
             .setRequired(false)
             .addChoices(
-              { name: 'Full JSON', value: 'json' },
-              { name: 'XML Prompt Only', value: 'xml' },
-              { name: 'Both', value: 'both' }
+              { name: 'Full JSON', value: DebugFormat.Json },
+              { name: 'JSON (Brief - no prompt)', value: DebugFormat.Brief },
+              { name: 'XML Prompt Only', value: DebugFormat.Xml },
+              { name: 'Both', value: DebugFormat.Both }
             )
         )
     ),

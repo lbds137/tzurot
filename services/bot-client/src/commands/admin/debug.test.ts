@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { handleDebug } from './debug.js';
+import { handleDebug, DebugFormat } from './debug.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { DiagnosticPayload } from '@tzurot/common-types';
 
@@ -697,7 +697,7 @@ describe('handleDebug', () => {
       const mockPayload = createMockDiagnosticPayload();
       vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
 
-      const context = createMockContext('test-req-123', 'json');
+      const context = createMockContext('test-req-123', DebugFormat.Json);
       await handleDebug(context);
 
       const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
@@ -711,7 +711,7 @@ describe('handleDebug', () => {
       const mockPayload = createMockDiagnosticPayload();
       vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
 
-      const context = createMockContext('test-req-123', 'xml');
+      const context = createMockContext('test-req-123', DebugFormat.Xml);
       await handleDebug(context);
 
       const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
@@ -725,7 +725,7 @@ describe('handleDebug', () => {
       const mockPayload = createMockDiagnosticPayload();
       vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
 
-      const context = createMockContext('test-req-123', 'both');
+      const context = createMockContext('test-req-123', DebugFormat.Both);
       await handleDebug(context);
 
       const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
@@ -741,7 +741,7 @@ describe('handleDebug', () => {
       mockPayload.assembledPrompt.messages[0].content = '<persona>Test</persona>';
       vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
 
-      const context = createMockContext('test-req-123', 'xml');
+      const context = createMockContext('test-req-123', DebugFormat.Xml);
       await handleDebug(context);
 
       const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
@@ -751,6 +751,30 @@ describe('handleDebug', () => {
       expect(xmlContent).toContain('<SystemPrompt>');
       expect(xmlContent).toContain('</SystemPrompt>');
       expect(xmlContent).toContain('<persona>Test</persona>');
+    });
+
+    it('should return brief JSON attachment when format is "brief"', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      mockPayload.assembledPrompt.messages[0].content = 'Long system prompt content here...';
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponse(mockPayload));
+
+      const context = createMockContext('test-req-123', DebugFormat.Brief);
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        files: { attachment: Buffer; name: string }[];
+      };
+      expect(editReplyArgs.files).toHaveLength(1);
+      expect(editReplyArgs.files[0].name).toContain('debug-brief-');
+      expect(editReplyArgs.files[0].name).toContain('.json');
+
+      // Verify the content is abbreviated (has summary instead of full content)
+      const jsonContent = JSON.parse(editReplyArgs.files[0].attachment.toString());
+      expect(jsonContent.assembledPrompt.messageCount).toBeDefined();
+      expect(jsonContent.assembledPrompt.messages[0].contentLength).toBeDefined();
+      expect(jsonContent.assembledPrompt.messages[0].preview).toBeDefined();
+      // Should NOT contain full content
+      expect(jsonContent.assembledPrompt.messages[0].content).toBeUndefined();
     });
   });
 });
