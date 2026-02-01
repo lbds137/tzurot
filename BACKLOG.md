@@ -105,7 +105,19 @@ Support tagging multiple characters in one message, each responding in order.
 
 ## Epic: Character Portability
 
-_Import characters from various sources into v3._
+_Import and export characters and user data. Users own their data._
+
+### ✨ User Data Export
+
+Unified export of all user-owned data. Currently preset export and character export exist but are separate.
+
+- [ ] `/me export` command - download all user data as JSON/ZIP
+- [ ] Include: personas, presets, LLM configs, memories, conversation history
+- [ ] Include: user settings, timezone, API keys (masked)
+- [ ] Consider: character cards (PNG with embedded metadata) for personalities
+- [ ] Privacy: only export data the user owns or has created
+
+**Existing partial implementations**: `/preset export`, `/character export`
 
 ### ✨ Character Card Import
 
@@ -200,6 +212,30 @@ Production observability with metrics collection.
 - [ ] Add Prometheus metrics endpoint
 - [ ] Key metrics: request latency, token usage, error rates, queue depth
 - [ ] Grafana dashboards (or Railway's built-in metrics)
+
+### Moderation & Access Control
+
+#### ✨ User Denylist
+
+Block specific Discord users from using the bot entirely.
+
+- [ ] Add `denylisted_users` table (discord_id, reason, denylisted_at, denylisted_by)
+- [ ] Early-exit middleware in message handler (before any processing)
+- [ ] `/admin denylist user add <user_id> [reason]` command
+- [ ] `/admin denylist user remove <user_id>` command
+- [ ] `/admin denylist user list` command
+- [ ] Consider: silent vs explicit rejection message
+
+#### ✨ Server Denylist
+
+Block the bot from operating in specific Discord servers.
+
+- [ ] Add `denylisted_servers` table (guild_id, reason, denylisted_at, denylisted_by)
+- [ ] Early-exit in message handler and interaction handler
+- [ ] `/admin denylist server add <guild_id> [reason]` command
+- [ ] `/admin denylist server remove <guild_id>` command
+- [ ] `/admin denylist server list` command
+- [ ] Consider: auto-leave server when denylisted, or just go silent
 
 ### Logging Review (Low Priority)
 
