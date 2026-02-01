@@ -13,7 +13,6 @@ import {
   convertConversationHistory,
   formatConversationHistoryAsXml,
   getFormattedMessageCharLength,
-  type Participant,
   type RawHistoryEntry,
 } from './conversationUtils.js';
 import { MessageRole, type StoredReferencedMessage } from '@tzurot/common-types';

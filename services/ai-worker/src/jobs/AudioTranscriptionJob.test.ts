@@ -137,7 +137,7 @@ describe('AudioTranscriptionJob', () => {
 
       expect(result.success).toBe(true);
       expect(result.content).toBe('Mocked transcription text');
-      expect(result.metadata.processingTimeMs).toBe(3500);
+      expect(result.metadata!.processingTimeMs).toBe(3500);
       expect(mockWithRetry).toHaveBeenCalledTimes(1);
     });
 
@@ -293,8 +293,8 @@ describe('AudioTranscriptionJob', () => {
       const result = await processAudioTranscriptionJob(job);
 
       expect(result.success).toBe(true);
-      expect(result.metadata.processingTimeMs).toBe(6500);
-      expect(result.metadata.duration).toBe(30);
+      expect(result.metadata!.processingTimeMs).toBe(6500);
+      expect(result.metadata!.duration).toBe(30);
     });
   });
 });

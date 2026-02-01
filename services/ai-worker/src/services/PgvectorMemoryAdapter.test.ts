@@ -91,8 +91,8 @@ describe('PgvectorMemoryAdapter', () => {
     adapter = new PgvectorMemoryAdapter(mockPrisma, mockEmbeddingService);
 
     // Spy on queryMemories to control its return values
-    mockQueryMemories = vi.fn();
-    adapter.queryMemories = mockQueryMemories;
+    mockQueryMemories = vi.fn().mockResolvedValue([]);
+    adapter.queryMemories = mockQueryMemories as typeof adapter.queryMemories;
   });
 
   describe('queryMemoriesWithChannelScoping', () => {
@@ -491,6 +491,7 @@ describe('PgvectorMemoryAdapter', () => {
     const baseMetadata: MemoryMetadata = {
       personaId: 'persona-123',
       personalityId: 'personality-456',
+      canonScope: 'personal',
       createdAt: Date.now(), // Required for normalizeMetadata
     };
 
@@ -567,9 +568,9 @@ describe('PgvectorMemoryAdapter', () => {
       const mockPrisma = {
         $executeRaw: vi
           .fn()
-          .mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+          .mockImplementation((_strings: TemplateStringsArray, ...values: unknown[]) => {
             // The first value after the template is the ID
-            storedIds.push(values[0]);
+            storedIds.push(values[0] as string);
             return Promise.resolve(undefined);
           }),
       };
@@ -601,12 +602,12 @@ describe('PgvectorMemoryAdapter', () => {
       const mockPrisma = {
         $executeRaw: vi
           .fn()
-          .mockImplementation((strings: TemplateStringsArray, ...values: any[]) => {
+          .mockImplementation((_strings: TemplateStringsArray, ...values: unknown[]) => {
             // chunkGroupId is at index 15 in the VALUES (0-indexed)
             // Based on SQL: id, persona_id, personality_id, source_system, content, embedding,
             //               session_id, canon_scope, summary_type, channel_id, guild_id,
             //               message_ids, senders, is_summarized, created_at, chunk_group_id, ...
-            chunkGroupIds.push(values[15]);
+            chunkGroupIds.push(values[15] as string | null);
             return Promise.resolve(undefined);
           }),
       };

@@ -162,7 +162,7 @@ describe('ImageDescriptionJob', () => {
       // Return different descriptions for each image
       let callCount = 0;
       mockWithRetry.mockImplementation(async fn => {
-        const result = await fn();
+        await fn();
         callCount++;
         return {
           value: `Description ${callCount}`,
@@ -182,10 +182,10 @@ describe('ImageDescriptionJob', () => {
 
       expect(result.success).toBe(true);
       expect(result.descriptions).toHaveLength(3);
-      expect(result.descriptions[0].url).toBe('https://example.com/image1.png');
-      expect(result.descriptions[1].url).toBe('https://example.com/image2.jpg');
-      expect(result.descriptions[2].url).toBe('https://example.com/image3.webp');
-      expect(result.metadata.imageCount).toBe(3);
+      expect(result.descriptions![0].url).toBe('https://example.com/image1.png');
+      expect(result.descriptions![1].url).toBe('https://example.com/image2.jpg');
+      expect(result.descriptions![2].url).toBe('https://example.com/image3.webp');
+      expect(result.metadata!.imageCount).toBe(3);
 
       // Should call withRetry once per image (parallel processing)
       expect(mockWithRetry).toHaveBeenCalledTimes(3);
@@ -232,7 +232,7 @@ describe('ImageDescriptionJob', () => {
       const result = await processImageDescriptionJob(job);
 
       expect(result.success).toBe(true);
-      expect(result.descriptions[0].description).toBe('Mocked image description');
+      expect(result.descriptions![0].description).toBe('Mocked image description');
       expect(mockWithRetry).toHaveBeenCalledWith(
         expect.any(Function),
         expect.objectContaining({
@@ -420,9 +420,9 @@ describe('ImageDescriptionJob', () => {
       // With graceful degradation, job succeeds with partial results
       expect(result.success).toBe(true);
       expect(result.descriptions).toHaveLength(1); // Only successful image
-      expect(result.descriptions[0].url).toBe('https://example.com/image1.png');
-      expect(result.metadata.imageCount).toBe(1);
-      expect(result.metadata.failedCount).toBe(1); // Track failures
+      expect(result.descriptions![0].url).toBe('https://example.com/image1.png');
+      expect(result.metadata!.imageCount).toBe(1);
+      expect(result.metadata!.failedCount).toBe(1); // Track failures
     });
 
     it('should pass isGuestMode=true to describeImage for guest users', async () => {

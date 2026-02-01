@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
 import {
   JobType,
+  JobStatus,
   AttachmentType,
   AIProvider,
   REDIS_KEY_PREFIXES,
@@ -152,6 +153,7 @@ describe('DependencyStep', () => {
             {
               jobId: 'audio-job-1',
               type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-key`,
             },
           ],
@@ -184,6 +186,7 @@ describe('DependencyStep', () => {
             {
               jobId: 'image-job-1',
               type: JobType.ImageDescription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-key`,
             },
           ],
@@ -214,6 +217,7 @@ describe('DependencyStep', () => {
             {
               jobId: 'image-job-1',
               type: JobType.ImageDescription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-key`,
             },
           ],
@@ -252,11 +256,13 @@ describe('DependencyStep', () => {
             {
               jobId: 'audio-job-1',
               type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-key`,
             },
             {
               jobId: 'image-job-1',
               type: JobType.ImageDescription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}image-key`,
             },
           ],
@@ -284,6 +290,7 @@ describe('DependencyStep', () => {
             {
               jobId: 'audio-job-1',
               type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-key`,
             },
           ],
@@ -306,6 +313,7 @@ describe('DependencyStep', () => {
             {
               jobId: 'audio-job-1',
               type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
               resultKey: `${REDIS_KEY_PREFIXES.JOB_RESULT}audio-key`,
             },
           ],
@@ -336,6 +344,7 @@ describe('DependencyStep', () => {
             {
               jobId: 'audio-job-fallback',
               type: JobType.AudioTranscription,
+              status: JobStatus.Completed,
               // No resultKey
             },
           ],

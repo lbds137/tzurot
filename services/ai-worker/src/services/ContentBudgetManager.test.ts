@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { SystemMessage } from '@langchain/core/messages';
+import { SystemMessage, HumanMessage } from '@langchain/core/messages';
 import { ContentBudgetManager } from './ContentBudgetManager.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ContextWindowManager } from './context/ContextWindowManager.js';
@@ -18,13 +18,15 @@ describe('ContentBudgetManager', () => {
   const mockPersonality: LoadedPersonality = {
     id: 'test-personality-id',
     name: 'TestBot',
+    displayName: 'Test Bot',
+    slug: 'testbot',
     systemPrompt: 'You are a helpful assistant',
     model: 'gpt-4',
+    temperature: 0.7,
+    maxTokens: 2000,
     contextWindowTokens: 8000,
-    isActive: true,
-    ownerId: 'owner-123',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    characterInfo: 'A test personality',
+    personalityTraits: 'Helpful',
   };
 
   const mockSystemPrompt = new SystemMessage('Test system prompt');
@@ -107,7 +109,8 @@ describe('ContentBudgetManager', () => {
 
     it('should use default context window tokens when not specified', () => {
       const options = createBaseOptions();
-      options.personality = { ...mockPersonality, contextWindowTokens: undefined };
+      // Force undefined to test the fallback behavior (use as never to bypass type check)
+      options.personality = { ...mockPersonality, contextWindowTokens: undefined as never };
 
       budgetManager.allocate(options);
 
@@ -179,7 +182,7 @@ describe('ContentBudgetManager', () => {
     it('should pass participant personas to system prompt builder', () => {
       const options = createBaseOptions();
       options.participantPersonas = new Map([
-        ['Alice', { content: 'User persona', isActive: true }],
+        ['Alice', { content: 'User persona', isActive: true, personaId: 'persona-alice' }],
       ]);
 
       budgetManager.allocate(options);
@@ -219,7 +222,7 @@ describe('ContentBudgetManager', () => {
 
     it('should return content for storage from prompt builder', () => {
       vi.mocked(mockPromptBuilder.buildHumanMessage).mockReturnValue({
-        message: { content: 'Message content' },
+        message: new HumanMessage('Message content'),
         contentForStorage: 'Clean content for LTM storage',
       });
 

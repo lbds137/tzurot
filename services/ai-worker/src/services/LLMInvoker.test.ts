@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LLMInvoker, supportsStopSequences } from './LLMInvoker.js';
-import { AIMessage, BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { BaseMessage, HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import { TIMEOUTS } from '@tzurot/common-types';
 
@@ -567,7 +567,7 @@ describe('LLMInvoker', () => {
 
       const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-      const result = await invoker.invokeWithRetry({
+      await invoker.invokeWithRetry({
         model: mockModel,
         messages,
         modelName: 'test-model',

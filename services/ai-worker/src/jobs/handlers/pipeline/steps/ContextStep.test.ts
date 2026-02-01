@@ -4,7 +4,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Job } from 'bullmq';
-import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
+import {
+  JobType,
+  MessageRole,
+  type LLMGenerationJobData,
+  type LoadedPersonality,
+} from '@tzurot/common-types';
 import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { ContextStep } from './ContextStep.js';
 import type { GenerationContext, ResolvedConfig } from '../types.js';
@@ -124,8 +129,13 @@ describe('ContextStep', () => {
 
     it('should call extractParticipants with conversation history', () => {
       const conversationHistory = [
-        { role: 'user', content: 'Hello', personaId: 'user-1', personaName: 'Alice' },
-        { role: 'assistant', content: 'Hi there', personaId: 'bot-1', personaName: 'TestBot' },
+        { role: MessageRole.User, content: 'Hello', personaId: 'user-1', personaName: 'Alice' },
+        {
+          role: MessageRole.Assistant,
+          content: 'Hi there',
+          personaId: 'bot-1',
+          personaName: 'TestBot',
+        },
       ];
 
       mockExtractParticipants.mockReturnValue([
@@ -157,7 +167,7 @@ describe('ContextStep', () => {
     });
 
     it('should call convertConversationHistory with personality name', () => {
-      const conversationHistory = [{ role: 'user', content: 'Hello' }];
+      const conversationHistory = [{ role: MessageRole.User, content: 'Hello' }];
 
       const config: ResolvedConfig = {
         effectivePersonality: TEST_PERSONALITY,
@@ -182,9 +192,9 @@ describe('ContextStep', () => {
 
     it('should calculate oldest timestamp from conversation history', () => {
       const conversationHistory = [
-        { role: 'user', content: 'First', createdAt: '2024-01-01T12:00:00Z' },
-        { role: 'assistant', content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
-        { role: 'user', content: 'Third', createdAt: '2024-01-01T12:10:00Z' },
+        { role: MessageRole.User, content: 'First', createdAt: '2024-01-01T12:00:00Z' },
+        { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
+        { role: MessageRole.User, content: 'Third', createdAt: '2024-01-01T12:10:00Z' },
       ];
 
       const config: ResolvedConfig = {
@@ -209,8 +219,8 @@ describe('ContextStep', () => {
 
     it('should handle messages without timestamps', () => {
       const conversationHistory = [
-        { role: 'user', content: 'First' }, // No createdAt
-        { role: 'assistant', content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
+        { role: MessageRole.User, content: 'First' }, // No createdAt
+        { role: MessageRole.Assistant, content: 'Second', createdAt: '2024-01-01T12:05:00Z' },
       ];
 
       const config: ResolvedConfig = {
@@ -297,8 +307,8 @@ describe('ContextStep', () => {
 
     it('should preserve raw conversation history', () => {
       const conversationHistory = [
-        { role: 'user', content: 'Hello', tokenCount: 5 },
-        { role: 'assistant', content: 'Hi there', tokenCount: 10 },
+        { role: MessageRole.User, content: 'Hello', tokenCount: 5 },
+        { role: MessageRole.Assistant, content: 'Hi there', tokenCount: 10 },
       ];
 
       mockConvertConversationHistory.mockReturnValue([
@@ -329,7 +339,7 @@ describe('ContextStep', () => {
       it('should include referenced message timestamps in oldestHistoryTimestamp', () => {
         // Conversation history with recent messages
         const conversationHistory = [
-          { role: 'user', content: 'Recent message', createdAt: '2024-01-01T14:00:00Z' },
+          { role: MessageRole.User, content: 'Recent message', createdAt: '2024-01-01T14:00:00Z' },
         ];
 
         // Referenced message is older than conversation history
@@ -370,8 +380,8 @@ describe('ContextStep', () => {
 
       it('should use conversation history timestamp if older than referenced messages', () => {
         const conversationHistory = [
-          { role: 'user', content: 'Old message', createdAt: '2024-01-01T08:00:00Z' },
-          { role: 'assistant', content: 'Reply', createdAt: '2024-01-01T08:05:00Z' },
+          { role: MessageRole.User, content: 'Old message', createdAt: '2024-01-01T08:00:00Z' },
+          { role: MessageRole.Assistant, content: 'Reply', createdAt: '2024-01-01T08:05:00Z' },
         ];
 
         const referencedMessages = [
@@ -411,7 +421,7 @@ describe('ContextStep', () => {
 
       it('should handle referenced messages without timestamps', () => {
         const conversationHistory = [
-          { role: 'user', content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
+          { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
         ];
 
         const referencedMessages = [
@@ -487,7 +497,7 @@ describe('ContextStep', () => {
 
       it('should handle empty referenced messages array gracefully', () => {
         const conversationHistory = [
-          { role: 'user', content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
+          { role: MessageRole.User, content: 'Message', createdAt: '2024-01-01T12:00:00Z' },
         ];
 
         const config: ResolvedConfig = {

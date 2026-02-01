@@ -12,6 +12,24 @@ import {
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGService.js';
 
+// Factory for ProcessedAttachment with required metadata fields
+function createAttachment(
+  type: AttachmentType,
+  description: string,
+  metadataOverrides: Partial<ProcessedAttachment['metadata']> = {}
+): ProcessedAttachment {
+  return {
+    type,
+    description,
+    originalUrl: metadataOverrides.url ?? 'https://example.com/file',
+    metadata: {
+      url: 'https://example.com/file',
+      contentType: type === AttachmentType.Audio ? 'audio/mpeg' : 'image/jpeg',
+      ...metadataOverrides,
+    },
+  };
+}
+
 describe('RAGUtils', () => {
   describe('buildAttachmentDescriptions', () => {
     it('should return undefined for empty attachments', () => {
@@ -21,11 +39,9 @@ describe('RAGUtils', () => {
 
     it('should format image attachment with name', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: 'A beautiful sunset over mountains',
-          metadata: { name: 'sunset.jpg' },
-        },
+        createAttachment(AttachmentType.Image, 'A beautiful sunset over mountains', {
+          name: 'sunset.jpg',
+        }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -34,11 +50,7 @@ describe('RAGUtils', () => {
 
     it('should format image attachment without name', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: 'An abstract pattern',
-          metadata: {},
-        },
+        createAttachment(AttachmentType.Image, 'An abstract pattern', {}),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -47,11 +59,7 @@ describe('RAGUtils', () => {
 
     it('should format image attachment with empty name', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: 'Some image',
-          metadata: { name: '' },
-        },
+        createAttachment(AttachmentType.Image, 'Some image', { name: '' }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -60,11 +68,10 @@ describe('RAGUtils', () => {
 
     it('should format voice message with duration', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Audio,
-          description: 'User said hello and asked about the weather',
-          metadata: { isVoiceMessage: true, duration: 5.5 },
-        },
+        createAttachment(AttachmentType.Audio, 'User said hello and asked about the weather', {
+          isVoiceMessage: true,
+          duration: 5.5,
+        }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -73,11 +80,10 @@ describe('RAGUtils', () => {
 
     it('should format audio attachment with name', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Audio,
-          description: 'A podcast episode about AI',
-          metadata: { name: 'podcast.mp3', isVoiceMessage: false },
-        },
+        createAttachment(AttachmentType.Audio, 'A podcast episode about AI', {
+          name: 'podcast.mp3',
+          isVoiceMessage: false,
+        }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -86,11 +92,7 @@ describe('RAGUtils', () => {
 
     it('should format audio attachment without name', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Audio,
-          description: 'Some audio content',
-          metadata: {},
-        },
+        createAttachment(AttachmentType.Audio, 'Some audio content', {}),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -99,11 +101,11 @@ describe('RAGUtils', () => {
 
     it('should format voice message with zero duration as audio', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Audio,
-          description: 'Voice content',
-          metadata: { isVoiceMessage: true, duration: 0, name: 'voice.ogg' },
-        },
+        createAttachment(AttachmentType.Audio, 'Voice content', {
+          isVoiceMessage: true,
+          duration: 0,
+          name: 'voice.ogg',
+        }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -112,15 +114,11 @@ describe('RAGUtils', () => {
 
     it('should format voice message with null duration as audio', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Audio,
-          description: 'Voice content',
-          metadata: {
-            isVoiceMessage: true,
-            duration: null as unknown as number,
-            name: 'voice.ogg',
-          },
-        },
+        createAttachment(AttachmentType.Audio, 'Voice content', {
+          isVoiceMessage: true,
+          duration: null as unknown as number,
+          name: 'voice.ogg',
+        }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -129,16 +127,11 @@ describe('RAGUtils', () => {
 
     it('should format multiple attachments separated by double newlines', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: 'First image',
-          metadata: { name: 'first.png' },
-        },
-        {
-          type: AttachmentType.Audio,
-          description: 'Second audio',
-          metadata: { isVoiceMessage: true, duration: 3.2 },
-        },
+        createAttachment(AttachmentType.Image, 'First image', { name: 'first.png' }),
+        createAttachment(AttachmentType.Audio, 'Second audio', {
+          isVoiceMessage: true,
+          duration: 3.2,
+        }),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -147,11 +140,7 @@ describe('RAGUtils', () => {
 
     it('should handle attachments with unknown type', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: 'unknown' as AttachmentType,
-          description: 'Some unknown content',
-          metadata: {},
-        },
+        createAttachment('unknown' as AttachmentType, 'Some unknown content'),
       ];
 
       const result = buildAttachmentDescriptions(attachments);
@@ -168,16 +157,12 @@ describe('RAGUtils', () => {
 
     it('should extract descriptions without placeholders', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: 'A beautiful sunset',
-          metadata: { name: 'sunset.jpg' },
-        },
-        {
-          type: AttachmentType.Audio,
-          description: 'Hello, how are you today?',
-          metadata: { name: 'voice.ogg', isVoiceMessage: true, duration: 3.5 },
-        },
+        createAttachment(AttachmentType.Image, 'A beautiful sunset', { name: 'sunset.jpg' }),
+        createAttachment(AttachmentType.Audio, 'Hello, how are you today?', {
+          name: 'voice.ogg',
+          isVoiceMessage: true,
+          duration: 3.5,
+        }),
       ];
 
       const result = extractContentDescriptions(attachments);
@@ -186,21 +171,9 @@ describe('RAGUtils', () => {
 
     it('should filter out placeholder descriptions starting with [', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: '[image]', // Placeholder when vision fails
-          metadata: { name: 'failed.jpg' },
-        },
-        {
-          type: AttachmentType.Image,
-          description: 'A valid description',
-          metadata: { name: 'good.jpg' },
-        },
-        {
-          type: AttachmentType.Audio,
-          description: '[audio]', // Placeholder when transcription fails
-          metadata: { name: 'failed.ogg' },
-        },
+        createAttachment(AttachmentType.Image, '[image]', { name: 'failed.jpg' }), // Placeholder when vision fails
+        createAttachment(AttachmentType.Image, 'A valid description', { name: 'good.jpg' }),
+        createAttachment(AttachmentType.Audio, '[audio]', { name: 'failed.ogg' }), // Placeholder when transcription fails
       ];
 
       const result = extractContentDescriptions(attachments);
@@ -209,16 +182,8 @@ describe('RAGUtils', () => {
 
     it('should filter out empty descriptions', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: '',
-          metadata: { name: 'empty.jpg' },
-        },
-        {
-          type: AttachmentType.Image,
-          description: 'Valid content',
-          metadata: { name: 'good.jpg' },
-        },
+        createAttachment(AttachmentType.Image, '', { name: 'empty.jpg' }),
+        createAttachment(AttachmentType.Image, 'Valid content', { name: 'good.jpg' }),
       ];
 
       const result = extractContentDescriptions(attachments);
@@ -227,16 +192,8 @@ describe('RAGUtils', () => {
 
     it('should return empty string when all descriptions are placeholders', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: AttachmentType.Image,
-          description: '[image]',
-          metadata: { name: 'a.jpg' },
-        },
-        {
-          type: AttachmentType.Image,
-          description: '[unsupported format]',
-          metadata: { name: 'b.jpg' },
-        },
+        createAttachment(AttachmentType.Image, '[image]', { name: 'a.jpg' }),
+        createAttachment(AttachmentType.Image, '[unsupported format]', { name: 'b.jpg' }),
       ];
 
       const result = extractContentDescriptions(attachments);

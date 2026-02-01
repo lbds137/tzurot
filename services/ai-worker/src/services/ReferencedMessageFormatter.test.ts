@@ -4,7 +4,11 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
-import type { ReferencedMessage, LoadedPersonality } from '@tzurot/common-types';
+import {
+  AttachmentType,
+  type ReferencedMessage,
+  type LoadedPersonality,
+} from '@tzurot/common-types';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const { mockDescribeImage, mockTranscribeAudio, mockFormatTimestampWithDelta } = vi.hoisted(() => ({
@@ -804,7 +808,7 @@ describe('ReferencedMessageFormatter', () => {
       const preprocessedAttachments = {
         1: [
           {
-            type: 'image' as const,
+            type: AttachmentType.Image,
             description: 'Preprocessed: A beautiful landscape',
             originalUrl: 'https://example.com/image.png',
             metadata: {
@@ -863,7 +867,7 @@ describe('ReferencedMessageFormatter', () => {
       const preprocessedAttachments = {
         1: [
           {
-            type: 'audio' as const,
+            type: AttachmentType.Audio,
             description: 'Preprocessed: Hello, this is a test message',
             originalUrl: 'https://example.com/voice.ogg',
             metadata: {
@@ -965,7 +969,7 @@ describe('ReferencedMessageFormatter', () => {
       const preprocessedAttachments = {
         1: [
           {
-            type: 'image' as const,
+            type: AttachmentType.Image,
             description: 'Different image description',
             originalUrl: 'https://example.com/different-image.png', // Different URL!
             metadata: {
@@ -1040,7 +1044,7 @@ describe('ReferencedMessageFormatter', () => {
       const preprocessedAttachments = {
         1: [
           {
-            type: 'image' as const,
+            type: AttachmentType.Image,
             description: 'Description for reference 1',
             originalUrl: 'https://example.com/image1.png',
             metadata: {
@@ -1053,7 +1057,7 @@ describe('ReferencedMessageFormatter', () => {
         ],
         2: [
           {
-            type: 'image' as const,
+            type: AttachmentType.Image,
             description: 'Description for reference 2',
             originalUrl: 'https://example.com/image2.png',
             metadata: {
@@ -1112,7 +1116,7 @@ describe('ReferencedMessageFormatter', () => {
       const preprocessedAttachments = {
         1: [
           {
-            type: 'image' as const,
+            type: AttachmentType.Image,
             description: '', // Empty!
             originalUrl: 'https://example.com/image.png',
             metadata: {
@@ -1310,12 +1314,12 @@ Line three`;
           attachments: [
             {
               url: 'https://example.com/image.png',
-              filename: 'photo.png',
+              name: 'photo.png',
               contentType: 'image/png',
             },
             {
               url: 'https://example.com/voice.ogg',
-              filename: 'voice.ogg',
+              name: 'voice.ogg',
               contentType: 'audio/ogg',
               duration: 5,
               isVoiceMessage: true,

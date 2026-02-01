@@ -25,40 +25,23 @@ _Top 3-5 items to pull into CURRENT next._
 
 **Context**: Static analysis tooling added in PR #557. Tools are installed and configured. Now need to fix baseline violations to make checks blocking.
 
-**Test File Type Errors** (high priority - types are broken):
+**Test File Type Errors** (high priority - types are broken)
 
-**common-types (DONE):**
+**Completed (PRs #559, #560):**
 
-- [x] Fix `PersonalityDefaults.test.ts` - missing properties in mock DatabasePersonality
-- [x] Fix `PersonalityDefaults.test.ts` - use `MappedLlmConfig` instead of `LlmConfig`
-- [x] Fix `ConversationSyncService.ts` - add explicit `number` type to limit parameter
-- [x] Fix `LlmConfigCacheInvalidationService.test.ts` - mock.calls type assertions
-- [x] Fix `VisionDescriptionCache.int.test.ts` and `VoiceTranscriptCache.int.test.ts` - use relative imports
-- [x] Fix `textChunker.test.ts` - add content property to metadata type
-- [x] Remove unused imports (vi, BaseInvalidationEvent, etc.) flagged by TS6133
-- [x] Fix `logger.test.ts` - remove unused variables
+- [x] common-types: 0 errors
+- [x] api-gateway: 0 errors
+- [x] ai-worker: 0 errors (~152 errors fixed - enums, LoadedPersonality mocks, thread mocks, type assertions)
 
-**ai-worker (PARTIAL - ~152 errors remain):**
+**Remaining bot-client errors (~845 - needs Part 3 PR):**
 
-- [x] Fix `AIJobProcessor.test.ts` - unused import, transcript→content, type assertions
-- [x] Fix `AIJobProcessor.int.test.ts` - unused variable
-- [x] Fix `MemoryFormatter.test.ts` - createdAt Date→number conversion, mock update
-- [x] Fix `PersonalityFieldsFormatter.test.ts` - remove `description` field, add required fields
-- [x] Fix `VisionProcessor.test.ts` - add createMockPersonality helper, fix visionModel null→undefined
-- [x] Fix `AudioProcessor.test.ts` - add missing personality fields
-- [x] Fix `UserReferenceResolver.test.ts` - unused variable
-- [x] Fix `ContextWindowManager.test.ts` - unused parameter
-- [x] Fix `apiErrorParser.test.ts` - type assertion for unknown context
-
-**Remaining ai-worker errors (~152 - deferred to next PR):**
-
-- [ ] Many `role: string` should be `role: MessageRole` enum
-- [ ] Various missing required properties in mock LoadedPersonality objects
+- [ ] Similar patterns to ai-worker: `role: string` → `MessageRole` enum
+- [ ] Missing required properties in mock objects (LoadedPersonality, ConversationContext, etc.)
 - [ ] `parentChannel` missing in thread mock objects
 - [ ] `possibly undefined` errors on optional result fields
-- [ ] Type assertions needed for Prisma mock return types
+- [ ] Type assertions needed for mock return types
 
-**After fixing remaining:** make `typecheck:spec` blocking in pre-push hook
+**After fixing bot-client:** make `typecheck:spec` blocking in pre-push hook
 
 **Cognitive Complexity** (medium priority - refactoring):
 

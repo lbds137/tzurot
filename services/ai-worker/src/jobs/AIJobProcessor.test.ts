@@ -530,9 +530,7 @@ describe('AIJobProcessor', () => {
       // First call fails, second succeeds
       vi.mocked(mockPrisma.usageLog.create)
         .mockRejectedValueOnce(new Error('Transient error'))
-        .mockResolvedValueOnce({ id: 'usage-123' } as unknown as ReturnType<
-          typeof mockPrisma.usageLog.create
-        >);
+        .mockResolvedValueOnce({ id: 'usage-123' } as never);
 
       const job = createMockJob(baseLLMJobData, 'llm-job-123');
 
@@ -548,9 +546,7 @@ describe('AIJobProcessor', () => {
       vi.mocked(mockPrisma.usageLog.create)
         .mockRejectedValueOnce(new Error('Transient error 1'))
         .mockRejectedValueOnce(new Error('Transient error 2'))
-        .mockResolvedValueOnce({ id: 'usage-123' } as unknown as ReturnType<
-          typeof mockPrisma.usageLog.create
-        >);
+        .mockResolvedValueOnce({ id: 'usage-123' } as never);
 
       const job = createMockJob(baseLLMJobData, 'llm-job-123');
 
