@@ -44,6 +44,7 @@ const createMockModel = (id: string, inputModalities: string[]): OpenRouterModel
     },
     per_request_limits: null,
     supported_parameters: [],
+    default_parameters: {},
   }) as OpenRouterModel;
 
 describe('ModelCapabilityChecker', () => {

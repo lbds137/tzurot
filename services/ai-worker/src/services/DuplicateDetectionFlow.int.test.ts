@@ -15,7 +15,7 @@
  * the data flow to catch any serialization or type issues.
  */
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { PGlite } from '@electric-sql/pglite';
 import { vector } from '@electric-sql/pglite/vector';
 import { PrismaPGlite } from 'pglite-prisma-adapter';

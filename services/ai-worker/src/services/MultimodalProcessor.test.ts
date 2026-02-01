@@ -63,12 +63,16 @@ describe('MultimodalProcessor', () => {
   const mockPersonality: LoadedPersonality = {
     id: 'test-personality',
     name: 'Test',
+    displayName: 'Test Bot',
     slug: 'test',
     systemPrompt: 'Test prompt',
     model: 'gpt-4-vision-preview',
     visionModel: 'gpt-4-vision-preview',
     temperature: 0.7,
     maxTokens: 1000,
+    contextWindowTokens: 8000,
+    characterInfo: 'A test personality',
+    personalityTraits: 'Helpful',
   };
 
   beforeEach(() => {
@@ -97,10 +101,14 @@ describe('MultimodalProcessor', () => {
   });
 
   describe('describeImage', () => {
-    it('should describe an image successfully', async () => {
-      const imageUrl = 'https://example.com/image.png';
+    const mockAttachment = {
+      url: 'https://example.com/image.png',
+      contentType: 'image/png',
+      name: 'image.png',
+    };
 
-      const result = await describeImage(imageUrl, mockPersonality);
+    it('should describe an image successfully', async () => {
+      const result = await describeImage(mockAttachment, mockPersonality);
 
       expect(result).toBe('Mocked image description');
     });
@@ -108,11 +116,11 @@ describe('MultimodalProcessor', () => {
     it('should use fallback vision model when personality has no vision model', async () => {
       const personalityNoVision: LoadedPersonality = {
         ...mockPersonality,
-        visionModel: null,
+        visionModel: undefined,
         model: 'gpt-4', // Model without vision support
       };
 
-      const result = await describeImage('https://example.com/image.png', personalityNoVision);
+      const result = await describeImage(mockAttachment, personalityNoVision);
 
       // Should use fallback vision model and return description
       expect(result).toBe('Mocked image description');
@@ -122,7 +130,7 @@ describe('MultimodalProcessor', () => {
     it('should handle vision model errors gracefully', async () => {
       mockChatOpenAIInvoke.mockRejectedValue(new Error('Vision API error'));
 
-      await expect(describeImage('https://example.com/image.png', mockPersonality)).rejects.toThrow(
+      await expect(describeImage(mockAttachment, mockPersonality)).rejects.toThrow(
         'Vision API error'
       );
     });

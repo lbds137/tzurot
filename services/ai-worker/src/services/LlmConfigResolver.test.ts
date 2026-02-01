@@ -43,7 +43,7 @@ describe('LlmConfigResolver', () => {
     id: 'test-personality',
     name: 'Test Personality',
     displayName: 'Test',
-    webhookId: null,
+    slug: 'test-personality',
     model: 'anthropic/claude-sonnet-4',
     visionModel: 'anthropic/claude-sonnet-4',
     temperature: 0.7,
@@ -52,14 +52,10 @@ describe('LlmConfigResolver', () => {
     frequencyPenalty: 0.0,
     presencePenalty: 0.0,
     maxTokens: 4096,
-    memoryScoreThreshold: 0.7,
-    memoryLimit: 10,
     contextWindowTokens: 128000,
     systemPrompt: 'Test system prompt',
-    avatar: null,
-    maxReferencedMessages: 20,
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    characterInfo: 'A test personality',
+    personalityTraits: 'Helpful',
   };
 
   beforeEach(() => {

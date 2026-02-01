@@ -60,9 +60,13 @@ describe('LongTermMemoryService', () => {
     model: 'anthropic/claude-sonnet-4',
     temperature: 0.7,
     maxTokens: 4000,
+    contextWindowTokens: 8000,
+    characterInfo: 'A test personality',
+    personalityTraits: 'Helpful',
   };
 
   const testContext: ConversationContext = {
+    userId: testUserId,
     channelId: testChannelId,
     serverId: '987654321098765432',
   };
@@ -241,6 +245,7 @@ describe('LongTermMemoryService', () => {
 
       const service = new LongTermMemoryService(mockMemoryManager);
       const dmContext: ConversationContext = {
+        userId: testUserId,
         channelId: '',
         serverId: undefined,
       };

@@ -103,7 +103,7 @@ describe('DiagnosticCollector', () => {
             type: AttachmentType.Image,
             description: 'A photo of a sunset',
             originalUrl: 'https://example.com/image.jpg',
-            metadata: { mimeType: 'image/jpeg', url: 'https://example.com/image.jpg' },
+            metadata: { contentType: 'image/jpeg', url: 'https://example.com/image.jpg' },
           },
         ],
         searchQuery: 'image sunset',
@@ -121,7 +121,7 @@ describe('DiagnosticCollector', () => {
             type: AttachmentType.Image,
             description: null as unknown as string, // Null description
             originalUrl: 'https://example.com/image.jpg',
-            metadata: { mimeType: 'image/jpeg', url: 'https://example.com/image.jpg' },
+            metadata: { contentType: 'image/jpeg', url: 'https://example.com/image.jpg' },
           },
         ],
         searchQuery: 'check',
@@ -139,7 +139,7 @@ describe('DiagnosticCollector', () => {
             type: AttachmentType.Image,
             description: '', // Empty description
             originalUrl: 'https://example.com/image.jpg',
-            metadata: { mimeType: 'image/jpeg', url: 'https://example.com/image.jpg' },
+            metadata: { contentType: 'image/jpeg', url: 'https://example.com/image.jpg' },
           },
         ],
         searchQuery: 'check',
@@ -158,7 +158,7 @@ describe('DiagnosticCollector', () => {
             type: AttachmentType.Audio,
             description: 'This is my voice message transcription',
             originalUrl: 'https://example.com/audio.ogg',
-            metadata: { mimeType: 'audio/ogg', url: 'https://example.com/audio.ogg' },
+            metadata: { contentType: 'audio/ogg', url: 'https://example.com/audio.ogg' },
           },
         ],
         searchQuery: 'voice message',
@@ -298,7 +298,10 @@ describe('DiagnosticCollector', () => {
 
     it('should handle array content in messages', () => {
       const message = new HumanMessage({
-        content: [{ type: 'text', text: 'First part' }, 'Second part'],
+        content: [
+          { type: 'text' as const, text: 'First part' },
+          { type: 'text' as const, text: 'Second part' },
+        ],
       });
 
       collector.recordAssembledPrompt([message], 50);
