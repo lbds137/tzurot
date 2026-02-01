@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { VisionDescriptionCache } from '@tzurot/common-types';
+import { VisionDescriptionCache } from './VisionDescriptionCache.js';
 import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
 
 describe('VisionDescriptionCache Integration', () => {

@@ -3,13 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import {
-  splitTextByTokens,
-  reassembleChunks,
-  sortChunksByIndex,
-  type ChunkResult,
-} from './textChunker.js';
-import { AI_DEFAULTS } from '../constants/ai.js';
+import { splitTextByTokens, reassembleChunks, sortChunksByIndex } from './textChunker.js';
 
 // Mock tokenCounter to control token counts precisely
 vi.mock('./tokenCounter.js', () => ({
@@ -386,7 +380,9 @@ describe('sortChunksByIndex', () => {
   it('handles memories without metadata', () => {
     const memories = [{ content: 'B' }, { metadata: { chunkIndex: 0 }, content: 'A' }];
 
-    const sorted = sortChunksByIndex(memories as { metadata?: Record<string, unknown> }[]);
+    const sorted = sortChunksByIndex(
+      memories as { metadata?: Record<string, unknown>; content: string }[]
+    );
 
     expect(sorted[0].content).toBe('B'); // No metadata treated as index 0
   });

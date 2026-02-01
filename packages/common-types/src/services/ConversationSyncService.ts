@@ -222,7 +222,7 @@ export class ConversationSyncService {
     channelId: string,
     personalityId: string,
     since: Date,
-    limit = SYNC_LIMITS.DEFAULT_TIME_WINDOW_LIMIT
+    limit: number = SYNC_LIMITS.DEFAULT_TIME_WINDOW_LIMIT
   ): Promise<
     {
       id: string;
@@ -231,7 +231,7 @@ export class ConversationSyncService {
     }[]
   > {
     try {
-      const messages = await this.prisma.conversationHistory.findMany({
+      return await this.prisma.conversationHistory.findMany({
         where: {
           channelId,
           personalityId,
@@ -247,8 +247,6 @@ export class ConversationSyncService {
         orderBy: { createdAt: 'asc' },
         take: limit, // Bounded query to prevent OOM
       });
-
-      return messages;
     } catch (error) {
       logger.error({ err: error }, `Failed to get messages in time window`);
       return [];

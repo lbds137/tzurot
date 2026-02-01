@@ -2,7 +2,7 @@
  * Tests for Config module
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { getConfig, resetConfig, createTestConfig, validateEnv, envSchema } from './config.js';
 import { AIProvider } from '../constants/index.js';
 

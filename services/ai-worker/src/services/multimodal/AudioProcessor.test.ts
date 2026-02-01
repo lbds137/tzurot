@@ -33,16 +33,20 @@ vi.mock('../../redis.js', () => ({
 global.fetch = vi.fn();
 
 describe('AudioProcessor', () => {
-  const mockPersonality: LoadedPersonality = {
+  const mockPersonality = {
     id: 'test',
     name: 'Test',
+    displayName: 'Test',
     slug: 'test',
     systemPrompt: 'Test prompt',
     model: 'gpt-4',
-    visionModel: null,
+    visionModel: undefined,
     temperature: 0.7,
     maxTokens: 1000,
-  };
+    contextWindowTokens: 8000,
+    characterInfo: '',
+    personalityTraits: '',
+  } as LoadedPersonality;
 
   beforeEach(() => {
     vi.clearAllMocks();

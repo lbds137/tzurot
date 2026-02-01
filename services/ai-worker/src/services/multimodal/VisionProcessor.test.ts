@@ -6,6 +6,27 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { hasVisionSupport, describeImage } from './VisionProcessor.js';
 import type { AttachmentMetadata, LoadedPersonality } from '@tzurot/common-types';
 
+/**
+ * Factory function to create a mock LoadedPersonality with sensible defaults.
+ */
+function createMockPersonality(overrides: Partial<LoadedPersonality> = {}): LoadedPersonality {
+  return {
+    id: 'test',
+    name: 'Test',
+    displayName: 'Test',
+    slug: 'test',
+    systemPrompt: 'Test prompt',
+    model: 'gpt-4',
+    visionModel: undefined,
+    temperature: 0.7,
+    maxTokens: 1000,
+    contextWindowTokens: 8000,
+    characterInfo: '',
+    personalityTraits: '',
+    ...overrides,
+  } as LoadedPersonality;
+}
+
 // Create mock functions
 const mockChatOpenAIInvoke = vi.fn().mockResolvedValue({
   content: 'Mocked image description',
@@ -91,16 +112,10 @@ describe('VisionProcessor', () => {
     describe('model routing', () => {
       it('should use personality visionModel when specified', async () => {
         // visionModel takes priority, so capability check not needed
-        const personality: LoadedPersonality = {
-          id: 'test',
-          name: 'Test',
-          slug: 'test',
-          systemPrompt: 'Test prompt',
+        const personality = createMockPersonality({
           model: 'gpt-4', // No vision support
           visionModel: 'gpt-4-vision-preview', // Override with vision model
-          temperature: 0.7,
-          maxTokens: 1000,
-        };
+        });
 
         await describeImage(mockAttachment, personality);
 
@@ -119,9 +134,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test prompt',
           model: 'gpt-4o', // Has vision support
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         await describeImage(mockAttachment, personality);
@@ -140,9 +159,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test prompt',
           model: 'gpt-4', // No vision support
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         const result = await describeImage(mockAttachment, personality);
@@ -163,6 +186,10 @@ describe('VisionProcessor', () => {
           visionModel: 'claude-3-opus', // But prefer this
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         await describeImage(mockAttachment, personality);
@@ -183,9 +210,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'You are a helpful assistant',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         await describeImage(mockAttachment, personality);
@@ -205,9 +236,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: '',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         const result = await describeImage(mockAttachment, personality);
@@ -224,9 +259,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: undefined as any,
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         const result = await describeImage(mockAttachment, personality);
@@ -245,9 +284,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         mockChatOpenAIInvoke.mockRejectedValue(new Error('Vision API error'));
@@ -266,9 +309,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4', // No vision
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         mockChatOpenAIInvoke.mockRejectedValue(new Error('Fallback API error'));
@@ -287,9 +334,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         mockChatOpenAIInvoke.mockResolvedValue({
@@ -313,9 +364,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         await describeImage(mockAttachment, personality);
@@ -336,9 +391,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         await describeImage(mockAttachment, personality);
@@ -363,9 +422,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         const result = await describeImage(mockAttachment, personality);
@@ -391,9 +454,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         const result = await describeImage(mockAttachment, personality);
@@ -421,9 +488,13 @@ describe('VisionProcessor', () => {
           slug: 'test',
           systemPrompt: 'Test',
           model: 'gpt-4o',
-          visionModel: null,
+          visionModel: undefined,
           temperature: 0.7,
           maxTokens: 1000,
+          displayName: 'Test',
+          contextWindowTokens: 8000,
+          characterInfo: '',
+          personalityTraits: '',
         };
 
         await expect(describeImage(mockAttachment, personality)).rejects.toThrow(

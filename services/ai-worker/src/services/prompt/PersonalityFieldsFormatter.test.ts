@@ -27,9 +27,7 @@ function createMinimalPersonality(overrides: Partial<LoadedPersonality> = {}): L
     name: 'TestBot',
     slug: 'testbot',
     displayName: '',
-    description: '',
     avatarUrl: '',
-    isPublic: false,
     characterInfo: '',
     personalityTraits: '',
     personalityTone: '',
@@ -40,6 +38,10 @@ function createMinimalPersonality(overrides: Partial<LoadedPersonality> = {}): L
     conversationalGoals: '',
     conversationalExamples: '',
     systemPrompt: '',
+    model: 'test-model',
+    temperature: 0.7,
+    maxTokens: 2000,
+    contextWindowTokens: 8000,
     ...overrides,
   };
 }
