@@ -149,7 +149,7 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/image.png',
           contentType: 'image/png',
-          filename: 'image.png',
+          name: 'image.png',
         },
       ]);
 
@@ -174,7 +174,7 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/file.pdf',
           contentType: 'application/pdf',
-          filename: 'file.pdf',
+          name: 'file.pdf',
         },
       ]);
 
@@ -208,7 +208,7 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/voice.ogg',
           contentType: 'audio/ogg',
-          filename: 'voice.ogg',
+          name: 'voice.ogg',
           isVoiceMessage: true,
         },
       ]);
@@ -243,7 +243,7 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/voice.ogg',
           contentType: 'audio/ogg',
-          filename: 'voice.ogg',
+          name: 'voice.ogg',
           isVoiceMessage: true,
         },
       ]);
@@ -272,13 +272,13 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/voice1.ogg',
           contentType: 'audio/ogg',
-          filename: 'voice1.ogg',
+          name: 'voice1.ogg',
           isVoiceMessage: true,
         },
         {
           url: 'https://example.com/voice2.ogg',
           contentType: 'audio/ogg',
-          filename: 'voice2.ogg',
+          name: 'voice2.ogg',
           isVoiceMessage: true,
         },
       ]);
@@ -309,7 +309,7 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/voice.ogg',
           contentType: 'audio/ogg',
-          filename: 'voice.ogg',
+          name: 'voice.ogg',
           isVoiceMessage: true,
         },
       ]);
@@ -336,7 +336,7 @@ describe('MessageFormatter', () => {
         {
           url: 'https://example.com/music.mp3',
           contentType: 'audio/mpeg',
-          filename: 'music.mp3',
+          name: 'music.mp3',
           isVoiceMessage: false, // Not a voice message
         },
       ]);

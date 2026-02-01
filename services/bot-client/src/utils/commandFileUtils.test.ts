@@ -22,7 +22,9 @@ describe('getCommandFiles', () => {
 
   describe('Index-or-Root pattern', () => {
     it('should include root-level .ts files', () => {
-      vi.mocked(readdirSync).mockReturnValue(['ping.ts', 'help.ts'] as unknown as string[]);
+      vi.mocked(readdirSync).mockReturnValue(['ping.ts', 'help.ts'] as unknown as ReturnType<
+        typeof readdirSync
+      >);
       vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
         typeof statSync
       >);
@@ -35,7 +37,9 @@ describe('getCommandFiles', () => {
     });
 
     it('should include root-level .js files', () => {
-      vi.mocked(readdirSync).mockReturnValue(['ping.js'] as unknown as string[]);
+      vi.mocked(readdirSync).mockReturnValue(['ping.js'] as unknown as ReturnType<
+        typeof readdirSync
+      >);
       vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
         typeof statSync
       >);
@@ -51,7 +55,7 @@ describe('getCommandFiles', () => {
         'ping.ts',
         'ping.d.ts',
         'types.d.ts',
-      ] as unknown as string[]);
+      ] as unknown as ReturnType<typeof readdirSync>);
       vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
         typeof statSync
       >);
@@ -66,8 +70,10 @@ describe('getCommandFiles', () => {
 
     it('should include index.ts in subdirectories', () => {
       vi.mocked(readdirSync)
-        .mockReturnValueOnce(['preset'] as unknown as string[]) // Root level
-        .mockReturnValueOnce(['index.ts', 'list.ts', 'api.ts'] as unknown as string[]); // preset/
+        .mockReturnValueOnce(['preset'] as unknown as ReturnType<typeof readdirSync>) // Root level
+        .mockReturnValueOnce(['index.ts', 'list.ts', 'api.ts'] as unknown as ReturnType<
+          typeof readdirSync
+        >); // preset/
 
       vi.mocked(statSync).mockImplementation((path: unknown) => {
         const pathStr = String(path);
@@ -86,8 +92,10 @@ describe('getCommandFiles', () => {
 
     it('should include index.js in subdirectories (production)', () => {
       vi.mocked(readdirSync)
-        .mockReturnValueOnce(['preset'] as unknown as string[])
-        .mockReturnValueOnce(['index.js', 'list.js', 'api.js'] as unknown as string[]);
+        .mockReturnValueOnce(['preset'] as unknown as ReturnType<typeof readdirSync>)
+        .mockReturnValueOnce(['index.js', 'list.js', 'api.js'] as unknown as ReturnType<
+          typeof readdirSync
+        >);
 
       vi.mocked(statSync).mockImplementation((path: unknown) => {
         const pathStr = String(path);
@@ -106,13 +114,13 @@ describe('getCommandFiles', () => {
 
     it('should skip non-index files in subdirectories (helpers, subcommands)', () => {
       vi.mocked(readdirSync)
-        .mockReturnValueOnce(['admin'] as unknown as string[])
+        .mockReturnValueOnce(['admin'] as unknown as ReturnType<typeof readdirSync>)
         .mockReturnValueOnce([
           'index.ts',
           'ping.ts',
           'cleanup.ts',
           'db-sync.ts',
-        ] as unknown as string[]);
+        ] as unknown as ReturnType<typeof readdirSync>);
 
       vi.mocked(statSync).mockImplementation((path: unknown) => {
         const pathStr = String(path);
@@ -133,9 +141,9 @@ describe('getCommandFiles', () => {
 
     it('should handle nested subdirectories (only index at each level)', () => {
       vi.mocked(readdirSync)
-        .mockReturnValueOnce(['preset'] as unknown as string[])
-        .mockReturnValueOnce(['index.ts', 'global'] as unknown as string[])
-        .mockReturnValueOnce(['edit.ts', 'delete.ts'] as unknown as string[]); // No index.ts here
+        .mockReturnValueOnce(['preset'] as unknown as ReturnType<typeof readdirSync>)
+        .mockReturnValueOnce(['index.ts', 'global'] as unknown as ReturnType<typeof readdirSync>)
+        .mockReturnValueOnce(['edit.ts', 'delete.ts'] as unknown as ReturnType<typeof readdirSync>); // No index.ts here
 
       vi.mocked(statSync).mockImplementation((path: unknown) => {
         const pathStr = String(path);
@@ -156,8 +164,10 @@ describe('getCommandFiles', () => {
 
     it('should handle mixed root files and subdirectories', () => {
       vi.mocked(readdirSync)
-        .mockReturnValueOnce(['ping.ts', 'preset', 'help.ts'] as unknown as string[])
-        .mockReturnValueOnce(['index.ts', 'list.ts'] as unknown as string[]);
+        .mockReturnValueOnce(['ping.ts', 'preset', 'help.ts'] as unknown as ReturnType<
+          typeof readdirSync
+        >)
+        .mockReturnValueOnce(['index.ts', 'list.ts'] as unknown as ReturnType<typeof readdirSync>);
 
       vi.mocked(statSync).mockImplementation((path: unknown) => {
         const pathStr = String(path);
@@ -176,7 +186,7 @@ describe('getCommandFiles', () => {
     });
 
     it('should return empty array for empty directory', () => {
-      vi.mocked(readdirSync).mockReturnValue([] as unknown as string[]);
+      vi.mocked(readdirSync).mockReturnValue([] as unknown as ReturnType<typeof readdirSync>);
 
       const files = getCommandFiles('/commands');
 
@@ -189,7 +199,7 @@ describe('getCommandFiles', () => {
         'README.md',
         'config.json',
         '.gitkeep',
-      ] as unknown as string[]);
+      ] as unknown as ReturnType<typeof readdirSync>);
       vi.mocked(statSync).mockReturnValue({ isDirectory: () => false } as ReturnType<
         typeof statSync
       >);

@@ -64,7 +64,7 @@ export function createMockCollection<K, V>(initialValues: [K, V][] = []): Collec
  * Create a mock MessageMentions object
  */
 export function createMockMessageMentions(
-  overrides: Partial<MessageMentions> = {}
+  overrides: MockInput<MessageMentions> = EMPTY_OVERRIDES
 ): MessageMentions {
   const defaults: Partial<MessageMentions> = {
     users: createMockCollection<Snowflake, User>(),
@@ -81,10 +81,23 @@ export function createMockMessageMentions(
 }
 
 /**
+ * Input type for mock factories - accepts any object properties
+ * that will be spread into the mock. This is more permissive than
+ * Partial<T> to avoid TypeScript errors when passing test data.
+ *
+ * The [key: string]: unknown allows extra properties beyond what T defines.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type MockInput<T> = { [K in keyof T]?: T[K] } & Record<string, any>;
+
+// Empty default for factory functions
+const EMPTY_OVERRIDES = {} as MockInput<never>;
+
+/**
  * Create a mock Discord User
  */
-export function createMockUser(overrides: Partial<User> = {}): User {
-  const id = overrides.id ?? '123456789012345678';
+export function createMockUser(overrides: MockInput<User> = EMPTY_OVERRIDES): User {
+  const id = (overrides.id) ?? '123456789012345678';
 
   const defaults = {
     id,
@@ -104,8 +117,8 @@ export function createMockUser(overrides: Partial<User> = {}): User {
 /**
  * Create a mock Discord Guild
  */
-export function createMockGuild(overrides: Partial<Guild> = {}): Guild {
-  const id = overrides.id ?? '987654321098765432';
+export function createMockGuild(overrides: MockInput<Guild> = EMPTY_OVERRIDES): Guild {
+  const id = (overrides.id) ?? '987654321098765432';
 
   const defaults: Partial<Guild> = {
     id,
@@ -123,9 +136,9 @@ export function createMockGuild(overrides: Partial<Guild> = {}): Guild {
  * Create a mock Discord Category Channel
  */
 export function createMockCategoryChannel(
-  overrides: Partial<CategoryChannel> = {}
+  overrides: MockInput<CategoryChannel> = EMPTY_OVERRIDES
 ): CategoryChannel {
-  const id = overrides.id ?? '555555555555555555';
+  const id = (overrides.id) ?? '555555555555555555';
 
   const defaults: Partial<CategoryChannel> = {
     id,
@@ -143,8 +156,10 @@ export function createMockCategoryChannel(
 /**
  * Create a mock Discord Text Channel
  */
-export function createMockTextChannel(overrides: Partial<TextChannel> = {}): TextChannel {
-  const id = overrides.id ?? '444444444444444444';
+export function createMockTextChannel(
+  overrides: MockInput<TextChannel> = EMPTY_OVERRIDES
+): TextChannel {
+  const id = (overrides.id) ?? '444444444444444444';
 
   const defaults: Partial<TextChannel> = {
     id,
@@ -168,8 +183,8 @@ export function createMockTextChannel(overrides: Partial<TextChannel> = {}): Tex
 /**
  * Create a mock Discord DM Channel
  */
-export function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChannel {
-  const id = overrides.id ?? '333333333333333333';
+export function createMockDMChannel(overrides: MockInput<DMChannel> = EMPTY_OVERRIDES): DMChannel {
+  const id = (overrides.id) ?? '333333333333333333';
 
   const defaults: Partial<DMChannel> = {
     id,
@@ -191,8 +206,10 @@ export function createMockDMChannel(overrides: Partial<DMChannel> = {}): DMChann
 /**
  * Create a mock Discord Thread Channel
  */
-export function createMockThreadChannel(overrides: Partial<ThreadChannel> = {}): ThreadChannel {
-  const id = overrides.id ?? '222222222222222222';
+export function createMockThreadChannel(
+  overrides: MockInput<ThreadChannel> = EMPTY_OVERRIDES
+): ThreadChannel {
+  const id = (overrides.id) ?? '222222222222222222';
 
   const defaults: Partial<ThreadChannel> = {
     id,
@@ -217,8 +234,10 @@ export function createMockThreadChannel(overrides: Partial<ThreadChannel> = {}):
 /**
  * Create a mock Discord Guild Member
  */
-export function createMockGuildMember(overrides: Partial<GuildMember> = {}): GuildMember {
-  const id = overrides.id ?? '123456789012345678';
+export function createMockGuildMember(
+  overrides: MockInput<GuildMember> = EMPTY_OVERRIDES
+): GuildMember {
+  const id = (overrides.id) ?? '123456789012345678';
 
   const defaults = {
     id,
@@ -245,12 +264,12 @@ export function createMockGuildMember(overrides: Partial<GuildMember> = {}): Gui
  * });
  * ```
  */
-export function createMockMessage(overrides: Partial<Message> = {}): Message {
-  const id = overrides.id ?? '999999999999999999';
+export function createMockMessage(overrides: MockInput<Message> = EMPTY_OVERRIDES): Message {
+  const id = (overrides.id) ?? '999999999999999999';
 
   // Create default channel and guild first so we can reference their IDs
-  const defaultChannel = overrides.channel ?? createMockTextChannel();
-  const defaultGuild = overrides.guild ?? createMockGuild();
+  const defaultChannel = (overrides.channel as TextChannel | undefined) ?? createMockTextChannel();
+  const defaultGuild = (overrides.guild) ?? createMockGuild();
 
   const defaults: Partial<Message> = {
     id,
@@ -285,7 +304,7 @@ export function createMockMessage(overrides: Partial<Message> = {}): Message {
 /**
  * Create a mock Message in a DM channel
  */
-export function createMockDMMessage(overrides: Partial<Message> = {}): Message {
+export function createMockDMMessage(overrides: MockInput<Message> = EMPTY_OVERRIDES): Message {
   return createMockMessage({
     channel: createMockDMChannel(),
     guild: null,
@@ -297,7 +316,7 @@ export function createMockDMMessage(overrides: Partial<Message> = {}): Message {
 /**
  * Create a mock Message in a thread
  */
-export function createMockThreadMessage(overrides: Partial<Message> = {}): Message {
+export function createMockThreadMessage(overrides: MockInput<Message> = EMPTY_OVERRIDES): Message {
   return createMockMessage({
     // @ts-expect-error - ThreadChannel is part of Message.channel union type. Runtime behavior is correct.
     channel: createMockThreadChannel(),

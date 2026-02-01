@@ -137,7 +137,7 @@ describe('SnapshotFormatter', () => {
         {
           url: 'https://example.com/image.png',
           contentType: 'image/png',
-          filename: 'image.png',
+          name: 'image.png',
         },
       ]);
 
@@ -173,7 +173,7 @@ describe('SnapshotFormatter', () => {
         {
           url: 'https://example.com/file.pdf',
           contentType: 'application/pdf',
-          filename: 'file.pdf',
+          name: 'file.pdf',
         },
       ]);
 

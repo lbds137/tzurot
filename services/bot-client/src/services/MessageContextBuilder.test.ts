@@ -433,7 +433,7 @@ describe('MessageContextBuilder', () => {
       const mockAttachments = [
         {
           url: 'https://example.com/image.png',
-          filename: 'image.png',
+          name: 'image.png',
           contentType: 'image/png',
         },
       ];
