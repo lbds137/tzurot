@@ -285,6 +285,102 @@ describe('PersonalityDefaults', () => {
       expect(result.displayName).toBe('FallbackBot');
     });
 
+    it('should include reasoning config from personality LlmConfig', () => {
+      const dbPersonality: DatabasePersonality = {
+        id: 'test-id',
+        name: 'ReasoningBot',
+        displayName: null,
+        slug: 'reasoning-bot',
+        updatedAt: testDate,
+        systemPrompt: null,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'deepseek/deepseek-r1',
+            visionModel: null,
+            advancedParameters: {
+              temperature: 0.7,
+              top_p: 0.95,
+              show_thinking: true,
+              reasoning: {
+                effort: 'medium',
+                enabled: true,
+                exclude: false,
+              },
+            },
+            memoryScoreThreshold: 0.5 as any,
+            memoryLimit: 10,
+            contextWindowTokens: 131072,
+          },
+        },
+        characterInfo: null,
+        personalityTraits: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+      };
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      // CRITICAL: reasoning must flow through to LoadedPersonality
+      // This was the root cause of beta.60-62 thinking breakage
+      expect(result.reasoning).toBeDefined();
+      expect(result.reasoning?.effort).toBe('medium');
+      expect(result.reasoning?.enabled).toBe(true);
+      expect(result.reasoning?.exclude).toBe(false);
+      expect(result.showThinking).toBe(true);
+    });
+
+    it('should include reasoning config from global default when personality has none', () => {
+      const dbPersonality: DatabasePersonality = {
+        id: 'test-id',
+        name: 'NoConfigBot',
+        displayName: null,
+        slug: 'no-config-bot',
+        updatedAt: testDate,
+        systemPrompt: null,
+        defaultConfigLink: null,
+        characterInfo: null,
+        personalityTraits: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+      };
+
+      const globalConfig: LlmConfig = {
+        model: 'global-model',
+        visionModel: undefined,
+        temperature: 0.8,
+        maxTokens: 2048,
+        topP: undefined,
+        topK: undefined,
+        frequencyPenalty: undefined,
+        presencePenalty: undefined,
+        memoryScoreThreshold: 0.6,
+        memoryLimit: 20,
+        contextWindowTokens: 100000,
+        showThinking: true,
+        reasoning: {
+          effort: 'high',
+          enabled: true,
+        },
+      };
+
+      const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
+
+      // Should inherit reasoning from global config
+      expect(result.reasoning).toBeDefined();
+      expect(result.reasoning?.effort).toBe('high');
+      expect(result.showThinking).toBe(true);
+    });
+
     it('should replace placeholders in all character fields', () => {
       const dbPersonality: DatabasePersonality = {
         id: 'test-id',
