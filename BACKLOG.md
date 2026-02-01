@@ -71,7 +71,14 @@ Functions exceeding 15 cognitive complexity limit:
 
 **Future tightening**: Once violations are reduced, lower CPD threshold from 5% to 2-3%.
 
-**References**: PR #557, `docs/reference/STATIC_ANALYSIS.md`
+**Tooling Improvements** (after baseline fixed):
+
+- [ ] Make sonarjs rules `error` instead of `warn` - prevents new violations from accumulating
+- [ ] Add CPD HTML report to CI artifacts - makes reviewing duplication easier in PRs
+- [ ] Make CPD blocking in CI (remove `continue-on-error: true`)
+- [ ] Make `typecheck:spec` blocking in pre-push hook
+
+**References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
 ### 🏗️ AI Context Bridge (Process)
 
