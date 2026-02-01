@@ -339,7 +339,13 @@ function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraPa
 
   // include_reasoning: opt-in flag for OpenRouter to return thinking content
   // Without this, reasoning models' thinking is stripped from the response
-  if (modelConfig.reasoning !== undefined && modelConfig.reasoning.exclude !== true) {
+  // Set when EITHER:
+  // 1. showThinking is true (user wants to see thinking blocks)
+  // 2. reasoning config exists and exclude !== true (explicit reasoning config)
+  const wantsThinking = modelConfig.showThinking === true;
+  const hasReasoningConfig =
+    modelConfig.reasoning !== undefined && modelConfig.reasoning.exclude !== true;
+  if (wantsThinking || hasReasoningConfig) {
     params.include_reasoning = true;
   }
 
