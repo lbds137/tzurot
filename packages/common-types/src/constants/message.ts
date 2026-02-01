@@ -62,6 +62,16 @@ export const MESSAGE_LIMITS = {
    */
   MAX_REACTION_MESSAGES: 5,
   /**
+   * Maximum number of reaction types to extract per message
+   * Limits API calls to Discord when fetching reactor users
+   */
+  MAX_REACTIONS_PER_MESSAGE: 3,
+  /**
+   * Maximum number of reactor users to include per reaction
+   * Prevents context bloat on popular messages with many reactors
+   */
+  MAX_USERS_PER_REACTION: 5,
+  /**
    * Maximum number of participant personas to include in AI prompt context
    * These get full persona details (name, pronouns, about text)
    * Separate from stop sequence limit (5) which stays fixed

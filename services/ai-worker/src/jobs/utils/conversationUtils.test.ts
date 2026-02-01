@@ -1973,6 +1973,222 @@ describe('Conversation Utilities', () => {
     });
   });
 
+  describe('reactions formatting (extended context)', () => {
+    it('should format reactions from messageMetadata.reactions', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Great news!',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '👍',
+                isCustom: false,
+                reactors: [
+                  { personaId: 'discord:user1', displayName: 'Bob' },
+                  { personaId: 'discord:user2', displayName: 'Carol' },
+                ],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<reactions>');
+      expect(result).toContain('</reactions>');
+      expect(result).toContain('<reaction emoji="👍">Bob, Carol</reaction>');
+    });
+
+    it('should format multiple reactions on same message', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Party time!',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '🎉',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:user1', displayName: 'Bob' }],
+              },
+              {
+                emoji: '❤️',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:user2', displayName: 'Carol' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<reactions>');
+      expect(result).toContain('<reaction emoji="🎉">Bob</reaction>');
+      expect(result).toContain('<reaction emoji="❤️">Carol</reaction>');
+    });
+
+    it('should include custom="true" attribute for custom emojis', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Nice!',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: ':pepe:',
+                isCustom: true,
+                reactors: [{ personaId: 'discord:user1', displayName: 'Bob' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<reaction emoji=":pepe:" custom="true">Bob</reaction>');
+    });
+
+    it('should not include custom attribute for standard emojis', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Good job!',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '👏',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:user1', displayName: 'Bob' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('<reaction emoji="👏">Bob</reaction>');
+      expect(result).not.toContain('custom=');
+    });
+
+    it('should escape special characters in reactor display names', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Test',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '👍',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:user1', displayName: 'Bob & Carol' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('Bob &amp; Carol');
+    });
+
+    it('should not include reactions section when reactions is empty', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'No reactions here',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<reactions>');
+    });
+
+    it('should not include reactions section when reactions is undefined', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'No reactions',
+          personaName: 'Alice',
+          messageMetadata: {},
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).not.toContain('<reactions>');
+    });
+
+    it('should include reactions in length calculation', () => {
+      const msgWithReactions: RawHistoryEntry = {
+        role: 'user',
+        content: 'Test',
+        messageMetadata: {
+          reactions: [
+            {
+              emoji: '👍',
+              isCustom: false,
+              reactors: [
+                { personaId: 'discord:user1', displayName: 'Bob' },
+                { personaId: 'discord:user2', displayName: 'Carol' },
+              ],
+            },
+          ],
+        },
+      };
+
+      const msgWithoutReactions: RawHistoryEntry = {
+        role: 'user',
+        content: 'Test',
+      };
+
+      const withReactions = getFormattedMessageCharLength(msgWithReactions, 'TestBot');
+      const withoutReactions = getFormattedMessageCharLength(msgWithoutReactions, 'TestBot');
+
+      expect(withReactions).toBeGreaterThan(withoutReactions);
+    });
+
+    it('should format reactions on assistant messages', () => {
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'assistant',
+          content: 'Here is my response',
+          personalityName: 'TestBot',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '❤️',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:user1', displayName: 'Alice' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain('role="assistant"');
+      expect(result).toContain('<reactions>');
+      expect(result).toContain('<reaction emoji="❤️">Alice</reaction>');
+    });
+  });
+
   describe('Multi-AI Personality Attribution', () => {
     it('should attribute assistant messages from OTHER AI personalities correctly', () => {
       // When COLD is processing a channel where Lila AI also responded,

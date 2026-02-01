@@ -1056,17 +1056,28 @@ export class DiscordChannelFetcher {
   /**
    * Extract reactions from a Discord message
    *
+   * Rate-limited to prevent API overload on popular messages:
+   * - MAX_REACTIONS_PER_MESSAGE: limits reaction types fetched
+   * - MAX_USERS_PER_REACTION: limits users per reaction
+   *
    * @param msg - Discord message to extract reactions from
    * @returns Array of reactions with emoji and reactor info
    */
   async extractReactions(msg: Message): Promise<MessageReaction[]> {
     const reactions: MessageReaction[] = [];
 
-    // Iterate through cached reactions
-    for (const reaction of msg.reactions.cache.values()) {
+    // Limit number of reaction types to process (rate limiting)
+    const reactionValues = [...msg.reactions.cache.values()].slice(
+      0,
+      MESSAGE_LIMITS.MAX_REACTIONS_PER_MESSAGE
+    );
+
+    // Iterate through cached reactions (limited)
+    for (const reaction of reactionValues) {
       try {
-        // Fetch all users who reacted (may require API call)
-        const users = await reaction.users.fetch();
+        // Fetch users who reacted (may require API call)
+        // Limit to MAX_USERS_PER_REACTION to prevent context bloat
+        const users = await reaction.users.fetch({ limit: MESSAGE_LIMITS.MAX_USERS_PER_REACTION });
 
         const reactors = users
           .filter(user => !user.bot) // Exclude bot reactions
