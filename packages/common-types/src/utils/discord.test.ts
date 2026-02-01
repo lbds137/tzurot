@@ -247,6 +247,32 @@ Another paragraph here with more content.`;
       const content = '-# 📍 auto-response';
       expect(stripBotFooters(content)).toBe('');
     });
+
+    it('should strip focus mode footer', () => {
+      const content = 'Hello world!\n-# 🔒 Focus Mode • LTM retrieval disabled';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip incognito mode footer', () => {
+      const content = 'Hello world!\n-# 👻 Incognito Mode • Memories not being saved';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
+
+    it('should strip standalone focus mode footer', () => {
+      const content = '-# 🔒 Focus Mode • LTM retrieval disabled';
+      expect(stripBotFooters(content)).toBe('');
+    });
+
+    it('should strip standalone incognito mode footer', () => {
+      const content = '-# 👻 Incognito Mode • Memories not being saved';
+      expect(stripBotFooters(content)).toBe('');
+    });
+
+    it('should strip all footer types combined', () => {
+      const content =
+        'Hello world!\n-# Model: [gpt-4](<https://example.com>) • 📍 auto\n-# 🆓 Using free model (no API key required)\n-# 🔒 Focus Mode • LTM retrieval disabled\n-# 👻 Incognito Mode • Memories not being saved';
+      expect(stripBotFooters(content)).toBe('Hello world!');
+    });
   });
 
   describe('stripDmPrefix', () => {
