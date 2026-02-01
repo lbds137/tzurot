@@ -288,6 +288,8 @@ export class AIJobProcessor {
   ): Promise<LLMGenerationResult> {
     // Idempotency check: prevent duplicate processing of the same Discord message
     const triggerMessageId = job.data.context.triggerMessageId;
+    let lockAcquired = false;
+
     if (triggerMessageId !== undefined) {
       const isNew = await redisService.markMessageProcessing(triggerMessageId);
       if (!isNew) {
@@ -302,20 +304,34 @@ export class AIJobProcessor {
           error: 'Duplicate message - already processed',
         };
       }
+      lockAcquired = true;
     }
 
-    // Delegate to LLM generation handler
-    const result = await this.llmGenerationHandler.processJob(job);
+    try {
+      // Delegate to LLM generation handler
+      const result = await this.llmGenerationHandler.processJob(job);
 
-    // Log usage for BYOK tracking (only on success with user internal ID)
-    if (result.success === true && job.data.context.userInternalId !== undefined) {
-      await this.logUsage(job, result);
+      // Log usage for BYOK tracking (only on success with user internal ID)
+      if (result.success === true && job.data.context.userInternalId !== undefined) {
+        await this.logUsage(job, result);
+      }
+
+      // Persist to DB and publish to Redis Stream
+      await this.persistAndPublishResult(job, result);
+
+      // Success - keep the lock to prevent reprocessing
+      return result;
+    } catch (error) {
+      // Release lock on failure to allow BullMQ retries
+      if (lockAcquired && triggerMessageId !== undefined) {
+        logger.warn(
+          { jobId: job.id, triggerMessageId },
+          '[AIJobProcessor] Job failed, releasing idempotency lock for retry'
+        );
+        await redisService.releaseMessageLock(triggerMessageId);
+      }
+      throw error;
     }
-
-    // Persist to DB and publish to Redis Stream
-    await this.persistAndPublishResult(job, result);
-
-    return result;
   }
 
   /**

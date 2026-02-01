@@ -172,11 +172,14 @@ export class RedisService {
   }
 
   /**
-   * Check if a Discord message has already been processed (idempotency check).
+   * Acquire idempotency lock for a Discord message.
    * Uses SET NX EX to atomically set a key only if it doesn't exist.
    *
+   * IMPORTANT: If processing fails after acquiring the lock, call releaseMessageLock()
+   * to allow BullMQ retries. Otherwise the retry will be blocked as a "duplicate".
+   *
    * @param messageId Discord message ID that triggered the request
-   * @returns true if this is a NEW message (should process), false if already processed
+   * @returns true if lock acquired (should process), false if already locked/processed
    */
   async markMessageProcessing(messageId: string): Promise<boolean> {
     try {
@@ -198,10 +201,28 @@ export class RedisService {
     } catch (error) {
       logger.error(
         { err: error, messageId },
-        '[RedisService] Error checking message idempotency - allowing processing'
+        '[RedisService] Error acquiring idempotency lock - allowing processing'
       );
       // On error, default to allowing processing (fail open)
       return true;
+    }
+  }
+
+  /**
+   * Release idempotency lock for a Discord message.
+   * Call this when job processing FAILS to allow BullMQ retries.
+   * Do NOT call on success - the lock should remain to prevent reprocessing.
+   *
+   * @param messageId Discord message ID that triggered the request
+   */
+  async releaseMessageLock(messageId: string): Promise<void> {
+    try {
+      const key = `${REDIS_KEY_PREFIXES.PROCESSED_MESSAGE}${messageId}`;
+      await this.redis.del(key);
+      logger.debug({ messageId }, '[RedisService] Released idempotency lock for retry');
+    } catch (error) {
+      // Log but don't throw - lock release failure shouldn't block error propagation
+      logger.error({ err: error, messageId }, '[RedisService] Failed to release idempotency lock');
     }
   }
 
