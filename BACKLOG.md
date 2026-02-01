@@ -21,63 +21,65 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 🏗️ Static Analysis & DRY Detection (NEXT PR)
+### ✅ Static Analysis & DRY Detection (COMPLETED)
 
-**Problem**: DRY violations are causing production bugs (footer handling scattered across 4+ files). No tooling to detect duplicates or code quality issues at scale. AI assistance accelerates code generation but has no memory of existing patterns, leading to accidental duplication.
+**Status**: Tooling implemented in PR #557. Baseline violations documented below.
 
-**Phase 1: Stop the Bleeding (Immediate)**
+**Implemented**:
 
-- [ ] Install `jscpd` for copy-paste detection across monorepo
-- [ ] Run initial scan, identify top offenders
-- [ ] Add `pnpm check:dupes` script to package.json
-- [ ] Install `eslint-plugin-sonarjs` for cognitive complexity rules
-- [ ] Enable `sonarjs/no-identical-functions` and `sonarjs/no-duplicate-string`
+- [x] Install `jscpd` for copy-paste detection across monorepo
+- [x] Add `pnpm cpd` and `pnpm cpd:report` commands
+- [x] Install `eslint-plugin-sonarjs` for cognitive complexity rules
+- [x] Enable `sonarjs/no-identical-functions`, `sonarjs/no-duplicate-string`, `sonarjs/cognitive-complexity`
+- [x] Add `pnpm typecheck:spec` for type-checking test files separately
+- [x] Add `pnpm quality` command combining lint + cpd + typecheck:spec
+- [x] Add to CI pipeline (cpd runs with continue-on-error, typecheck:spec runs)
+- [x] Add to pre-push hook (typecheck:spec and cpd as warnings until baseline fixed)
+- [x] Documentation at `docs/reference/STATIC_ANALYSIS.md`
 
-**Phase 2: AI Context Bridge (Process)**
+**References**: PR #557, `docs/reference/STATIC_ANALYSIS.md`
+
+### 🏗️ Fix Static Analysis Baseline Violations (NEXT)
+
+**Context**: Static analysis tooling added in PR #557. Tools are installed and configured. Now need to fix baseline violations to make checks blocking.
+
+**Test File Type Errors** (high priority - types are broken):
+
+- [ ] Fix `PersonalityDefaults.test.ts` - missing properties in mock DatabasePersonality (isPublic, ownerId, etc.)
+- [ ] Fix `PersonalityDefaults.test.ts` - `showThinking` property doesn't exist in config type
+- [ ] Fix `ConversationSyncService.test.ts` - argument type mismatches (50 vs 200)
+- [ ] Fix `LlmConfigCacheInvalidationService.test.ts` - mock.calls type assertions
+- [ ] Fix `VisionDescriptionCache.int.test.ts` and `VoiceTranscriptCache.int.test.ts` - can't find @tzurot/common-types module
+- [ ] Fix `textChunker.test.ts` - property 'content' doesn't exist on metadata type
+- [ ] Remove unused imports (vi, BaseInvalidationEvent, etc.) flagged by TS6133
+- [ ] After fixing: make `typecheck:spec` blocking in pre-push hook
+
+**Cognitive Complexity** (medium priority - refactoring):
+
+Functions exceeding 15 cognitive complexity limit:
+
+- ai-worker: `processMessage` (41), `generateResponse` (27), `buildSystemPrompt` (25+)
+- common-types: `ConversationHistoryService` functions, `formatElapsedTime` (19)
+- Run `pnpm lint 2>&1 | grep sonarjs/cognitive-complexity` for full list
+
+**Copy-Paste Duplication** (lower priority - extract to shared utils):
+
+- Cache invalidation service patterns (multiple files have identical subscribe/publish logic)
+- Personality factory patterns (persona.ts, wallet.ts, model-override.ts share 45-line blocks)
+- Settings dashboard handler (repeated embed building patterns)
+- Run `pnpm cpd:report` for detailed HTML report
+
+**Future tightening**: Once violations are reduced, lower CPD threshold from 5% to 2-3%.
+
+**References**: PR #557, `docs/reference/STATIC_ANALYSIS.md`
+
+### 🏗️ AI Context Bridge (Process)
+
+**Problem**: AI assistance accelerates code generation but has no memory of existing patterns, leading to accidental duplication.
 
 - [ ] Create repo mapping script that generates `CONTEXT.md` (exports by file)
 - [ ] Document workflow: paste map before asking AI to write new features
 - [ ] Consider ast-grep for semantic pattern matching (future)
-
-**Phase 3: Safety Net (CI/CD)**
-
-- [ ] Add jscpd to CI pipeline (block on high duplication %)
-- [ ] Consider pre-commit hook if scan is fast enough
-- [ ] Review `max-lines` threshold (currently 500, consider lowering)
-
-**Tools to evaluate**:
-
-- `jscpd` - Copy-paste detector (highest priority)
-- `eslint-plugin-sonarjs` - SonarQube rules for ESLint
-- `ast-grep` - Semantic code search (for domain-specific patterns)
-- `typhonjs-escomplex` - Complexity visualization
-
-**References**: MCP council brainstorm session 2026-02-01
-
-### 🏗️ Include Test Files in TypeScript Type Checking
-
-**Problem**: Test files are excluded from `tsconfig.json` (`"exclude": ["**/*.test.ts"]`), creating a "lawless wild west" where type errors in tests go unnoticed. This caused confusion when tests passed `ownerId: null` to functions expecting `ownerId: string` - reviewers saw the tests and incorrectly assumed null was valid.
-
-**Impact**:
-
-- Tests can call functions with wrong types (caught at runtime, not compile time)
-- Tests can create mock data that doesn't match actual types
-- Reviewers trust test behavior as specification, but tests may be type-incorrect
-
-**Solution options**:
-
-1. **Include tests in typecheck** - May require `@ts-expect-error` for intentional type violations
-2. **Separate test tsconfig** - `tsconfig.test.json` extends base but includes tests
-3. **Hybrid** - Type-check tests in CI but not in `pnpm typecheck` (speed tradeoff)
-
-**Tasks**:
-
-- [ ] Audit current type errors if tests were included
-- [ ] Decide approach (include in main vs separate config)
-- [ ] Add `@ts-expect-error` where intentional violations exist
-- [ ] Update CI to catch test type errors
-
-**References**: PR #556 review confusion about ownerId nullability (2026-02-01)
 
 ### 🏗️ LLM Config Single Source of Truth (CRITICAL)
 
