@@ -57,51 +57,40 @@ describe('permissions utilities', () => {
       expect(result).toEqual({ canEdit: false, canDelete: false });
     });
 
-    it('should deny permissions when ownerId is null (system personality)', () => {
-      const result = computePersonalityPermissions(null, OTHER_USER_ID, USER_DISCORD_ID);
-
-      expect(result).toEqual({ canEdit: false, canDelete: false });
-    });
-
-    it('should grant admin permissions even for system personalities (null ownerId)', () => {
-      mockIsBotOwner.mockReturnValue(true);
-
-      const result = computePersonalityPermissions(null, OTHER_USER_ID, ADMIN_DISCORD_ID);
-
-      expect(result).toEqual({ canEdit: true, canDelete: true });
-    });
+    // Note: Personality.ownerId is NOT nullable in the schema (String, not String?)
+    // so we don't need to test null ownerId scenarios - they can't exist in the DB
   });
 
   describe('computeLlmConfigPermissions', () => {
+    // Note: LlmConfig.ownerId is NOT nullable in the schema (String, not String?)
+    // All configs have an owner - "global" just means visible to all users
+
     describe('global configs', () => {
-      const globalConfig = { ownerId: null, isGlobal: true };
+      it('should grant permissions to creator of global config (user shared their preset)', () => {
+        // Users can share their presets by making them global while retaining control
+        const globalConfig = { ownerId: OWNER_ID, isGlobal: true };
+
+        const result = computeLlmConfigPermissions(globalConfig, OWNER_ID, USER_DISCORD_ID);
+
+        // Creator retains permissions even when config is global
+        expect(result).toEqual({ canEdit: true, canDelete: true });
+      });
 
       it('should grant full permissions to admin for global config', () => {
         mockIsBotOwner.mockReturnValue(true);
+        const globalConfig = { ownerId: OWNER_ID, isGlobal: true };
 
         const result = computeLlmConfigPermissions(globalConfig, OTHER_USER_ID, ADMIN_DISCORD_ID);
 
         expect(result).toEqual({ canEdit: true, canDelete: true });
       });
 
-      it('should deny permissions to non-admin for global config', () => {
+      it('should deny permissions to non-creator non-admin for global config', () => {
+        const globalConfig = { ownerId: OWNER_ID, isGlobal: true };
+
         const result = computeLlmConfigPermissions(globalConfig, OTHER_USER_ID, USER_DISCORD_ID);
 
         expect(result).toEqual({ canEdit: false, canDelete: false });
-      });
-
-      it('should grant permissions to creator of global config (user shared their preset)', () => {
-        // Users can share their presets by making them global while retaining control
-        const globalConfigWithOwner = { ownerId: OWNER_ID, isGlobal: true };
-
-        const result = computeLlmConfigPermissions(
-          globalConfigWithOwner,
-          OWNER_ID,
-          USER_DISCORD_ID
-        );
-
-        // Creator retains permissions even when config is global
-        expect(result).toEqual({ canEdit: true, canDelete: true });
       });
     });
 
@@ -134,13 +123,7 @@ describe('permissions utilities', () => {
         expect(result).toEqual({ canEdit: false, canDelete: false });
       });
 
-      it('should deny permissions when config ownerId is null (orphaned config)', () => {
-        const orphanedConfig = { ownerId: null, isGlobal: false };
-
-        const result = computeLlmConfigPermissions(orphanedConfig, OTHER_USER_ID, USER_DISCORD_ID);
-
-        expect(result).toEqual({ canEdit: false, canDelete: false });
-      });
+      // Note: LlmConfig.ownerId is NOT nullable in schema - no orphaned configs can exist
     });
   });
 
