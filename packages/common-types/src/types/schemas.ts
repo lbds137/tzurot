@@ -130,6 +130,30 @@ export const storedReferencedMessageSchema = z.object({
 });
 
 /**
+ * Reaction reactor schema
+ * A user who reacted to a message with a specific emoji
+ */
+export const reactionReactorSchema = z.object({
+  /** User's persona ID (e.g., 'discord:123456') */
+  personaId: z.string(),
+  /** User's display name in the server */
+  displayName: z.string(),
+});
+
+/**
+ * Message reaction schema
+ * Represents one emoji reaction with all users who used it
+ */
+export const messageReactionSchema = z.object({
+  /** The emoji (unicode character for standard, name:id for custom) */
+  emoji: z.string(),
+  /** Custom emoji flag (affects XML formatting) */
+  isCustom: z.boolean().optional(),
+  /** Users who reacted with this emoji */
+  reactors: z.array(reactionReactorSchema),
+});
+
+/**
  * Message metadata schema
  * Structured metadata stored in conversation_history.message_metadata JSONB column
  * Separates semantic content (in 'content' column) from contextual data
@@ -154,6 +178,8 @@ export const messageMetadataSchema = z.object({
   embedsXml: z.array(z.string()).optional(),
   /** Voice transcripts for extended context messages */
   voiceTranscripts: z.array(z.string()).optional(),
+  /** Reactions on this message (for extended context messages) */
+  reactions: z.array(messageReactionSchema).optional(),
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 
@@ -538,6 +564,8 @@ export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
 export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
+export type ReactionReactor = z.infer<typeof reactionReactorSchema>;
+export type MessageReaction = z.infer<typeof messageReactionSchema>;
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 export type MentionedPersona = z.infer<typeof mentionedPersonaSchema>;
 export type ReferencedChannel = z.infer<typeof referencedChannelSchema>;

@@ -101,11 +101,11 @@ describe('StopSequenceTracker', () => {
       expect(Object.keys(stats.byModel)).toHaveLength(0);
     });
 
-    it('should reset the startedAt timestamp', () => {
+    it('should reset the startedAt timestamp', async () => {
       const beforeReset = getStopSequenceStats().startedAt;
 
-      // Small delay to ensure different timestamp
-      vi.advanceTimersByTime?.(100);
+      // Wait a small amount of real time to ensure different timestamp
+      await new Promise(resolve => setTimeout(resolve, 5));
       resetStopSequenceStats();
 
       const afterReset = getStopSequenceStats().startedAt;

@@ -119,6 +119,8 @@ function createMockMessage(
     createdTimestamp: config.createdAt.getTime(),
     attachments: new Collection(config.attachments),
     reference: config.reference,
+    // Empty reactions cache for extended context processing
+    reactions: { cache: new Collection() },
   } as unknown as Message;
 }
 
