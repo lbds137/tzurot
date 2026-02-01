@@ -74,6 +74,34 @@ _Top 3-5 items to pull into CURRENT next._
 
 **Files**: `packages/common-types/src/utils/permissions.ts`
 
+### 🏗️ Footer Handling DRY Refactor (Model Hallucination Bug)
+
+**Symptom**: Model hallucinates footer lines (e.g., `-# 🔒 Focus Mode • LTM retrieval disabled`) because they leak into conversation history. Lines appear twice in output.
+
+**Root cause**: `BOT_FOOTER_PATTERNS` in common-types is **incomplete** - missing Focus Mode and Incognito Mode patterns. `stripBotFooters()` only strips patterns it knows about.
+
+**Current DRY violations**:
+
+1. Footer strings hardcoded in `DiscordResponseSender.ts` (lines 112-129)
+2. Same strings duplicated in `character/chat.ts` (lines 480-483)
+3. `BOT_FOOTER_PATTERNS` only has MODEL, GUEST_MODE, AUTO_RESPONSE
+4. Focus Mode (`🔒`) and Incognito Mode (`👻`) footers NOT in patterns
+
+**Solution**:
+
+- [ ] Add Focus Mode and Incognito Mode patterns to `BOT_FOOTER_PATTERNS`
+- [ ] Centralize ALL footer strings as constants (single source of truth)
+- [ ] Update `stripBotFooters()` tests for new patterns
+- [ ] Audit all places that add/strip footers to ensure consistency
+- [ ] Consider: should footer constants drive both pattern and string generation?
+
+**Files**:
+
+- `packages/common-types/src/constants/discord.ts` (BOT_FOOTER_PATTERNS)
+- `packages/common-types/src/utils/discord.ts` (stripBotFooters)
+- `services/bot-client/src/services/DiscordResponseSender.ts`
+- `services/bot-client/src/commands/character/chat.ts`
+
 ### 🐛 /character chat Errors with Message + API Key Resolution
 
 Using `/character chat` with a message parameter errors out with empty error object `{}`. Without a message it works but uses free tier instead of user's API key.
