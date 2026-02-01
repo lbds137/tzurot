@@ -70,7 +70,8 @@ export function isGatewayConfigured(): boolean {
 export async function parseErrorResponse(response: Response): Promise<string> {
   try {
     const data = (await response.json()) as { error?: string; message?: string };
-    return data.error ?? data.message ?? `HTTP ${response.status}`;
+    // Prefer message (human-readable) over error (code like "VALIDATION_ERROR")
+    return data.message ?? data.error ?? `HTTP ${response.status}`;
   } catch {
     return `HTTP ${response.status}`;
   }

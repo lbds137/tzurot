@@ -653,7 +653,7 @@ describe('/user/model-override routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should return 400 when no default config set', async () => {
+    it('should return 200 (idempotent) when no default config set', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({
         id: 'user-uuid-123',
         defaultLlmConfigId: null,
@@ -665,10 +665,11 @@ describe('/user/model-override routes', () => {
 
       await handler(req, res);
 
-      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('No default'),
+          deleted: true,
+          wasSet: false,
         })
       );
     });
