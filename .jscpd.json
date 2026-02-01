@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json.schemastore.org/jscpd.json",
+  "threshold": 5,
+  "reporters": ["console", "consoleFull"],
+  "ignore": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/*.d.ts",
+    "**/generated/**",
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "**/*.int.test.ts",
+    "**/test/**",
+    "**/mocks/**",
+    "prisma/**",
+    "tzurot-legacy/**",
+    "scripts/**",
+    "reports/**"
+  ],
+  "format": ["typescript"],
+  "minLines": 5,
+  "minTokens": 50,
+  "gitignore": true,
+  "absolute": true,
+  "output": "./reports/jscpd"
+}

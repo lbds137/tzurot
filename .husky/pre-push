@@ -104,4 +104,19 @@ if ! pnpm turbo run build lint test $TURBO_FILTER $TURBO_ARGS; then
     exit 1
 fi
 
+# 7. Run test file type checking (warning only until baseline is fixed)
+echo "Running test file type checking..."
+# shellcheck disable=SC2086
+if ! pnpm turbo run typecheck:spec $TURBO_FILTER $TURBO_ARGS 2>/dev/null; then
+    echo "${YELLOW}Test file type checking found errors${NC}"
+    echo "Run 'pnpm typecheck:spec' to see details"
+fi
+
+# 8. Run copy-paste detection (warning only - doesn't block push)
+echo "Running copy-paste detection..."
+if ! pnpm cpd --exitCode 0 2>/dev/null; then
+    echo "${YELLOW}Copy-paste detection found potential duplicates${NC}"
+    echo "Run 'pnpm cpd:report' to see detailed HTML report"
+fi
+
 echo "${GREEN}All pre-push checks passed!${NC}"
