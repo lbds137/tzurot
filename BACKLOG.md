@@ -63,12 +63,19 @@ Global preset edit incorrectly checks admin/bot owner status. Should only check 
 
 **Files**: `services/api-gateway/src/routes/user/llm-config.ts` (likely)
 
-### 🐛 /character chat Errors with Message
+### 🐛 /character chat Errors with Message + API Key Resolution
 
 Using `/character chat` with a message parameter errors out with empty error object `{}`. Without a message it works but uses free tier instead of user's API key.
 
+**Observed behavior**:
+- Dev: Both variants fail
+- Prod: Works but uses free model instead of configured paid model (as if no API key)
+
+**Hypothesis**: Webhook/bot identity confusion when mixing dev and prod bots in same channel. Bot may not recognize its own webhooks since it's a different bot instance, causing user/context resolution issues.
+
 - [ ] Debug empty error in character chat with message
 - [ ] Fix API key resolution for /character chat (not using user's BYOK key)
+- [ ] Check if webhook ownership validation is causing user context issues
 
 **Files**: `services/bot-client/src/commands/character/chat.ts`
 
