@@ -7,6 +7,7 @@ import type { Job } from 'bullmq';
 import {
   JobType,
   MessageRole,
+  AttachmentType,
   type LLMGenerationJobData,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -259,7 +260,7 @@ describe('GenerationStep', () => {
         preprocessing: {
           processedAttachments: [
             {
-              type: 'image' as const,
+              type: AttachmentType.Image,
               description: 'A sunset',
               originalUrl: 'https://example.com/image.png',
               metadata: {

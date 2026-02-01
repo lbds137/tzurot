@@ -8,16 +8,33 @@
  * - Token counting utilities
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import { PromptBuilder } from './PromptBuilder.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import { AttachmentType, type LoadedPersonality } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type {
   MemoryDocument,
   DiscordEnvironment,
   ConversationContext,
 } from './ConversationalRAGService.js';
+
+// Factory function for ProcessedAttachment
+function createProcessedAttachment(
+  type: AttachmentType,
+  description: string,
+  url: string
+): ProcessedAttachment {
+  return {
+    type,
+    description,
+    originalUrl: url,
+    metadata: {
+      url,
+      contentType: type === AttachmentType.Audio ? 'audio/mpeg' : 'image/jpeg',
+    },
+  };
+}
 
 // Mock the dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -34,7 +51,7 @@ vi.mock('@tzurot/common-types', async () => {
       NODE_ENV: 'test',
     }),
     countTextTokens: vi.fn((text: string) => Math.ceil(text.length / 4)), // Mock: ~4 chars per token
-    formatTimestampWithDelta: vi.fn((date: Date) => ({
+    formatTimestampWithDelta: vi.fn((_date: Date) => ({
       absolute: 'Mon, Jan 15, 2024',
       relative: '2 weeks ago',
     })),
@@ -65,11 +82,11 @@ describe('PromptBuilder', () => {
 
     it('should use transcription for voice-only messages (userMessage="Hello")', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: 'audio',
-          description: 'This is a voice transcription',
-          url: 'https://example.com/audio.mp3',
-        },
+        createProcessedAttachment(
+          AttachmentType.Audio,
+          'This is a voice transcription',
+          'https://example.com/audio.mp3'
+        ),
       ];
 
       const result = promptBuilder.buildSearchQuery('Hello', attachments);
@@ -78,11 +95,11 @@ describe('PromptBuilder', () => {
 
     it('should combine text with attachment descriptions', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: 'image',
-          description: 'A beautiful sunset',
-          url: 'https://example.com/image.jpg',
-        },
+        createProcessedAttachment(
+          AttachmentType.Image,
+          'A beautiful sunset',
+          'https://example.com/image.jpg'
+        ),
       ];
 
       const result = promptBuilder.buildSearchQuery('Look at this!', attachments);
@@ -91,11 +108,11 @@ describe('PromptBuilder', () => {
 
     it('should use descriptions only when userMessage is empty', () => {
       const attachments: ProcessedAttachment[] = [
-        {
-          type: 'image',
-          description: 'An image description',
-          url: 'https://example.com/image.jpg',
-        },
+        createProcessedAttachment(
+          AttachmentType.Image,
+          'An image description',
+          'https://example.com/image.jpg'
+        ),
       ];
 
       const result = promptBuilder.buildSearchQuery('', attachments);
@@ -105,14 +122,16 @@ describe('PromptBuilder', () => {
     it('should filter out placeholder descriptions starting with [', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'Real description',
-          url: 'https://example.com/image1.jpg',
+          originalUrl: 'https://example.com/image1.jpg',
+          metadata: { url: 'https://example.com/image1.jpg', contentType: 'image/jpeg' },
         },
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: '[Placeholder: image pending]',
-          url: 'https://example.com/image2.jpg',
+          originalUrl: 'https://example.com/image2.jpg',
+          metadata: { url: 'https://example.com/image2.jpg', contentType: 'image/jpeg' },
         },
       ];
 
@@ -123,14 +142,16 @@ describe('PromptBuilder', () => {
     it('should handle multiple attachments', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'First image',
-          url: 'https://example.com/1.jpg',
+          originalUrl: 'https://example.com/1.jpg',
+          metadata: { url: 'https://example.com/1.jpg', contentType: 'image/jpeg' },
         },
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'Second image',
-          url: 'https://example.com/2.jpg',
+          originalUrl: 'https://example.com/2.jpg',
+          metadata: { url: 'https://example.com/2.jpg', contentType: 'image/jpeg' },
         },
       ];
 
@@ -147,9 +168,10 @@ describe('PromptBuilder', () => {
     it('should combine user message, attachments, and referenced messages', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'An image description',
-          url: 'https://example.com/image.jpg',
+          originalUrl: 'https://example.com/image.jpg',
+          metadata: { url: 'https://example.com/image.jpg', contentType: 'image/jpeg' },
         },
       ];
       const referencedText = 'Referenced message content';
@@ -173,9 +195,10 @@ describe('PromptBuilder', () => {
     it('should handle voice transcription with referenced messages', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'audio',
+          type: AttachmentType.Audio,
           description: 'Voice transcription',
-          url: 'https://example.com/audio.mp3',
+          originalUrl: 'https://example.com/audio.mp3',
+          metadata: { url: 'https://example.com/audio.mp3', contentType: 'image/jpeg' },
         },
       ];
       const referencedText = 'Referenced message';
@@ -212,9 +235,10 @@ describe('PromptBuilder', () => {
         const recentHistory = 'User: Previous message\nAssistant: Previous response';
         const attachments: ProcessedAttachment[] = [
           {
-            type: 'image',
+            type: AttachmentType.Image,
             description: 'Image description',
-            url: 'https://example.com/img.jpg',
+            originalUrl: 'https://example.com/img.jpg',
+            metadata: { url: 'https://example.com/img.jpg', contentType: 'image/jpeg' },
           },
         ];
         const referencedText = 'Referenced message content';
@@ -282,9 +306,10 @@ describe('PromptBuilder', () => {
     it('should use transcription for voice messages', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'audio',
+          type: AttachmentType.Audio,
           description: 'Voice transcription here',
-          url: 'https://example.com/audio.mp3',
+          originalUrl: 'https://example.com/audio.mp3',
+          metadata: { url: 'https://example.com/audio.mp3', contentType: 'image/jpeg' },
         },
       ];
 
@@ -298,9 +323,10 @@ describe('PromptBuilder', () => {
     it('should combine text with attachment descriptions', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'Image description',
-          url: 'https://example.com/image.jpg',
+          originalUrl: 'https://example.com/image.jpg',
+          metadata: { url: 'https://example.com/image.jpg', contentType: 'image/jpeg' },
         },
       ];
 
@@ -360,9 +386,10 @@ describe('PromptBuilder', () => {
     it('should handle complex combination: attachments + references + activePersona', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'An image',
-          url: 'https://example.com/img.jpg',
+          originalUrl: 'https://example.com/img.jpg',
+          metadata: { url: 'https://example.com/img.jpg', contentType: 'image/jpeg' },
         },
       ];
       const references = '**Ref**: Earlier message';
@@ -390,13 +417,14 @@ describe('PromptBuilder', () => {
       characterInfo: 'A test character',
       personalityTraits: 'Friendly and helpful',
       displayName: 'Test Bot',
-      ownerId: 'owner-1',
-      createdAt: new Date(),
-      updatedAt: new Date(),
+      model: 'gpt-4',
+      temperature: 0.7,
+      maxTokens: 2000,
+      contextWindowTokens: 8000,
     };
 
     const minimalContext: ConversationContext = {
-      conversationId: 'conv-1',
+      userId: 'user-1',
       channelId: 'channel-1',
       activePersonaName: 'User',
     };
@@ -498,12 +526,14 @@ describe('PromptBuilder', () => {
           channel: { id: 'channel-1', name: 'general', type: 'text' },
         };
 
-        const participants = new Map([['Alice', { content: 'A tester', isActive: true }]]);
+        const participants = new Map([
+          ['Alice', { content: 'A tester', isActive: true, personaId: 'persona-alice' }],
+        ]);
 
         const memories: MemoryDocument[] = [
           {
             pageContent: 'Test memory',
-            metadata: { createdAt: new Date('2024-01-15') },
+            metadata: { createdAt: new Date('2024-01-15').getTime() },
           },
         ];
 
@@ -688,14 +718,14 @@ describe('PromptBuilder', () => {
           pageContent: 'User likes pizza',
           metadata: {
             id: 'mem-1',
-            createdAt: new Date('2024-01-15T12:00:00Z'),
+            createdAt: new Date('2024-01-15T12:00:00Z').getTime(),
           },
         },
         {
           pageContent: 'User dislikes spam',
           metadata: {
             id: 'mem-2',
-            createdAt: new Date('2024-01-20T15:30:00Z'),
+            createdAt: new Date('2024-01-20T15:30:00Z').getTime(),
           },
         },
       ];
@@ -818,6 +848,11 @@ describe('PromptBuilder', () => {
         thread: {
           id: 'thread-1',
           name: 'Discussion Thread',
+          parentChannel: {
+            id: 'channel-1',
+            name: 'general',
+            type: 'text',
+          },
         },
       };
 
@@ -994,7 +1029,7 @@ describe('PromptBuilder', () => {
 
   describe('formatUserMessage', () => {
     const minimalContext: ConversationContext = {
-      conversationId: 'conv-1',
+      userId: 'user-1',
       channelId: 'channel-1',
     };
 
@@ -1047,7 +1082,8 @@ describe('PromptBuilder', () => {
 
     it('should return "Hello" for empty/invalid messages', () => {
       expect(promptBuilder.formatUserMessage('', minimalContext)).toBe('Hello');
-      expect(promptBuilder.formatUserMessage({}, minimalContext)).toBe('Hello');
+      // Test with intentionally invalid input to verify error handling
+      expect(promptBuilder.formatUserMessage({} as never, minimalContext)).toBe('Hello');
     });
   });
 
@@ -1070,13 +1106,13 @@ describe('PromptBuilder', () => {
         {
           pageContent: 'First memory',
           metadata: {
-            createdAt: new Date('2024-01-15T12:00:00Z'),
+            createdAt: new Date('2024-01-15T12:00:00Z').getTime(),
           },
         },
         {
           pageContent: 'Second memory',
           metadata: {
-            createdAt: new Date('2024-01-20T15:30:00Z'),
+            createdAt: new Date('2024-01-20T15:30:00Z').getTime(),
           },
         },
       ];
@@ -1107,14 +1143,16 @@ describe('PromptBuilder', () => {
     it('should count tokens from attachment descriptions', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'A beautiful sunset over the ocean',
-          url: 'https://example.com/sunset.jpg',
+          originalUrl: 'https://example.com/sunset.jpg',
+          metadata: { url: 'https://example.com/sunset.jpg', contentType: 'image/jpeg' },
         },
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'A mountain landscape',
-          url: 'https://example.com/mountain.jpg',
+          originalUrl: 'https://example.com/mountain.jpg',
+          metadata: { url: 'https://example.com/mountain.jpg', contentType: 'image/jpeg' },
         },
       ];
 
@@ -1125,14 +1163,16 @@ describe('PromptBuilder', () => {
     it('should filter out placeholder descriptions', () => {
       const attachments: ProcessedAttachment[] = [
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: 'Real description',
-          url: 'https://example.com/image1.jpg',
+          originalUrl: 'https://example.com/image1.jpg',
+          metadata: { url: 'https://example.com/image1.jpg', contentType: 'image/jpeg' },
         },
         {
-          type: 'image',
+          type: AttachmentType.Image,
           description: '[Placeholder]',
-          url: 'https://example.com/image2.jpg',
+          originalUrl: 'https://example.com/image2.jpg',
+          metadata: { url: 'https://example.com/image2.jpg', contentType: 'image/jpeg' },
         },
       ];
 
@@ -1174,13 +1214,14 @@ describe('PromptBuilder', () => {
       characterInfo: 'A friendly AI assistant for testing',
       personalityTraits: 'Helpful, patient, thorough',
       displayName: 'Snapshot Bot',
-      ownerId: 'owner-1',
-      createdAt: FIXED_DATE,
-      updatedAt: FIXED_DATE,
+      model: 'gpt-4',
+      temperature: 0.7,
+      maxTokens: 2000,
+      contextWindowTokens: 8000,
     };
 
     const baseContext: ConversationContext = {
-      conversationId: 'snapshot-conv-1',
+      userId: 'snapshot-user-1',
       channelId: 'snapshot-channel-1',
       activePersonaName: 'TestUser',
     };
@@ -1279,11 +1320,11 @@ describe('PromptBuilder', () => {
         const memories: MemoryDocument[] = [
           {
             pageContent: 'User mentioned they prefer dark mode interfaces',
-            metadata: { id: 'mem-1', createdAt: new Date('2024-06-10T10:00:00Z') },
+            metadata: { id: 'mem-1', createdAt: new Date('2024-06-10T10:00:00Z').getTime() },
           },
           {
             pageContent: 'User is working on a Discord bot project',
-            metadata: { id: 'mem-2', createdAt: new Date('2024-06-12T15:30:00Z') },
+            metadata: { id: 'mem-2', createdAt: new Date('2024-06-12T15:30:00Z').getTime() },
           },
         ];
 
@@ -1349,10 +1390,14 @@ I was wondering about the performance implications of using pgvector
       it('should match snapshot with voice transcript', () => {
         const voiceAttachment: ProcessedAttachment[] = [
           {
-            type: 'audio',
+            type: AttachmentType.Audio,
             description:
               'Hey, I was wondering if you could help me understand how the memory system works in this bot. I have been trying to figure out why some memories are not being retrieved properly.',
-            url: 'https://cdn.discord.com/attachments/123/456/voice.ogg',
+            originalUrl: 'https://cdn.discord.com/attachments/123/456/voice.ogg',
+            metadata: {
+              url: 'https://cdn.discord.com/attachments/123/456/voice.ogg',
+              contentType: 'image/jpeg',
+            },
           },
         ];
 
@@ -1364,16 +1409,24 @@ I was wondering about the performance implications of using pgvector
       it('should match snapshot with image attachments', () => {
         const imageAttachments: ProcessedAttachment[] = [
           {
-            type: 'image',
+            type: AttachmentType.Image,
             description:
               'A screenshot showing an error message in the Discord bot. The error says "Rate limit exceeded" with a red background.',
-            url: 'https://cdn.discord.com/attachments/123/456/error.png',
+            originalUrl: 'https://cdn.discord.com/attachments/123/456/error.png',
+            metadata: {
+              url: 'https://cdn.discord.com/attachments/123/456/error.png',
+              contentType: 'image/jpeg',
+            },
           },
           {
-            type: 'image',
+            type: AttachmentType.Image,
             description:
               'A diagram showing the architecture of a microservices system with three boxes labeled "bot-client", "api-gateway", and "ai-worker".',
-            url: 'https://cdn.discord.com/attachments/123/456/architecture.png',
+            originalUrl: 'https://cdn.discord.com/attachments/123/456/architecture.png',
+            metadata: {
+              url: 'https://cdn.discord.com/attachments/123/456/architecture.png',
+              contentType: 'image/jpeg',
+            },
           },
         ];
 
@@ -1405,9 +1458,13 @@ This is the original message that was forwarded. It contains important context a
       it('should match snapshot with complex combination (attachments + references + persona)', () => {
         const attachments: ProcessedAttachment[] = [
           {
-            type: 'image',
+            type: AttachmentType.Image,
             description: 'A flowchart showing the message processing pipeline',
-            url: 'https://cdn.discord.com/attachments/123/456/flow.png',
+            originalUrl: 'https://cdn.discord.com/attachments/123/456/flow.png',
+            metadata: {
+              url: 'https://cdn.discord.com/attachments/123/456/flow.png',
+              contentType: 'image/jpeg',
+            },
           },
         ];
 
@@ -1447,9 +1504,10 @@ User: Mainly authentication and user profiles`;
       it('should match snapshot with voice + references + history', () => {
         const voiceAttachment: ProcessedAttachment[] = [
           {
-            type: 'audio',
+            type: AttachmentType.Audio,
             description: 'I want to add real-time notifications to my app',
-            url: 'https://cdn.discord.com/voice.ogg',
+            originalUrl: 'https://cdn.discord.com/voice.ogg',
+            metadata: { url: 'https://cdn.discord.com/voice.ogg', contentType: 'image/jpeg' },
           },
         ];
 

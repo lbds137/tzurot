@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
-import { ApiKeyResolver, type ApiKeyResolutionResult } from './ApiKeyResolver.js';
+import { ApiKeyResolver } from './ApiKeyResolver.js';
 import { AIProvider, decryptApiKey, type PrismaClient } from '@tzurot/common-types';
 
 // Mock the common-types module

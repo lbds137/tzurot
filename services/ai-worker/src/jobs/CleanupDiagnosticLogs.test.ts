@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { cleanupDiagnosticLogs, type DiagnosticCleanupResult } from './CleanupDiagnosticLogs.js';
+import { cleanupDiagnosticLogs } from './CleanupDiagnosticLogs.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Mock dependencies
@@ -47,7 +47,7 @@ describe('CleanupDiagnosticLogs', () => {
       mockPrisma.llmDiagnosticLog.deleteMany.mockResolvedValue({ count: 5 });
 
       const before = Date.now();
-      const result = await cleanupDiagnosticLogs(mockPrisma as unknown as PrismaClient);
+      await cleanupDiagnosticLogs(mockPrisma as unknown as PrismaClient);
       const after = Date.now();
 
       expect(mockPrisma.llmDiagnosticLog.deleteMany).toHaveBeenCalledWith({

@@ -51,13 +51,14 @@ describe('LongTermMemoryService', () => {
     characterInfo: 'Test character',
     personalityTraits: 'Helpful',
     displayName: 'Test Bot',
-    ownerId: 'owner-1',
-    createdAt: new Date(),
-    updatedAt: new Date(),
+    model: 'gpt-4',
+    temperature: 0.7,
+    maxTokens: 2000,
+    contextWindowTokens: 8000,
   };
 
   const baseContext: ConversationContext = {
-    conversationId: 'conv-1',
+    userId: 'user-1',
     channelId: 'channel-1',
     serverId: 'server-1',
   };
@@ -184,7 +185,7 @@ describe('LongTermMemoryService', () => {
 
     it('should use dm contextType when no channelId', async () => {
       const dmContext: ConversationContext = {
-        conversationId: 'conv-1',
+        userId: 'user-1',
       };
 
       await service.storeInteraction(

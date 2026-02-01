@@ -194,6 +194,11 @@ describe('EnvironmentFormatter', () => {
           thread: {
             id: 'thread-1',
             name: 'Discussion Thread',
+            parentChannel: {
+              id: 'channel-1',
+              name: 'general',
+              type: 'text',
+            },
           },
         };
 
@@ -221,6 +226,11 @@ describe('EnvironmentFormatter', () => {
           thread: {
             id: 'thread-1',
             name: 'Discussion Thread',
+            parentChannel: {
+              id: 'channel-1',
+              name: 'general',
+              type: 'text',
+            },
           },
         };
 
@@ -285,7 +295,11 @@ describe('EnvironmentFormatter', () => {
           guild: { id: 'guild-1', name: 'Server' },
           channel: { id: 'channel-1', name: 'channel', type: 'text' },
           category: { id: 'cat-1', name: 'Category' },
-          thread: { id: 'thread-1', name: 'Thread' },
+          thread: {
+            id: 'thread-1',
+            name: 'Thread',
+            parentChannel: { id: 'channel-1', name: 'channel', type: 'text' },
+          },
         };
 
         const result = formatEnvironmentContext(fullGuildEnvironment);

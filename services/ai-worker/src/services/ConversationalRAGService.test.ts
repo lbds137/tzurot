@@ -15,6 +15,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
 import type { MemoryDocument } from './ConversationalRAGService.js';
 import type { AttachmentMetadata, ReferencedMessage } from '@tzurot/common-types';
+import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types';
 
 // Set up mocks using async factories (vi.mock is hoisted before imports)
@@ -435,12 +436,15 @@ describe('ConversationalRAGService', () => {
     it('should format referenced messages when present', async () => {
       const referencedMessages: ReferencedMessage[] = [
         {
-          id: 'ref-1',
-          authorId: 'author-1',
-          authorName: 'Alice',
+          referenceNumber: 1,
+          discordMessageId: 'ref-1',
+          discordUserId: 'author-1',
+          authorUsername: 'alice',
+          authorDisplayName: 'Alice',
           content: 'Original message content',
-          timestamp: Date.now(),
-          referenceType: 'reply',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Server/Channel',
         },
       ];
       const context = createMockContext({ referencedMessages });
@@ -461,12 +465,15 @@ describe('ConversationalRAGService', () => {
     it('should extract text from references for memory search', async () => {
       const referencedMessages: ReferencedMessage[] = [
         {
-          id: 'ref-1',
-          authorId: 'author-1',
-          authorName: 'Bob',
+          referenceNumber: 1,
+          discordMessageId: 'ref-1',
+          discordUserId: 'author-1',
+          authorUsername: 'bob',
+          authorDisplayName: 'Bob',
           content: 'Context from referenced message',
-          timestamp: Date.now(),
-          referenceType: 'link',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Server/Channel',
         },
       ];
       const context = createMockContext({ referencedMessages });
@@ -482,12 +489,15 @@ describe('ConversationalRAGService', () => {
     it('should include reference text in search query', async () => {
       const referencedMessages: ReferencedMessage[] = [
         {
-          id: 'ref-1',
-          authorId: 'author-1',
-          authorName: 'Carol',
+          referenceNumber: 1,
+          discordMessageId: 'ref-1',
+          discordUserId: 'author-1',
+          authorUsername: 'carol',
+          authorDisplayName: 'Carol',
           content: 'Referenced content',
-          timestamp: Date.now(),
-          referenceType: 'reply',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Server/Channel',
         },
       ];
       const context = createMockContext({ referencedMessages });
@@ -506,12 +516,15 @@ describe('ConversationalRAGService', () => {
     it('should include formatted references in system prompt', async () => {
       const referencedMessages: ReferencedMessage[] = [
         {
-          id: 'ref-1',
-          authorId: 'author-1',
-          authorName: 'Dave',
+          referenceNumber: 1,
+          discordMessageId: 'ref-1',
+          discordUserId: 'author-1',
+          authorUsername: 'dave',
+          authorDisplayName: 'Dave',
           content: 'Important context',
-          timestamp: Date.now(),
-          referenceType: 'reply',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Server/Channel',
         },
       ];
       const context = createMockContext({ referencedMessages });
@@ -1219,10 +1232,11 @@ describe('ConversationalRAGService', () => {
       ];
 
       // Create preprocessed attachments with sourceDiscordMessageId matching history
-      const preprocessedAttachments = [
+      const preprocessedAttachments: ProcessedAttachment[] = [
         {
           type: AttachmentType.Image,
           description: 'A beautiful sunset over the ocean',
+          originalUrl: 'https://example.com/sunset.png',
           metadata: {
             url: 'https://example.com/sunset.png',
             contentType: CONTENT_TYPES.IMAGE_PNG,
@@ -1241,12 +1255,16 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'What do you see?', context);
 
       // Verify that the history entry was mutated to include imageDescriptions
-      expect(rawHistory[0].messageMetadata).toBeDefined();
-      expect(rawHistory[0].messageMetadata?.imageDescriptions).toEqual([
+      // The service mutates the history objects to add messageMetadata
+      const historyWithMetadata = rawHistory as unknown as Array<{
+        messageMetadata?: { imageDescriptions?: unknown[] };
+      }>;
+      expect(historyWithMetadata[0].messageMetadata).toBeDefined();
+      expect(historyWithMetadata[0].messageMetadata?.imageDescriptions).toEqual([
         { filename: 'sunset.png', description: 'A beautiful sunset over the ocean' },
       ]);
       // The second message should not have imageDescriptions
-      expect(rawHistory[1].messageMetadata).toBeUndefined();
+      expect(historyWithMetadata[1].messageMetadata).toBeUndefined();
     });
 
     it('should handle multiple images on the same message', async () => {
@@ -1262,10 +1280,11 @@ describe('ConversationalRAGService', () => {
         },
       ];
 
-      const preprocessedAttachments = [
+      const preprocessedAttachments: ProcessedAttachment[] = [
         {
           type: AttachmentType.Image,
           description: 'Mountain landscape with snow',
+          originalUrl: 'https://example.com/mountain.png',
           metadata: {
             url: 'https://example.com/mountain.png',
             contentType: CONTENT_TYPES.IMAGE_PNG,
@@ -1277,6 +1296,7 @@ describe('ConversationalRAGService', () => {
         {
           type: AttachmentType.Image,
           description: 'Beach with palm trees',
+          originalUrl: 'https://example.com/beach.png',
           metadata: {
             url: 'https://example.com/beach.png',
             contentType: CONTENT_TYPES.IMAGE_PNG,
@@ -1294,8 +1314,14 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Describe the photos', context);
 
-      expect(rawHistory[0].messageMetadata?.imageDescriptions).toHaveLength(2);
-      expect(rawHistory[0].messageMetadata?.imageDescriptions).toEqual([
+      expect(
+        (rawHistory[0] as { messageMetadata?: { imageDescriptions?: unknown[] } }).messageMetadata
+          ?.imageDescriptions
+      ).toHaveLength(2);
+      expect(
+        (rawHistory[0] as { messageMetadata?: { imageDescriptions?: unknown[] } }).messageMetadata
+          ?.imageDescriptions
+      ).toEqual([
         { filename: 'mountain.png', description: 'Mountain landscape with snow' },
         { filename: 'beach.png', description: 'Beach with palm trees' },
       ]);
@@ -1315,10 +1341,11 @@ describe('ConversationalRAGService', () => {
       ];
 
       // Attachment without sourceDiscordMessageId
-      const preprocessedAttachments = [
+      const preprocessedAttachments: ProcessedAttachment[] = [
         {
           type: AttachmentType.Image,
           description: 'An orphan image',
+          originalUrl: 'https://example.com/orphan.png',
           metadata: {
             url: 'https://example.com/orphan.png',
             contentType: CONTENT_TYPES.IMAGE_PNG,
@@ -1337,7 +1364,7 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context);
 
       // No injection should happen
-      expect(rawHistory[0].messageMetadata).toBeUndefined();
+      expect((rawHistory[0] as { messageMetadata?: unknown }).messageMetadata).toBeUndefined();
     });
 
     it('should handle empty preprocessedExtendedContextAttachments', async () => {
@@ -1361,7 +1388,7 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context);
 
       // Should complete without errors
-      expect(rawHistory[0].messageMetadata).toBeUndefined();
+      expect((rawHistory[0] as { messageMetadata?: unknown }).messageMetadata).toBeUndefined();
     });
 
     it('should handle undefined preprocessedExtendedContextAttachments', async () => {
@@ -1385,7 +1412,7 @@ describe('ConversationalRAGService', () => {
       await service.generateResponse(personality, 'Test', context);
 
       // Should complete without errors
-      expect(rawHistory[0].messageMetadata).toBeUndefined();
+      expect((rawHistory[0] as { messageMetadata?: unknown }).messageMetadata).toBeUndefined();
     });
 
     it('should use default filename when attachment name is undefined', async () => {
@@ -1401,10 +1428,11 @@ describe('ConversationalRAGService', () => {
         },
       ];
 
-      const preprocessedAttachments = [
+      const preprocessedAttachments: ProcessedAttachment[] = [
         {
           type: AttachmentType.Image,
           description: 'A mystery image',
+          originalUrl: 'https://example.com/unnamed.png',
           metadata: {
             url: 'https://example.com/unnamed.png',
             contentType: CONTENT_TYPES.IMAGE_PNG,
@@ -1422,9 +1450,10 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, 'Test', context);
 
-      expect(rawHistory[0].messageMetadata?.imageDescriptions).toEqual([
-        { filename: 'image', description: 'A mystery image' },
-      ]);
+      expect(
+        (rawHistory[0] as { messageMetadata?: { imageDescriptions?: unknown[] } }).messageMetadata
+          ?.imageDescriptions
+      ).toEqual([{ filename: 'image', description: 'A mystery image' }]);
     });
   });
 

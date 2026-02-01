@@ -63,10 +63,6 @@ describe('MemoryRetriever', () => {
     conversationalExamples: undefined,
   };
 
-  const baseContext: ConversationContext = {
-    userId: 'discord-user-123',
-  };
-
   beforeEach(() => {
     mockMemoryManager = {
       queryMemories: vi.fn().mockResolvedValue([]),
