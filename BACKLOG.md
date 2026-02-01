@@ -454,26 +454,9 @@ Files and functions creep toward ESLint limits over time. Proactive audit preven
 
 Added Redis-based `processed:${triggerMessageId}` check in `AIJobProcessor` to prevent duplicate replies. Uses SET NX EX with 1 hour TTL.
 
-### 🏗️ Verify Vector Index Usage
+### ✅ Verify Vector Index Usage (DONE)
 
-Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
-
-**Manual verification required** - Run via Railway console:
-
-```sql
--- Verify the HNSW index is being used for semantic search
-EXPLAIN ANALYZE
-SELECT m.id, m.content, m.embedding <=> '[0.1,0.2,...]'::vector AS distance
-FROM memories m
-WHERE m.persona_id = 'some-uuid'::uuid
-  AND m.visibility = 'normal'
-  AND m.embedding IS NOT NULL
-  AND m.embedding <=> '[0.1,0.2,...]'::vector < 0.3
-ORDER BY distance ASC
-LIMIT 10;
-```
-
-Expected: Should show "Index Scan using embedding_hnsw_idx" not "Seq Scan".
+Verified via EXPLAIN ANALYZE - index `idx_memories_embedding` is being used for semantic search. Execution time ~4ms across 22K+ memories.
 
 ### 🧹 Ops CLI Command Migration
 
