@@ -654,6 +654,27 @@ describe('handleButton', () => {
       expect(mockUpdatePreset).not.toHaveBeenCalled();
     });
 
+    it('should show error when preset not found during fresh fetch', async () => {
+      mockParseDashboardCustomId.mockReturnValue({
+        entityType: 'preset',
+        entityId: 'preset-123',
+        action: 'toggle-global',
+      });
+      mockSessionManagerGet.mockResolvedValue({
+        data: { id: 'preset-123', isGlobal: false, isOwned: true },
+      });
+      // Mock fetchPreset to return null (preset was deleted between session cache and toggle)
+      mockFetchPreset.mockResolvedValue(null);
+
+      await handleButton(createToggleButtonInteraction('preset::toggle-global::preset-123'));
+
+      expect(mockFollowUp).toHaveBeenCalledWith({
+        content: '❌ Preset not found.',
+        flags: MessageFlags.Ephemeral,
+      });
+      expect(mockUpdatePreset).not.toHaveBeenCalled();
+    });
+
     it('should show error on API failure', async () => {
       mockParseDashboardCustomId.mockReturnValue({
         entityType: 'preset',

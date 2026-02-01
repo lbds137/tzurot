@@ -26,21 +26,40 @@ const SEARCH_DEFAULTS = {
 } as const;
 
 /**
- * Validate date strings for search filters
- * Returns validated dates or an error message if validation fails
+ * Validate date strings for search filters.
+ * Requires full ISO 8601 format (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ).
+ * Rejects partial dates like '2024-01' to ensure consistent behavior with PostgreSQL.
  */
 function validateDateFilters(
   dateFrom: string | undefined,
   dateTo: string | undefined
 ): { dateFrom?: string; dateTo?: string } | { error: string } {
-  const isValidDate = (str: string): boolean => !Number.isNaN(new Date(str).getTime());
+  // Require full date format: YYYY-MM-DD with optional time component
+  // This prevents partial dates like '2024-01' which JS accepts but may behave unexpectedly
+  const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})?)?$/;
+
+  const isValidDate = (str: string): boolean => {
+    // First check format, then check if it parses to a valid date
+    if (!ISO_DATE_REGEX.test(str)) {
+      return false;
+    }
+    const date = new Date(str);
+    if (Number.isNaN(date.getTime())) {
+      return false;
+    }
+    // PostgreSQL timestamp range is 4713 BC to 294276 AD, but we use a reasonable range
+    // to prevent edge cases with extremely large/small years
+    const year = date.getUTCFullYear();
+    return year >= 1900 && year <= 2200;
+  };
+
   const hasValue = (str: string | undefined): str is string => str !== undefined && str.length > 0;
 
   if (hasValue(dateFrom) && !isValidDate(dateFrom)) {
-    return { error: 'dateFrom is not a valid date format' };
+    return { error: 'dateFrom must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)' };
   }
   if (hasValue(dateTo) && !isValidDate(dateTo)) {
-    return { error: 'dateTo is not a valid date format' };
+    return { error: 'dateTo must be a valid ISO 8601 date (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SSZ)' };
   }
 
   return {

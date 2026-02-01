@@ -445,6 +445,10 @@ export const generationPayloadSchema = z.object({
       lastSuccessfulStep: z.string().optional(),
       /** Error stack trace for debugging (only set on error) */
       errorStack: z.string().optional(),
+      /** Discord message ID that triggered the request (for idempotency tracking) */
+      triggerMessageId: z.string().optional(),
+      /** Reason processing was skipped (e.g., 'idempotency_check_failed') */
+      skipReason: z.string().optional(),
     })
     .optional(),
 });

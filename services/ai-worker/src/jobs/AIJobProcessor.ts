@@ -302,6 +302,10 @@ export class AIJobProcessor {
           requestId: job.data.requestId,
           success: false,
           error: 'Duplicate message - already processed',
+          metadata: {
+            triggerMessageId,
+            skipReason: 'idempotency_check_failed',
+          },
         };
       }
       lockAcquired = true;
