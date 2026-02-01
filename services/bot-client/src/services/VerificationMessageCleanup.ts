@@ -6,18 +6,10 @@
  * 2. Scheduled cleanup for messages approaching 13-day limit
  */
 
-import type {
-  Client,
-  DMChannel,
-  TextChannel,
-  NewsChannel,
-  PublicThreadChannel,
-  PrivateThreadChannel,
-  AnyThreadChannel,
-} from 'discord.js';
+import type { Client } from 'discord.js';
 import type { Redis } from 'ioredis';
-import { ChannelType } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import { isTextBasedMessageChannel } from '../utils/discordChannelTypes.js';
 import {
   getPendingVerificationMessages,
   clearPendingVerificationMessages,
@@ -158,16 +150,7 @@ export class VerificationMessageCleanup {
       const channel = await this.client.channels.fetch(msg.channelId);
 
       // Check if channel supports message operations (DM, GuildText, GuildNews, threads)
-      const isMessageChannel =
-        channel !== null &&
-        (channel.type === ChannelType.DM ||
-          channel.type === ChannelType.GuildText ||
-          channel.type === ChannelType.GuildNews ||
-          channel.type === ChannelType.PublicThread ||
-          channel.type === ChannelType.PrivateThread ||
-          channel.type === ChannelType.AnnouncementThread);
-
-      if (!isMessageChannel) {
+      if (!isTextBasedMessageChannel(channel)) {
         logger.debug(
           { messageId: msg.messageId, channelId: msg.channelId, channelType: channel?.type },
           '[VerificationCleanup] Channel not found or does not support message deletion'
@@ -175,14 +158,7 @@ export class VerificationMessageCleanup {
         return false;
       }
 
-      const textChannel = channel as
-        | DMChannel
-        | TextChannel
-        | NewsChannel
-        | PublicThreadChannel
-        | PrivateThreadChannel
-        | AnyThreadChannel;
-      const message = await textChannel.messages.fetch(msg.messageId);
+      const message = await channel.messages.fetch(msg.messageId);
       await message.delete();
 
       logger.debug(

@@ -33,4 +33,25 @@ export function registerInspectCommands(cli: CAC): void {
         });
       }
     );
+
+  cli
+    .command('dlq:view', 'View failed jobs in BullMQ dead letter queue')
+    .option('--env <env>', 'Environment: local, dev, or prod', { default: 'dev' })
+    .option('--queue <name>', 'Queue name', { default: 'ai-requests' })
+    .option('--limit <n>', 'Number of failed jobs to show', { default: 10 })
+    .option('--json', 'Output as JSON for scripting')
+    .example('pnpm ops dlq:view')
+    .example('pnpm ops dlq:view --env prod')
+    .example('pnpm ops dlq:view --limit 20 --json')
+    .action(
+      async (options: { env?: Environment; queue?: string; limit?: number; json?: boolean }) => {
+        const { viewDlq } = await import('../inspect/dlq.js');
+        await viewDlq({
+          env: options.env ?? 'dev',
+          queue: options.queue,
+          limit: options.limit,
+          json: options.json,
+        });
+      }
+    );
 }

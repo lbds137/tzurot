@@ -4,6 +4,12 @@
  * Analyzes the codebase for files and functions approaching ESLint complexity limits.
  * Runs ESLint with stricter thresholds (80% of actual limits) to catch issues early.
  *
+ * Usage:
+ *   pnpm ops complexity           # Human-readable report
+ *   pnpm ops complexity --verbose # Show all findings (not just top 5)
+ *   pnpm ops complexity --no-fail # Don't exit with error code
+ *   pnpm ops complexity --json    # Machine-readable JSON for CI dashboard integration
+ *
  * Actual ESLint limits:
  * - max-lines: 500 (error)
  * - max-lines-per-function: 100 (warn)
@@ -40,8 +46,11 @@ interface ESLintResult {
 }
 
 interface ReportOptions {
+  /** Show all findings instead of top 5 per category */
   verbose?: boolean;
+  /** Don't exit with error code even if items are at/over limit */
   noFail?: boolean;
+  /** Output machine-readable JSON (for CI dashboard integration) */
   json?: boolean;
 }
 

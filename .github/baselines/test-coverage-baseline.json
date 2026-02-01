@@ -1,7 +1,14 @@
 {
-  "version": 6,
-  "lastUpdated": "2026-01-30T21:23:23.054Z",
+  "version": 7,
+  "lastUpdated": "2026-02-01T01:45:41.921Z",
   "services": {
+    "detectedPrismaServices": [
+      "packages/common-types/src/services/ConversationHistoryService.ts",
+      "packages/common-types/src/services/ConversationRetentionService.ts",
+      "packages/common-types/src/services/ConversationSyncService.ts",
+      "packages/common-types/src/services/UserService.ts",
+      "services/ai-worker/src/services/LongTermMemoryService.ts"
+    ],
     "knownGaps": []
   },
   "contracts": {

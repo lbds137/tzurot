@@ -25,6 +25,30 @@ const SEARCH_DEFAULTS = {
   maxQueryLength: 500,
 } as const;
 
+/**
+ * Validate date strings for search filters
+ * Returns validated dates or an error message if validation fails
+ */
+function validateDateFilters(
+  dateFrom: string | undefined,
+  dateTo: string | undefined
+): { dateFrom?: string; dateTo?: string } | { error: string } {
+  const isValidDate = (str: string): boolean => !Number.isNaN(new Date(str).getTime());
+  const hasValue = (str: string | undefined): str is string => str !== undefined && str.length > 0;
+
+  if (hasValue(dateFrom) && !isValidDate(dateFrom)) {
+    return { error: 'dateFrom is not a valid date format' };
+  }
+  if (hasValue(dateTo) && !isValidDate(dateTo)) {
+    return { error: 'dateTo is not a valid date format' };
+  }
+
+  return {
+    dateFrom: hasValue(dateFrom) ? dateFrom : undefined,
+    dateTo: hasValue(dateTo) ? dateTo : undefined,
+  };
+}
+
 interface SearchRequest {
   query: string;
   personalityId?: string;
@@ -287,7 +311,19 @@ export async function handleSearch(
     return;
   }
 
-  const filters: SearchFilters = { personaId, personalityId, dateFrom, dateTo };
+  // Validate date strings to prevent PostgreSQL errors
+  const dateValidation = validateDateFilters(dateFrom, dateTo);
+  if ('error' in dateValidation) {
+    sendError(res, ErrorResponses.validationError(dateValidation.error));
+    return;
+  }
+
+  const filters: SearchFilters = {
+    personaId,
+    personalityId,
+    dateFrom: dateValidation.dateFrom,
+    dateTo: dateValidation.dateTo,
+  };
 
   let output: SearchOutput;
 
