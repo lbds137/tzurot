@@ -16,7 +16,9 @@ vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
     ...actual,
-    formatPromptTimestamp: vi.fn((date: Date) => {
+    formatPromptTimestamp: vi.fn((dateInput: Date | number | string) => {
+      // Convert input to Date if it's a number or string
+      const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
       // Mock format: "2024-01-15 (Mon) • 2 weeks ago"
       const options: Intl.DateTimeFormatOptions = {
         weekday: 'short',
@@ -39,7 +41,7 @@ describe('MemoryFormatter', () => {
         const memories: MemoryDocument[] = [
           {
             pageContent: 'Test memory',
-            metadata: { createdAt: new Date('2024-01-15') },
+            metadata: { createdAt: new Date('2024-01-15').getTime() },
           },
         ];
 
@@ -53,7 +55,7 @@ describe('MemoryFormatter', () => {
         const memories: MemoryDocument[] = [
           {
             pageContent: 'Test memory',
-            metadata: { createdAt: new Date('2024-01-15') },
+            metadata: { createdAt: new Date('2024-01-15').getTime() },
           },
         ];
 
@@ -74,8 +76,8 @@ describe('MemoryFormatter', () => {
 
       it('should have properly closed XML tags', () => {
         const memories: MemoryDocument[] = [
-          { pageContent: 'Memory 1', metadata: { createdAt: new Date('2024-01-15') } },
-          { pageContent: 'Memory 2', metadata: { createdAt: new Date('2024-01-16') } },
+          { pageContent: 'Memory 1', metadata: { createdAt: new Date('2024-01-15').getTime() } },
+          { pageContent: 'Memory 2', metadata: { createdAt: new Date('2024-01-16').getTime() } },
         ];
 
         const result = formatMemoriesContext(memories);
@@ -89,7 +91,10 @@ describe('MemoryFormatter', () => {
 
       it('should place instruction before memories', () => {
         const memories: MemoryDocument[] = [
-          { pageContent: 'Test memory content', metadata: { createdAt: new Date('2024-01-15') } },
+          {
+            pageContent: 'Test memory content',
+            metadata: { createdAt: new Date('2024-01-15').getTime() },
+          },
         ];
 
         const result = formatMemoriesContext(memories);
@@ -111,7 +116,7 @@ describe('MemoryFormatter', () => {
           pageContent: 'User likes pizza',
           metadata: {
             id: 'mem-1',
-            createdAt: new Date('2024-01-15T12:00:00Z'),
+            createdAt: new Date('2024-01-15T12:00:00Z').getTime(),
           },
         },
       ];
@@ -130,7 +135,7 @@ describe('MemoryFormatter', () => {
         {
           pageContent: 'Test memory',
           metadata: {
-            createdAt: new Date('2024-01-15'),
+            createdAt: new Date('2024-01-15').getTime(),
           },
         },
       ];
@@ -148,14 +153,14 @@ describe('MemoryFormatter', () => {
           pageContent: 'User likes pizza',
           metadata: {
             id: 'mem-1',
-            createdAt: new Date('2024-01-15T12:00:00Z'),
+            createdAt: new Date('2024-01-15T12:00:00Z').getTime(),
           },
         },
         {
           pageContent: 'User dislikes spam',
           metadata: {
             id: 'mem-2',
-            createdAt: new Date('2024-01-20T15:30:00Z'),
+            createdAt: new Date('2024-01-20T15:30:00Z').getTime(),
           },
         },
       ];
@@ -187,11 +192,12 @@ describe('MemoryFormatter', () => {
     });
 
     it('should handle memory with null createdAt', () => {
+      // Test edge case: runtime null value (not allowed by type but can happen from DB)
       const memories: MemoryDocument[] = [
         {
           pageContent: 'Memory with null timestamp',
           metadata: {
-            createdAt: null,
+            createdAt: null as unknown as undefined,
           },
         },
       ];
@@ -226,15 +232,15 @@ describe('MemoryFormatter', () => {
       const memories: MemoryDocument[] = [
         {
           pageContent: 'First memory',
-          metadata: { createdAt: new Date('2024-01-15') },
+          metadata: { createdAt: new Date('2024-01-15').getTime() },
         },
         {
           pageContent: 'Second memory',
-          metadata: { createdAt: new Date('2024-01-16') },
+          metadata: { createdAt: new Date('2024-01-16').getTime() },
         },
         {
           pageContent: 'Third memory',
-          metadata: { createdAt: new Date('2024-01-17') },
+          metadata: { createdAt: new Date('2024-01-17').getTime() },
         },
       ];
 
@@ -252,11 +258,11 @@ describe('MemoryFormatter', () => {
       const memories: MemoryDocument[] = [
         {
           pageContent: 'Memory one',
-          metadata: { createdAt: new Date('2024-01-15') },
+          metadata: { createdAt: new Date('2024-01-15').getTime() },
         },
         {
           pageContent: 'Memory two',
-          metadata: { createdAt: new Date('2024-01-16') },
+          metadata: { createdAt: new Date('2024-01-16').getTime() },
         },
       ];
 
@@ -270,7 +276,7 @@ describe('MemoryFormatter', () => {
       const memories: MemoryDocument[] = [
         {
           pageContent: 'Memory with timestamp',
-          metadata: { createdAt: new Date('2024-01-15') },
+          metadata: { createdAt: new Date('2024-01-15').getTime() },
         },
         {
           pageContent: 'Memory without timestamp',
@@ -278,7 +284,7 @@ describe('MemoryFormatter', () => {
         },
         {
           pageContent: 'Another with timestamp',
-          metadata: { createdAt: new Date('2024-01-16') },
+          metadata: { createdAt: new Date('2024-01-16').getTime() },
         },
       ];
 
@@ -294,7 +300,7 @@ describe('MemoryFormatter', () => {
     it('should format memory with timestamp as XML with unified t attribute', () => {
       const doc: MemoryDocument = {
         pageContent: 'Test memory content',
-        metadata: { createdAt: new Date('2024-01-15') },
+        metadata: { createdAt: new Date('2024-01-15').getTime() },
       };
 
       const result = formatSingleMemory(doc);

@@ -9,7 +9,6 @@ import {
   BaseCacheInvalidationService,
   createStandardEventValidator,
   type StandardInvalidationEvent,
-  type BaseInvalidationEvent,
   type EventValidator,
 } from './BaseCacheInvalidationService.js';
 

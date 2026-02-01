@@ -19,9 +19,9 @@ import {
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
+  type AnyJobData,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
-  type LLMGenerationResult,
 } from '@tzurot/common-types';
 
 // Mock modules
@@ -176,7 +176,7 @@ describe('AIJobProcessor', () => {
       const audioResult: AudioTranscriptionResult = {
         requestId: 'req-audio-123',
         success: true,
-        transcript: 'Hello, this is a voice message',
+        content: 'Hello, this is a voice message',
         metadata: {
           processingTimeMs: 1500,
         },
@@ -287,7 +287,9 @@ describe('AIJobProcessor', () => {
       const imageResult: ImageDescriptionResult = {
         requestId: 'req-image-123',
         success: true,
-        descriptions: ['A beautiful landscape photo'],
+        descriptions: [
+          { url: 'https://example.com/image.jpg', description: 'A beautiful landscape photo' },
+        ],
         metadata: {
           processingTimeMs: 2000,
           imageCount: 1,
@@ -357,12 +359,13 @@ describe('AIJobProcessor', () => {
 
     describe('unknown job types', () => {
       it('should throw error for unknown job type', async () => {
+        // Use type assertion to bypass type checking - we're testing invalid input handling
         const unknownJobData = {
           requestId: 'req-unknown-123',
           jobType: 'unknown-type' as JobType,
           context: baseContext,
           responseDestination: baseResponseDestination,
-        };
+        } as unknown as AnyJobData;
         const job = createMockJob(unknownJobData, 'unknown-job-123');
 
         await expect(processor.processJob(job)).rejects.toThrow('Unknown job type: unknown-type');
@@ -401,7 +404,8 @@ describe('AIJobProcessor', () => {
       const result = await processor.processJob(job);
 
       expect(result.success).toBe(true);
-      expect(result.content).toBe('AI response');
+      // Narrow type to access content property
+      expect('content' in result && result.content).toBe('AI response');
     });
 
     it('should log usage when job succeeds with userInternalId', async () => {
@@ -526,7 +530,7 @@ describe('AIJobProcessor', () => {
       // First call fails, second succeeds
       vi.mocked(mockPrisma.usageLog.create)
         .mockRejectedValueOnce(new Error('Transient error'))
-        .mockResolvedValueOnce({ id: 'usage-123' } as ReturnType<
+        .mockResolvedValueOnce({ id: 'usage-123' } as unknown as ReturnType<
           typeof mockPrisma.usageLog.create
         >);
 
@@ -544,7 +548,7 @@ describe('AIJobProcessor', () => {
       vi.mocked(mockPrisma.usageLog.create)
         .mockRejectedValueOnce(new Error('Transient error 1'))
         .mockRejectedValueOnce(new Error('Transient error 2'))
-        .mockResolvedValueOnce({ id: 'usage-123' } as ReturnType<
+        .mockResolvedValueOnce({ id: 'usage-123' } as unknown as ReturnType<
           typeof mockPrisma.usageLog.create
         >);
 
@@ -657,7 +661,7 @@ describe('AIJobProcessor', () => {
       vi.mocked(processAudioTranscriptionJob).mockResolvedValue({
         requestId: 'req-audio-123',
         success: true,
-        transcript: 'Test transcript',
+        content: 'Test transcript',
       });
 
       const audioJobData: AudioTranscriptionJobData = {
@@ -685,7 +689,7 @@ describe('AIJobProcessor', () => {
       vi.mocked(processAudioTranscriptionJob).mockResolvedValue({
         requestId: 'req-audio-123',
         success: true,
-        transcript: 'Test transcript',
+        content: 'Test transcript',
       });
       vi.mocked(mockPrisma.jobResult.create).mockRejectedValue(
         new Error('Database connection failed')
@@ -714,7 +718,7 @@ describe('AIJobProcessor', () => {
       vi.mocked(processAudioTranscriptionJob).mockResolvedValue({
         requestId: 'req-audio-123',
         success: true,
-        transcript: 'Test transcript',
+        content: 'Test transcript',
       });
       vi.mocked(redisService.publishJobResult).mockRejectedValue(
         new Error('Redis connection failed')

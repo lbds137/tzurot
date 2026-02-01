@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { VoiceTranscriptCache } from '@tzurot/common-types';
+import { VoiceTranscriptCache } from './VoiceTranscriptCache.js';
 import { setupTestEnvironment, type TestEnvironment } from '@tzurot/test-utils';
 
 describe('VoiceTranscriptCache Integration', () => {

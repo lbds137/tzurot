@@ -264,7 +264,7 @@ describe('AIJobProcessor Component Test', () => {
       } as Job<LLMGenerationJobData>;
 
       // Process the job
-      const result = await jobProcessor.processJob(mockJob);
+      await jobProcessor.processJob(mockJob);
 
       // Verify RAG service was called with conversation history
       expect(mockRagService.generateResponse).toHaveBeenCalledTimes(1);
