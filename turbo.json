@@ -34,6 +34,12 @@
       "outputs": [],
       "cache": true
     },
+    "typecheck:spec": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tsconfig.json", "tsconfig.spec.json"],
+      "outputs": [],
+      "cache": true
+    },
     "dev": {
       "cache": false,
       "persistent": true
