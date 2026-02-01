@@ -160,10 +160,6 @@ Same resource returns different fields from GET vs POST vs PUT.
 
 - [ ] Shared response builder functions per resource type
 
-#### ✅ Date String Validation for Memory Search (DONE)
-
-Added date validation to memory search - invalid dates now return validation errors.
-
 #### 🏗️ Zod Schema/TypeScript Interface Mismatch
 
 Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data disappears.
@@ -196,10 +192,6 @@ Add event types: `rate_limit_hit`, `dedup_cache_hit`, `pipeline_step_failed`, `l
 #### ✨ Admin Debug Filtering
 
 Add `/admin debug recent` with personality/user/channel filters.
-
-#### ✅ DLQ Viewing Script (DONE)
-
-Added `pnpm ops dlq:view` command to inspect failed BullMQ jobs.
 
 #### 🏗️ Metrics & Monitoring (Prometheus)
 
@@ -401,10 +393,6 @@ From beta.54 code review observations:
 
 SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
 
-### ✅ Dashboard Refresh Race Condition (DONE)
-
-Fixed preset dashboard `handleToggleGlobalButton` to fetch fresh data before toggling, preventing race condition when `isGlobal` changed in another session.
-
 ### 🏗️ Database-Configurable Model Capabilities
 
 Currently, model capability detection (stop sequence support, reasoning model detection) is hardcoded in `LLMInvoker.ts` and `reasoningModelUtils.ts`. When OpenRouter adds/changes models, we need code deployments.
@@ -423,10 +411,6 @@ Re-exports create spaghetti code and obscure module dependencies.
 - [ ] Audit existing re-exports in `utils/` index files
 - [ ] Eliminate non-essential re-exports
 - [ ] Exception: Package entry points (e.g., `@tzurot/common-types`)
-
-### ✅ Extract Shared Channel Type Utilities (DONE)
-
-Created `discordChannelTypes.ts` with `isThreadChannel()`, `getThreadParent()`, and `isTextBasedMessageChannel()`. Refactored nsfwVerification.ts and VerificationMessageCleanup.ts to use shared utilities.
 
 ### 🏗️ Split Large Service Files
 
@@ -449,14 +433,6 @@ Files and functions creep toward ESLint limits over time. Proactive audit preven
 - [ ] Schedule quarterly or after major features
 
 **Trigger**: ConversationalRAGService.ts hit max-statements during beta.59 review feedback
-
-### ✅ Job Idempotency Check (DONE)
-
-Added Redis-based `processed:${triggerMessageId}` check in `AIJobProcessor` to prevent duplicate replies. Uses SET NX EX with 1 hour TTL.
-
-### ✅ Verify Vector Index Usage (DONE)
-
-Verified via EXPLAIN ANALYZE - index `idx_memories_embedding` is being used for semantic search. Execution time ~4ms across 22K+ memories.
 
 ### 🧹 Ops CLI Command Migration
 
@@ -526,13 +502,6 @@ Service integration test coverage is now tracked via `test-coverage-baseline.jso
 Run `pnpm ops test:audit --category=services` to check coverage.
 
 _Note: Services without direct Prisma calls are auto-excluded from the audit._
-
-### 🧹 Test Tooling Polish
-
-Minor improvements from PR #547 review:
-
-- [x] Add `servicesWithPrisma` array to `test-coverage-baseline.json` showing which services were detected (for audit transparency)
-- [x] Document `--json` flag use case in `complexity-report.ts` (intended for CI dashboard integration)
 
 ### 🏗️ Audit Integration Tests for Manual Table Creation
 
