@@ -451,6 +451,38 @@ describe('ModelFactory', () => {
     // OpenRouter-specific parameters (via custom fetch)
     // ===================================
 
+    it('should use custom fetch when showThinking is true (for include_reasoning)', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        showThinking: true,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      // showThinking: true should trigger custom fetch for include_reasoning injection
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+    });
+
+    it('should NOT use custom fetch when showThinking is false or undefined', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        showThinking: false,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      // No custom fetch when showThinking is false and no other OpenRouter params
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
+    });
+
     it('should use custom fetch for transforms', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
