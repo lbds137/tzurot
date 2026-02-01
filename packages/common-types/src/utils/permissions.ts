@@ -67,6 +67,7 @@ export function computeLlmConfigPermissions(
   requestingUserId: string | null,
   discordUserId: string
 ): EntityPermissions {
+  // Creator check: requestingUserId must be non-null and match ownerId
   const isCreator = requestingUserId !== null && config.ownerId === requestingUserId;
   const isAdmin = isBotOwner(discordUserId);
 

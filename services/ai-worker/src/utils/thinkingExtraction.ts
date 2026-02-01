@@ -173,13 +173,15 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
 
   // Clean up "chimera artifacts" - short garbage fragments before orphan closing tags.
   // Some merged/chimera models (e.g., tng-r1t-chimera) output a stutter pattern:
-  // </reasoning> + short fragment (1-10 chars, often echoing end of thinking) + </think>
+  // </reasoning> + short fragment ending in period (echoing end of thinking) + </think>
   // Example: "</reasoning>\n\nsm.\n</think>\n\n*response*"
   // After <reasoning> extraction, this leaves: "sm.\n</think>\n\n*response*"
+  // Observed patterns: "sm.", "ys.", "ng.", "g.", "." - all end with a period.
   // The fragment is structurally invalid (nothing should exist between closing tags).
-  // Pattern: start/newline -> optional whitespace -> 1-10 non-ws chars -> whitespace -> orphan tag
+  // Pattern: start/newline -> whitespace -> 0-9 chars + period -> whitespace -> orphan tag
+  // Requiring a trailing period prevents false positives on legitimate short responses.
   const CHIMERA_ARTIFACT_PATTERN =
-    /(?:^|[\r\n])[\s]*[^\s<]{1,10}[\s]*<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+    /(?:^|[\r\n])[\s]*[^\s<.]{0,9}\.[\s]*<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
   visibleContent = visibleContent.replace(CHIMERA_ARTIFACT_PATTERN, '');
 
   // Clean up any remaining orphan closing tags (e.g., multiple orphans or mid-content)
