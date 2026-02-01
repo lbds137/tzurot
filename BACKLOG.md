@@ -63,6 +63,15 @@ Global preset edit incorrectly checks admin/bot owner status. Should only check 
 
 **Files**: `services/api-gateway/src/routes/user/llm-config.ts` (likely)
 
+### 🐛 /character chat Errors with Message
+
+Using `/character chat` with a message parameter errors out with empty error object `{}`. Without a message it works but uses free tier instead of user's API key.
+
+- [ ] Debug empty error in character chat with message
+- [ ] Fix API key resolution for /character chat (not using user's BYOK key)
+
+**Files**: `services/bot-client/src/commands/character/chat.ts`
+
 ### 🏗️ ConversationalRAGService Refactor
 
 The main RAG orchestration service is a 890-line monster (limit: 500). It coordinates multiple components but has accumulated complexity that makes debugging nightmares like the thinking bug possible.
