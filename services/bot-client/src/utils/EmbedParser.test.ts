@@ -2,6 +2,7 @@
  * Tests for EmbedParser
  */
 
+import { describe, it, expect } from 'vitest';
 import { APIEmbed, Message } from 'discord.js';
 import { EmbedParser } from './EmbedParser.js';
 
