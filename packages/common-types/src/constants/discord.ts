@@ -202,4 +202,8 @@ export const BOT_FOOTER_PATTERNS = {
   GUEST_MODE: /(?:^|\n)-# 🆓 Using free model \(no API key required\)/g,
   /** Auto-response indicator (standalone) */
   AUTO_RESPONSE: /(?:^|\n)-# 📍 auto-response/g,
+  /** Focus mode indicator (LTM retrieval disabled) */
+  FOCUS_MODE: /(?:^|\n)-# 🔒 Focus Mode • LTM retrieval disabled/g,
+  /** Incognito mode indicator (memories not saved) */
+  INCOGNITO_MODE: /(?:^|\n)-# 👻 Incognito Mode • Memories not being saved/g,
 } as const;
