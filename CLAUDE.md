@@ -54,6 +54,24 @@ The goal of using shared utilities is NOT just code reduction - it's ensuring th
 - When solving a problem, implement the proper solution—not documentation describing the limitation
 - This is a monorepo: changes often ripple across packages. Check impact in `services/`, `packages/`, and infrastructure files
 
+### Verify Before Accepting External Feedback
+
+**NEVER blindly accept code review suggestions without verifying against source of truth.**
+
+Automated reviewers (claude-bot, Copilot, etc.) and even human reviewers can be wrong. Before implementing any suggested change:
+
+- **Check the schema** - If reviewer suggests changing a type (e.g., `string` to `string | null`), verify in Prisma schema
+- **Check the source** - If reviewer claims something about behavior, verify in the actual code
+- **Check the tests** - Existing tests often encode correct behavior assumptions
+
+**Red flags that require verification:**
+
+- "This should allow null" → Check if schema/DB allows null
+- "This type is wrong" → Verify against actual type definitions
+- "This validation is missing" → Check if validation exists elsewhere
+
+**Example incident:** Reviewer suggested `ownerId: string | null` for LlmConfig permissions. Blindly accepted without checking Prisma schema, which clearly shows `ownerId String` (non-nullable). Caught by user before merge.
+
 ### Use MCP Council When Stuck
 
 **When stuck on a problem, consult MCP council instead of taking shortcuts.**
@@ -530,20 +548,21 @@ execSync('git log --oneline -5');
 
 ## Post-Mortems
 
-| Date       | Incident                      | Rule                                |
-| ---------- | ----------------------------- | ----------------------------------- |
-| 2026-01-30 | Gitignored data/ deleted      | NEVER rm -rf without explicit okay  |
-| 2026-01-30 | Work reverted without consent | Never abandon/revert without asking |
-| 2026-01-28 | Error metadata missing model  | Update both producer and consumer   |
-| 2026-01-24 | execSync with string commands | Use execFileSync with arrays        |
-| 2026-01-17 | Wrong branch migration deploy | Run migrations from correct branch  |
-| 2026-01-17 | Dockerfile missed new package | Use Grep Rule for all infra files   |
-| 2026-01-07 | PR merged without approval    | Never merge PRs without user okay   |
-| 2025-07-25 | Untested push broke develop   | Always run tests before pushing     |
-| 2025-07-21 | Git restore destroyed work    | Confirm before destructive git      |
-| 2025-10-31 | DB URL committed              | Never commit database URLs          |
-| 2025-12-05 | Direct fetch broke /character | Use gateway clients                 |
-| 2025-12-06 | API contract mismatch         | Use shared Zod schemas              |
+| Date       | Incident                        | Rule                                       |
+| ---------- | ------------------------------- | ------------------------------------------ |
+| 2026-02-01 | Accepted wrong type from review | Verify reviewer suggestions against schema |
+| 2026-01-30 | Gitignored data/ deleted        | NEVER rm -rf without explicit okay         |
+| 2026-01-30 | Work reverted without consent   | Never abandon/revert without asking        |
+| 2026-01-28 | Error metadata missing model    | Update both producer and consumer          |
+| 2026-01-24 | execSync with string commands   | Use execFileSync with arrays               |
+| 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch         |
+| 2026-01-17 | Dockerfile missed new package   | Use Grep Rule for all infra files          |
+| 2026-01-07 | PR merged without approval      | Never merge PRs without user okay          |
+| 2025-07-25 | Untested push broke develop     | Always run tests before pushing            |
+| 2025-07-21 | Git restore destroyed work      | Confirm before destructive git             |
+| 2025-10-31 | DB URL committed                | Never commit database URLs                 |
+| 2025-12-05 | Direct fetch broke /character   | Use gateway clients                        |
+| 2025-12-06 | API contract mismatch           | Use shared Zod schemas                     |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 
