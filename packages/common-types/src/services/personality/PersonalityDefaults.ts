@@ -79,14 +79,16 @@ function getMemoryAndVisionConfig(
 }
 
 /**
- * Get reasoning/thinking display config
+ * Get reasoning/thinking config
+ * Includes both display preference (showThinking) and reasoning token config (reasoning)
  */
 function getReasoningConfig(
   pc: MappedLlmConfig | null,
   gc: MappedLlmConfig | null
-): Pick<LoadedPersonality, 'showThinking'> {
+): Pick<LoadedPersonality, 'showThinking' | 'reasoning'> {
   return {
     showThinking: getConfigValue(pc?.showThinking, gc?.showThinking),
+    reasoning: getConfigValue(pc?.reasoning, gc?.reasoning),
   };
 }
 

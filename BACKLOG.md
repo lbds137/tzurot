@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-01-31
-> **Version**: v3.0.0-beta.61
+> **Last Updated**: 2026-02-01
+> **Version**: v3.0.0-beta.62
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -21,6 +21,48 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
+### 🏗️ LLM Config Single Source of Truth (CRITICAL)
+
+**Root cause of thinking/reasoning breakage in beta.60-62.** Config field definitions are scattered across 5+ files that must stay in sync manually. When `reasoning` was added, it was missed in `PersonalityDefaults.getReasoningConfig()`, causing silent data loss.
+
+**Current duplication**:
+
+- `LlmConfigMapper.advancedParamsToConfigFormat()` - DB JSONB → app format
+- `PersonalityDefaults.get*Config()` functions - personality mapping
+- `LlmConfigResolver.mergeConfig()` / `extractConfig()` - override merging
+- `LLM_CONFIG_OVERRIDE_KEYS` array - list of mergeable keys
+- `DiagnosticCollector.recordLlmConfig()` - diagnostic capture
+
+**Solution**: Single source of truth (probably `LLM_CONFIG_OVERRIDE_KEYS`) driving all other code via typed iteration.
+
+- [ ] Define canonical field list with metadata (type, default, category)
+- [ ] Generate/derive all config copying from this list
+- [ ] Remove manual field enumeration in PersonalityDefaults
+- [ ] Add test that verifies all paths handle the same fields
+
+**Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`
+
+### 🏗️ ConversationalRAGService Refactor
+
+The main RAG orchestration service is a 890-line monster (limit: 500). It coordinates multiple components but has accumulated complexity that makes debugging nightmares like the thinking bug possible.
+
+- [ ] Extract ThinkingProcessor - all thinking/reasoning extraction
+- [ ] Extract PromptAssembler - system prompt + context building
+- [ ] Extract MemoryManager - LTM retrieval and storage
+- [ ] Extract ResponseProcessor - deduplication, stripping, placeholders
+- [ ] Break down `generateResponse` method (currently 180+ lines)
+- [ ] After refactor: add integration tests (currently has @audit-ignore)
+
+**Files**: `services/ai-worker/src/services/ConversationalRAGService.ts`
+
+### 🏗️ Large File Audit and Refactor
+
+Multiple files exceed the 500-line limit. Each is a maintenance burden and bug hiding spot.
+
+- [ ] Run `pnpm ops lint:large-files` to identify all violations
+- [ ] Prioritize by: frequency of changes × size × complexity
+- [ ] Extract helpers, split responsibilities, reduce coupling
+
 ### ✨ Multi-Personality Per Channel
 
 Allow multiple personalities active in a single channel.
@@ -35,18 +77,6 @@ Allow multiple personalities active in a single channel.
 ## Medium Priority
 
 _Significant refactors that can wait._
-
-### 🏗️ ConversationalRAGService Refactor
-
-The main RAG orchestration service has grown unwieldy (~900 lines, max-lines override). It coordinates multiple components but has accumulated complexity. Needs refactoring before adding integration tests.
-
-- [ ] Break down `generateResponse` method (currently 180+ lines)
-- [ ] Extract model invocation logic to separate service
-- [ ] Reduce parameter passing (options objects instead of many params)
-- [ ] Consider splitting orchestration vs actual response generation
-- [ ] After refactor: add integration tests (currently has @audit-ignore)
-
-**Files**: `services/ai-worker/src/services/ConversationalRAGService.ts`
 
 ### 🏗️ Extended Context Pipeline Refactor
 
