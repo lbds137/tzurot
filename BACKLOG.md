@@ -21,6 +21,39 @@ _(Empty - triage complete)_
 
 _Top 3-5 items to pull into CURRENT next._
 
+### 🏗️ Static Analysis & DRY Detection (NEXT PR)
+
+**Problem**: DRY violations are causing production bugs (footer handling scattered across 4+ files). No tooling to detect duplicates or code quality issues at scale. AI assistance accelerates code generation but has no memory of existing patterns, leading to accidental duplication.
+
+**Phase 1: Stop the Bleeding (Immediate)**
+
+- [ ] Install `jscpd` for copy-paste detection across monorepo
+- [ ] Run initial scan, identify top offenders
+- [ ] Add `pnpm check:dupes` script to package.json
+- [ ] Install `eslint-plugin-sonarjs` for cognitive complexity rules
+- [ ] Enable `sonarjs/no-identical-functions` and `sonarjs/no-duplicate-string`
+
+**Phase 2: AI Context Bridge (Process)**
+
+- [ ] Create repo mapping script that generates `CONTEXT.md` (exports by file)
+- [ ] Document workflow: paste map before asking AI to write new features
+- [ ] Consider ast-grep for semantic pattern matching (future)
+
+**Phase 3: Safety Net (CI/CD)**
+
+- [ ] Add jscpd to CI pipeline (block on high duplication %)
+- [ ] Consider pre-commit hook if scan is fast enough
+- [ ] Review `max-lines` threshold (currently 500, consider lowering)
+
+**Tools to evaluate**:
+
+- `jscpd` - Copy-paste detector (highest priority)
+- `eslint-plugin-sonarjs` - SonarQube rules for ESLint
+- `ast-grep` - Semantic code search (for domain-specific patterns)
+- `typhonjs-escomplex` - Complexity visualization
+
+**References**: MCP council brainstorm session 2026-02-01
+
 ### 🏗️ LLM Config Single Source of Truth (CRITICAL)
 
 **Root cause of thinking/reasoning breakage in beta.60-62.** Config field definitions are scattered across 5+ files that must stay in sync manually. When `reasoning` was added, it was missed in `PersonalityDefaults.getReasoningConfig()`, causing silent data loss.
