@@ -81,14 +81,6 @@ Prevents bot from spamming unwanted channels, reduces server kicks.
 - [ ] Middleware check in message handler
 - [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
 
-### ✨ Message Reactions in XML
-
-Add reaction metadata to extended context messages showing emoji and who reacted.
-
-- [ ] Extract reactions from Discord messages
-- [ ] Format as XML metadata (use same user/persona resolution as elsewhere)
-- [ ] Include in extended context output
-
 ### ✨ Multi-Character Invocation Per Message
 
 Support tagging multiple characters in one message, each responding in order.
@@ -181,6 +173,21 @@ Zod strips fields not in schema. When we add fields to TS interfaces but forget 
 - [ ] Audit: `schemas.ts`, `jobs.ts`, route schemas
 
 ### Observability & Debugging
+
+#### ✨ Stop Sequence Stats Admin Command
+
+Expose stop sequence activation stats via `/admin stats stop-sequences`.
+
+**Current state**: `StopSequenceTracker` in ai-worker tracks activations in-memory and logs to structured JSON (`json.event="stop_sequence_triggered"`). Stats accessible via `getStopSequenceStats()` but not exposed to bot-client.
+
+**Implementation plan**:
+
+- [ ] Store stats in Redis (ai-worker writes on each activation)
+- [ ] Add gateway endpoint `GET /admin/stop-sequence-stats`
+- [ ] Add `/admin stats` subcommand with `stop-sequences` option
+- [ ] Display: total activations, by sequence, by model, uptime
+
+**Files**: `StopSequenceTracker.ts`, `api-gateway/routes/admin/`, `bot-client/commands/admin/`
 
 #### 🏗️ Basic Structured Logging
 
