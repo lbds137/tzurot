@@ -307,6 +307,32 @@ The answer is 42.`;
       expect(result.visibleContent).not.toContain('</');
       expect(result.blockCount).toBe(0);
     });
+
+    it('should extract content before orphan closing tag as thinking (Kimi K2.5 bug)', () => {
+      // Kimi K2.5 outputs thinking content without opening <think> tag, just closes with </think>
+      const content =
+        'The user is asking about X. I should analyze Y and respond with Z. </think> *Here is my actual response.*';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe(
+        'The user is asking about X. I should analyze Y and respond with Z.'
+      );
+      expect(result.visibleContent).toBe('*Here is my actual response.*');
+      expect(result.visibleContent).not.toContain('</think>');
+      expect(result.visibleContent).not.toContain('I should analyze');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should prefer complete tags over orphan closing tags', () => {
+      // If we have complete tags, don't also extract orphan content
+      const content = '<think>Complete thought.</think>Answer. More thinking</think>Final.';
+      const result = extractThinkingBlocks(content);
+
+      // Only the complete tag should be extracted
+      expect(result.thinkingContent).toBe('Complete thought.');
+      expect(result.visibleContent).toContain('Answer.');
+      expect(result.blockCount).toBe(1);
+    });
   });
 
   describe('real-world examples', () => {
