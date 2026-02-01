@@ -73,6 +73,8 @@ Using `/character chat` with a message parameter errors out with empty error obj
 
 **Hypothesis**: Webhook/bot identity confusion when mixing dev and prod bots in same channel. Bot may not recognize its own webhooks since it's a different bot instance, causing user/context resolution issues.
 
+**Confirmed**: Fails in prod too when channel has another bot's webhooks present.
+
 - [ ] Debug empty error in character chat with message
 - [ ] Fix API key resolution for /character chat (not using user's BYOK key)
 - [ ] Check if webhook ownership validation is causing user context issues
