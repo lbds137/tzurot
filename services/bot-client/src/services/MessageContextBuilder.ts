@@ -423,17 +423,22 @@ export class MessageContextBuilder {
       }
     );
 
-    // Create personas for extended context users and resolve discord:XXXX personaIds to UUIDs
-    if (
-      fetchResult.extendedContextUsers !== undefined &&
-      fetchResult.extendedContextUsers.length > 0
-    ) {
-      const userMap = await this.userService.getOrCreateUsersInBatch(
-        fetchResult.extendedContextUsers
-      );
+    // Create personas for extended context users AND reactor users
+    // Combine both arrays to handle in a single batch (reactors are users who reacted to messages)
+    const usersToResolve = [
+      ...(fetchResult.extendedContextUsers ?? []),
+      ...(fetchResult.reactorUsers ?? []),
+    ];
+    if (usersToResolve.length > 0) {
+      const userMap = await this.userService.getOrCreateUsersInBatch(usersToResolve);
       logger.debug(
-        { requested: fetchResult.extendedContextUsers.length, created: userMap.size },
-        '[MessageContextBuilder] Batch created personas for extended context users'
+        {
+          requested: usersToResolve.length,
+          extendedContextCount: fetchResult.extendedContextUsers?.length ?? 0,
+          reactorCount: fetchResult.reactorUsers?.length ?? 0,
+          created: userMap.size,
+        },
+        '[MessageContextBuilder] Batch created personas for extended context and reactor users'
       );
 
       // Resolve personaIds and remap participantGuildInfo keys

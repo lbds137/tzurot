@@ -17,6 +17,7 @@ import {
   formatTimeGapMarker,
   type StoredReferencedMessage,
   type TimeGapConfig,
+  type MessageReaction,
 } from '@tzurot/common-types';
 
 const logger = createLogger('conversationUtils');
@@ -214,6 +215,8 @@ export interface RawHistoryEntry {
     embedsXml?: string[];
     /** Voice transcripts for extended context messages */
     voiceTranscripts?: string[];
+    /** Reactions on this message (emoji + who reacted) */
+    reactions?: MessageReaction[];
   };
   // AI personality info (for multi-AI channel attribution)
   /** The AI personality ID this message belongs to */
@@ -460,9 +463,23 @@ export function formatSingleHistoryEntryAsXml(
     voiceSection = `\n<voice_transcripts>\n${transcripts}\n</voice_transcripts>`;
   }
 
+  // Format reactions from messageMetadata (extended context messages)
+  // Shows who reacted with what emoji - provides social context
+  let reactionsSection = '';
+  if (msg.messageMetadata?.reactions !== undefined && msg.messageMetadata.reactions.length > 0) {
+    const formattedReactions = msg.messageMetadata.reactions
+      .map(reaction => {
+        const emojiAttr = reaction.isCustom === true ? ' custom="true"' : '';
+        const reactorNames = reaction.reactors.map(r => escapeXml(r.displayName)).join(', ');
+        return `<reaction emoji="${escapeXml(reaction.emoji)}"${emojiAttr}>${reactorNames}</reaction>`;
+      })
+      .join('\n');
+    reactionsSection = `\n<reactions>\n${formattedReactions}\n</reactions>`;
+  }
+
   // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago" forwarded="true">content</message>
   // from_id links to <participant id="..."> for identity binding
-  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}</message>`;
+  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}${reactionsSection}</message>`;
 }
 
 /**
@@ -709,6 +726,20 @@ export function getFormattedMessageCharLength(
     // Add length for each transcript
     for (const transcript of msg.messageMetadata.voiceTranscripts) {
       totalLength += `<transcript>${transcript}</transcript>\n`.length;
+    }
+  }
+
+  // Add length for reactions if present (extended context)
+  if (msg.messageMetadata?.reactions !== undefined && msg.messageMetadata.reactions.length > 0) {
+    // Account for <reactions> wrapper
+    totalLength += '\n<reactions>\n</reactions>'.length;
+
+    // Add length for each reaction
+    for (const reaction of msg.messageMetadata.reactions) {
+      const customAttr = reaction.isCustom === true ? ' custom="true"' : '';
+      const reactorNames = reaction.reactors.map(r => r.displayName).join(', ');
+      totalLength += `<reaction emoji="${reaction.emoji}"${customAttr}>${reactorNames}</reaction>\n`
+        .length;
     }
   }
 
