@@ -5,7 +5,9 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DiscordResponseSender } from './DiscordResponseSender.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
+import type { Message } from 'discord.js';
 import { TextChannel, ThreadChannel } from 'discord.js';
+import type { WebhookManager } from '../utils/WebhookManager.js';
 
 // Mock dependencies
 vi.mock('../redis.js', () => ({
@@ -48,15 +50,17 @@ describe('DiscordResponseSender', () => {
       id: 'personality-123',
       name: 'TestBot',
       displayName: 'Test Bot',
+      slug: 'testbot',
       systemPrompt: 'You are a test bot',
-      llmConfig: {
-        model: 'test-model',
-        temperature: 0.7,
-        maxTokens: 1000,
-      },
+      model: 'test-model',
+      temperature: 0.7,
+      maxTokens: 1000,
+      contextWindowTokens: 4000,
+      characterInfo: 'Test bot character',
+      personalityTraits: 'Helpful',
     } as LoadedPersonality;
 
-    sender = new DiscordResponseSender(mockWebhookManager);
+    sender = new DiscordResponseSender(mockWebhookManager as unknown as WebhookManager);
   });
 
   describe('sendResponse - Webhook Channel', () => {
@@ -1043,10 +1047,10 @@ function createMockThreadChannel(id: string) {
   return mockChannel;
 }
 
-function createMockMessage(channel: any, guild: { id: string } | null) {
+function createMockMessage(channel: unknown, guild: { id: string } | null): Message<boolean> {
   return {
     channel,
     guild,
     reply: vi.fn(),
-  };
+  } as unknown as Message<boolean>;
 }

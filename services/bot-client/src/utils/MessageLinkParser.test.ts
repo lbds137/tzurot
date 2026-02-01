@@ -2,6 +2,7 @@
  * Tests for MessageLinkParser
  */
 
+import { describe, it, expect } from 'vitest';
 import { MessageLinkParser } from './MessageLinkParser.js';
 
 describe('MessageLinkParser', () => {

@@ -21,7 +21,9 @@ import {
   type SettingsDashboardSession,
   type SettingsData,
   SettingType,
+  DashboardView,
 } from './types.js';
+import type { APIButtonComponentWithCustomId, APIStringSelectComponent } from 'discord.js';
 import { EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
 import { DISCORD_COLORS } from '@tzurot/common-types';
 
@@ -37,10 +39,14 @@ const createTestConfig = (): SettingsDashboardConfig => ({
 const createTestSession = (
   dataOverrides: Partial<SettingsData> = {}
 ): SettingsDashboardSession => ({
+  level: 'channel',
   entityId: 'test-entity',
   entityName: 'Test Entity',
   userId: 'user-123',
-  view: 'overview',
+  messageId: 'msg-123',
+  channelId: 'channel-123',
+  lastActivityAt: new Date(),
+  view: DashboardView.OVERVIEW,
   data: {
     enabled: {
       localValue: null,
@@ -64,7 +70,6 @@ const createTestSession = (
     },
     ...dataOverrides,
   },
-  updateHandler: async () => ({ success: true }),
 });
 
 // Helper to extract embed fields
@@ -74,15 +79,19 @@ function getEmbedFields(embed: ReturnType<typeof buildOverviewEmbed>) {
 }
 
 // Helper to extract button data from action row
-function getButtons(row: ReturnType<typeof buildTriStateButtons>) {
+function getButtons(
+  row: ReturnType<typeof buildTriStateButtons>
+): APIButtonComponentWithCustomId[] {
   const json = row.toJSON();
-  return json.components ?? [];
+  return (json.components ?? []) as APIButtonComponentWithCustomId[];
 }
 
 // Helper to extract select menu from action row
-function getSelectMenu(row: ReturnType<typeof buildSettingsSelectMenu>) {
+function getSelectMenu(
+  row: ReturnType<typeof buildSettingsSelectMenu>
+): APIStringSelectComponent | undefined {
   const json = row.toJSON();
-  return json.components?.[0];
+  return json.components?.[0] as APIStringSelectComponent | undefined;
 }
 
 describe('SettingsDashboardBuilder', () => {
