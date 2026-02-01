@@ -502,18 +502,6 @@ Run `pnpm ops test:audit --category=services` to check coverage.
 
 _Note: Services without direct Prisma calls are auto-excluded from the audit._
 
-### 🏗️ Migrate Integration Tests to loadPGliteSchema
-
-Two integration test files manually create tables with raw SQL instead of using `loadPGliteSchema()`. This causes CI failures when migrations add new columns.
-
-**Files with manual table creation:**
-
-- `packages/common-types/src/services/ConversationHistoryService.int.test.ts` (6 tables)
-- `services/ai-worker/src/services/PgvectorMemoryAdapter.int.test.ts` (5 tables)
-
-- [ ] Migrate to use `loadPGliteSchema()` from `@tzurot/test-utils`
-- [ ] Document the standard integration test pattern in tzurot-testing skill
-
 ### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention:
