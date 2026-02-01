@@ -401,9 +401,9 @@ From beta.54 code review observations:
 
 SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
 
-### 🐛 Dashboard Refresh Race Condition
+### ✅ Dashboard Refresh Race Condition (DONE)
 
-Session-cached `isGlobal` becomes stale if preset visibility changed elsewhere. Low priority - edge case.
+Fixed preset dashboard `handleToggleGlobalButton` to fetch fresh data before toggling, preventing race condition when `isGlobal` changed in another session.
 
 ### 🏗️ Database-Configurable Model Capabilities
 
@@ -450,13 +450,30 @@ Files and functions creep toward ESLint limits over time. Proactive audit preven
 
 **Trigger**: ConversationalRAGService.ts hit max-statements during beta.59 review feedback
 
-### 🏗️ Job Idempotency Check
+### ✅ Job Idempotency Check (DONE)
 
-Add Redis-based `processed:${discordMessageId}` check in `AIJobProcessor` to prevent duplicate replies.
+Added Redis-based `processed:${triggerMessageId}` check in `AIJobProcessor` to prevent duplicate replies. Uses SET NX EX with 1 hour TTL.
 
 ### 🏗️ Verify Vector Index Usage
 
 Run `EXPLAIN ANALYZE` on production memory queries to confirm index is used.
+
+**Manual verification required** - Run via Railway console:
+
+```sql
+-- Verify the HNSW index is being used for semantic search
+EXPLAIN ANALYZE
+SELECT m.id, m.content, m.embedding <=> '[0.1,0.2,...]'::vector AS distance
+FROM memories m
+WHERE m.persona_id = 'some-uuid'::uuid
+  AND m.visibility = 'normal'
+  AND m.embedding IS NOT NULL
+  AND m.embedding <=> '[0.1,0.2,...]'::vector < 0.3
+ORDER BY distance ASC
+LIMIT 10;
+```
+
+Expected: Should show "Index Scan using embedding_hnsw_idx" not "Seq Scan".
 
 ### 🧹 Ops CLI Command Migration
 

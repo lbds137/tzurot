@@ -193,6 +193,9 @@ export async function handleRefreshButton(
 
 /**
  * Handle toggle-global button - toggle preset visibility.
+ *
+ * Fetches fresh data from API before toggling to prevent race conditions
+ * when isGlobal status changed in another session.
  */
 export async function handleToggleGlobalButton(
   interaction: ButtonInteraction,
@@ -221,7 +224,17 @@ export async function handleToggleGlobalButton(
   }
 
   try {
-    const newIsGlobal = !session.data.isGlobal;
+    // Fetch fresh data to prevent race condition with stale session.data.isGlobal
+    const freshPreset = await fetchPreset(entityId, interaction.user.id);
+    if (freshPreset === null) {
+      await interaction.followUp({
+        content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
+        flags: MessageFlags.Ephemeral,
+      });
+      return;
+    }
+
+    const newIsGlobal = !freshPreset.isGlobal;
     const updatedPreset = await updatePreset(
       entityId,
       { isGlobal: newIsGlobal },

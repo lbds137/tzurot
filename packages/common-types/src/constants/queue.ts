@@ -67,6 +67,8 @@ export const REDIS_KEY_PREFIXES = {
   SESSION: 'session:',
   /** Prefix for dashboard session message ID index (messageId -> sessionKey lookup) */
   SESSION_MSG_INDEX: 'session-msg:',
+  /** Prefix for processed message idempotency check (prevents duplicate job processing) */
+  PROCESSED_MESSAGE: 'processed:',
 } as const;
 
 /**
