@@ -123,6 +123,9 @@ export class GenerationStep implements IPipelineStep {
               imageDescriptions: entry.messageMetadata.imageDescriptions
                 ? [...entry.messageMetadata.imageDescriptions]
                 : undefined,
+              reactions: entry.messageMetadata.reactions
+                ? [...entry.messageMetadata.reactions]
+                : undefined,
             }
           : undefined,
       })),

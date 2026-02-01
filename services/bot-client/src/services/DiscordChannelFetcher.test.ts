@@ -652,6 +652,90 @@ describe('DiscordChannelFetcher', () => {
       expect(merged).toHaveLength(1);
       expect(merged[0].content).toBe('From Discord');
     });
+
+    it('should enrich DB messages with reactions from extended context', () => {
+      // Extended context message WITH reactions
+      const extendedMessages = [
+        {
+          id: 'ext1',
+          role: MessageRole.User,
+          content: 'Hello from Discord',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          personaId: 'discord:user1',
+          personaName: 'Alice',
+          discordMessageId: ['discord1'],
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '👍',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:user2', displayName: 'Bob' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      // DB message WITHOUT reactions (same message, but stored in DB)
+      const dbHistory = [
+        {
+          id: 'db1',
+          role: MessageRole.User,
+          content: 'Hello from Discord',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          personaId: 'persona1',
+          personaName: 'Alice',
+          discordMessageId: ['discord1'], // Same as extended message
+          // No messageMetadata - reactions not stored in DB
+        },
+      ];
+
+      const merged = fetcher.mergeWithHistory(extendedMessages, dbHistory);
+
+      // Should have 1 message (deduplicated)
+      expect(merged).toHaveLength(1);
+      // DB message should have been enriched with reactions
+      expect(merged[0].messageMetadata?.reactions).toBeDefined();
+      expect(merged[0].messageMetadata?.reactions).toHaveLength(1);
+      expect(merged[0].messageMetadata?.reactions?.[0].emoji).toBe('👍');
+    });
+
+    it('should enrich DB messages with embeds from extended context', () => {
+      // Extended context message with embeds
+      const extendedMessages = [
+        {
+          id: 'ext1',
+          role: MessageRole.User,
+          content: 'Check this link',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          personaId: 'discord:user1',
+          personaName: 'Alice',
+          discordMessageId: ['discord1'],
+          messageMetadata: {
+            embedsXml: ['<embed>Link Preview</embed>'],
+          },
+        },
+      ];
+
+      // DB message without embeds
+      const dbHistory = [
+        {
+          id: 'db1',
+          role: MessageRole.User,
+          content: 'Check this link',
+          createdAt: new Date('2024-01-01T12:00:00Z'),
+          personaId: 'persona1',
+          personaName: 'Alice',
+          discordMessageId: ['discord1'],
+        },
+      ];
+
+      const merged = fetcher.mergeWithHistory(extendedMessages, dbHistory);
+
+      // DB message should have been enriched with embeds
+      expect(merged[0].messageMetadata?.embedsXml).toBeDefined();
+      expect(merged[0].messageMetadata?.embedsXml?.[0]).toBe('<embed>Link Preview</embed>');
+    });
   });
 
   describe('syncWithDatabase', () => {

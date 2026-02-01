@@ -76,7 +76,7 @@ export interface ConversationContext {
     role: string;
     content: string;
     tokenCount?: number;
-    /** Structured metadata (referenced messages, image descriptions) */
+    /** Structured metadata (referenced messages, image descriptions, reactions) */
     messageMetadata?: {
       referencedMessages?: {
         discordMessageId: string;
@@ -90,6 +90,16 @@ export interface ConversationContext {
         isForwarded?: boolean;
       }[];
       imageDescriptions?: { filename: string; description: string }[];
+      /** Embed XML strings for extended context messages */
+      embedsXml?: string[];
+      /** Voice transcripts for extended context messages */
+      voiceTranscripts?: string[];
+      /** Reactions on this message (from extended context) */
+      reactions?: {
+        emoji: string;
+        isCustom?: boolean;
+        reactors: { personaId: string; displayName: string }[];
+      }[];
     };
   }[];
   oldestHistoryTimestamp?: number;
