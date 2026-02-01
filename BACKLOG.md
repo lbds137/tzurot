@@ -387,7 +387,6 @@ From beta.54 code review observations:
 - [ ] **CI Validation** - Add check to verify generated `commandOptions.ts` matches source command definitions (detect schema-handler drift)
 - [ ] **AST-Based Parsing** - Current regex parsing could fail on template literals, dynamic `setRequired()`, unusual whitespace. Consider `@babel/parser` for production-grade robustness
 - [ ] **Channel Type Refinement** - `typedOptions.ts:73` returns overly broad `Channel` type. Discord.js returns union of channel types; handlers may need runtime narrowing
-- [ ] **Document Query Truncation** - `customIdFactory.ts` truncates query to 50 chars but limit not documented (only mentions Discord's 100-char customId limit)
 
 ### 🧹 Redis Failure Injection Tests
 
@@ -503,12 +502,16 @@ Run `pnpm ops test:audit --category=services` to check coverage.
 
 _Note: Services without direct Prisma calls are auto-excluded from the audit._
 
-### 🏗️ Audit Integration Tests for Manual Table Creation
+### 🏗️ Migrate Integration Tests to loadPGliteSchema
 
-AIJobProcessor.int.test.ts was manually creating tables with raw SQL instead of using `loadPGliteSchema()`. This caused CI failures when migrations added new columns (e.g., `nsfw_verified`).
+Two integration test files manually create tables with raw SQL instead of using `loadPGliteSchema()`. This causes CI failures when migrations add new columns.
 
-- [ ] Search for `$executeRawUnsafe.*CREATE TABLE` in `.int.test.ts` files
-- [ ] Migrate any manual table creation to use `loadPGliteSchema()` from `@tzurot/test-utils`
+**Files with manual table creation:**
+
+- `packages/common-types/src/services/ConversationHistoryService.int.test.ts` (6 tables)
+- `services/ai-worker/src/services/PgvectorMemoryAdapter.int.test.ts` (5 tables)
+
+- [ ] Migrate to use `loadPGliteSchema()` from `@tzurot/test-utils`
 - [ ] Document the standard integration test pattern in tzurot-testing skill
 
 ### 🧹 Audit Existing Tests for Type Violations
