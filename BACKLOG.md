@@ -39,10 +39,19 @@ _Top 3-5 items to pull into CURRENT next._
 - [ ] Generate/derive all config copying from this list
 - [ ] Remove manual field enumeration in PersonalityDefaults
 - [ ] Add test that verifies all paths handle the same fields
-- [ ] Add `reasoning.enabled` and `reasoning.exclude` to ModelFactory cache key (currently only `effort` and `maxTokens`)
+- [x] Add `reasoning.enabled` and `reasoning.exclude` to ModelFactory cache key (fixed in beta.63)
 - [ ] Add end-to-end integration test: DB JSONB → mapToPersonality → ModelFactory → OpenRouter API call
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
+
+### 🐛 Preset Edit Authorization Bug
+
+Global preset edit incorrectly checks admin/bot owner status. Should only check if the user is the **preset owner**.
+
+- [ ] Fix authorization check in preset edit endpoint to use `ownerId` instead of admin check
+- [ ] Add test coverage for non-admin preset owners
+
+**Files**: `services/api-gateway/src/routes/user/llm-config.ts` (likely)
 
 ### 🏗️ ConversationalRAGService Refactor
 

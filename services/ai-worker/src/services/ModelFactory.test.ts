@@ -483,6 +483,23 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
+    it('should use custom fetch when reasoning.enabled is true even if showThinking is false', () => {
+      const config: ModelConfig = {
+        modelName: 'test-model',
+        showThinking: false,
+        reasoning: { enabled: true, effort: 'medium' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { fetch?: unknown };
+      };
+
+      // reasoning.enabled should trigger custom fetch for include_reasoning injection
+      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+    });
+
     it('should use custom fetch for transforms', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
