@@ -771,12 +771,35 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should reject deleting global config', async () => {
+    it('should allow owner to delete their own global config', async () => {
+      // Users can share their presets (isGlobal: true) while retaining control
       mockPrisma.llmConfig.findFirst.mockResolvedValue({
         id: 'config-123',
         ownerId: 'user-uuid-123',
         isGlobal: true,
-        name: 'Global Config',
+        name: 'User Shared Config',
+      });
+      mockPrisma.llmConfig.delete.mockResolvedValue({} as unknown);
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'delete', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockPrisma.llmConfig.delete).toHaveBeenCalledWith({
+        where: { id: 'config-123' },
+      });
+    });
+
+    it('should reject deleting system global config (no owner)', async () => {
+      // System global configs have ownerId: null - only admins can delete
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: 'config-123',
+        ownerId: null,
+        isGlobal: true,
+        name: 'System Global Config',
       });
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
