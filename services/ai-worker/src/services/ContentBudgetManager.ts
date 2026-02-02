@@ -111,9 +111,13 @@ export class ContentBudgetManager {
     const { message: currentMessage, contentForStorage } = this.promptBuilder.buildHumanMessage(
       userMessage,
       processedAttachments,
-      context.activePersonaName,
-      referencedMessagesDescriptions,
-      context.activePersonaId
+      {
+        activePersonaName: context.activePersonaName,
+        referencedMessagesDescriptions,
+        activePersonaId: context.activePersonaId,
+        discordUsername: context.discordUsername,
+        personalityName: processedPersonality.name,
+      }
     );
 
     const systemPromptBaseOnly = this.promptBuilder.buildFullSystemPrompt({

@@ -35,6 +35,125 @@ import {
 const logger = createLogger('PromptBuilder');
 const config = getConfig();
 
+/**
+ * Build disambiguated display name when persona name matches personality name.
+ *
+ * When a user's persona name matches the AI personality name (e.g., both "Lila"),
+ * the AI can get confused thinking it's talking to itself. This function applies
+ * the same disambiguation format used in conversationUtils.ts for history messages:
+ * "Lila (@discordUsername)".
+ *
+ * @param activePersonaName - User's persona display name
+ * @param personalityName - AI personality's name
+ * @param discordUsername - User's Discord username for disambiguation
+ * @returns Disambiguated display name, or original if no collision
+ */
+function buildDisambiguatedDisplayName(
+  activePersonaName: string,
+  personalityName: string | undefined,
+  discordUsername: string | undefined
+): string {
+  const needsDisambiguation =
+    personalityName !== undefined &&
+    personalityName.length > 0 &&
+    activePersonaName.toLowerCase() === personalityName.toLowerCase() &&
+    discordUsername !== undefined &&
+    discordUsername.length > 0;
+
+  if (needsDisambiguation) {
+    return `${activePersonaName} (@${discordUsername})`;
+  }
+  return activePersonaName;
+}
+
+/**
+ * Build message content from user message and attachment descriptions.
+ *
+ * Combines user text with attachment descriptions (images, voice transcriptions).
+ * For voice-only messages (no text), uses transcription as the primary message.
+ */
+function buildMessageWithAttachments(userMessage: string, attachmentDescriptions: string): string {
+  const trimmedMessage = userMessage.trim();
+  const hasDescriptions = attachmentDescriptions.length > 0;
+
+  // Voice message with no text content - use only transcription
+  if (trimmedMessage === 'Hello' && hasDescriptions) {
+    return attachmentDescriptions;
+  }
+  // Text + attachments
+  if (trimmedMessage.length > 0 && hasDescriptions) {
+    return `${userMessage}\n\n${attachmentDescriptions}`;
+  }
+  // Attachments only (no user text)
+  if (hasDescriptions) {
+    return attachmentDescriptions;
+  }
+  // No attachments - return original message
+  return userMessage;
+}
+
+/**
+ * Wrap message content with speaker identification.
+ *
+ * Adds <from id="personaId">DisplayName</from> prefix for speaker identification.
+ * This helps the LLM understand who is speaking in multi-user conversations.
+ */
+function wrapWithSpeakerIdentification(
+  safeContent: string,
+  displayName: string,
+  activePersonaId: string | undefined
+): string {
+  const safeSpeaker = escapeXmlContent(displayName);
+  if (activePersonaId !== undefined && activePersonaId.length > 0) {
+    const safeId = escapeXml(activePersonaId);
+    return `<from id="${safeId}">${safeSpeaker}</from>\n\n${safeContent}`;
+  }
+  return `<from>${safeSpeaker}</from>\n\n${safeContent}`;
+}
+
+/** Message object with content, referenced message, and attachments */
+interface ComplexMessage {
+  content?: string;
+  referencedMessage?: { author?: string; content: string } | null;
+  attachments?: { name?: string }[];
+}
+
+/**
+ * Format content from a complex message object.
+ * Returns the content string and optional reference/attachment metadata.
+ */
+function formatComplexMessageContent(message: ComplexMessage): {
+  content: string;
+  refPrefix: string;
+  attachmentSuffix: string;
+} {
+  let content = '';
+  let refPrefix = '';
+  let attachmentSuffix = '';
+
+  if ('content' in message && message.content !== undefined) {
+    content = message.content;
+  }
+
+  // Format reference context if available
+  if (message.referencedMessage !== undefined && message.referencedMessage !== null) {
+    const ref = message.referencedMessage;
+    const author = ref.author !== undefined && ref.author.length > 0 ? ref.author : 'someone';
+    refPrefix = `[Replying to ${author}: "${ref.content}"]\n`;
+  }
+
+  // Format attachments if present
+  if (message.attachments !== undefined && Array.isArray(message.attachments)) {
+    for (const attachment of message.attachments) {
+      const name =
+        attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'file';
+      attachmentSuffix += `\n[Attachment: ${name}]`;
+    }
+  }
+
+  return { content, refPrefix, attachmentSuffix };
+}
+
 /** Options for building a full system prompt */
 export interface BuildFullSystemPromptOptions {
   personality: LoadedPersonality;
@@ -127,26 +246,29 @@ export class PromptBuilder {
   buildHumanMessage(
     userMessage: string,
     processedAttachments: ProcessedAttachment[],
-    activePersonaName?: string,
-    referencedMessagesDescriptions?: string,
-    activePersonaId?: string
+    options?: {
+      activePersonaName?: string;
+      referencedMessagesDescriptions?: string;
+      activePersonaId?: string;
+      /** Discord username for disambiguation when persona name matches personality name */
+      discordUsername?: string;
+      /** Personality name for collision detection */
+      personalityName?: string;
+    }
   ): { message: HumanMessage; contentForStorage: string } {
-    // Build the message content
+    const {
+      activePersonaName,
+      referencedMessagesDescriptions,
+      activePersonaId,
+      discordUsername,
+      personalityName,
+    } = options ?? {};
+
+    // Build message content with attachments
     let messageContent = userMessage;
-
     if (processedAttachments.length > 0) {
-      // Get text descriptions for all attachments (excluding placeholders)
       const descriptions = extractContentDescriptions(processedAttachments);
-
-      // For voice-only messages (no text), use transcription as primary message
-      // For images or mixed content, combine with user message
-      messageContent =
-        userMessage.trim() === 'Hello' && descriptions.length > 0
-          ? descriptions // Voice message with no text content
-          : userMessage.trim().length > 0
-            ? `${userMessage}\n\n${descriptions}` // Text + attachments
-            : descriptions; // Attachments only
-
+      messageContent = buildMessageWithAttachments(userMessage, descriptions);
       logger.info(
         {
           attachmentCount: processedAttachments.length,
@@ -157,47 +279,32 @@ export class PromptBuilder {
       );
     }
 
-    // Capture content BEFORE adding referenced messages
-    // Storage should contain only semantic content (user message + attachment descriptions)
-    // Referenced messages are stored structurally as ReferencedMessage[] and formatted at prompt time
+    // Capture content BEFORE adding referenced messages (for storage)
     const contentForStorage = messageContent;
 
-    // Append referenced messages (with vision/transcription already processed)
-    // This is ONLY for the LLM prompt, NOT for storage
+    // Append referenced messages (for LLM prompt only, not storage)
     if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
       messageContent =
         messageContent.length > 0
           ? `${messageContent}\n\n${referencedMessagesDescriptions}`
           : referencedMessagesDescriptions;
-
       logger.info(
-        {
-          referencesLength: referencedMessagesDescriptions.length,
-        },
-        'Appended referenced messages to prompt (not storage)'
+        { referencesLength: referencedMessagesDescriptions.length },
+        'Appended references'
       );
     }
 
-    // Escape content to prevent accidental XML-like patterns from
-    // being interpreted as structure, since system prompt uses XML
+    // Escape content and add speaker identification
     const safeContent = escapeXmlContent(messageContent);
-
-    // Add speaker identification at the start of the message
-    // This is critical for the LLM to know who is speaking, especially in
-    // multi-user conversations. The format matches chat_log entries for consistency.
-    // Format: <from id="personaId">PersonaName</from>\n\ncontent
-    // The id attribute allows the LLM to correlate the current speaker with their
-    // messages in chat_log, even if multiple users share the same display name.
     let finalContent = safeContent;
+
     if (activePersonaName !== undefined && activePersonaName.length > 0) {
-      const safeSpeaker = escapeXmlContent(activePersonaName);
-      if (activePersonaId !== undefined && activePersonaId.length > 0) {
-        // Use escapeXml for attribute values (escapes quotes) vs escapeXmlContent for element content
-        const safeId = escapeXml(activePersonaId);
-        finalContent = `<from id="${safeId}">${safeSpeaker}</from>\n\n${safeContent}`;
-      } else {
-        finalContent = `<from>${safeSpeaker}</from>\n\n${safeContent}`;
-      }
+      const displayName = buildDisambiguatedDisplayName(
+        activePersonaName,
+        personalityName,
+        discordUsername
+      );
+      finalContent = wrapWithSpeakerIdentification(safeContent, displayName, activePersonaId);
     }
 
     return {
@@ -491,46 +598,29 @@ ${serializedHistory}
    * Format user message with context metadata
    */
   formatUserMessage(message: MessageContent, context: ConversationContext): string {
-    let formatted = '';
-
-    // Add context if this is a proxy message
-    if (
+    // Add proxy message prefix if applicable
+    const proxyPrefix =
       context.isProxyMessage === true &&
       context.userName !== undefined &&
       context.userName.length > 0
-    ) {
-      formatted += `[Message from ${context.userName}]\n`;
-    }
+        ? `[Message from ${context.userName}]\n`
+        : '';
 
-    // Handle different message types
+    // Handle string messages directly
     if (typeof message === 'string') {
-      formatted += message;
-    } else if (typeof message === 'object' && message !== null && message !== undefined) {
-      // Handle complex message objects
-      if ('content' in message) {
-        formatted += message.content;
-      }
-
-      // Add reference context if available
-      if (
-        'referencedMessage' in message &&
-        message.referencedMessage !== undefined &&
-        message.referencedMessage !== null
-      ) {
-        const ref = message.referencedMessage;
-        const author = ref.author !== undefined && ref.author.length > 0 ? ref.author : 'someone';
-        formatted = `[Replying to ${author}: "${ref.content}"]\n${formatted}`;
-      }
-
-      // Note attachments if present
-      if ('attachments' in message && Array.isArray(message.attachments)) {
-        for (const attachment of message.attachments) {
-          formatted += `\n[Attachment: ${attachment.name !== undefined && attachment.name.length > 0 ? attachment.name : 'file'}]`;
-        }
-      }
+      return proxyPrefix + message || 'Hello';
     }
 
-    return formatted || 'Hello';
+    // Handle complex message objects
+    if (typeof message === 'object' && message !== null) {
+      const { content, refPrefix, attachmentSuffix } = formatComplexMessageContent(
+        message as ComplexMessage
+      );
+      const result = refPrefix + proxyPrefix + content + attachmentSuffix;
+      return result || 'Hello';
+    }
+
+    return proxyPrefix || 'Hello';
   }
 
   /**

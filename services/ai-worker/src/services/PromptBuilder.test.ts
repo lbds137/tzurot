@@ -340,7 +340,9 @@ describe('PromptBuilder', () => {
 
     it('should append referenced messages to prompt but not to storage', () => {
       const references = '**Referenced Message**: Some earlier message';
-      const result = promptBuilder.buildHumanMessage('Reply text', [], undefined, references);
+      const result = promptBuilder.buildHumanMessage('Reply text', [], {
+        referencedMessagesDescriptions: references,
+      });
 
       // Message contains references for the LLM
       expect(result.message.content).toContain('Reply text');
@@ -352,7 +354,7 @@ describe('PromptBuilder', () => {
     });
 
     it('should include speaker identification when activePersonaName is provided', () => {
-      const result = promptBuilder.buildHumanMessage('Hello', [], 'Alice');
+      const result = promptBuilder.buildHumanMessage('Hello', [], { activePersonaName: 'Alice' });
 
       // User message includes <from> tag for speaker identification (no ID)
       expect(result.message.content).toBe('<from>Alice</from>\n\nHello');
@@ -362,13 +364,10 @@ describe('PromptBuilder', () => {
     });
 
     it('should include persona ID in from tag when both name and ID are provided', () => {
-      const result = promptBuilder.buildHumanMessage(
-        'Hello',
-        [],
-        'Alice',
-        undefined,
-        'persona-123'
-      );
+      const result = promptBuilder.buildHumanMessage('Hello', [], {
+        activePersonaName: 'Alice',
+        activePersonaId: 'persona-123',
+      });
 
       // User message includes <from id="..."> tag for speaker identification
       expect(result.message.content).toBe('<from id="persona-123">Alice</from>\n\nHello');
@@ -378,7 +377,7 @@ describe('PromptBuilder', () => {
     });
 
     it('should work when activePersonaName is empty', () => {
-      const result = promptBuilder.buildHumanMessage('Hello', [], '');
+      const result = promptBuilder.buildHumanMessage('Hello', [], { activePersonaName: '' });
 
       expect(result.message.content).toBe('Hello');
     });
@@ -394,7 +393,10 @@ describe('PromptBuilder', () => {
       ];
       const references = '**Ref**: Earlier message';
 
-      const result = promptBuilder.buildHumanMessage('My text', attachments, 'Bob', references);
+      const result = promptBuilder.buildHumanMessage('My text', attachments, {
+        activePersonaName: 'Bob',
+        referencedMessagesDescriptions: references,
+      });
 
       // Message has user content + attachments + references
       expect(result.message.content).toContain('My text');
@@ -405,6 +407,43 @@ describe('PromptBuilder', () => {
       // This is the storage philosophy: content = semantic text, metadata = contextual data
       expect(result.contentForStorage).toBe('My text\n\nAn image');
       expect(result.contentForStorage).not.toContain('**Ref**'); // References stored structurally, not in content
+    });
+
+    it('should disambiguate speaker when persona name matches personality name', () => {
+      const result = promptBuilder.buildHumanMessage('Hello', [], {
+        activePersonaName: 'Lila',
+        activePersonaId: 'persona-123',
+        discordUsername: 'lbds137',
+        personalityName: 'Lila',
+      });
+
+      // Should disambiguate as "Lila (@lbds137)" to prevent AI confusion
+      expect(result.message.content).toBe('<from id="persona-123">Lila (@lbds137)</from>\n\nHello');
+      expect(result.contentForStorage).toBe('Hello');
+    });
+
+    it('should NOT disambiguate when names do not match', () => {
+      const result = promptBuilder.buildHumanMessage('Hello', [], {
+        activePersonaName: 'Bob',
+        activePersonaId: 'persona-123',
+        discordUsername: 'bob123',
+        personalityName: 'Lila',
+      });
+
+      // No disambiguation needed - names don't match
+      expect(result.message.content).toBe('<from id="persona-123">Bob</from>\n\nHello');
+    });
+
+    it('should NOT disambiguate when discordUsername is missing', () => {
+      const result = promptBuilder.buildHumanMessage('Hello', [], {
+        activePersonaName: 'Lila',
+        activePersonaId: 'persona-123',
+        personalityName: 'Lila',
+        // discordUsername is undefined
+      });
+
+      // Can't disambiguate without discordUsername
+      expect(result.message.content).toBe('<from id="persona-123">Lila</from>\n\nHello');
     });
   });
 
@@ -1401,7 +1440,9 @@ I was wondering about the performance implications of using pgvector
           },
         ];
 
-        const result = promptBuilder.buildHumanMessage('Hello', voiceAttachment, 'VoiceUser');
+        const result = promptBuilder.buildHumanMessage('Hello', voiceAttachment, {
+          activePersonaName: 'VoiceUser',
+        });
         expect(result.message.content).toMatchSnapshot();
         expect(result.contentForStorage).toMatchSnapshot();
       });
@@ -1433,7 +1474,7 @@ I was wondering about the performance implications of using pgvector
         const result = promptBuilder.buildHumanMessage(
           'Can you explain what went wrong here?',
           imageAttachments,
-          'DebugUser'
+          { activePersonaName: 'DebugUser' }
         );
         expect(result.message.content).toMatchSnapshot();
         expect(result.contentForStorage).toMatchSnapshot();
@@ -1445,12 +1486,10 @@ This is the original message that was forwarded. It contains important context a
 
 **Attached Image:** [Screenshot of a code snippet showing a TypeScript interface]`;
 
-        const result = promptBuilder.buildHumanMessage(
-          'What do you think about this?',
-          [],
-          'ForwardUser',
-          references
-        );
+        const result = promptBuilder.buildHumanMessage('What do you think about this?', [], {
+          activePersonaName: 'ForwardUser',
+          referencedMessagesDescriptions: references,
+        });
         expect(result.message.content).toMatchSnapshot();
         expect(result.contentForStorage).toMatchSnapshot();
       });
@@ -1477,8 +1516,10 @@ I tried implementing this but got stuck on the async handling
         const result = promptBuilder.buildHumanMessage(
           'Here is my updated implementation based on your feedback',
           attachments,
-          'ImplementerUser',
-          references
+          {
+            activePersonaName: 'ImplementerUser',
+            referencedMessagesDescriptions: references,
+          }
         );
         expect(result.message.content).toMatchSnapshot();
         expect(result.contentForStorage).toMatchSnapshot();

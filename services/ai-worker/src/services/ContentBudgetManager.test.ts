@@ -98,12 +98,17 @@ describe('ContentBudgetManager', () => {
 
       budgetManager.allocate(options);
 
+      // Uses expect.objectContaining to focus on key parameters without being brittle
+      // to implementation details (e.g., referencedMessagesDescriptions can be undefined)
       expect(mockPromptBuilder.buildHumanMessage).toHaveBeenCalledWith(
         'Hello, how are you?',
         [],
-        undefined,
-        undefined,
-        undefined
+        expect.objectContaining({
+          activePersonaName: undefined,
+          activePersonaId: undefined,
+          discordUsername: undefined,
+          personalityName: 'TestBot',
+        })
       );
     });
 
