@@ -177,6 +177,44 @@ export const DISCORD_PROVIDER_CHOICES = [{ name: 'OpenRouter', value: 'openroute
 export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['value'];
 
 /**
+ * Bot-added footer text constants.
+ *
+ * Single source of truth for footer strings used in Discord messages.
+ * Used by DiscordResponseSender and character/chat.ts for generation,
+ * and by BOT_FOOTER_PATTERNS for stripping from conversation context.
+ *
+ * IMPORTANT: When adding new footer types, add both the text constant
+ * here AND the corresponding regex pattern in BOT_FOOTER_PATTERNS below.
+ */
+export const BOT_FOOTER_TEXT = {
+  /** Auto-response badge (compact, appended to model footer line) */
+  AUTO_BADGE_COMPACT: ' • 📍 auto',
+  /** Auto-response indicator (standalone, when no model shown) */
+  AUTO_RESPONSE: '📍 auto-response',
+  /** Focus mode indicator (LTM retrieval disabled) */
+  FOCUS_MODE: '🔒 Focus Mode • LTM retrieval disabled',
+  /** Incognito mode indicator (memories not saved) */
+  INCOGNITO_MODE: '👻 Incognito Mode • Memories not being saved',
+} as const;
+
+/**
+ * Build a model footer line for Discord messages.
+ *
+ * @param modelUsed - Model name to display
+ * @param modelUrl - Full URL to the model card
+ * @param withAutoBadge - Include auto-response badge on same line
+ * @returns Footer line WITHOUT leading newline (caller adds `-# ` prefix)
+ */
+export function buildModelFooterText(
+  modelUsed: string,
+  modelUrl: string,
+  withAutoBadge = false
+): string {
+  const base = `Model: [${modelUsed}](<${modelUrl}>)`;
+  return withAutoBadge ? `${base}${BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT}` : base;
+}
+
+/**
  * Bot-added footer patterns for Discord messages.
  *
  * The bot appends footer lines to Discord messages (model indicator,
@@ -194,11 +232,13 @@ export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['v
  * - stripBotFooters (utils/discord.ts): Utility function to remove footers
  * - DiscordChannelFetcher: Strips footers during opportunistic sync
  * - duplicateDetection: Strips footers before similarity comparison
+ *
+ * NOTE: Keep these patterns in sync with BOT_FOOTER_TEXT constants above.
  */
 export const BOT_FOOTER_PATTERNS = {
   /** Model indicator (with optional auto badge on same line) */
   MODEL: /(?:^|\n)-# Model: \[[^\]]+\]\(<[^>]+>\)(?: • 📍 auto)?/g,
-  /** Guest mode notice */
+  /** Guest mode notice - uses GUEST_MODE.FOOTER_MESSAGE from ai.ts */
   GUEST_MODE: /(?:^|\n)-# 🆓 Using free model \(no API key required\)/g,
   /** Auto-response indicator (standalone) */
   AUTO_RESPONSE: /(?:^|\n)-# 📍 auto-response/g,

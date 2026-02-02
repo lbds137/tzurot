@@ -3,7 +3,14 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { DISCORD_SNOWFLAKE, isValidDiscordId, filterValidDiscordIds } from './discord.js';
+import {
+  DISCORD_SNOWFLAKE,
+  isValidDiscordId,
+  filterValidDiscordIds,
+  BOT_FOOTER_TEXT,
+  BOT_FOOTER_PATTERNS,
+  buildModelFooterText,
+} from './discord.js';
 
 describe('Discord ID Validation', () => {
   describe('DISCORD_SNOWFLAKE constants', () => {
@@ -88,6 +95,56 @@ describe('Discord ID Validation', () => {
     it('should handle empty array', () => {
       const result = filterValidDiscordIds([]);
       expect(result).toEqual([]);
+    });
+  });
+});
+
+describe('Bot Footer Text Constants', () => {
+  describe('BOT_FOOTER_TEXT', () => {
+    it('should have expected footer text values', () => {
+      expect(BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT).toBe(' • 📍 auto');
+      expect(BOT_FOOTER_TEXT.AUTO_RESPONSE).toBe('📍 auto-response');
+      expect(BOT_FOOTER_TEXT.FOCUS_MODE).toBe('🔒 Focus Mode • LTM retrieval disabled');
+      expect(BOT_FOOTER_TEXT.INCOGNITO_MODE).toBe('👻 Incognito Mode • Memories not being saved');
+    });
+
+    it('should match corresponding BOT_FOOTER_PATTERNS', () => {
+      // Verify text constants produce strings that match their patterns
+      const autoResponse = `-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
+      expect(BOT_FOOTER_PATTERNS.AUTO_RESPONSE.test(autoResponse)).toBe(true);
+
+      const focusMode = `-# ${BOT_FOOTER_TEXT.FOCUS_MODE}`;
+      // Reset regex state (global flag)
+      BOT_FOOTER_PATTERNS.FOCUS_MODE.lastIndex = 0;
+      expect(BOT_FOOTER_PATTERNS.FOCUS_MODE.test(focusMode)).toBe(true);
+
+      const incognitoMode = `-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;
+      BOT_FOOTER_PATTERNS.INCOGNITO_MODE.lastIndex = 0;
+      expect(BOT_FOOTER_PATTERNS.INCOGNITO_MODE.test(incognitoMode)).toBe(true);
+    });
+  });
+
+  describe('buildModelFooterText', () => {
+    it('should build basic model footer without auto badge', () => {
+      const result = buildModelFooterText('gpt-4', 'https://openrouter.ai/models/gpt-4');
+      expect(result).toBe('Model: [gpt-4](<https://openrouter.ai/models/gpt-4>)');
+    });
+
+    it('should build model footer with auto badge when requested', () => {
+      const result = buildModelFooterText('gpt-4', 'https://openrouter.ai/models/gpt-4', true);
+      expect(result).toBe('Model: [gpt-4](<https://openrouter.ai/models/gpt-4>) • 📍 auto');
+    });
+
+    it('should produce output that matches BOT_FOOTER_PATTERNS.MODEL', () => {
+      // Without auto badge
+      const basic = `-# ${buildModelFooterText('test/model', 'https://example.com/model')}`;
+      BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
+      expect(BOT_FOOTER_PATTERNS.MODEL.test(basic)).toBe(true);
+
+      // With auto badge
+      const withAuto = `-# ${buildModelFooterText('test/model', 'https://example.com/model', true)}`;
+      BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
+      expect(BOT_FOOTER_PATTERNS.MODEL.test(withAuto)).toBe(true);
     });
   });
 });

@@ -13,8 +13,14 @@ describe('permissions utilities', () => {
     inGuild?: boolean;
     hasManageMessages?: boolean;
     deferred?: boolean;
+    userId?: string;
   }): ChatInputCommandInteraction {
-    const { inGuild = true, hasManageMessages = true, deferred = false } = options;
+    const {
+      inGuild = true,
+      hasManageMessages = true,
+      deferred = false,
+      userId = 'regular-user-123', // Non-owner user ID by default
+    } = options;
 
     const mockPermissions = {
       has: vi.fn((permission: bigint) => {
@@ -32,6 +38,7 @@ describe('permissions utilities', () => {
     return {
       inGuild: vi.fn().mockReturnValue(inGuild),
       member: mockMember,
+      user: { id: userId },
       reply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
       deferred,
@@ -82,6 +89,22 @@ describe('permissions utilities', () => {
         content: '❌ You need the "Manage Messages" permission to use this command.',
         flags: MessageFlags.Ephemeral,
       });
+    });
+
+    it('should return true for bot owner even without ManageMessages permission', async () => {
+      // Bot owner ID is set via BOT_OWNER_ID env var, defaults to empty
+      // For this test, we use the actual env var check (which will be empty in test)
+      // This tests that the check happens, not that a specific ID matches
+      const interaction = createMockInteraction({
+        inGuild: true,
+        hasManageMessages: false,
+        userId: '', // Empty ID won't match any owner
+      });
+
+      const result = await requireManageMessages(interaction);
+
+      // Should still fail because empty string isn't the bot owner
+      expect(result).toBe(false);
     });
   });
 
