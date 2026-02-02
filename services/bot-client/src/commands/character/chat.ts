@@ -26,6 +26,7 @@ import {
   GUEST_MODE,
   AI_ENDPOINTS,
   characterChatOptions,
+  buildModelFooterText,
 } from '@tzurot/common-types';
 import type {
   EnvConfig,
@@ -519,11 +520,11 @@ async function sendCharacterResponse(
   const webhookManager = getWebhookManager();
   const messageIds: string[] = [];
 
-  // Build footer
+  // Build footer (using centralized constants from BOT_FOOTER_TEXT)
   let footer = '';
   if (modelUsed !== undefined && modelUsed !== null && modelUsed !== '') {
     const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
-    footer = `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
+    footer = `\n-# ${buildModelFooterText(modelUsed, modelUrl)}`;
   }
   if (isGuestMode === true) {
     footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;

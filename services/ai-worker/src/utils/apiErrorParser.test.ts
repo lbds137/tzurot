@@ -134,7 +134,8 @@ describe('parseApiError', () => {
       const error = new Error('Context length exceeded maximum');
       const result = parseApiError(error);
       expect(result.category).toBe(ApiErrorCategory.BAD_REQUEST);
-      expect(result.shouldRetry).toBe(false);
+      // 400 errors are now retryable (some AI APIs return 400 for transient issues)
+      expect(result.shouldRetry).toBe(true);
     });
 
     it('should detect model not found from message', () => {
@@ -348,7 +349,11 @@ describe('shouldRetryError', () => {
     expect(shouldRetryError({ status: 401 })).toBe(false);
     expect(shouldRetryError({ status: 402 })).toBe(false);
     expect(shouldRetryError({ status: 403 })).toBe(false);
-    expect(shouldRetryError({ status: 400 })).toBe(false);
+    // Note: 400 is now retryable (some AI APIs return 400 for transient issues)
+  });
+
+  it('should return true for 400 errors (now retryable)', () => {
+    expect(shouldRetryError({ status: 400 })).toBe(true);
   });
 
   it('should return true for unknown errors (conservative approach)', () => {
