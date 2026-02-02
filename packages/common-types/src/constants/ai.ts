@@ -34,12 +34,16 @@ export const AI_DEFAULTS = {
    * @see https://openrouter.ai/docs/parameters#reasoning-effort
    */
   REASONING_MODEL_MAX_TOKENS: {
-    xhigh: 65536, // Maximum reasoning depth
-    high: 32768, // Deep reasoning
-    medium: 16384, // Balanced (MCP council recommended)
-    low: 8192, // Light reasoning
-    minimal: 6144, // Minimal reasoning
-    none: 4096, // Reasoning disabled, standard limit
+    // Scaling: base (4096) * multiplier
+    // Based on observed thinking token usage from DeepSeek R1/o1 models:
+    // - Extended thinking can use 10k-30k tokens before response
+    // - Higher effort = more thinking = more output capacity needed
+    xhigh: 65536, // 16x - Maximum reasoning depth
+    high: 32768, // 8x - Deep reasoning
+    medium: 16384, // 4x - Balanced (MCP council recommended)
+    low: 8192, // 2x - Light reasoning
+    minimal: 6144, // 1.5x - Minimal reasoning
+    none: 4096, // 1x - Reasoning disabled, standard limit
   } as const,
   /** Temperature for vision models (lower = more deterministic) */
   VISION_TEMPERATURE: 0.3,
