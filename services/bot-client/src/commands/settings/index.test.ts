@@ -104,7 +104,9 @@ describe('Settings Command Index', () => {
 
       expect(timezoneGroup).toBeDefined();
 
-      const subcommands = (timezoneGroup?.options ?? []).map((s: { name: string }) => s.name);
+      const subcommands = (
+        (timezoneGroup as { options?: Array<{ name: string }> })?.options ?? []
+      ).map(s => s.name);
       expect(subcommands).toContain('get');
       expect(subcommands).toContain('set');
     });
@@ -118,7 +120,9 @@ describe('Settings Command Index', () => {
 
       expect(apikeyGroup).toBeDefined();
 
-      const subcommands = (apikeyGroup?.options ?? []).map((s: { name: string }) => s.name);
+      const subcommands = (
+        (apikeyGroup as { options?: Array<{ name: string }> })?.options ?? []
+      ).map(s => s.name);
       expect(subcommands).toContain('set');
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('remove');
@@ -134,7 +138,9 @@ describe('Settings Command Index', () => {
 
       expect(presetGroup).toBeDefined();
 
-      const subcommands = (presetGroup?.options ?? []).map((s: { name: string }) => s.name);
+      const subcommands = (
+        (presetGroup as { options?: Array<{ name: string }> })?.options ?? []
+      ).map(s => s.name);
       expect(subcommands).toContain('browse');
       expect(subcommands).toContain('set');
       expect(subcommands).toContain('reset');

@@ -248,7 +248,7 @@ describe('buildValidationEmbed', () => {
     const embed = buildValidationEmbed(result);
 
     expect(embed).not.toBeNull();
-    expect((embed as { type: string }).type).toBe('error');
+    expect((embed as unknown as { type: string }).type).toBe('error');
   });
 
   it('should create warning embed when only warnings present', () => {
@@ -262,7 +262,7 @@ describe('buildValidationEmbed', () => {
     const embed = buildValidationEmbed(result);
 
     expect(embed).not.toBeNull();
-    expect((embed as { type: string }).type).toBe('warning');
+    expect((embed as unknown as { type: string }).type).toBe('warning');
   });
 
   it('should group issues by field', () => {
@@ -280,7 +280,7 @@ describe('buildValidationEmbed', () => {
       warnings: [{ severity: 'warning', field: 'fieldA', message: 'Warning 1' }],
     };
 
-    const embed = buildValidationEmbed(result) as {
+    const embed = buildValidationEmbed(result) as unknown as {
       fields: Array<{ name: string; value: string }>;
     };
 

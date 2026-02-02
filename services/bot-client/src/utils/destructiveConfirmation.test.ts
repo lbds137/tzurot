@@ -2,8 +2,9 @@
  * Tests for Destructive Confirmation Utility
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { ButtonStyle, EmbedBuilder, TextInputStyle } from 'discord.js';
+import type { APIButtonComponentWithCustomId } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import {
   buildDestructiveWarning,
@@ -49,20 +50,24 @@ describe('buildDestructiveWarning', () => {
     expect(buttons).toHaveLength(2);
 
     // Danger button
-    expect(buttons[0].data.style).toBe(ButtonStyle.Danger);
-    expect(buttons[0].data.label).toBe('Delete Forever');
+    const dangerBtn = buttons[0].data as APIButtonComponentWithCustomId;
+    expect(dangerBtn.style).toBe(ButtonStyle.Danger);
+    expect(dangerBtn.label).toBe('Delete Forever');
 
     // Cancel button
-    expect(buttons[1].data.style).toBe(ButtonStyle.Secondary);
-    expect(buttons[1].data.label).toBe('Cancel');
+    const cancelBtn = buttons[1].data as APIButtonComponentWithCustomId;
+    expect(cancelBtn.style).toBe(ButtonStyle.Secondary);
+    expect(cancelBtn.label).toBe('Cancel');
   });
 
   it('should include entityId in custom IDs when provided', () => {
     const result = buildDestructiveWarning(testConfig);
     const buttons = result.components[0].components;
 
-    expect(buttons[0].data.custom_id).toContain('test-personality');
-    expect(buttons[1].data.custom_id).toContain('test-personality');
+    const confirmBtn = buttons[0].data as APIButtonComponentWithCustomId;
+    const cancelBtnData = buttons[1].data as APIButtonComponentWithCustomId;
+    expect(confirmBtn.custom_id).toContain('test-personality');
+    expect(cancelBtnData.custom_id).toContain('test-personality');
   });
 
   it('should work without entityId', () => {
@@ -70,8 +75,10 @@ describe('buildDestructiveWarning', () => {
     const result = buildDestructiveWarning(configWithoutEntity);
 
     const buttons = result.components[0].components;
-    expect(buttons[0].data.custom_id).toBe('history::destructive::confirm_button::hard-delete');
-    expect(buttons[1].data.custom_id).toBe('history::destructive::cancel_button::hard-delete');
+    const confirmBtn = buttons[0].data as APIButtonComponentWithCustomId;
+    const cancelBtn = buttons[1].data as APIButtonComponentWithCustomId;
+    expect(confirmBtn.custom_id).toBe('history::destructive::confirm_button::hard-delete');
+    expect(cancelBtn.custom_id).toBe('history::destructive::cancel_button::hard-delete');
   });
 });
 
@@ -86,7 +93,7 @@ describe('buildConfirmationModal', () => {
     const modal = buildConfirmationModal(testConfig);
 
     expect(modal.components).toHaveLength(1);
-    const row = modal.components[0];
+    const row = modal.components[0] as { components: Array<{ data: Record<string, unknown> }> };
     expect(row.components).toHaveLength(1);
 
     const input = row.components[0];

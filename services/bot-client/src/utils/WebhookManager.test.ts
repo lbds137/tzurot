@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { WebhookManager } from './WebhookManager.js';
 import { ChannelType, Client, TextChannel, ThreadChannel, ForumChannel } from 'discord.js';
-import type { Webhook, User } from 'discord.js';
+import type { Webhook } from 'discord.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { INTERVALS, DISCORD_LIMITS } from '@tzurot/common-types';
 
@@ -117,7 +117,7 @@ function createMockPersonality(
       temperature: 0.7,
       maxTokens: 1000,
     },
-  } as LoadedPersonality;
+  } as unknown as LoadedPersonality;
 }
 
 describe('WebhookManager', () => {
@@ -161,7 +161,7 @@ describe('WebhookManager', () => {
       const channel = createMockTextChannel('channel-123', 'bot-123');
 
       // We can test the suffix by checking what username is passed to webhook.send
-      manager.getWebhook(channel).then(webhook => {
+      manager.getWebhook(channel).then(_webhook => {
         manager.sendAsPersonality(channel, personality, 'Test');
       });
     });
@@ -531,7 +531,7 @@ describe('WebhookManager', () => {
 
         // Note: displayName fallback to name is handled by mapToPersonality(),
         // not by WebhookManager. WebhookManager trusts that displayName is always set.
-        const personality = createMockPersonality('Lilith Display', undefined, undefined, 'lilith');
+        const personality = createMockPersonality('Lilith Display', undefined, 'lilith');
         const channel = createMockTextChannel('channel-123', 'bot-123');
 
         await manager.sendAsPersonality(channel, personality, 'Test');

@@ -123,7 +123,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -161,7 +161,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -257,7 +257,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -293,7 +293,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -330,7 +330,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -374,7 +374,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -421,7 +421,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -515,7 +515,7 @@ describe('ReplyResolutionService', () => {
           temperature: 0.7,
           maxTokens: 1000,
         },
-      } as LoadedPersonality;
+      } as unknown as LoadedPersonality;
 
       const referencedMessage = {
         id: 'ref-123',
@@ -561,7 +561,7 @@ function createMockMessage(options: MockMessageOptions = {}): Message {
   const channel: any = {
     type: options.channelType ?? ChannelType.GuildText,
     messages: {
-      fetch: vi.fn().mockImplementation((messageId: string) => {
+      fetch: vi.fn().mockImplementation((_messageId: string) => {
         if (options.fetchWillFail) {
           return Promise.reject(new Error('Message not found'));
         }

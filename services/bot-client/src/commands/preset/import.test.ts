@@ -40,9 +40,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
     presetImportOptions: (interaction: unknown) => ({
       file: () =>
-        (interaction as { options: { getAttachment: () => Attachment } }).options.getAttachment(
-          'file'
-        ),
+        (
+          interaction as { options: { getAttachment: (name: string) => Attachment } }
+        ).options.getAttachment('file'),
     }),
     DISCORD_COLORS: {
       SUCCESS: 0x00ff00,

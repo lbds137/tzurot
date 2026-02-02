@@ -56,16 +56,16 @@ describe('handleDefault', () => {
 
   // Helper to mock all API calls for a non-guest user with free config
   function mockNonGuestUserApis(configId: string, configName: string) {
-    vi.mocked(callGatewayApi).mockImplementation((path: string) => {
+    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
       if (path === '/wallet/list') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListWalletKeysResponse([{ isActive: true }]),
         });
       }
       if (path === '/user/llm-config') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListLlmConfigsResponse([
             { id: configId, name: configName, model: 'openai/gpt-4o-mini' },
           ]),
@@ -73,14 +73,14 @@ describe('handleDefault', () => {
       }
       if (path === '/user/model-override/default') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockSetDefaultConfigResponse({
             default: { configId, configName },
           }),
         });
       }
-      return Promise.resolve({ ok: false, error: 'Unknown path' });
-    });
+      return Promise.resolve({ ok: false as const, error: 'Unknown path' });
+    }) as never);
   }
 
   it('should call API with correct parameters', async () => {
@@ -112,16 +112,16 @@ describe('handleDefault', () => {
   });
 
   it('should show error when API returns error', async () => {
-    vi.mocked(callGatewayApi).mockImplementation((path: string) => {
+    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
       if (path === '/wallet/list') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListWalletKeysResponse([{ isActive: true }]),
         });
       }
       if (path === '/user/llm-config') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListLlmConfigsResponse([
             { id: 'config-123', name: 'Test', model: 'openai/gpt-4o-mini' },
           ]),
@@ -134,8 +134,8 @@ describe('handleDefault', () => {
           status: 404,
         });
       }
-      return Promise.resolve({ ok: false, error: 'Unknown path' });
-    });
+      return Promise.resolve({ ok: false as const, error: 'Unknown path' });
+    }) as never);
 
     await handleDefault(createMockContext('config-123'));
 
@@ -155,24 +155,24 @@ describe('handleDefault', () => {
   });
 
   it('should show error when guest user tries to set premium model as default', async () => {
-    vi.mocked(callGatewayApi).mockImplementation((path: string) => {
+    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
       if (path === '/wallet/list') {
         // No active wallet keys = guest mode
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListWalletKeysResponse([]),
         });
       }
       if (path === '/user/llm-config') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListLlmConfigsResponse([
             { id: 'premium-config', name: 'Premium Config', model: 'openai/gpt-4o' },
           ]),
         });
       }
-      return Promise.resolve({ ok: false, error: 'Should not be called' });
-    });
+      return Promise.resolve({ ok: false as const, error: 'Should not be called' });
+    }) as never);
 
     await handleDefault(createMockContext('premium-config'));
 
@@ -195,17 +195,17 @@ describe('handleDefault', () => {
   });
 
   it('should allow guest user to set free model as default', async () => {
-    vi.mocked(callGatewayApi).mockImplementation((path: string) => {
+    vi.mocked(callGatewayApi).mockImplementation(((path: string) => {
       if (path === '/wallet/list') {
         // No active wallet keys = guest mode
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListWalletKeysResponse([]),
         });
       }
       if (path === '/user/llm-config') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockListLlmConfigsResponse([
             {
               id: 'free-config',
@@ -217,14 +217,14 @@ describe('handleDefault', () => {
       }
       if (path === '/user/model-override/default') {
         return Promise.resolve({
-          ok: true,
+          ok: true as const,
           data: mockSetDefaultConfigResponse({
             default: { configId: 'free-config', configName: 'Free Config' },
           }),
         });
       }
-      return Promise.resolve({ ok: false, error: 'Unknown path' });
-    });
+      return Promise.resolve({ ok: false as const, error: 'Unknown path' });
+    }) as never);
 
     await handleDefault(createMockContext('free-config'));
 

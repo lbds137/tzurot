@@ -158,7 +158,7 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
           fetch: vi.fn().mockResolvedValue(message),
         },
       });
-      message.channel = mockChannel;
+      Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
 
       const references = await extractor.extractReferences(message);
 
@@ -204,7 +204,7 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
           fetch: vi.fn().mockResolvedValue(message),
         },
       });
-      message.channel = mockChannel;
+      Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
 
       const result = await extractor.extractReferencesWithReplacement(message);
 
@@ -237,7 +237,7 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
           fetch: vi.fn().mockResolvedValue(message),
         },
       });
-      message.channel = mockChannel;
+      Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
 
       // Mock each link to resolve to a message
       Array.from({ length: 15 }, (_, i) => {
@@ -294,7 +294,7 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
           fetch: vi.fn().mockResolvedValue(message),
         },
       });
-      message.channel = mockChannel;
+      Object.defineProperty(message, 'channel', { value: mockChannel, writable: true });
 
       const dedupExtractor = new MessageReferenceExtractor({
         prisma: {} as any,

@@ -42,9 +42,8 @@ describe('gatewayFetcher', () => {
     it('should return extracted data on success', async () => {
       const mockEntity = { id: '123', name: 'Test' };
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: true,
+        ok: true as const,
         data: { entity: mockEntity },
-        status: 200,
       });
 
       const result = await fetcher('/user/entity', '123', 'user-456');
@@ -57,7 +56,7 @@ describe('gatewayFetcher', () => {
 
     it('should return null on failure', async () => {
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: false,
+        ok: false as const,
         error: 'Not found',
         status: 404,
       });
@@ -86,9 +85,8 @@ describe('gatewayFetcher', () => {
 
       const mockEntity = { id: '123', name: 'Updated' };
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: true,
+        ok: true as const,
         data: { entity: mockEntity },
-        status: 200,
       });
 
       const result = await updater('/user/entity', '123', { name: 'Updated' }, 'user-456');
@@ -109,7 +107,7 @@ describe('gatewayFetcher', () => {
       });
 
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: false,
+        ok: false as const,
         error: 'Server error',
         status: 500,
       });
@@ -128,7 +126,7 @@ describe('gatewayFetcher', () => {
       });
 
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: false,
+        ok: false as const,
         error: 'Server error',
         status: 500,
       });
@@ -147,9 +145,8 @@ describe('gatewayFetcher', () => {
 
     it('should return success on successful delete', async () => {
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: true,
+        ok: true as const,
         data: { message: 'Deleted' },
-        status: 200,
       });
 
       const result = await deleter('/user/entity', '123', 'user-456');
@@ -163,7 +160,7 @@ describe('gatewayFetcher', () => {
 
     it('should return failure with error on failed delete', async () => {
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: false,
+        ok: false as const,
         error: 'Cannot delete',
         status: 403,
       });
@@ -188,9 +185,8 @@ describe('gatewayFetcher', () => {
     it('should return extracted list on success', async () => {
       const items = [{ id: '1' }, { id: '2' }];
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: true,
+        ok: true as const,
         data: { items },
-        status: 200,
       });
 
       const result = await fetcher('/user/items', 'user-456');
@@ -203,7 +199,7 @@ describe('gatewayFetcher', () => {
 
     it('should return null on failure', async () => {
       vi.mocked(userGatewayClientModule.callGatewayApi).mockResolvedValue({
-        ok: false,
+        ok: false as const,
         error: 'Server error',
         status: 500,
       });
@@ -217,20 +213,20 @@ describe('gatewayFetcher', () => {
   describe('unwrapOrThrow', () => {
     it('should return data on success', () => {
       const data = { id: '123' };
-      const result = unwrapOrThrow({ ok: true, data, status: 200 }, 'entity');
+      const result = unwrapOrThrow({ ok: true as const, data }, 'entity');
 
       expect(result).toEqual(data);
     });
 
     it('should throw NotFoundError on 404', () => {
       expect(() => {
-        unwrapOrThrow({ ok: false, error: 'Not found', status: 404 }, 'preset');
+        unwrapOrThrow({ ok: false as const, error: 'Not found', status: 404 }, 'preset');
       }).toThrow(NotFoundError);
     });
 
     it('should throw generic error on other failures', () => {
       expect(() => {
-        unwrapOrThrow({ ok: false, error: 'Server error', status: 500 }, 'entity');
+        unwrapOrThrow({ ok: false as const, error: 'Server error', status: 500 }, 'entity');
       }).toThrow('Failed to fetch entity: 500 - Server error');
     });
   });
