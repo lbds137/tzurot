@@ -14,9 +14,11 @@ import {
   createLogger,
   getConfig,
   AIProvider,
+  AI_DEFAULTS,
   AI_ENDPOINTS,
   type ConvertedLlmParams,
 } from '@tzurot/common-types';
+import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 
 const logger = createLogger('ModelFactory');
 const config = getConfig();
@@ -364,6 +366,58 @@ function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraPa
 }
 
 /**
+ * Type for reasoning effort levels (must match AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS keys)
+ */
+type ReasoningEffort = 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
+
+/**
+ * Calculate effective maxTokens for a model based on reasoning configuration.
+ *
+ * For reasoning models (o1, Claude 3.7+, DeepSeek R1, Kimi K2, etc.):
+ * - Scales maxTokens based on reasoning.effort level
+ * - Ensures thinking content isn't truncated
+ * - Only applies when user hasn't explicitly set maxTokens
+ *
+ * For standard models:
+ * - Uses the config maxTokens as-is (undefined = let API decide)
+ *
+ * @param modelName - The model identifier
+ * @param configMaxTokens - User-configured maxTokens (undefined = not set)
+ * @param reasoningEffort - Reasoning effort level from config
+ * @returns Effective maxTokens to use
+ */
+function getEffectiveMaxTokens(
+  modelName: string,
+  configMaxTokens: number | undefined,
+  reasoningEffort: ReasoningEffort | undefined
+): number | undefined {
+  // User-configured maxTokens always takes precedence
+  if (configMaxTokens !== undefined) {
+    return configMaxTokens;
+  }
+
+  // Only scale for reasoning models with effort configured
+  if (!isReasoningModel(modelName) || reasoningEffort === undefined) {
+    return configMaxTokens; // undefined = let API decide
+  }
+
+  // Get scaled token limit based on effort
+  const scaledMaxTokens = AI_DEFAULTS.REASONING_MODEL_MAX_TOKENS[reasoningEffort];
+
+  logger.info(
+    {
+      modelName,
+      reasoningEffort,
+      scaledMaxTokens,
+      defaultMaxTokens: AI_DEFAULTS.MAX_TOKENS,
+    },
+    '[ModelFactory] Scaling maxTokens for reasoning model based on effort level'
+  );
+
+  return scaledMaxTokens;
+}
+
+/**
  * Create a chat model based on configured AI provider
  *
  * Currently only OpenRouter is supported. OpenRouter can route to any provider
@@ -371,6 +425,7 @@ function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraPa
  */
 export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult {
   const provider = config.AI_PROVIDER;
+  const modelName = validateModelName(modelConfig.modelName);
 
   // Extract sampling parameters (NO DEFAULTS - let model/API decide)
   // See: https://openrouter.ai/docs - different models have different optimal defaults
@@ -378,7 +433,13 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   const topP = modelConfig.topP;
   const frequencyPenalty = modelConfig.frequencyPenalty;
   const presencePenalty = modelConfig.presencePenalty;
-  const maxTokens = modelConfig.maxTokens;
+
+  // Calculate effective maxTokens - scaled for reasoning models with effort configured
+  const maxTokens = getEffectiveMaxTokens(
+    modelName,
+    modelConfig.maxTokens,
+    modelConfig.reasoning?.effort
+  );
 
   // Build kwargs for provider-specific params (top_k, repetition_penalty)
   const modelKwargs = buildModelKwargs(modelConfig);
@@ -393,8 +454,6 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       if (apiKey === undefined || apiKey.length === 0) {
         throw new Error('OPENROUTER_API_KEY is required for AI generation');
       }
-
-      const modelName = validateModelName(modelConfig.modelName);
 
       // Build OpenRouter-specific params that need custom fetch injection
       const extraParams = buildOpenRouterExtraParams(modelConfig);
