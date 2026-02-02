@@ -13,7 +13,7 @@ import type {
   PersonaResolver,
   ResolvedExtendedContextSettings,
 } from '@tzurot/common-types';
-import type { Message } from 'discord.js';
+import type { Message, User } from 'discord.js';
 import {
   ConversationHistoryService,
   ConversationSyncService,
@@ -62,6 +62,18 @@ export interface ContextBuildOptions {
    * Bot's Discord user ID (required for extended context to identify assistant messages)
    */
   botUserId?: string;
+  /**
+   * Override user for context building (slash commands).
+   * When provided, this user is used for userId, persona resolution, and BYOK lookup
+   * instead of message.author. Required when the anchor message isn't from the invoking user.
+   */
+  overrideUser?: User;
+  /**
+   * Override guild member for context building (slash commands).
+   * When provided, this member is used for display name and guild info extraction.
+   * If overrideUser is set but overrideMember is not, we'll try to fetch the member.
+   */
+  overrideMember?: GuildMember | null;
 }
 
 /**
@@ -160,43 +172,39 @@ export class MessageContextBuilder {
    * @param participantGuildInfo - Guild info map to remap (modified in place)
    * @returns Number of resolved personaIds
    */
-  private async resolveExtendedContextPersonaIds(
-    messages: import('@tzurot/common-types').ConversationMessage[],
-    userMap: Map<string, string>,
-    personalityId: string,
-    participantGuildInfo?: Record<
-      string,
-      { roles: string[]; displayColor?: string; joinedAt?: string }
-    >
-  ): Promise<number> {
-    if (userMap.size === 0) {
-      return 0;
-    }
-
-    // Collect unique discordIds that need resolution (avoid N+1 queries)
+  /**
+   * Collect discordIds from messages that need persona resolution.
+   */
+  private collectDiscordIdsNeedingResolution(
+    messages: ConversationMessage[],
+    userMap: Map<string, string>
+  ): Set<string> {
     const uniqueDiscordIds = new Set<string>();
     for (const msg of messages) {
-      if (!msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
-        continue;
-      }
-      const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
-      if (userMap.has(discordId)) {
-        uniqueDiscordIds.add(discordId);
+      if (msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
+        const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
+        if (userMap.has(discordId)) {
+          uniqueDiscordIds.add(discordId);
+        }
       }
     }
+    return uniqueDiscordIds;
+  }
 
-    if (uniqueDiscordIds.size === 0) {
-      return 0;
-    }
-
-    // Batch resolve all unique discordIds in parallel with resilience
-    // Use Promise.allSettled so one failure doesn't prevent other resolutions
+  /**
+   * Batch resolve personas for a set of discordIds.
+   */
+  private async batchResolvePersonas(
+    discordIds: Set<string>,
+    personalityId: string
+  ): Promise<Map<string, { personaId: string; preferredName: string | null | undefined }>> {
     const resolvedMap = new Map<
       string,
       { personaId: string; preferredName: string | null | undefined }
     >();
+
     const resolutionResults = await Promise.allSettled(
-      Array.from(uniqueDiscordIds).map(async discordId => {
+      Array.from(discordIds).map(async discordId => {
         const resolved = await this.personaResolver.resolve(discordId, personalityId);
         return { discordId, resolved };
       })
@@ -219,9 +227,18 @@ export class MessageContextBuilder {
       }
     }
 
-    // Update messages using the resolved map
+    return resolvedMap;
+  }
+
+  /**
+   * Update messages with resolved persona info, returning remap for guild info.
+   */
+  private updateMessagesWithResolvedPersonas(
+    messages: ConversationMessage[],
+    resolvedMap: Map<string, { personaId: string; preferredName: string | null | undefined }>
+  ): { resolvedCount: number; guildInfoRemap: Map<string, string> } {
     let resolvedCount = 0;
-    const guildInfoRemap = new Map<string, string>(); // discord:XXXX -> resolved UUID
+    const guildInfoRemap = new Map<string, string>();
 
     for (const msg of messages) {
       if (!msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
@@ -234,23 +251,64 @@ export class MessageContextBuilder {
       }
       const oldPersonaId = msg.personaId;
       msg.personaId = resolved.personaId;
-      // Update personaName to match resolved persona (if available)
       if (resolved.preferredName !== undefined && resolved.preferredName !== null) {
         msg.personaName = resolved.preferredName;
       }
-      // Track mapping for participantGuildInfo remap
       guildInfoRemap.set(oldPersonaId, resolved.personaId);
       resolvedCount++;
     }
 
-    // Remap participantGuildInfo keys from discord:XXXX to resolved UUIDs
-    if (participantGuildInfo !== undefined && guildInfoRemap.size > 0) {
-      for (const [oldKey, newKey] of guildInfoRemap) {
-        if (oldKey in participantGuildInfo) {
-          participantGuildInfo[newKey] = participantGuildInfo[oldKey];
-          delete participantGuildInfo[oldKey];
-        }
+    return { resolvedCount, guildInfoRemap };
+  }
+
+  /**
+   * Remap participantGuildInfo keys from discord:XXXX to resolved UUIDs.
+   */
+  private remapParticipantGuildInfoKeys(
+    participantGuildInfo: Record<
+      string,
+      { roles: string[]; displayColor?: string; joinedAt?: string }
+    >,
+    guildInfoRemap: Map<string, string>
+  ): void {
+    for (const [oldKey, newKey] of guildInfoRemap) {
+      if (oldKey in participantGuildInfo) {
+        participantGuildInfo[newKey] = participantGuildInfo[oldKey];
+        delete participantGuildInfo[oldKey];
       }
+    }
+  }
+
+  /**
+   * Resolve discord:XXXX format personaIds to actual UUIDs.
+   * Also remaps participantGuildInfo keys to use the new UUIDs.
+   */
+  private async resolveExtendedContextPersonaIds(
+    messages: ConversationMessage[],
+    userMap: Map<string, string>,
+    personalityId: string,
+    participantGuildInfo?: Record<
+      string,
+      { roles: string[]; displayColor?: string; joinedAt?: string }
+    >
+  ): Promise<number> {
+    if (userMap.size === 0) {
+      return 0;
+    }
+
+    const uniqueDiscordIds = this.collectDiscordIdsNeedingResolution(messages, userMap);
+    if (uniqueDiscordIds.size === 0) {
+      return 0;
+    }
+
+    const resolvedMap = await this.batchResolvePersonas(uniqueDiscordIds, personalityId);
+    const { resolvedCount, guildInfoRemap } = this.updateMessagesWithResolvedPersonas(
+      messages,
+      resolvedMap
+    );
+
+    if (participantGuildInfo !== undefined && guildInfoRemap.size > 0) {
+      this.remapParticipantGuildInfoKeys(participantGuildInfo, guildInfoRemap);
     }
 
     return resolvedCount;
@@ -286,27 +344,73 @@ export class MessageContextBuilder {
   }
 
   /**
+   * Resolve the effective guild member for context building.
+   *
+   * Priority:
+   * 1. Explicit overrideMember (if provided and not null)
+   * 2. Fetch member for overrideUser (if overrideUser provided but no overrideMember)
+   * 3. message.member (default for @mention flow)
+   * 4. Fetch member for message.author (fallback)
+   */
+  private async resolveEffectiveMember(
+    message: Message,
+    options: ContextBuildOptions
+  ): Promise<GuildMember | null> {
+    // If overrideMember is explicitly provided (including null), use it
+    if (options.overrideMember !== undefined) {
+      return options.overrideMember;
+    }
+
+    // If overrideUser is provided, try to fetch their member
+    if (options.overrideUser !== undefined && message.guild !== null) {
+      try {
+        return await message.guild.members.fetch(options.overrideUser.id);
+      } catch {
+        // User not in guild or fetch failed
+        return null;
+      }
+    }
+
+    // Default: use message.member or fetch message.author
+    if (message.member !== null) {
+      return message.member;
+    }
+    if (message.guild !== null) {
+      try {
+        return await message.guild.members.fetch(message.author.id);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  /**
    * Resolve user identity, persona, and fetch conversation history.
+   *
+   * @param user - User info (from overrideUser or message.author)
+   * @param personality - Target AI personality
+   * @param displayName - Display name for persona creation
    */
   private async resolveUserContext(
-    message: Message,
+    user: { id: string; username: string; bot?: boolean },
     personality: LoadedPersonality,
     displayName: string
   ): Promise<UserContextResult> {
     // Get internal user ID for database operations
     const internalUserId = await this.userService.getOrCreateUser(
-      message.author.id,
-      message.author.username,
+      user.id,
+      user.username,
       displayName,
       undefined,
-      message.author.bot
+      user.bot ?? false
     );
 
     if (internalUserId === null) {
       throw new Error('Cannot process messages from bots');
     }
 
-    const discordUserId = message.author.id;
+    const discordUserId = user.id;
     const personaResult = await this.personaResolver.resolve(discordUserId, personality.id);
     const personaId = personaResult.config.personaId;
     const personaName = personaResult.config.preferredName;
@@ -652,14 +756,22 @@ export class MessageContextBuilder {
     content: string,
     options: ContextBuildOptions = {}
   ): Promise<ContextBuildResult> {
-    // Step 1: Fetch guild member for enriched participant context
-    const member =
-      message.member ?? (await message.guild?.members.fetch(message.author.id).catch(() => null));
-    const displayName = member?.displayName ?? message.author.globalName ?? message.author.username;
-    const guildMemberInfo = this.extractGuildMemberInfo(member, message.guild?.id);
+    // Step 1: Determine effective user and member
+    // For slash commands, overrideUser/overrideMember specifies the command invoker
+    // For @mentions, we use message.author (the actual message sender)
+    const effectiveUser = options.overrideUser ?? message.author;
+    const effectiveMember = await this.resolveEffectiveMember(message, options);
+    const displayName =
+      effectiveMember?.displayName ?? effectiveUser.globalName ?? effectiveUser.username;
+    const guildMemberInfo = this.extractGuildMemberInfo(effectiveMember, message.guild?.id);
 
     // Step 2: Resolve user identity, persona, and context epoch
-    const userContext = await this.resolveUserContext(message, personality, displayName);
+    // Pass effective user info (not message.author) for correct BYOK and persona resolution
+    const userContext = await this.resolveUserContext(
+      { id: effectiveUser.id, username: effectiveUser.username, bot: effectiveUser.bot },
+      personality,
+      displayName
+    );
     const { internalUserId, discordUserId, personaId, personaName, userTimezone, contextEpoch } =
       userContext;
 
@@ -737,11 +849,12 @@ export class MessageContextBuilder {
     // Note: userId is the Discord ID (for BYOK resolution)
     // userInternalId is the internal UUID (for usage logging and database operations)
     // discordUsername is used for disambiguation when persona name matches personality name
+    // effectiveUser is either overrideUser (slash commands) or message.author (@mentions)
     const context: MessageContext = {
       userId: discordUserId,
       userInternalId: internalUserId,
-      userName: message.author.username,
-      discordUsername: message.author.username, // For collision detection in prompt building
+      userName: effectiveUser.username,
+      discordUsername: effectiveUser.username, // For collision detection in prompt building
       userTimezone: userTimezone, // User's timezone preference for date/time formatting
       channelId: message.channel.id,
       serverId: message.guild?.id,
