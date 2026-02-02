@@ -64,8 +64,8 @@ function createMockEmbed(overrides: Partial<Embed> = {}): Embed {
   } as unknown as Embed;
 }
 
-// Helper to create mock message
-function createMockMessage(overrides: Partial<Message> = {}): Message {
+// Helper to create mock message - uses Record<string, unknown> for flexible test input
+function createMockMessage(overrides: Record<string, unknown> = {}): Message {
   const attachments = new Collection<string, Attachment>();
   const embeds: Embed[] = [];
   const messageSnapshots = new Collection<string, MessageSnapshot>();
