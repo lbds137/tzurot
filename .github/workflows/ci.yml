@@ -46,7 +46,7 @@ jobs:
         run: pnpm cpd
         continue-on-error: true
 
-      - name: Type-check test files
+      - name: Run typecheck:spec
         run: pnpm typecheck:spec
 
       - name: Check pglite schema is in sync with Prisma

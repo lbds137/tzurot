@@ -33,25 +33,9 @@ _Top 3-5 items to pull into CURRENT next._
 - [x] api-gateway: 0 errors
 - [x] ai-worker: 0 errors (~152 errors fixed - enums, LoadedPersonality mocks, thread mocks, type assertions)
 
-**Remaining bot-client errors (~339 - Part 3 in progress):**
+- [x] bot-client: 0 errors (845 → 0, PR #561)
 
-Patterns already applied (845→339, 60% reduction):
-
-- [x] `MockInput<T>` simplified to `Record<string, any>` in Discord.mock.ts
-- [x] `findPersonalityMention` now requires userId (4th parameter)
-- [x] Button/select component types use helper functions with `as unknown as APIButtonComponentWithCustomId`
-- [x] Dashboard config types use `createTestPersonaData` helper for required fields
-- [x] `createMockSnapshot` uses `Record<string, unknown>` for flexible input
-- [x] `getFocused` mocks use `as unknown as string` for overloaded signatures
-- [x] `PersonalitySummary.ownerId/ownerDiscordId` are non-nullable strings
-
-Remaining patterns to apply:
-
-- [ ] More `Record<string, unknown>` for local mock factories
-- [ ] More `as unknown as` type assertions for Discord.js types
-- [ ] Non-null assertions for optional dashboard config functions
-
-**After fixing bot-client:** make `typecheck:spec` blocking in pre-push hook
+All `typecheck:spec` violations fixed. Now a blocking check in CI and pre-push hooks.
 
 ### 🏗️ Bot-Client Package Split (NEXT)
 
@@ -99,7 +83,7 @@ Functions exceeding 15 cognitive complexity limit:
 - [ ] Make sonarjs rules `error` instead of `warn` - prevents new violations from accumulating
 - [ ] Add CPD HTML report to CI artifacts - makes reviewing duplication easier in PRs
 - [ ] Make CPD blocking in CI (remove `continue-on-error: true`)
-- [ ] Make `typecheck:spec` blocking in pre-push hook
+- [x] Make `typecheck:spec` blocking in pre-push hook (PR #561)
 
 **Documentation & Polish** (from PR #558 review):
 
@@ -107,7 +91,7 @@ Functions exceeding 15 cognitive complexity limit:
 - [ ] Document which sonarjs rules were considered and rejected in STATIC_ANALYSIS.md
 - [ ] Add CPD suppression (`/* jscpd:ignore-start */`) guidance to code review checklist
 - [ ] Add link from CLAUDE.md "Code Quality Limits" section to `STATIC_ANALYSIS.md`
-- [ ] Rename CI step "Type-check test files" → "Run typecheck:spec" for consistency
+- [x] Rename CI step "Type-check test files" → "Run typecheck:spec" for consistency (PR #561)
 
 **References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
