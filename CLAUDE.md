@@ -2,405 +2,131 @@
 
 @~/.claude/CLAUDE.md
 
-> **🎯 SESSION STARTUP**: Read [CURRENT.md](CURRENT.md) → [BACKLOG.md](BACKLOG.md) → Continue active task or pull next from High Priority
+> **Session Start**: Read [CURRENT.md](CURRENT.md) → [BACKLOG.md](BACKLOG.md) → Continue or pull next task
 
-> **⚠️ STATUS**: v3 is in **Public Beta** on Railway. BYOK complete, guest mode available.
+> **Status**: v3 Public Beta on Railway. BYOK complete.
 
-## Project Overview
+## Skills Reference (MUST Invoke Before Work)
 
-Tzurot is a Discord bot with multiple AI personalities powered by a microservices architecture. Users interact with personalities through @mentions, each maintaining long-term memory via pgvector.
+| Keywords                                | Skill                     | Enforces                |
+| --------------------------------------- | ------------------------- | ----------------------- |
+| `.test.ts`, `vitest`, `mock`            | `tzurot-testing`          | Coverage, test behavior |
+| `BullMQ`, `job`, `deferral`             | `tzurot-async-flow`       | Async patterns          |
+| `Prisma`, `pgvector`, `migration`       | `tzurot-db-vector`        | Query patterns          |
+| `Railway`, `deploy`, `logs`             | `tzurot-deployment`       | Deploy safety           |
+| `slash command`, `button`, `pagination` | `tzurot-slash-command-ux` | Standard naming         |
+| `git`, `commit`, `PR`                   | `tzurot-git-workflow`     | Git safety              |
+| `secret`, `security`, `execSync`        | `tzurot-security`         | Least privilege         |
+| `types`, `Zod`, `schema`                | `tzurot-types`            | Type safety             |
+| `refactor`, `lint`, `complexity`        | `tzurot-code-quality`     | ESLint rules            |
+| `CURRENT.md`, `BACKLOG.md`              | `tzurot-docs`             | Documentation           |
+| `MCP`, `council`                        | `tzurot-council-mcp`      | Second opinions         |
+| `architecture`, `service boundary`      | `tzurot-architecture`     | SRP                     |
+| `cache`, `TTL`                          | `tzurot-caching`          | Invalidation            |
+| `logging`, `debugging`                  | `tzurot-observability`    | Structured logging      |
+| `CLI`, `ops`, `script`                  | `tzurot-tooling`          | Ops CLI                 |
+| `skill`, `SKILL.md`                     | `tzurot-skills-guide`     | Skill quality           |
 
-**Context**: One-person project with AI assistance. Avoid team-oriented language.
+**Skills auto-load when relevant.** Claude invokes them based on task keywords. Use `Skill("tzurot-testing")` to load manually.
 
-**Why v3**: Shapes.inc killed their API, forcing a complete vendor-agnostic rewrite.
-
-## 🚨 Critical Project Rules
+## Critical Project Rules
 
 ### No Backward Compatibility
 
-**One-person project. No external users. No compatibility concerns.**
-
-- **NEVER** add compatibility layers, shims, or adapters
-- **NEVER** keep old code paths "just in case"
-- **ALWAYS** make the cleanest change, even if breaking
-
-### Standardization Over Uniqueness
-
-**Centralize patterns to fail fast and prevent inconsistencies.**
-
-The goal of using shared utilities is NOT just code reduction - it's ensuring that if something breaks, it breaks everywhere visibly rather than silently creating inconsistent behavior.
-
-- **ALWAYS** check for existing shared utilities before implementing patterns
-- **NEVER** reimplement pagination, customIds, dashboard messages, etc. locally
-- If a shared utility doesn't fit, **extend it** rather than creating a one-off version
-- Arbitrary uniqueness creates bugs that are hard to track down
-
-**📚 See**: `tzurot-slash-command-ux` skill for the shared utility reference table
-
-### No "Not My Problem" Excuses
-
-**If tests fail or lint errors exist, FIX THEM. No exceptions.**
-
-- **NEVER** use `--no-verify` to bypass checks
-- **ALWAYS** leave the codebase better than you found it
-- Previous session broke it? Fix it now.
-
-### Completeness Over Speed
-
-**NEVER sacrifice thoroughness for speed. NEVER take shortcuts.**
-
-- Do not assume a pattern exists in only one location
-- Do not assume APIs work a certain way without checking definitions
-- When solving a problem, implement the proper solution—not documentation describing the limitation
-- This is a monorepo: changes often ripple across packages. Check impact in `services/`, `packages/`, and infrastructure files
+One-person project. Make the cleanest change, even if breaking.
 
 ### Verify Before Accepting External Feedback
 
-**NEVER blindly accept code review suggestions without verifying against source of truth.**
-
-Automated reviewers (claude-bot, Copilot, etc.) and even human reviewers can be wrong. Before implementing any suggested change:
-
-- **Check the schema** - If reviewer suggests changing a type (e.g., `string` to `string | null`), verify in Prisma schema
-- **Check the source** - If reviewer claims something about behavior, verify in the actual code
-- **Check the tests** - Existing tests often encode correct behavior assumptions
-
-**Red flags that require verification:**
-
-- "This should allow null" → Check if schema/DB allows null
-- "This type is wrong" → Verify against actual type definitions
-- "This validation is missing" → Check if validation exists elsewhere
-
-**Example incident:** Reviewer suggested `ownerId: string | null` for LlmConfig permissions. Blindly accepted without checking Prisma schema, which clearly shows `ownerId String` (non-nullable). Caught by user before merge.
-
-### Use MCP Council When Stuck
-
-**When stuck on a problem, consult MCP council instead of taking shortcuts.**
-
-Signs you're stuck and should consult council:
-
-- Same approach failing multiple times
-- About to simplify/skip something that should work
-- Unsure why mocks, tests, or code aren't behaving as expected
-- Tempted to say "this is good enough" when it isn't
-
-```bash
-# Debug help
-mcp__council__debug({ error_message: "...", code_context: "..." })
-
-# Second opinion on approach
-mcp__council__ask({ question: "Why might X not be working?" })
-```
-
-**📚 See**: `tzurot-council-mcp` skill for full usage patterns
-
-### Never Unilaterally Abandon Work
-
-**NEVER decide to skip or abandon agreed-upon work without consulting the user first.**
-
-This project uses a collaborative workflow. When work gets complex:
-
-- ❌ NEVER unilaterally decide "this is too complex, let's skip it"
-- ❌ NEVER revert changes without explicit permission
-- ❌ NEVER run destructive git commands (`git restore`, `git checkout .`, `git reset`) without user approval
-- ✅ ASK before changing scope of agreed work
-- ✅ EXPLAIN the complexity and let the user decide
-- ✅ COMMIT partial work before changing direction
-
-**Destructive git commands require explicit user permission:**
-
-| Command                                     | Risk                      | Ask First? |
-| ------------------------------------------- | ------------------------- | ---------- |
-| `git restore <file>`                        | Discards file changes     | **YES**    |
-| `git checkout .` / `git checkout -- <file>` | Discards all changes      | **YES**    |
-| `git reset --hard`                          | Undoes commits            | **YES**    |
-| `git clean -fd`                             | Deletes untracked files   | **YES**    |
-| `git stash drop`                            | Permanently removes stash | **YES**    |
-
-**Golden Rule**: Uncommitted changes may represent hours of work. Treat them as sacred.
-
-### 🚨 NEVER Delete Files Without Explicit Approval
-
-**NEVER use `rm -rf`, `rm -r`, or bulk file deletion without explicit user permission.**
-
-This rule exists because of a real incident where gitignored data was permanently lost.
-
-**Destructive file commands that REQUIRE explicit approval:**
-
-| Command                           | Risk                              | Ask First? |
-| --------------------------------- | --------------------------------- | ---------- |
-| `rm -rf <directory>`              | Permanent deletion, unrecoverable | **YES**    |
-| `rm -r <directory>`               | Recursive deletion                | **YES**    |
-| `rm <file>` (multiple files)      | Bulk deletion                     | **YES**    |
-| Deleting gitignored files/dirs    | Cannot be restored from git       | **YES**    |
-| Deleting `data/`, `node_modules/` | May contain irreplaceable data    | **YES**    |
-
-**Before ANY file deletion:**
-
-1. **List exactly what will be deleted** - show the user the files/directories
-2. **Check if gitignored** - gitignored files CANNOT be restored from git
-3. **Wait for explicit "yes, delete these"** - don't assume from context
-4. **Prefer moving over deleting** - `mv` to a temp location first if uncertain
-
-**What NOT to do:**
-
-```bash
-# ❌ NEVER do this without explicit approval
-rm -rf tzurot-legacy/
-rm -rf data/
-rm -r some-directory/
-
-# ✅ Instead, list what would be deleted and ASK
-ls -la tzurot-legacy/
-# "These files would be deleted: [list]. Should I proceed?"
-```
-
-**Golden Rule**: If it's not tracked by git, it may be irreplaceable. ASK FIRST.
+Automated reviewers can be wrong. Check schema/source/tests before implementing suggestions.
 
 ### Mandatory Global Discovery ("Grep Rule")
 
-**Before modifying ANY configuration, infrastructure, or shared pattern:**
+Before modifying config/infrastructure: Search ALL instances → List affected files → Justify exclusions.
 
-1. Search for ALL instances: `grep -r "pattern" --include="*.ext"`
-2. List every file that will be affected
-3. If you find N instances but only plan to edit N-1, justify why the last one is excluded
+### Never Merge PRs Without User Approval
 
-Examples:
-
-- Updating Node version? Search `Dockerfile*`, `.nvmrc`, `package.json`, CI workflows
-- Adding a workspace package? Check ALL Dockerfiles, not just the one you're focused on
-- Changing an interface? Find ALL consumers across services
-
-### Impact Analysis Plan
-
-**Before applying edits, list the specific files you intend to modify.**
-
-When making changes that affect multiple files:
-
-1. State which files will be changed
-2. Verify no files are missed using global search
-3. If you find additional files mid-implementation, update the plan
-
-### Mandatory Skill Pre-Flight Check
-
-**Before writing ANY code, ACTUALLY INVOKE relevant skills using the Skill tool.**
-
-Skills are NOT automatically loaded. You must explicitly activate them:
-
-```
-# Use the Skill tool to load project-specific patterns
-Skill("tzurot-testing")   # Before writing tests
-Skill("tzurot-db-vector") # Before database work
-```
-
-**Pre-flight process:**
-
-1. **Identify matching keywords** from the table below
-2. **INVOKE the skill** using the Skill tool - don't just read about it
-3. **Follow skill guidance** over general knowledge - skills override defaults
-
-**Trigger Keywords → Skills**:
-
-| Keywords                                         | Skill                   |
-| ------------------------------------------------ | ----------------------- |
-| `.test.ts`, `vitest`, `mock`, `coverage`         | tzurot-testing          |
-| `BullMQ`, `job`, `async`, `deferral`             | tzurot-async-flow       |
-| `Prisma`, `pgvector`, `database`, `migration`    | tzurot-db-vector        |
-| `Railway`, `deploy`, `logs`, `service`           | tzurot-deployment       |
-| `slash command`, `button`, `pagination`          | tzurot-slash-command-ux |
-| `logging`, `debugging`, `operations`             | tzurot-observability    |
-| `types`, `Zod`, `schema`, `constants`            | tzurot-types            |
-| `secret`, `security`, `PII`, `execSync`, `shell` | tzurot-security         |
-| `git`, `commit`, `PR`, `branch`                  | tzurot-git-workflow     |
-| `cache`, `invalidation`, `TTL`                   | tzurot-caching          |
-| `refactor`, `lint`, `complexity`                 | tzurot-code-quality     |
-| `architecture`, `service boundary`               | tzurot-architecture     |
-| `CURRENT.md`, `BACKLOG.md`, `documentation`      | tzurot-docs             |
-| `skill`, `SKILL.md`                              | tzurot-skills-guide     |
-| `CLI`, `ops`, `script`                           | tzurot-tooling          |
-| `MCP`, `council`, `second opinion`               | tzurot-council-mcp      |
-
-**Why This Matters**: Skills contain project-specific patterns that override general knowledge. The tzurot-testing skill specifies `.int.test.ts` naming for integration tests - ignoring it caused misnamed test files.
-
-**Common Mistake**: Reading skill descriptions but not actually invoking them. The skill content only loads into context when you use the Skill tool. If you're about to write tests but haven't invoked `tzurot-testing`, you're missing critical project-specific patterns.
+CI passing ≠ merge approval. User must explicitly request merge.
 
 ### Deterministic UUIDs Required
 
-**NEVER use random UUIDs (v4). ALWAYS use deterministic UUIDs (v5).**
-
-This project syncs data between dev and prod. Random UUIDs cause sync failures.
-
-```typescript
-// ✅ CORRECT - Use generators from packages/common-types/src/utils/deterministicUuid.ts
-import { generateUserPersonalityConfigUuid } from '@tzurot/common-types';
-
-await prisma.userPersonalityConfig.upsert({
-  create: {
-    id: generateUserPersonalityConfigUuid(userId, personalityId),
-    userId,
-    personalityId,
-    llmConfigId,
-  },
-});
-
-// ❌ WRONG - No id specified, Prisma generates random UUID
-await prisma.userPersonalityConfig.upsert({
-  create: { userId, personalityId, llmConfigId },
-});
-```
-
-**Available generators**: User, Personality, Persona, SystemPrompt, LlmConfig, UserPersonalityConfig, ConversationHistory, ActivatedChannel
-
-### Gateway Client Usage
-
-**NEVER use direct `fetch()` to the API gateway.** Use established clients.
-
-| Client             | Purpose            | Use For              |
-| ------------------ | ------------------ | -------------------- |
-| `callGatewayApi()` | User-authenticated | `/user/*` endpoints  |
-| `adminFetch()`     | Admin-only         | `/admin/*` endpoints |
-| `GatewayClient`    | Internal service   | Service-to-service   |
-
-**📚 See**: `tzurot-architecture` skill for examples and header reference
+Never use random UUIDs (v4). Use generators from `@tzurot/common-types`.
 
 ### Database Access Rules
 
-**bot-client MUST NEVER use Prisma directly.** All database access goes through api-gateway.
+| Service     | Prisma | Why              |
+| ----------- | ------ | ---------------- |
+| bot-client  | NEVER  | Use gateway APIs |
+| api-gateway | Yes    | Source of truth  |
+| ai-worker   | Yes    | Memory ops       |
 
-| Service       | Prisma   | Why                     |
-| ------------- | -------- | ----------------------- |
-| `bot-client`  | ❌ NEVER | Use gateway APIs        |
-| `api-gateway` | ✅ Yes   | Source of truth         |
-| `ai-worker`   | ✅ Yes   | Memory/conversation ops |
+### Gateway Clients
+
+Never use direct `fetch()`. Use: `callGatewayApi()`, `adminFetch()`, or `GatewayClient`.
 
 ## Engineering Standards
 
-### Code Quality Limits (ESLint Enforced)
+### Code Quality (ESLint Enforced)
 
-**Key limits**: 500 lines/file (error), 100 lines/function, 15 complexity, 4 nesting depth.
+- 500 lines/file (error), 100 lines/function, 15 complexity, 4 nesting depth
+- `strict: true`, no `any` types, no unsafe operations
+- 80% coverage (Codecov enforced)
 
-**📚 See**: `tzurot-code-quality` skill for full limits table, refactoring patterns, and extraction techniques.
+**See**: `tzurot-code-quality` skill for details
 
-### Static Analysis
+### Error Handling
 
-- **Duplication**: Zero tolerance. Run `pnpm cpd` to detect. Refactor to shared utils.
-- **Complexity**: Cognitive complexity limit 15 (sonarjs). Break down complex functions.
-- **Test Types**: Tests type-checked separately via `pnpm typecheck:spec`.
-
-**📚 See**: `docs/reference/STATIC_ANALYSIS.md` for detailed guidance.
-
-### Type Safety (TypeScript Strict Mode)
-
-- `strict: true` - All strict checks enabled
-- `@typescript-eslint/no-explicit-any` - ERROR (use `unknown` + type guards)
-- `@typescript-eslint/no-unsafe-*` - ERROR (no unsafe operations)
-- `@typescript-eslint/strict-boolean-expressions` - ERROR
-
-### Coverage Requirements (Codecov Enforced)
-
-**Threshold**: 80% project-wide and per-patch. Codecov blocks if coverage drops >2%.
-
-**📚 See**: `tzurot-testing` skill for coverage details and ratchet audits.
-
-### Error Handling Strategy
-
-**Predictable errors return values; unexpected failures throw.**
-
-```typescript
-// ✅ Gateway API responses use Result pattern
-const result = await callGatewayApi<PersonaResponse>('/user/persona', { userId });
-if (!result.ok) {
-  await interaction.editReply(`❌ ${result.error}`);
-  return;
-}
-// result.data is typed correctly here
-```
+Predictable errors return values; unexpected failures throw. Gateway APIs use Result pattern.
 
 ### Discord 3-Second Rule
 
-Discord interactions have a 3-second timeout. For AI operations:
-
 ```typescript
-await interaction.deferReply(); // MUST be called within 3 seconds
-// ... async work (AI generation, DB queries) ...
+await interaction.deferReply(); // Within 3 seconds
+// ... async work ...
 await interaction.editReply({ content: result });
 ```
 
-**📚 See**: `tzurot-async-flow` skill for BullMQ deferral patterns
+### Bounded Queries
 
-### Bounded Data Access
+All `findMany` must have `take` limit. No unbounded arrays.
 
-**All queries returning arrays must be bounded.**
+### Security
 
-- Required: `take` limit on `findMany` queries
-- Required: Cursor-based pagination for list endpoints
-
-```typescript
-// ✅ CORRECT - Bounded query
-const items = await prisma.personality.findMany({ take: 100 });
-
-// ❌ WRONG - Unbounded (OOM risk as data grows)
-const items = await prisma.personality.findMany();
-```
-
-### Boy Scout Rule
-
-**Leave code better than you found it.**
-
-When modifying a file:
-
-- Fix lint warnings in code you touch
-- Add missing types to functions you modify
-- Extract helpers if adding to an already-long function
-
-### Dead Code Policy (YAGNI)
-
-**Delete immediately, don't comment out.**
-
-- ❌ No `// TODO: remove later`
-- ❌ No `if (false) { ... }`
-- ❌ No unused imports/variables (ESLint enforced)
-- ✅ Git history preserves deleted code
-
-### Avoid Re-exports
-
-**Import from source modules, not index files.**
-
-Re-exports create spaghetti code and obscure dependencies. They make refactoring harder and can cause circular import issues.
-
-- ❌ Don't add re-exports just for convenience
-- ❌ Don't create `index.ts` files that only re-export
-- ✅ Import directly from the source module
-- ✅ Exception: Package entry points (e.g., `@tzurot/common-types`)
-
-```typescript
-// ❌ BAD - Re-exporting for convenience
-// utils/index.ts
-export { formatDate } from './dateUtils.js';
-export { parseUrl } from './urlUtils.js';
-
-// ✅ GOOD - Import from source
-import { formatDate } from './utils/dateUtils.js';
-import { parseUrl } from './utils/urlUtils.js';
-```
-
-### Code Review Checklist
-
-Before approving any PR:
-
-| Category    | Checks                                                 |
-| ----------- | ------------------------------------------------------ |
-| **Safety**  | No secrets, no unbounded queries, error cases handled  |
-| **Quality** | Functions <100 lines, complexity <15, no `any` types   |
-| **Testing** | New behavior tested, tests pass, no `.skip` or `.only` |
+**Never commit secrets.** Use `execFileSync` with arrays, not `execSync` with strings.
 
 ## Tech Stack
 
 - **Language**: TypeScript (Node.js 25+, pnpm workspaces)
-- **Discord**: Discord.js 14.x
 - **Services**: bot-client, api-gateway, ai-worker
 - **Database**: PostgreSQL + pgvector, Redis + BullMQ
 - **Deployment**: Railway (auto-deploy from develop)
-- **AI**: OpenRouter (primary), Gemini (alternative)
+
+## Essential Commands
+
+```bash
+pnpm dev              # Start all services
+pnpm test             # Run tests
+pnpm quality          # lint + cpd + typecheck:spec
+pnpm ops db:migrate --env dev  # Run migrations
+```
+
+**See**: `tzurot-tooling` skill for full CLI reference
+
+## Automation
+
+**Hooks**: PostToolUse runs `eslint --fix` on .ts/.tsx edits. Config: `.claude/settings.json`
+
+**Commands**: `/project:quality`, `/project:test-file`, `/project:pr-feedback`, `/project:session-end`
+
+## Git Workflow
+
+**REBASE-ONLY. NO SQUASH. NO MERGE COMMITS.**
+
+```bash
+gh pr create --base develop --title "feat: description"
+gh pr merge <number> --rebase --delete-branch  # ONLY with user approval
+```
+
+**See**: `tzurot-git-workflow` skill for safety protocol
 
 ## Project Structure
 
@@ -409,203 +135,28 @@ tzurot/
 ├── .claude/skills/         # 16 project-specific skills
 ├── services/
 │   ├── bot-client/         # Discord interface
-│   ├── api-gateway/        # HTTP API + BullMQ queue
+│   ├── api-gateway/        # HTTP API + BullMQ
 │   └── ai-worker/          # AI processing + memory
-├── packages/common-types/  # Shared types/interfaces
-├── personalities/          # Personality configs (JSON)
-├── prisma/                 # Database schema
-└── docs/                   # Documentation
+├── packages/common-types/  # Shared types
+├── personalities/          # Personality configs
+└── prisma/                 # Database schema
 ```
-
-## Essential Commands
-
-```bash
-# Development
-pnpm install          # Install dependencies
-pnpm dev              # Start all services
-pnpm build            # Build all
-pnpm typecheck        # Type check all
-pnpm lint             # Lint all
-pnpm test             # Run all tests
-
-# Code Quality
-pnpm cpd              # Copy-paste detection
-pnpm cpd:report       # CPD with HTML report
-pnpm typecheck:spec   # Type-check including tests
-pnpm quality          # Full quality check (lint + cpd + typecheck:spec)
-
-# Service-specific
-pnpm --filter @tzurot/bot-client dev
-pnpm --filter @tzurot/ai-worker test
-
-# Test summary (always run after tests)
-pnpm test:summary
-
-# Release management
-pnpm bump-version 3.0.0-beta.31  # Bump version in all package.json files
-
-# Ops CLI (Railway/database operations)
-pnpm ops db:status --env dev     # Check migration status
-pnpm ops db:migrate --env dev    # Run pending migrations
-pnpm ops db:migrate --env prod --force  # Prod requires --force
-pnpm ops run --env dev <cmd>     # Run any command with Railway DB credentials
-```
-
-**Note**: Use pnpm, NOT npm. ESLint uses flat config (`eslint.config.js`), NOT `.eslintrc.*`.
-
-**📚 See**: `tzurot-tooling` skill for full CLI reference, `tzurot-deployment` for Railway ops, `tzurot-db-vector` for database patterns
-
-## Git Workflow
-
-**REBASE-ONLY. NO SQUASH. NO MERGE COMMITS.**
-
-GitHub settings enforce rebase-only - merge commits and squash merges are disabled at the repository level.
-
-### 🚨 PR Merge Rules
-
-**NEVER merge a PR without explicit user approval.** This is non-negotiable.
-
-- ✅ CI passing is necessary but NOT sufficient for merging
-- ✅ User must explicitly approve/request the merge
-- ❌ NEVER merge just because "CI is green"
-- ❌ NEVER merge to "complete the task"
-
-```bash
-# Always target develop for PRs (never main for features)
-gh pr create --base develop --title "feat: description"
-
-# Commit format
-git commit -m "feat(service): description"
-
-# Merge strategy (ONLY with user approval)
-gh pr merge <number> --rebase --delete-branch
-
-# PR review/comments - USE OPS CLI (gh pr view is flaky)
-pnpm ops gh:pr-comments <number>   # Get all comments
-pnpm ops gh:pr-reviews <number>    # Get all reviews
-pnpm ops gh:pr-all <number>        # Get everything
-```
-
-**📚 See**: `tzurot-git-workflow` for complete workflow, hooks, safety protocol
-
-## Environment Variables
-
-### bot-client
-
-- `DISCORD_TOKEN`, `GATEWAY_URL`
-
-### api-gateway
-
-- `REDIS_URL`, `DATABASE_URL`
-
-### ai-worker
-
-- `REDIS_URL`, `DATABASE_URL`, `AI_PROVIDER`
-- `OPENROUTER_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`
-
-## Security
-
-**🚨 NEVER COMMIT SECRETS** - Has happened TWICE. Rotate immediately if committed.
-
-```bash
-# Pre-commit check
-git diff --cached | grep -iE '(password|secret|token|api.?key|postgresql://|redis://)'
-```
-
-**🚨 SHELL COMMANDS - RECURRING ISSUE - ALWAYS USE `execFileSync` WITH ARRAYS:**
-
-This pattern has been violated multiple times. Before writing ANY shell execution code, read this:
-
-```typescript
-import { execFileSync } from 'node:child_process';
-
-// ❌ WRONG - Command injection vulnerability (even with "trusted" data)
-execSync(`npx prisma migrate diff --to-schema "${schemaPath}"`);
-execSync(`railway variables --set "${key}=${value}"`);
-execSync(`git commit -m "${message}"`);
-
-// ✅ CORRECT - Arguments passed directly, no shell interpretation
-execFileSync('npx', ['prisma', 'migrate', 'diff', '--to-schema', schemaPath]);
-execFileSync('railway', ['variables', '--set', `${key}=${value}`]);
-execFileSync('git', ['commit', '-m', message]);
-
-// ✅ OK - Fully static commands (no variables)
-execSync('git log --oneline -5');
-```
-
-**Rule:** If ANY variable is interpolated into a command, use `execFileSync` with an array.
-
-**📚 See**: `tzurot-security` for comprehensive security patterns
-
-## Skills Reference
-
-16 project-specific skills in `.claude/skills/`:
-
-| Skill                   | Use When                       | Enforces                 |
-| ----------------------- | ------------------------------ | ------------------------ |
-| tzurot-architecture     | Service design, error patterns | SRP, service boundaries  |
-| tzurot-async-flow       | BullMQ, Discord deferrals      | Async patterns           |
-| tzurot-caching          | Cache patterns                 | Cache invalidation       |
-| tzurot-code-quality     | Lint errors, refactoring       | ESLint rules, SOLID      |
-| tzurot-council-mcp      | Consulting external AI         | Second opinions          |
-| tzurot-db-vector        | PostgreSQL, pgvector           | Query patterns           |
-| tzurot-deployment       | Railway, troubleshooting       | Deploy safety            |
-| tzurot-docs             | Documentation, session handoff | Knowledge continuity     |
-| tzurot-git-workflow     | Commits, PRs, rebasing         | Git safety, hooks        |
-| tzurot-observability    | Logging, debugging, operations | Structured logging       |
-| tzurot-security         | Secrets, user input            | Least privilege          |
-| tzurot-skills-guide     | Creating/updating skills       | Skill quality            |
-| tzurot-slash-command-ux | Slash commands, pagination     | Standard naming, buttons |
-| tzurot-testing          | Writing tests, mocking         | Coverage, test behavior  |
-| tzurot-tooling          | CLI commands, dev scripts      | Ops CLI, standardization |
-| tzurot-types            | Types, constants, Zod schemas  | Type safety, DRY         |
 
 ## Post-Mortems
 
-| Date       | Incident                        | Rule                                       |
-| ---------- | ------------------------------- | ------------------------------------------ |
-| 2026-02-01 | Accepted wrong type from review | Verify reviewer suggestions against schema |
-| 2026-01-30 | Gitignored data/ deleted        | NEVER rm -rf without explicit okay         |
-| 2026-01-30 | Work reverted without consent   | Never abandon/revert without asking        |
-| 2026-01-28 | Error metadata missing model    | Update both producer and consumer          |
-| 2026-01-24 | execSync with string commands   | Use execFileSync with arrays               |
-| 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch         |
-| 2026-01-17 | Dockerfile missed new package   | Use Grep Rule for all infra files          |
-| 2026-01-07 | PR merged without approval      | Never merge PRs without user okay          |
-| 2025-07-25 | Untested push broke develop     | Always run tests before pushing            |
-| 2025-07-21 | Git restore destroyed work      | Confirm before destructive git             |
-| 2025-10-31 | DB URL committed                | Never commit database URLs                 |
-| 2025-12-05 | Direct fetch broke /character   | Use gateway clients                        |
-| 2025-12-06 | API contract mismatch           | Use shared Zod schemas                     |
+| Date       | Incident                        | Rule                         |
+| ---------- | ------------------------------- | ---------------------------- |
+| 2026-02-01 | Accepted wrong type from review | Verify against schema        |
+| 2026-01-30 | Gitignored data/ deleted        | Never rm -rf without okay    |
+| 2026-01-30 | Work reverted without consent   | Never abandon without asking |
+| 2026-01-28 | Error metadata missing model    | Update producer and consumer |
+| 2026-01-24 | execSync with string commands   | Use execFileSync with arrays |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
 
-## Railway Deployment
-
-**Project**: industrious-analysis (development)
-
-- **api-gateway**: https://api-gateway-development-83e8.up.railway.app
-- **Auto-deploy**: Push to develop branch
-- **Cost Model**: BYOK (users provide API keys via `/settings apikey`)
-
-**📚 See**: `tzurot-deployment` skill for operations, `docs/reference/RAILWAY_CLI_REFERENCE.md` for CLI
-
-## Tool Permissions
-
-### Approved (No Permission Needed)
-
-- `pnpm` commands, file operations, search tools
-- Railway/git read operations
-
-### Requires Approval
-
-- `pnpm add/remove`, Railway write operations
-- Git commits/pushes, database migrations
-
 ## Key References
 
-- **CLI**: `docs/reference/RAILWAY_CLI_REFERENCE.md`, `docs/reference/GITHUB_CLI_REFERENCE.md`
-- **Folder Structure**: `docs/reference/standards/FOLDER_STRUCTURE.md`
-- **Tri-State Pattern**: `docs/reference/standards/TRI_STATE_PATTERN.md` (for cascading settings)
-- **v2 Feature Status**: `docs/proposals/active/V2_FEATURE_TRACKING.md`
-- **Work Tracking**: `CURRENT.md` (active task), `BACKLOG.md` (all work items)
+- **Session**: `CURRENT.md`, `BACKLOG.md`
+- **Docs**: `docs/reference/` (standards, guides)
+- **Railway**: `docs/reference/RAILWAY_CLI_REFERENCE.md`
+- **GitHub**: `docs/reference/GITHUB_CLI_REFERENCE.md`

@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
-description: Documentation procedures for Tzurot v3. Use when updating CURRENT.md or BACKLOG.md. Covers workflow, folder structure, and knowledge continuity.
-lastUpdated: '2026-01-26'
+description: "MUST invoke when: updating CURRENT.md, BACKLOG.md, or docs/ files. Also invoke at session start/end for workflow guidance. Invoke when user says 'wrap up', 'summarize', or 'done for now'."
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot v3 Documentation & Workflow

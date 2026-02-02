@@ -1,7 +1,7 @@
 ---
 name: tzurot-skills-guide
-description: Meta-skill for writing and maintaining Claude Code skills. Use when creating new skills, updating existing skills, or reviewing skill quality. Enforces progressive disclosure and size limits.
-lastUpdated: '2026-01-21'
+description: 'MUST invoke when: creating new skills, updating SKILL.md files, or reviewing skill quality. Contains size limits and progressive disclosure requirements.'
+lastUpdated: '2026-02-01'
 ---
 
 # Writing Claude Code Skills - Best Practices
