@@ -104,11 +104,13 @@ if ! pnpm turbo run build lint test $TURBO_FILTER $TURBO_ARGS; then
     exit 1
 fi
 
-# 7. Run test file type checking (warning only until baseline is fixed)
+# 7. Run test file type checking (BLOCKING - catches test type errors)
 echo "Running test file type checking..."
 # shellcheck disable=SC2086
 if ! pnpm turbo run typecheck:spec $TURBO_FILTER $TURBO_ARGS; then
-    echo "${YELLOW}⚠️  Test file type checking found errors (non-blocking until baseline fixed)${NC}"
+    echo "${RED}Test file type checking failed!${NC}"
+    echo "Fix the type errors before pushing, or use: git push --no-verify"
+    exit 1
 fi
 
 # 8. Run copy-paste detection (warning only - doesn't block push)

@@ -48,7 +48,6 @@ jobs:
 
       - name: Type-check test files
         run: pnpm typecheck:spec
-        continue-on-error: true
 
       - name: Check pglite schema is in sync with Prisma
         # Dummy URL - prisma migrate diff doesn't connect, just needs provider hint
