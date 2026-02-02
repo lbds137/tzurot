@@ -4,6 +4,8 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
+/* eslint-disable max-lines -- TODO: Extract diagnostic storage and retry helpers to reduce file size */
+
 import {
   createLogger,
   MessageContent,
@@ -185,13 +187,65 @@ export class GenerationStep implements IPipelineStep {
       });
   }
 
+  /** Check for empty response and determine retry action */
+  private shouldRetryEmptyResponse(
+    response: RAGResponse,
+    attempt: number,
+    maxAttempts: number,
+    jobId: string | undefined
+  ): 'retry' | 'return' | 'continue' {
+    if (response.content.length > 0) {
+      return 'continue';
+    }
+    const canRetry = attempt < maxAttempts;
+    const hasThinking = response.thinkingContent !== undefined && response.thinkingContent !== '';
+    const logFn = canRetry ? logger.warn : logger.error;
+    logFn(
+      { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
+      canRetry
+        ? '[GenerationStep] Empty response after post-processing. Retrying...'
+        : '[GenerationStep] All retries produced empty responses.'
+    );
+    return canRetry ? 'retry' : 'return';
+  }
+
+  /** Log duplicate detection and determine retry action */
+  private logDuplicateDetection(
+    response: RAGResponse,
+    opts: {
+      attempt: number;
+      maxAttempts: number;
+      matchIndex?: number;
+      jobId?: string;
+      isGuestMode: boolean;
+    }
+  ): 'retry' | 'return' {
+    const { attempt, maxAttempts, matchIndex, jobId, isGuestMode } = opts;
+    const canRetry = attempt < maxAttempts;
+    const logFn = canRetry ? logger.warn : logger.error;
+    logFn(
+      {
+        jobId,
+        modelUsed: response.modelUsed,
+        isGuestMode,
+        attempt,
+        matchedTurnsBack: (matchIndex ?? 0) + 1,
+      },
+      canRetry
+        ? '[GenerationStep] Cross-turn duplication detected. Retrying...'
+        : '[GenerationStep] All retries produced duplicate responses.'
+    );
+    return canRetry ? 'retry' : 'return';
+  }
+
   /**
-   * Generate response with cross-turn duplication retry.
-   * Treats duplicate responses as retryable failures, matching LLM retry pattern.
+   * Generate response with cross-turn duplication and empty response retry.
+   * Treats duplicate and empty responses as retryable failures, matching LLM retry pattern.
    * Uses RETRY_CONFIG.MAX_ATTEMPTS (3 attempts = 1 initial + 2 retries).
    *
-   * Checks against multiple recent assistant messages (up to 5) to catch duplicates
-   * of older responses, not just the immediate previous one.
+   * Retries on:
+   * - Empty content after post-processing (e.g., model produced only thinking blocks)
+   * - Duplicate responses matching recent assistant messages (up to 5)
    */
   private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
@@ -202,7 +256,7 @@ export class GenerationStep implements IPipelineStep {
     isGuestMode: boolean;
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;
-  }): Promise<{ response: RAGResponse; duplicateRetries: number }> {
+  }): Promise<{ response: RAGResponse; duplicateRetries: number; emptyRetries: number }> {
     const {
       personality,
       message,
@@ -215,6 +269,7 @@ export class GenerationStep implements IPipelineStep {
     } = opts;
 
     let duplicateRetries = 0;
+    let emptyRetries = 0;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -231,7 +286,7 @@ export class GenerationStep implements IPipelineStep {
             frequencyPenaltyOverride: retryConfig.frequencyPenaltyOverride,
             historyReductionPercent: retryConfig.historyReductionPercent,
           },
-          '[GenerationStep] Escalating retry parameters for duplicate avoidance'
+          '[GenerationStep] Escalating retry parameters'
         );
       }
 
@@ -258,7 +313,18 @@ export class GenerationStep implements IPipelineStep {
         }
       );
 
-      // If no previous messages to compare, or response is unique, we're done
+      // Check for empty content after post-processing (e.g., only thinking blocks)
+      const emptyAction = this.shouldRetryEmptyResponse(response, attempt, maxAttempts, jobId);
+      if (emptyAction === 'retry') {
+        emptyRetries++;
+        continue;
+      }
+      if (emptyAction === 'return') {
+        emptyRetries++;
+        return { response, duplicateRetries, emptyRetries };
+      }
+
+      // Check for duplicate responses
       // Use async version with optional embedding service for semantic layer (Layer 4)
       const { isDuplicate, matchIndex } = await isRecentDuplicateAsync(
         response.content,
@@ -267,44 +333,26 @@ export class GenerationStep implements IPipelineStep {
       );
 
       if (!isDuplicate) {
-        if (duplicateRetries > 0) {
+        if (duplicateRetries > 0 || emptyRetries > 0) {
           logger.info(
-            { jobId, modelUsed: response.modelUsed, attempt, duplicateRetries },
-            '[GenerationStep] Retry succeeded - got unique response'
+            { jobId, modelUsed: response.modelUsed, attempt, duplicateRetries, emptyRetries },
+            '[GenerationStep] Retry succeeded - got valid unique response'
           );
         }
-        return { response, duplicateRetries };
+        return { response, duplicateRetries, emptyRetries };
       }
 
-      // Duplicate detected - retry if attempts remain
+      // Duplicate detected - log and determine action
       duplicateRetries++;
-
-      if (attempt < maxAttempts) {
-        logger.warn(
-          {
-            jobId,
-            modelUsed: response.modelUsed,
-            isGuestMode,
-            responseLength: response.content.length,
-            attempt,
-            remainingAttempts: maxAttempts - attempt,
-            matchedTurnsBack: matchIndex + 1,
-          },
-          '[GenerationStep] Cross-turn duplication detected. Retrying with new request_id...'
-        );
-      } else {
-        // Last attempt still produced duplicate - log error but return it anyway
-        logger.error(
-          {
-            jobId,
-            modelUsed: response.modelUsed,
-            isGuestMode,
-            totalAttempts: maxAttempts,
-            matchedTurnsBack: matchIndex + 1,
-          },
-          '[GenerationStep] All retries produced duplicate responses. Using last response.'
-        );
-        return { response, duplicateRetries };
+      const dupAction = this.logDuplicateDetection(response, {
+        attempt,
+        maxAttempts,
+        matchIndex,
+        jobId,
+        isGuestMode,
+      });
+      if (dupAction === 'return') {
+        return { response, duplicateRetries, emptyRetries };
       }
     }
 
@@ -403,8 +451,8 @@ export class GenerationStep implements IPipelineStep {
         );
       }
 
-      // Generate response with automatic retry on cross-turn duplication
-      const { response, duplicateRetries } = await this.generateWithDuplicateRetry({
+      // Generate response with automatic retry on empty content and cross-turn duplication
+      const { response, duplicateRetries, emptyRetries } = await this.generateWithDuplicateRetry({
         personality: effectivePersonality,
         message: message as MessageContent,
         conversationContext,
@@ -437,14 +485,14 @@ export class GenerationStep implements IPipelineStep {
 
       const processingTimeMs = Date.now() - startTime;
       logger.info(
-        { jobId: job.id, processingTimeMs, duplicateRetries },
+        { jobId: job.id, processingTimeMs, duplicateRetries, emptyRetries },
         '[GenerationStep] Generation completed'
       );
 
-      // Check for empty content after post-processing (e.g., only thinking blocks)
-      // This can happen when a reasoning model generates thinking but no visible response
+      // Final check for empty content (fallback after retry loop exhausted)
+      // This handles the case where all retries still produced empty responses
       if (response.content.length === 0) {
-        const emptyErrorMessage = 'LLM returned empty response after post-processing';
+        const emptyErrorMessage = 'LLM returned empty response after all retry attempts';
         const emptyReferenceId = generateErrorReferenceId();
 
         logger.warn(
@@ -452,8 +500,9 @@ export class GenerationStep implements IPipelineStep {
             jobId: job.id,
             hasThinking: response.thinkingContent !== undefined,
             thinkingLength: response.thinkingContent?.length ?? 0,
+            emptyRetries,
           },
-          '[GenerationStep] Empty content detected after thinking extraction'
+          '[GenerationStep] All retry attempts produced empty content'
         );
 
         // Record error for diagnostic flight recorder
@@ -461,7 +510,7 @@ export class GenerationStep implements IPipelineStep {
           message: emptyErrorMessage,
           category: ApiErrorCategory.EMPTY_RESPONSE,
           referenceId: emptyReferenceId,
-          failedAtStage: 'GenerationStep (post-processing)',
+          failedAtStage: 'GenerationStep (empty after retries)',
         });
 
         // Store diagnostic data for failures (fire-and-forget)
@@ -483,7 +532,7 @@ export class GenerationStep implements IPipelineStep {
               category: ApiErrorCategory.EMPTY_RESPONSE,
               userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.EMPTY_RESPONSE],
               referenceId: emptyReferenceId,
-              shouldRetry: false, // Not transient - model generated thinking but no response
+              shouldRetry: false, // Already retried with escalated params - model consistently produces empty
             },
             metadata: {
               processingTimeMs,

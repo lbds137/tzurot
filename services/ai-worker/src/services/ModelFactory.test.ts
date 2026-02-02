@@ -32,9 +32,26 @@ vi.mock('@tzurot/common-types', () => ({
   AIProvider: {
     OpenRouter: 'openrouter',
   },
+  AI_DEFAULTS: {
+    MAX_TOKENS: 4096,
+    REASONING_MODEL_MAX_TOKENS: {
+      xhigh: 65536,
+      high: 32768,
+      medium: 16384,
+      low: 8192,
+      minimal: 6144,
+      none: 4096,
+    },
+  },
   AI_ENDPOINTS: {
     OPENROUTER_BASE_URL: 'https://openrouter.ai/api/v1',
   },
+}));
+
+// Mock reasoningModelUtils - control isReasoningModel per test
+const mockIsReasoningModel = vi.fn().mockReturnValue(false);
+vi.mock('../utils/reasoningModelUtils.js', () => ({
+  isReasoningModel: (modelName: string) => mockIsReasoningModel(modelName),
 }));
 
 import {
@@ -47,6 +64,8 @@ import {
 describe('ModelFactory', () => {
   beforeEach(() => {
     mockChatOpenAI.mockClear();
+    mockIsReasoningModel.mockClear();
+    mockIsReasoningModel.mockReturnValue(false); // Default: not a reasoning model
   });
 
   afterEach(() => {
@@ -582,6 +601,125 @@ describe('ModelFactory', () => {
 
       // OpenRouter-specific params (include_reasoning, transforms, route) via custom fetch
       expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+    });
+  });
+
+  // ===================================
+  // maxTokens Scaling for Reasoning Models
+  // ===================================
+
+  describe('maxTokens scaling for reasoning models', () => {
+    it('should use user-configured maxTokens when explicitly set (user override wins)', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'deepseek/deepseek-r1',
+        maxTokens: 8000,
+        reasoning: { effort: 'high' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(8000); // User override, not scaled
+    });
+
+    it('should scale maxTokens for reasoning models with medium effort', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'deepseek/deepseek-r1',
+        reasoning: { effort: 'medium' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(16384); // Scaled for medium effort
+    });
+
+    it('should scale maxTokens for reasoning models with high effort', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'kimi/kimi-k2-thinking',
+        reasoning: { effort: 'high' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(32768); // Scaled for high effort
+    });
+
+    it('should scale maxTokens for reasoning models with low effort', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'openai/o1-preview',
+        reasoning: { effort: 'low' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(8192); // Scaled for low effort
+    });
+
+    it('should NOT scale maxTokens for standard models even with reasoning config', () => {
+      mockIsReasoningModel.mockReturnValue(false); // Standard model
+
+      const config: ModelConfig = {
+        modelName: 'anthropic/claude-sonnet-4.5',
+        reasoning: { effort: 'high' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBeUndefined(); // Not scaled, API decides
+    });
+
+    it('should NOT scale maxTokens for reasoning models without effort config', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'deepseek/deepseek-r1',
+        // No reasoning.effort set
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBeUndefined(); // Not scaled, API decides
+    });
+
+    it('should use standard limit when effort is none', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'deepseek/deepseek-r1',
+        reasoning: { effort: 'none' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(4096); // Standard limit for 'none'
+    });
+
+    it('should scale maxTokens for xhigh effort', () => {
+      mockIsReasoningModel.mockReturnValue(true);
+
+      const config: ModelConfig = {
+        modelName: 'openai/o1',
+        reasoning: { effort: 'xhigh' },
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
+      expect(callArgs?.maxTokens).toBe(65536); // Maximum for xhigh effort
     });
   });
 

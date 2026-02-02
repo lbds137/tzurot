@@ -12,6 +12,35 @@ export const AI_DEFAULTS = {
   TEMPERATURE: 0.7,
   /** Default maximum tokens for LLM responses */
   MAX_TOKENS: 4096,
+  /**
+   * Max tokens scaling for reasoning models by effort level.
+   *
+   * Reasoning models (o1, Claude 3.7+, DeepSeek R1, Kimi K2, etc.) generate
+   * extended thinking content that can easily exceed the standard 4096 token limit.
+   * These scaled limits ensure thinking isn't truncated.
+   *
+   * Effort levels map to OpenRouter's reasoning.effort parameter:
+   * - xhigh: Maximum reasoning depth, allocate generous token budget
+   * - high: Deep reasoning, substantial token budget
+   * - medium: Balanced reasoning, moderate token budget
+   * - low: Light reasoning, still needs more than standard
+   * - minimal: Minimal reasoning, slight increase over standard
+   * - none: Reasoning disabled, use standard limit
+   *
+   * These are only applied when:
+   * 1. Model is detected as a reasoning model (isReasoningModel)
+   * 2. User hasn't explicitly set maxTokens (user override wins)
+   *
+   * @see https://openrouter.ai/docs/parameters#reasoning-effort
+   */
+  REASONING_MODEL_MAX_TOKENS: {
+    xhigh: 65536, // Maximum reasoning depth
+    high: 32768, // Deep reasoning
+    medium: 16384, // Balanced (MCP council recommended)
+    low: 8192, // Light reasoning
+    minimal: 6144, // Minimal reasoning
+    none: 4096, // Reasoning disabled, standard limit
+  } as const,
   /** Temperature for vision models (lower = more deterministic) */
   VISION_TEMPERATURE: 0.3,
   /** Default language for Whisper transcription */
