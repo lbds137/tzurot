@@ -1598,18 +1598,19 @@ describe('ConversationalRAGService', () => {
       expect(result.content).toBe('Response without thinking.');
     });
 
-    it('should use thinking content as response when visible content is empty (R1T Chimera edge case)', async () => {
-      // Some models like R1T Chimera wrap their entire response in reasoning tags
-      // instead of having separate thinking and response sections
+    it('should return empty content when model only produces thinking (triggers EMPTY_RESPONSE handling)', async () => {
+      // Some models like Kimi K2.5 produce only thinking content without visible response.
+      // Instead of leaking thinking content to users, we return empty content.
+      // GenerationStep then handles this as EMPTY_RESPONSE error.
       getLLMInvokerMock().invokeWithRetry.mockResolvedValue({
-        content: '<reasoning>Actual response content inside reasoning tags.</reasoning>',
+        content: '<reasoning>Internal reasoning that should not be shown to user.</reasoning>',
         usage_metadata: { input_tokens: 100, output_tokens: 50 },
         additional_kwargs: {},
         response_metadata: {},
       });
 
       getUserReferenceResolverMock().resolveUserReferences.mockResolvedValue({
-        processedText: 'Actual response content inside reasoning tags.',
+        processedText: '',
         resolvedPersonas: [],
       });
 
@@ -1618,10 +1619,10 @@ describe('ConversationalRAGService', () => {
 
       const result = await service.generateResponse(personality, 'Test message', context);
 
-      // When all content is inside thinking tags, the thinking content should become the visible response
-      expect(result.content).toBe('Actual response content inside reasoning tags.');
-      // thinkingContent should be undefined since it was used as the response (null is converted to undefined)
-      expect(result.thinkingContent).toBeUndefined();
+      // Content should be empty - the thinking should NOT be used as visible response
+      expect(result.content).toBe('');
+      // Thinking content should be preserved (not leaked as response)
+      expect(result.thinkingContent).toBe('Internal reasoning that should not be shown to user.');
     });
   });
 });

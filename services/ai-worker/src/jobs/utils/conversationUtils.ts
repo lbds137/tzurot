@@ -1,3 +1,4 @@
+/* eslint-disable max-lines -- Large file, tracked in BACKLOG.md for future refactoring */
 /**
  * Conversation Utilities
  *
@@ -113,6 +114,35 @@ export function extractParticipants(
   }));
 }
 
+/** Format user message with persona name and timestamp */
+function formatUserMessageContent(
+  content: string,
+  personaName: string | undefined,
+  createdAt: string | undefined
+): string {
+  const parts: string[] = [];
+  if (personaName !== undefined && personaName.length > 0) {
+    parts.push(`${personaName}:`);
+  }
+  if (createdAt !== undefined && createdAt.length > 0) {
+    parts.push(`[${formatRelativeTime(createdAt)}]`);
+  }
+  return parts.length > 0 ? `${parts.join(' ')} ${content}` : content;
+}
+
+/** Format assistant message with personality name and timestamp */
+function formatAssistantMessageContent(
+  content: string,
+  personalityName: string,
+  createdAt: string | undefined
+): string {
+  const parts: string[] = [`${personalityName}:`];
+  if (createdAt !== undefined && createdAt.length > 0) {
+    parts.push(`[${formatRelativeTime(createdAt)}]`);
+  }
+  return `${parts.join(' ')} ${content}`;
+}
+
 /**
  * Convert simple conversation history to LangChain BaseMessage format
  * Includes persona names to help the AI understand who is speaking
@@ -128,48 +158,16 @@ export function convertConversationHistory(
   personalityName: string
 ): BaseMessage[] {
   return history.map(msg => {
-    // Format message with speaker name and timestamp
-    let content = msg.content;
-
-    // For user messages, include persona name and timestamp
     if (isRoleMatch(msg.role, MessageRole.User)) {
-      const parts: string[] = [];
-
-      if (msg.personaName !== undefined && msg.personaName.length > 0) {
-        parts.push(`${msg.personaName}:`);
-      }
-
-      if (msg.createdAt !== undefined && msg.createdAt.length > 0) {
-        parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
-      }
-
-      if (parts.length > 0) {
-        content = `${parts.join(' ')} ${msg.content}`;
-      }
+      const content = formatUserMessageContent(msg.content, msg.personaName, msg.createdAt);
+      return new HumanMessage(content);
     }
-
-    // For assistant messages, include personality name and timestamp
     if (isRoleMatch(msg.role, MessageRole.Assistant)) {
-      const parts: string[] = [];
-
-      // Use the personality name (e.g., "Lilith")
-      parts.push(`${personalityName}:`);
-
-      if (msg.createdAt !== undefined && msg.createdAt.length > 0) {
-        parts.push(`[${formatRelativeTime(msg.createdAt)}]`);
-      }
-
-      content = `${parts.join(' ')} ${msg.content}`;
-    }
-
-    if (isRoleMatch(msg.role, MessageRole.User)) {
-      return new HumanMessage(content);
-    } else if (isRoleMatch(msg.role, MessageRole.Assistant)) {
+      const content = formatAssistantMessageContent(msg.content, personalityName, msg.createdAt);
       return new AIMessage(content);
-    } else {
-      // System messages are handled separately in the prompt
-      return new HumanMessage(content);
     }
+    // System messages are handled separately in the prompt
+    return new HumanMessage(msg.content);
   });
 }
 
@@ -226,6 +224,29 @@ export interface RawHistoryEntry {
 }
 
 /**
+ * Check if author name matches any AI personality (for role inference)
+ */
+function isAuthorAssistant(
+  authorName: string,
+  personalityName: string,
+  allPersonalityNames?: Set<string>
+): boolean {
+  const authorLower = authorName.toLowerCase();
+  if (authorLower.startsWith(personalityName.toLowerCase())) {
+    return true;
+  }
+  if (allPersonalityNames === undefined) {
+    return false;
+  }
+  for (const name of allPersonalityNames) {
+    if (authorLower.startsWith(name.toLowerCase())) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * Format a single stored reference as XML
  *
  * Uses the same <message> structure as regular messages for consistency.
@@ -244,23 +265,9 @@ function formatStoredReferencedMessage(
   const authorName = ref.authorDisplayName || ref.authorUsername;
   const safeAuthor = escapeXml(authorName);
   const safeContent = escapeXmlContent(ref.content);
-
-  // Infer role from author name - if it matches ANY personality name, it's assistant
-  // This ensures multi-AI channel messages are correctly attributed
-  const authorLower = authorName.toLowerCase();
-  let isAssistant = authorLower.startsWith(personalityName.toLowerCase());
-
-  // Check against all personality names if provided
-  if (!isAssistant && allPersonalityNames !== undefined) {
-    for (const name of allPersonalityNames) {
-      if (authorLower.startsWith(name.toLowerCase())) {
-        isAssistant = true;
-        break;
-      }
-    }
-  }
-
-  const role = isAssistant ? 'assistant' : 'user';
+  const role = isAuthorAssistant(authorName, personalityName, allPersonalityNames)
+    ? 'assistant'
+    : 'user';
 
   // Format timestamp with unified format
   const timeAttr =
@@ -286,11 +293,16 @@ function formatStoredReferencedMessage(
     attachmentsSection = `\n<attachments>${escapeXmlContent(attachmentItems)}</attachments>`;
   }
 
-  // Format location if present (already formatted as XML by bot-client using shared formatLocationAsXml)
-  let locationSection = '';
-  if (ref.locationContext !== undefined && ref.locationContext.length > 0) {
-    locationSection = `\n${ref.locationContext}`;
-  }
+  // Format location if present (should be XML formatted by bot-client using shared formatLocationAsXml)
+  // Skip legacy Markdown format (from old stored data) - detectable by "**Server**" or
+  // "This conversation is taking place" patterns that predate XML formatting
+  const locationSection =
+    ref.locationContext !== undefined &&
+    ref.locationContext.length > 0 &&
+    !ref.locationContext.includes('**Server**') &&
+    !ref.locationContext.includes('This conversation is taking place')
+      ? `\n${ref.locationContext}`
+      : '';
 
   // Use same <message> structure as regular messages, with quoted="true" attribute
   return `<message from="${safeAuthor}" role="${role}"${timeAttr}${forwardedAttr} quoted="true">${safeContent}${embedsSection}${attachmentsSection}${locationSection}</message>`;
@@ -350,6 +362,104 @@ function resolveSpeakerInfo(
   return null;
 }
 
+/** Format quoted messages section for XML output */
+function formatQuotedSection(
+  msg: RawHistoryEntry,
+  normalizedRole: string,
+  personalityName: string,
+  historyMessageIds: Set<string> | undefined,
+  allPersonalityNames: Set<string> | undefined
+): string {
+  if (normalizedRole !== 'user') {
+    return '';
+  }
+  if (msg.messageMetadata?.referencedMessages === undefined) {
+    return '';
+  }
+  if (msg.messageMetadata.referencedMessages.length === 0) {
+    return '';
+  }
+
+  const refsToFormat =
+    historyMessageIds !== undefined
+      ? msg.messageMetadata.referencedMessages.filter(
+          ref => !historyMessageIds.has(ref.discordMessageId)
+        )
+      : msg.messageMetadata.referencedMessages;
+
+  if (refsToFormat.length === 0) {
+    return '';
+  }
+
+  const formattedRefs = refsToFormat
+    .map(ref => formatStoredReferencedMessage(ref, personalityName, allPersonalityNames))
+    .join('\n');
+  return `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
+}
+
+/** Format image descriptions section for XML output */
+function formatImageSection(msg: RawHistoryEntry): string {
+  if (msg.messageMetadata?.imageDescriptions === undefined) {
+    return '';
+  }
+  if (msg.messageMetadata.imageDescriptions.length === 0) {
+    return '';
+  }
+
+  const formattedImages = msg.messageMetadata.imageDescriptions
+    .map(
+      img =>
+        `<image filename="${escapeXml(img.filename)}">${escapeXmlContent(img.description)}</image>`
+    )
+    .join('\n');
+  return `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
+}
+
+/** Format embeds section for XML output */
+function formatEmbedsSection(msg: RawHistoryEntry): string {
+  if (msg.messageMetadata?.embedsXml === undefined) {
+    return '';
+  }
+  if (msg.messageMetadata.embedsXml.length === 0) {
+    return '';
+  }
+  return `\n<embeds>\n${msg.messageMetadata.embedsXml.join('\n')}\n</embeds>`;
+}
+
+/** Format voice transcripts section for XML output */
+function formatVoiceSection(msg: RawHistoryEntry): string {
+  if (msg.messageMetadata?.voiceTranscripts === undefined) {
+    return '';
+  }
+  if (msg.messageMetadata.voiceTranscripts.length === 0) {
+    return '';
+  }
+
+  const transcripts = msg.messageMetadata.voiceTranscripts
+    .map(t => `<transcript>${escapeXmlContent(t)}</transcript>`)
+    .join('\n');
+  return `\n<voice_transcripts>\n${transcripts}\n</voice_transcripts>`;
+}
+
+/** Format reactions section for XML output */
+function formatReactionsSection(msg: RawHistoryEntry): string {
+  if (msg.messageMetadata?.reactions === undefined) {
+    return '';
+  }
+  if (msg.messageMetadata.reactions.length === 0) {
+    return '';
+  }
+
+  const formattedReactions = msg.messageMetadata.reactions
+    .map(reaction => {
+      const emojiAttr = reaction.isCustom === true ? ' custom="true"' : '';
+      const reactorNames = reaction.reactors.map(r => escapeXml(r.displayName)).join(', ');
+      return `<reaction emoji="${escapeXml(reaction.emoji)}"${emojiAttr}>${reactorNames}</reaction>`;
+    })
+    .join('\n');
+  return `\n<reactions>\n${formattedReactions}\n</reactions>`;
+}
+
 /**
  * Format a single history entry as XML
  *
@@ -369,7 +479,7 @@ function resolveSpeakerInfo(
  * @param allPersonalityNames - Optional set of all AI personality names in the conversation (for multi-AI collision detection)
  * @returns Formatted XML string, or empty string if message should be skipped
  */
-// eslint-disable-next-line complexity -- Inherent complexity from multiple optional sections (embeds, voice, images, quotes)
+
 export function formatSingleHistoryEntryAsXml(
   msg: RawHistoryEntry,
   personalityName: string,
@@ -399,86 +509,24 @@ export function formatSingleHistoryEntryAsXml(
   const safeSpeaker = escapeXml(speakerName);
 
   // Add from_id attribute for ID binding to participants (user messages only)
-  // This links chat_log messages to <participant id="..."> definitions
   const fromIdAttr =
     normalizedRole === 'user' && msg.personaId !== undefined && msg.personaId.length > 0
       ? ` from_id="${escapeXml(msg.personaId)}"`
       : '';
 
-  // Format referenced messages from messageMetadata (user messages only)
-  // Skip quotes for messages already in conversation history (deduplication)
-  let quotedSection = '';
-  if (
-    normalizedRole === 'user' &&
-    msg.messageMetadata?.referencedMessages !== undefined &&
-    msg.messageMetadata.referencedMessages.length > 0
-  ) {
-    // Filter out referenced messages that are already in conversation history
-    const refsToFormat =
-      historyMessageIds !== undefined
-        ? msg.messageMetadata.referencedMessages.filter(
-            ref => !historyMessageIds.has(ref.discordMessageId)
-          )
-        : msg.messageMetadata.referencedMessages;
+  // Format metadata sections using helpers
+  const quotedSection = formatQuotedSection(
+    msg,
+    normalizedRole,
+    personalityName,
+    historyMessageIds,
+    allPersonalityNames
+  );
+  const imageSection = formatImageSection(msg);
+  const embedsSection = formatEmbedsSection(msg);
+  const voiceSection = formatVoiceSection(msg);
+  const reactionsSection = formatReactionsSection(msg);
 
-    if (refsToFormat.length > 0) {
-      const formattedRefs = refsToFormat
-        .map(ref => formatStoredReferencedMessage(ref, personalityName, allPersonalityNames))
-        .join('\n');
-      quotedSection = `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
-    }
-  }
-
-  // Format image descriptions inline (from extended context preprocessing)
-  let imageSection = '';
-  if (
-    msg.messageMetadata?.imageDescriptions !== undefined &&
-    msg.messageMetadata.imageDescriptions.length > 0
-  ) {
-    const formattedImages = msg.messageMetadata.imageDescriptions
-      .map(
-        img =>
-          `<image filename="${escapeXml(img.filename)}">${escapeXmlContent(img.description)}</image>`
-      )
-      .join('\n');
-    imageSection = `\n<image_descriptions>\n${formattedImages}\n</image_descriptions>`;
-  }
-
-  // Format embeds from messageMetadata (extended context messages)
-  // These are already formatted as XML by EmbedParser
-  let embedsSection = '';
-  if (msg.messageMetadata?.embedsXml !== undefined && msg.messageMetadata.embedsXml.length > 0) {
-    embedsSection = `\n<embeds>\n${msg.messageMetadata.embedsXml.join('\n')}\n</embeds>`;
-  }
-
-  // Format voice transcripts from messageMetadata (extended context messages)
-  let voiceSection = '';
-  if (
-    msg.messageMetadata?.voiceTranscripts !== undefined &&
-    msg.messageMetadata.voiceTranscripts.length > 0
-  ) {
-    const transcripts = msg.messageMetadata.voiceTranscripts
-      .map(t => `<transcript>${escapeXmlContent(t)}</transcript>`)
-      .join('\n');
-    voiceSection = `\n<voice_transcripts>\n${transcripts}\n</voice_transcripts>`;
-  }
-
-  // Format reactions from messageMetadata (extended context messages)
-  // Shows who reacted with what emoji - provides social context
-  let reactionsSection = '';
-  if (msg.messageMetadata?.reactions !== undefined && msg.messageMetadata.reactions.length > 0) {
-    const formattedReactions = msg.messageMetadata.reactions
-      .map(reaction => {
-        const emojiAttr = reaction.isCustom === true ? ' custom="true"' : '';
-        const reactorNames = reaction.reactors.map(r => escapeXml(r.displayName)).join(', ');
-        return `<reaction emoji="${escapeXml(reaction.emoji)}"${emojiAttr}>${reactorNames}</reaction>`;
-      })
-      .join('\n');
-    reactionsSection = `\n<reactions>\n${formattedReactions}\n</reactions>`;
-  }
-
-  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" time="2m ago" forwarded="true">content</message>
-  // from_id links to <participant id="..."> for identity binding
   return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}${reactionsSection}</message>`;
 }
 
@@ -488,6 +536,66 @@ export function formatSingleHistoryEntryAsXml(
 export interface FormatConversationHistoryOptions {
   /** Configuration for time gap markers. If provided, gaps between messages will be marked. */
   timeGapConfig?: TimeGapConfig;
+}
+
+/**
+ * Build set of Discord message IDs for quote deduplication
+ * This prevents duplicating quoted content that's already in the conversation.
+ * Uses discordMessageId (Discord snowflakes) NOT id (internal database UUIDs) because
+ * referenced messages are identified by their Discord message ID.
+ */
+function buildHistoryMessageIdSet(history: RawHistoryEntry[]): Set<string> {
+  const historyMessageIds = new Set<string>();
+  for (const msg of history) {
+    // Each message may have multiple Discord IDs (for chunked messages)
+    if (msg.discordMessageId !== undefined) {
+      for (const discordId of msg.discordMessageId) {
+        if (discordId.length > 0) {
+          historyMessageIds.add(discordId);
+        }
+      }
+    }
+  }
+  return historyMessageIds;
+}
+
+/**
+ * Collect all AI personality names from assistant messages
+ * This enables multi-AI name collision detection (e.g., user "Lila" vs "Lila AI")
+ */
+function collectPersonalityNames(
+  history: RawHistoryEntry[],
+  currentPersonalityName: string
+): Set<string> {
+  const allPersonalityNames = new Set<string>();
+  allPersonalityNames.add(currentPersonalityName); // Always include current personality
+  for (const msg of history) {
+    if (
+      String(msg.role).toLowerCase() === 'assistant' &&
+      msg.personalityName !== undefined &&
+      msg.personalityName.length > 0
+    ) {
+      allPersonalityNames.add(msg.personalityName);
+    }
+  }
+  return allPersonalityNames;
+}
+
+/**
+ * Check for time gap and add marker if needed
+ */
+function maybeAddTimeGapMarker(
+  messages: string[],
+  previousTimestamp: string | undefined,
+  currentTimestamp: string | undefined,
+  timeGapConfig: NonNullable<FormatConversationHistoryOptions['timeGapConfig']>
+): void {
+  if (previousTimestamp !== undefined && currentTimestamp !== undefined) {
+    const gapMs = calculateTimeGap(previousTimestamp, currentTimestamp);
+    if (shouldShowGap(gapMs, timeGapConfig)) {
+      messages.push(formatTimeGapMarker(gapMs));
+    }
+  }
 }
 
 /**
@@ -520,50 +628,16 @@ export function formatConversationHistoryAsXml(
     return '';
   }
 
-  // Build set of Discord message IDs for quote deduplication
-  // This prevents duplicating quoted content that's already in the conversation.
-  // Uses discordMessageId (Discord snowflakes) NOT id (internal database UUIDs) because
-  // referenced messages are identified by their Discord message ID.
-  const historyMessageIds = new Set<string>();
-  for (const msg of history) {
-    // Each message may have multiple Discord IDs (for chunked messages)
-    if (msg.discordMessageId !== undefined) {
-      for (const discordId of msg.discordMessageId) {
-        if (discordId.length > 0) {
-          historyMessageIds.add(discordId);
-        }
-      }
-    }
-  }
-
-  // Collect all AI personality names from assistant messages
-  // This enables multi-AI name collision detection (e.g., user "Lila" vs "Lila AI")
-  const allPersonalityNames = new Set<string>();
-  allPersonalityNames.add(personalityName); // Always include current personality
-  for (const msg of history) {
-    if (
-      String(msg.role).toLowerCase() === 'assistant' &&
-      msg.personalityName !== undefined &&
-      msg.personalityName.length > 0
-    ) {
-      allPersonalityNames.add(msg.personalityName);
-    }
-  }
+  const historyMessageIds = buildHistoryMessageIdSet(history);
+  const allPersonalityNames = collectPersonalityNames(history, personalityName);
 
   const messages: string[] = [];
   let previousTimestamp: string | undefined;
 
   for (const msg of history) {
     // Check for time gap before this message
-    if (
-      options?.timeGapConfig !== undefined &&
-      previousTimestamp !== undefined &&
-      msg.createdAt !== undefined
-    ) {
-      const gapMs = calculateTimeGap(previousTimestamp, msg.createdAt);
-      if (shouldShowGap(gapMs, options.timeGapConfig)) {
-        messages.push(formatTimeGapMarker(gapMs));
-      }
+    if (options?.timeGapConfig !== undefined) {
+      maybeAddTimeGapMarker(messages, previousTimestamp, msg.createdAt, options.timeGapConfig);
     }
 
     const formatted = formatSingleHistoryEntryAsXml(
@@ -612,33 +686,32 @@ function estimateReferenceLength(ref: StoredReferencedMessage): number {
 }
 
 /**
- * Get the character length of a formatted message (for budget estimation)
- *
- * Returns the character count of the message when formatted as XML.
- * To estimate tokens, divide by 4 (rough approximation: ~4 chars per token).
- *
- * @param msg - Raw history entry
- * @param personalityName - Name of the AI personality
- * @returns Character length of the formatted message
+ * Result of resolving speaker name and role for length estimation
  */
-// eslint-disable-next-line complexity -- Mirrors formatSingleHistoryEntryAsXml structure for accurate length estimation
-export function getFormattedMessageCharLength(
+interface SpeakerInfo {
+  speakerName: string;
+  role: 'user' | 'assistant';
+  isUser: boolean;
+}
+
+/**
+ * Resolve speaker name for length estimation, including disambiguation
+ */
+function resolveSpeakerForEstimation(
   msg: RawHistoryEntry,
   personalityName: string
-): number {
-  // Determine the speaker name and role using case-insensitive matching
+): SpeakerInfo | null {
   const isUser = isRoleMatch(msg.role, MessageRole.User);
   const isAssistant = isRoleMatch(msg.role, MessageRole.Assistant);
 
   if (!isUser && !isAssistant) {
-    return 0;
+    return null;
   }
 
-  let speakerName: string;
   const role: 'user' | 'assistant' = isUser ? 'user' : 'assistant';
 
   if (isUser) {
-    speakerName =
+    let speakerName =
       msg.personaName !== undefined && msg.personaName.length > 0 ? msg.personaName : 'User';
 
     // Account for disambiguation when persona name matches personality name
@@ -649,17 +722,142 @@ export function getFormattedMessageCharLength(
     ) {
       speakerName = `${speakerName} (@${msg.discordUsername})`;
     }
-  } else {
-    // For assistant messages, use the AI personality's name from the message
-    // This enables correct attribution in multi-AI channels
-    speakerName =
-      msg.personalityName !== undefined && msg.personalityName.length > 0
-        ? msg.personalityName
-        : personalityName;
+    return { speakerName, role, isUser: true };
   }
 
+  // For assistant messages, use the AI personality's name from the message
+  const speakerName =
+    msg.personalityName !== undefined && msg.personalityName.length > 0
+      ? msg.personalityName
+      : personalityName;
+  return { speakerName, role, isUser: false };
+}
+
+/**
+ * Estimate length for referenced messages section
+ */
+function estimateReferencedMessagesLength(refs: StoredReferencedMessage[]): number {
+  if (refs.length === 0) {
+    return 0;
+  }
+
+  // Account for <quoted_messages> wrapper
+  let length = '\n<quoted_messages>\n</quoted_messages>'.length;
+
+  // Add length for each reference
+  for (const ref of refs) {
+    length += estimateReferenceLength(ref) + 1; // +1 for newline
+  }
+
+  return length;
+}
+
+/**
+ * Estimate length for image descriptions section
+ */
+function estimateImageDescriptionsLength(
+  images: NonNullable<RawHistoryEntry['messageMetadata']>['imageDescriptions']
+): number {
+  if (images === undefined || images.length === 0) {
+    return 0;
+  }
+
+  // Account for <image_descriptions> wrapper
+  let length = '\n<image_descriptions>\n</image_descriptions>'.length;
+
+  // Add length for each image
+  for (const img of images) {
+    length += `<image filename="${img.filename}">${img.description}</image>\n`.length;
+  }
+
+  return length;
+}
+
+/**
+ * Estimate length for embeds section
+ */
+function estimateEmbedsLength(embedsXml: string[] | undefined): number {
+  if (embedsXml === undefined || embedsXml.length === 0) {
+    return 0;
+  }
+
+  // Account for <embeds> wrapper
+  let length = '\n<embeds>\n</embeds>'.length;
+
+  // Add length for each embed XML
+  for (const embedXml of embedsXml) {
+    length += embedXml.length + 1; // +1 for newline
+  }
+
+  return length;
+}
+
+/**
+ * Estimate length for voice transcripts section
+ */
+function estimateVoiceTranscriptsLength(transcripts: string[] | undefined): number {
+  if (transcripts === undefined || transcripts.length === 0) {
+    return 0;
+  }
+
+  // Account for <voice_transcripts> wrapper
+  let length = '\n<voice_transcripts>\n</voice_transcripts>'.length;
+
+  // Add length for each transcript
+  for (const transcript of transcripts) {
+    length += `<transcript>${transcript}</transcript>\n`.length;
+  }
+
+  return length;
+}
+
+/**
+ * Estimate length for reactions section
+ */
+function estimateReactionsLength(
+  reactions: NonNullable<RawHistoryEntry['messageMetadata']>['reactions']
+): number {
+  if (reactions === undefined || reactions.length === 0) {
+    return 0;
+  }
+
+  // Account for <reactions> wrapper
+  let length = '\n<reactions>\n</reactions>'.length;
+
+  // Add length for each reaction
+  for (const reaction of reactions) {
+    const customAttr = reaction.isCustom === true ? ' custom="true"' : '';
+    const reactorNames = reaction.reactors.map(r => r.displayName).join(', ');
+    length += `<reaction emoji="${reaction.emoji}"${customAttr}>${reactorNames}</reaction>\n`
+      .length;
+  }
+
+  return length;
+}
+
+/**
+ * Get the character length of a formatted message (for budget estimation)
+ *
+ * Returns the character count of the message when formatted as XML.
+ * To estimate tokens, divide by 4 (rough approximation: ~4 chars per token).
+ *
+ * @param msg - Raw history entry
+ * @param personalityName - Name of the AI personality
+ * @returns Character length of the formatted message
+ */
+export function getFormattedMessageCharLength(
+  msg: RawHistoryEntry,
+  personalityName: string
+): number {
+  const speaker = resolveSpeakerForEstimation(msg, personalityName);
+  if (speaker === null) {
+    return 0;
+  }
+
+  const { speakerName, role, isUser } = speaker;
+
   // Approximate the formatted length
-  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" t="YYYY-MM-DD (Day) HH:MM • relative">content</message>
+  // Format: <message from="Name" from_id="persona-uuid" role="user|assistant" t="...">content</message>
   const timeAttr =
     msg.createdAt !== undefined && msg.createdAt.length > 0
       ? ` t="${formatPromptTimestamp(msg.createdAt)}"`
@@ -675,72 +873,16 @@ export function getFormattedMessageCharLength(
     `<message from="${speakerName}"${fromIdAttr} role="${role}"${timeAttr}></message>`.length;
   let totalLength = overhead + msg.content.length;
 
-  // Add length for referenced messages if present (user messages only)
-  if (
-    isUser &&
-    msg.messageMetadata?.referencedMessages !== undefined &&
-    msg.messageMetadata.referencedMessages.length > 0
-  ) {
-    // Account for <quoted_messages> wrapper
-    totalLength += '\n<quoted_messages>\n</quoted_messages>'.length;
-
-    // Add length for each reference
-    for (const ref of msg.messageMetadata.referencedMessages) {
-      totalLength += estimateReferenceLength(ref) + 1; // +1 for newline
+  // Add length for metadata sections
+  const metadata = msg.messageMetadata;
+  if (metadata !== undefined) {
+    if (isUser && metadata.referencedMessages !== undefined) {
+      totalLength += estimateReferencedMessagesLength(metadata.referencedMessages);
     }
-  }
-
-  // Add length for image descriptions if present
-  if (
-    msg.messageMetadata?.imageDescriptions !== undefined &&
-    msg.messageMetadata.imageDescriptions.length > 0
-  ) {
-    // Account for <image_descriptions> wrapper
-    totalLength += '\n<image_descriptions>\n</image_descriptions>'.length;
-
-    // Add length for each image
-    for (const img of msg.messageMetadata.imageDescriptions) {
-      totalLength += `<image filename="${img.filename}">${img.description}</image>\n`.length;
-    }
-  }
-
-  // Add length for embeds if present (extended context)
-  if (msg.messageMetadata?.embedsXml !== undefined && msg.messageMetadata.embedsXml.length > 0) {
-    // Account for <embeds> wrapper
-    totalLength += '\n<embeds>\n</embeds>'.length;
-
-    // Add length for each embed XML
-    for (const embedXml of msg.messageMetadata.embedsXml) {
-      totalLength += embedXml.length + 1; // +1 for newline
-    }
-  }
-
-  // Add length for voice transcripts if present (extended context)
-  if (
-    msg.messageMetadata?.voiceTranscripts !== undefined &&
-    msg.messageMetadata.voiceTranscripts.length > 0
-  ) {
-    // Account for <voice_transcripts> wrapper
-    totalLength += '\n<voice_transcripts>\n</voice_transcripts>'.length;
-
-    // Add length for each transcript
-    for (const transcript of msg.messageMetadata.voiceTranscripts) {
-      totalLength += `<transcript>${transcript}</transcript>\n`.length;
-    }
-  }
-
-  // Add length for reactions if present (extended context)
-  if (msg.messageMetadata?.reactions !== undefined && msg.messageMetadata.reactions.length > 0) {
-    // Account for <reactions> wrapper
-    totalLength += '\n<reactions>\n</reactions>'.length;
-
-    // Add length for each reaction
-    for (const reaction of msg.messageMetadata.reactions) {
-      const customAttr = reaction.isCustom === true ? ' custom="true"' : '';
-      const reactorNames = reaction.reactors.map(r => r.displayName).join(', ');
-      totalLength += `<reaction emoji="${reaction.emoji}"${customAttr}>${reactorNames}</reaction>\n`
-        .length;
-    }
+    totalLength += estimateImageDescriptionsLength(metadata.imageDescriptions);
+    totalLength += estimateEmbedsLength(metadata.embedsXml);
+    totalLength += estimateVoiceTranscriptsLength(metadata.voiceTranscripts);
+    totalLength += estimateReactionsLength(metadata.reactions);
   }
 
   return totalLength;

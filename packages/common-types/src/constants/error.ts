@@ -141,18 +141,24 @@ export const HTTP_STATUS_TO_CATEGORY: Record<number, ApiErrorCategory> = {
 
 /**
  * Categories that should NOT trigger retries (permanent errors)
+ *
+ * Note: BAD_REQUEST (400) is intentionally NOT in this set. Some AI model APIs
+ * incorrectly return 400 for transient errors that succeed on retry.
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set
 export const PERMANENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
   ApiErrorCategory.AUTHENTICATION,
   ApiErrorCategory.QUOTA_EXCEEDED,
   ApiErrorCategory.CONTENT_POLICY,
-  ApiErrorCategory.BAD_REQUEST,
   ApiErrorCategory.MODEL_NOT_FOUND,
 ]);
 
 /**
  * Categories that SHOULD trigger retries (transient errors)
+ *
+ * Note: BAD_REQUEST is included here because some AI model APIs incorrectly
+ * return 400 for transient issues (e.g., temporary model unavailability)
+ * that succeed on retry.
  */
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: immutable lookup set
 export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set([
@@ -162,6 +168,7 @@ export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
   ApiErrorCategory.NETWORK,
   ApiErrorCategory.EMPTY_RESPONSE,
   ApiErrorCategory.CENSORED,
+  ApiErrorCategory.BAD_REQUEST,
 ]);
 
 /**

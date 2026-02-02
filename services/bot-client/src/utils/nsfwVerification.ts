@@ -6,7 +6,13 @@
  * Verification is required for DM interactions with personalities.
  */
 
-import { ChannelType, type Channel, type Message, type SendableChannels } from 'discord.js';
+import {
+  ChannelType,
+  GuildNSFWLevel,
+  type Channel,
+  type Message,
+  type SendableChannels,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from './userGatewayClient.js';
 import { redis } from '../redis.js';
@@ -76,10 +82,27 @@ export async function verifyNsfwUser(userId: string): Promise<NsfwVerifyResponse
 
 /**
  * Check if a Discord channel is marked as NSFW (age-restricted)
+ *
+ * Checks both:
+ * 1. Channel-level NSFW flag (per-channel age restriction)
+ * 2. Server-level age restriction (Discord's Age-Restricted Servers feature)
+ *
  * Guild text/news channels check their own nsfw property.
  * Thread channels inherit NSFW status from their parent channel.
+ *
+ * @see https://support.discord.com/hc/en-us/articles/1500005389362-What-are-Age-Restricted-Servers-on-Discord
  */
 export function isNsfwChannel(channel: Channel): boolean {
+  // Check server-level age restriction first (applies to all channels)
+  // GuildNSFWLevel.AgeRestricted means the entire server is 18+
+  if (
+    'guild' in channel &&
+    channel.guild !== null &&
+    channel.guild.nsfwLevel === GuildNSFWLevel.AgeRestricted
+  ) {
+    return true;
+  }
+
   // Direct NSFW channels (GuildText and GuildNews have nsfw property)
   if (channel.type === ChannelType.GuildText) {
     return channel.nsfw === true;
