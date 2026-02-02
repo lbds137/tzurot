@@ -15,6 +15,8 @@ import { findPersonalityMention } from './personalityMentionParser.js';
 import { createMockPersonalityService } from '../test/mocks/PersonalityService.mock.js';
 import type { PersonalityService } from '@tzurot/common-types';
 
+const TEST_USER_ID = 'test-user-123';
+
 describe('personalityMentionParser', () => {
   let mockPersonalityService: PersonalityService;
 
@@ -34,7 +36,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith hello there',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -46,7 +49,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Bambi Prime how are you?',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -58,7 +62,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         'just a regular message',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).toBeNull();
@@ -68,7 +73,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Unknown personality, hello',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).toBeNull();
@@ -81,7 +87,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Bambi Prime @Lilith hello',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -93,7 +100,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith @Sarcastic hey',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -105,7 +113,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Bambi Prime @Administrator test',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -118,7 +127,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith    hello   there',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -126,7 +136,12 @@ describe('personalityMentionParser', () => {
     });
 
     it('should handle mention at end of message', async () => {
-      const result = await findPersonalityMention('hello @Lilith', '@', mockPersonalityService);
+      const result = await findPersonalityMention(
+        'hello @Lilith',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
@@ -137,7 +152,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         'hey @Lilith how are you?',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -148,7 +164,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Bambi Prime @Bambi Prime, how are you?',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -163,7 +180,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith, hello there',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -173,7 +191,12 @@ describe('personalityMentionParser', () => {
     });
 
     it('should handle mention with exclamation mark (punctuation removed)', async () => {
-      const result = await findPersonalityMention('@Lilith! hello', '@', mockPersonalityService);
+      const result = await findPersonalityMention(
+        '@Lilith! hello',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
@@ -185,7 +208,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith? are you there',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -199,7 +223,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '*grabs the blankets and brings them over to @Lilith* yep, sure thing',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -214,7 +239,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '_whispers to @Lilith_ hello there',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -225,7 +251,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '~~deleted message to @Lilith~~ oops',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -236,7 +263,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '||spoiler for @Lilith|| surprise!',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       expect(result).not.toBeNull();
@@ -246,32 +274,42 @@ describe('personalityMentionParser', () => {
 
   describe('Edge Cases', () => {
     it('should handle empty string', async () => {
-      const result = await findPersonalityMention('', '@', mockPersonalityService);
+      const result = await findPersonalityMention('', '@', mockPersonalityService, TEST_USER_ID);
 
       expect(result).toBeNull();
     });
 
     it('should handle string with only whitespace', async () => {
-      const result = await findPersonalityMention('   ', '@', mockPersonalityService);
+      const result = await findPersonalityMention('   ', '@', mockPersonalityService, TEST_USER_ID);
 
       expect(result).toBeNull();
     });
 
     it('should handle mention character only', async () => {
-      const result = await findPersonalityMention('@', '@', mockPersonalityService);
+      const result = await findPersonalityMention('@', '@', mockPersonalityService, TEST_USER_ID);
 
       expect(result).toBeNull();
     });
 
     it('should handle custom mention character', async () => {
-      const result = await findPersonalityMention('!Lilith hello', '!', mockPersonalityService);
+      const result = await findPersonalityMention(
+        '!Lilith hello',
+        '!',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
 
       expect(result).not.toBeNull();
       expect(result?.personalityName).toBe('Lilith');
     });
 
     it('should be case-insensitive for personality names (database lookup)', async () => {
-      const result = await findPersonalityMention('@lilith hello', '@', mockPersonalityService);
+      const result = await findPersonalityMention(
+        '@lilith hello',
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
 
       expect(result).not.toBeNull();
       // Returns the name as typed in the message, not the canonical DB name
@@ -285,7 +323,12 @@ describe('personalityMentionParser', () => {
       // The parser internally limits to 10 mentions for performance
       const excessiveMentions = Array(15).fill('@Lilith').join(' ');
 
-      const result = await findPersonalityMention(excessiveMentions, '@', mockPersonalityService);
+      const result = await findPersonalityMention(
+        excessiveMentions,
+        '@',
+        mockPersonalityService,
+        TEST_USER_ID
+      );
 
       // Should still work (parser truncates to first 10 mentions internally)
       expect(result).not.toBeNull();
@@ -298,7 +341,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith @Sarcastic @Bambi Prime hello',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       // Should return "Bambi Prime" (2 words beats 1 word)
@@ -310,7 +354,8 @@ describe('personalityMentionParser', () => {
       const result = await findPersonalityMention(
         '@Lilith @Sarcastic hello',
         '@',
-        mockPersonalityService
+        mockPersonalityService,
+        TEST_USER_ID
       );
 
       // Result is single object, not array

@@ -33,7 +33,7 @@ _Top 3-5 items to pull into CURRENT next._
 - [x] api-gateway: 0 errors
 - [x] ai-worker: 0 errors (~152 errors fixed - enums, LoadedPersonality mocks, thread mocks, type assertions)
 
-**Remaining bot-client errors (~845 - needs Part 3 PR):**
+**Remaining bot-client errors (~610 - Part 3 in progress):**
 
 - [ ] Similar patterns to ai-worker: `role: string` → `MessageRole` enum
 - [ ] Missing required properties in mock objects (LoadedPersonality, ConversationContext, etc.)
@@ -42,6 +42,30 @@ _Top 3-5 items to pull into CURRENT next._
 - [ ] Type assertions needed for mock return types
 
 **After fixing bot-client:** make `typecheck:spec` blocking in pre-push hook
+
+### 🏗️ Bot-Client Package Split (NEXT)
+
+**Context**: Gemini architectural review flagged bot-client as too heavy (~4.1MB, 424 files). Analysis identified extraction candidates.
+
+**Best Extraction Candidates (in priority order):**
+
+| Package                           | Files | Size    | Confidence                             |
+| --------------------------------- | ----- | ------- | -------------------------------------- |
+| `@tzurot/discord-dashboard`       | 30    | 336K    | ✅ High - self-contained UI framework  |
+| `@tzurot/discord-command-context` | 6     | 56K     | ✅ Medium-High - typed context pattern |
+| `@tzurot/message-references`      | 12    | ~4K LOC | ✅ Medium - BFS reference crawling     |
+
+**Phase 1 (Quick Wins):**
+
+- [ ] Extract `@tzurot/discord-dashboard` from `utils/dashboard/` - completely self-contained
+- [ ] Extract `@tzurot/message-references` from `handlers/references/` - well-tested, strategy pattern
+
+**Phase 2:**
+
+- [ ] Extract `@tzurot/discord-command-context` from `utils/commandContext/`
+- [ ] Consolidate `GatewayClient` into `common-types` (currently duplicated)
+
+**Not recommended for extraction:** services/, processors/, handlers/MessageHandler.ts - too tightly coupled to message pipeline.
 
 **Cognitive Complexity** (medium priority - refactoring):
 
