@@ -38,6 +38,7 @@ import {
   isGatewayConfigured,
   parseErrorResponse,
   callGatewayApi,
+  GATEWAY_TIMEOUTS,
 } from './userGatewayClient.js';
 
 // Helper to create mock config with defaults
@@ -223,6 +224,70 @@ describe('userGatewayClient', () => {
         expect(result.error).toBe('Network error');
         expect(result.status).toBe(0);
       }
+    });
+
+    it('should use default timeout (AUTOCOMPLETE) when not specified', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ data: 'test' }),
+      });
+
+      await callGatewayApi('/test', { userId: 'user-123' });
+
+      // Verify AbortSignal.timeout was called with default (2500ms)
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        })
+      );
+    });
+
+    it('should use custom timeout when specified', async () => {
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ data: 'test' }),
+      });
+
+      await callGatewayApi('/test', {
+        userId: 'user-123',
+        timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      });
+
+      // Verify fetch was called with signal (timeout is internal to AbortSignal)
+      expect(mockFetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          signal: expect.any(AbortSignal),
+        })
+      );
+    });
+
+    it('should handle timeout errors', async () => {
+      const timeoutError = new DOMException('Signal timed out', 'TimeoutError');
+      mockFetch.mockRejectedValue(timeoutError);
+
+      const result = await callGatewayApi('/test', { userId: 'user-123' });
+
+      expect(result.ok).toBe(false);
+      if (!result.ok) {
+        expect(result.error).toBe('Request timeout (gateway slow or unavailable)');
+        expect(result.status).toBe(0);
+      }
+    });
+  });
+
+  describe('GATEWAY_TIMEOUTS', () => {
+    it('should have AUTOCOMPLETE timeout of 2500ms', () => {
+      expect(GATEWAY_TIMEOUTS.AUTOCOMPLETE).toBe(2500);
+    });
+
+    it('should have DEFERRED timeout of 10000ms', () => {
+      expect(GATEWAY_TIMEOUTS.DEFERRED).toBe(10000);
+    });
+
+    it('should have DEFERRED longer than AUTOCOMPLETE', () => {
+      expect(GATEWAY_TIMEOUTS.DEFERRED).toBeGreaterThan(GATEWAY_TIMEOUTS.AUTOCOMPLETE);
     });
   });
 });

@@ -26,6 +26,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 // Mock providers
@@ -87,7 +88,10 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/wallet/list', { userId: '123456789' });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/wallet/list',
+      expect.objectContaining({ userId: '123456789' })
+    );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({

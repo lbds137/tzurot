@@ -14,7 +14,7 @@ import {
   type LlmConfigSummary,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
 import { UNLOCK_MODELS_VALUE } from './autocomplete.js';
 
 const logger = createLogger('settings-preset-default');
@@ -67,9 +67,10 @@ export async function handleDefault(context: DeferredCommandContext): Promise<vo
 
   try {
     // Check wallet status and get config details in parallel
+    // Use longer timeout since this is a deferred operation
     const [walletResult, configsResult] = await Promise.all([
-      callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
-      callGatewayApi<ConfigListResponse>('/user/llm-config', { userId }),
+      callGatewayApi<WalletListResponse>('/wallet/list', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
+      callGatewayApi<ConfigListResponse>('/user/llm-config', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
     ]);
 
     // Check if user is in guest mode (no active wallet keys)

@@ -5,7 +5,7 @@
  */
 
 import { createLogger, type ListPersonasResponse } from '@tzurot/common-types';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import type { PersonaDetails, PersonaSummary, SavePersonaResponse } from './types.js';
 
 const logger = createLogger('persona-api');
@@ -19,6 +19,7 @@ export async function fetchPersona(
 ): Promise<PersonaDetails | null> {
   const result = await callGatewayApi<{ persona: PersonaDetails }>(`/user/persona/${personaId}`, {
     userId,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
@@ -33,7 +34,7 @@ export async function fetchPersona(
  * Fetch the user's default persona
  */
 export async function fetchDefaultPersona(userId: string): Promise<PersonaDetails | null> {
-  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
+  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
 
   if (!listResult.ok) {
     logger.warn({ userId, error: listResult.error }, 'Failed to fetch persona list');
@@ -60,6 +61,7 @@ export async function updatePersona(
     method: 'PUT',
     userId,
     body: data,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
@@ -80,6 +82,7 @@ export async function deletePersona(
   const result = await callGatewayApi<{ message: string }>(`/user/persona/${personaId}`, {
     method: 'DELETE',
     userId,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
   if (!result.ok) {
@@ -94,7 +97,7 @@ export async function deletePersona(
  * Check if a persona is the default persona
  */
 export async function isDefaultPersona(personaId: string, userId: string): Promise<boolean> {
-  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
+  const listResult = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
 
   if (!listResult.ok) {
     return false;
