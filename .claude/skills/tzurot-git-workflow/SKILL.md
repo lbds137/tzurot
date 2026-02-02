@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
-description: Git workflow rules for Tzurot v3. Use when committing, creating PRs, or rebasing. Covers rebase-only strategy, commit format, and safety checks.
-lastUpdated: '2026-01-21'
+description: 'MUST invoke before: git commit, git push, creating PRs, rebasing, or any git operations. Contains safety rules that prevent data loss and PR merge requirements.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot v3 Git Workflow

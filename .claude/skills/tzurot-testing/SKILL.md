@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
-description: Vitest testing patterns for Tzurot v3. Use when writing tests, debugging test failures, or mocking dependencies. Covers mock factories, fake timers, and promise rejection handling.
-lastUpdated: '2026-01-30'
+description: 'REQUIRED before writing any test code. Invoke when: creating .test.ts files, debugging test failures, mocking dependencies, or working with fake timers. Contains patterns that differ from defaults.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot v3 Testing Patterns

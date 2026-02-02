@@ -1,7 +1,7 @@
 ---
 name: tzurot-tooling
-description: Use when adding CLI commands, dev scripts, or tooling utilities. Covers the ops CLI structure, where scripts belong, and standardized commands for linting/testing.
-lastUpdated: '2026-01-24'
+description: 'MUST invoke when: adding CLI commands, creating dev scripts, or using pnpm ops commands. Contains ops CLI reference and script organization.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tooling & CLI Commands
