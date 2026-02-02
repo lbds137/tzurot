@@ -735,8 +735,9 @@ describe('Character Chat Handler', () => {
       await handleChat(mockContext, mockConfig);
 
       // Should send error message to channel (deferred reply already deleted)
+      // Weigh-in mode gets a specific error message
       expect(mockChannel.send).toHaveBeenCalledWith(
-        expect.stringContaining('No conversation history found in this channel')
+        expect.stringContaining('No conversation history found')
       );
 
       // Should NOT submit job
