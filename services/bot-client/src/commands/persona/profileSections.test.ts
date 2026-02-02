@@ -6,99 +6,109 @@
 import { describe, it, expect } from 'vitest';
 import { identitySection } from './profileSections.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
+import type { FlattenedPersonaData } from './types.js';
+
+// Helper to create test persona data with all required fields
+function createTestData(overrides: Partial<FlattenedPersonaData> = {}): FlattenedPersonaData {
+  return {
+    id: 'test-id',
+    name: '',
+    description: '',
+    preferredName: '',
+    pronouns: '',
+    content: '',
+    isDefault: false,
+    ...overrides,
+  };
+}
 
 describe('identitySection', () => {
   describe('getStatus', () => {
     it('should return EMPTY when name is missing', () => {
-      const data = { name: '', preferredName: '', pronouns: '', content: '' };
+      const data = createTestData();
       expect(identitySection.getStatus(data)).toBe(SectionStatus.EMPTY);
     });
 
     it('should return EMPTY when name is null-like', () => {
-      const data = {
-        name: undefined as unknown as string,
-        preferredName: '',
-        pronouns: '',
-        content: '',
-      };
+      const data = createTestData({ name: undefined as unknown as string });
       expect(identitySection.getStatus(data)).toBe(SectionStatus.EMPTY);
     });
 
     it('should return DEFAULT when only name is provided', () => {
-      const data = { name: 'Test Profile', preferredName: '', pronouns: '', content: '' };
+      const data = createTestData({ name: 'Test Profile' });
       expect(identitySection.getStatus(data)).toBe(SectionStatus.DEFAULT);
     });
 
     it('should return COMPLETE when name and preferredName are provided', () => {
-      const data = { name: 'Test Profile', preferredName: 'Tester', pronouns: '', content: '' };
+      const data = createTestData({ name: 'Test Profile', preferredName: 'Tester' });
       expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
 
     it('should return COMPLETE when name and pronouns are provided', () => {
-      const data = { name: 'Test Profile', preferredName: '', pronouns: 'they/them', content: '' };
+      const data = createTestData({ name: 'Test Profile', pronouns: 'they/them' });
       expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
 
     it('should return COMPLETE when name and content are provided', () => {
-      const data = { name: 'Test Profile', preferredName: '', pronouns: '', content: 'About me' };
+      const data = createTestData({ name: 'Test Profile', content: 'About me' });
       expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
 
     it('should return COMPLETE when all fields are provided', () => {
-      const data = {
+      const data = createTestData({
         name: 'Test Profile',
         preferredName: 'Tester',
         pronouns: 'she/her',
         content: 'About me',
-      };
+      });
       expect(identitySection.getStatus(data)).toBe(SectionStatus.COMPLETE);
     });
   });
 
   describe('getPreview', () => {
     it('should return not configured when no data', () => {
-      const data = { name: '', preferredName: '', pronouns: '', content: '' };
+      const data = createTestData();
       expect(identitySection.getPreview(data)).toBe('_Not configured_');
     });
 
     it('should show name when provided', () => {
-      const data = { name: 'Test Profile', preferredName: '', pronouns: '', content: '' };
+      const data = createTestData({ name: 'Test Profile' });
       expect(identitySection.getPreview(data)).toContain('**Name:** Test Profile');
     });
 
     it('should show preferredName when provided', () => {
-      const data = { name: 'Test', preferredName: 'Tester', pronouns: '', content: '' };
+      const data = createTestData({ name: 'Test', preferredName: 'Tester' });
       const preview = identitySection.getPreview(data);
       expect(preview).toContain('**Name:** Test');
       expect(preview).toContain('**Called:** Tester');
     });
 
     it('should show pronouns when provided', () => {
-      const data = { name: 'Test', preferredName: '', pronouns: 'they/them', content: '' };
+      const data = createTestData({ name: 'Test', pronouns: 'they/them' });
       const preview = identitySection.getPreview(data);
       expect(preview).toContain('**Pronouns:** they/them');
     });
 
     it('should show content preview when provided', () => {
-      const data = { name: 'Test', preferredName: '', pronouns: '', content: 'About me text' };
+      const data = createTestData({ name: 'Test', content: 'About me text' });
       const preview = identitySection.getPreview(data);
       expect(preview).toContain('**About:** About me text');
     });
 
     it('should truncate long content in preview', () => {
       const longContent = 'A'.repeat(150);
-      const data = { name: 'Test', preferredName: '', pronouns: '', content: longContent };
+      const data = createTestData({ name: 'Test', content: longContent });
       const preview = identitySection.getPreview(data);
       expect(preview).toContain('**About:** ' + 'A'.repeat(100) + '...');
     });
 
     it('should show all fields when provided', () => {
-      const data = {
+      const data = createTestData({
         name: 'Test Profile',
         preferredName: 'Tester',
         pronouns: 'she/her',
         content: 'About me',
-      };
+      });
       const preview = identitySection.getPreview(data);
       expect(preview).toContain('**Name:** Test Profile');
       expect(preview).toContain('**Called:** Tester');

@@ -6,6 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
+import type { Message } from 'discord.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async () => {
@@ -42,7 +43,8 @@ describe('ConversationPersistence', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    persistence = new ConversationPersistence();
+    // Constructor expects PrismaClient but we've mocked ConversationHistoryService
+    persistence = new ConversationPersistence({} as any);
     mockConversationHistory = (
       persistence as unknown as { conversationHistory: typeof mockConversationHistory }
     ).conversationHistory;
@@ -57,7 +59,7 @@ describe('ConversationPersistence', () => {
         temperature: 0.7,
         maxTokens: 1000,
       },
-    } as LoadedPersonality;
+    } as unknown as LoadedPersonality;
   });
 
   describe('saveUserMessage', () => {
@@ -449,20 +451,11 @@ describe('ConversationPersistence', () => {
 });
 
 // Helper function to create mock Discord messages
-interface MockMessage {
-  id: string;
-  channel: {
-    id: string;
-    isThread: () => boolean;
-  };
-  guild: { id: string } | null;
-}
-
 function createMockMessage(options: {
   id: string;
   channelId: string;
   guildId: string | null;
-}): MockMessage {
+}): Message {
   return {
     id: options.id,
     channel: {
@@ -470,5 +463,5 @@ function createMockMessage(options: {
       isThread: () => false,
     },
     guild: options.guildId ? { id: options.guildId } : null,
-  };
+  } as unknown as Message;
 }

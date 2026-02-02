@@ -14,7 +14,7 @@ import type {
   TextChannel,
   User,
 } from 'discord.js';
-import { MessageRole, CONTENT_TYPES, MESSAGE_LIMITS } from '@tzurot/common-types';
+import { MessageRole } from '@tzurot/common-types';
 import type { LoadedPersonality, ReferencedMessage } from '@tzurot/common-types';
 
 // Mock PersonaResolver
@@ -107,7 +107,7 @@ vi.mock('./DiscordChannelFetcher.js', () => ({
 import { ConversationHistoryService, UserService } from '@tzurot/common-types';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { extractAttachments } from '../utils/attachmentExtractor.js';
-import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
+import { MessageReferenceExtractor as _MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor.js';
 
 describe('MessageContextBuilder', () => {
   let builder: MessageContextBuilder;
@@ -282,7 +282,7 @@ describe('MessageContextBuilder', () => {
       });
 
       expect(result.context.conversationHistory).toHaveLength(1);
-      expect(result.context.conversationHistory[0]).toMatchObject({
+      expect(result.context.conversationHistory![0]).toMatchObject({
         role: MessageRole.User,
         content: 'Previous message',
         discordUsername: 'prevuser', // Should be passed through for collision detection
@@ -296,7 +296,7 @@ describe('MessageContextBuilder', () => {
     });
 
     it('should handle user without display name', async () => {
-      mockMessage.member = null;
+      (mockMessage as any).member = null;
       (mockMessage.author as any).globalName = null;
       // Mock fetch to also return null (simulates member not fetchable)
       vi.mocked(mockMessage.guild!.members.fetch).mockResolvedValue(null as any);
@@ -351,15 +351,14 @@ describe('MessageContextBuilder', () => {
       const mockReferences: ReferencedMessage[] = [
         {
           referenceNumber: 1,
-          messageId: 'ref-msg-1',
+          discordMessageId: 'ref-msg-1',
+          discordUserId: 'author-1',
+          authorUsername: 'refuser',
+          authorDisplayName: 'Ref User',
           content: 'Referenced content',
-          author: {
-            id: 'author-1',
-            username: 'refuser',
-            displayName: 'Ref User',
-          },
+          embeds: '',
           timestamp: '2025-01-01T00:00:00Z',
-          attachments: [],
+          locationContext: 'Test Server / #general',
         },
       ];
 
@@ -659,7 +658,7 @@ describe('MessageContextBuilder', () => {
       } as any);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -701,7 +700,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockPrisma.userPersonaHistoryConfig.findUnique).mockResolvedValue(null);
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -726,7 +725,7 @@ describe('MessageContextBuilder', () => {
 
     it('should fetch and merge extended context when enabled', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
 
       // DB history (when extended context is enabled, getChannelHistory is used)
       const dbHistory = [
@@ -810,7 +809,7 @@ describe('MessageContextBuilder', () => {
 
     it('should not fetch extended context when disabled', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -845,7 +844,7 @@ describe('MessageContextBuilder', () => {
 
     it('should not fetch extended context when botUserId is not provided', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -880,7 +879,7 @@ describe('MessageContextBuilder', () => {
 
     it('should collect image attachments when maxImages > 0', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
@@ -965,7 +964,7 @@ describe('MessageContextBuilder', () => {
 
     it('should not collect images when maxImages is 0', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
@@ -1029,7 +1028,7 @@ describe('MessageContextBuilder', () => {
 
     it('should resolve discord:XXXX personaIds to actual UUIDs when users are created', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue(null);
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
       // Mock batch user creation to return a mapping

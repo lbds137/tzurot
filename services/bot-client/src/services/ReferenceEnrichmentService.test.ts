@@ -4,7 +4,24 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
+import { MessageRole } from '@tzurot/common-types';
 import type { ConversationMessage, ReferencedMessage } from '@tzurot/common-types';
+
+// Helper to create a valid ReferencedMessage with all required fields
+function createReferencedMessage(overrides: Partial<ReferencedMessage> = {}): ReferencedMessage {
+  return {
+    referenceNumber: 1,
+    discordMessageId: 'msg-123',
+    discordUserId: 'user-123',
+    authorUsername: 'test_user',
+    authorDisplayName: 'Test User',
+    content: 'Test message',
+    embeds: '',
+    timestamp: new Date().toISOString(),
+    locationContext: 'Test Server / #general',
+    ...overrides,
+  };
+}
 
 // Mock PersonaResolver
 const mockPersonaResolver = {
@@ -75,25 +92,24 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should enrich reference with persona name from conversation history', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'John Doe',
-          webhookId: null,
           content: 'Hello',
-        },
+        }),
       ];
 
       const conversationHistory: ConversationMessage[] = [
         {
           id: 'conv-1',
-          role: 'user',
+          role: MessageRole.User,
           content: 'Previous message',
           personaId: 'persona-123',
           personaName: 'Johnny',
-          timestamp: new Date(),
+          createdAt: new Date(),
+          discordMessageId: [],
         },
       ];
 
@@ -110,15 +126,13 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should enrich reference with persona name from database when not in history', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'John Doe',
-          webhookId: null,
           content: 'Hello',
-        },
+        }),
       ];
 
       const conversationHistory: ConversationMessage[] = []; // Empty history
@@ -147,15 +161,13 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should skip webhook messages detected via Redis', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-webhook',
           discordUserId: 'user-123',
           authorUsername: 'bot_webhook',
           authorDisplayName: 'Bot Personality',
-          webhookId: null,
           content: 'AI response',
-        },
+        }),
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -171,15 +183,14 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should skip webhook messages detected via webhookId', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-webhook',
           discordUserId: 'user-123',
           authorUsername: 'pluralkit',
           authorDisplayName: 'PluralKit User',
           webhookId: 'webhook-456', // Discord webhookId present
           content: 'Message from PluralKit',
-        },
+        }),
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -193,42 +204,42 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should handle multiple references in one call', async () => {
       const references: ReferencedMessage[] = [
-        {
+        createReferencedMessage({
           referenceNumber: 1,
           discordMessageId: 'msg-1',
           discordUserId: 'user-1',
           authorUsername: 'alice',
           authorDisplayName: 'Alice',
-          webhookId: null,
           content: 'Message 1',
-        },
-        {
+        }),
+        createReferencedMessage({
           referenceNumber: 2,
           discordMessageId: 'msg-2',
           discordUserId: 'user-2',
           authorUsername: 'bob',
           authorDisplayName: 'Bob',
-          webhookId: null,
           content: 'Message 2',
-        },
+        }),
       ];
 
       const conversationHistory: ConversationMessage[] = [
         {
           id: 'conv-1',
-          role: 'user',
+          role: MessageRole.User,
           content: 'Previous',
           personaId: 'persona-1',
           personaName: 'Alicia',
-          timestamp: new Date(),
+          createdAt: new Date(),
+          discordMessageId: [],
         },
         {
           id: 'conv-2',
-          role: 'user',
+          role: MessageRole.User,
           content: 'Previous',
           personaId: 'persona-2',
           personaName: 'Bobby',
-          timestamp: new Date(),
+          createdAt: new Date(),
+          discordMessageId: [],
         },
       ];
 
@@ -267,15 +278,13 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should keep original display name when persona name is null', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'John Doe',
-          webhookId: null,
           content: 'Hello',
-        },
+        }),
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -291,15 +300,13 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should handle errors gracefully and keep original display name', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'John Doe',
-          webhookId: null,
           content: 'Hello',
-        },
+        }),
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -313,15 +320,14 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should handle Redis lookup failures gracefully', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'John Doe',
           webhookId: 'webhook-123', // Has webhookId, should still skip
           content: 'Hello',
-        },
+        }),
       ];
 
       // Redis lookup fails, but webhookId detection should still work
@@ -338,15 +344,13 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should pass correct Discord display name to getOrCreateUser', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'Server Nickname',
-          webhookId: null,
           content: 'Hello',
-        },
+        }),
       ];
 
       (redisService.getWebhookPersonality as ReturnType<typeof vi.fn>).mockResolvedValue(null);
@@ -366,33 +370,33 @@ describe('ReferenceEnrichmentService', () => {
 
     it('should build persona name map only from messages with personaName', async () => {
       const references: ReferencedMessage[] = [
-        {
-          referenceNumber: 1,
+        createReferencedMessage({
           discordMessageId: 'msg-123',
           discordUserId: 'user-123',
           authorUsername: 'john_doe',
           authorDisplayName: 'John Doe',
-          webhookId: null,
           content: 'Hello',
-        },
+        }),
       ];
 
       const conversationHistory: ConversationMessage[] = [
         {
           id: 'conv-1',
-          role: 'user',
+          role: MessageRole.User,
           content: 'Has persona',
           personaId: 'persona-1',
           personaName: 'Johnny',
-          timestamp: new Date(),
+          createdAt: new Date(),
+          discordMessageId: [],
         },
         {
           id: 'conv-2',
-          role: 'assistant',
+          role: MessageRole.Assistant,
           content: 'No persona name',
           personaId: 'persona-2',
           personaName: undefined, // Missing persona name
-          timestamp: new Date(),
+          createdAt: new Date(),
+          discordMessageId: [],
         },
       ];
 

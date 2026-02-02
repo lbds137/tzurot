@@ -9,6 +9,7 @@ import { MessageType } from 'discord.js';
 import { MessageHandler } from './MessageHandler.js';
 import type { IMessageProcessor } from '../processors/IMessageProcessor.js';
 import type { Message } from 'discord.js';
+import type { LLMGenerationResult } from '@tzurot/common-types';
 
 // Mock serviceRegistry to provide getGatewayClient
 const mockGatewayClient = {
@@ -91,9 +92,9 @@ describe('MessageHandler', () => {
 
       // Verify order
       const calls = [
-        mockProcessor1.process.mock.invocationCallOrder[0],
-        mockProcessor2.process.mock.invocationCallOrder[0],
-        mockProcessor3.process.mock.invocationCallOrder[0],
+        vi.mocked(mockProcessor1.process).mock.invocationCallOrder[0],
+        vi.mocked(mockProcessor2.process).mock.invocationCallOrder[0],
+        vi.mocked(mockProcessor3.process).mock.invocationCallOrder[0],
       ];
       expect(calls[0]).toBeLessThan(calls[1]);
       expect(calls[1]).toBeLessThan(calls[2]);
@@ -103,7 +104,7 @@ describe('MessageHandler', () => {
       const message = createMockMessage();
 
       // Second processor handles the message
-      mockProcessor2.process.mockResolvedValue(true);
+      vi.mocked(mockProcessor2.process).mockResolvedValue(true);
 
       await messageHandler.handleMessage(message);
 
@@ -119,9 +120,9 @@ describe('MessageHandler', () => {
       const message = createMockMessage();
 
       // All processors return false
-      mockProcessor1.process.mockResolvedValue(false);
-      mockProcessor2.process.mockResolvedValue(false);
-      mockProcessor3.process.mockResolvedValue(false);
+      vi.mocked(mockProcessor1.process).mockResolvedValue(false);
+      vi.mocked(mockProcessor2.process).mockResolvedValue(false);
+      vi.mocked(mockProcessor3.process).mockResolvedValue(false);
 
       await messageHandler.handleMessage(message);
 
@@ -135,7 +136,7 @@ describe('MessageHandler', () => {
       const message = createMockMessage();
 
       // First processor throws an error
-      mockProcessor1.process.mockRejectedValue(new Error('Processor error'));
+      vi.mocked(mockProcessor1.process).mockRejectedValue(new Error('Processor error'));
 
       await messageHandler.handleMessage(message);
 
@@ -148,7 +149,7 @@ describe('MessageHandler', () => {
     it('should not throw if error reply fails', async () => {
       const message = createMockMessage();
 
-      mockProcessor1.process.mockRejectedValue(new Error('Processor error'));
+      vi.mocked(mockProcessor1.process).mockRejectedValue(new Error('Processor error'));
       (message.reply as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Channel deleted'));
 
       // Should not throw
@@ -159,7 +160,7 @@ describe('MessageHandler', () => {
       const message = createMockMessage();
 
       // First processor handles it
-      mockProcessor1.process.mockResolvedValue(true);
+      vi.mocked(mockProcessor1.process).mockResolvedValue(true);
 
       await messageHandler.handleMessage(message);
 
@@ -305,7 +306,11 @@ describe('MessageHandler', () => {
 
     it('should ignore results for unknown jobs', async () => {
       const jobId = 'unknown-job';
-      const result = { content: 'Some content' };
+      const result = {
+        requestId: 'req-unknown',
+        success: true,
+        content: 'Some content',
+      } as LLMGenerationResult;
 
       mockJobTracker.getContext.mockReturnValue(null);
 
@@ -432,7 +437,7 @@ describe('MessageHandler', () => {
           category: 'rate_limit' as const,
           referenceId: 'ref-123',
         },
-      };
+      } as unknown as LLMGenerationResult;
 
       const mockMessage = {
         reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
@@ -484,7 +489,7 @@ describe('MessageHandler', () => {
           focusModeEnabled: false,
           incognitoModeActive: true,
         },
-      };
+      } as unknown as LLMGenerationResult;
 
       const mockMessage = {
         reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
@@ -530,7 +535,7 @@ describe('MessageHandler', () => {
           referenceId: 'ref-net-123',
         },
         // Note: metadata is completely missing
-      };
+      } as unknown as LLMGenerationResult;
 
       const mockMessage = {
         reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
@@ -617,7 +622,7 @@ describe('MessageHandler', () => {
           category: 'provider_error' as const,
           // referenceId is intentionally undefined
         },
-      };
+      } as unknown as LLMGenerationResult;
 
       const mockMessage = {
         reply: vi.fn().mockResolvedValue({ id: 'reply-1' }),
