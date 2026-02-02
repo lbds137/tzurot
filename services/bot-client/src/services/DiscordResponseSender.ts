@@ -13,6 +13,8 @@ import {
   AI_ENDPOINTS,
   GUEST_MODE,
   DISCORD_LIMITS,
+  BOT_FOOTER_TEXT,
+  buildModelFooterText,
 } from '@tzurot/common-types';
 import type { LoadedPersonality } from '@tzurot/common-types';
 import { WebhookManager } from '../utils/WebhookManager.js';
@@ -106,27 +108,24 @@ export class DiscordResponseSender {
     // Build footer to append AFTER chunking (to preserve newline formatting)
     // The chunker's word-level splitting replaces \n with spaces, so we add footer post-chunk
     // Compact format: combine model + auto-response indicator on one line to minimize clutter
+    // NOTE: Footer text constants are centralized in BOT_FOOTER_TEXT (common-types)
     let footer = '';
     if (modelUsed !== undefined && modelUsed.length > 0) {
       const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
-      footer += `\n-# Model: [${modelUsed}](<${modelUrl}>)`;
-
-      // Append auto-response indicator to same line (compact format)
-      if (isAutoResponse === true) {
-        footer += ' • 📍 auto';
-      }
+      const modelFooter = buildModelFooterText(modelUsed, modelUrl, isAutoResponse === true);
+      footer += `\n-# ${modelFooter}`;
     } else if (isAutoResponse === true) {
       // No model shown but still want to indicate auto-response
-      footer += '\n-# 📍 auto-response';
+      footer += `\n-# ${BOT_FOOTER_TEXT.AUTO_RESPONSE}`;
     }
     if (isGuestMode === true) {
       footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
     }
     if (focusModeEnabled === true) {
-      footer += '\n-# 🔒 Focus Mode • LTM retrieval disabled';
+      footer += `\n-# ${BOT_FOOTER_TEXT.FOCUS_MODE}`;
     }
     if (incognitoModeActive === true) {
-      footer += '\n-# 👻 Incognito Mode • Memories not being saved';
+      footer += `\n-# ${BOT_FOOTER_TEXT.INCOGNITO_MODE}`;
     }
 
     // Determine if this is a webhook-capable channel
@@ -280,28 +279,8 @@ export class DiscordResponseSender {
     // Escape any existing spoiler markers in the content to prevent format breaking
     const escapedContent = truncatedContent.replace(/\|\|/g, '\\|\\|');
 
-    // Split into chunks if content is too long
-    const chunks: string[] = [];
-    let remaining = escapedContent;
-
-    while (remaining.length > 0) {
-      if (remaining.length <= MAX_CONTENT_PER_MESSAGE) {
-        chunks.push(remaining);
-        break;
-      }
-
-      // Find a good break point (newline or space)
-      let breakPoint = remaining.lastIndexOf('\n', MAX_CONTENT_PER_MESSAGE);
-      if (breakPoint === -1 || breakPoint < MAX_CONTENT_PER_MESSAGE * 0.5) {
-        breakPoint = remaining.lastIndexOf(' ', MAX_CONTENT_PER_MESSAGE);
-      }
-      if (breakPoint === -1) {
-        breakPoint = MAX_CONTENT_PER_MESSAGE;
-      }
-
-      chunks.push(remaining.substring(0, breakPoint));
-      remaining = remaining.substring(breakPoint).trimStart();
-    }
+    // Use existing splitMessage utility for natural boundary splitting
+    const chunks = splitMessage(escapedContent, MAX_CONTENT_PER_MESSAGE);
 
     // Determine channel type
     const isWebhookChannel =

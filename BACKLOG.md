@@ -99,61 +99,6 @@ Functions exceeding 15 cognitive complexity limit:
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
 
-### 🏗️ Footer Handling DRY Refactor (Model Hallucination Bug)
-
-**Symptom**: Model hallucinates footer lines (e.g., `-# 🔒 Focus Mode • LTM retrieval disabled`) because they leak into conversation history. Lines appear twice in output.
-
-**Root cause**: `BOT_FOOTER_PATTERNS` in common-types is **incomplete** - missing Focus Mode and Incognito Mode patterns. `stripBotFooters()` only strips patterns it knows about.
-
-**Current DRY violations**:
-
-1. Footer strings hardcoded in `DiscordResponseSender.ts` (lines 112-129)
-2. Same strings duplicated in `character/chat.ts` (lines 480-483)
-3. `BOT_FOOTER_PATTERNS` only has MODEL, GUEST_MODE, AUTO_RESPONSE
-4. Focus Mode (`🔒`) and Incognito Mode (`👻`) footers NOT in patterns
-
-**Solution**:
-
-- [ ] Add Focus Mode and Incognito Mode patterns to `BOT_FOOTER_PATTERNS`
-- [ ] Centralize ALL footer strings as constants (single source of truth)
-- [ ] Update `stripBotFooters()` tests for new patterns
-- [ ] Audit all places that add/strip footers to ensure consistency
-- [ ] Consider: should footer constants drive both pattern and string generation?
-
-**Files**:
-
-- `packages/common-types/src/constants/discord.ts` (BOT_FOOTER_PATTERNS)
-- `packages/common-types/src/utils/discord.ts` (stripBotFooters)
-- `services/bot-client/src/services/DiscordResponseSender.ts`
-- `services/bot-client/src/commands/character/chat.ts`
-
-### ✅ /character chat Errors with Message + API Key Resolution (FIXED)
-
-**Fixed in**: `fix/backlog-triage-quick-wins` branch (commit dcd05caa)
-
-**Solution**: Implemented Option B - added `overrideUser`/`overrideMember` options to `buildContext()`. The `/character chat` command now explicitly passes the command invoker's identity, ensuring correct BYOK API key lookup and persona resolution regardless of anchor message author.
-
-<details>
-<summary>Root cause analysis (preserved for reference)</summary>
-
-**Issue 1: WITH message parameter - complete failure**
-
-The fundamental problem was that `buildContext()` used the **anchor message's author** for userId resolution, but the anchor message was wrong:
-
-1. `sendAndPersistUserMessage()` sends via `channel.send()` → bot is the message author
-2. This bot-sent message becomes the "anchorMessage" for `buildContext()`
-3. `buildContext()` → `resolveUserContext()` → `getOrCreateUser(message.author.id, ..., message.author.bot)`
-4. Since `message.author.bot === true`, `getOrCreateUser()` returns `null`
-5. Error: "Cannot process messages from bots" is thrown
-
-**Issue 2: WITHOUT message (weigh-in mode) - wrong user**
-
-1. `getAnchorMessage()` fetches most recent channel message
-2. `buildContext()` uses that message's author for userId resolution
-3. BYOK lookup uses **whoever sent the last message**, not the command invoker
-
-</details>
-
 ### 🏗️ ConversationalRAGService Refactor
 
 The main RAG orchestration service is a 890-line monster (limit: 500). It coordinates multiple components but has accumulated complexity that makes debugging nightmares like the thinking bug possible.
