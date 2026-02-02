@@ -129,30 +129,85 @@ Functions exceeding 15 cognitive complexity limit:
 
 ### 🐛 /character chat Errors with Message + API Key Resolution
 
-Using `/character chat` with a message parameter errors out with empty error object `{}`. Without a message it works but uses free tier instead of user's API key.
+Using `/character chat` with a message parameter errors out. Without a message it sometimes works but uses free tier instead of user's API key.
 
-**Observed behavior**:
+#### ROOT CAUSE IDENTIFIED (2026-02-01)
 
-Both variants fail, but sometimes it works but uses free model instead of configured paid model (as if no API key)
+**Issue 1: WITH message parameter - complete failure**
 
-**Hypothesis**: Webhook/bot identity confusion when mixing dev and prod bots in same channel. Bot may not recognize its own webhooks since it's a different bot instance, causing user/context resolution issues.
+The fundamental problem is that `buildContext()` uses the **anchor message's author** for userId resolution, but the anchor message is wrong:
 
-**Confirmed**: Fails in prod too when channel has another bot's webhooks present.
+1. `sendAndPersistUserMessage()` sends via `channel.send()` → bot is the message author
+2. This bot-sent message becomes the "anchorMessage" for `buildContext()`
+3. `buildContext()` → `resolveUserContext()` → `getOrCreateUser(message.author.id, ..., message.author.bot)`
+4. Since `message.author.bot === true`, `getOrCreateUser()` returns `null`
+5. Error: "Cannot process messages from bots" is thrown
 
-**Investigation notes (2026-02-01)**:
+**Code path**:
 
-- Code path traced: `handleChat` → `buildContext` → sets `context.userId = discordUserId` (correct)
-- `ApiKeyResolver.resolveApiKey()` uses `discordId` correctly for lookup
-- Empty `{}` error might be caught/sanitized somewhere upstream - needs error tracing
-- The user ID flow LOOKS correct but behavior suggests it's lost/overwritten somewhere
-- Needs hands-on debugging with dev environment and logging to trace actual values
+- `chat.ts:220` - `channel.send()` makes bot the author
+- `chat.ts:164` - Returns bot message as anchor
+- `MessageContextBuilder.ts:297-306` - Throws for bot authors
 
-- [ ] Add debug logging to trace userId through the request
-- [ ] Check for any catch blocks that might sanitize errors to `{}`
-- [ ] Verify userId is not overwritten by webhook-related code
-- [ ] Test in clean channel without other bot webhooks
+**Why @mention works**: The message param is the actual user's Discord message, not a bot-sent one.
 
-**Files**: `services/bot-client/src/commands/character/chat.ts`, `services/ai-worker/src/services/ApiKeyResolver.ts`
+**Issue 2: WITHOUT message (weigh-in mode) - wrong user**
+
+1. `getAnchorMessage()` fetches most recent channel message (line 169)
+2. `buildContext()` uses that message's author for userId resolution
+3. BYOK lookup uses **whoever sent the last message**, not the command invoker
+4. If last message was from another user or a bot response → wrong API key or none
+
+The command has correct `context.user.id` (line 335) but never overrides `buildResult.context.userId`.
+
+#### Fix approach
+
+**Option A: Override userId after buildContext** (minimal change)
+
+```typescript
+// After buildContext returns, override with command invoker's ID
+buildResult.context.userId = context.user.id;
+buildResult.context.userInternalId = await getOrCreateUser(context.user.id, ...);
+```
+
+- Pros: Quick fix
+- Cons: Still builds context with wrong assumptions
+
+**Option B: Refactor to not rely on anchor message author** (proper fix)
+
+```typescript
+// Pass command invoker info explicitly to buildContext
+const buildResult = await contextBuilder.buildContext(anchorMessage, personality, messageContent, {
+  ...options,
+  overrideUser: { id: context.user.id, username: context.user.username },
+});
+```
+
+- Pros: Clean separation of concerns
+- Cons: More invasive change to MessageContextBuilder
+
+**Option C: Use webhook for user message** (preserve author identity)
+
+```typescript
+// Send as user via webhook instead of channel.send()
+const userMsg = await webhookManager.sendAsUser(channel, displayName, message, userAvatarUrl);
+```
+
+- Pros: Message author identity preserved
+- Cons: More complex, needs webhook to impersonate user
+
+**Recommended**: Option A for quick fix, then Option B for proper refactor.
+
+- [ ] Implement Option A: Override userId after buildContext
+- [ ] Test with message parameter (should no longer throw bot error)
+- [ ] Test weigh-in mode (should use command invoker's API key)
+- [ ] Consider Option B refactor as follow-up
+
+**Files**:
+
+- `services/bot-client/src/commands/character/chat.ts` (fix location)
+- `services/bot-client/src/services/MessageContextBuilder.ts` (context building)
+- `packages/common-types/src/services/UserService.ts` (bot rejection logic)
 
 ### 🏗️ ConversationalRAGService Refactor
 
