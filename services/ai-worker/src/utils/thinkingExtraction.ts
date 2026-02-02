@@ -81,6 +81,108 @@ const ORPHAN_CLOSING_TAG_PATTERN =
   /^([\s\S]*?)<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/i;
 
 /**
+ * Pattern to clean up "chimera artifacts" - short garbage fragments before orphan closing tags.
+ * Some merged/chimera models (e.g., tng-r1t-chimera) output a stutter pattern.
+ * Note: Whitespace limited to {0,50} to prevent ReDoS on pathological input.
+ */
+const CHIMERA_ARTIFACT_PATTERN =
+  /(?:^|[\r\n])[\s]{0,50}[^\s<.]{0,9}\.[\s]{0,50}<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+
+/**
+ * Pattern to remove any remaining orphan closing tags.
+ */
+const ORPHAN_CLOSING_TAG_CLEANUP =
+  /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+
+/** Minimum content length to extract from orphan closing tags */
+const MIN_ORPHAN_CONTENT_LENGTH = 20;
+
+/**
+ * Extract content from unclosed thinking tags (model truncation fallback).
+ * @returns Extracted content and cleaned visible content, or null if no match
+ */
+function extractUnclosedTag(visibleContent: string): { content: string; cleaned: string } | null {
+  UNCLOSED_TAG_PATTERN.lastIndex = 0;
+  const match = UNCLOSED_TAG_PATTERN.exec(visibleContent);
+  if (match === null) {
+    return null;
+  }
+
+  const tagName = match[1];
+  const content = match[2].trim();
+  if (content.length === 0) {
+    return null;
+  }
+
+  logger.warn(
+    { tagName, contentLength: content.length },
+    '[ThinkingExtraction] Found unclosed thinking tag - content may be incomplete'
+  );
+
+  UNCLOSED_TAG_PATTERN.lastIndex = 0;
+  const cleaned = visibleContent.replace(UNCLOSED_TAG_PATTERN, '');
+  return { content, cleaned };
+}
+
+/**
+ * Extract content from orphan closing tags (no opening tag).
+ * @returns Extracted content and cleaned visible content, or null if no match
+ */
+function extractOrphanClosingTag(
+  visibleContent: string
+): { content: string; cleaned: string } | null {
+  const match = ORPHAN_CLOSING_TAG_PATTERN.exec(visibleContent);
+  if (match === null) {
+    return null;
+  }
+
+  const content = match[1].trim();
+  const tagName = match[2];
+
+  if (content.length < MIN_ORPHAN_CONTENT_LENGTH) {
+    return null;
+  }
+
+  logger.warn(
+    { tagName, contentLength: content.length },
+    '[ThinkingExtraction] Found orphan closing tag - extracted preceding content as thinking'
+  );
+
+  const cleaned = visibleContent.replace(ORPHAN_CLOSING_TAG_PATTERN, '');
+  return { content, cleaned };
+}
+
+/**
+ * Clean up visible content after extraction.
+ */
+function cleanupVisibleContent(content: string): string {
+  // Clean chimera artifacts
+  let result = content.replace(CHIMERA_ARTIFACT_PATTERN, '');
+
+  // Remove remaining orphan closing tags
+  result = result.replace(ORPHAN_CLOSING_TAG_CLEANUP, '');
+
+  // Clean whitespace
+  return result
+    .replace(/^\s+/, '') // Leading whitespace
+    .replace(/\s+$/, '') // Trailing whitespace
+    .replace(/\n{3,}/g, '\n\n'); // Multiple blank lines to double
+}
+
+/**
+ * Extract text or summary from a reasoning detail object.
+ */
+function extractFromReasoningDetail(detail: ReasoningDetail): string | null {
+  if (typeof detail.text === 'string' && detail.text.trim().length > 0) {
+    return detail.text.trim();
+  }
+  if (typeof detail.summary === 'string' && detail.summary.trim().length > 0) {
+    return detail.summary.trim();
+  }
+  return null;
+}
+
+/**
  * Extract thinking blocks from AI response content.
  *
  * Models like DeepSeek R1, Qwen QwQ, GLM-4.x, and Claude with prompted thinking
@@ -110,10 +212,7 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
   // Extract thinking content from ALL patterns and ALWAYS remove from visible content
   // This prevents tag leakage when responses contain multiple tag types
   for (const pattern of THINKING_PATTERNS) {
-    // Reset regex state for each pattern (global regexes maintain lastIndex)
     pattern.lastIndex = 0;
-
-    // Extract content from this pattern
     const matches = content.matchAll(pattern);
     for (const match of matches) {
       const thinkContent = match[1].trim();
@@ -121,87 +220,33 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
         thinkingParts.push(thinkContent);
       }
     }
-
-    // ALWAYS remove this pattern from visible content (critical for preventing leaks)
     pattern.lastIndex = 0;
     visibleContent = visibleContent.replace(pattern, '');
   }
 
-  // Handle unclosed tags (model truncation or errors) as a fallback
-  // Only if no complete tags were found - unclosed tags are likely incomplete thoughts
+  // Handle unclosed tags as fallback (only if no complete tags found)
   if (thinkingParts.length === 0) {
-    UNCLOSED_TAG_PATTERN.lastIndex = 0;
-    const unclosedMatch = UNCLOSED_TAG_PATTERN.exec(visibleContent);
-    if (unclosedMatch !== null) {
-      const tagName = unclosedMatch[1];
-      const unclosedContent = unclosedMatch[2].trim();
-      if (unclosedContent.length > 0) {
-        thinkingParts.push(unclosedContent);
-        logger.warn(
-          { tagName, contentLength: unclosedContent.length },
-          '[ThinkingExtraction] Found unclosed thinking tag - content may be incomplete'
-        );
-      }
-      // Remove the unclosed tag from visible content
-      UNCLOSED_TAG_PATTERN.lastIndex = 0;
-      visibleContent = visibleContent.replace(UNCLOSED_TAG_PATTERN, '');
+    const unclosed = extractUnclosedTag(visibleContent);
+    if (unclosed !== null) {
+      thinkingParts.push(unclosed.content);
+      visibleContent = unclosed.cleaned;
     }
   }
 
-  // Handle orphan closing tags with preceding content (no opening tag)
-  // Some models (e.g., Kimi K2.5) output thinking without opening tag: "thinking</think>response"
-  // Only if no complete tags or unclosed opening tags were found
-  // Require substantial content (20+ chars) to avoid extracting residual punctuation from truncation
-  const MIN_ORPHAN_CONTENT_LENGTH = 20;
+  // Handle orphan closing tags as fallback (only if still no content found)
   if (thinkingParts.length === 0) {
-    const orphanMatch = ORPHAN_CLOSING_TAG_PATTERN.exec(visibleContent);
-    if (orphanMatch !== null) {
-      const orphanContent = orphanMatch[1].trim();
-      const tagName = orphanMatch[2];
-      if (orphanContent.length >= MIN_ORPHAN_CONTENT_LENGTH) {
-        thinkingParts.push(orphanContent);
-        logger.warn(
-          { tagName, contentLength: orphanContent.length },
-          '[ThinkingExtraction] Found orphan closing tag - extracted preceding content as thinking'
-        );
-        // Remove the orphan content and closing tag from visible content
-        visibleContent = visibleContent.replace(ORPHAN_CLOSING_TAG_PATTERN, '');
-      }
-      // If content is too short, just strip the orphan closing tag (handled below)
+    const orphan = extractOrphanClosingTag(visibleContent);
+    if (orphan !== null) {
+      thinkingParts.push(orphan.content);
+      visibleContent = orphan.cleaned;
     }
   }
 
-  // Clean up "chimera artifacts" - short garbage fragments before orphan closing tags.
-  // Some merged/chimera models (e.g., tng-r1t-chimera) output a stutter pattern:
-  // </reasoning> + short fragment ending in period (echoing end of thinking) + </think>
-  // Example: "</reasoning>\n\nsm.\n</think>\n\n*response*"
-  // After <reasoning> extraction, this leaves: "sm.\n</think>\n\n*response*"
-  // Observed patterns: "sm.", "ys.", "ng.", "g.", "." - all end with a period.
-  // The fragment is structurally invalid (nothing should exist between closing tags).
-  // Pattern: start/newline -> whitespace -> 0-9 chars + period -> whitespace -> orphan tag
-  // Requiring a trailing period prevents false positives on legitimate short responses.
-  const CHIMERA_ARTIFACT_PATTERN =
-    /(?:^|[\r\n])[\s]*[^\s<.]{0,9}\.[\s]*<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
-  visibleContent = visibleContent.replace(CHIMERA_ARTIFACT_PATTERN, '');
-
-  // Clean up any remaining orphan closing tags (e.g., multiple orphans or mid-content)
-  // Example: "</think>\n\nResponse" -> "\n\nResponse"
-  visibleContent = visibleContent.replace(
-    /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi,
-    ''
-  );
-
-  // Clean up visible content (remove extra whitespace from removed blocks)
-  visibleContent = visibleContent
-    .replace(/^\s+/, '') // Leading whitespace
-    .replace(/\s+$/, '') // Trailing whitespace
-    .replace(/\n{3,}/g, '\n\n'); // Multiple blank lines to double
+  // Clean up visible content (chimera artifacts, orphan tags, whitespace)
+  visibleContent = cleanupVisibleContent(visibleContent);
 
   // Combine thinking parts if multiple blocks
-  const thinkingContent =
-    thinkingParts.length > 0
-      ? thinkingParts.join('\n\n---\n\n') // Separate multiple blocks with divider
-      : null;
+  const thinkingContent = thinkingParts.length > 0 ? thinkingParts.join('\n\n---\n\n') : null;
 
   const blockCount = thinkingParts.length;
 
@@ -213,11 +258,7 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     );
   }
 
-  return {
-    thinkingContent,
-    visibleContent,
-    blockCount,
-  };
+  return { thinkingContent, visibleContent, blockCount };
 }
 
 /**
@@ -285,7 +326,6 @@ export interface ReasoningDetail {
  * ```
  */
 export function extractApiReasoningContent(reasoningDetails: unknown): string | null {
-  // Guard against invalid input
   if (!Array.isArray(reasoningDetails) || reasoningDetails.length === 0) {
     return null;
   }
@@ -293,45 +333,14 @@ export function extractApiReasoningContent(reasoningDetails: unknown): string | 
   const parts: string[] = [];
 
   for (const detail of reasoningDetails) {
-    // Skip if not a valid object
     if (detail === null || typeof detail !== 'object') {
       continue;
     }
 
     const typedDetail = detail as ReasoningDetail;
-
-    // Extract content based on type
-    switch (typedDetail.type) {
-      case 'reasoning.text':
-        if (typeof typedDetail.text === 'string' && typedDetail.text.trim().length > 0) {
-          parts.push(typedDetail.text.trim());
-        }
-        break;
-
-      case 'reasoning.summary':
-        if (typeof typedDetail.summary === 'string' && typedDetail.summary.trim().length > 0) {
-          parts.push(typedDetail.summary.trim());
-        }
-        break;
-
-      case 'reasoning.encrypted':
-        // Can't decrypt, but note that reasoning was present
-        logger.debug(
-          { type: typedDetail.type, format: typedDetail.format },
-          '[ThinkingExtraction] Found encrypted reasoning content (cannot extract)'
-        );
-        break;
-
-      default:
-        // Unknown type - try to extract any text/summary field
-        if (typeof typedDetail.text === 'string' && typedDetail.text.trim().length > 0) {
-          parts.push(typedDetail.text.trim());
-        } else if (
-          typeof typedDetail.summary === 'string' &&
-          typedDetail.summary.trim().length > 0
-        ) {
-          parts.push(typedDetail.summary.trim());
-        }
+    const extracted = processReasoningDetail(typedDetail, parts);
+    if (extracted !== null) {
+      parts.push(extracted);
     }
   }
 
@@ -351,6 +360,27 @@ export function extractApiReasoningContent(reasoningDetails: unknown): string | 
   );
 
   return content;
+}
+
+/**
+ * Process a single reasoning detail and return extracted content.
+ */
+function processReasoningDetail(detail: ReasoningDetail, _parts: string[]): string | null {
+  switch (detail.type) {
+    case 'reasoning.text':
+    case 'reasoning.summary':
+      return extractFromReasoningDetail(detail);
+
+    case 'reasoning.encrypted':
+      logger.debug(
+        { type: detail.type, format: detail.format },
+        '[ThinkingExtraction] Found encrypted reasoning content (cannot extract)'
+      );
+      return null;
+
+    default:
+      return extractFromReasoningDetail(detail);
+  }
 }
 
 /**
