@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ButtonStyle } from 'discord.js';
+import type { APIButtonComponentWithCustomId } from 'discord.js';
 import {
   buildDeleteConfirmation,
   buildDeleteSuccessMessage,
@@ -67,7 +68,7 @@ describe('deleteConfirmation', () => {
       });
 
       const row = result.components[0];
-      const buttons = row.toJSON().components;
+      const buttons = row.toJSON().components as APIButtonComponentWithCustomId[];
 
       expect(buttons).toHaveLength(2);
 
@@ -92,7 +93,7 @@ describe('deleteConfirmation', () => {
         cancelLabel: 'No, Keep It',
       });
 
-      const buttons = result.components[0].toJSON().components;
+      const buttons = result.components[0].toJSON().components as APIButtonComponentWithCustomId[];
       expect(buttons[0].label).toBe('No, Keep It');
       expect(buttons[1].label).toBe('Yes, Delete Forever');
     });

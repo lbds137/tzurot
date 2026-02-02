@@ -66,7 +66,10 @@ describe('permissionChecks', () => {
 
     it('should use followUp when deferred option is true', async () => {
       const interaction = createMockInteraction();
-      (interaction as { followUp: ReturnType<typeof vi.fn> }).followUp = vi.fn();
+      const interactionWithFollowUp = interaction as unknown as {
+        followUp: ReturnType<typeof vi.fn>;
+      };
+      interactionWithFollowUp.followUp = vi.fn();
       const entity = { canEdit: false };
 
       const result = await checkEditPermission(interaction, entity, 'edit this', {
@@ -75,12 +78,10 @@ describe('permissionChecks', () => {
 
       expect(result).toBe(false);
       expect(interaction.reply).not.toHaveBeenCalled();
-      expect((interaction as { followUp: ReturnType<typeof vi.fn> }).followUp).toHaveBeenCalledWith(
-        {
-          content: '❌ You do not have permission to edit this.',
-          flags: MessageFlags.Ephemeral,
-        }
-      );
+      expect(interactionWithFollowUp.followUp).toHaveBeenCalledWith({
+        content: '❌ You do not have permission to edit this.',
+        flags: MessageFlags.Ephemeral,
+      });
     });
   });
 
@@ -181,19 +182,20 @@ describe('permissionChecks', () => {
 
     it('should use followUp when deferred option is true', async () => {
       const interaction = createMockInteraction('user-123');
-      (interaction as { followUp: ReturnType<typeof vi.fn> }).followUp = vi.fn();
+      const interactionWithFollowUp = interaction as unknown as {
+        followUp: ReturnType<typeof vi.fn>;
+      };
+      interactionWithFollowUp.followUp = vi.fn();
       const entity = { ownerId: 'user-456' };
 
       const result = await checkOwnership(interaction, entity, 'modify this', { deferred: true });
 
       expect(result).toBe(false);
       expect(interaction.reply).not.toHaveBeenCalled();
-      expect((interaction as { followUp: ReturnType<typeof vi.fn> }).followUp).toHaveBeenCalledWith(
-        {
-          content: '❌ You do not have permission to modify this.',
-          flags: MessageFlags.Ephemeral,
-        }
-      );
+      expect(interactionWithFollowUp.followUp).toHaveBeenCalledWith({
+        content: '❌ You do not have permission to modify this.',
+        flags: MessageFlags.Ephemeral,
+      });
     });
   });
 });

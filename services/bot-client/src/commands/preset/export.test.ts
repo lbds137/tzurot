@@ -34,7 +34,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     isBotOwner: (userId: string) => userId === 'bot-owner-id',
     presetExportOptions: (interaction: unknown) => ({
       preset: () =>
-        (interaction as { options: { getString: () => string } }).options.getString('preset'),
+        (interaction as { options: { getString: (name: string) => string } }).options.getString(
+          'preset'
+        ),
     }),
   };
 });

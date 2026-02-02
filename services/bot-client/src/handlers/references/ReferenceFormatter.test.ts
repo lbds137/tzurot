@@ -20,18 +20,16 @@ describe('ReferenceFormatter', () => {
     mockMessageFormatter = {
       formatMessage: vi.fn().mockImplementation(async (message: Message, refNum: number) => ({
         referenceNumber: refNum,
-        messageId: message.id,
+        discordMessageId: message.id,
+        discordUserId: message.author.id,
         authorUsername: message.author.username,
+        authorDisplayName: message.author.displayName ?? message.author.username,
         content: message.content,
-        timestamp: message.createdAt,
-        guildId: null,
-        channelId: null,
-        channelName: null,
-        embeds: [],
-        imageUrls: [],
-        voiceTranscript: null,
+        embeds: '',
+        timestamp: message.createdAt.toISOString(),
+        locationContext: 'this channel',
       })),
-    } as any;
+    } as MessageFormatter;
 
     // Mock SnapshotFormatter
     mockSnapshotFormatter = {} as any;
@@ -76,9 +74,9 @@ describe('ReferenceFormatter', () => {
 
       // Depth 1 should come before depth 2
       expect(result.references).toHaveLength(2);
-      expect(result.references[0].messageId).toBe('depth-1');
+      expect(result.references[0].discordMessageId).toBe('depth-1');
       expect(result.references[0].referenceNumber).toBe(1);
-      expect(result.references[1].messageId).toBe('depth-2');
+      expect(result.references[1].discordMessageId).toBe('depth-2');
       expect(result.references[1].referenceNumber).toBe(2);
     });
 
@@ -118,8 +116,8 @@ describe('ReferenceFormatter', () => {
 
       // Older message should come first within same depth
       expect(result.references).toHaveLength(2);
-      expect(result.references[0].messageId).toBe('older');
-      expect(result.references[1].messageId).toBe('newer');
+      expect(result.references[0].discordMessageId).toBe('older');
+      expect(result.references[1].discordMessageId).toBe('newer');
     });
 
     it('should combine depth and chronological sorting', async () => {
@@ -172,9 +170,9 @@ describe('ReferenceFormatter', () => {
 
       // Expected order: depth 1 (older), depth 1 (newer), depth 2 (older)
       expect(result.references).toHaveLength(3);
-      expect(result.references[0].messageId).toBe('depth1-older');
-      expect(result.references[1].messageId).toBe('depth1-newer');
-      expect(result.references[2].messageId).toBe('depth2-older');
+      expect(result.references[0].discordMessageId).toBe('depth1-older');
+      expect(result.references[1].discordMessageId).toBe('depth1-newer');
+      expect(result.references[2].discordMessageId).toBe('depth2-older');
     });
   });
 

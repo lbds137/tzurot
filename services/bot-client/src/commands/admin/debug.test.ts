@@ -686,7 +686,7 @@ describe('handleDebug', () => {
       const context = createMockContext('test-req-123');
       await handleDebug(context);
 
-      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as unknown as {
         files: { name: string }[];
       };
       expect(editReplyArgs.files).toHaveLength(1);
@@ -700,7 +700,7 @@ describe('handleDebug', () => {
       const context = createMockContext('test-req-123', DebugFormat.Json);
       await handleDebug(context);
 
-      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as unknown as {
         files: { name: string }[];
       };
       expect(editReplyArgs.files).toHaveLength(1);
@@ -714,7 +714,7 @@ describe('handleDebug', () => {
       const context = createMockContext('test-req-123', DebugFormat.Xml);
       await handleDebug(context);
 
-      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as unknown as {
         files: { name: string }[];
       };
       expect(editReplyArgs.files).toHaveLength(1);
@@ -728,7 +728,7 @@ describe('handleDebug', () => {
       const context = createMockContext('test-req-123', DebugFormat.Both);
       await handleDebug(context);
 
-      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as unknown as {
         files: { name: string }[];
       };
       expect(editReplyArgs.files).toHaveLength(2);
