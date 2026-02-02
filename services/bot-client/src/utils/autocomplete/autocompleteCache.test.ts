@@ -54,7 +54,6 @@ describe('autocompleteCache', () => {
         slug: 'lilith',
         isPublic: true,
         isOwned: true,
-        avatarUrl: 'https://example.com/lilith.png',
       },
       {
         id: 'personality-2',
@@ -63,7 +62,6 @@ describe('autocompleteCache', () => {
         slug: 'default',
         isPublic: true,
         isOwned: true,
-        avatarUrl: null,
       },
     ];
 
@@ -274,7 +272,6 @@ describe('autocompleteCache', () => {
           slug: 'test',
           isPublic: true,
           isOwned: true,
-          avatarUrl: null,
         },
       ];
       const mockPersonas: PersonaSummary[] = [

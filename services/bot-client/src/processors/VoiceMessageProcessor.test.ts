@@ -33,10 +33,10 @@ vi.mock('../utils/personalityMentionParser.js', () => ({
 import { getConfig } from '@tzurot/common-types';
 import { findPersonalityMention } from '../utils/personalityMentionParser.js';
 
-function createMockMessage(overrides?: Partial<Message>): Message {
+function createMockMessage(overrides: Record<string, unknown> = {}): Message {
   return {
     id: '123456789',
-    content: overrides?.content ?? 'Test message',
+    content: (overrides.content as string) ?? 'Test message',
     author: {
       id: 'user-123',
       username: 'testuser',
@@ -50,7 +50,7 @@ function createMockMessage(overrides?: Partial<Message>): Message {
     mentions: {
       has: vi.fn().mockReturnValue(false),
     },
-    reference: overrides?.reference ?? null,
+    reference: (overrides.reference as Message['reference']) ?? null,
     attachments: new Map(),
     messageSnapshots: new Map(),
     ...overrides,

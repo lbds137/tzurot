@@ -266,7 +266,7 @@ describe('admin command', () => {
         vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
           name: 'server-id',
           value: 'test',
-        });
+        } as never);
 
         // Create a mock guilds cache with filter, map, and slice methods
         const mockGuilds = [
@@ -282,13 +282,13 @@ describe('admin command', () => {
           })),
         };
 
-        mockAutocompleteInteraction.client.guilds.cache = mockCache as unknown as Collection<
-          string,
-          Guild
-        >;
+        Object.defineProperty(mockAutocompleteInteraction.client.guilds, 'cache', {
+          value: mockCache,
+          writable: true,
+        });
 
         // Make filter return only 'Test Server' when querying 'test'
-        mockCache.filter.mockImplementation((fn: (g: (typeof mockGuilds)[0]) => boolean) => ({
+        mockCache.filter.mockImplementation((_fn: (g: (typeof mockGuilds)[0]) => boolean) => ({
           map: (mapFn: (g: (typeof mockGuilds)[0]) => { name: string; value: string }) => {
             const filtered = mockGuilds.filter(g => g.name.toLowerCase().includes('test'));
             return {
@@ -310,7 +310,7 @@ describe('admin command', () => {
         vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
           name: 'unknown',
           value: 'test',
-        });
+        } as never);
 
         await autocomplete(mockAutocompleteInteraction);
 
@@ -323,13 +323,16 @@ describe('admin command', () => {
         vi.mocked(mockAutocompleteInteraction.options.getFocused).mockReturnValue({
           name: 'server-id',
           value: '',
-        });
+        } as never);
         // Create a mock that throws when used
-        mockAutocompleteInteraction.client.guilds.cache = {
-          filter: () => {
-            throw new Error('Handler error');
+        Object.defineProperty(mockAutocompleteInteraction.client.guilds, 'cache', {
+          value: {
+            filter: () => {
+              throw new Error('Handler error');
+            },
           },
-        } as unknown as Collection<string, Guild>;
+          writable: true,
+        });
 
         await autocomplete(mockAutocompleteInteraction);
 

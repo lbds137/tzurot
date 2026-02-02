@@ -200,10 +200,9 @@ describe('Character Dashboard', () => {
       mockInteraction.deferUpdate = vi.fn();
       mockInteraction.editReply = vi.fn();
 
-      // Session has browseContext
-      vi.mocked(dashboardUtils.getSessionManager().get).mockResolvedValue({
-        data: { name: 'Test', browseContext },
-      });
+      // Session has browseContext (cast mock to allow partial data)
+      const mockSession = { data: { name: 'Test', browseContext } };
+      vi.mocked(dashboardUtils.getSessionManager().get).mockResolvedValue(mockSession as never);
 
       vi.mocked(api.updateCharacter).mockResolvedValue({
         id: 'uuid',
@@ -308,7 +307,11 @@ describe('Character Dashboard', () => {
         canEdit: true,
       });
 
-      vi.mocked(api.toggleVisibility).mockResolvedValue({ isPublic: true });
+      vi.mocked(api.toggleVisibility).mockResolvedValue({
+        id: 'uuid',
+        slug: 'test-char',
+        isPublic: true,
+      });
 
       const mockInteraction = createMockSelectInteraction(
         'character::menu::test-char',
@@ -359,6 +362,7 @@ describe('Character Dashboard', () => {
 
     it('should handle view pagination button', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
         action: 'view',
         characterId: 'test-char',
         viewPage: 2,
@@ -378,6 +382,7 @@ describe('Character Dashboard', () => {
 
     it('should handle expand field button', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
         action: 'expand',
         characterId: 'test-char',
         fieldName: 'personalityTraits',
@@ -565,6 +570,7 @@ describe('Character Dashboard', () => {
 
     it('should handle delete_confirm and delete character', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
         action: 'delete_confirm',
         characterId: 'test-char',
       });
@@ -607,6 +613,7 @@ describe('Character Dashboard', () => {
 
     it('should handle delete_cancel and restore dashboard', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
         action: 'delete_cancel',
         characterId: 'test-char',
       });
@@ -625,6 +632,7 @@ describe('Character Dashboard', () => {
 
     it('should handle delete API failure', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
         action: 'delete_confirm',
         characterId: 'test-char',
       });
@@ -647,6 +655,7 @@ describe('Character Dashboard', () => {
 
     it('should return early for delete actions with missing characterId', async () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
+        command: 'character',
         action: 'delete_confirm',
         characterId: undefined,
       });
