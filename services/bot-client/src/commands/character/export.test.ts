@@ -12,7 +12,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleExport } from './export.js';
 import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import type { EnvConfig } from '@tzurot/common-types';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { AttachmentBuilder } from 'discord.js';
 
 // Mock dependencies

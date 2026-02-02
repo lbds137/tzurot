@@ -33,13 +33,23 @@ _Top 3-5 items to pull into CURRENT next._
 - [x] api-gateway: 0 errors
 - [x] ai-worker: 0 errors (~152 errors fixed - enums, LoadedPersonality mocks, thread mocks, type assertions)
 
-**Remaining bot-client errors (~610 - Part 3 in progress):**
+**Remaining bot-client errors (~339 - Part 3 in progress):**
 
-- [ ] Similar patterns to ai-worker: `role: string` → `MessageRole` enum
-- [ ] Missing required properties in mock objects (LoadedPersonality, ConversationContext, etc.)
-- [ ] `parentChannel` missing in thread mock objects
-- [ ] `possibly undefined` errors on optional result fields
-- [ ] Type assertions needed for mock return types
+Patterns already applied (845→339, 60% reduction):
+
+- [x] `MockInput<T>` simplified to `Record<string, any>` in Discord.mock.ts
+- [x] `findPersonalityMention` now requires userId (4th parameter)
+- [x] Button/select component types use helper functions with `as unknown as APIButtonComponentWithCustomId`
+- [x] Dashboard config types use `createTestPersonaData` helper for required fields
+- [x] `createMockSnapshot` uses `Record<string, unknown>` for flexible input
+- [x] `getFocused` mocks use `as unknown as string` for overloaded signatures
+- [x] `PersonalitySummary.ownerId/ownerDiscordId` are non-nullable strings
+
+Remaining patterns to apply:
+
+- [ ] More `Record<string, unknown>` for local mock factories
+- [ ] More `as unknown as` type assertions for Discord.js types
+- [ ] Non-null assertions for optional dashboard config functions
 
 **After fixing bot-client:** make `typecheck:spec` blocking in pre-push hook
 

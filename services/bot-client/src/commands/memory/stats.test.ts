@@ -30,7 +30,8 @@ const mockCreateInfoEmbed = vi.fn(() => ({
   addFields: vi.fn().mockReturnThis(),
 }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
+  createInfoEmbed: (...args: unknown[]) =>
+    mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
 }));
 
 // Mock autocomplete
@@ -148,11 +149,11 @@ describe('handleStats', () => {
     );
 
     // Should NOT include Date Range field when totalCount is 0
-    const addFieldsCalls = mockEmbed.addFields.mock.calls;
-    const allFieldNames = addFieldsCalls.flatMap((call: { name: string }[][]) =>
-      call.flatMap((fields: { name: string }[]) =>
-        Array.isArray(fields) ? fields.map(f => f.name) : [fields.name]
-      )
+    const addFieldsCalls = mockEmbed.addFields.mock.calls as Array<
+      Array<{ name: string }[] | { name: string }>
+    >;
+    const allFieldNames = addFieldsCalls.flatMap(call =>
+      call.flatMap(fields => (Array.isArray(fields) ? fields.map(f => f.name) : [fields.name]))
     );
     expect(allFieldNames).not.toContain('Date Range');
   });

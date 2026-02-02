@@ -10,7 +10,6 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PermissionFlagsBits } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {

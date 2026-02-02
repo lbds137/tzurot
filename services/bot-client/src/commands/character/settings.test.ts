@@ -5,11 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  StringSelectMenuInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   handleSettings,
   handleCharacterSettingsButton,

@@ -31,8 +31,10 @@ const mockCreateHardDeleteConfig = vi.fn(() => ({
   entityId: 'lilith|channel-123',
 }));
 vi.mock('../../utils/destructiveConfirmation.js', () => ({
-  buildDestructiveWarning: (...args: unknown[]) => mockBuildDestructiveWarning(...args),
-  createHardDeleteConfig: (...args: unknown[]) => mockCreateHardDeleteConfig(...args),
+  buildDestructiveWarning: (...args: unknown[]) =>
+    mockBuildDestructiveWarning(...(args as Parameters<typeof mockBuildDestructiveWarning>)),
+  createHardDeleteConfig: (...args: unknown[]) =>
+    mockCreateHardDeleteConfig(...(args as Parameters<typeof mockCreateHardDeleteConfig>)),
 }));
 
 describe('handleHardDelete', () => {

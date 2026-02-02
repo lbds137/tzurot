@@ -10,7 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleBatchDelete } from './batchDelete.js';
-import type { ChatInputCommandInteraction, ButtonInteraction, Message } from 'discord.js';
+import type { ButtonInteraction } from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {

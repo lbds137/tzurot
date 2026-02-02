@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { CommandHandler } from './CommandHandler.js';
-import { Collection, MessageFlags } from 'discord.js';
+import { Collection, MessageFlags, SlashCommandBuilder } from 'discord.js';
 import type {
   ChatInputCommandInteraction,
   ModalSubmitInteraction,
@@ -218,7 +218,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'test',
           description: 'Test command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockResolvedValue(undefined),
       };
 
@@ -270,7 +270,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'modal-test',
           description: 'Test command with handleModal',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockResolvedValue(undefined),
         handleModal: mockHandleModal,
       };
@@ -301,7 +301,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'test',
           description: 'Test command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockResolvedValue(undefined),
         handleModal: mockHandleModal,
       };
@@ -332,7 +332,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'admin',
           description: 'Admin command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockResolvedValue(undefined),
         handleModal: mockHandleModal,
         componentPrefixes: ['admin-settings'],
@@ -384,7 +384,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'help',
           description: 'Show all available commands',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockResolvedValue(undefined),
       };
 
@@ -411,7 +411,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'failing',
           description: 'Failing command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockRejectedValue(new Error('Command failed')),
       };
 
@@ -440,7 +440,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'failing',
           description: 'Failing command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockRejectedValue(new Error('Command failed')),
       };
 
@@ -470,7 +470,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'failing',
           description: 'Failing command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn().mockRejectedValue(new Error('Command failed')),
       };
 
@@ -515,7 +515,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'test',
           description: 'Test',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn(),
       };
 
@@ -543,7 +543,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'test',
           description: 'Test command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn(),
         // No autocomplete handler
       };
@@ -566,7 +566,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'test',
           description: 'Test command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn(),
         autocomplete: mockAutocomplete,
       };
@@ -589,7 +589,7 @@ describe('CommandHandler', () => {
         data: {
           name: 'test',
           description: 'Test command',
-        },
+        } as unknown as SlashCommandBuilder,
         execute: vi.fn(),
         autocomplete: mockAutocomplete,
       };
