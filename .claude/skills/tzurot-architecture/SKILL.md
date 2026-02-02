@@ -1,7 +1,7 @@
 ---
 name: tzurot-architecture
-description: Microservices architecture patterns for Tzurot v3. Use when creating services, deciding where code belongs, or understanding service boundaries. Covers dependencies and anti-patterns from v2.
-lastUpdated: '2026-01-21'
+description: 'MUST invoke when: adding features across services, deciding where code belongs, or designing service interactions. Contains service boundaries and anti-patterns that prevent architectural mistakes.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot v3 Architecture

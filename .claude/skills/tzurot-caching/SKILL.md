@@ -1,7 +1,7 @@
 ---
 name: tzurot-caching
-description: Caching patterns for Tzurot v3. Use when implementing cache layers, TTL strategies, or debugging cache issues. Covers Redis patterns, cache-aside, and invalidation.
-lastUpdated: '2026-01-21'
+description: 'MUST invoke when: adding Redis caching, setting TTLs, or debugging stale data issues. Contains invalidation patterns that prevent cache bugs.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot Caching & Horizontal Scaling Patterns

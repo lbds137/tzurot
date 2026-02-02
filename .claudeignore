@@ -1,0 +1,54 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.git/
+
+# Build caches
+.turbo/
+.next/
+.cache/
+
+# Build outputs
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Large generated files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# Binary/media files
+*.png
+*.jpg
+*.gif
+*.ico
+*.woff
+*.woff2
+
+# IDE/editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs and local env
+*.log
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Database artifacts
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Test fixtures (large)
+**/__fixtures__/large-*
+**/test-data/bulk-*

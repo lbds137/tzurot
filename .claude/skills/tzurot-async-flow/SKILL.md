@@ -1,7 +1,7 @@
 ---
 name: tzurot-async-flow
-description: BullMQ and async patterns for Tzurot v3. Use when working with jobs, Discord deferrals, or retry logic. Covers queue architecture, idempotency, and error handling.
-lastUpdated: '2026-01-21'
+description: 'REQUIRED when: creating BullMQ jobs, handling Discord deferrals, implementing retry logic, or any async queue work. Contains patterns for idempotency and error handling.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot v3 Async Flow & Job Queue

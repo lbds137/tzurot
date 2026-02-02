@@ -1,7 +1,7 @@
 ---
 name: tzurot-types
-description: Use when creating types, constants, Zod schemas, or working with data validation. Covers common-types package organization, runtime validation, and type guards across microservices.
-lastUpdated: '2026-01-21'
+description: 'REQUIRED when: creating types, adding Zod schemas, or sharing constants across services. Contains common-types organization and validation patterns.'
+lastUpdated: '2026-02-01'
 ---
 
 # Tzurot v3 Types & Constants

@@ -1,7 +1,7 @@
 ---
 name: tzurot-code-quality
-description: Code quality rules enforced by CI. Use when refactoring, hitting ESLint limits, or extracting complex functions. Covers complexity thresholds, extraction patterns, and rule suppression.
-lastUpdated: '2026-01-30'
+description: 'REQUIRED when: hitting ESLint errors, refactoring large functions, or extracting complex logic. Contains complexity limits and extraction patterns enforced by CI.'
+lastUpdated: '2026-02-01'
 ---
 
 # Code Quality & Linting

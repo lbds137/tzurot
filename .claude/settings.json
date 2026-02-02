@@ -1,11 +1,22 @@
 {
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit:*.ts|Edit:*.tsx|Write:*.ts|Write:*.tsx",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pnpm exec eslint --fix \"$CLAUDE_FILE_PATH\" 2>&1 | head -50 || true"
+          }
+        ]
+      }
+    ]
+  },
   "permissions": {
     "allow": [
       "Read(*)",
       "Write(*)",
-      "Write(.claude/**)",
       "Edit(*)",
-      "Edit(.claude/**)",
       "MultiEdit(*)",
       "LS(*)",
       "Glob(*)",
