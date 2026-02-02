@@ -51,14 +51,15 @@ describe('SnapshotFormatter', () => {
     formatter = new SnapshotFormatter();
   });
 
-  function createMockSnapshot(overrides: Partial<MessageSnapshot> = {}): MessageSnapshot {
+  // Use Record<string, unknown> for flexible mock input
+  function createMockSnapshot(overrides: Record<string, unknown> = {}): MessageSnapshot {
     return {
       content: 'Snapshot content',
       createdTimestamp: 1704110400000, // 2024-01-01T12:00:00Z
       attachments: null,
       embeds: [],
       ...overrides,
-    } as MessageSnapshot;
+    } as unknown as MessageSnapshot;
   }
 
   describe('Basic Formatting', () => {

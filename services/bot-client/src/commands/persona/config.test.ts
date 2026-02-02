@@ -11,7 +11,23 @@ import {
   personaSeedFields,
 } from './config.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
-import type { PersonaDetails } from './types.js';
+import type { PersonaDetails, FlattenedPersonaData } from './types.js';
+
+// Helper to create test persona data with defaults
+function createTestPersonaData(
+  overrides: Partial<FlattenedPersonaData> = {}
+): FlattenedPersonaData {
+  return {
+    id: '',
+    name: 'Test',
+    description: '',
+    preferredName: '',
+    pronouns: '',
+    content: '',
+    isDefault: false,
+    ...overrides,
+  };
+}
 
 describe('flattenPersonaData', () => {
   it('should flatten persona data with all fields', () => {
@@ -23,7 +39,6 @@ describe('flattenPersonaData', () => {
       pronouns: 'they/them',
       content: 'About me',
       isDefault: true,
-      shareLtmAcrossPersonalities: false,
     };
 
     const result = flattenPersonaData(persona);
@@ -46,7 +61,6 @@ describe('flattenPersonaData', () => {
       pronouns: null,
       content: '',
       isDefault: false,
-      shareLtmAcrossPersonalities: false,
     };
 
     const result = flattenPersonaData(persona);
@@ -148,41 +162,39 @@ describe('PERSONA_DASHBOARD_CONFIG', () => {
 
   describe('getTitle', () => {
     it('should include persona name', () => {
-      const data = { id: '', name: 'My Persona', isDefault: false };
+      const data = createTestPersonaData({ name: 'My Persona' });
       expect(PERSONA_DASHBOARD_CONFIG.getTitle(data)).toContain('My Persona');
     });
   });
 
   describe('getDescription', () => {
     it('should return empty string when no badges', () => {
-      const data = { id: '', name: 'Test', isDefault: false };
-      expect(PERSONA_DASHBOARD_CONFIG.getDescription(data)).toBe('');
+      const data = createTestPersonaData();
+      expect(PERSONA_DASHBOARD_CONFIG.getDescription!(data)).toBe('');
     });
 
     it('should show default badge', () => {
-      const data = { id: '', name: 'Test', isDefault: true };
-      expect(PERSONA_DASHBOARD_CONFIG.getDescription(data)).toContain('Default');
+      const data = createTestPersonaData({ isDefault: true });
+      expect(PERSONA_DASHBOARD_CONFIG.getDescription!(data)).toContain('Default');
     });
 
     it('should show preferred name badge', () => {
-      const data = { id: '', name: 'Test', isDefault: false, preferredName: 'Tester' };
-      expect(PERSONA_DASHBOARD_CONFIG.getDescription(data)).toContain('Tester');
+      const data = createTestPersonaData({ preferredName: 'Tester' });
+      expect(PERSONA_DASHBOARD_CONFIG.getDescription!(data)).toContain('Tester');
     });
 
     it('should show pronouns badge', () => {
-      const data = { id: '', name: 'Test', isDefault: false, pronouns: 'they/them' };
-      expect(PERSONA_DASHBOARD_CONFIG.getDescription(data)).toContain('they/them');
+      const data = createTestPersonaData({ pronouns: 'they/them' });
+      expect(PERSONA_DASHBOARD_CONFIG.getDescription!(data)).toContain('they/them');
     });
 
     it('should show all badges when present', () => {
-      const data = {
-        id: '',
-        name: 'Test',
+      const data = createTestPersonaData({
         isDefault: true,
         preferredName: 'Tester',
         pronouns: 'she/her',
-      };
-      const desc = PERSONA_DASHBOARD_CONFIG.getDescription(data);
+      });
+      const desc = PERSONA_DASHBOARD_CONFIG.getDescription!(data);
       expect(desc).toContain('Default');
       expect(desc).toContain('Tester');
       expect(desc).toContain('she/her');
@@ -191,7 +203,8 @@ describe('PERSONA_DASHBOARD_CONFIG', () => {
 
   describe('getFooter', () => {
     it('should return helpful message', () => {
-      const footer = PERSONA_DASHBOARD_CONFIG.getFooter();
+      const data = createTestPersonaData();
+      const footer = PERSONA_DASHBOARD_CONFIG.getFooter!(data);
       expect(footer).toContain('section');
       expect(footer).toContain('edit');
     });
@@ -202,35 +215,35 @@ describe('PERSONA_DASHBOARD_CONFIG', () => {
 
     describe('getStatus', () => {
       it('should return EMPTY when name is missing', () => {
-        const data = { id: '', name: '', isDefault: false };
+        const data = createTestPersonaData({ name: '' });
         expect(section.getStatus(data)).toBe(SectionStatus.EMPTY);
       });
 
       it('should return DEFAULT when only name', () => {
-        const data = { id: '', name: 'Test', isDefault: false };
+        const data = createTestPersonaData({ name: 'Test' });
         expect(section.getStatus(data)).toBe(SectionStatus.DEFAULT);
       });
 
       it('should return COMPLETE with extras', () => {
-        const data = { id: '', name: 'Test', isDefault: false, preferredName: 'Tester' };
+        const data = createTestPersonaData({ name: 'Test', preferredName: 'Tester' });
         expect(section.getStatus(data)).toBe(SectionStatus.COMPLETE);
       });
     });
 
     describe('getPreview', () => {
       it('should return not configured when no data', () => {
-        const data = { id: '', name: '', isDefault: false };
+        const data = createTestPersonaData({ name: '' });
         expect(section.getPreview(data)).toBe('_Not configured_');
       });
 
       it('should show name', () => {
-        const data = { id: '', name: 'Test', isDefault: false };
+        const data = createTestPersonaData({ name: 'Test' });
         expect(section.getPreview(data)).toContain('**Name:** Test');
       });
 
       it('should truncate long content', () => {
         const longContent = 'A'.repeat(150);
-        const data = { id: '', name: 'Test', isDefault: false, content: longContent };
+        const data = createTestPersonaData({ name: 'Test', content: longContent });
         const preview = section.getPreview(data);
         expect(preview).toContain('...');
         expect(preview.length).toBeLessThan(200);

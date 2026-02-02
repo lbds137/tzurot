@@ -40,19 +40,25 @@ import {
   callGatewayApi,
 } from './userGatewayClient.js';
 
+// Helper to create mock config with defaults
+function createMockConfig(overrides: Record<string, unknown> = {}) {
+  return {
+    GATEWAY_URL: 'http://localhost:3000',
+    INTERNAL_SERVICE_SECRET: 'test-service-secret',
+    ...overrides,
+  } as ReturnType<typeof getConfig>;
+}
+
 describe('userGatewayClient', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockFetch.mockReset();
-    mockGetConfig.mockReturnValue({
-      GATEWAY_URL: 'http://localhost:3000',
-      INTERNAL_SERVICE_SECRET: 'test-service-secret',
-    });
+    mockGetConfig.mockReturnValue(createMockConfig());
   });
 
   describe('getGatewayUrl', () => {
     it('should return configured gateway URL', () => {
-      mockGetConfig.mockReturnValue({ GATEWAY_URL: 'http://test-gateway.com' });
+      mockGetConfig.mockReturnValue(createMockConfig({ GATEWAY_URL: 'http://test-gateway.com' }));
 
       const url = getGatewayUrl();
 
@@ -60,13 +66,13 @@ describe('userGatewayClient', () => {
     });
 
     it('should throw when GATEWAY_URL is not configured', () => {
-      mockGetConfig.mockReturnValue({ GATEWAY_URL: undefined });
+      mockGetConfig.mockReturnValue(createMockConfig({ GATEWAY_URL: undefined }));
 
       expect(() => getGatewayUrl()).toThrow('GATEWAY_URL not configured');
     });
 
     it('should throw when GATEWAY_URL is empty', () => {
-      mockGetConfig.mockReturnValue({ GATEWAY_URL: '' });
+      mockGetConfig.mockReturnValue(createMockConfig({ GATEWAY_URL: '' }));
 
       expect(() => getGatewayUrl()).toThrow('GATEWAY_URL not configured');
     });
@@ -74,13 +80,13 @@ describe('userGatewayClient', () => {
 
   describe('isGatewayConfigured', () => {
     it('should return true when gateway is configured', () => {
-      mockGetConfig.mockReturnValue({ GATEWAY_URL: 'http://localhost:3000' });
+      mockGetConfig.mockReturnValue(createMockConfig({ GATEWAY_URL: 'http://localhost:3000' }));
 
       expect(isGatewayConfigured()).toBe(true);
     });
 
     it('should return false when gateway is not configured', () => {
-      mockGetConfig.mockReturnValue({ GATEWAY_URL: undefined });
+      mockGetConfig.mockReturnValue(createMockConfig({ GATEWAY_URL: undefined }));
 
       expect(isGatewayConfigured()).toBe(false);
     });

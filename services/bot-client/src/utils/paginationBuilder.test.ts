@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { ButtonStyle, ComponentType } from 'discord.js';
+import type { APIButtonComponentWithCustomId } from 'discord.js';
 import {
   buildPaginationButtons,
   buildListPageId,
@@ -13,6 +14,14 @@ import {
   isPaginationId,
   calculatePagination,
 } from './paginationBuilder.js';
+
+// Helper to get button data with proper typing for custom_id, label, emoji access
+function getButtonData(
+  row: ReturnType<typeof buildPaginationButtons>,
+  index: number
+): APIButtonComponentWithCustomId {
+  return row.components[index].data as unknown as APIButtonComponentWithCustomId;
+}
 
 describe('paginationBuilder', () => {
   describe('buildListPageId', () => {
@@ -105,10 +114,10 @@ describe('paginationBuilder', () => {
 
     it('should disable previous button on first page', () => {
       const row = buildPaginationButtons({ prefix: 'memory' }, 0, 5, 'date');
-      const prevButton = row.components[0];
+      const prevButton = getButtonData(row, 0);
 
-      expect(prevButton.data.disabled).toBe(true);
-      expect(prevButton.data.custom_id).toBe('memory::list::-1::date');
+      expect(prevButton.disabled).toBe(true);
+      expect(prevButton.custom_id).toBe('memory::list::-1::date');
     });
 
     it('should disable next button on last page', () => {
@@ -127,22 +136,24 @@ describe('paginationBuilder', () => {
 
     it('should always disable page indicator button', () => {
       const row = buildPaginationButtons({ prefix: 'memory' }, 0, 5, 'date');
-      const infoButton = row.components[1];
+      const infoButton = getButtonData(row, 1);
 
-      expect(infoButton.data.disabled).toBe(true);
-      expect(infoButton.data.label).toBe('Page 1 of 5');
+      expect(infoButton.disabled).toBe(true);
+      expect(infoButton.label).toBe('Page 1 of 5');
     });
 
     it('should toggle sort button based on current sort', () => {
       const rowDate = buildPaginationButtons({ prefix: 'memory' }, 0, 5, 'date');
-      expect(rowDate.components[3].data.label).toBe('Sort A-Z');
-      expect(rowDate.components[3].data.emoji?.name).toBe('🔤');
-      expect(rowDate.components[3].data.custom_id).toBe('memory::sort::0::name');
+      const sortButtonDate = getButtonData(rowDate, 3);
+      expect(sortButtonDate.label).toBe('Sort A-Z');
+      expect(sortButtonDate.emoji?.name).toBe('🔤');
+      expect(sortButtonDate.custom_id).toBe('memory::sort::0::name');
 
       const rowName = buildPaginationButtons({ prefix: 'memory' }, 0, 5, 'name');
-      expect(rowName.components[3].data.label).toBe('Sort by Date');
-      expect(rowName.components[3].data.emoji?.name).toBe('📅');
-      expect(rowName.components[3].data.custom_id).toBe('memory::sort::0::date');
+      const sortButtonName = getButtonData(rowName, 3);
+      expect(sortButtonName.label).toBe('Sort by Date');
+      expect(sortButtonName.emoji?.name).toBe('📅');
+      expect(sortButtonName.custom_id).toBe('memory::sort::0::date');
     });
 
     it('should use Primary style for sort button', () => {
@@ -164,8 +175,8 @@ describe('paginationBuilder', () => {
         'date'
       );
 
-      expect(row.components[0].data.label).toBe('← Back');
-      expect(row.components[2].data.label).toBe('Forward →');
+      expect(getButtonData(row, 0).label).toBe('← Back');
+      expect(getButtonData(row, 2).label).toBe('Forward →');
     });
   });
 

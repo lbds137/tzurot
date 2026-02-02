@@ -67,7 +67,9 @@ describe('subcommandRouter', () => {
       const router = createSubcommandRouter(
         { test: mockHandler },
         {
-          logger: mockLogger as unknown as Parameters<typeof createSubcommandRouter>[1]['logger'],
+          logger: mockLogger as unknown as NonNullable<
+            Parameters<typeof createSubcommandRouter>[1]
+          >['logger'],
           logPrefix: '[Test]',
         }
       );
