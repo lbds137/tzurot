@@ -146,5 +146,15 @@ describe('Bot Footer Text Constants', () => {
       BOT_FOOTER_PATTERNS.MODEL.lastIndex = 0;
       expect(BOT_FOOTER_PATTERNS.MODEL.test(withAuto)).toBe(true);
     });
+
+    it('should sanitize model name to prevent markdown injection', () => {
+      // Brackets and angle brackets could break markdown link syntax
+      const malicious = 'model[with]<brackets>(and)parens';
+      const result = buildModelFooterText(malicious, 'https://example.com/model');
+      // Should strip all brackets/parens from model name
+      expect(result).toBe('Model: [modelwithbracketsandparens](<https://example.com/model>)');
+      expect(result).not.toContain('[with]');
+      expect(result).not.toContain('<brackets>');
+    });
   });
 });

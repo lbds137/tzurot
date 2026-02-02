@@ -5,7 +5,18 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MessageFlags, PermissionFlagsBits } from 'discord.js';
 import type { ChatInputCommandInteraction, GuildMember, PermissionsBitField } from 'discord.js';
+
+// Mock isBotOwner before importing permissions
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
+  return {
+    ...actual,
+    isBotOwner: vi.fn().mockReturnValue(false),
+  };
+});
+
 import { requireManageMessages, requireManageMessagesDeferred } from './permissions.js';
+import { isBotOwner } from '@tzurot/common-types';
 
 describe('permissions utilities', () => {
   // Create a mock interaction factory
@@ -92,19 +103,36 @@ describe('permissions utilities', () => {
     });
 
     it('should return true for bot owner even without ManageMessages permission', async () => {
-      // Bot owner ID is set via BOT_OWNER_ID env var, defaults to empty
-      // For this test, we use the actual env var check (which will be empty in test)
-      // This tests that the check happens, not that a specific ID matches
+      // Mock isBotOwner to return true for this test
+      vi.mocked(isBotOwner).mockReturnValueOnce(true);
+
       const interaction = createMockInteraction({
         inGuild: true,
         hasManageMessages: false,
-        userId: '', // Empty ID won't match any owner
+        userId: 'bot-owner-123',
       });
 
       const result = await requireManageMessages(interaction);
 
-      // Should still fail because empty string isn't the bot owner
+      expect(result).toBe(true);
+      expect(isBotOwner).toHaveBeenCalledWith('bot-owner-123');
+      expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should check permissions normally for non-bot-owner', async () => {
+      // Mock isBotOwner to return false
+      vi.mocked(isBotOwner).mockReturnValueOnce(false);
+
+      const interaction = createMockInteraction({
+        inGuild: true,
+        hasManageMessages: false,
+        userId: 'regular-user-456',
+      });
+
+      const result = await requireManageMessages(interaction);
+
       expect(result).toBe(false);
+      expect(isBotOwner).toHaveBeenCalledWith('regular-user-456');
     });
   });
 
@@ -153,6 +181,23 @@ describe('permissions utilities', () => {
       expect(interaction.editReply).toHaveBeenCalledWith({
         content: '❌ You need the "Manage Messages" permission to use this command.',
       });
+    });
+
+    it('should return true for bot owner even without ManageMessages permission', async () => {
+      vi.mocked(isBotOwner).mockReturnValueOnce(true);
+
+      const interaction = createMockInteraction({
+        inGuild: true,
+        hasManageMessages: false,
+        deferred: true,
+        userId: 'bot-owner-123',
+      });
+
+      const result = await requireManageMessagesDeferred(interaction);
+
+      expect(result).toBe(true);
+      expect(isBotOwner).toHaveBeenCalledWith('bot-owner-123');
+      expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
 });

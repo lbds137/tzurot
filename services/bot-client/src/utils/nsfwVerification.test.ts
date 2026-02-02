@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ChannelType } from 'discord.js';
+import { ChannelType, GuildNSFWLevel } from 'discord.js';
 import {
   checkNsfwVerification,
   verifyNsfwUser,
@@ -106,6 +106,76 @@ describe('NSFW Verification Utilities', () => {
   });
 
   describe('isNsfwChannel', () => {
+    describe('server-level age restriction', () => {
+      it('should return true for any channel in age-restricted server', () => {
+        const channel = {
+          type: ChannelType.GuildText,
+          nsfw: false, // Channel itself is NOT nsfw
+          guild: {
+            nsfwLevel: GuildNSFWLevel.AgeRestricted,
+          },
+        } as any;
+
+        expect(isNsfwChannel(channel)).toBe(true);
+      });
+
+      it('should return false for channel in server with Default nsfwLevel', () => {
+        const channel = {
+          type: ChannelType.GuildText,
+          nsfw: false,
+          guild: {
+            nsfwLevel: GuildNSFWLevel.Default,
+          },
+        } as any;
+
+        expect(isNsfwChannel(channel)).toBe(false);
+      });
+
+      it('should return false for channel in server with Explicit nsfwLevel (content filter, not age gate)', () => {
+        // GuildNSFWLevel.Explicit is about content filtering, NOT age restriction
+        const channel = {
+          type: ChannelType.GuildText,
+          nsfw: false,
+          guild: {
+            nsfwLevel: GuildNSFWLevel.Explicit,
+          },
+        } as any;
+
+        expect(isNsfwChannel(channel)).toBe(false);
+      });
+
+      it('should return false for channel in server with Safe nsfwLevel', () => {
+        const channel = {
+          type: ChannelType.GuildText,
+          nsfw: false,
+          guild: {
+            nsfwLevel: GuildNSFWLevel.Safe,
+          },
+        } as any;
+
+        expect(isNsfwChannel(channel)).toBe(false);
+      });
+
+      it('should handle channel without guild property', () => {
+        const channel = {
+          type: ChannelType.GuildText,
+          nsfw: false,
+        } as any;
+
+        expect(isNsfwChannel(channel)).toBe(false);
+      });
+
+      it('should handle channel with null guild', () => {
+        const channel = {
+          type: ChannelType.GuildText,
+          nsfw: false,
+          guild: null,
+        } as any;
+
+        expect(isNsfwChannel(channel)).toBe(false);
+      });
+    });
+
     it('should return true for NSFW guild text channel', () => {
       const channel = {
         type: ChannelType.GuildText,
