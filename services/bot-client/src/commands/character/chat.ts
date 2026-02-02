@@ -426,6 +426,10 @@ export async function handleChat(
     );
 
     // 5. Delete deferred reply before sending messages
+    // Why delete first? The deferred reply shows "[bot] is thinking..." which would be
+    // confusing if it remained visible after we send the user's message. The brief moment
+    // where nothing is visible is preferable to showing a stale "thinking..." indicator
+    // alongside the user's message. The user message follows almost immediately.
     await context.deleteReply();
 
     // Capture timestamp for conversation ordering (user message < assistant message)
