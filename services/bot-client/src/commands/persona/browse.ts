@@ -15,7 +15,7 @@ import {
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ListPersonasResponse } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -29,6 +29,9 @@ import {
   type BrowseSortType,
 } from '../../utils/browse/index.js';
 import { createListComparator } from '../../utils/listSorting.js';
+
+/** API endpoint for persona list operations */
+const PERSONA_LIST_ENDPOINT = '/user/persona';
 import {
   PERSONA_DASHBOARD_CONFIG,
   flattenPersonaData,
@@ -208,7 +211,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch user's personas via gateway API
-    const result = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
+    const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
+      userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    });
 
     if (!result.ok) {
       logger.warn({ userId, error: result.error }, '[Persona] Failed to fetch personas');
@@ -247,7 +253,10 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
     const sort = parsed.sort;
 
     // Fetch fresh data
-    const result = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
+    const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
+      userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    });
 
     if (!result.ok) {
       logger.warn(
@@ -366,7 +375,10 @@ export async function buildBrowseResponse(
   page: number,
   sort: BrowseSortType
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
-  const result = await callGatewayApi<ListPersonasResponse>('/user/persona', { userId });
+  const result = await callGatewayApi<ListPersonasResponse>(PERSONA_LIST_ENDPOINT, {
+    userId,
+    timeout: GATEWAY_TIMEOUTS.DEFERRED,
+  });
 
   if (!result.ok) {
     logger.warn(

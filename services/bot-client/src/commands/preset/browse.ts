@@ -26,7 +26,7 @@ import {
   type AIProvider,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -339,9 +339,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
   try {
     // Fetch presets and wallet status in parallel
+    // Use longer timeout since this is a deferred operation
     const [presetResult, walletResult] = await Promise.all([
-      callGatewayApi<ListResponse>('/user/llm-config', { userId }),
-      callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
+      callGatewayApi<ListResponse>('/user/llm-config', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
+      callGatewayApi<WalletListResponse>('/wallet/list', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
     ]);
 
     if (!presetResult.ok) {
@@ -351,7 +352,12 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     }
 
     // Check if user is in guest mode (no active wallet keys)
-    const isGuestMode = !(walletResult.ok && walletResult.data.keys.some(k => k.isActive === true));
+    // Only show guest mode warning when we successfully verified no active keys
+    // If wallet API failed, assume user might have keys (don't restrict them)
+    if (!walletResult.ok) {
+      logger.warn({ userId, error: walletResult.error }, '[Preset] Wallet check failed, assuming not guest mode');
+    }
+    const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
     const { embed, components } = buildBrowsePage(
       presetResult.data.configs,
@@ -387,17 +393,19 @@ export async function buildBrowseResponse(
 ): Promise<{ embed: EmbedBuilder; components: BrowseActionRow[] } | null> {
   const { page, filter, query } = browseContext;
 
-  // Re-fetch data
+  // Re-fetch data (use longer timeout since this is a deferred operation)
   const [presetResult, walletResult] = await Promise.all([
-    callGatewayApi<ListResponse>('/user/llm-config', { userId }),
-    callGatewayApi<WalletListResponse>('/wallet/list', { userId }),
+    callGatewayApi<ListResponse>('/user/llm-config', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
+    callGatewayApi<WalletListResponse>('/wallet/list', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
   ]);
 
   if (!presetResult.ok) {
     return null;
   }
 
-  const isGuestMode = !(walletResult.ok && walletResult.data.keys.some(k => k.isActive === true));
+  // Only show guest mode when we successfully verified no active keys
+  // If wallet API failed, assume user might have keys (don't restrict them)
+  const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
   return buildBrowsePage(presetResult.data.configs, filter, query, page, isGuestMode);
 }

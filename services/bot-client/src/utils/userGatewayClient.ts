@@ -14,6 +14,27 @@ import { getConfig, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
 const logger = createLogger('gateway-client');
 
 /**
+ * Gateway request timeout constants
+ *
+ * Different Discord interactions have different time constraints:
+ * - Autocomplete: Must respond within 3s (we use 2.5s to leave buffer)
+ * - Deferred commands: Have up to 15 minutes after deferral
+ */
+export const GATEWAY_TIMEOUTS = {
+  /**
+   * For autocomplete and immediate responses.
+   * Discord's limit is 3000ms; we use 2500ms to allow 500ms for overhead.
+   */
+  AUTOCOMPLETE: 2500,
+
+  /**
+   * For deferred slash commands where user sees "Bot is thinking..."
+   * More lenient to handle cold starts and slower operations.
+   */
+  DEFERRED: 10000,
+} as const;
+
+/**
  * Gateway API response wrapper
  */
 export interface GatewayResponse<T> {
@@ -36,6 +57,12 @@ export interface GatewayCallOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   userId: string;
   body?: unknown;
+  /**
+   * Request timeout in milliseconds.
+   * Defaults to GATEWAY_TIMEOUTS.AUTOCOMPLETE (2500ms) for backward compatibility.
+   * Use GATEWAY_TIMEOUTS.DEFERRED (10000ms) for deferred slash commands.
+   */
+  timeout?: number;
 }
 
 /**
@@ -88,7 +115,7 @@ export async function callGatewayApi<T>(
   path: string,
   options: GatewayCallOptions
 ): Promise<GatewayResult<T>> {
-  const { method = 'GET', userId, body } = options;
+  const { method = 'GET', userId, body, timeout = GATEWAY_TIMEOUTS.AUTOCOMPLETE } = options;
 
   try {
     const gatewayUrl = getGatewayUrl();
@@ -103,12 +130,11 @@ export async function callGatewayApi<T>(
       headers['Content-Type'] = CONTENT_TYPES.JSON;
     }
 
-    // 2.5s timeout - leaves buffer for processing before Discord's 3s autocomplete limit
     const response = await fetch(`${gatewayUrl}${path}`, {
       method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      signal: AbortSignal.timeout(2500),
+      signal: AbortSignal.timeout(timeout),
     });
 
     if (!response.ok) {

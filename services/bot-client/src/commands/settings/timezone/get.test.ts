@@ -27,6 +27,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 // Create mock EmbedBuilder-like objects
@@ -86,9 +87,10 @@ describe('handleTimezoneGet', () => {
 
     await handleTimezoneGet(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/timezone', {
-      userId: '123456789',
-    });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/timezone',
+      expect.objectContaining({ userId: '123456789' })
+    );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({ data: expect.objectContaining({ title: '⏰ Your Timezone' }) }),

@@ -17,6 +17,7 @@ const DEFAULT_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 // Mock dashboard utilities
@@ -81,9 +82,10 @@ describe('handleEditPersona', () => {
 
       await handleEditPersona(createMockContext(), TEST_PERSONA_ID);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/persona/${TEST_PERSONA_ID}`, {
-        userId: '123456789',
-      });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        `/user/persona/${TEST_PERSONA_ID}`,
+        expect.objectContaining({ userId: '123456789' })
+      );
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockBuildDashboardComponents).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalledWith({
@@ -136,9 +138,10 @@ describe('handleEditPersona', () => {
 
       await handleEditPersona(createMockContext(), null);
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', {
-        userId: '123456789',
-      });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/persona',
+        expect.objectContaining({ userId: '123456789' })
+      );
       expect(mockBuildDashboardEmbed).toHaveBeenCalled();
       expect(mockEditReply).toHaveBeenCalled();
     });

@@ -22,6 +22,7 @@ const TEST_USER_ID = '123456789';
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -52,9 +53,10 @@ describe('fetchPersona', () => {
 
     const result = await fetchPersona(TEST_PERSONA_ID, TEST_USER_ID);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/persona/${TEST_PERSONA_ID}`, {
-      userId: TEST_USER_ID,
-    });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      `/user/persona/${TEST_PERSONA_ID}`,
+      expect.objectContaining({ userId: TEST_USER_ID })
+    );
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Test Persona');
   });
@@ -95,7 +97,10 @@ describe('fetchDefaultPersona', () => {
 
     const result = await fetchDefaultPersona(TEST_USER_ID);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { userId: TEST_USER_ID });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/persona',
+      expect.objectContaining({ userId: TEST_USER_ID })
+    );
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Default');
   });
@@ -151,11 +156,14 @@ describe('updatePersona', () => {
       TEST_USER_ID
     );
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/persona/${TEST_PERSONA_ID}`, {
-      method: 'PUT',
-      userId: TEST_USER_ID,
-      body: { name: 'Updated Name', preferredName: 'Tester' },
-    });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      `/user/persona/${TEST_PERSONA_ID}`,
+      expect.objectContaining({
+        method: 'PUT',
+        userId: TEST_USER_ID,
+        body: { name: 'Updated Name', preferredName: 'Tester' },
+      })
+    );
     expect(result).not.toBeNull();
     expect(result?.name).toBe('Updated Name');
   });
@@ -185,10 +193,13 @@ describe('deletePersona', () => {
 
     const result = await deletePersona(TEST_PERSONA_ID, TEST_USER_ID);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/persona/${TEST_PERSONA_ID}`, {
-      method: 'DELETE',
-      userId: TEST_USER_ID,
-    });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      `/user/persona/${TEST_PERSONA_ID}`,
+      expect.objectContaining({
+        method: 'DELETE',
+        userId: TEST_USER_ID,
+      })
+    );
     expect(result.success).toBe(true);
     expect(result.error).toBeUndefined();
   });

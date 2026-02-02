@@ -41,6 +41,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 // Mock commandHelpers (only used by reset for createSuccessEmbed/createInfoEmbed)
@@ -87,9 +88,10 @@ describe('Preset Command Handlers', () => {
 
       await handleBrowseOverrides(createMockContext());
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
-        userId: '123456789',
-      });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/model-override',
+        expect.objectContaining({ userId: '123456789' })
+      );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -184,11 +186,14 @@ describe('Preset Command Handlers', () => {
 
       await handleSet(createMockContext());
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/model-override', {
-        method: 'PUT',
-        userId: '123456789',
-        body: { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
-      });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/model-override',
+        expect.objectContaining({
+          method: 'PUT',
+          userId: '123456789',
+          body: { personalityId: PERSONALITY_ID_1, configId: CONFIG_ID_1 },
+        })
+      );
       expect(mockEditReply).toHaveBeenCalledWith({
         embeds: [
           expect.objectContaining({
@@ -239,10 +244,13 @@ describe('Preset Command Handlers', () => {
 
       await handleReset(createMockContext());
 
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/model-override/${PERSONALITY_ID_1}`, {
-        method: 'DELETE',
-        userId: '123456789',
-      });
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        `/user/model-override/${PERSONALITY_ID_1}`,
+        expect.objectContaining({
+          method: 'DELETE',
+          userId: '123456789',
+        })
+      );
       expect(mockCreateSuccessEmbed).toHaveBeenCalledWith(
         '🔄 Preset Override Removed',
         'The personality will now use its default preset.'
