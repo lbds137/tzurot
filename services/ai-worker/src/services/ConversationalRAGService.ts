@@ -370,9 +370,13 @@ export class ConversationalRAGService {
     const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
       userMessage,
       processedAttachments,
-      context.activePersonaName,
-      referencedMessagesDescriptions,
-      context.activePersonaId
+      {
+        activePersonaName: context.activePersonaName,
+        referencedMessagesDescriptions,
+        activePersonaId: context.activePersonaId,
+        discordUsername: context.discordUsername,
+        personalityName: personality.name,
+      }
     );
 
     // Build messages array

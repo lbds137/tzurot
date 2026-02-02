@@ -671,12 +671,17 @@ describe('ConversationalRAGService', () => {
 
       await service.generateResponse(personality, '', context);
 
+      // Uses expect.objectContaining to focus on key parameters without being brittle
+      // to implementation details (e.g., referencedMessagesDescriptions can be undefined)
       expect(getPromptBuilderMock().buildHumanMessage).toHaveBeenCalledWith(
         'formatted user message',
         processedAttachments,
-        undefined,
-        undefined,
-        undefined
+        expect.objectContaining({
+          activePersonaName: undefined,
+          activePersonaId: undefined,
+          discordUsername: undefined,
+          personalityName: 'TestBot',
+        })
       );
     });
 
