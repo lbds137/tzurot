@@ -132,6 +132,9 @@ const mockPresetData: PresetData = {
   isOwned: true,
   permissions: { canEdit: true, canDelete: true },
   maxReferencedMessages: 10,
+  contextWindowTokens: 8192,
+  memoryScoreThreshold: null,
+  memoryLimit: null,
   params: { temperature: 0.7 },
 };
 
