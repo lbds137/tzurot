@@ -15,7 +15,39 @@ import type {
   SectionDefinition,
   FieldDefinition,
   DashboardContext,
+  SectionStatus,
 } from './types.js';
+
+// Factory to create test DashboardConfig with required properties
+function createTestConfig<T>(
+  entityType: string,
+  overrides: Partial<DashboardConfig<T>> = {}
+): DashboardConfig<T> {
+  return {
+    entityType,
+    getTitle: () => `Test ${entityType}`,
+    sections: [],
+    ...overrides,
+  };
+}
+
+// Factory to create test SectionDefinition with required properties
+function createTestSection<T>(
+  id: string,
+  label: string,
+  fields: FieldDefinition[],
+  overrides: Partial<SectionDefinition<T>> = {}
+): SectionDefinition<T> {
+  return {
+    id,
+    label,
+    fields,
+    fieldIds: fields.map(f => f.id),
+    getStatus: () => 'complete' as SectionStatus,
+    getPreview: () => 'Preview',
+    ...overrides,
+  };
+}
 
 // Helper to extract component data from modal JSON
 function getModalComponents(modal: ReturnType<typeof buildSectionModal>) {
@@ -31,19 +63,11 @@ function getTextInput(modal: ReturnType<typeof buildSectionModal>, index: number
 describe('ModalFactory', () => {
   describe('buildSectionModal', () => {
     it('should create a modal with correct custom ID and title', () => {
-      const config: DashboardConfig<{ name: string }> = {
-        entityType: 'character',
-        title: 'Test Character',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<{ name: string }>('character');
 
-      const section: SectionDefinition<{ name: string }> = {
-        id: 'basic',
-        label: '📝 Basic Info',
-        fields: [{ id: 'name', label: 'Name', style: 'short' }],
-      };
+      const section = createTestSection<{ name: string }>('basic', '📝 Basic Info', [
+        { id: 'name', label: 'Name', style: 'short' },
+      ]);
 
       const modal = buildSectionModal(config, section, 'char-123', { name: 'Test' });
       const json = modal.toJSON();
@@ -53,27 +77,17 @@ describe('ModalFactory', () => {
     });
 
     it('should add text input fields with pre-filled values', () => {
-      const config: DashboardConfig<{ description: string }> = {
-        entityType: 'profile',
-        title: 'Test Profile',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<{ description: string }>('profile');
 
-      const section: SectionDefinition<{ description: string }> = {
-        id: 'details',
-        label: 'Details',
-        fields: [
-          {
-            id: 'description',
-            label: 'Description',
-            style: 'paragraph',
-            placeholder: 'Enter description...',
-            required: true,
-          },
-        ],
-      };
+      const section = createTestSection<{ description: string }>('details', 'Details', [
+        {
+          id: 'description',
+          label: 'Description',
+          style: 'paragraph',
+          placeholder: 'Enter description...',
+          required: true,
+        },
+      ]);
 
       const modal = buildSectionModal(config, section, 'prof-456', {
         description: 'Current description',
@@ -92,27 +106,17 @@ describe('ModalFactory', () => {
     });
 
     it('should limit fields to 5 (Discord limit)', () => {
-      const config: DashboardConfig<Record<string, string>> = {
-        entityType: 'test',
-        title: 'Test',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<Record<string, string>>('test');
 
-      const section: SectionDefinition<Record<string, string>> = {
-        id: 'many',
-        label: 'Many Fields',
-        fields: [
-          { id: 'f1', label: 'Field 1', style: 'short' },
-          { id: 'f2', label: 'Field 2', style: 'short' },
-          { id: 'f3', label: 'Field 3', style: 'short' },
-          { id: 'f4', label: 'Field 4', style: 'short' },
-          { id: 'f5', label: 'Field 5', style: 'short' },
-          { id: 'f6', label: 'Field 6', style: 'short' }, // Should be excluded
-          { id: 'f7', label: 'Field 7', style: 'short' }, // Should be excluded
-        ],
-      };
+      const section = createTestSection<Record<string, string>>('many', 'Many Fields', [
+        { id: 'f1', label: 'Field 1', style: 'short' },
+        { id: 'f2', label: 'Field 2', style: 'short' },
+        { id: 'f3', label: 'Field 3', style: 'short' },
+        { id: 'f4', label: 'Field 4', style: 'short' },
+        { id: 'f5', label: 'Field 5', style: 'short' },
+        { id: 'f6', label: 'Field 6', style: 'short' }, // Should be excluded
+        { id: 'f7', label: 'Field 7', style: 'short' }, // Should be excluded
+      ]);
 
       const modal = buildSectionModal(config, section, 'test-1', {});
 
@@ -120,22 +124,12 @@ describe('ModalFactory', () => {
     });
 
     it('should use default max lengths for short vs paragraph', () => {
-      const config: DashboardConfig<Record<string, string>> = {
-        entityType: 'test',
-        title: 'Test',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<Record<string, string>>('test');
 
-      const section: SectionDefinition<Record<string, string>> = {
-        id: 'mixed',
-        label: 'Mixed',
-        fields: [
-          { id: 'short', label: 'Short Field', style: 'short' },
-          { id: 'para', label: 'Paragraph Field', style: 'paragraph' },
-        ],
-      };
+      const section = createTestSection<Record<string, string>>('mixed', 'Mixed', [
+        { id: 'short', label: 'Short Field', style: 'short' },
+        { id: 'para', label: 'Paragraph Field', style: 'paragraph' },
+      ]);
 
       const modal = buildSectionModal(config, section, 'test-1', {});
 
@@ -147,27 +141,17 @@ describe('ModalFactory', () => {
     });
 
     it('should respect custom max/min lengths', () => {
-      const config: DashboardConfig<Record<string, string>> = {
-        entityType: 'test',
-        title: 'Test',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<Record<string, string>>('test');
 
-      const section: SectionDefinition<Record<string, string>> = {
-        id: 'constrained',
-        label: 'Constrained',
-        fields: [
-          {
-            id: 'limited',
-            label: 'Limited',
-            style: 'short',
-            minLength: 5,
-            maxLength: 50,
-          },
-        ],
-      };
+      const section = createTestSection<Record<string, string>>('constrained', 'Constrained', [
+        {
+          id: 'limited',
+          label: 'Limited',
+          style: 'short',
+          minLength: 5,
+          maxLength: 50,
+        },
+      ]);
 
       const modal = buildSectionModal(config, section, 'test-1', {});
 
@@ -177,19 +161,11 @@ describe('ModalFactory', () => {
     });
 
     it('should truncate pre-filled values to maxLength', () => {
-      const config: DashboardConfig<{ text: string }> = {
-        entityType: 'test',
-        title: 'Test',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<{ text: string }>('test');
 
-      const section: SectionDefinition<{ text: string }> = {
-        id: 'truncate',
-        label: 'Truncate',
-        fields: [{ id: 'text', label: 'Text', style: 'short', maxLength: 10 }],
-      };
+      const section = createTestSection<{ text: string }>('truncate', 'Truncate', [
+        { id: 'text', label: 'Text', style: 'short', maxLength: 10 },
+      ]);
 
       const modal = buildSectionModal(config, section, 'test-1', {
         text: 'This is a very long string that exceeds maxLength',
@@ -200,22 +176,12 @@ describe('ModalFactory', () => {
     });
 
     it('should not set value for non-string or undefined data', () => {
-      const config: DashboardConfig<{ num: number; missing: string }> = {
-        entityType: 'test',
-        title: 'Test',
-        sections: [],
-        fetchEntity: vi.fn(),
-        updateEntity: vi.fn(),
-      };
+      const config = createTestConfig<{ num: number; missing: string }>('test');
 
-      const section: SectionDefinition<{ num: number; missing: string }> = {
-        id: 'types',
-        label: 'Types',
-        fields: [
-          { id: 'num', label: 'Number', style: 'short' },
-          { id: 'missing', label: 'Missing', style: 'short' },
-        ],
-      };
+      const section = createTestSection<{ num: number; missing: string }>('types', 'Types', [
+        { id: 'num', label: 'Number', style: 'short' },
+        { id: 'missing', label: 'Missing', style: 'short' },
+      ]);
 
       // @ts-expect-error - intentionally passing wrong type for test
       const modal = buildSectionModal(config, section, 'test-1', { num: 42 });
@@ -232,27 +198,17 @@ describe('ModalFactory', () => {
       const userContext: DashboardContext = { isAdmin: false, userId: 'user-456' };
 
       it('should show all fields when no context is provided (backward compatibility)', () => {
-        const config: DashboardConfig<Record<string, string>> = {
-          entityType: 'test',
-          title: 'Test',
-          sections: [],
-          fetchEntity: vi.fn(),
-          updateEntity: vi.fn(),
-        };
+        const config = createTestConfig<Record<string, string>>('test');
 
-        const section: SectionDefinition<Record<string, string>> = {
-          id: 'admin',
-          label: 'Admin Section',
-          fields: [
-            { id: 'visible', label: 'Visible', style: 'short' },
-            {
-              id: 'adminOnly',
-              label: 'Admin Only',
-              style: 'short',
-              hidden: (ctx: DashboardContext) => !ctx.isAdmin,
-            },
-          ],
-        };
+        const section = createTestSection<Record<string, string>>('admin', 'Admin Section', [
+          { id: 'visible', label: 'Visible', style: 'short' },
+          {
+            id: 'adminOnly',
+            label: 'Admin Only',
+            style: 'short',
+            hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+          },
+        ]);
 
         // No context provided - all fields visible
         const modal = buildSectionModal(config, section, 'test-1', {});
@@ -260,22 +216,12 @@ describe('ModalFactory', () => {
       });
 
       it('should hide fields with static hidden: true', () => {
-        const config: DashboardConfig<Record<string, string>> = {
-          entityType: 'test',
-          title: 'Test',
-          sections: [],
-          fetchEntity: vi.fn(),
-          updateEntity: vi.fn(),
-        };
+        const config = createTestConfig<Record<string, string>>('test');
 
-        const section: SectionDefinition<Record<string, string>> = {
-          id: 'test',
-          label: 'Test Section',
-          fields: [
-            { id: 'visible', label: 'Visible', style: 'short' },
-            { id: 'hidden', label: 'Hidden', style: 'short', hidden: true },
-          ],
-        };
+        const section = createTestSection<Record<string, string>>('test', 'Test Section', [
+          { id: 'visible', label: 'Visible', style: 'short' },
+          { id: 'hidden', label: 'Hidden', style: 'short', hidden: true },
+        ]);
 
         const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
         const components = getModalComponents(modal);
@@ -285,46 +231,28 @@ describe('ModalFactory', () => {
       });
 
       it('should show fields with static hidden: false', () => {
-        const config: DashboardConfig<Record<string, string>> = {
-          entityType: 'test',
-          title: 'Test',
-          sections: [],
-          fetchEntity: vi.fn(),
-          updateEntity: vi.fn(),
-        };
+        const config = createTestConfig<Record<string, string>>('test');
 
-        const section: SectionDefinition<Record<string, string>> = {
-          id: 'test',
-          label: 'Test Section',
-          fields: [{ id: 'visible', label: 'Visible', style: 'short', hidden: false }],
-        };
+        const section = createTestSection<Record<string, string>>('test', 'Test Section', [
+          { id: 'visible', label: 'Visible', style: 'short', hidden: false },
+        ]);
 
         const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
         expect(getModalComponents(modal)).toHaveLength(1);
       });
 
       it('should show admin-only field to admins', () => {
-        const config: DashboardConfig<Record<string, string>> = {
-          entityType: 'test',
-          title: 'Test',
-          sections: [],
-          fetchEntity: vi.fn(),
-          updateEntity: vi.fn(),
-        };
+        const config = createTestConfig<Record<string, string>>('test');
 
-        const section: SectionDefinition<Record<string, string>> = {
-          id: 'admin',
-          label: 'Admin Section',
-          fields: [
-            { id: 'public', label: 'Public Field', style: 'short' },
-            {
-              id: 'adminOnly',
-              label: 'Admin Only',
-              style: 'short',
-              hidden: (ctx: DashboardContext) => !ctx.isAdmin,
-            },
-          ],
-        };
+        const section = createTestSection<Record<string, string>>('admin', 'Admin Section', [
+          { id: 'public', label: 'Public Field', style: 'short' },
+          {
+            id: 'adminOnly',
+            label: 'Admin Only',
+            style: 'short',
+            hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+          },
+        ]);
 
         const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);
         const components = getModalComponents(modal);
@@ -335,27 +263,17 @@ describe('ModalFactory', () => {
       });
 
       it('should hide admin-only field from non-admins', () => {
-        const config: DashboardConfig<Record<string, string>> = {
-          entityType: 'test',
-          title: 'Test',
-          sections: [],
-          fetchEntity: vi.fn(),
-          updateEntity: vi.fn(),
-        };
+        const config = createTestConfig<Record<string, string>>('test');
 
-        const section: SectionDefinition<Record<string, string>> = {
-          id: 'admin',
-          label: 'Admin Section',
-          fields: [
-            { id: 'public', label: 'Public Field', style: 'short' },
-            {
-              id: 'adminOnly',
-              label: 'Admin Only',
-              style: 'short',
-              hidden: (ctx: DashboardContext) => !ctx.isAdmin,
-            },
-          ],
-        };
+        const section = createTestSection<Record<string, string>>('admin', 'Admin Section', [
+          { id: 'public', label: 'Public Field', style: 'short' },
+          {
+            id: 'adminOnly',
+            label: 'Admin Only',
+            style: 'short',
+            hidden: (ctx: DashboardContext) => !ctx.isAdmin,
+          },
+        ]);
 
         const modal = buildSectionModal(config, section, 'test-1', {}, userContext);
         const components = getModalComponents(modal);
@@ -365,28 +283,18 @@ describe('ModalFactory', () => {
       });
 
       it('should respect Discord 5-field limit after filtering hidden fields', () => {
-        const config: DashboardConfig<Record<string, string>> = {
-          entityType: 'test',
-          title: 'Test',
-          sections: [],
-          fetchEntity: vi.fn(),
-          updateEntity: vi.fn(),
-        };
+        const config = createTestConfig<Record<string, string>>('test');
 
-        const section: SectionDefinition<Record<string, string>> = {
-          id: 'many',
-          label: 'Many Fields',
-          fields: [
-            { id: 'f1', label: 'Field 1', style: 'short' },
-            { id: 'f2', label: 'Field 2', style: 'short', hidden: true },
-            { id: 'f3', label: 'Field 3', style: 'short' },
-            { id: 'f4', label: 'Field 4', style: 'short', hidden: true },
-            { id: 'f5', label: 'Field 5', style: 'short' },
-            { id: 'f6', label: 'Field 6', style: 'short' },
-            { id: 'f7', label: 'Field 7', style: 'short' },
-            { id: 'f8', label: 'Field 8', style: 'short' },
-          ],
-        };
+        const section = createTestSection<Record<string, string>>('many', 'Many Fields', [
+          { id: 'f1', label: 'Field 1', style: 'short' },
+          { id: 'f2', label: 'Field 2', style: 'short', hidden: true },
+          { id: 'f3', label: 'Field 3', style: 'short' },
+          { id: 'f4', label: 'Field 4', style: 'short', hidden: true },
+          { id: 'f5', label: 'Field 5', style: 'short' },
+          { id: 'f6', label: 'Field 6', style: 'short' },
+          { id: 'f7', label: 'Field 7', style: 'short' },
+          { id: 'f8', label: 'Field 8', style: 'short' },
+        ]);
 
         // After filtering, we have 6 visible fields, but should only show 5
         const modal = buildSectionModal(config, section, 'test-1', {}, adminContext);

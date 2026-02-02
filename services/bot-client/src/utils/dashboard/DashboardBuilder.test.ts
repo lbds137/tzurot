@@ -3,6 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import type { APIButtonComponentWithCustomId, APIStringSelectComponent } from 'discord.js';
 import { ButtonStyle } from 'discord.js';
 import {
   buildDashboardEmbed,
@@ -13,6 +14,22 @@ import {
   type ActionButtonOptions,
 } from './DashboardBuilder.js';
 import { SectionStatus, type DashboardConfig } from './types.js';
+
+// Helper to get button data with proper typing
+function getButtonData(
+  row: ReturnType<typeof buildActionButtons>,
+  index: number
+): APIButtonComponentWithCustomId {
+  return row.components[index].data as unknown as APIButtonComponentWithCustomId;
+}
+
+// Helper to get select menu data with proper typing
+function getSelectMenuData(
+  row: ReturnType<typeof buildEditMenu>,
+  index: number
+): APIStringSelectComponent {
+  return row.components[index].data as unknown as APIStringSelectComponent;
+}
 
 // Test data type
 interface TestEntity {
@@ -31,17 +48,19 @@ function createTestConfig(): DashboardConfig<TestEntity> {
         id: 'identity',
         label: '🏷️ Identity',
         description: 'Name and basic info',
-        fields: [{ id: 'name', label: 'Name', type: 'text', required: true }],
+        fieldIds: ['name'],
+        fields: [{ id: 'name', label: 'Name', style: 'short', required: true }],
         getStatus: data => (data.name ? SectionStatus.COMPLETE : SectionStatus.EMPTY),
-        getPreview: data => data.name || null,
+        getPreview: data => data.name || '_Not configured_',
       },
       {
         id: 'details',
         label: 'Details',
         description: 'Optional details',
-        fields: [{ id: 'description', label: 'Description', type: 'textarea' }],
+        fieldIds: ['description'],
+        fields: [{ id: 'description', label: 'Description', style: 'paragraph' }],
         getStatus: data => (data.description ? SectionStatus.COMPLETE : SectionStatus.EMPTY),
-        getPreview: data => data.description || null,
+        getPreview: data => data.description || '_Not configured_',
       },
     ],
   };
@@ -103,8 +122,8 @@ describe('DashboardBuilder', () => {
       const config = createTestConfig();
       const row = buildEditMenu(config, 'entity-123', testEntity);
 
-      const menu = row.components[0];
-      expect(menu.data.custom_id).toBe('test-entity::menu::entity-123');
+      const menu = getSelectMenuData(row, 0);
+      expect(menu.custom_id).toBe('test-entity::menu::entity-123');
     });
   });
 
@@ -122,9 +141,9 @@ describe('DashboardBuilder', () => {
       const row = buildActionButtons(config, 'entity-123', options);
 
       expect(row.components).toHaveLength(1);
-      const button = row.components[0];
-      expect(button.data.custom_id).toBe('test-entity::refresh::entity-123');
-      expect(button.data.label).toBe('Refresh');
+      const button = getButtonData(row, 0);
+      expect(button.custom_id).toBe('test-entity::refresh::entity-123');
+      expect(button.label).toBe('Refresh');
     });
 
     it('should add close button when showClose is true', () => {
@@ -133,9 +152,9 @@ describe('DashboardBuilder', () => {
       const row = buildActionButtons(config, 'entity-123', options);
 
       expect(row.components).toHaveLength(1);
-      const button = row.components[0];
-      expect(button.data.custom_id).toBe('test-entity::close::entity-123');
-      expect(button.data.label).toBe('Close');
+      const button = getButtonData(row, 0);
+      expect(button.custom_id).toBe('test-entity::close::entity-123');
+      expect(button.label).toBe('Close');
     });
 
     it('should add delete button when showDelete is true', () => {
@@ -144,10 +163,10 @@ describe('DashboardBuilder', () => {
       const row = buildActionButtons(config, 'entity-123', options);
 
       expect(row.components).toHaveLength(1);
-      const button = row.components[0];
-      expect(button.data.custom_id).toBe('test-entity::delete::entity-123');
-      expect(button.data.label).toBe('Delete');
-      expect(button.data.style).toBe(ButtonStyle.Danger);
+      const button = getButtonData(row, 0);
+      expect(button.custom_id).toBe('test-entity::delete::entity-123');
+      expect(button.label).toBe('Delete');
+      expect(button.style).toBe(ButtonStyle.Danger);
     });
 
     describe('toggleGlobal button', () => {
@@ -160,7 +179,9 @@ describe('DashboardBuilder', () => {
 
         // Button should NOT be added when user doesn't own the entity
         const toggleButton = row.components.find(
-          c => c.data.custom_id === 'test-entity::toggle-global::entity-123'
+          c =>
+            (c.data as { custom_id?: string }).custom_id ===
+            'test-entity::toggle-global::entity-123'
         );
         expect(toggleButton).toBeUndefined();
       });
@@ -173,11 +194,11 @@ describe('DashboardBuilder', () => {
         const row = buildActionButtons(config, 'entity-123', options);
 
         expect(row.components).toHaveLength(1);
-        const button = row.components[0];
-        expect(button.data.custom_id).toBe('test-entity::toggle-global::entity-123');
-        expect(button.data.label).toBe('Make Global');
-        expect(button.data.style).toBe(ButtonStyle.Primary);
-        expect(button.data.emoji).toEqual(expect.objectContaining({ name: '🌐' }));
+        const button = getButtonData(row, 0);
+        expect(button.custom_id).toBe('test-entity::toggle-global::entity-123');
+        expect(button.label).toBe('Make Global');
+        expect(button.style).toBe(ButtonStyle.Primary);
+        expect(button.emoji).toEqual(expect.objectContaining({ name: '🌐' }));
       });
 
       it('should show "Make Private" button when isOwned and is global', () => {
@@ -188,11 +209,11 @@ describe('DashboardBuilder', () => {
         const row = buildActionButtons(config, 'entity-123', options);
 
         expect(row.components).toHaveLength(1);
-        const button = row.components[0];
-        expect(button.data.custom_id).toBe('test-entity::toggle-global::entity-123');
-        expect(button.data.label).toBe('Make Private');
-        expect(button.data.style).toBe(ButtonStyle.Secondary);
-        expect(button.data.emoji).toEqual(expect.objectContaining({ name: '🔒' }));
+        const button = getButtonData(row, 0);
+        expect(button.custom_id).toBe('test-entity::toggle-global::entity-123');
+        expect(button.label).toBe('Make Private');
+        expect(button.style).toBe(ButtonStyle.Secondary);
+        expect(button.emoji).toEqual(expect.objectContaining({ name: '🔒' }));
       });
 
       it('should position toggle button between refresh and close', () => {
@@ -206,9 +227,9 @@ describe('DashboardBuilder', () => {
 
         // Order should be: Refresh, Toggle, Close
         expect(row.components).toHaveLength(3);
-        expect(row.components[0].data.label).toBe('Refresh');
-        expect(row.components[1].data.label).toBe('Make Global');
-        expect(row.components[2].data.label).toBe('Close');
+        expect(getButtonData(row, 0).label).toBe('Refresh');
+        expect(getButtonData(row, 1).label).toBe('Make Global');
+        expect(getButtonData(row, 2).label).toBe('Close');
       });
     });
 
@@ -223,9 +244,9 @@ describe('DashboardBuilder', () => {
 
       // Order: Refresh, Close, Delete
       expect(row.components).toHaveLength(3);
-      expect(row.components[0].data.label).toBe('Refresh');
-      expect(row.components[1].data.label).toBe('Close');
-      expect(row.components[2].data.label).toBe('Delete');
+      expect(getButtonData(row, 0).label).toBe('Refresh');
+      expect(getButtonData(row, 1).label).toBe('Close');
+      expect(getButtonData(row, 2).label).toBe('Delete');
     });
   });
 

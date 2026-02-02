@@ -7,7 +7,7 @@ import { LinkExtractor } from './LinkExtractor.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
-import { MessageReferenceType } from 'discord.js';
+import { MessageReferenceType, Collection } from 'discord.js';
 import { INTERVALS } from '@tzurot/common-types';
 import type { Message, Guild, Channel, TextChannel, Client, MessageSnapshot } from 'discord.js';
 import type { ReferencedMessage } from '@tzurot/common-types';
@@ -19,25 +19,29 @@ vi.mock('../../utils/MessageLinkParser.js', () => ({
   },
 }));
 
+// Type for mock input - allows any properties to be overridden
+type MockMessageInput = Record<string, unknown>;
+
 // Helper to create mock Discord message
-function createMockMessage(overrides: Partial<Message> = {}): Message {
-  const mockChannel: Partial<TextChannel> = {
+function createMockMessage(overrides: MockMessageInput = {}): Message {
+  const mockChannel = {
     id: 'channel-123',
     type: 0, // GUILD_TEXT
-    isTextBased: () => true,
+    // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+    isTextBased: vi.fn(() => true),
     messages: {
       fetch: vi.fn(),
-    } as any,
-  };
+    },
+  } as unknown as TextChannel;
 
-  const mockGuild: Partial<Guild> = {
+  const mockGuild = {
     id: 'guild-123',
     name: 'Test Guild',
     channels: {
-      cache: new Map([[mockChannel.id!, mockChannel as Channel]]),
+      cache: new Map([[mockChannel.id, mockChannel as Channel]]),
       fetch: vi.fn(),
-    } as any,
-  };
+    },
+  } as unknown as Guild;
 
   const mockClient: Partial<Client> = {
     guilds: {
@@ -68,14 +72,18 @@ function createMockMessage(overrides: Partial<Message> = {}): Message {
   } as Message;
 }
 
-// Helper to create referenced message
+// Helper to create referenced message matching ReferencedMessage schema
 function createReferencedMessage(): ReferencedMessage {
   return {
-    type: 'user' as const,
-    content: 'Referenced content',
-    author: 'TestAuthor',
-    timestamp: new Date().toISOString(),
     referenceNumber: 1,
+    discordMessageId: 'ref-msg-123',
+    discordUserId: 'user-123',
+    authorUsername: 'TestAuthor',
+    authorDisplayName: 'Test Author',
+    content: 'Referenced content',
+    embeds: '',
+    timestamp: new Date().toISOString(),
+    locationContext: 'Test Guild / #general',
   };
 }
 
@@ -211,16 +219,23 @@ describe('LinkExtractor', () => {
 
     it('should handle forwarded messages with snapshots', async () => {
       const mockMessage = createMockMessage();
-      const mockSnapshot: Partial<MessageSnapshot> = {
-        content: 'Forwarded content',
-      };
+      const mockSnapshot = {
+        message: {
+          content: 'Forwarded content',
+          embeds: [],
+          attachments: new Collection(),
+        },
+      } as unknown as MessageSnapshot;
+
+      const snapshotsCollection = new Collection<string, MessageSnapshot>();
+      snapshotsCollection.set('snapshot-1', mockSnapshot);
 
       const mockReferencedMessage = createMockMessage({
         id: 'ref-msg-123',
         reference: {
           type: MessageReferenceType.Forward,
-        } as any,
-        messageSnapshots: new Map([['snapshot-1', mockSnapshot as MessageSnapshot]]),
+        },
+        messageSnapshots: snapshotsCollection,
       });
 
       const mockChannel = mockMessage.channel as TextChannel;
@@ -327,21 +342,22 @@ describe('LinkExtractor', () => {
     it('should handle guild not in cache (fetch required)', async () => {
       const mockMessage = createMockMessage();
       const mockClient = mockMessage.client;
-      const mockGuild: Partial<Guild> = {
+      const mockGuild = {
         id: 'other-guild-123',
         name: 'Other Guild',
         channels: {
           cache: new Map(),
-        } as any,
-      };
+        },
+      } as unknown as Guild;
 
-      const mockChannel: Partial<TextChannel> = {
+      const mockChannel = {
         id: 'channel-456',
-        isTextBased: () => true,
+        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+        isTextBased: vi.fn(() => true),
         messages: {
           fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-456' })),
-        } as any,
-      };
+        },
+      } as unknown as TextChannel;
 
       // Guild not in cache
       mockClient.guilds.cache.clear();
@@ -415,15 +431,17 @@ describe('LinkExtractor', () => {
       const mockClient = mockMessage.client;
       const mockGuild = mockMessage.guild!;
 
-      const mockThreadChannel: Partial<TextChannel> = {
+      const mockThreadChannel = {
         id: 'thread-789',
         type: 11, // PUBLIC_THREAD
-        isTextBased: () => true,
-        isThread: () => true,
+        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+        isTextBased: vi.fn(() => true),
+        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+        isThread: vi.fn(() => true),
         messages: {
           fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'thread-msg-789' })),
-        } as any,
-      };
+        },
+      } as unknown as TextChannel;
 
       // Channel not in guild cache
       (mockGuild.channels.cache as Map<string, Channel>).clear();
@@ -491,11 +509,12 @@ describe('LinkExtractor', () => {
       const mockMessage = createMockMessage();
       const mockGuild = mockMessage.guild!;
 
-      const mockVoiceChannel: Partial<Channel> = {
+      const mockVoiceChannel = {
         id: 'voice-123',
         type: 2, // GUILD_VOICE
-        isTextBased: () => false,
-      };
+        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
+        isTextBased: vi.fn(() => false),
+      } as unknown as Channel;
 
       (mockGuild.channels.cache as Map<string, Channel>).set(
         'voice-123',
