@@ -8,8 +8,17 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import type { JobResult } from '@tzurot/common-types';
-import { JobStatus } from '@tzurot/common-types';
+import { JobStatus, type LLMGenerationResult } from '@tzurot/common-types';
+
+/**
+ * Local interface for documenting the expected JobResult structure
+ * as constructed by ResultsListener
+ */
+interface JobResultForTest {
+  jobId: string;
+  status: JobStatus;
+  result?: LLMGenerationResult;
+}
 
 // Mock ioredis to prevent actual connections during tests
 vi.mock('ioredis', () => ({
@@ -54,12 +63,12 @@ describe('ResultsListener - JobResult Construction', () => {
       const parsedResult = JSON.parse(redisMessage.result);
 
       // ❌ WRONG (the bug we fixed):
-      // const jobResult: JobResult = parsedResult;
+      // const jobResult: JobResultForTest = parsedResult;
       // This gives: { content: "...", success: true, metadata: {...} }
       // Missing: jobId, status, and result is not nested!
 
       // ✅ CORRECT (what we fixed it to):
-      const jobResult: JobResult = {
+      const jobResult: JobResultForTest = {
         jobId: redisMessage.jobId,
         status: JobStatus.Completed,
         result: parsedResult, // ← Now properly nested!
@@ -96,7 +105,7 @@ describe('ResultsListener - JobResult Construction', () => {
       };
 
       const parsedResult = JSON.parse(redisMessage.result);
-      const jobResult: JobResult = {
+      const jobResult: JobResultForTest = {
         jobId: redisMessage.jobId,
         status: JobStatus.Completed,
         result: parsedResult,
@@ -125,7 +134,7 @@ describe('ResultsListener - JobResult Construction', () => {
       };
 
       const parsedResult = JSON.parse(redisMessage.result);
-      const jobResult: JobResult = {
+      const jobResult: JobResultForTest = {
         jobId: redisMessage.jobId,
         status: JobStatus.Completed,
         result: parsedResult,
@@ -157,8 +166,8 @@ describe('ResultsListener - JobResult Construction', () => {
         completedAt: '2025-11-15T08:00:00.000Z',
       };
 
-      // ❌ THE BUG: Treating parsed result as JobResult
-      const buggyJobResult = JSON.parse(redisMessage.result) as JobResult;
+      // ❌ THE BUG: Treating parsed result as JobResultForTest
+      const buggyJobResult = JSON.parse(redisMessage.result) as JobResultForTest;
 
       // This is what MessageHandler was checking:
       const result = buggyJobResult.result;
@@ -167,7 +176,7 @@ describe('ResultsListener - JobResult Construction', () => {
       expect(result).toBeUndefined();
 
       // ✅ THE FIX: Proper construction
-      const fixedJobResult: JobResult = {
+      const fixedJobResult: JobResultForTest = {
         jobId: redisMessage.jobId,
         status: JobStatus.Completed,
         result: JSON.parse(redisMessage.result),

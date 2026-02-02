@@ -4,7 +4,7 @@
  * Tests filtering of empty messages (no content, no attachments).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { EmptyMessageFilter } from './EmptyMessageFilter.js';
 import type { Message } from 'discord.js';
 

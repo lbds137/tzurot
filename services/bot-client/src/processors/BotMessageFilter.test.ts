@@ -4,7 +4,7 @@
  * Tests filtering of bot messages to prevent bot-to-bot loops.
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { BotMessageFilter } from './BotMessageFilter.js';
 import type { Message } from 'discord.js';
 

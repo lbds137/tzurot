@@ -223,7 +223,6 @@ describe('MessageLinkParser', () => {
 
   describe('Integration: parse and replace', () => {
     it('should parse links and replace them with references', () => {
-      const content = 'Check Reference 1 and Reference 2';
       const originalContent = `
         Check https://discord.com/channels/1/2/3
         and https://discord.com/channels/4/5/6

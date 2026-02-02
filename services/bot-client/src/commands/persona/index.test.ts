@@ -131,9 +131,9 @@ describe('Persona Command Index', () => {
       expect(overrideGroup).toBeDefined();
 
       // Check override group has expected subcommands
-      const overrideSubcommands = (overrideGroup?.options ?? []).map(
-        (s: { name: string }) => s.name
-      );
+      const overrideSubcommands = (
+        (overrideGroup as { options?: { name: string }[] })?.options ?? []
+      ).map((s: { name: string }) => s.name);
       expect(overrideSubcommands).toContain('set');
       expect(overrideSubcommands).toContain('clear');
     });
@@ -141,7 +141,7 @@ describe('Persona Command Index', () => {
     it('should NOT have componentPrefixes (command name = entityType)', () => {
       // This is the key architectural difference from /me
       // Command name 'persona' matches entityType 'persona', so no componentPrefixes needed
-      expect(personaCommand.componentPrefixes).toBeUndefined();
+      expect((personaCommand as { componentPrefixes?: unknown }).componentPrefixes).toBeUndefined();
     });
   });
 

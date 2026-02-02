@@ -13,7 +13,6 @@ const VALID_CHANNEL_ID_2 = '234567890123456789';
 const VALID_ROLE_ID = '345678901234567890';
 const VALID_ROLE_ID_2 = '456789012345678901';
 const VALID_USER_ID = '567890123456789012';
-const VALID_USER_ID_2 = '678901234567890123';
 
 // Mock PersonaResolver
 const mockPersonaResolver = {
@@ -645,7 +644,7 @@ describe('MentionResolver', () => {
      * Helper to create a mock Message with all mention types
      */
     function createMockMessage(
-      content: string,
+      _content: string,
       users: Map<string, User>,
       channels: Map<string, { name: string; topic?: string }>,
       roles: Map<string, { name: string; mentionable: boolean }>

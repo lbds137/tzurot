@@ -88,7 +88,9 @@ describe('Preset Command', () => {
       expect(globalGroup).toBeDefined();
 
       // Check global group has expected subcommands
-      const globalSubcommands = (globalGroup?.options ?? []).map((s: { name: string }) => s.name);
+      const globalSubcommands = (
+        (globalGroup as { options?: { name: string }[] })?.options ?? []
+      ).map((s: { name: string }) => s.name);
       expect(globalSubcommands).toContain('default');
       expect(globalSubcommands).toContain('free-default');
       // Note: 'create' was removed - global presets are created via /preset create + toggle

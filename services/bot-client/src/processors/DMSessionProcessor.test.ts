@@ -96,7 +96,7 @@ function createMockMessage(options?: {
   } as unknown as Message;
 }
 
-const mockLilithPersonality: LoadedPersonality = {
+const mockLilithPersonality = {
   id: 'lilith-id',
   name: 'Lilith',
   slug: 'lilith',
@@ -105,12 +105,7 @@ const mockLilithPersonality: LoadedPersonality = {
   model: 'anthropic/claude-sonnet-4.5',
   temperature: 0.8,
   avatarUrl: 'https://example.com/lilith.png',
-  requiresImageSupport: false,
-  requiredCapabilities: [],
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  createdBy: 'user-123',
-};
+} as unknown as LoadedPersonality;
 
 describe('DMSessionProcessor', () => {
   let processor: DMSessionProcessor;
@@ -516,7 +511,7 @@ describe('DMSessionProcessor', () => {
       const channel = createMockDMChannel();
       const message = createMockMessage({ channel });
       // Override client to have no user
-      (message.client as { user: null }).user = null;
+      (message.client as unknown as { user: null }).user = null;
       vi.mocked(isDMChannel).mockReturnValue(true);
 
       const result = await processor.process(message);

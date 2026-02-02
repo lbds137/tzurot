@@ -12,7 +12,8 @@ describe('ResponseOrderingService', () => {
   let deliverFn: (jobId: string, result: LLMGenerationResult) => Promise<void>;
 
   // Helper to create mock results
-  const createResult = (content: string): LLMGenerationResult => ({
+  const createResult = (content: string, requestId = 'test-request-id'): LLMGenerationResult => ({
+    requestId,
     success: true,
     content,
     metadata: { modelUsed: 'test-model' },
@@ -286,8 +287,9 @@ describe('ResponseOrderingService', () => {
       const time2 = new Date('2024-01-01T10:01:00Z');
 
       const failedResult: LLMGenerationResult = {
+        requestId: 'failed-request-id',
         success: false,
-        errorMessage: 'Something went wrong',
+        error: 'Something went wrong',
       };
 
       // Register both jobs
@@ -641,7 +643,8 @@ describe('ResponseOrderingService', () => {
     it('should not start cleanup interval when disabled', () => {
       const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
-      const _serviceWithoutCleanup = new ResponseOrderingService(false);
+      // Intentionally creating service instance to verify no interval is started
+      new ResponseOrderingService(false);
 
       // Verify setInterval was NOT called
       expect(setIntervalSpy).not.toHaveBeenCalled();

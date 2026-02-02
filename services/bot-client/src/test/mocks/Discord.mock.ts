@@ -323,8 +323,7 @@ export function createMockDMMessage(overrides: MockInput<Message> = EMPTY_OVERRI
  */
 export function createMockThreadMessage(overrides: MockInput<Message> = EMPTY_OVERRIDES): Message {
   return createMockMessage({
-    // @ts-expect-error - ThreadChannel is part of Message.channel union type. Runtime behavior is correct.
-    channel: createMockThreadChannel(),
+    channel: createMockThreadChannel() as unknown as TextChannel,
     ...overrides,
   });
 }

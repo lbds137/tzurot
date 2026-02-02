@@ -20,7 +20,6 @@ import {
   clearPendingVerificationMessages,
   getAllPendingVerificationUserIds,
   MAX_MESSAGE_AGE_MS,
-  REDIS_KEY_PREFIX,
 } from '../utils/pendingVerificationMessages.js';
 
 describe('VerificationMessageCleanup', () => {

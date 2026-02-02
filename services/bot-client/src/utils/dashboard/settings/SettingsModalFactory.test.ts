@@ -17,9 +17,11 @@ function getModalComponents(modal: ReturnType<typeof buildSettingEditModal>) {
   return json.components ?? [];
 }
 
-function getTextInput(modal: ReturnType<typeof buildSettingEditModal>) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTextInput(modal: ReturnType<typeof buildSettingEditModal>): any {
   const components = getModalComponents(modal);
-  return components[0]?.components?.[0];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (components[0] as any)?.components?.[0];
 }
 
 describe('SettingsModalFactory', () => {

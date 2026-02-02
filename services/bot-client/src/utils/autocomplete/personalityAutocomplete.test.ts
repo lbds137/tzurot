@@ -57,8 +57,8 @@ describe('handlePersonalityAutocomplete', () => {
       displayName: null,
       isPublic: false,
       isOwned,
-      ownerId: null,
-      ownerDiscordId: null,
+      ownerId: 'owner-123',
+      ownerDiscordId: 'discord-123',
       permissions: { canEdit: isOwned, canDelete: isOwned },
       ...overrides,
     };

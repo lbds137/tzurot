@@ -29,7 +29,7 @@ describe('ReferenceFormatter', () => {
         timestamp: message.createdAt.toISOString(),
         locationContext: 'this channel',
       })),
-    } as MessageFormatter;
+    } as unknown as MessageFormatter;
 
     // Mock SnapshotFormatter
     mockSnapshotFormatter = {} as any;
