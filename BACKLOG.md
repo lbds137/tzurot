@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-02-01
-> **Version**: v3.0.0-beta.62
+> **Version**: v3.0.0-beta.63
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -20,22 +20,6 @@ _(Empty - triage complete)_
 ## High Priority
 
 _Top 3-5 items to pull into CURRENT next._
-
-### 🏗️ Fix Static Analysis Baseline Violations (NEXT)
-
-**Context**: Static analysis tooling added in PR #557. Tools are installed and configured. Now need to fix baseline violations to make checks blocking.
-
-**Test File Type Errors** (high priority - types are broken)
-
-**Completed (PRs #559, #560):**
-
-- [x] common-types: 0 errors
-- [x] api-gateway: 0 errors
-- [x] ai-worker: 0 errors (~152 errors fixed - enums, LoadedPersonality mocks, thread mocks, type assertions)
-
-- [x] bot-client: 0 errors (845 → 0, PR #561)
-
-All `typecheck:spec` violations fixed. Now a blocking check in CI and pre-push hooks.
 
 ### 🏗️ Bot-Client Package Split (NEXT)
 
@@ -78,12 +62,11 @@ Functions exceeding 15 cognitive complexity limit:
 
 **Future tightening**: Once violations are reduced, lower CPD threshold from 5% to 2-3%.
 
-**Tooling Improvements** (after baseline fixed):
+**Tooling Improvements**:
 
 - [ ] Make sonarjs rules `error` instead of `warn` - prevents new violations from accumulating
 - [ ] Add CPD HTML report to CI artifacts - makes reviewing duplication easier in PRs
 - [ ] Make CPD blocking in CI (remove `continue-on-error: true`)
-- [x] Make `typecheck:spec` blocking in pre-push hook (PR #561)
 
 **Documentation & Polish** (from PR #558 review):
 
@@ -91,7 +74,6 @@ Functions exceeding 15 cognitive complexity limit:
 - [ ] Document which sonarjs rules were considered and rejected in STATIC_ANALYSIS.md
 - [ ] Add CPD suppression (`/* jscpd:ignore-start */`) guidance to code review checklist
 - [ ] Add link from CLAUDE.md "Code Quality Limits" section to `STATIC_ANALYSIS.md`
-- [x] Rename CI step "Type-check test files" → "Run typecheck:spec" for consistency (PR #561)
 
 **References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
@@ -119,7 +101,6 @@ Functions exceeding 15 cognitive complexity limit:
 - [ ] Generate/derive all config copying from this list
 - [ ] Remove manual field enumeration in PersonalityDefaults
 - [ ] Add test that verifies all paths handle the same fields
-- [x] Add `reasoning.enabled` and `reasoning.exclude` to ModelFactory cache key (fixed in beta.63)
 - [ ] Add end-to-end integration test: DB JSONB → mapToPersonality → ModelFactory → OpenRouter API call
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
