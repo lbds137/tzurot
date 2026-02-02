@@ -171,11 +171,14 @@ describe('API Endpoint Contract Tests', () => {
 
     it('should support optional result field for synchronous responses', () => {
       // When wait=true is supported in the future
+      // Result uses LLMGenerationResult which includes success/error fields
       const response: GenerateResponse = {
         jobId: 'llm-req-123',
         requestId: 'req-test-789',
         status: JobStatus.Completed,
         result: {
+          requestId: 'req-test-789',
+          success: true,
           content: 'Generated response text',
           metadata: {
             modelUsed: 'anthropic/claude-sonnet-4.5',

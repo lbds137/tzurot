@@ -9,30 +9,12 @@
  * - Gateway URL validation
  */
 
-import { getConfig, createLogger, CONTENT_TYPES } from '@tzurot/common-types';
+import { getConfig, createLogger, CONTENT_TYPES, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
 
 const logger = createLogger('gateway-client');
 
-/**
- * Gateway request timeout constants
- *
- * Different Discord interactions have different time constraints:
- * - Autocomplete: Must respond within 3s (we use 2.5s to leave buffer)
- * - Deferred commands: Have up to 15 minutes after deferral
- */
-export const GATEWAY_TIMEOUTS = {
-  /**
-   * For autocomplete and immediate responses.
-   * Discord's limit is 3000ms; we use 2500ms to allow 500ms for overhead.
-   */
-  AUTOCOMPLETE: 2500,
-
-  /**
-   * For deferred slash commands where user sees "Bot is thinking..."
-   * More lenient to handle cold starts and slower operations.
-   */
-  DEFERRED: 10000,
-} as const;
+// Re-export GATEWAY_TIMEOUTS for existing consumers
+export { GATEWAY_TIMEOUTS };
 
 /**
  * Gateway API response wrapper

@@ -19,6 +19,8 @@ const OTHER_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 const TEST_USER_ID = '123456789';
 
 // Mock gateway client
+// Note: Tests use objectContaining for API call assertions to focus on the essential
+// userId parameter while ignoring implementation details like timeout values.
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),

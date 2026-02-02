@@ -74,6 +74,12 @@ export interface ContextBuildOptions {
    * If overrideUser is set but overrideMember is not, we'll try to fetch the member.
    */
   overrideMember?: GuildMember | null;
+  /**
+   * Weigh-in mode flag (slash commands without message).
+   * When true, the content parameter is the weigh-in prompt, not the anchor message content.
+   * This prevents link replacements from the anchor message being applied to the prompt.
+   */
+  isWeighInMode?: boolean;
 }
 
 /**
@@ -636,7 +642,8 @@ export class MessageContextBuilder {
     message: Message,
     content: string,
     personality: LoadedPersonality,
-    history: ConversationMessage[]
+    history: ConversationMessage[],
+    isWeighInMode = false
   ): Promise<ReferencesAndMentionsResult> {
     const conversationHistoryMessageIds = history
       .flatMap(msg => msg.discordMessageId ?? [])
@@ -694,10 +701,10 @@ export class MessageContextBuilder {
     }
 
     // Preserve the content parameter as authoritative message content.
-    // Only apply link replacements if anchor message matches content (chat mode).
-    // In weigh-in mode, anchor !== content, so preserve weigh-in prompt.
+    // In weigh-in mode, don't apply link replacements from anchor message to weigh-in prompt.
+    // In chat mode (isWeighInMode=false), apply link replacements from reference extraction.
     let messageContent = content ?? '[no text content]';
-    if (updatedContent !== undefined && message.content === content) {
+    if (updatedContent !== undefined && !isWeighInMode) {
       messageContent = updatedContent;
     }
 
@@ -811,7 +818,8 @@ export class MessageContextBuilder {
       message,
       content,
       personality,
-      history
+      history,
+      options.isWeighInMode ?? false
     );
     const { messageContent, referencedMessages, mentionedPersonas, referencedChannels } =
       refsAndMentions;
