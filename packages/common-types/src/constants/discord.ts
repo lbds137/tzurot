@@ -210,7 +210,10 @@ export function buildModelFooterText(
   modelUrl: string,
   withAutoBadge = false
 ): string {
-  const base = `Model: [${modelUsed}](<${modelUrl}>)`;
+  // Defensive: sanitize model name to prevent markdown injection
+  // (brackets and angle brackets could break link syntax)
+  const sanitizedModel = modelUsed.replace(/[[\]()<>]/g, '');
+  const base = `Model: [${sanitizedModel}](<${modelUrl}>)`;
   return withAutoBadge ? `${base}${BOT_FOOTER_TEXT.AUTO_BADGE_COMPACT}` : base;
 }
 
