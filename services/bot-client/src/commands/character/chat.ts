@@ -32,7 +32,9 @@ import type {
   EnvConfig,
   LoadedPersonality,
   ResolvedExtendedContextSettings,
+  LLMGenerationResult,
 } from '@tzurot/common-types';
+import { buildErrorContent } from '../../utils/buildErrorContent.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   getGatewayClient,
@@ -110,24 +112,41 @@ async function pollAndSendResponse(
       pollIntervalMs: INTERVALS.JOB_POLL_INTERVAL,
     });
 
-    if (result?.content === undefined || result.content === null || result.content === '') {
-      await channel.send(`*${personality.displayName} is having trouble responding right now.*`);
+    // Cast to LLMGenerationResult to access error fields present at runtime
+    // The API returns full LLMGenerationResult but GatewayClient types it narrowly
+    const fullResult = result as LLMGenerationResult | null | undefined;
+
+    // Check for explicit failure (success: false) or empty/missing content
+    if (
+      fullResult === null ||
+      fullResult === undefined ||
+      fullResult.success === false ||
+      fullResult.content === undefined ||
+      fullResult.content === null ||
+      fullResult.content === ''
+    ) {
+      // Use buildErrorContent for personality-specific error messages when available
+      const errorContent =
+        fullResult !== null && fullResult !== undefined
+          ? buildErrorContent(fullResult)
+          : `*${personality.displayName} is having trouble responding right now.*`;
+      await channel.send(errorContent);
       return { success: false, responseMessageIds: [] };
     }
 
     const responseMessageIds = await sendCharacterResponse(
       channel,
       personality,
-      result.content,
-      result.metadata?.modelUsed,
-      result.metadata?.isGuestMode
+      fullResult.content,
+      fullResult.metadata?.modelUsed,
+      fullResult.metadata?.isGuestMode
     );
 
     logger.info(
       { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },
       '[Character Chat] Response sent successfully'
     );
-    return { success: true, responseMessageIds, content: result.content };
+    return { success: true, responseMessageIds, content: fullResult.content };
   } finally {
     clearInterval(typingInterval);
   }

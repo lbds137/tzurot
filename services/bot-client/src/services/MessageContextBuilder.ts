@@ -693,7 +693,13 @@ export class MessageContextBuilder {
       );
     }
 
-    let messageContent = updatedContent ?? content ?? '[no text content]';
+    // Preserve the content parameter as authoritative message content.
+    // Only apply link replacements if anchor message matches content (chat mode).
+    // In weigh-in mode, anchor !== content, so preserve weigh-in prompt.
+    let messageContent = content ?? '[no text content]';
+    if (updatedContent !== undefined && message.content === content) {
+      messageContent = updatedContent;
+    }
 
     // Resolve all mentions
     const mentionResult = await this.mentionResolver.resolveAllMentions(
