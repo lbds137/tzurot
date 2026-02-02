@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { Message, Client, Guild, TextChannel } from 'discord.js';
+import type { Message, Client } from 'discord.js';
 import { resolveHistoryLinks } from './HistoryLinkResolver.js';
 
 // Mock dependencies
