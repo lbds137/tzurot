@@ -519,28 +519,30 @@ describe('Character Chat Handler', () => {
 
       await handleChat(mockContext, mockConfig);
 
-      // First call is user message, second is fallback
+      // First call is user message, second is error via buildErrorContent
       expect(mockChannel.send).toHaveBeenCalledTimes(2);
       expect(mockChannel.send).toHaveBeenNthCalledWith(1, '**TestUser:** Hello!');
+      // buildErrorContent returns default error when no errorInfo is present
       expect(mockChannel.send).toHaveBeenNthCalledWith(
         2,
-        expect.stringContaining('having trouble responding')
+        expect.stringContaining('Sorry, I encountered an error')
       );
     });
 
     it('should send fallback message when result is null', async () => {
       const mockChannel = createMockChannel();
       const mockContext = createMockContext('test-char', 'Hello!', mockChannel);
-      mockPersonalityService.loadPersonality.mockResolvedValue(createMockPersonality());
+      const personality = createMockPersonality();
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
       mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
       mockGatewayClient.pollJobUntilComplete.mockResolvedValue(null);
 
       await handleChat(mockContext, mockConfig);
 
-      // First call is user message, second is fallback
+      // First call is user message, second is personality-based fallback
       expect(mockChannel.send).toHaveBeenCalledTimes(2);
       expect(mockChannel.send).toHaveBeenLastCalledWith(
-        expect.stringContaining('having trouble responding')
+        expect.stringContaining(`${personality.displayName} is having trouble responding`)
       );
     });
 
