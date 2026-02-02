@@ -641,7 +641,7 @@ describe('ResponseOrderingService', () => {
     it('should not start cleanup interval when disabled', () => {
       const setIntervalSpy = vi.spyOn(global, 'setInterval');
 
-      const serviceWithoutCleanup = new ResponseOrderingService(false);
+      const _serviceWithoutCleanup = new ResponseOrderingService(false);
 
       // Verify setInterval was NOT called
       expect(setIntervalSpy).not.toHaveBeenCalled();
