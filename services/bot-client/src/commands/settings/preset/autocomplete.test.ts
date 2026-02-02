@@ -5,11 +5,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleAutocomplete } from './autocomplete.js';
 import type { AutocompleteInteraction, User } from 'discord.js';
-import {
-  mockListLlmConfigsResponse,
-  mockLlmConfigSummary,
-  mockListWalletKeysResponse,
-} from '@tzurot/common-types';
+import { mockLlmConfigSummary, mockListWalletKeysResponse } from '@tzurot/common-types';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async () => {
@@ -50,8 +46,8 @@ function mockPersonality(overrides: Partial<PersonalitySummary>): PersonalitySum
     slug: 'testbot',
     isOwned,
     isPublic: false,
-    ownerId: null,
-    ownerDiscordId: null,
+    ownerId: 'owner-123',
+    ownerDiscordId: 'discord-owner-123',
     permissions: { canEdit: isOwned, canDelete: isOwned },
     ...overrides,
   };
@@ -105,10 +101,11 @@ describe('handleAutocomplete', () => {
 
   describe('personality autocomplete', () => {
     it('should respond with filtered personalities with visibility and slug', async () => {
+      // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: 'test',
-      });
+      } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue([
         mockPersonality({
           id: 'p1',
@@ -138,10 +135,11 @@ describe('handleAutocomplete', () => {
     });
 
     it('should use name when displayName is null', async () => {
+      // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: '',
-      });
+      } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue([
         mockPersonality({
           id: 'p1',
@@ -164,7 +162,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: 'lil',
-      });
+      } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue([
         mockPersonality({
           id: 'p1',
@@ -193,10 +191,11 @@ describe('handleAutocomplete', () => {
     });
 
     it('should show 📖 icon for public personalities not owned', async () => {
+      // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: '',
-      });
+      } as unknown as string);
       mockGetCachedPersonalities.mockResolvedValue([
         mockPersonality({
           id: 'p1',
@@ -217,10 +216,11 @@ describe('handleAutocomplete', () => {
     });
 
     it('should respond with empty array on API error', async () => {
+      // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: 'test',
-      });
+      } as unknown as string);
       mockGetCachedPersonalities.mockRejectedValue(new Error('Cache error'));
 
       await handleAutocomplete(mockInteraction);
@@ -229,10 +229,11 @@ describe('handleAutocomplete', () => {
     });
 
     it('should limit results to 25', async () => {
+      // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: '',
-      });
+      } as unknown as string);
       const manyPersonalities = Array.from({ length: 30 }, (_, i) =>
         mockPersonality({
           id: `p${i}`,
@@ -257,7 +258,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: 'claude',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -290,7 +291,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: 'gpt',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -322,7 +323,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: 'fast',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -356,7 +357,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: 'test',
-      });
+      } as unknown as string);
       vi.mocked(callGatewayApi).mockResolvedValue({
         ok: false,
         error: 'API error',
@@ -374,7 +375,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -413,7 +414,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -443,7 +444,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -470,7 +471,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'preset',
         value: '',
-      });
+      } as unknown as string);
       mockConfigApis(
         [
           mockLlmConfigSummary({
@@ -499,7 +500,7 @@ describe('handleAutocomplete', () => {
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'unknown',
         value: 'test',
-      });
+      } as unknown as string);
 
       await handleAutocomplete(mockInteraction);
 
@@ -509,10 +510,11 @@ describe('handleAutocomplete', () => {
 
   describe('error handling', () => {
     it('should respond with empty array on exception', async () => {
+      // Cast to handle getFocused(true) return type
       vi.mocked(mockInteraction.options.getFocused).mockReturnValue({
         name: 'personality',
         value: 'test',
-      });
+      } as unknown as string);
       vi.mocked(callGatewayApi).mockRejectedValue(new Error('Network error'));
 
       await handleAutocomplete(mockInteraction);
