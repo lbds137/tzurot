@@ -27,7 +27,11 @@ import {
   AI_ENDPOINTS,
   characterChatOptions,
 } from '@tzurot/common-types';
-import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
+import type {
+  EnvConfig,
+  LoadedPersonality,
+  ResolvedExtendedContextSettings,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
   getGatewayClient,
@@ -313,6 +317,58 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
   }
 }
 
+/** Parameters for building chat context */
+interface BuildChatContextParams {
+  anchorMessage: Message;
+  personality: LoadedPersonality;
+  messageContent: string;
+  extendedContextSettings: ResolvedExtendedContextSettings;
+  commandContext: DeferredCommandContext;
+  isWeighInMode: boolean;
+}
+
+/**
+ * Build context for chat command with proper user identity override.
+ */
+async function buildChatContext(
+  params: BuildChatContextParams
+): Promise<{ context: MessageContext; personaId: string } | null> {
+  const {
+    anchorMessage,
+    personality,
+    messageContent,
+    extendedContextSettings,
+    commandContext,
+    isWeighInMode,
+  } = params;
+
+  const contextBuilder = getMessageContextBuilder();
+  const buildResult = await contextBuilder.buildContext(
+    anchorMessage,
+    personality,
+    messageContent,
+    {
+      extendedContext: extendedContextSettings,
+      botUserId: anchorMessage.client.user?.id,
+      overrideUser: commandContext.user,
+      overrideMember: commandContext.member ?? null, // null for DMs
+    }
+  );
+
+  // Adjust context for weigh-in mode (validate history + clear persona)
+  const hasValidContext = adjustContextForWeighInMode(buildResult, isWeighInMode);
+  if (!hasValidContext) {
+    return null;
+  }
+
+  // Set trigger message ID for diagnostic tracking (chat mode only)
+  if (!isWeighInMode) {
+    buildResult.context.triggerMessageId = anchorMessage.id;
+  }
+
+  return { context: buildResult.context, personaId: buildResult.personaId };
+}
+
 /**
  * Handle /character chat subcommand
  *
@@ -397,35 +453,25 @@ export async function handleChat(
     }
     const anchorMessage = anchorResult.message;
 
-    // 7. Build full context using buildContext with the anchor message
-    // This provides: extended context (Discord message fetching), persona, context epoch, guild info
-    const contextBuilder = getMessageContextBuilder();
+    // 7. Build full context with command invoker's identity (not anchor message author)
     const messageContent = isWeighInMode ? WEIGH_IN_MESSAGE : message;
-    const buildResult = await contextBuilder.buildContext(
+    const buildResult = await buildChatContext({
       anchorMessage,
       personality,
       messageContent,
-      {
-        extendedContext: extendedContextSettings,
-        botUserId: anchorMessage.client.user?.id,
-      }
-    );
+      extendedContextSettings,
+      commandContext: context,
+      isWeighInMode,
+    });
 
-    // 8. Adjust context for weigh-in mode (validate history + clear persona)
-    const hasValidContext = adjustContextForWeighInMode(buildResult, isWeighInMode);
-    if (!hasValidContext) {
+    if (buildResult === null) {
       await channel.send(
         '❌ No conversation history found in this channel.\nStart a conversation first, or provide a message.'
       );
       return;
     }
 
-    // 9. Set trigger message ID for diagnostic tracking (chat mode only)
-    if (!isWeighInMode) {
-      buildResult.context.triggerMessageId = anchorMessage.id;
-    }
-
-    // 10. Submit job, poll for response, and track diagnostics + persistence
+    // 8. Submit job, poll for response, and track diagnostics + persistence
     await submitAndTrackJob({
       channel,
       personality,
@@ -433,7 +479,7 @@ export async function handleChat(
       characterSlug,
       isWeighInMode,
       personaId: buildResult.personaId,
-      guildId: context.guild?.id ?? null,
+      guildId: context.guildId,
       userMessageTime,
     });
   } catch (error) {
