@@ -213,7 +213,7 @@ describe('gatewayFetcher', () => {
   describe('unwrapOrThrow', () => {
     it('should return data on success', () => {
       const data = { id: '123' };
-      const result = unwrapOrThrow({ ok: true as const, data }, 'entity');
+      const result = unwrapOrThrow({ ok: true as const, data, status: 200 }, 'entity');
 
       expect(result).toEqual(data);
     });

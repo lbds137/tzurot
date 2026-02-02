@@ -255,8 +255,9 @@ describe('Preset Import', () => {
         data: createValidPresetData(),
       });
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
-        ok: false,
+        ok: false as const,
         error: 'Duplicate name',
+        status: 400,
       });
 
       const mockContext = createMockContext();

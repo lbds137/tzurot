@@ -84,7 +84,7 @@ describe('modelAutocomplete', () => {
     it('should return empty array when gateway URL is not configured', async () => {
       vi.mocked(getConfig).mockReturnValue({
         GATEWAY_URL: undefined,
-      } as ReturnType<typeof getConfig>);
+      } as unknown as ReturnType<typeof getConfig>);
 
       const models = await fetchModels();
 

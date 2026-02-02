@@ -288,14 +288,14 @@ describe('admin command', () => {
         });
 
         // Make filter return only 'Test Server' when querying 'test'
-        mockCache.filter.mockImplementation((_fn: (g: (typeof mockGuilds)[0]) => boolean) => ({
+        mockCache.filter.mockImplementation(((_fn: (g: (typeof mockGuilds)[0]) => boolean) => ({
           map: (mapFn: (g: (typeof mockGuilds)[0]) => { name: string; value: string }) => {
             const filtered = mockGuilds.filter(g => g.name.toLowerCase().includes('test'));
             return {
               slice: () => filtered.map(mapFn),
             };
           },
-        }));
+        })) as never);
 
         await autocomplete(mockAutocompleteInteraction);
 

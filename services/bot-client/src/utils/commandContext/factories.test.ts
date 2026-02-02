@@ -140,7 +140,11 @@ describe('createDeferredContext', () => {
 
   describe('getRequiredOption', () => {
     it('should return option value', () => {
-      vi.mocked(mockInteraction.options.get).mockReturnValueOnce({ value: 'required-value' });
+      vi.mocked(mockInteraction.options.get).mockReturnValueOnce({
+        name: 'test-option',
+        type: 3, // STRING type
+        value: 'required-value',
+      } as any);
       const context = createDeferredContext(mockInteraction, true);
       const value = context.getRequiredOption<string>('test-option');
 

@@ -217,7 +217,7 @@ describe('VoiceTranscriptionService', () => {
       });
 
       // Should send typing indicator
-      expect(message.channel.sendTyping).toHaveBeenCalledOnce();
+      expect((message.channel as { sendTyping?: unknown }).sendTyping).toHaveBeenCalledOnce();
 
       // Should call gateway transcribe with attachment metadata
       expect(mockGatewayClient.transcribe).toHaveBeenCalledWith([
@@ -451,7 +451,7 @@ describe('VoiceTranscriptionService', () => {
       await service.transcribe(message, false, false);
 
       // Should not have called sendTyping
-      expect(message.channel.sendTyping).toBeUndefined();
+      expect((message.channel as { sendTyping?: unknown }).sendTyping).toBeUndefined();
     });
 
     it('should transcribe voice from forwarded message snapshot when no direct attachments', async () => {
