@@ -575,7 +575,7 @@ Re-exports create spaghetti code and obscure module dependencies.
 Several files have grown past the 500-line ESLint limit and use `eslint-disable max-lines`:
 
 - [ ] `MessageContextBuilder.ts` (~800 lines) - Extract attachment/reference extraction to separate file
-- [ ] `conversationUtils.ts` (~720 lines) - Split formatting vs retrieval
+- [ ] `conversationUtils.ts` (~890 lines) - Split formatting vs retrieval
 - [ ] `DiscordChannelFetcher.ts` (~600 lines) - Extract sync logic
 - [ ] `GatewayClient.ts` (~560 lines) - Consider splitting cache management vs API calls
 
