@@ -51,7 +51,7 @@ describe('Preset Create', () => {
     });
 
     it('should show modal for preset creation', async () => {
-      await handleCreate(mockContext as Parameters<typeof handleCreate>[0]);
+      await handleCreate(mockContext as unknown as Parameters<typeof handleCreate>[0]);
 
       expect(mockContext.showModal).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -63,7 +63,7 @@ describe('Preset Create', () => {
     });
 
     it('should include seed fields in modal', async () => {
-      await handleCreate(mockContext as Parameters<typeof handleCreate>[0]);
+      await handleCreate(mockContext as unknown as Parameters<typeof handleCreate>[0]);
 
       const modalBuilder = vi.mocked(mockContext.showModal).mock.calls[0][0] as {
         toJSON: () => { components: Array<{ components: Array<{ custom_id: string }> }> };
@@ -113,6 +113,9 @@ describe('Preset Create', () => {
         isOwned: true,
         permissions: { canEdit: true, canDelete: true },
         maxReferencedMessages: 100,
+        contextWindowTokens: 8192,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
         params: {},
       });
 
@@ -174,6 +177,9 @@ describe('Preset Create', () => {
         isOwned: true,
         permissions: { canEdit: true, canDelete: true },
         maxReferencedMessages: 100,
+        contextWindowTokens: 8192,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
         params: {},
       };
 
