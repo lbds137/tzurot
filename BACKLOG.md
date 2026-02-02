@@ -127,15 +127,18 @@ Functions exceeding 15 cognitive complexity limit:
 - `services/bot-client/src/services/DiscordResponseSender.ts`
 - `services/bot-client/src/commands/character/chat.ts`
 
-### 🐛 /character chat Errors with Message + API Key Resolution
+### ✅ /character chat Errors with Message + API Key Resolution (FIXED)
 
-Using `/character chat` with a message parameter errors out. Without a message it sometimes works but uses free tier instead of user's API key.
+**Fixed in**: `fix/backlog-triage-quick-wins` branch (commit dcd05caa)
 
-#### ROOT CAUSE IDENTIFIED (2026-02-01)
+**Solution**: Implemented Option B - added `overrideUser`/`overrideMember` options to `buildContext()`. The `/character chat` command now explicitly passes the command invoker's identity, ensuring correct BYOK API key lookup and persona resolution regardless of anchor message author.
+
+<details>
+<summary>Root cause analysis (preserved for reference)</summary>
 
 **Issue 1: WITH message parameter - complete failure**
 
-The fundamental problem is that `buildContext()` uses the **anchor message's author** for userId resolution, but the anchor message is wrong:
+The fundamental problem was that `buildContext()` used the **anchor message's author** for userId resolution, but the anchor message was wrong:
 
 1. `sendAndPersistUserMessage()` sends via `channel.send()` → bot is the message author
 2. This bot-sent message becomes the "anchorMessage" for `buildContext()`
@@ -143,71 +146,13 @@ The fundamental problem is that `buildContext()` uses the **anchor message's aut
 4. Since `message.author.bot === true`, `getOrCreateUser()` returns `null`
 5. Error: "Cannot process messages from bots" is thrown
 
-**Code path**:
-
-- `chat.ts:220` - `channel.send()` makes bot the author
-- `chat.ts:164` - Returns bot message as anchor
-- `MessageContextBuilder.ts:297-306` - Throws for bot authors
-
-**Why @mention works**: The message param is the actual user's Discord message, not a bot-sent one.
-
 **Issue 2: WITHOUT message (weigh-in mode) - wrong user**
 
-1. `getAnchorMessage()` fetches most recent channel message (line 169)
+1. `getAnchorMessage()` fetches most recent channel message
 2. `buildContext()` uses that message's author for userId resolution
 3. BYOK lookup uses **whoever sent the last message**, not the command invoker
-4. If last message was from another user or a bot response → wrong API key or none
 
-The command has correct `context.user.id` (line 335) but never overrides `buildResult.context.userId`.
-
-#### Fix approach
-
-**Option A: Override userId after buildContext** (minimal change)
-
-```typescript
-// After buildContext returns, override with command invoker's ID
-buildResult.context.userId = context.user.id;
-buildResult.context.userInternalId = await getOrCreateUser(context.user.id, ...);
-```
-
-- Pros: Quick fix
-- Cons: Still builds context with wrong assumptions
-
-**Option B: Refactor to not rely on anchor message author** (proper fix)
-
-```typescript
-// Pass command invoker info explicitly to buildContext
-const buildResult = await contextBuilder.buildContext(anchorMessage, personality, messageContent, {
-  ...options,
-  overrideUser: { id: context.user.id, username: context.user.username },
-});
-```
-
-- Pros: Clean separation of concerns
-- Cons: More invasive change to MessageContextBuilder
-
-**Option C: Use webhook for user message** (preserve author identity)
-
-```typescript
-// Send as user via webhook instead of channel.send()
-const userMsg = await webhookManager.sendAsUser(channel, displayName, message, userAvatarUrl);
-```
-
-- Pros: Message author identity preserved
-- Cons: More complex, needs webhook to impersonate user
-
-**Recommended**: Option A for quick fix, then Option B for proper refactor.
-
-- [ ] Implement Option A: Override userId after buildContext
-- [ ] Test with message parameter (should no longer throw bot error)
-- [ ] Test weigh-in mode (should use command invoker's API key)
-- [ ] Consider Option B refactor as follow-up
-
-**Files**:
-
-- `services/bot-client/src/commands/character/chat.ts` (fix location)
-- `services/bot-client/src/services/MessageContextBuilder.ts` (context building)
-- `packages/common-types/src/services/UserService.ts` (bot rejection logic)
+</details>
 
 ### 🏗️ ConversationalRAGService Refactor
 
