@@ -300,7 +300,7 @@ async function submitAndTrackJob(params: SubmitJobParams): Promise<void> {
       });
   }
 
-  // Fire-and-forget persistence (see comment at line 202 for trade-off rationale)
+  // Fire-and-forget persistence (see sendAndPersistUserMessage for trade-off rationale)
   if (pollResult.success && pollResult.content !== undefined) {
     void getConversationPersistence()
       .saveAssistantMessageFromFields({
@@ -466,9 +466,11 @@ export async function handleChat(
     });
 
     if (buildResult === null) {
-      await channel.send(
-        '❌ No conversation history found in this channel.\nStart a conversation first, or provide a message.'
-      );
+      // Different error messages for weigh-in mode (no message) vs chat mode (with message)
+      const errorMsg = isWeighInMode
+        ? '❌ No conversation history found. Start a conversation first before using weigh-in mode.'
+        : '❌ Unable to build conversation context. Please try again.';
+      await channel.send(errorMsg);
       return;
     }
 
