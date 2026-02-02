@@ -54,6 +54,9 @@ describe('autocompleteCache', () => {
         slug: 'lilith',
         isPublic: true,
         isOwned: true,
+        ownerId: 'owner-1',
+        ownerDiscordId: 'discord-123',
+        permissions: { canEdit: true, canDelete: true },
       },
       {
         id: 'personality-2',
@@ -62,6 +65,9 @@ describe('autocompleteCache', () => {
         slug: 'default',
         isPublic: true,
         isOwned: true,
+        ownerId: 'owner-1',
+        ownerDiscordId: 'discord-123',
+        permissions: { canEdit: true, canDelete: true },
       },
     ];
 
@@ -272,6 +278,9 @@ describe('autocompleteCache', () => {
           slug: 'test',
           isPublic: true,
           isOwned: true,
+          ownerId: 'owner-1',
+          ownerDiscordId: 'discord-123',
+          permissions: { canEdit: true, canDelete: true },
         },
       ];
       const mockPersonas: PersonaSummary[] = [

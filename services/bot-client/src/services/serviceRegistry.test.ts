@@ -18,10 +18,6 @@ import type { MessageContextBuilder } from './MessageContextBuilder.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
 import type { ExtendedContextResolver } from './ExtendedContextResolver.js';
 
-const mockMessageContextBuilder = {
-  buildContext: vi.fn(),
-} as unknown as MessageContextBuilder;
-
 const mockConversationPersistence = {
   saveUserMessageFromFields: vi.fn(),
   saveAssistantMessageFromFields: vi.fn(),
@@ -129,9 +125,6 @@ describe('serviceRegistry', () => {
     const mockMessageContextBuilder = {
       buildContext: vi.fn(),
     } as unknown as MessageContextBuilder;
-    const mockLocalExtendedContextResolver = {
-      resolveAll: vi.fn(),
-    } as unknown as ExtendedContextResolver;
 
     it('should return registered JobTracker', async () => {
       const { registerServices, getJobTracker } = await import('./serviceRegistry.js');

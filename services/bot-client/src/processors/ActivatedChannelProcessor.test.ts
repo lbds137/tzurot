@@ -40,7 +40,7 @@ function createMockMessage(options?: {
   } as unknown as Message;
 }
 
-const mockLilithPersonality: LoadedPersonality = {
+const mockLilithPersonality = {
   id: 'lilith-id',
   name: 'Lilith',
   slug: 'lilith',
@@ -49,12 +49,7 @@ const mockLilithPersonality: LoadedPersonality = {
   model: 'anthropic/claude-sonnet-4.5',
   temperature: 0.8,
   avatarUrl: 'https://example.com/lilith.png',
-  requiresImageSupport: false,
-  requiredCapabilities: [],
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  createdBy: 'user-123',
-};
+} as unknown as LoadedPersonality;
 
 describe('ActivatedChannelProcessor', () => {
   let processor: ActivatedChannelProcessor;

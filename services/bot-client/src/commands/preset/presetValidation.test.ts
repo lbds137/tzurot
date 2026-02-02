@@ -38,6 +38,8 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     reasoning_max_tokens: '',
     reasoning_exclude: '',
     reasoning_enabled: '',
+    // Output params
+    show_thinking: '',
     ...overrides,
   };
 }

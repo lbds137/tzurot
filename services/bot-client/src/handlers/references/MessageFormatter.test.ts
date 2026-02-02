@@ -359,10 +359,7 @@ describe('MessageFormatter', () => {
     it('should parse and include embeds', async () => {
       const { EmbedParser } = await import('../../utils/EmbedParser.js');
 
-      vi.mocked(EmbedParser.parseMessageEmbeds).mockReturnValue([
-        'Embed Title',
-        'Embed Description',
-      ]);
+      vi.mocked(EmbedParser.parseMessageEmbeds).mockReturnValue('Embed Title\nEmbed Description');
 
       const message = createMockMessage({
         content: 'Message with embeds',
@@ -373,7 +370,7 @@ describe('MessageFormatter', () => {
 
       const result = await formatter.formatMessage(message, 1);
 
-      expect(result.embeds).toEqual(['Embed Title', 'Embed Description']);
+      expect(result.embeds).toBe('Embed Title\nEmbed Description');
     });
   });
 

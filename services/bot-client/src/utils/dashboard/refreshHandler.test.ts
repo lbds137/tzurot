@@ -30,7 +30,7 @@ describe('refreshHandler', () => {
 
   const mockConfig: DashboardConfig<{ name: string }> = {
     entityType: 'test',
-    title: 'Test Dashboard',
+    getTitle: () => 'Test Dashboard',
     sections: [],
   };
 

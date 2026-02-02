@@ -404,9 +404,10 @@ describe('customIds', () => {
 
   describe('round-trip tests (build then parse)', () => {
     it('should round-trip character list page', () => {
-      const customId = CharacterCustomIds.listPage(5);
+      const customId = CharacterCustomIds.listPage(5, 'date');
       const parsed = CharacterCustomIds.parse(customId);
       expect(parsed?.page).toBe(5);
+      expect(parsed?.sort).toBe('date');
     });
 
     it('should round-trip character view page', () => {
@@ -492,7 +493,8 @@ describe('customIds', () => {
         assertValidCustomId(CharacterCustomIds.modal('test', 'section'), 'character'));
       it('close', () => assertValidCustomId(CharacterCustomIds.close('test'), 'character'));
       it('refresh', () => assertValidCustomId(CharacterCustomIds.refresh('test'), 'character'));
-      it('listPage', () => assertValidCustomId(CharacterCustomIds.listPage(1), 'character'));
+      it('listPage', () =>
+        assertValidCustomId(CharacterCustomIds.listPage(1, 'date'), 'character'));
       it('listInfo', () => assertValidCustomId(CharacterCustomIds.listInfo(), 'character'));
       it('viewPage', () =>
         assertValidCustomId(CharacterCustomIds.viewPage('test', 1), 'character'));

@@ -5,7 +5,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Attachment } from 'discord.js';
 import { processAvatarAttachment, AvatarProcessingError } from './avatarProcessor.js';
-import { CONTENT_TYPES, DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types';
 
 // Mock fetch globally
 const mockFetch = vi.fn();

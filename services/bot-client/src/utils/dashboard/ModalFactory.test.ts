@@ -55,9 +55,11 @@ function getModalComponents(modal: ReturnType<typeof buildSectionModal>) {
   return json.components ?? [];
 }
 
-function getTextInput(modal: ReturnType<typeof buildSectionModal>, index: number) {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getTextInput(modal: ReturnType<typeof buildSectionModal>, index: number): any {
   const components = getModalComponents(modal);
-  return components[index]?.components?.[0];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return (components[index] as any)?.components?.[0];
 }
 
 describe('ModalFactory', () => {
