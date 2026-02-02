@@ -8,7 +8,6 @@ import {
   buildPresetDashboardOptions,
   handleCloseButton,
   handleRefreshButton,
-  handleToggleGlobalButton,
   handleDeleteButton,
   handleConfirmDeleteButton,
   handleCancelDeleteButton,
@@ -81,7 +80,7 @@ const mockGetSessionDataOrReply = vi
 // checkOwnership mock - track calls so tests can override behavior
 const mockCheckOwnership = vi
   .fn()
-  .mockImplementation(async (interaction, _entity, action, options) => {
+  .mockImplementation(async (_interaction, _entity, _action, _options) => {
     // Default: owner (tests can override with mockCheckOwnership.mockResolvedValue(false))
     // When tests set mockResolvedValue(false), this implementation is replaced
     return true;
@@ -187,22 +186,35 @@ describe('Preset Dashboard Buttons', () => {
 
   const createMockFlattenedPreset = (
     overrides?: Partial<FlattenedPresetData>
-  ): FlattenedPresetData => ({
-    id: 'preset-123',
-    name: 'Test Preset',
-    slug: 'test-preset',
-    description: 'A test preset',
-    isGlobal: false,
-    isOwned: true,
-    modelId: 'gpt-4',
-    temperature: 0.7,
-    maxTokens: 4000,
-    topP: null,
-    topK: null,
-    frequencyPenalty: null,
-    presencePenalty: null,
-    ...overrides,
-  });
+  ): FlattenedPresetData =>
+    ({
+      id: 'preset-123',
+      name: 'Test Preset',
+      description: 'A test preset',
+      provider: 'openrouter',
+      model: 'gpt-4',
+      visionModel: '',
+      isGlobal: false,
+      isOwned: true,
+      canEdit: true,
+      maxReferencedMessages: '10',
+      temperature: '0.7',
+      max_tokens: '4000',
+      top_p: '',
+      top_k: '',
+      seed: '',
+      frequency_penalty: '',
+      presence_penalty: '',
+      repetition_penalty: '',
+      min_p: '',
+      top_a: '',
+      reasoning_effort: '',
+      reasoning_max_tokens: '',
+      reasoning_exclude: '',
+      reasoning_enabled: '',
+      show_thinking: '',
+      ...overrides,
+    }) as FlattenedPresetData;
 
   const createMockButtonInteraction = (customId: string) =>
     ({
@@ -285,6 +297,9 @@ describe('Preset Dashboard Buttons', () => {
     isOwned: true,
     permissions: { canEdit: true },
     maxReferencedMessages: 10,
+    contextWindowTokens: 8192,
+    memoryScoreThreshold: null,
+    memoryLimit: null,
     params: {
       temperature: 0.7,
       top_p: null,

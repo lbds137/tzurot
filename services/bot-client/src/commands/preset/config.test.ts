@@ -26,6 +26,8 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       contextWindowTokens: 8192,
+      memoryScoreThreshold: null,
+      memoryLimit: null,
       params: {},
     };
 
@@ -55,6 +57,8 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: false, canDelete: false },
       maxReferencedMessages: 5,
       contextWindowTokens: 8192,
+      memoryScoreThreshold: null,
+      memoryLimit: null,
       params: {},
     };
 
@@ -77,6 +81,8 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       contextWindowTokens: 8192,
+      memoryScoreThreshold: null,
+      memoryLimit: null,
       params: {
         temperature: 0.7,
         top_p: 0.9,
@@ -108,6 +114,8 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       contextWindowTokens: 8192,
+      memoryScoreThreshold: null,
+      memoryLimit: null,
       params: {
         frequency_penalty: 0.5,
         presence_penalty: 0.3,
@@ -139,6 +147,8 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       contextWindowTokens: 8192,
+      memoryScoreThreshold: null,
+      memoryLimit: null,
       params: {
         reasoning: {
           effort: 'high',
@@ -170,6 +180,8 @@ describe('flattenPresetData', () => {
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
       contextWindowTokens: 8192,
+      memoryScoreThreshold: null,
+      memoryLimit: null,
       params: {},
     };
 
