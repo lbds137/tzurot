@@ -29,8 +29,10 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
 const mockCreateInfoEmbed = vi.fn(() => ({}));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
-  createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
+  createSuccessEmbed: (...args: unknown[]) =>
+    mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
+  createInfoEmbed: (...args: unknown[]) =>
+    mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
 }));
 
 // Mock autocomplete

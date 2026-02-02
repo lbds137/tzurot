@@ -84,11 +84,18 @@ const mockHandleDestructiveConfirmButton = vi.fn();
 const mockHandleDestructiveModalSubmit = vi.fn();
 const mockCreateHardDeleteConfig = vi.fn(() => ({ type: 'config' }));
 vi.mock('../../utils/destructiveConfirmation.js', () => ({
-  handleDestructiveCancel: (...args: unknown[]) => mockHandleDestructiveCancel(...args),
+  handleDestructiveCancel: (...args: unknown[]) =>
+    mockHandleDestructiveCancel(...(args as Parameters<typeof mockHandleDestructiveCancel>)),
   handleDestructiveConfirmButton: (...args: unknown[]) =>
-    mockHandleDestructiveConfirmButton(...args),
-  handleDestructiveModalSubmit: (...args: unknown[]) => mockHandleDestructiveModalSubmit(...args),
-  createHardDeleteConfig: (...args: unknown[]) => mockCreateHardDeleteConfig(...args),
+    mockHandleDestructiveConfirmButton(
+      ...(args as Parameters<typeof mockHandleDestructiveConfirmButton>)
+    ),
+  handleDestructiveModalSubmit: (...args: unknown[]) =>
+    mockHandleDestructiveModalSubmit(
+      ...(args as Parameters<typeof mockHandleDestructiveModalSubmit>)
+    ),
+  createHardDeleteConfig: (...args: unknown[]) =>
+    mockCreateHardDeleteConfig(...(args as Parameters<typeof mockCreateHardDeleteConfig>)),
 }));
 
 // Mock userGatewayClient
@@ -118,7 +125,9 @@ describe('History Command Definition', () => {
 
   it('should have clear subcommand with correct options', () => {
     const json = data.toJSON();
-    const clearSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'clear');
+    const clearSubcommand = json.options?.find((opt: { name: string }) => opt.name === 'clear') as
+      | { options?: Array<{ name: string; required?: boolean }> }
+      | undefined;
     expect(clearSubcommand).toBeDefined();
     expect(clearSubcommand?.options).toHaveLength(2);
     expect(clearSubcommand?.options?.[0]?.name).toBe('personality');
@@ -143,7 +152,7 @@ describe('History Command Definition', () => {
     const json = data.toJSON();
     const hardDeleteSubcommand = json.options?.find(
       (opt: { name: string }) => opt.name === 'hard-delete'
-    );
+    ) as { options?: Array<{ name: string }> } | undefined;
     expect(hardDeleteSubcommand).toBeDefined();
     expect(hardDeleteSubcommand?.options).toHaveLength(1);
     expect(hardDeleteSubcommand?.options?.[0]?.name).toBe('personality');

@@ -17,7 +17,6 @@ import {
   updateCharacter,
   toggleVisibility,
   fetchUsernames,
-  type FetchedCharacter,
 } from './api.js';
 import * as userGatewayClient from '../../utils/userGatewayClient.js';
 import type { EnvConfig } from '@tzurot/common-types';
@@ -45,7 +44,7 @@ describe('Character API Client', () => {
   describe('fetchCharacter', () => {
     it('should fetch character and include canEdit from API response', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           personality: {
             id: 'char-uuid-1',
@@ -75,7 +74,7 @@ describe('Character API Client', () => {
 
     it('should return canEdit false when user does not own character', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           personality: {
             id: 'char-uuid-1',
@@ -135,7 +134,7 @@ describe('Character API Client', () => {
   describe('fetchAllCharacters', () => {
     it('should separate owned and public characters', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           personalities: [
             {
@@ -189,7 +188,7 @@ describe('Character API Client', () => {
   describe('fetchUserCharacters', () => {
     it('should return only owned characters', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           personalities: [
             {
@@ -228,7 +227,7 @@ describe('Character API Client', () => {
   describe('fetchPublicCharacters', () => {
     it('should return only public characters from others', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           personalities: [
             {
@@ -267,7 +266,7 @@ describe('Character API Client', () => {
   describe('createCharacter', () => {
     it('should create character via API', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           success: true,
           personality: {
@@ -333,7 +332,7 @@ describe('Character API Client', () => {
   describe('updateCharacter', () => {
     it('should update character via API', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           success: true,
           personality: {
@@ -378,7 +377,7 @@ describe('Character API Client', () => {
   describe('toggleVisibility', () => {
     it('should toggle visibility via API', async () => {
       const mockResponse = {
-        ok: true,
+        ok: true as const,
         data: {
           success: true,
           personality: {

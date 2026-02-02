@@ -32,7 +32,8 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 // Mock commandHelpers
 const mockCreateSuccessEmbed = vi.fn(() => ({}));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
+  createSuccessEmbed: (...args: unknown[]) =>
+    mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
 }));
 
 describe('handleUndo', () => {

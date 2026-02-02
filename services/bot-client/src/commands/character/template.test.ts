@@ -9,8 +9,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handleTemplate } from './template.js';
 import { AttachmentBuilder } from 'discord.js';
 import { CHARACTER_JSON_TEMPLATE } from './import.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 describe('handleTemplate', () => {
   const mockEditReply = vi.fn();
@@ -21,14 +21,14 @@ describe('handleTemplate', () => {
     mockEditReply.mockResolvedValue(undefined);
   });
 
-  function createMockInteraction(): ChatInputCommandInteraction {
+  function createMockContext(): DeferredCommandContext {
     return {
       editReply: mockEditReply,
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as DeferredCommandContext;
   }
 
   it('should reply with a JSON file attachment', async () => {
-    await handleTemplate(createMockInteraction(), mockConfig);
+    await handleTemplate(createMockContext(), mockConfig);
 
     expect(mockEditReply).toHaveBeenCalledTimes(1);
     const replyCall = mockEditReply.mock.calls[0][0];
@@ -40,7 +40,7 @@ describe('handleTemplate', () => {
   });
 
   it('should name the file character_card_template.json', async () => {
-    await handleTemplate(createMockInteraction(), mockConfig);
+    await handleTemplate(createMockContext(), mockConfig);
 
     const replyCall = mockEditReply.mock.calls[0][0];
     const attachment = replyCall.files[0] as AttachmentBuilder;
@@ -50,7 +50,7 @@ describe('handleTemplate', () => {
   });
 
   it('should include the template content in the attachment', async () => {
-    await handleTemplate(createMockInteraction(), mockConfig);
+    await handleTemplate(createMockContext(), mockConfig);
 
     const replyCall = mockEditReply.mock.calls[0][0];
     const attachment = replyCall.files[0] as AttachmentBuilder;
@@ -61,7 +61,7 @@ describe('handleTemplate', () => {
   });
 
   it('should include helpful instructions in the message', async () => {
-    await handleTemplate(createMockInteraction(), mockConfig);
+    await handleTemplate(createMockContext(), mockConfig);
 
     const replyCall = mockEditReply.mock.calls[0][0];
     expect(replyCall.content).toContain('Character Import Template');

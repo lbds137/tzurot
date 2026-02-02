@@ -10,11 +10,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { handlePurge } from './purge.js';
-import type {
-  ChatInputCommandInteraction,
-  ButtonInteraction,
-  ModalSubmitInteraction,
-} from 'discord.js';
+import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {

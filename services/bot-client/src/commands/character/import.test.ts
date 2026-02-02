@@ -2,11 +2,11 @@
  * Tests for Character Import Subcommand
  */
 
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
-import { MessageFlags, EmbedBuilder } from 'discord.js';
-import type { ChatInputCommandInteraction, Attachment } from 'discord.js';
+import { describe, it, expect, vi, beforeEach, afterEach, type Mock } from 'vitest';
+import { EmbedBuilder } from 'discord.js';
+import type { Attachment } from 'discord.js';
 import { handleImport, CHARACTER_JSON_TEMPLATE, REQUIRED_IMPORT_FIELDS } from './import.js';
-import { DISCORD_LIMITS, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_LIMITS } from '@tzurot/common-types';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {

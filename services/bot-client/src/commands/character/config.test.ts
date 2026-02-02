@@ -324,15 +324,15 @@ describe('Character Dashboard Configuration', () => {
 
     it('should include slug in description', () => {
       const character = createTestCharacter({ slug: 'my-character' });
-      expect(characterDashboardConfig.getDescription(character)).toContain('my-character');
+      expect(characterDashboardConfig.getDescription!(character)).toContain('my-character');
     });
 
     it('should show visibility status in description', () => {
       const publicChar = createTestCharacter({ isPublic: true });
       const privateChar = createTestCharacter({ isPublic: false });
 
-      expect(characterDashboardConfig.getDescription(publicChar)).toContain('Public');
-      expect(characterDashboardConfig.getDescription(privateChar)).toContain('Private');
+      expect(characterDashboardConfig.getDescription!(publicChar)).toContain('Public');
+      expect(characterDashboardConfig.getDescription!(privateChar)).toContain('Private');
     });
 
     it('should include footer with dates', () => {
@@ -340,13 +340,13 @@ describe('Character Dashboard Configuration', () => {
         createdAt: '2024-06-15T00:00:00Z',
         updatedAt: '2024-07-20T00:00:00Z',
       });
-      const footer = characterDashboardConfig.getFooter(character);
+      const footer = characterDashboardConfig.getFooter!(character);
       expect(footer).toContain('Created:');
       expect(footer).toContain('Updated:');
     });
 
     it('should have visibility and avatar actions', () => {
-      const actionIds = characterDashboardConfig.actions.map(a => a.id);
+      const actionIds = characterDashboardConfig.actions!.map(a => a.id);
       expect(actionIds).toContain('visibility');
       expect(actionIds).toContain('avatar');
     });

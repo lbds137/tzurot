@@ -7,8 +7,9 @@ import { handleCreate, handleSeedModalSubmit } from './create.js';
 import * as api from './api.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
 import type { EnvConfig } from '@tzurot/common-types';
-import type { ChatInputCommandInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ModalSubmitInteraction } from 'discord.js';
 import { MessageFlags } from 'discord.js';
+import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -41,7 +42,7 @@ describe('Character Create', () => {
   describe('handleCreate', () => {
     const mockInteraction = {
       showModal: vi.fn(),
-    } as unknown as ChatInputCommandInteraction;
+    } as unknown as ModalCommandContext;
 
     beforeEach(() => {
       vi.clearAllMocks();

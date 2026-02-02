@@ -218,7 +218,7 @@ describe('Memory Detail', () => {
       const row = buildDetailButtons(memory);
 
       expect(row.components).toHaveLength(4);
-      const labels = row.components.map(b => b.data.label);
+      const labels = row.components.map(b => (b.data as { label?: string }).label);
       // Emojis are set via .setEmoji(), not embedded in labels
       expect(labels).toContain('Edit');
       expect(labels).toContain('Lock');
@@ -232,7 +232,7 @@ describe('Memory Detail', () => {
       const memory = createMockMemory({ isLocked: true });
       const row = buildDetailButtons(memory);
 
-      const labels = row.components.map(b => b.data.label);
+      const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).toContain('Unlock'); // Emoji set via .setEmoji()
     });
 
@@ -241,7 +241,7 @@ describe('Memory Detail', () => {
       const row = buildDetailButtons(memory, true);
 
       expect(row.components).toHaveLength(5);
-      const labels = row.components.map(b => b.data.label);
+      const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).toContain('View Full'); // Emoji set via .setEmoji()
     });
 
@@ -250,7 +250,7 @@ describe('Memory Detail', () => {
       const row = buildDetailButtons(memory, false);
 
       expect(row.components).toHaveLength(4);
-      const labels = row.components.map(b => b.data.label);
+      const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).not.toContain('View Full');
     });
   });
@@ -260,7 +260,7 @@ describe('Memory Detail', () => {
       const row = buildDeleteConfirmButtons('memory-123');
 
       expect(row.components).toHaveLength(2);
-      const labels = row.components.map(b => b.data.label);
+      const labels = row.components.map(b => (b.data as { label?: string }).label);
       expect(labels).toContain('Cancel');
       expect(labels).toContain('Yes, Delete');
     });
