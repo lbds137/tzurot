@@ -77,12 +77,6 @@ Functions exceeding 15 cognitive complexity limit:
 
 **References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
-### 🏗️ AI Context Bridge (Process)
-
-**Problem**: AI assistance accelerates code generation but has no memory of existing patterns, leading to accidental duplication.
-
-- [ ] Thoroughly review Claude Code mastery - A solo developer's complete optimization guide.md and act on its recommendations. Use MCP council to fill in gaps or get additional inspiration. This entails a significant refactoring of our documentation and related practices so it should go on its own PR. USE PLAN MODE TO BE THOROUGH.
-
 ### 🏗️ LLM Config Single Source of Truth (CRITICAL)
 
 **Root cause of thinking/reasoning breakage in beta.60-62.** Config field definitions are scattered across 5+ files that must stay in sync manually. When `reasoning` was added, it was missed in `PersonalityDefaults.getReasoningConfig()`, causing silent data loss.
@@ -248,6 +242,17 @@ Support tagging multiple characters in one message, each responding in order.
 **DM consideration**: Last character becomes sticky session, but extended context still provides continuity.
 
 **Complexity**: Medium (~1-2 days). Main challenge is refactoring processor chain from single-match to multi-match.
+
+### ✨ Emoji Reaction Actions
+
+Allow emoji reactions to trigger personality actions.
+
+- [ ] Define action mapping (❤️ = positive feedback, 👎 = regenerate, etc.)
+- [ ] Hook into reaction events (reactionAdd handler)
+- [ ] Action dispatch based on emoji → action mapping
+- [ ] Per-personality action configuration (optional)
+
+**Note**: Builds on reaction extraction (beta.61)
 
 ---
 
@@ -550,6 +555,31 @@ AI-generated images from personalities.
 ## Smaller Items
 
 _Opportunistic work between major features._
+
+### ✨ Discord Emoji/Sticker Image Support
+
+Support custom Discord emoji and stickers in vision context.
+
+- [ ] Extract emoji URLs from message content (custom emoji format: `<:name:id>`)
+- [ ] Extract sticker URLs from message stickers
+- [ ] Include in vision context alongside attachments
+- [ ] Handle animated emoji/stickers (GIF vs static)
+
+### ✨ Bot Presence Setting
+
+Allow setting the bot's status message (like user status).
+
+- [ ] `/admin presence set <type> <message>` - Set bot presence (Playing, Watching, etc.)
+- [ ] `/admin presence clear` - Clear custom presence
+- [ ] Persist across restarts (store in database or env)
+
+### ✨ Bot Health Status
+
+Admin command showing bot health and diagnostics.
+
+- [ ] `/admin health` - Show uptime, version, connected services
+- [ ] Include: Discord connection, Redis, PostgreSQL, BullMQ queue depth
+- [ ] Optional: memory usage, active personality count
 
 ### ✨ Dynamic Model Selection for Presets
 

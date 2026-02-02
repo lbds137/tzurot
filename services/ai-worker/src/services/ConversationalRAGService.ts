@@ -109,6 +109,58 @@ export class ConversationalRAGService {
   // ============================================================================
 
   /**
+   * Resolve user name for placeholder replacement
+   */
+  private resolveUserName(context: ConversationContext): string {
+    if (context.userName !== undefined && context.userName.length > 0) {
+      return context.userName;
+    }
+    if (context.activePersonaName !== undefined && context.activePersonaName.length > 0) {
+      return context.activePersonaName;
+    }
+    return 'User';
+  }
+
+  /**
+   * Build content for embedding with optional referenced messages
+   */
+  private buildContentForEmbedding(
+    contentForStorage: string,
+    referencedMessagesTextForSearch: string | undefined
+  ): string {
+    if (
+      referencedMessagesTextForSearch !== undefined &&
+      referencedMessagesTextForSearch.length > 0
+    ) {
+      return `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`;
+    }
+    return contentForStorage;
+  }
+
+  /**
+   * Extract API-level reasoning content from response metadata
+   */
+  private extractApiReasoning(
+    additionalKwargs: { reasoning?: string } | undefined,
+    responseMetadata: { reasoning_details?: unknown[] } | undefined
+  ): string | null {
+    // First check additional_kwargs.reasoning (primary location for DeepSeek R1)
+    if (
+      additionalKwargs?.reasoning !== undefined &&
+      typeof additionalKwargs.reasoning === 'string' &&
+      additionalKwargs.reasoning.length > 0
+    ) {
+      logger.debug(
+        { reasoningLength: additionalKwargs.reasoning.length },
+        '[RAG] Found reasoning content in additional_kwargs.reasoning'
+      );
+      return additionalKwargs.reasoning;
+    }
+    // Fall back to reasoning_details array (some providers use this format)
+    return extractApiReasoningContent(responseMetadata?.reasoning_details);
+  }
+
+  /**
    * Process input attachments and format messages for AI consumption
    *
    * @param personality - Personality configuration
@@ -258,7 +310,11 @@ export class ConversationalRAGService {
 
   /**
    * Process thinking content from model response.
-   * Handles edge case where model wraps entire response in thinking tags (e.g., R1T Chimera).
+   *
+   * When visible content is empty but thinking content exists (e.g., Kimi K2.5),
+   * this method returns empty visible content rather than using thinking as the
+   * response. The caller (GenerationStep) handles this as an EMPTY_RESPONSE error,
+   * which prevents internal reasoning from leaking to users.
    */
   private processThinkingContent(
     deduplicatedContent: string,
@@ -267,36 +323,23 @@ export class ConversationalRAGService {
     const { thinkingContent: inlineThinking, visibleContent: extractedVisibleContent } =
       extractThinkingBlocks(deduplicatedContent);
 
-    let visibleContent = extractedVisibleContent;
-    let thinkingUsedAsResponse = false;
+    const visibleContent = extractedVisibleContent;
 
-    // Handle edge case: if visible content is empty but thinking content exists,
-    // the model likely wrapped its entire response in thinking tags
+    // Log when model produces only thinking content - this will be handled as
+    // EMPTY_RESPONSE by GenerationStep, preventing thinking leak to users
     if (
       visibleContent.trim().length === 0 &&
       inlineThinking !== null &&
       inlineThinking.length > 0
     ) {
       logger.warn(
-        { inlineThinkingLength: inlineThinking.length },
-        '[RAG] Empty visible content after thinking extraction - using thinking content as response'
+        { inlineThinkingLength: inlineThinking.length, hasApiReasoning: apiReasoning !== null },
+        '[RAG] Empty visible content after thinking extraction - model only produced reasoning'
       );
-      visibleContent = inlineThinking;
-      thinkingUsedAsResponse = true;
     }
 
     // Merge all sources - API reasoning first, then inline
-    // If thinking was used as response, don't duplicate it as thinking content
-    const thinkingContent = thinkingUsedAsResponse
-      ? apiReasoning
-      : mergeThinkingContent(apiReasoning, inlineThinking);
-
-    if (thinkingUsedAsResponse) {
-      logger.debug(
-        { hasApiReasoning: apiReasoning !== null, inlineThinkingLength: inlineThinking?.length },
-        '[RAG] Using thinking content as response - inline thinking discarded to avoid duplication'
-      );
-    }
+    const thinkingContent = mergeThinkingContent(apiReasoning, inlineThinking);
 
     if (apiReasoning !== null) {
       logger.debug(
@@ -496,51 +539,18 @@ export class ConversationalRAGService {
     // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
     const deduplicatedContent = removeDuplicateResponse(rawContent);
 
-    // Extract thinking content from THREE sources (in priority order):
-    // 1. additional_kwargs.reasoning - OpenRouter puts DeepSeek R1 reasoning here
-    // 2. response_metadata.reasoning_details - Some providers use this format
-    // 3. Inline thinking tags (<think>, <thinking>, etc.) - In the content itself
-    //
-    // LangChain's ChatOpenAI puts unknown API response fields in additional_kwargs,
-    // which is where OpenRouter places the extracted thinking content for R1 models.
-    let apiReasoning: string | null = null;
-
-    // First check additional_kwargs.reasoning (primary location for DeepSeek R1)
-    if (
-      additionalKwargs?.reasoning !== undefined &&
-      typeof additionalKwargs.reasoning === 'string' &&
-      additionalKwargs.reasoning.length > 0
-    ) {
-      apiReasoning = additionalKwargs.reasoning;
-      logger.debug(
-        { reasoningLength: apiReasoning.length },
-        '[RAG] Found reasoning content in additional_kwargs.reasoning'
-      );
-    }
-    // Fall back to reasoning_details array (some providers use this format)
-    else {
-      apiReasoning = extractApiReasoningContent(responseMetadata?.reasoning_details);
-    }
-
-    // Process thinking content (handles R1T Chimera edge case where response is wrapped in thinking tags)
+    // Extract API-level reasoning (DeepSeek R1, etc.) then process inline thinking tags
+    const apiReasoning = this.extractApiReasoning(additionalKwargs, responseMetadata);
     const { visibleContent, thinkingContent } = this.processThinkingContent(
       deduplicatedContent,
       apiReasoning
     );
 
-    // Strip artifacts from visible content only
+    // Strip artifacts and replace placeholders
     let cleanedContent = stripResponseArtifacts(visibleContent, personality.name);
-
-    // Replace placeholders
-    const userName =
-      context.userName !== undefined && context.userName.length > 0
-        ? context.userName
-        : context.activePersonaName !== undefined && context.activePersonaName.length > 0
-          ? context.activePersonaName
-          : 'User';
     cleanedContent = replacePromptPlaceholders(
       cleanedContent,
-      userName,
+      this.resolveUserName(context),
       personality.name,
       context.discordUsername
     );
@@ -732,14 +742,11 @@ export class ConversationalRAGService {
           personality.id
         );
         if (personaResult !== null) {
-          const contentForEmbedding =
-            inputs.referencedMessagesTextForSearch !== undefined &&
-            inputs.referencedMessagesTextForSearch.length > 0
-              ? `${budgetResult.contentForStorage}\n\n[Referenced content: ${inputs.referencedMessagesTextForSearch}]`
-              : budgetResult.contentForStorage;
-
           deferredMemoryData = {
-            contentForEmbedding,
+            contentForEmbedding: this.buildContentForEmbedding(
+              budgetResult.contentForStorage,
+              inputs.referencedMessagesTextForSearch
+            ),
             responseContent: finalContent,
             personaId: personaResult.personaId,
           };
@@ -798,15 +805,9 @@ export class ConversationalRAGService {
     );
 
     if (personaResult !== null) {
-      // Build content for LTM embedding: includes references for semantic search
-      const contentForEmbedding =
-        referencedMessagesTextForSearch !== undefined && referencedMessagesTextForSearch.length > 0
-          ? `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`
-          : contentForStorage;
-
       await this.longTermMemory.storeInteraction(
         personality,
-        contentForEmbedding,
+        this.buildContentForEmbedding(contentForStorage, referencedMessagesTextForSearch),
         responseContent,
         context,
         personaResult.personaId
