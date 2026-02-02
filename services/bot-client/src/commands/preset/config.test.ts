@@ -25,6 +25,7 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
+      contextWindowTokens: 8192,
       params: {},
     };
 
@@ -53,6 +54,7 @@ describe('flattenPresetData', () => {
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
       maxReferencedMessages: 5,
+      contextWindowTokens: 8192,
       params: {},
     };
 
@@ -74,6 +76,7 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
+      contextWindowTokens: 8192,
       params: {
         temperature: 0.7,
         top_p: 0.9,
@@ -104,6 +107,7 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
+      contextWindowTokens: 8192,
       params: {
         frequency_penalty: 0.5,
         presence_penalty: 0.3,
@@ -134,6 +138,7 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
+      contextWindowTokens: 8192,
       params: {
         reasoning: {
           effort: 'high',
@@ -164,6 +169,7 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       maxReferencedMessages: 10,
+      contextWindowTokens: 8192,
       params: {},
     };
 
@@ -355,22 +361,22 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
   describe('getDescription', () => {
     it('should show global badge for global presets', () => {
       const data = { isGlobal: true, isOwned: false } as FlattenedPresetData;
-      expect(PRESET_DASHBOARD_CONFIG.getDescription(data)).toBe('🌐 Global');
+      expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('🌐 Global');
     });
 
     it('should show owned badge for owned presets', () => {
       const data = { isGlobal: false, isOwned: true } as FlattenedPresetData;
-      expect(PRESET_DASHBOARD_CONFIG.getDescription(data)).toBe('👤 Owned');
+      expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('👤 Owned');
     });
 
     it('should show both badges when applicable', () => {
       const data = { isGlobal: true, isOwned: true } as FlattenedPresetData;
-      expect(PRESET_DASHBOARD_CONFIG.getDescription(data)).toBe('🌐 Global • 👤 Owned');
+      expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('🌐 Global • 👤 Owned');
     });
 
     it('should return empty string when neither badge applies', () => {
       const data = { isGlobal: false, isOwned: false } as FlattenedPresetData;
-      expect(PRESET_DASHBOARD_CONFIG.getDescription(data)).toBe('');
+      expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('');
     });
   });
 

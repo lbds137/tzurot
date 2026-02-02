@@ -19,7 +19,8 @@ import {
   TARGET_SIZE_BYTES,
 } from './avatarUtils.js';
 import * as api from './api.js';
-import type { ChatInputCommandInteraction, Attachment } from 'discord.js';
+import type { FetchedCharacter } from './api.js';
+import type { Attachment } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
 // Mock dependencies
@@ -68,14 +69,15 @@ describe('Character Avatar Handler', () => {
       editReply: vi.fn(),
     }) as unknown as Parameters<typeof handleAvatar>[0];
 
-  const createMockCharacter = (overrides = {}) => ({
-    id: 'char-uuid-1',
-    name: 'Test Character',
-    displayName: 'Test Display',
-    slug: 'test-character',
-    canEdit: true,
-    ...overrides,
-  });
+  const createMockCharacter = (overrides = {}): FetchedCharacter =>
+    ({
+      id: 'char-uuid-1',
+      name: 'Test Character',
+      displayName: 'Test Display',
+      slug: 'test-character',
+      canEdit: true,
+      ...overrides,
+    }) as unknown as FetchedCharacter;
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -186,7 +188,7 @@ describe('Character Avatar Handler', () => {
       const mockContext = createMockContext('my-char', attachment);
       const mockCharacter = createMockCharacter({ slug: 'my-char', name: 'Luna' });
       vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
-      vi.mocked(api.updateCharacter).mockResolvedValue(undefined);
+      vi.mocked(api.updateCharacter).mockResolvedValue(mockCharacter);
 
       await handleAvatar(mockContext, mockConfig);
 
@@ -202,10 +204,13 @@ describe('Character Avatar Handler', () => {
     it('should use displayName in success message when available', async () => {
       const attachment = createMockAttachment();
       const mockContext = createMockContext('my-char', attachment);
-      vi.mocked(api.fetchCharacter).mockResolvedValue(
-        createMockCharacter({ slug: 'my-char', name: 'Luna', displayName: 'Luna the Great' })
-      );
-      vi.mocked(api.updateCharacter).mockResolvedValue(undefined);
+      const mockCharacter = createMockCharacter({
+        slug: 'my-char',
+        name: 'Luna',
+        displayName: 'Luna the Great',
+      });
+      vi.mocked(api.fetchCharacter).mockResolvedValue(mockCharacter);
+      vi.mocked(api.updateCharacter).mockResolvedValue(mockCharacter);
 
       await handleAvatar(mockContext, mockConfig);
 

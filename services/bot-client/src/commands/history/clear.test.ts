@@ -34,7 +34,8 @@ const mockCreateSuccessEmbed = vi.fn(() => ({
   addFields: vi.fn().mockReturnThis(),
 }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
+  createSuccessEmbed: (...args: unknown[]) =>
+    mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
 }));
 
 describe('handleClear', () => {

@@ -34,7 +34,8 @@ const mockCreateInfoEmbed = vi.fn(() => ({
   addFields: vi.fn().mockReturnThis(),
 }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
+  createInfoEmbed: (...args: unknown[]) =>
+    mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
 }));
 
 describe('handleStats', () => {

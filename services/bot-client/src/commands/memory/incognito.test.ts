@@ -40,9 +40,12 @@ const mockCreateSuccessEmbed = vi.fn(() => ({ type: 'success' }));
 const mockCreateInfoEmbed = vi.fn(() => ({ type: 'info' }));
 const mockCreateWarningEmbed = vi.fn(() => ({ type: 'warning' }));
 vi.mock('../../utils/commandHelpers.js', () => ({
-  createSuccessEmbed: (...args: unknown[]) => mockCreateSuccessEmbed(...args),
-  createInfoEmbed: (...args: unknown[]) => mockCreateInfoEmbed(...args),
-  createWarningEmbed: (...args: unknown[]) => mockCreateWarningEmbed(...args),
+  createSuccessEmbed: (...args: unknown[]) =>
+    mockCreateSuccessEmbed(...(args as Parameters<typeof mockCreateSuccessEmbed>)),
+  createInfoEmbed: (...args: unknown[]) =>
+    mockCreateInfoEmbed(...(args as Parameters<typeof mockCreateInfoEmbed>)),
+  createWarningEmbed: (...args: unknown[]) =>
+    mockCreateWarningEmbed(...(args as Parameters<typeof mockCreateWarningEmbed>)),
 }));
 
 // Mock autocomplete

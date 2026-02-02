@@ -11,8 +11,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { handleEdit } from './edit.js';
 import * as api from './api.js';
+import type { FetchedCharacter } from './api.js';
 import * as dashboardUtils from '../../utils/dashboard/index.js';
-import type { ChatInputCommandInteraction } from 'discord.js';
 import { EmbedBuilder, ActionRowBuilder } from 'discord.js';
 import type { EnvConfig } from '@tzurot/common-types';
 
@@ -60,14 +60,15 @@ describe('Character Edit Handler', () => {
     } as unknown as Parameters<typeof handleEdit>[0];
   };
 
-  const createMockCharacter = (overrides = {}) => ({
-    id: 'char-uuid-1',
-    name: 'Test Character',
-    displayName: 'Test Display',
-    slug: 'test-character',
-    canEdit: true,
-    ...overrides,
-  });
+  const createMockCharacter = (overrides = {}): FetchedCharacter =>
+    ({
+      id: 'char-uuid-1',
+      name: 'Test Character',
+      displayName: 'Test Display',
+      slug: 'test-character',
+      canEdit: true,
+      ...overrides,
+    }) as unknown as FetchedCharacter;
 
   beforeEach(() => {
     vi.clearAllMocks();
