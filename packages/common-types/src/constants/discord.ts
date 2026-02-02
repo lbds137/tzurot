@@ -70,6 +70,21 @@ export const DISCORD_LIMITS = {
 } as const;
 
 /**
+ * Gateway API timeout constants for Discord interactions.
+ *
+ * Discord requires autocomplete responses within 3 seconds.
+ * After deferral (deferReply), we have up to 15 minutes.
+ * These timeouts are for gateway API calls that must complete
+ * within Discord's interaction windows.
+ */
+export const GATEWAY_TIMEOUTS = {
+  /** Timeout for autocomplete handlers (Discord 3s limit) */
+  AUTOCOMPLETE: 2500,
+  /** Timeout for deferred operations (post-deferReply) */
+  DEFERRED: 10000,
+} as const;
+
+/**
  * Discord brand colors (hex values)
  */
 export const DISCORD_COLORS = {

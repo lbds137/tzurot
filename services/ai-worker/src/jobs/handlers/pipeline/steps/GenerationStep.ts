@@ -4,13 +4,10 @@
  * Generates AI response using the RAG service with all prepared context.
  */
 
-/* eslint-disable max-lines -- TODO: Extract diagnostic storage and retry helpers to reduce file size */
-
 import {
   createLogger,
   MessageContent,
   RETRY_CONFIG,
-  getPrismaClient,
   ApiErrorCategory,
   ApiErrorType,
   generateErrorReferenceId,
@@ -36,8 +33,10 @@ import {
 } from '../../../../utils/duplicateDetection.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
-import { sanitizeForJsonb } from '../../../../utils/jsonSanitizer.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';
+import { shouldRetryEmptyResponse, logDuplicateDetection } from './RetryDecisionHelper.js';
+import { storeDiagnosticLog } from './diagnosticStorage.js';
+import { cloneContextForRetry } from './contextCloner.js';
 
 const logger = createLogger('GenerationStep');
 
@@ -103,142 +102,6 @@ export class GenerationStep implements IPipelineStep {
   ) {}
 
   /**
-   * Clone the conversation context for retry isolation.
-   *
-   * The RAG service may mutate rawConversationHistory in-place (e.g., injectImageDescriptions),
-   * which would affect subsequent retry attempts if not cloned. This ensures each retry gets
-   * a fresh context to work with.
-   */
-  private cloneContextForRetry(context: ConversationContext): ConversationContext {
-    return {
-      ...context,
-      rawConversationHistory: context.rawConversationHistory?.map(entry => ({
-        ...entry,
-        // Deep clone messageMetadata to prevent mutation bleeding
-        messageMetadata: entry.messageMetadata
-          ? {
-              ...entry.messageMetadata,
-              // Clone nested arrays if present
-              referencedMessages: entry.messageMetadata.referencedMessages
-                ? [...entry.messageMetadata.referencedMessages]
-                : undefined,
-              imageDescriptions: entry.messageMetadata.imageDescriptions
-                ? [...entry.messageMetadata.imageDescriptions]
-                : undefined,
-              reactions: entry.messageMetadata.reactions
-                ? [...entry.messageMetadata.reactions]
-                : undefined,
-            }
-          : undefined,
-      })),
-    };
-  }
-
-  /**
-   * Store diagnostic data to the database (fire-and-forget).
-   *
-   * This method finalizes the diagnostic collector and writes the data to
-   * the llm_diagnostic_logs table. It runs asynchronously and does NOT
-   * block the response - any errors are logged but don't affect the user.
-   *
-   * Data is automatically cleaned up after 24 hours via the scheduled
-   * cleanup-diagnostic-logs job.
-   */
-  private storeDiagnosticLog(
-    collector: DiagnosticCollector,
-    model: string,
-    provider: string
-  ): void {
-    const payload = collector.finalize();
-
-    // Sanitize payload for PostgreSQL JSONB storage
-    // Handles lone surrogates (from cut-off LLM streams) and null bytes
-    const sanitizedPayload = sanitizeForJsonb(payload);
-
-    // Fire-and-forget: don't await, just log errors
-    const prisma = getPrismaClient();
-    prisma.llmDiagnosticLog
-      .create({
-        data: {
-          requestId: payload.meta.requestId,
-          triggerMessageId: payload.meta.triggerMessageId,
-          personalityId: payload.meta.personalityId,
-          userId: payload.meta.userId,
-          guildId: payload.meta.guildId,
-          channelId: payload.meta.channelId,
-          model,
-          provider,
-          durationMs: payload.timing.totalDurationMs,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment -- Prisma JSON field requires any cast
-          data: sanitizedPayload as any,
-        },
-      })
-      .then(() => {
-        logger.debug(
-          { requestId: payload.meta.requestId },
-          '[GenerationStep] Diagnostic log stored successfully'
-        );
-      })
-      .catch((err: unknown) => {
-        logger.error(
-          { err, requestId: payload.meta.requestId },
-          '[GenerationStep] Failed to store diagnostic log'
-        );
-      });
-  }
-
-  /** Check for empty response and determine retry action */
-  private shouldRetryEmptyResponse(
-    response: RAGResponse,
-    attempt: number,
-    maxAttempts: number,
-    jobId: string | undefined
-  ): 'retry' | 'return' | 'continue' {
-    if (response.content.length > 0) {
-      return 'continue';
-    }
-    const canRetry = attempt < maxAttempts;
-    const hasThinking = response.thinkingContent !== undefined && response.thinkingContent !== '';
-    const logFn = canRetry ? logger.warn : logger.error;
-    logFn(
-      { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
-      canRetry
-        ? '[GenerationStep] Empty response after post-processing. Retrying...'
-        : '[GenerationStep] All retries produced empty responses.'
-    );
-    return canRetry ? 'retry' : 'return';
-  }
-
-  /** Log duplicate detection and determine retry action */
-  private logDuplicateDetection(
-    response: RAGResponse,
-    opts: {
-      attempt: number;
-      maxAttempts: number;
-      matchIndex?: number;
-      jobId?: string;
-      isGuestMode: boolean;
-    }
-  ): 'retry' | 'return' {
-    const { attempt, maxAttempts, matchIndex, jobId, isGuestMode } = opts;
-    const canRetry = attempt < maxAttempts;
-    const logFn = canRetry ? logger.warn : logger.error;
-    logFn(
-      {
-        jobId,
-        modelUsed: response.modelUsed,
-        isGuestMode,
-        attempt,
-        matchedTurnsBack: (matchIndex ?? 0) + 1,
-      },
-      canRetry
-        ? '[GenerationStep] Cross-turn duplication detected. Retrying...'
-        : '[GenerationStep] All retries produced duplicate responses.'
-    );
-    return canRetry ? 'retry' : 'return';
-  }
-
-  /**
    * Generate response with cross-turn duplication and empty response retry.
    * Treats duplicate and empty responses as retryable failures, matching LLM retry pattern.
    * Uses RETRY_CONFIG.MAX_ATTEMPTS (3 attempts = 1 initial + 2 retries).
@@ -293,7 +156,7 @@ export class GenerationStep implements IPipelineStep {
       // Clone context for each attempt to prevent mutation bleeding across retries.
       // The RAG service mutates rawConversationHistory (injectImageDescriptions),
       // so we need a fresh copy for each attempt.
-      const attemptContext = this.cloneContextForRetry(conversationContext);
+      const attemptContext = cloneContextForRetry(conversationContext);
 
       // Generate response - each call gets new request_id via entropy injection
       // Pass retry config for escalating parameters on duplicate retries
@@ -314,7 +177,7 @@ export class GenerationStep implements IPipelineStep {
       );
 
       // Check for empty content after post-processing (e.g., only thinking blocks)
-      const emptyAction = this.shouldRetryEmptyResponse(response, attempt, maxAttempts, jobId);
+      const emptyAction = shouldRetryEmptyResponse({ response, attempt, maxAttempts, jobId });
       if (emptyAction === 'retry') {
         emptyRetries++;
         continue;
@@ -344,7 +207,8 @@ export class GenerationStep implements IPipelineStep {
 
       // Duplicate detected - log and determine action
       duplicateRetries++;
-      const dupAction = this.logDuplicateDetection(response, {
+      const dupAction = logDuplicateDetection({
+        response,
         attempt,
         maxAttempts,
         matchIndex,
@@ -514,7 +378,7 @@ export class GenerationStep implements IPipelineStep {
         });
 
         // Store diagnostic data for failures (fire-and-forget)
-        this.storeDiagnosticLog(
+        storeDiagnosticLog(
           diagnosticCollector,
           response.modelUsed ?? 'unknown',
           provider ?? 'unknown'
@@ -550,7 +414,7 @@ export class GenerationStep implements IPipelineStep {
 
       // Fire-and-forget: Store diagnostic data for flight recorder
       // This runs async and doesn't block the response
-      this.storeDiagnosticLog(
+      storeDiagnosticLog(
         diagnosticCollector,
         response.modelUsed ?? 'unknown',
         provider ?? 'unknown'
@@ -603,7 +467,7 @@ export class GenerationStep implements IPipelineStep {
 
       // Store diagnostic data even for failures (fire-and-forget)
       // This enables /admin debug to show what went wrong
-      this.storeDiagnosticLog(
+      storeDiagnosticLog(
         diagnosticCollector,
         effectivePersonality.model ?? 'unknown',
         provider ?? 'unknown'

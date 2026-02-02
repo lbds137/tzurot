@@ -6,7 +6,7 @@
  */
 
 import { JobStatus } from '../constants/index.js';
-import type { GenerationPayload } from './schemas.js';
+import type { LLMGenerationResult } from './schemas.js';
 
 // Re-export schema-derived types
 export type {
@@ -63,14 +63,15 @@ export {
 /**
  * Response from /ai/generate endpoint
  *
- * Uses GenerationPayload (schema-derived) for the result field to ensure
- * consistency with internal job results while maintaining API contract independence.
+ * Uses LLMGenerationResult (schema-derived) for the result field to provide
+ * full error context (success, error, errorInfo, personalityErrorMessage)
+ * while maintaining API contract consistency.
  */
 export interface GenerateResponse {
   jobId: string;
   requestId: string;
   status: JobStatus;
-  // When wait=true, includes the result directly (uses shared GenerationPayload)
-  result?: GenerationPayload;
+  // When wait=true, includes the result directly (uses full LLMGenerationResult)
+  result?: LLMGenerationResult;
   timestamp?: string;
 }

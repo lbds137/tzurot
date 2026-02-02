@@ -19,6 +19,8 @@ import { mockListPersonasResponse, mockGetPersonaResponse } from '@tzurot/common
 const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 
 // Mock gateway client
+// Note: Tests use objectContaining for API call assertions to focus on the essential
+// userId parameter while ignoring implementation details like timeout values.
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),

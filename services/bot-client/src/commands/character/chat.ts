@@ -32,7 +32,6 @@ import type {
   EnvConfig,
   LoadedPersonality,
   ResolvedExtendedContextSettings,
-  LLMGenerationResult,
 } from '@tzurot/common-types';
 import { buildErrorContent } from '../../utils/buildErrorContent.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -112,23 +111,19 @@ async function pollAndSendResponse(
       pollIntervalMs: INTERVALS.JOB_POLL_INTERVAL,
     });
 
-    // Cast to LLMGenerationResult to access error fields present at runtime
-    // The API returns full LLMGenerationResult but GatewayClient types it narrowly
-    const fullResult = result as LLMGenerationResult | null | undefined;
-
     // Check for explicit failure (success: false) or empty/missing content
     if (
-      fullResult === null ||
-      fullResult === undefined ||
-      fullResult.success === false ||
-      fullResult.content === undefined ||
-      fullResult.content === null ||
-      fullResult.content === ''
+      result === null ||
+      result === undefined ||
+      result.success === false ||
+      result.content === undefined ||
+      result.content === null ||
+      result.content === ''
     ) {
       // Use buildErrorContent for personality-specific error messages when available
       const errorContent =
-        fullResult !== null && fullResult !== undefined
-          ? buildErrorContent(fullResult)
+        result !== null && result !== undefined
+          ? buildErrorContent(result)
           : `*${personality.displayName} is having trouble responding right now.*`;
       await channel.send(errorContent);
       return { success: false, responseMessageIds: [] };
@@ -137,16 +132,16 @@ async function pollAndSendResponse(
     const responseMessageIds = await sendCharacterResponse(
       channel,
       personality,
-      fullResult.content,
-      fullResult.metadata?.modelUsed,
-      fullResult.metadata?.isGuestMode
+      result.content,
+      result.metadata?.modelUsed,
+      result.metadata?.isGuestMode
     );
 
     logger.info(
       { jobId, characterSlug, isWeighInMode, responseCount: responseMessageIds.length },
       '[Character Chat] Response sent successfully'
     );
-    return { success: true, responseMessageIds, content: fullResult.content };
+    return { success: true, responseMessageIds, content: result.content };
   } finally {
     clearInterval(typingInterval);
   }
@@ -372,6 +367,7 @@ async function buildChatContext(
       botUserId: anchorMessage.client.user?.id,
       overrideUser: commandContext.user,
       overrideMember: commandContext.member ?? null, // null for DMs
+      isWeighInMode,
     }
   );
 
