@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createListComparator, sortItems, type ListSortType } from './listSorting.js';
+import { createListComparator, sortItems } from './listSorting.js';
 
 interface TestItem {
   name: string;
