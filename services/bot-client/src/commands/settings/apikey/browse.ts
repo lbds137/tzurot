@@ -20,7 +20,7 @@ import {
   type AIProvider,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
 import { getProviderDisplayName } from '../../../utils/providers.js';
 
 const logger = createLogger('settings-apikey-browse');
@@ -109,7 +109,7 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<WalletListResponse>('/wallet/list', { userId });
+    const result = await callGatewayApi<WalletListResponse>('/wallet/list', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
 
     if (!result.ok) {
       await context.editReply({ content: `❌ Failed to retrieve wallet info: ${result.error}` });

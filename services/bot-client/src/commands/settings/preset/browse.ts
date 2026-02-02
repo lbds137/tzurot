@@ -6,7 +6,7 @@
 import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import { createLogger, DISCORD_COLORS, type ModelOverrideSummary } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { callGatewayApi } from '../../../utils/userGatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../../utils/userGatewayClient.js';
 
 const logger = createLogger('settings-preset-browse');
 
@@ -21,7 +21,7 @@ export async function handleBrowseOverrides(context: DeferredCommandContext): Pr
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<ListResponse>('/user/model-override', { userId });
+    const result = await callGatewayApi<ListResponse>('/user/model-override', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, '[Me/Preset] Failed to list overrides');

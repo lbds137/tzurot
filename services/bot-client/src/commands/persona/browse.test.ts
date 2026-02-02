@@ -22,6 +22,7 @@ const TEST_PERSONA_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 // Mock dashboard utilities
@@ -79,7 +80,10 @@ describe('handleBrowse', () => {
 
     await handleBrowse(createMockContext());
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { userId: '123456789' });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/persona',
+      expect.objectContaining({ userId: '123456789' })
+    );
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [expect.any(Object)],
       components: expect.any(Array),
@@ -151,7 +155,10 @@ describe('handleBrowsePagination', () => {
     await handleBrowsePagination(createMockButtonInteraction('persona::browse::1::all::name::'));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/persona', { userId: '123456789' });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/persona',
+      expect.objectContaining({ userId: '123456789' })
+    );
     expect(mockEditReply).toHaveBeenCalled();
   });
 
@@ -205,9 +212,10 @@ describe('handleBrowseSelect', () => {
     await handleBrowseSelect(createMockSelectInteraction(TEST_PERSONA_ID));
 
     expect(mockDeferUpdate).toHaveBeenCalled();
-    expect(mockCallGatewayApi).toHaveBeenCalledWith(`/user/persona/${TEST_PERSONA_ID}`, {
-      userId: '123456789',
-    });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      `/user/persona/${TEST_PERSONA_ID}`,
+      expect.objectContaining({ userId: '123456789' })
+    );
     expect(mockBuildDashboardEmbed).toHaveBeenCalled();
     expect(mockSessionSet).toHaveBeenCalled();
   });

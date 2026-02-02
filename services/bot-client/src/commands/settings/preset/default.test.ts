@@ -30,6 +30,7 @@ vi.mock('@tzurot/common-types', async () => {
 // Mock the gateway client
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';

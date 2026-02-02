@@ -32,6 +32,10 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  GATEWAY_TIMEOUTS: {
+    AUTOCOMPLETE: 2500,
+    DEFERRED: 10000,
+  },
 }));
 
 // Mock dashboard utilities
@@ -127,7 +131,10 @@ describe('handleBrowse', () => {
     const context = createMockContext();
     await handleBrowse(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: '123456789' });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
+      userId: '123456789',
+      timeout: 10000,
+    });
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: [
         expect.objectContaining({
@@ -386,7 +393,10 @@ describe('handleBrowsePagination', () => {
     const mockInteraction = createMockButtonInteraction('preset::browse::0::all::');
     await handleBrowsePagination(mockInteraction);
 
-    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', { userId: '123456789' });
+    expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/llm-config', {
+      userId: '123456789',
+      timeout: 10000,
+    });
     expect(mockEditReply).toHaveBeenCalledWith({
       embeds: expect.any(Array),
       components: expect.any(Array),

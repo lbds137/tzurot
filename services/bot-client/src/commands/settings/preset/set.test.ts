@@ -12,6 +12,7 @@ import { EmbedBuilder } from 'discord.js';
 // Mock dependencies
 vi.mock('../../../utils/userGatewayClient.js', () => ({
   callGatewayApi: vi.fn(),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
 }));
 
 vi.mock('@tzurot/common-types', async importOriginal => {
