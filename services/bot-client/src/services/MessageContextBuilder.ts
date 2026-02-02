@@ -2,11 +2,8 @@
  * Message Context Builder
  *
  * Builds AI context from Discord messages.
- * Handles attachments, references, environment, and conversation history.
- * Supports extended context: fetching recent Discord channel messages.
+ * Helper modules extracted to contextBuilder/ subdirectory.
  */
-
-/* eslint-disable max-lines -- Cohesive service handling message context building, extended context, and persona resolution */
 
 import type {
   PrismaClient,
@@ -32,7 +29,6 @@ import type {
   ReferencedMessage,
   ConversationMessage,
   AttachmentMetadata,
-  GuildMemberInfo,
 } from '@tzurot/common-types';
 import type { GuildMember } from 'discord.js';
 import type { MessageContext } from '../types.js';
@@ -42,11 +38,14 @@ import { MessageReferenceExtractor } from '../handlers/MessageReferenceExtractor
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
 import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.js';
+import {
+  resolveExtendedContextPersonaIds,
+  extractGuildMemberInfo,
+  resolveEffectiveMember,
+  resolveUserContext,
+} from './contextBuilder/index.js';
 
 const logger = createLogger('MessageContextBuilder');
-
-/** Prefix used for unresolved Discord user IDs in personaId fields */
-const DISCORD_ID_PREFIX = 'discord:';
 
 /**
  * Options for building message context
@@ -124,17 +123,6 @@ interface ExtendedContextParams {
   options: ContextBuildOptions;
 }
 
-/** Result of resolving user, persona, and history */
-interface UserContextResult {
-  internalUserId: string;
-  discordUserId: string;
-  personaId: string;
-  personaName: string | null;
-  userTimezone: string | undefined;
-  contextEpoch: Date | undefined;
-  history: ConversationMessage[];
-}
-
 /** Result of extracting references and resolving mentions */
 interface ReferencesAndMentionsResult {
   messageContent: string;
@@ -166,290 +154,6 @@ export class MessageContextBuilder {
     this.personaResolver = personaResolver;
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever(this.conversationHistory);
-  }
-
-  /**
-   * Resolve discord:XXXX format personaIds to actual UUIDs.
-   * Also remaps participantGuildInfo keys to use the new UUIDs.
-   *
-   * @param messages - Messages to update (modified in place)
-   * @param userMap - Map of discordId -> userId from batch creation
-   * @param personalityId - Personality ID for persona resolution
-   * @param participantGuildInfo - Guild info map to remap (modified in place)
-   * @returns Number of resolved personaIds
-   */
-  /**
-   * Collect discordIds from messages that need persona resolution.
-   */
-  private collectDiscordIdsNeedingResolution(
-    messages: ConversationMessage[],
-    userMap: Map<string, string>
-  ): Set<string> {
-    const uniqueDiscordIds = new Set<string>();
-    for (const msg of messages) {
-      if (msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
-        const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
-        if (userMap.has(discordId)) {
-          uniqueDiscordIds.add(discordId);
-        }
-      }
-    }
-    return uniqueDiscordIds;
-  }
-
-  /**
-   * Batch resolve personas for a set of discordIds.
-   */
-  private async batchResolvePersonas(
-    discordIds: Set<string>,
-    personalityId: string
-  ): Promise<Map<string, { personaId: string; preferredName: string | null | undefined }>> {
-    const resolvedMap = new Map<
-      string,
-      { personaId: string; preferredName: string | null | undefined }
-    >();
-
-    const resolutionResults = await Promise.allSettled(
-      Array.from(discordIds).map(async discordId => {
-        const resolved = await this.personaResolver.resolve(discordId, personalityId);
-        return { discordId, resolved };
-      })
-    );
-
-    for (const result of resolutionResults) {
-      if (result.status === 'rejected') {
-        logger.warn(
-          { error: result.reason },
-          '[MessageContextBuilder] Failed to resolve extended context persona'
-        );
-        continue;
-      }
-      const { discordId, resolved } = result.value;
-      if (resolved.config.personaId.length > 0) {
-        resolvedMap.set(discordId, {
-          personaId: resolved.config.personaId,
-          preferredName: resolved.config.preferredName,
-        });
-      }
-    }
-
-    return resolvedMap;
-  }
-
-  /**
-   * Update messages with resolved persona info, returning remap for guild info.
-   */
-  private updateMessagesWithResolvedPersonas(
-    messages: ConversationMessage[],
-    resolvedMap: Map<string, { personaId: string; preferredName: string | null | undefined }>
-  ): { resolvedCount: number; guildInfoRemap: Map<string, string> } {
-    let resolvedCount = 0;
-    const guildInfoRemap = new Map<string, string>();
-
-    for (const msg of messages) {
-      if (!msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
-        continue;
-      }
-      const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
-      const resolved = resolvedMap.get(discordId);
-      if (resolved === undefined) {
-        continue;
-      }
-      const oldPersonaId = msg.personaId;
-      msg.personaId = resolved.personaId;
-      if (resolved.preferredName !== undefined && resolved.preferredName !== null) {
-        msg.personaName = resolved.preferredName;
-      }
-      guildInfoRemap.set(oldPersonaId, resolved.personaId);
-      resolvedCount++;
-    }
-
-    return { resolvedCount, guildInfoRemap };
-  }
-
-  /**
-   * Remap participantGuildInfo keys from discord:XXXX to resolved UUIDs.
-   */
-  private remapParticipantGuildInfoKeys(
-    participantGuildInfo: Record<
-      string,
-      { roles: string[]; displayColor?: string; joinedAt?: string }
-    >,
-    guildInfoRemap: Map<string, string>
-  ): void {
-    for (const [oldKey, newKey] of guildInfoRemap) {
-      if (oldKey in participantGuildInfo) {
-        participantGuildInfo[newKey] = participantGuildInfo[oldKey];
-        delete participantGuildInfo[oldKey];
-      }
-    }
-  }
-
-  /**
-   * Resolve discord:XXXX format personaIds to actual UUIDs.
-   * Also remaps participantGuildInfo keys to use the new UUIDs.
-   */
-  private async resolveExtendedContextPersonaIds(
-    messages: ConversationMessage[],
-    userMap: Map<string, string>,
-    personalityId: string,
-    participantGuildInfo?: Record<
-      string,
-      { roles: string[]; displayColor?: string; joinedAt?: string }
-    >
-  ): Promise<number> {
-    if (userMap.size === 0) {
-      return 0;
-    }
-
-    const uniqueDiscordIds = this.collectDiscordIdsNeedingResolution(messages, userMap);
-    if (uniqueDiscordIds.size === 0) {
-      return 0;
-    }
-
-    const resolvedMap = await this.batchResolvePersonas(uniqueDiscordIds, personalityId);
-    const { resolvedCount, guildInfoRemap } = this.updateMessagesWithResolvedPersonas(
-      messages,
-      resolvedMap
-    );
-
-    if (participantGuildInfo !== undefined && guildInfoRemap.size > 0) {
-      this.remapParticipantGuildInfoKeys(participantGuildInfo, guildInfoRemap);
-    }
-
-    return resolvedCount;
-  }
-
-  /**
-   * Extract guild member info (roles, color, join date) from a Discord member.
-   * Returns undefined if member is null/undefined.
-   */
-  private extractGuildMemberInfo(
-    member: GuildMember | null | undefined,
-    guildId: string | undefined
-  ): GuildMemberInfo | undefined {
-    if (!member) {
-      return undefined;
-    }
-    return {
-      // Get role names (excluding @everyone which has same ID as guild)
-      // Sort by position (highest first), limit per MESSAGE_LIMITS.MAX_GUILD_ROLES
-      roles:
-        member.roles !== undefined
-          ? Array.from(member.roles.cache.values())
-              .filter(r => r.id !== guildId)
-              .sort((a, b) => b.position - a.position)
-              .slice(0, MESSAGE_LIMITS.MAX_GUILD_ROLES)
-              .map(r => r.name)
-          : [],
-      // Display color from highest colored role (#000000 is treated as transparent)
-      displayColor: member.displayHexColor !== '#000000' ? member.displayHexColor : undefined,
-      // When user joined the server
-      joinedAt: member.joinedAt?.toISOString(),
-    };
-  }
-
-  /**
-   * Resolve the effective guild member for context building.
-   *
-   * Priority:
-   * 1. Explicit overrideMember (if provided and not null)
-   * 2. Fetch member for overrideUser (if overrideUser provided but no overrideMember)
-   * 3. message.member (default for @mention flow)
-   * 4. Fetch member for message.author (fallback)
-   */
-  private async resolveEffectiveMember(
-    message: Message,
-    options: ContextBuildOptions
-  ): Promise<GuildMember | null> {
-    // If overrideMember is explicitly provided (including null), use it
-    if (options.overrideMember !== undefined) {
-      return options.overrideMember;
-    }
-
-    // If overrideUser is provided, try to fetch their member
-    if (options.overrideUser !== undefined && message.guild !== null) {
-      try {
-        return await message.guild.members.fetch(options.overrideUser.id);
-      } catch {
-        // User not in guild or fetch failed
-        return null;
-      }
-    }
-
-    // Default: use message.member or fetch message.author
-    if (message.member !== null) {
-      return message.member;
-    }
-    if (message.guild !== null) {
-      try {
-        return await message.guild.members.fetch(message.author.id);
-      } catch {
-        return null;
-      }
-    }
-    return null;
-  }
-
-  /**
-   * Resolve user identity, persona, and fetch conversation history.
-   *
-   * @param user - User info (from overrideUser or message.author)
-   * @param personality - Target AI personality
-   * @param displayName - Display name for persona creation
-   */
-  private async resolveUserContext(
-    user: { id: string; username: string; bot?: boolean },
-    personality: LoadedPersonality,
-    displayName: string
-  ): Promise<UserContextResult> {
-    // Get internal user ID for database operations
-    const internalUserId = await this.userService.getOrCreateUser(
-      user.id,
-      user.username,
-      displayName,
-      undefined,
-      user.bot ?? false
-    );
-
-    if (internalUserId === null) {
-      throw new Error('Cannot process messages from bots');
-    }
-
-    const discordUserId = user.id;
-    const personaResult = await this.personaResolver.resolve(discordUserId, personality.id);
-    const personaId = personaResult.config.personaId;
-    const personaName = personaResult.config.preferredName;
-    const userTimezone = await this.userService.getUserTimezone(internalUserId);
-
-    logger.debug(
-      { personaId, personaName, internalUserId, discordUserId, personalityId: personality.id },
-      '[MessageContextBuilder] User persona lookup complete'
-    );
-
-    // Look up context epoch (STM clear feature)
-    const contextEpoch = await this.lookupContextEpoch(internalUserId, personality.id, personaId);
-    if (contextEpoch !== undefined) {
-      logger.debug(
-        { personaId, contextEpoch: contextEpoch.toISOString() },
-        '[MessageContextBuilder] Applying context epoch filter (STM clear)'
-      );
-    }
-
-    // Note: History fetching is deferred to buildContext which has access to options
-    // This allows choosing between personality-filtered or full channel history
-    // based on whether extended context is enabled.
-    const history: ConversationMessage[] = [];
-
-    return {
-      internalUserId,
-      discordUserId,
-      personaId,
-      personaName,
-      userTimezone,
-      contextEpoch,
-      history,
-    };
   }
 
   /**
@@ -552,10 +256,11 @@ export class MessageContextBuilder {
       );
 
       // Resolve personaIds and remap participantGuildInfo keys
-      const resolvedCount = await this.resolveExtendedContextPersonaIds(
+      const resolvedCount = await resolveExtendedContextPersonaIds(
         fetchResult.messages,
         userMap,
         personality.id,
+        this.personaResolver,
         fetchResult.participantGuildInfo
       );
 
@@ -773,17 +478,22 @@ export class MessageContextBuilder {
     // For slash commands, overrideUser/overrideMember specifies the command invoker
     // For @mentions, we use message.author (the actual message sender)
     const effectiveUser = options.overrideUser ?? message.author;
-    const effectiveMember = await this.resolveEffectiveMember(message, options);
+    const effectiveMember = await resolveEffectiveMember(message, options);
     const displayName =
       effectiveMember?.displayName ?? effectiveUser.globalName ?? effectiveUser.username;
-    const guildMemberInfo = this.extractGuildMemberInfo(effectiveMember, message.guild?.id);
+    const guildMemberInfo = extractGuildMemberInfo(effectiveMember, message.guild?.id);
 
     // Step 2: Resolve user identity, persona, and context epoch
     // Pass effective user info (not message.author) for correct BYOK and persona resolution
-    const userContext = await this.resolveUserContext(
+    const userContext = await resolveUserContext(
       { id: effectiveUser.id, username: effectiveUser.username, bot: effectiveUser.bot },
       personality,
-      displayName
+      displayName,
+      {
+        userService: this.userService,
+        personaResolver: this.personaResolver,
+        prisma: this.prisma,
+      }
     );
     const { internalUserId, discordUserId, personaId, personaName, userTimezone, contextEpoch } =
       userContext;
@@ -905,27 +615,5 @@ export class MessageContextBuilder {
       referencedMessages,
       conversationHistory: history, // Return for reference enrichment
     };
-  }
-
-  /**
-   * Look up the context epoch for STM clear feature.
-   * Returns undefined if no epoch is set.
-   */
-  private async lookupContextEpoch(
-    internalUserId: string,
-    personalityId: string,
-    personaId: string
-  ): Promise<Date | undefined> {
-    const historyConfig = await this.prisma.userPersonaHistoryConfig.findUnique({
-      where: {
-        userId_personalityId_personaId: {
-          userId: internalUserId,
-          personalityId,
-          personaId,
-        },
-      },
-      select: { lastContextReset: true },
-    });
-    return historyConfig?.lastContextReset ?? undefined;
   }
 }
