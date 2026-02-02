@@ -6,10 +6,11 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { PersonalityMessageHandler } from './PersonalityMessageHandler.js';
 import type { Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
-import type {
-  LoadedPersonality,
-  ConversationMessage,
-  ReferencedMessage,
+import {
+  MessageRole,
+  type LoadedPersonality,
+  type ConversationMessage,
+  type ReferencedMessage,
 } from '@tzurot/common-types';
 
 // Mock NSFW verification to not block normal test flow
@@ -193,19 +194,22 @@ describe('PersonalityMessageHandler', () => {
           discordUserId: 'user-1',
           authorUsername: 'alice',
           authorDisplayName: 'Alice',
-          webhookId: null,
           content: 'Previous message',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Test Server / #general',
         },
       ];
 
       const mockConversationHistory: ConversationMessage[] = [
         {
           id: 'conv-1',
-          role: 'user',
+          role: MessageRole.User,
           content: 'History',
           personaId: 'persona-1',
           personaName: 'Alicia',
-          timestamp: new Date(),
+          createdAt: new Date(),
+          discordMessageId: [],
         },
       ];
 
@@ -416,8 +420,10 @@ describe('PersonalityMessageHandler', () => {
           discordUserId: 'user-1',
           authorUsername: 'alice',
           authorDisplayName: 'Alice', // Will be enriched
-          webhookId: null,
           content: 'Previous',
+          embeds: '',
+          timestamp: new Date().toISOString(),
+          locationContext: 'Test Server / #general',
         },
       ];
 
@@ -667,5 +673,5 @@ function createMockPersonality(): LoadedPersonality {
       temperature: 0.7,
       maxTokens: 1000,
     },
-  } as LoadedPersonality;
+  } as unknown as LoadedPersonality;
 }

@@ -27,7 +27,6 @@ function createMockMessage(overrides: MockMessageInput = {}): Message {
   const mockChannel = {
     id: 'channel-123',
     type: 0, // GUILD_TEXT
-    // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
     isTextBased: vi.fn(() => true),
     messages: {
       fetch: vi.fn(),
@@ -69,7 +68,7 @@ function createMockMessage(overrides: MockMessageInput = {}): Message {
     reference: null,
     messageSnapshots: undefined,
     ...overrides,
-  } as Message;
+  } as unknown as Message;
 }
 
 // Helper to create referenced message matching ReferencedMessage schema
@@ -352,7 +351,6 @@ describe('LinkExtractor', () => {
 
       const mockChannel = {
         id: 'channel-456',
-        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
         isTextBased: vi.fn(() => true),
         messages: {
           fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'ref-msg-456' })),
@@ -362,8 +360,8 @@ describe('LinkExtractor', () => {
       // Guild not in cache
       mockClient.guilds.cache.clear();
 
-      // Mock guild fetch
-      vi.mocked(mockClient.guilds.fetch).mockResolvedValue(mockGuild as Guild);
+      // Mock guild fetch - returns Guild for single ID fetch
+      vi.mocked(mockClient.guilds.fetch).mockResolvedValue(mockGuild as any);
       vi.mocked(mockClient.channels.fetch).mockResolvedValue(mockChannel as Channel);
 
       // Mock channel to have this channel
@@ -380,7 +378,7 @@ describe('LinkExtractor', () => {
         },
       ]);
 
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
+      const [references, _linkMap] = await linkExtractor.extractLinkReferences(
         mockMessage,
         new Set(),
         new Set(),
@@ -434,9 +432,7 @@ describe('LinkExtractor', () => {
       const mockThreadChannel = {
         id: 'thread-789',
         type: 11, // PUBLIC_THREAD
-        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
         isTextBased: vi.fn(() => true),
-        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
         isThread: vi.fn(() => true),
         messages: {
           fetch: vi.fn().mockResolvedValue(createMockMessage({ id: 'thread-msg-789' })),
@@ -458,7 +454,7 @@ describe('LinkExtractor', () => {
         },
       ]);
 
-      const [references, linkMap] = await linkExtractor.extractLinkReferences(
+      const [references, _linkMap] = await linkExtractor.extractLinkReferences(
         mockMessage,
         new Set(),
         new Set(),
@@ -512,7 +508,6 @@ describe('LinkExtractor', () => {
       const mockVoiceChannel = {
         id: 'voice-123',
         type: 2, // GUILD_VOICE
-        // @ts-expect-error - Type predicates cannot be replicated by vi.fn(). Runtime behavior is correct.
         isTextBased: vi.fn(() => false),
       } as unknown as Channel;
 

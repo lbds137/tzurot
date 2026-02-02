@@ -39,8 +39,10 @@ const mockBuildDashboardEmbed = vi.fn(() => ({ toJSON: () => ({ title: 'Dashboar
 const mockBuildDashboardComponents = vi.fn(() => []);
 const mockSessionManagerSet = vi.fn();
 vi.mock('../../utils/dashboard/index.js', () => ({
-  buildDashboardEmbed: (...args: unknown[]) => mockBuildDashboardEmbed(...args),
-  buildDashboardComponents: (...args: unknown[]) => mockBuildDashboardComponents(...args),
+  buildDashboardEmbed: (...args: unknown[]) =>
+    mockBuildDashboardEmbed(...(args as Parameters<typeof mockBuildDashboardEmbed>)),
+  buildDashboardComponents: (...args: unknown[]) =>
+    mockBuildDashboardComponents(...(args as Parameters<typeof mockBuildDashboardComponents>)),
   getSessionManager: () => ({
     set: mockSessionManagerSet,
   }),
