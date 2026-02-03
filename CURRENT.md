@@ -1,28 +1,26 @@
 # Current
 
 > **Session**: 2026-02-02
-> **Version**: v3.0.0-beta.65
-> **Branch**: `fix/pino-logger-and-deps-phase2`
+> **Version**: v3.0.0-beta.66
+> **Branch**: `develop`
 
 ---
 
-## In Progress: Bug Fix + Dependencies + Plan Review
+## Released: v3.0.0-beta.66 (Bugfix)
 
-### Pino Logger Bug (Fixed + Tested)
+### Pino Logger Bug Fix
 
 **Bug**: `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` at GenerationStep.
 
-**Root Cause**: In `RetryDecisionHelper.ts`, the pattern `const logFn = logger.warn` extracts a method reference without binding, losing the `this` context. Pino internally accesses `this[Symbol(pino.msgPrefix)]`, causing the error.
+**Root Cause**: In `RetryDecisionHelper.ts`, the pattern `const logFn = logger.warn` extracts a method reference without binding, losing the `this` context.
 
 **Fix**: Call logger methods directly instead of extracting them.
 
-**Test Added**: `RetryDecisionHelper.int.test.ts` - integration test using real pino (not mocked) to prevent regression.
+**Test**: `RetryDecisionHelper.int.test.ts` - integration test using real pino (not mocked).
 
-**How it slipped through**: The bug only triggers in specific retry paths (empty response or duplicate detection), which don't occur frequently in normal operation.
+### Dependency Updates
 
-### Dependency Updates (Consolidated)
-
-Merged updates from 6 Dependabot PRs (#567-572):
+Consolidated 6 Dependabot PRs (#567-572):
 
 - @commitlint/cli/config-conventional: 20.3.1 → 20.4.1
 - @langchain/core: 1.1.17 → 1.1.18
@@ -31,32 +29,23 @@ Merged updates from 6 Dependabot PRs (#567-572):
 - globals: 17.2.0 → 17.3.0
 - turbo: 2.8.0 → 2.8.1
 
-### Plan Review
-
-**Phase 1**: ✅ Complete (PR #573 merged)
-
-**Phase 2** (extended context configuration): ✅ Complete (implemented differently)
-
-The plan specified adding to `llm_configs` JSONB, but implementation used dedicated columns - which is better for separation of concerns:
-
-- `ExtendedContextSettingsResolver` with 3-layer cascade (Global → Channel → Personality)
-- Source tracking, hard caps, most-restrictive-wins logic
-- `/channel settings` UI exposes all options
-
-**Remaining phases**:
-
-- **Phase 3**: Consolidate LLM config single source of truth (CRITICAL - root cause of beta.60-62 breakage)
-- **Phase 4**: Modernize reasoning/thinking handling (higher risk)
-
 ---
 
-## Completed: Large File Refactoring (Phase 1)
+## Plan Status
 
-PR #573 merged to develop.
+**Phase 1**: ✅ Complete (PR #573)
 
-Extracted 17 new modules across 3 services with full test coverage. Total line reduction from 3943 to ~1733 lines (56% reduction).
+**Phase 2**: Configuration Consolidation (NEXT)
 
-See merged PR for details.
+- Remove legacy context path (always use extended context)
+- Delete `ExtendedContextSettingsResolver` (over-engineered)
+- Make `LLM_CONFIG_OVERRIDE_KEYS` single source of truth
+
+**Phase 3**: Schema Cleanup (after Phase 2 stable)
+
+**Phase 4**: Reasoning/Thinking Modernization
+
+**Full plan**: `~/.claude/plans/tender-tinkering-stonebraker.md`
 
 ---
 
