@@ -1,22 +1,13 @@
-/* eslint-disable max-lines -- Complex orchestration service, diagnostic recording pushed slightly over 500 lines */
 /**
- * @audit-ignore: database-testing
- * Reason: Orchestration layer - DB operations delegated to component services
- * (LongTermMemoryService, PgvectorMemoryAdapter, UserReferenceResolver) which have their own tests.
- * TODO: Refactor this service before adding integration tests - see BACKLOG.md
- *
  * Conversational RAG Service - Orchestrates memory-augmented conversations
  *
- * Refactored architecture (2025-11-07):
- * - Modular components for better testability and maintainability
- * - LLMInvoker: Model management and invocation
- * - MemoryRetriever: LTM queries and persona lookups
- * - PromptBuilder: System prompt construction
- * - LongTermMemoryService: pgvector storage
- * - MultimodalProcessor: Attachment processing (vision/transcription)
- * - ReferencedMessageFormatter: Reference formatting with vision/transcription
+ * @audit-ignore: database-testing
+ * Reason: Orchestration layer - DB operations delegated to component services
  *
- * This service is now a lightweight orchestrator that coordinates these components.
+ * Helper modules extracted to separate files:
+ * - ResponsePostProcessor: Response cleaning and reasoning extraction
+ * - ConversationInputProcessor: Input normalization and attachment handling
+ * - MemoryPersistenceService: Long-term memory storage
  */
 
 import { BaseMessage } from '@langchain/core/messages';
@@ -27,17 +18,7 @@ import {
   TEXT_LIMITS,
   getPrismaClient,
   type LoadedPersonality,
-  type ReferencedMessage,
 } from '@tzurot/common-types';
-import { processAttachments, type ProcessedAttachment } from './MultimodalProcessor.js';
-import { stripResponseArtifacts } from '../utils/responseArtifacts.js';
-import { removeDuplicateResponse } from '../utils/duplicateDetection.js';
-import {
-  extractThinkingBlocks,
-  extractApiReasoningContent,
-  mergeThinkingContent,
-} from '../utils/thinkingExtraction.js';
-import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 import { logAndThrow } from '../utils/errorHandling.js';
 import { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
 import { LLMInvoker } from './LLMInvoker.js';
@@ -53,12 +34,13 @@ import {
   generateStopSequences,
   buildImageDescriptionMap,
   injectImageDescriptions,
-  extractRecentHistoryWindow,
 } from './RAGUtils.js';
 import { redisService } from '../redis.js';
+import { ResponsePostProcessor } from './ResponsePostProcessor.js';
+import { ConversationInputProcessor } from './ConversationInputProcessor.js';
+import { MemoryPersistenceService } from './MemoryPersistenceService.js';
 import type {
   ConversationContext,
-  ProcessedInputs,
   PersonaLoadResult,
   ModelInvocationResult,
   ModelInvocationOptions,
@@ -84,17 +66,19 @@ export class ConversationalRAGService {
   private llmInvoker: LLMInvoker;
   private memoryRetriever: MemoryRetriever;
   private promptBuilder: PromptBuilder;
-  private longTermMemory: LongTermMemoryService;
   private referencedMessageFormatter: ReferencedMessageFormatter;
   private contextWindowManager: ContextWindowManager;
   private userReferenceResolver: UserReferenceResolver;
   private contentBudgetManager: ContentBudgetManager;
+  private responsePostProcessor: ResponsePostProcessor;
+  private inputProcessor: ConversationInputProcessor;
+  private memoryPersistence: MemoryPersistenceService;
 
   constructor(memoryManager?: PgvectorMemoryAdapter, personaResolver?: PersonaResolver) {
     this.llmInvoker = new LLMInvoker();
     this.memoryRetriever = new MemoryRetriever(memoryManager, personaResolver);
     this.promptBuilder = new PromptBuilder();
-    this.longTermMemory = new LongTermMemoryService(memoryManager);
+    const longTermMemory = new LongTermMemoryService(memoryManager);
     this.referencedMessageFormatter = new ReferencedMessageFormatter();
     this.contextWindowManager = new ContextWindowManager();
     this.userReferenceResolver = new UserReferenceResolver(getPrismaClient());
@@ -102,155 +86,13 @@ export class ConversationalRAGService {
       this.promptBuilder,
       this.contextWindowManager
     );
-  }
-
-  // ============================================================================
-  // HELPER METHODS (extracted from generateResponse for complexity reduction)
-  // ============================================================================
-
-  /**
-   * Resolve user name for placeholder replacement
-   */
-  private resolveUserName(context: ConversationContext): string {
-    if (context.userName !== undefined && context.userName.length > 0) {
-      return context.userName;
-    }
-    if (context.activePersonaName !== undefined && context.activePersonaName.length > 0) {
-      return context.activePersonaName;
-    }
-    return 'User';
-  }
-
-  /**
-   * Build content for embedding with optional referenced messages
-   */
-  private buildContentForEmbedding(
-    contentForStorage: string,
-    referencedMessagesTextForSearch: string | undefined
-  ): string {
-    if (
-      referencedMessagesTextForSearch !== undefined &&
-      referencedMessagesTextForSearch.length > 0
-    ) {
-      return `${contentForStorage}\n\n[Referenced content: ${referencedMessagesTextForSearch}]`;
-    }
-    return contentForStorage;
-  }
-
-  /**
-   * Extract API-level reasoning content from response metadata
-   */
-  private extractApiReasoning(
-    additionalKwargs: { reasoning?: string } | undefined,
-    responseMetadata: { reasoning_details?: unknown[] } | undefined
-  ): string | null {
-    // First check additional_kwargs.reasoning (primary location for DeepSeek R1)
-    if (
-      additionalKwargs?.reasoning !== undefined &&
-      typeof additionalKwargs.reasoning === 'string' &&
-      additionalKwargs.reasoning.length > 0
-    ) {
-      logger.debug(
-        { reasoningLength: additionalKwargs.reasoning.length },
-        '[RAG] Found reasoning content in additional_kwargs.reasoning'
-      );
-      return additionalKwargs.reasoning;
-    }
-    // Fall back to reasoning_details array (some providers use this format)
-    return extractApiReasoningContent(responseMetadata?.reasoning_details);
-  }
-
-  /**
-   * Process input attachments and format messages for AI consumption
-   *
-   * @param personality - Personality configuration
-   * @param message - User's message content
-   * @param context - Conversation context
-   * @param isGuestMode - Whether user is in guest mode (uses free models)
-   * @param userApiKey - User's BYOK API key (for BYOK users)
-   */
-  private async processInputs(
-    personality: LoadedPersonality,
-    message: MessageContent,
-    context: ConversationContext,
-    isGuestMode: boolean,
-    userApiKey?: string
-  ): Promise<ProcessedInputs> {
-    // Use pre-processed attachments from dependency jobs if available
-    let processedAttachments: ProcessedAttachment[] = [];
-    if (context.preprocessedAttachments && context.preprocessedAttachments.length > 0) {
-      processedAttachments = context.preprocessedAttachments;
-      logger.info(
-        { count: processedAttachments.length },
-        'Using pre-processed attachments from dependency jobs'
-      );
-    } else if (context.attachments && context.attachments.length > 0) {
-      // Fallback: process attachments inline (shouldn't happen with job chain, but defensive)
-      // Pass isGuestMode and userApiKey for BYOK support
-      processedAttachments = await processAttachments(
-        context.attachments,
-        personality,
-        isGuestMode,
-        userApiKey
-      );
-      logger.info(
-        { count: processedAttachments.length },
-        'Processed attachments to text descriptions (inline fallback)'
-      );
-    }
-
-    // Format the user's message
-    const userMessage = this.promptBuilder.formatUserMessage(message, context);
-
-    // Filter out referenced messages that are already in conversation history
-    // This prevents token waste from duplicating content that's already in context
-    const filteredReferences = this.filterDuplicateReferences(
-      context.referencedMessages,
-      context.rawConversationHistory
+    this.responsePostProcessor = new ResponsePostProcessor();
+    this.inputProcessor = new ConversationInputProcessor(
+      this.promptBuilder,
+      this.referencedMessageFormatter,
+      this.responsePostProcessor
     );
-
-    // Format referenced messages (with vision/transcription)
-    // Pass userApiKey for BYOK support in inline fallback processing
-    const referencedMessagesDescriptions =
-      filteredReferences.length > 0
-        ? await this.referencedMessageFormatter.formatReferencedMessages(
-            filteredReferences,
-            personality,
-            isGuestMode,
-            context.preprocessedReferenceAttachments,
-            userApiKey
-          )
-        : undefined;
-
-    // Extract plain text from formatted references for memory search
-    const referencedMessagesTextForSearch =
-      referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0
-        ? this.referencedMessageFormatter.extractTextForSearch(referencedMessagesDescriptions)
-        : undefined;
-
-    // Extract recent conversation history for context-aware LTM search
-    const recentHistoryWindow = extractRecentHistoryWindow(context.rawConversationHistory);
-
-    // Build search query for memory retrieval
-    const searchQuery = this.promptBuilder.buildSearchQuery(
-      userMessage,
-      processedAttachments,
-      referencedMessagesTextForSearch,
-      recentHistoryWindow
-    );
-
-    // Note: Extended context image descriptions are now injected inline into
-    // conversation history entries (via injectImageDescriptions), not formatted
-    // as a separate section. This improves context colocation - the AI sees
-    // image descriptions directly within the messages they came from.
-
-    return {
-      processedAttachments,
-      userMessage,
-      referencedMessagesDescriptions,
-      referencedMessagesTextForSearch,
-      searchQuery,
-    };
+    this.memoryPersistence = new MemoryPersistenceService(longTermMemory, this.memoryRetriever);
   }
 
   /**
@@ -306,49 +148,6 @@ export class ConversationalRAGService {
     }
 
     return { participantPersonas, processedPersonality };
-  }
-
-  /**
-   * Process thinking content from model response.
-   *
-   * When visible content is empty but thinking content exists (e.g., Kimi K2.5),
-   * this method returns empty visible content rather than using thinking as the
-   * response. The caller (GenerationStep) handles this as an EMPTY_RESPONSE error,
-   * which prevents internal reasoning from leaking to users.
-   */
-  private processThinkingContent(
-    deduplicatedContent: string,
-    apiReasoning: string | null
-  ): { visibleContent: string; thinkingContent: string | null } {
-    const { thinkingContent: inlineThinking, visibleContent: extractedVisibleContent } =
-      extractThinkingBlocks(deduplicatedContent);
-
-    const visibleContent = extractedVisibleContent;
-
-    // Log when model produces only thinking content - this will be handled as
-    // EMPTY_RESPONSE by GenerationStep, preventing thinking leak to users
-    if (
-      visibleContent.trim().length === 0 &&
-      inlineThinking !== null &&
-      inlineThinking.length > 0
-    ) {
-      logger.warn(
-        { inlineThinkingLength: inlineThinking.length, hasApiReasoning: apiReasoning !== null },
-        '[RAG] Empty visible content after thinking extraction - model only produced reasoning'
-      );
-    }
-
-    // Merge all sources - API reasoning first, then inline
-    const thinkingContent = mergeThinkingContent(apiReasoning, inlineThinking);
-
-    if (apiReasoning !== null) {
-      logger.debug(
-        { apiReasoningLength: apiReasoning.length, hasInline: inlineThinking !== null },
-        '[RAG] Extracted API-level reasoning from response'
-      );
-    }
-
-    return { visibleContent, thinkingContent };
   }
 
   /** Invoke the model and clean up the response */
@@ -540,32 +339,27 @@ export class ConversationalRAGService {
       });
     }
 
-    // Remove duplicate content (stop-token failure bug in some models like GLM-4.7)
-    const deduplicatedContent = removeDuplicateResponse(rawContent);
-
-    // Extract API-level reasoning (DeepSeek R1, etc.) then process inline thinking tags
-    const apiReasoning = this.extractApiReasoning(additionalKwargs, responseMetadata);
-    const { visibleContent, thinkingContent } = this.processThinkingContent(
-      deduplicatedContent,
-      apiReasoning
+    // Process response: deduplicate, extract reasoning, strip artifacts, replace placeholders
+    const processed = this.responsePostProcessor.processResponse(
+      rawContent,
+      additionalKwargs,
+      responseMetadata,
+      {
+        personalityName: personality.name,
+        userName: this.inputProcessor.resolveUserName(context),
+        discordUsername: context.discordUsername,
+      }
     );
 
-    // Strip artifacts and replace placeholders
-    let cleanedContent = stripResponseArtifacts(visibleContent, personality.name);
-    cleanedContent = replacePromptPlaceholders(
-      cleanedContent,
-      this.resolveUserName(context),
-      personality.name,
-      context.discordUsername
-    );
+    const { cleanedContent, thinkingContent, wasDeduplicated } = processed;
 
     // Record post-processing for diagnostics
     if (diagnosticCollector) {
       diagnosticCollector.recordPostProcessing({
         rawContent,
-        deduplicatedContent,
+        deduplicatedContent: rawContent, // Already processed in responsePostProcessor
         thinkingContent,
-        strippedContent: visibleContent,
+        strippedContent: cleanedContent,
         finalContent: cleanedContent,
       });
     }
@@ -574,10 +368,9 @@ export class ConversationalRAGService {
       {
         rawContentPreview: rawContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
         cleanedContentPreview: cleanedContent.substring(0, TEXT_LIMITS.LOG_PERSONA_PREVIEW),
-        wasDeduplicated: rawContent !== deduplicatedContent,
+        wasDeduplicated,
         hadThinkingBlocks: thinkingContent !== null,
         thinkingContentLength: thinkingContent?.length ?? 0,
-        wasStripped: visibleContent !== cleanedContent,
       },
       `[RAG] Content cleanup check for ${personality.name}`
     );
@@ -624,7 +417,7 @@ export class ConversationalRAGService {
     try {
       // Step 1: Process inputs (attachments, messages, search query)
       // Pass userApiKey for BYOK support in fallback vision processing
-      const inputs = await this.processInputs(
+      const inputs = await this.inputProcessor.processInputs(
         personality,
         message,
         context,
@@ -740,30 +533,24 @@ export class ConversationalRAGService {
           '[RAG] Incognito mode active - skipping LTM storage'
         );
       } else if (options.skipMemoryStorage === true) {
-        // Deferred storage: resolve persona and build data for caller to store later
-        const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
-          context.userId,
-          personality.id
-        );
-        if (personaResult !== null) {
-          deferredMemoryData = {
-            contentForEmbedding: this.buildContentForEmbedding(
-              budgetResult.contentForStorage,
-              inputs.referencedMessagesTextForSearch
-            ),
-            responseContent: finalContent,
-            personaId: personaResult.personaId,
-          };
+        // Deferred storage: build data for caller to store later
+        deferredMemoryData =
+          (await this.memoryPersistence.buildDeferredMemoryData(
+            context,
+            personality.id,
+            budgetResult.contentForStorage,
+            finalContent,
+            inputs.referencedMessagesTextForSearch
+          )) ?? undefined;
+        if (deferredMemoryData !== undefined) {
           logger.debug(
             { userId: context.userId, personalityId: personality.id },
             '[RAG] Memory storage deferred - data included in response'
           );
-        } else {
-          logger.warn({}, `[RAG] No persona found for user ${context.userId}, cannot defer LTM`);
         }
       } else {
         // Immediate storage (default behavior)
-        await this.storeToLongTermMemory(
+        await this.memoryPersistence.storeInteraction(
           personality,
           context,
           budgetResult.contentForStorage,
@@ -793,109 +580,17 @@ export class ConversationalRAGService {
   }
 
   /**
-   * Store interaction to long-term memory
-   * Note: Caller should check incognito mode before calling this method
-   */
-  private async storeToLongTermMemory(
-    personality: LoadedPersonality,
-    context: ConversationContext,
-    contentForStorage: string,
-    responseContent: string,
-    referencedMessagesTextForSearch: string | undefined
-  ): Promise<void> {
-    const personaResult = await this.memoryRetriever.resolvePersonaForMemory(
-      context.userId,
-      personality.id
-    );
-
-    if (personaResult !== null) {
-      await this.longTermMemory.storeInteraction(
-        personality,
-        this.buildContentForEmbedding(contentForStorage, referencedMessagesTextForSearch),
-        responseContent,
-        context,
-        personaResult.personaId
-      );
-    } else {
-      logger.warn({}, `[RAG] No persona found for user ${context.userId}, skipping LTM storage`);
-    }
-  }
-
-  /**
    * Store deferred memory data to long-term memory.
    *
    * Call this method after response validation passes (e.g., after duplicate
    * detection confirms the response is unique). This ensures only ONE memory
    * is stored per interaction, even when retry logic is used.
-   *
-   * @param personality - The personality that generated the response
-   * @param context - Conversation context
-   * @param deferredData - Data returned from generateResponse when skipMemoryStorage was true
    */
   async storeDeferredMemory(
     personality: LoadedPersonality,
     context: ConversationContext,
     deferredData: DeferredMemoryData
   ): Promise<void> {
-    await this.longTermMemory.storeInteraction(
-      personality,
-      deferredData.contentForEmbedding,
-      deferredData.responseContent,
-      context,
-      deferredData.personaId
-    );
-    logger.info(
-      { userId: context.userId, personalityId: personality.id, personaId: deferredData.personaId },
-      '[RAG] Stored deferred memory to LTM'
-    );
-  }
-
-  /**
-   * Filter out referenced messages that are already in conversation history
-   *
-   * This prevents token waste from duplicating content. When a user replies to
-   * a recent message, that message is likely already in the conversation history.
-   * Including it again as a quoted message wastes tokens.
-   *
-   * @param referencedMessages - Messages being quoted/replied to
-   * @param conversationHistory - Current conversation history (raw format with optional id)
-   * @returns Filtered list of referenced messages not in history
-   */
-  private filterDuplicateReferences(
-    referencedMessages: ReferencedMessage[] | undefined,
-    conversationHistory: { id?: string }[] | undefined
-  ): ReferencedMessage[] {
-    if (!referencedMessages || referencedMessages.length === 0) {
-      return [];
-    }
-
-    if (!conversationHistory || conversationHistory.length === 0) {
-      return referencedMessages;
-    }
-
-    // Build set of message IDs from conversation history
-    const historyIds = new Set<string>();
-    for (const msg of conversationHistory) {
-      if (msg.id !== undefined && msg.id.length > 0) {
-        historyIds.add(msg.id);
-      }
-    }
-
-    // Filter out referenced messages that are already in history
-    const filtered = referencedMessages.filter(ref => !historyIds.has(ref.discordMessageId));
-
-    if (filtered.length < referencedMessages.length) {
-      const removed = referencedMessages.length - filtered.length;
-      logger.debug(
-        {
-          originalCount: referencedMessages.length,
-          filteredCount: filtered.length,
-          removedCount: removed,
-        },
-        '[RAG] Filtered out referenced messages already in conversation history'
-      );
-    }
-
-    return filtered;
+    await this.memoryPersistence.storeDeferredMemory(personality, context, deferredData);
   }
 }
