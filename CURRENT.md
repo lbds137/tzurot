@@ -1,68 +1,83 @@
 # Current
 
-> **Session**: 2026-02-02
+> **Session**: 2026-02-03
 > **Version**: v3.0.0-beta.66
 > **Branch**: `develop`
 
 ---
 
-## Released: v3.0.0-beta.66 (Bugfix)
+## Phase 2: Configuration Consolidation (In Progress)
 
-### Pino Logger Bug Fix
+Two PRs open for review:
 
-**Bug**: `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` at GenerationStep.
+### PR #577: LLM_CONFIG_FIELDS Metadata (Part B)
 
-**Root Cause**: In `RetryDecisionHelper.ts`, the pattern `const logFn = logger.warn` extracts a method reference without binding, losing the `this` context.
+**New file**: `packages/common-types/src/schemas/llmConfigFields.ts`
 
-**Fix**: Call logger methods directly instead of extracting them.
+Single source of truth for all 22 LLM config fields with:
 
-**Test**: `RetryDecisionHelper.int.test.ts` - integration test using real pino (not mocked).
+- Zod schema validation
+- Default values
+- Category grouping (sampling, output, memory, reasoning)
+- Snake_case ↔ camelCase mappings
 
-### DB-Sync Singleton Flag Fix
+**Changes**:
 
-**Bug**: After db-sync, `is_default` or `is_free_default` flag could be lost when dev and prod had different default configs.
+- `llmAdvancedParams.ts` now re-exports from `llmConfigFields.ts`
+- `DiagnosticCollector.ts` imports `ConvertedReasoningConfig` from common-types
+- 30 new tests in `llmConfigFields.test.ts`
 
-**Root Cause**: Singleton resolution cleared the loser's flag but didn't set the winner's flag in the other environment. Since `is_default`/`is_free_default` are in `excludeColumns` (not copied during sync), the winning config arrived without its flag set.
+### PR #578: Always Use Channel History (Part A)
 
-**Fix**: When resolving singleton conflicts:
+**Key change**: `MessageContextBuilder.fetchDbHistory()` always uses `getChannelHistory()`.
 
-1. Clear the loser's flag (as before)
-2. Set the winner's flag in the other environment (if config exists)
-3. Track pending resolutions and finalize after sync (for newly synced configs)
+- Removed conditional `useChannelHistory` toggle
+- Deprecated `getRecentHistory()` method (kept for backward compat)
+- **Kept** `ExtendedContextSettingsResolver` - still needed for admin/personality overrides
 
-**Files Changed**:
-
-- `llmConfigSingletons.ts` - Added `finalizeLlmConfigSingletonFlags()` and winner flag propagation
-- `DatabaseSyncService.ts` - Call finalize after sync loop
-
-### Dependency Updates
-
-Consolidated 6 Dependabot PRs (#567-572):
-
-- @commitlint/cli/config-conventional: 20.3.1 → 20.4.1
-- @langchain/core: 1.1.17 → 1.1.18
-- @langchain/openai: 1.2.3 → 1.2.4
-- @types/node: 25.1.0 → 25.2.0
-- globals: 17.2.0 → 17.3.0
-- turbo: 2.8.0 → 2.8.1
+**Why keep ExtendedContextSettingsResolver**: It provides cascading resolution for Discord fetch toggle and token limits. Only the DB fetch toggle was removed (now always-on).
 
 ---
 
 ## Plan Status
 
-**Phase 1**: ✅ Complete (PR #573)
+**Phase 1**: ✅ Complete (PR #573 merged)
 
-**Phase 2**: Configuration Consolidation (NEXT)
+**Phase 2**: 🔄 PRs Open (#577, #578)
 
-- Remove legacy context path (always use extended context)
-- Delete `ExtendedContextSettingsResolver` (over-engineered)
-- Make `LLM_CONFIG_OVERRIDE_KEYS` single source of truth
+- ✅ LLM_CONFIG_FIELDS metadata schema
+- ✅ Re-export from llmAdvancedParams.ts
+- ✅ Align DiagnosticCollector types
+- ✅ Hard-switch to getChannelHistory
+- ✅ Deprecate getRecentHistory
+- ⏭️ Skipped: Delete ExtendedContextSettingsResolver (still useful)
+- ⏭️ Deferred: PersonalityDefaults refactor (not worth complexity)
 
 **Phase 3**: Schema Cleanup (after Phase 2 stable)
 
 **Phase 4**: Reasoning/Thinking Modernization
 
 **Full plan**: `~/.claude/plans/tender-tinkering-stonebraker.md`
+
+---
+
+## Previous: v3.0.0-beta.66
+
+### Pino Logger Bug Fix
+
+**Bug**: `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` at GenerationStep.
+
+**Fix**: Call logger methods directly instead of extracting method references.
+
+### DB-Sync Singleton Flag Fix
+
+**Bug**: After db-sync, `is_default` or `is_free_default` flag could be lost.
+
+**Fix**: Propagate winner's flag to other environment after singleton resolution.
+
+### Dependency Updates
+
+Consolidated 6 Dependabot PRs (#567-572)
 
 ---
 
