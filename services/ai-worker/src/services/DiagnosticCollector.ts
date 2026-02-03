@@ -32,6 +32,7 @@ import {
   type DiagnosticPostProcessing,
   type DiagnosticTiming,
   type DiagnosticError,
+  type ConvertedReasoningConfig,
 } from '@tzurot/common-types';
 import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
@@ -40,6 +41,9 @@ const logger = createLogger('DiagnosticCollector');
 
 /** Maximum characters for memory preview (first N + last N) */
 const MEMORY_PREVIEW_LENGTH = 100;
+
+/** Placeholder for fields that weren't recorded during pipeline execution */
+const NOT_RECORDED = '[not recorded]';
 
 /**
  * Options for creating a DiagnosticCollector
@@ -89,17 +93,10 @@ export interface TokenBudgetData {
 }
 
 /**
- * Reasoning configuration for diagnostic recording
- */
-interface ReasoningConfig {
-  effort?: 'xhigh' | 'high' | 'medium' | 'low' | 'minimal' | 'none';
-  maxTokens?: number;
-  exclude?: boolean;
-  enabled?: boolean;
-}
-
-/**
  * LLM configuration data
+ *
+ * Uses ConvertedReasoningConfig from common-types for the reasoning field
+ * to avoid duplicate type definitions.
  */
 export interface LlmConfigData {
   model: string;
@@ -121,8 +118,8 @@ export interface LlmConfigData {
   logitBias?: Record<string, number>;
   responseFormat?: { type: 'text' | 'json_object' };
   showThinking?: boolean;
-  // Reasoning (for thinking models)
-  reasoning?: ReasoningConfig;
+  // Reasoning (for thinking models) - uses shared type from common-types
+  reasoning?: ConvertedReasoningConfig;
   // OpenRouter-specific
   transforms?: string[];
   route?: 'fallback';
@@ -545,7 +542,7 @@ export class DiagnosticCollector {
 
   private getDefaultInputProcessing(): DiagnosticInputProcessing {
     return {
-      rawUserMessage: '[not recorded]',
+      rawUserMessage: NOT_RECORDED,
       attachmentDescriptions: [],
       voiceTranscript: null,
       referencedMessageIds: [],
@@ -581,8 +578,8 @@ export class DiagnosticCollector {
 
   private getDefaultLlmConfig(): DiagnosticLlmConfig {
     return {
-      model: '[not recorded]',
-      provider: '[not recorded]',
+      model: NOT_RECORDED,
+      provider: NOT_RECORDED,
       stopSequences: [],
       allParams: {},
     };
@@ -590,12 +587,12 @@ export class DiagnosticCollector {
 
   private getDefaultLlmResponse(): DiagnosticLlmResponse {
     return {
-      rawContent: '[not recorded]',
+      rawContent: NOT_RECORDED,
       finishReason: 'unknown',
       stopSequenceTriggered: null,
       promptTokens: 0,
       completionTokens: 0,
-      modelUsed: '[not recorded]',
+      modelUsed: NOT_RECORDED,
     };
   }
 
@@ -606,7 +603,7 @@ export class DiagnosticCollector {
       thinkingExtracted: false,
       thinkingContent: null,
       artifactsStripped: [],
-      finalContent: '[not recorded]',
+      finalContent: NOT_RECORDED,
     };
   }
 }
