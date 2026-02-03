@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-02
-> **Version**: v3.0.0-beta.65
+> **Last Updated**: 2026-02-03
+> **Version**: v3.0.0-beta.66
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -21,7 +21,7 @@ _(Empty)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 🏗️ Configuration Consolidation (NEXT - See Plan)
+### 🏗️ Configuration Consolidation (IN PROGRESS - PRs #577, #578)
 
 **Merged from**: "LLM Config Single Source of Truth" + "Extended Context Pipeline Refactor"
 
@@ -30,7 +30,22 @@ Two related problems that are fundamentally the same issue - excessive duplicati
 1. **Dual Context Paths**: "Old context" vs "extended context" toggle creates parallel code paths that drift apart
 2. **Scattered Config**: Same LLM config fields defined in 5+ places (caused beta.60-62 thinking breakage)
 
-**Solution**: Remove legacy context path, make `LLM_CONFIG_OVERRIDE_KEYS` single source of truth.
+**Solution**: Remove legacy context path, make `LLM_CONFIG_FIELDS` single source of truth.
+
+**PRs Open**:
+
+- **#577**: `LLM_CONFIG_FIELDS` metadata - single source of truth for 22 config fields
+- **#578**: Always use `getChannelHistory()` - removed dual DB fetch paths
+
+**What's done**:
+
+- ✅ Created `llmConfigFields.ts` with field metadata, schemas, defaults, mappings
+- ✅ Re-exported from `llmAdvancedParams.ts` (no breaking changes)
+- ✅ Aligned `DiagnosticCollector` to use shared `ConvertedReasoningConfig`
+- ✅ Hard-switched `MessageContextBuilder` to always use `getChannelHistory()`
+- ✅ Deprecated `getRecentHistory()` (kept for backward compat)
+- ⏭️ Kept `ExtendedContextSettingsResolver` (still provides admin/personality overrides for Discord fetch)
+- ⏭️ Deferred PersonalityDefaults refactor (not worth the complexity)
 
 **Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 2)
 
@@ -651,6 +666,13 @@ The distinction isn't consistently applied. Calling both kinds "services" while 
 ## Completed
 
 _Recently completed items (clear periodically)._
+
+### ✅ Configuration Consolidation - Phase 2 (PRs #577, #578)
+
+Two PRs implementing configuration cleanup:
+
+- **#577**: `LLM_CONFIG_FIELDS` metadata as single source of truth (22 fields with schema, defaults, mappings)
+- **#578**: Always use `getChannelHistory()` for DB history (removed conditional extended context path)
 
 ### ✅ Pino Logger Bug (v3.0.0-beta.66)
 
