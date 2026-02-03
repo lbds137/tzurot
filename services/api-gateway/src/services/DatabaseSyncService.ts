@@ -14,7 +14,10 @@ import {
   assertValidColumnName,
 } from './sync/utils/syncValidation.js';
 import { loadTombstoneIds, deleteMessagesWithTombstones } from './sync/utils/tombstoneUtils.js';
-import { prepareLlmConfigSingletonFlags } from './sync/utils/llmConfigSingletons.js';
+import {
+  prepareLlmConfigSingletonFlags,
+  finalizeLlmConfigSingletonFlags,
+} from './sync/utils/llmConfigSingletons.js';
 import { ForeignKeyReconciler } from './sync/ForeignKeyReconciler.js';
 
 const logger = createLogger('db-sync');
@@ -100,6 +103,7 @@ export class DatabaseSyncService {
    * if interrupted, running sync again will complete any partial sync. Each individual
    * upsert is atomic within its database.
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- inherently complex sync logic
   async sync(options: SyncOptions): Promise<SyncResult> {
     try {
       logger.info({ dryRun: options.dryRun }, '[Sync] Starting database sync');
@@ -170,6 +174,11 @@ export class DatabaseSyncService {
         if (config.deferredFkColumns && config.deferredFkColumns.length > 0) {
           tablesWithDeferredFks.push({ tableName, config });
         }
+      }
+
+      // Finalize llm_configs singleton flags after sync copied any missing configs
+      if (!options.dryRun) {
+        await finalizeLlmConfigSingletonFlags(this.devClient, this.prodClient);
       }
 
       // PASS 2: Update deferred FK columns now that all referenced rows exist
@@ -270,6 +279,7 @@ export class DatabaseSyncService {
   /**
    * Sync a single row between dev and prod databases
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- conditional sync logic
   private async syncRow(
     devRow: unknown,
     prodRow: unknown,

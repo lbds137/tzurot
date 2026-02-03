@@ -26,6 +26,7 @@ const createMockPrismaClient = () => ({
   // Typed Prisma methods for llm_config singleton flags
   llmConfig: {
     findMany: vi.fn().mockResolvedValue([]),
+    findUnique: vi.fn().mockResolvedValue(null),
     update: vi.fn().mockResolvedValue({}),
   },
 });
