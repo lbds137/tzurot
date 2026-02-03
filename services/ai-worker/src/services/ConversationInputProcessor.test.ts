@@ -6,7 +6,12 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
-import type { LoadedPersonality, MessageContent, ReferencedMessage } from '@tzurot/common-types';
+import {
+  AttachmentType,
+  type LoadedPersonality,
+  type MessageContent,
+  type ReferencedMessage,
+} from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PromptBuilder } from './PromptBuilder.js';
 import type { ReferencedMessageFormatter } from './ReferencedMessageFormatter.js';
@@ -51,7 +56,7 @@ describe('ConversationInputProcessor', () => {
   const createMockContext = (overrides = {}): ConversationContext => ({
     userId: 'user-123',
     channelId: 'channel-123',
-    guildId: 'guild-123',
+    serverId: 'guild-123',
     conversationHistory: [],
     rawConversationHistory: [],
     ...overrides,
@@ -140,7 +145,12 @@ describe('ConversationInputProcessor', () => {
 
     it('should use preprocessed attachments when available', async () => {
       const preprocessedAttachments: ProcessedAttachment[] = [
-        { type: 'image', description: 'A cute cat', sourceUrl: 'http://example.com/cat.jpg' },
+        {
+          type: AttachmentType.Image,
+          description: 'A cute cat',
+          originalUrl: 'http://example.com/cat.jpg',
+          metadata: { url: 'http://example.com/cat.jpg', contentType: 'image/jpeg' },
+        },
       ];
       const context = createMockContext({ preprocessedAttachments });
 
@@ -153,7 +163,12 @@ describe('ConversationInputProcessor', () => {
     it('should process attachments inline as fallback', async () => {
       const attachments = [{ url: 'http://example.com/cat.jpg', contentType: 'image/jpeg' }];
       const processedResult: ProcessedAttachment[] = [
-        { type: 'image', description: 'Processed cat', sourceUrl: 'http://example.com/cat.jpg' },
+        {
+          type: AttachmentType.Image,
+          description: 'Processed cat',
+          originalUrl: 'http://example.com/cat.jpg',
+          metadata: { url: 'http://example.com/cat.jpg', contentType: 'image/jpeg' },
+        },
       ];
       mockProcessAttachments.mockResolvedValue(processedResult);
 
@@ -289,7 +304,12 @@ describe('ConversationInputProcessor', () => {
 
     it('should build search query with all components', async () => {
       const preprocessedAttachments: ProcessedAttachment[] = [
-        { type: 'image', description: 'A cat', sourceUrl: 'http://example.com/cat.jpg' },
+        {
+          type: AttachmentType.Image,
+          description: 'A cat',
+          originalUrl: 'http://example.com/cat.jpg',
+          metadata: { url: 'http://example.com/cat.jpg', contentType: 'image/jpeg' },
+        },
       ];
       const referencedMessages: ReferencedMessage[] = [
         {
@@ -336,7 +356,12 @@ describe('ConversationInputProcessor', () => {
         },
       ];
       const preprocessedReferenceAttachments: ProcessedAttachment[] = [
-        { type: 'image', description: 'Reference image', sourceUrl: 'http://example.com/ref.jpg' },
+        {
+          type: AttachmentType.Image,
+          description: 'Reference image',
+          originalUrl: 'http://example.com/ref.jpg',
+          metadata: { url: 'http://example.com/ref.jpg', contentType: 'image/jpeg' },
+        },
       ];
       const context = createMockContext({
         referencedMessages,
