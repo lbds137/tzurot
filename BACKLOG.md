@@ -21,7 +21,20 @@ _(Empty)_
 
 _Top 3-5 items to pull into CURRENT next._
 
-### 🏗️ Bot-Client Package Split (NEXT)
+### 🏗️ Configuration Consolidation (NEXT - See Plan)
+
+**Merged from**: "LLM Config Single Source of Truth" + "Extended Context Pipeline Refactor"
+
+Two related problems that are fundamentally the same issue - excessive duplication causing sync failures:
+
+1. **Dual Context Paths**: "Old context" vs "extended context" toggle creates parallel code paths that drift apart
+2. **Scattered Config**: Same LLM config fields defined in 5+ places (caused beta.60-62 thinking breakage)
+
+**Solution**: Remove legacy context path, make `LLM_CONFIG_OVERRIDE_KEYS` single source of truth.
+
+**Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 2)
+
+### 🏗️ Bot-Client Package Split
 
 **Context**: Gemini architectural review flagged bot-client as too heavy (~4.1MB, 424 files). Analysis identified extraction candidates.
 
@@ -77,50 +90,6 @@ Functions exceeding 15 cognitive complexity limit:
 
 **References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
-### 🏗️ LLM Config Single Source of Truth (CRITICAL)
-
-**Root cause of thinking/reasoning breakage in beta.60-62.** Config field definitions are scattered across 5+ files that must stay in sync manually. When `reasoning` was added, it was missed in `PersonalityDefaults.getReasoningConfig()`, causing silent data loss.
-
-**Current duplication**:
-
-- `LlmConfigMapper.advancedParamsToConfigFormat()` - DB JSONB → app format
-- `PersonalityDefaults.get*Config()` functions - personality mapping
-- `LlmConfigResolver.mergeConfig()` / `extractConfig()` - override merging
-- `LLM_CONFIG_OVERRIDE_KEYS` array - list of mergeable keys
-- `DiagnosticCollector.recordLlmConfig()` - diagnostic capture
-
-**Solution**: Single source of truth (probably `LLM_CONFIG_OVERRIDE_KEYS`) driving all other code via typed iteration.
-
-- [ ] Define canonical field list with metadata (type, default, category)
-- [ ] Generate/derive all config copying from this list
-- [ ] Remove manual field enumeration in PersonalityDefaults
-- [ ] Add test that verifies all paths handle the same fields
-- [ ] Add end-to-end integration test: DB JSONB → mapToPersonality → ModelFactory → OpenRouter API call
-
-**Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
-
-### 🏗️ Large File Audit - Remaining Work
-
-**Completed in Phase 1** (PR pending):
-
-- ✅ conversationUtils.ts: 890 → 296 lines (4 modules extracted)
-- ✅ DiscordChannelFetcher.ts: 1221 → 518 lines (6 modules extracted)
-- ✅ MessageContextBuilder.ts: 932 → 619 lines (3 modules extracted)
-- ✅ ConversationalRAGService.ts: 890 → 596 lines (3 modules extracted)
-
-**Remaining over 500 lines** (coordinator classes with intentional verbosity):
-
-- MessageContextBuilder.ts (619) - core context building orchestration
-- ConversationalRAGService.ts (596) - main RAG orchestration
-- DiscordChannelFetcher.ts (518) - channel fetching coordinator
-
-These remaining files are coordinator classes with clear step organization and diagnostic logging. Further extraction would create artificial complexity.
-
-**Future work**:
-
-- [ ] Add integration tests for ConversationalRAGService (currently has @audit-ignore)
-- [ ] Consider lowering ESLint max-lines to 400 and address new violations
-
 ### ✨ Multi-Personality Per Channel
 
 Allow multiple personalities active in a single channel.
@@ -136,16 +105,11 @@ Allow multiple personalities active in a single channel.
 
 _Significant refactors that can wait._
 
-### 🏗️ Extended Context Pipeline Refactor
+### 🏗️ Reasoning/Thinking Modernization (See Plan - Phase 4)
 
-The pipeline has two parallel code paths (extended context on/off) that constantly get out of sync. This is blocking reliable feature development.
+Custom fetch wrapper, XML tag injection, multiple extraction paths. Needs stable foundation from Configuration Consolidation first.
 
-- [ ] Remove the extended context toggle - always use extended context
-- [ ] Remove dead code paths (all "if not extended context" branches)
-- [ ] Unify the pipeline - single path from Discord → LLM input
-- [ ] Consolidate types - `ConversationHistoryEntry` carries ALL data through pipeline
-
-**Files**: `DiscordChannelFetcher.ts`, `MessageContextBuilder.ts`, `conversationUtils.ts`, pipeline steps
+**Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 4)
 
 ---
 
@@ -363,9 +327,9 @@ Some operations log at INFO when they should be DEBUG.
 
 ## Epic: Memory System Overhaul
 
-_Dependency chain: Pipeline Refactor → LTM Summarization → Table Migration → OpenMemory_
+_Dependency chain: Configuration Consolidation → LTM Summarization → Table Migration → OpenMemory_
 
-### 1. ✨ LTM Summarization (Shapes.inc Style) ⛔ Blocked by Pipeline Refactor
+### 1. ✨ LTM Summarization (Shapes.inc Style) ⛔ Blocked by Configuration Consolidation
 
 Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
 
@@ -373,7 +337,7 @@ Verbatim conversation storage is redundant with extended context. Replace with L
 - [ ] Separate LLM call for summarization (fast/cheap model)
 - [ ] Store summaries as LTM instead of verbatim turns
 
-**Depends on**: Extended Context Pipeline Refactor (Medium Priority)
+**Depends on**: Configuration Consolidation (removes dual context paths)
 
 ### 2. 🏗️ Memories Table Migration ⛔ Blocked by LTM Summarization
 
@@ -571,17 +535,6 @@ Re-exports create spaghetti code and obscure module dependencies.
 - [ ] Eliminate non-essential re-exports
 - [ ] Exception: Package entry points (e.g., `@tzurot/common-types`)
 
-### 🏗️ Split Large Service Files
-
-Several files have grown past the 500-line ESLint limit and use `eslint-disable max-lines`:
-
-- [ ] `MessageContextBuilder.ts` (~800 lines) - Extract attachment/reference extraction to separate file
-- [ ] `conversationUtils.ts` (~890 lines) - Split formatting vs retrieval
-- [ ] `DiscordChannelFetcher.ts` (~600 lines) - Extract sync logic
-- [ ] `GatewayClient.ts` (~560 lines) - Consider splitting cache management vs API calls
-
-**Note**: These files work correctly, just need refactoring for maintainability.
-
 ### 🧹 Periodic Complexity/Filesize Audit
 
 Files and functions creep toward ESLint limits over time. Proactive audit prevents emergency extractions.
@@ -692,6 +645,20 @@ The distinction isn't consistently applied. Calling both kinds "services" while 
 - [ ] Consider renaming for consistency (or document the semantic distinction)
 
 **Note**: Large refactor touching many files. Low value / high effort.
+
+---
+
+## Completed
+
+_Recently completed items (clear periodically)._
+
+### ✅ Pino Logger Bug (v3.0.0-beta.66)
+
+Fixed `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` in RetryDecisionHelper. Root cause: extracting pino methods loses `this` binding. Added integration test.
+
+### ✅ Large File Extractions - Phase 1 (v3.0.0-beta.65)
+
+PR #573 merged. Extracted 17 modules, 56% line reduction in target files.
 
 ---
 
