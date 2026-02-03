@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-01
-> **Version**: v3.0.0-beta.63
+> **Last Updated**: 2026-02-02
+> **Version**: v3.0.0-beta.65
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -122,26 +122,27 @@ Functions exceeding 15 cognitive complexity limit:
 
 **Files**: `LlmConfigMapper.ts`, `PersonalityDefaults.ts`, `LlmConfigResolver.ts`, `DiagnosticCollector.ts`, `ModelFactory.ts`
 
-### 🏗️ ConversationalRAGService Refactor
+### 🏗️ Large File Audit - Remaining Work
 
-The main RAG orchestration service is a 890-line monster (limit: 500). It coordinates multiple components but has accumulated complexity that makes debugging nightmares like the thinking bug possible.
+**Completed in Phase 1** (PR pending):
 
-- [ ] Extract ThinkingProcessor - all thinking/reasoning extraction
-- [ ] Extract PromptAssembler - system prompt + context building
-- [ ] Extract MemoryManager - LTM retrieval and storage
-- [ ] Extract ResponseProcessor - deduplication, stripping, placeholders
-- [ ] Break down `generateResponse` method (currently 180+ lines)
-- [ ] After refactor: add integration tests (currently has @audit-ignore)
+- ✅ conversationUtils.ts: 890 → 296 lines (4 modules extracted)
+- ✅ DiscordChannelFetcher.ts: 1221 → 518 lines (6 modules extracted)
+- ✅ MessageContextBuilder.ts: 932 → 619 lines (3 modules extracted)
+- ✅ ConversationalRAGService.ts: 890 → 596 lines (3 modules extracted)
 
-**Files**: `services/ai-worker/src/services/ConversationalRAGService.ts`
+**Remaining over 500 lines** (coordinator classes with intentional verbosity):
 
-### 🏗️ Large File Audit and Refactor
+- MessageContextBuilder.ts (619) - core context building orchestration
+- ConversationalRAGService.ts (596) - main RAG orchestration
+- DiscordChannelFetcher.ts (518) - channel fetching coordinator
 
-Multiple files exceed the 500-line limit. Each is a maintenance burden and bug hiding spot.
+These remaining files are coordinator classes with clear step organization and diagnostic logging. Further extraction would create artificial complexity.
 
-- [ ] Run `pnpm ops lint:large-files` to identify all violations
-- [ ] Prioritize by: frequency of changes × size × complexity
-- [ ] Extract helpers, split responsibilities, reduce coupling
+**Future work**:
+
+- [ ] Add integration tests for ConversationalRAGService (currently has @audit-ignore)
+- [ ] Consider lowering ESLint max-lines to 400 and address new violations
 
 ### ✨ Multi-Personality Per Channel
 
