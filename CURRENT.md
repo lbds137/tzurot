@@ -8,13 +8,15 @@
 
 ## In Progress: Bug Fix + Dependencies + Plan Review
 
-### Pino Logger Bug (Fixed)
+### Pino Logger Bug (Fixed + Tested)
 
 **Bug**: `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` at GenerationStep.
 
 **Root Cause**: In `RetryDecisionHelper.ts`, the pattern `const logFn = logger.warn` extracts a method reference without binding, losing the `this` context. Pino internally accesses `this[Symbol(pino.msgPrefix)]`, causing the error.
 
 **Fix**: Call logger methods directly instead of extracting them.
+
+**Test Added**: `RetryDecisionHelper.int.test.ts` - integration test using real pino (not mocked) to prevent regression.
 
 **How it slipped through**: The bug only triggers in specific retry paths (empty response or duplicate detection), which don't occur frequently in normal operation.
 
@@ -31,16 +33,19 @@ Merged updates from 6 Dependabot PRs (#567-572):
 
 ### Plan Review
 
-Discovered that **Phase 2** (extended context configuration) is already implemented:
+**Phase 1**: ✅ Complete (PR #573 merged)
 
-- Database schema has `extendedContextMaxMessages`, `extendedContextMaxAge`, `extendedContextMaxImages` on AdminSettings, ChannelSettings, and Personality tables
-- `ExtendedContextSettingsResolver` handles 3-layer cascading resolution
-- `/channel settings` command exposes all options in UI
-- `MessageContextBuilder` uses resolved settings
+**Phase 2** (extended context configuration): ✅ Complete (implemented differently)
+
+The plan specified adding to `llm_configs` JSONB, but implementation used dedicated columns - which is better for separation of concerns:
+
+- `ExtendedContextSettingsResolver` with 3-layer cascade (Global → Channel → Personality)
+- Source tracking, hard caps, most-restrictive-wins logic
+- `/channel settings` UI exposes all options
 
 **Remaining phases**:
 
-- **Phase 3**: Consolidate LLM config single source of truth (medium complexity)
+- **Phase 3**: Consolidate LLM config single source of truth (CRITICAL - root cause of beta.60-62 breakage)
 - **Phase 4**: Modernize reasoning/thinking handling (higher risk)
 
 ---
