@@ -27,7 +27,7 @@ function createMockRole(overrides: { id?: string; name?: string; position?: numb
 /**
  * Create a mock role collection
  */
-function createMockRoleCache(roles: Role[], everyoneRoleId?: string): Collection<string, Role> {
+function createMockRoleCache(roles: Role[]): Collection<string, Role> {
   const cache = new Map<string, Role>();
   for (const role of roles) {
     cache.set(role.id, role);
