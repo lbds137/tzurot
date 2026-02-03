@@ -45,14 +45,21 @@ export function shouldRetryEmptyResponse(opts: EmptyResponseCheckOptions): Retry
 
   const canRetry = attempt < maxAttempts;
   const hasThinking = response.thinkingContent !== undefined && response.thinkingContent !== '';
-  const logFn = canRetry ? logger.warn : logger.error;
 
-  logFn(
-    { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
-    canRetry
-      ? '[RetryDecisionHelper] Empty response after post-processing. Retrying...'
-      : '[RetryDecisionHelper] All retries produced empty responses.'
-  );
+  // NOTE: Do NOT extract logger methods (e.g., const logFn = logger.warn) as this loses
+  // the `this` context and causes "Cannot read properties of undefined" pino errors.
+  // Also, ESLint requires inline object literals for logger calls.
+  if (canRetry) {
+    logger.warn(
+      { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
+      '[RetryDecisionHelper] Empty response after post-processing. Retrying...'
+    );
+  } else {
+    logger.error(
+      { jobId, attempt, modelUsed: response.modelUsed, hasThinking, totalAttempts: maxAttempts },
+      '[RetryDecisionHelper] All retries produced empty responses.'
+    );
+  }
 
   return canRetry ? 'retry' : 'return';
 }
@@ -65,20 +72,22 @@ export function shouldRetryEmptyResponse(opts: EmptyResponseCheckOptions): Retry
 export function logDuplicateDetection(opts: DuplicateDetectionOptions): 'retry' | 'return' {
   const { response, attempt, maxAttempts, matchIndex, jobId, isGuestMode } = opts;
   const canRetry = attempt < maxAttempts;
-  const logFn = canRetry ? logger.warn : logger.error;
+  const matchedTurnsBack = (matchIndex ?? 0) + 1;
 
-  logFn(
-    {
-      jobId,
-      modelUsed: response.modelUsed,
-      isGuestMode,
-      attempt,
-      matchedTurnsBack: (matchIndex ?? 0) + 1,
-    },
-    canRetry
-      ? '[RetryDecisionHelper] Cross-turn duplication detected. Retrying...'
-      : '[RetryDecisionHelper] All retries produced duplicate responses.'
-  );
+  // NOTE: Do NOT extract logger methods (e.g., const logFn = logger.warn) as this loses
+  // the `this` context and causes "Cannot read properties of undefined" pino errors.
+  // Also, ESLint requires inline object literals for logger calls.
+  if (canRetry) {
+    logger.warn(
+      { jobId, modelUsed: response.modelUsed, isGuestMode, attempt, matchedTurnsBack },
+      '[RetryDecisionHelper] Cross-turn duplication detected. Retrying...'
+    );
+  } else {
+    logger.error(
+      { jobId, modelUsed: response.modelUsed, isGuestMode, attempt, matchedTurnsBack },
+      '[RetryDecisionHelper] All retries produced duplicate responses.'
+    );
+  }
 
   return canRetry ? 'retry' : 'return';
 }
