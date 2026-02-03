@@ -126,7 +126,7 @@ describe('messageTypeFilters', () => {
         content: 'Just a bot message',
       });
       // Remove reference entirely
-      (msg as Record<string, unknown>).reference = undefined;
+      (msg as unknown as Record<string, unknown>).reference = undefined;
 
       expect(isBotTranscriptReply(msg, botUserId)).toBe(false);
     });
