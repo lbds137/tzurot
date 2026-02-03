@@ -226,7 +226,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
         {
           id: 'history-1',
           role: MessageRole.User,
@@ -260,10 +260,9 @@ describe('MessageContextBuilder', () => {
         'personality-123'
       );
 
-      // Verify history retrieval (4th arg is contextEpoch - undefined when no STM clear)
-      expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
+      // Verify history retrieval - getChannelHistory: channelId, limit, contextEpoch (no personalityId)
+      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
-        'personality-123',
         100,
         undefined
       );
@@ -313,7 +312,7 @@ describe('MessageContextBuilder', () => {
         },
         source: 'user-default',
       });
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -335,7 +334,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'First message',
@@ -365,7 +364,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: mockReferences,
         updatedContent: 'Check [Reference 1]',
@@ -392,7 +391,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
         {
           id: 'history-1',
           role: MessageRole.User,
@@ -440,7 +439,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Check this image',
@@ -463,7 +462,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -480,7 +479,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: null,
@@ -528,7 +527,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([
         {
           id: 'history-1',
           role: MessageRole.Assistant,
@@ -560,7 +559,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -584,7 +583,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hey <@123456>, how are you?',
@@ -633,7 +632,7 @@ describe('MessageContextBuilder', () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       // PersonaResolver.resolve is already mocked in beforeEach
       // PersonaResolver.resolve returns preferredName directly
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello world',
@@ -659,7 +658,7 @@ describe('MessageContextBuilder', () => {
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello after clear',
@@ -687,9 +686,9 @@ describe('MessageContextBuilder', () => {
       });
 
       // Verify history was fetched WITH the context epoch
-      expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
+      // getChannelHistory: channelId, limit, contextEpoch (no personalityId)
+      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
-        'personality-123',
         100,
         contextEpoch
       );
@@ -701,7 +700,7 @@ describe('MessageContextBuilder', () => {
 
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',
@@ -715,9 +714,9 @@ describe('MessageContextBuilder', () => {
       await builder.buildContext(mockMessage, mockPersonality, 'Hello');
 
       // Verify history was fetched WITHOUT epoch (undefined)
-      expect(mockHistoryService.getRecentHistory).toHaveBeenCalledWith(
+      // getChannelHistory: channelId, limit, contextEpoch (no personalityId)
+      expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
-        'personality-123',
         100,
         undefined
       );
@@ -810,7 +809,7 @@ describe('MessageContextBuilder', () => {
     it('should not fetch extended context when disabled', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getRecentHistory).mockResolvedValue([]);
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
         updatedContent: 'Hello',

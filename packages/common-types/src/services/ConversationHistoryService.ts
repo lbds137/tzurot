@@ -201,6 +201,10 @@ export class ConversationHistoryService {
    * Get recent conversation history for a channel + personality
    * Returns messages in chronological order (oldest first)
    *
+   * @deprecated Use getChannelHistory() instead. This method filters by personalityId which
+   * provides incomplete context when multiple personalities share a channel. The getChannelHistory()
+   * method returns all channel messages, providing better conversation context alignment.
+   *
    * @param channelId Channel ID
    * @param personalityId Personality ID
    * @param limit Number of messages to fetch (default: 20)
