@@ -13,30 +13,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _New items go here. Triage to appropriate section later._
 
-### 🐛 GenerationStep Pino Logger Error
-
-**Error**: `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` at `GenerationStep` stage.
-
-**Context**: Occurred with `google/gemini-3-flash-preview` model, reasoning enabled (medium effort). The response was successfully generated and post-processed (thinking extracted, artifacts stripped), but the error occurred after LLM invocation completed. This suggests the logger instance may be undefined at the point where success is being logged.
-
-**Error details**:
-
-```json
-{
-  "referenceId": "ml5tpf5bi6k",
-  "failedAtStage": "GenerationStep",
-  "errorCategory": "server_error",
-  "shouldRetry": true
-}
-```
-
-**Investigate**:
-
-- [ ] Check logger initialization in GenerationStep
-- [ ] Verify logger isn't being reassigned to undefined during async operations
-- [ ] Check if there's a race condition with logger disposal
-
-**Files**: `services/ai-worker/src/jobs/steps/GenerationStep.ts`
+_(Empty)_
 
 ---
 
