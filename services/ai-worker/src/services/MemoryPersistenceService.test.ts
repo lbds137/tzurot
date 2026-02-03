@@ -34,7 +34,7 @@ describe('MemoryPersistenceService', () => {
   const createMockContext = (overrides = {}): ConversationContext => ({
     userId: 'user-123',
     channelId: 'channel-123',
-    guildId: 'guild-123',
+    serverId: 'guild-123',
     conversationHistory: [],
     rawConversationHistory: [],
     ...overrides,
