@@ -18,6 +18,23 @@
 
 **Test**: `RetryDecisionHelper.int.test.ts` - integration test using real pino (not mocked).
 
+### DB-Sync Singleton Flag Fix
+
+**Bug**: After db-sync, `is_default` or `is_free_default` flag could be lost when dev and prod had different default configs.
+
+**Root Cause**: Singleton resolution cleared the loser's flag but didn't set the winner's flag in the other environment. Since `is_default`/`is_free_default` are in `excludeColumns` (not copied during sync), the winning config arrived without its flag set.
+
+**Fix**: When resolving singleton conflicts:
+
+1. Clear the loser's flag (as before)
+2. Set the winner's flag in the other environment (if config exists)
+3. Track pending resolutions and finalize after sync (for newly synced configs)
+
+**Files Changed**:
+
+- `llmConfigSingletons.ts` - Added `finalizeLlmConfigSingletonFlags()` and winner flag propagation
+- `DatabaseSyncService.ts` - Call finalize after sync loop
+
 ### Dependency Updates
 
 Consolidated 6 Dependabot PRs (#567-572):
