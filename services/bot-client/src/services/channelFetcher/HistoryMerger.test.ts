@@ -30,7 +30,7 @@ function createMockMessage(overrides: {
       reactors: Array<{ personaId: string; displayName: string }>;
     }>;
     embedsXml?: string[];
-    voiceTranscripts?: Array<{ startTime: string; text: string }>;
+    voiceTranscripts?: string[];
   };
 }): ConversationMessage {
   return {
@@ -111,7 +111,7 @@ describe('HistoryMerger', () => {
             discordMessageId: ['msg-1'],
             content: 'Voice message content',
             messageMetadata: {
-              voiceTranscripts: [{ startTime: '0:00', text: 'Transcript text' }],
+              voiceTranscripts: ['Transcript text'],
             },
           }),
         ],
@@ -119,9 +119,7 @@ describe('HistoryMerger', () => {
 
       recoverEmptyDbContent(dbHistory, extendedMessageMap);
 
-      expect(dbHistory[0].messageMetadata?.voiceTranscripts).toEqual([
-        { startTime: '0:00', text: 'Transcript text' },
-      ]);
+      expect(dbHistory[0].messageMetadata?.voiceTranscripts).toEqual(['Transcript text']);
     });
 
     it('should skip messages without Discord message ID', () => {

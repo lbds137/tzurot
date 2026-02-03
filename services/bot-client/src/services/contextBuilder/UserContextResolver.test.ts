@@ -106,8 +106,13 @@ describe('UserContextResolver', () => {
         resolve: vi.fn().mockResolvedValue({
           config: {
             personaId: 'persona-uuid-123',
+            personaName: 'AlicePersona',
             preferredName: 'Alice',
+            pronouns: null,
+            content: '',
+            shareLtmAcrossPersonalities: false,
           },
+          source: 'system-default',
         }),
       } as unknown as PersonaResolver,
       prisma: {
@@ -181,9 +186,10 @@ describe('UserContextResolver', () => {
     it('should include context epoch when set', async () => {
       const deps = createMockDeps();
       const epochDate = new Date('2024-06-01T00:00:00Z');
-      vi.mocked(deps.prisma.userPersonaHistoryConfig.findUnique).mockResolvedValue({
-        lastContextReset: epochDate,
-      });
+      // Cast through unknown since we only need lastContextReset for the test
+      (
+        deps.prisma.userPersonaHistoryConfig.findUnique as ReturnType<typeof vi.fn>
+      ).mockResolvedValue({ lastContextReset: epochDate });
       const personality = createMockPersonality();
       const user = { id: 'discord-123', username: 'alice' };
 
@@ -192,25 +198,31 @@ describe('UserContextResolver', () => {
       expect(result.contextEpoch).toBe(epochDate);
     });
 
-    it('should handle null persona name', async () => {
+    it('should handle null preferred name', async () => {
       const deps = createMockDeps();
       vi.mocked(deps.personaResolver.resolve).mockResolvedValue({
         config: {
           personaId: 'persona-uuid',
+          personaName: 'TestPersona',
           preferredName: null,
+          pronouns: null,
+          content: '',
+          shareLtmAcrossPersonalities: false,
         },
+        source: 'system-default',
       });
       const personality = createMockPersonality();
       const user = { id: 'discord-123', username: 'alice' };
 
       const result = await resolveUserContext(user, personality, 'Alice', deps);
 
+      // personaName in result comes from preferredName (user's chosen name)
       expect(result.personaName).toBeNull();
     });
 
     it('should handle undefined timezone', async () => {
       const deps = createMockDeps();
-      vi.mocked(deps.userService.getUserTimezone).mockResolvedValue(undefined);
+      vi.mocked(deps.userService.getUserTimezone).mockResolvedValue(undefined as unknown as string);
       const personality = createMockPersonality();
       const user = { id: 'discord-123', username: 'alice' };
 
