@@ -40,6 +40,10 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     reasoning_enabled: '',
     // Output params
     show_thinking: '',
+    // Context settings
+    maxMessages: '50',
+    maxAge: '',
+    maxImages: '10',
     ...overrides,
   };
 }

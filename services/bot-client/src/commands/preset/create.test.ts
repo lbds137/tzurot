@@ -116,6 +116,9 @@ describe('Preset Create', () => {
         contextWindowTokens: 8192,
         memoryScoreThreshold: null,
         memoryLimit: null,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
         params: {},
       });
 
@@ -180,6 +183,9 @@ describe('Preset Create', () => {
         contextWindowTokens: 8192,
         memoryScoreThreshold: null,
         memoryLimit: null,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
         params: {},
       };
 
