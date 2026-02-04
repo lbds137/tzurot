@@ -21,6 +21,7 @@ import {
   type AdvancedParams,
   generateLlmConfigUuid,
   safeValidateAdvancedParams,
+  MESSAGE_LIMITS,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -29,6 +30,9 @@ import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-llm-config');
+
+/** Repeated error message for missing configs */
+const CONFIG_NOT_FOUND = 'Config not found';
 
 /**
  * Request body for creating/updating a global config
@@ -42,6 +46,10 @@ interface CreateGlobalConfigBody {
   visionModel?: string;
   maxReferencedMessages?: number;
   advancedParameters?: AdvancedParams;
+  // Context settings
+  maxMessages?: number;
+  maxAge?: number | null;
+  maxImages?: number;
 }
 
 /** Select fields for detail queries (includes advancedParameters) */
@@ -57,6 +65,10 @@ const CONFIG_DETAIL_SELECT = {
   isFreeDefault: true,
   advancedParameters: true,
   maxReferencedMessages: true,
+  // Context settings
+  maxMessages: true,
+  maxAge: true,
+  maxImages: true,
   ownerId: true,
 } as const;
 
@@ -109,7 +121,7 @@ function createGetHandler(prisma: PrismaClient) {
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
     // Parse advancedParameters with validation
@@ -127,6 +139,10 @@ function createGetHandler(prisma: PrismaClient) {
       isDefault: config.isDefault,
       isFreeDefault: config.isFreeDefault,
       maxReferencedMessages: config.maxReferencedMessages,
+      // Context settings
+      maxMessages: config.maxMessages,
+      maxAge: config.maxAge,
+      maxImages: config.maxImages,
       params,
     };
 
@@ -195,6 +211,10 @@ function createCreateConfigHandler(prisma: PrismaClient) {
         visionModel: body.visionModel ?? null,
         maxReferencedMessages: body.maxReferencedMessages ?? 20,
         advancedParameters: body.advancedParameters ?? undefined,
+        // Context settings
+        maxMessages: body.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
+        maxAge: body.maxAge ?? null,
+        maxImages: body.maxImages ?? MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
       },
       select: {
         id: true,
@@ -230,7 +250,7 @@ function createEditConfigHandler(
     });
 
     if (existing === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
     if (!existing.isGlobal) {
       return sendError(res, ErrorResponses.validationError('Can only edit global configs'));
@@ -265,6 +285,10 @@ function createEditConfigHandler(
       isDefault: config.isDefault,
       isFreeDefault: config.isFreeDefault,
       maxReferencedMessages: config.maxReferencedMessages,
+      // Context settings
+      maxMessages: config.maxMessages,
+      maxAge: config.maxAge,
+      maxImages: config.maxImages,
       params,
     };
 
@@ -291,7 +315,7 @@ function createSetDefaultHandler(
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
     if (!config.isGlobal) {
       return sendError(
@@ -330,7 +354,7 @@ function createSetFreeDefaultHandler(
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
     if (!config.isGlobal) {
       return sendError(
@@ -374,7 +398,7 @@ function createDeleteConfigHandler(prisma: PrismaClient) {
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
     if (!config.isGlobal) {
       return sendError(res, ErrorResponses.validationError('Can only delete global configs'));
@@ -402,6 +426,40 @@ type BuildUpdateResult =
   | { data: Record<string, unknown> }
   | { error: ReturnType<typeof ErrorResponses.validationError> };
 
+/** Fields that can be directly copied without validation */
+const SIMPLE_COPY_FIELDS = [
+  'description',
+  'provider',
+  'visionModel',
+  'maxReferencedMessages',
+  'maxMessages',
+  'maxAge',
+  'maxImages',
+] as const;
+
+/**
+ * Validate and prepare name field for update
+ * Returns error response if validation fails, trimmed name otherwise
+ */
+async function validateNameUpdate(
+  prisma: PrismaClient,
+  name: string,
+  excludeConfigId: string | undefined
+): Promise<{ error: ReturnType<typeof ErrorResponses.validationError> } | { name: string }> {
+  if (name.length > 100) {
+    return { error: ErrorResponses.validationError('name must be 100 characters or less') };
+  }
+  const duplicate = await prisma.llmConfig.findFirst({
+    where: { isGlobal: true, name: name.trim(), id: { not: excludeConfigId } },
+  });
+  if (duplicate !== null) {
+    return {
+      error: ErrorResponses.validationError(`A global config named "${name}" already exists`),
+    };
+  }
+  return { name: name.trim() };
+}
+
 async function buildUpdateData(
   prisma: PrismaClient,
   configId: string | undefined,
@@ -409,39 +467,28 @@ async function buildUpdateData(
 ): Promise<BuildUpdateResult> {
   const updateData: Record<string, unknown> = {};
 
+  // Validate name if provided
   if (body.name !== undefined && body.name.trim().length > 0) {
-    if (body.name.length > 100) {
-      return { error: ErrorResponses.validationError('name must be 100 characters or less') };
+    const nameResult = await validateNameUpdate(prisma, body.name, configId);
+    if ('error' in nameResult) {
+      return nameResult;
     }
-    const duplicate = await prisma.llmConfig.findFirst({
-      where: { isGlobal: true, name: body.name.trim(), id: { not: configId } },
-    });
-    if (duplicate !== null) {
-      return {
-        error: ErrorResponses.validationError(
-          `A global config named "${body.name}" already exists`
-        ),
-      };
+    updateData.name = nameResult.name;
+  }
+
+  // Copy simple fields that don't need validation
+  for (const field of SIMPLE_COPY_FIELDS) {
+    if (body[field] !== undefined) {
+      updateData[field] = body[field];
     }
-    updateData.name = body.name.trim();
   }
-  if (body.description !== undefined) {
-    updateData.description = body.description;
-  }
-  if (body.provider !== undefined) {
-    updateData.provider = body.provider;
-  }
+
+  // Handle model with trimming
   if (body.model !== undefined && body.model.trim().length > 0) {
     updateData.model = body.model.trim();
   }
-  if (body.visionModel !== undefined) {
-    updateData.visionModel = body.visionModel;
-  }
-  if (body.maxReferencedMessages !== undefined) {
-    updateData.maxReferencedMessages = body.maxReferencedMessages;
-  }
 
-  // Handle advancedParameters update
+  // Validate advancedParameters if provided
   if (body.advancedParameters !== undefined) {
     const validated = safeValidateAdvancedParams(body.advancedParameters);
     if (validated === null) {

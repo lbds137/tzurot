@@ -365,6 +365,46 @@ describe('unflattenPresetData', () => {
       max_tokens: 4096,
     });
   });
+
+  it('should unflatten context settings (maxMessages, maxAge, maxImages)', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      maxMessages: '30',
+      maxAge: '86400',
+      maxImages: '5',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.maxMessages).toBe(30);
+    expect(result.maxAge).toBe(86400);
+    expect(result.maxImages).toBe(5);
+  });
+
+  it('should set maxAge to null when empty string', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      maxMessages: '50',
+      maxAge: '',
+      maxImages: '10',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.maxMessages).toBe(50);
+    expect(result.maxAge).toBeNull();
+    expect(result.maxImages).toBe(10);
+  });
+
+  it('should not include context settings when values are undefined', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      name: 'Test',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.maxMessages).toBeUndefined();
+    expect(result.maxAge).toBeUndefined();
+    expect(result.maxImages).toBeUndefined();
+  });
 });
 
 describe('PRESET_DASHBOARD_CONFIG', () => {

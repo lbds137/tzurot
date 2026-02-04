@@ -128,6 +128,9 @@ describe('Admin LLM Config Routes', () => {
         isFreeDefault: false,
         maxReferencedMessages: 10,
         advancedParameters: { temperature: 0.7 },
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
       });
 
       const response = await request(app).get('/admin/llm-config/config-1');
@@ -137,6 +140,33 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.name).toBe('Default Config');
       expect(response.body.config.isGlobal).toBe(true);
       expect(response.body.config.params).toEqual({ temperature: 0.7 });
+    });
+
+    it('should return context settings (maxMessages, maxAge, maxImages)', async () => {
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        name: 'Config with context',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        maxReferencedMessages: 10,
+        advancedParameters: null,
+        // Context settings
+        maxMessages: 30,
+        maxAge: 86400,
+        maxImages: 5,
+      });
+
+      const response = await request(app).get('/admin/llm-config/config-1');
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.maxMessages).toBe(30);
+      expect(response.body.config.maxAge).toBe(86400);
+      expect(response.body.config.maxImages).toBe(5);
     });
 
     it('should return 404 when config not found', async () => {
