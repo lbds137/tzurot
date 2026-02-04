@@ -178,7 +178,14 @@ export function formatVoiceSection(msg: RawHistoryEntry): string {
   return `\n<voice_transcripts>\n${transcripts}\n</voice_transcripts>`;
 }
 
-/** Format reactions section for XML output */
+/**
+ * Format reactions section for XML output
+ *
+ * Each reactor becomes a separate <reaction> element with from/from_id attributes
+ * matching the message format for consistency. Emoji (or :custom_name:) is the content.
+ *
+ * Format: <reaction from="PersonaName" from_id="uuid">emoji</reaction>
+ */
 export function formatReactionsSection(msg: RawHistoryEntry): string {
   if (msg.messageMetadata?.reactions === undefined) {
     return '';
@@ -187,12 +194,30 @@ export function formatReactionsSection(msg: RawHistoryEntry): string {
     return '';
   }
 
-  const formattedReactions = msg.messageMetadata.reactions
-    .map(reaction => {
-      const emojiAttr = reaction.isCustom === true ? ' custom="true"' : '';
-      const reactorNames = reaction.reactors.map(r => escapeXml(r.displayName)).join(', ');
-      return `<reaction emoji="${escapeXml(reaction.emoji)}"${emojiAttr}>${reactorNames}</reaction>`;
-    })
-    .join('\n');
-  return `\n<reactions>\n${formattedReactions}\n</reactions>`;
+  // Flatten reactions: one <reaction> element per reactor per emoji
+  const formattedReactions: string[] = [];
+
+  for (const reaction of msg.messageMetadata.reactions) {
+    // Custom emoji attribute (for :name: format emojis)
+    const customAttr = reaction.isCustom === true ? ' custom="true"' : '';
+    const emojiContent = escapeXmlContent(reaction.emoji);
+
+    // Each reactor gets their own <reaction> element
+    for (const reactor of reaction.reactors) {
+      const fromAttr = `from="${escapeXml(reactor.displayName)}"`;
+      const fromIdAttr =
+        reactor.personaId !== undefined && reactor.personaId.length > 0
+          ? ` from_id="${escapeXml(reactor.personaId)}"`
+          : '';
+      formattedReactions.push(
+        `<reaction ${fromAttr}${fromIdAttr}${customAttr}>${emojiContent}</reaction>`
+      );
+    }
+  }
+
+  if (formattedReactions.length === 0) {
+    return '';
+  }
+
+  return `\n<reactions>\n${formattedReactions.join('\n')}\n</reactions>`;
 }
