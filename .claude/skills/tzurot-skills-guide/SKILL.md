@@ -1,7 +1,6 @@
 ---
 name: tzurot-skills-guide
 description: 'MUST invoke when: creating new skills, updating SKILL.md files, or reviewing skill quality. Contains size limits and progressive disclosure requirements.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 
@@ -44,7 +43,6 @@ done | wc -c
 ---
 name: tzurot-skillname
 description: Action-oriented description. Use when [specific triggers]. Covers [key topics].
-disable-model-invocation: true
 lastUpdated: 'YYYY-MM-DD'
 ---
 
@@ -94,21 +92,17 @@ The `description` field in YAML frontmatter determines when Claude auto-activate
 ```yaml
 # ❌ BAD - Passive, vague
 description: Testing patterns for the project.
-disable-model-invocation: true
 
 # ✅ GOOD - Action triggers
 description: Use when writing tests, debugging test failures, or mocking dependencies. Covers Vitest patterns, fake timers, and mock factories.
-disable-model-invocation: true
 ```
 
 ```yaml
 # ❌ BAD - Too broad
 description: Database and vector operations.
-disable-model-invocation: true
 
 # ✅ GOOD - Specific triggers
 description: Use when writing Prisma queries, running migrations, or working with pgvector similarity search. Covers connection pooling and migration workflow.
-disable-model-invocation: true
 ```
 
 ## When to Create a New Skill

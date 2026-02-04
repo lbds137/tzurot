@@ -1,7 +1,6 @@
 ---
 name: tzurot-db-vector
 description: 'REQUIRED when: writing Prisma queries, running migrations, or using pgvector similarity search. Contains connection pooling and Railway-specific patterns.'
-disable-model-invocation: true
 lastUpdated: '2026-02-03'
 ---
 

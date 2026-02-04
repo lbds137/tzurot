@@ -1,7 +1,6 @@
 ---
 name: tzurot-security
 description: 'CRITICAL - MUST invoke when: handling secrets, user input, shell commands (execSync), or any security-sensitive code. Contains patterns that prevent vulnerabilities.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

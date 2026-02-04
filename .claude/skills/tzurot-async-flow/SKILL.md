@@ -1,7 +1,6 @@
 ---
 name: tzurot-async-flow
 description: 'REQUIRED when: creating BullMQ jobs, handling Discord deferrals, implementing retry logic, or any async queue work. Contains patterns for idempotency and error handling.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

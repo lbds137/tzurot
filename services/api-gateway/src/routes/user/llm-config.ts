@@ -63,7 +63,7 @@ const ContextSettingsSchema = {
   maxAge: z
     .number()
     .int()
-    .min(1, 'maxAge must be at least 1 (or null for no limit)')
+    .min(1, 'maxAge must be at least 1 second, or omit/set to null for no time limit')
     .optional()
     .nullable(),
   maxImages: z
