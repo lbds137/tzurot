@@ -1,7 +1,6 @@
 ---
 name: tzurot-slash-command-ux
 description: 'REQUIRED when: implementing slash commands, adding buttons/pagination, or building Discord UX. Contains shared utilities table and standard naming conventions.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

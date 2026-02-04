@@ -1,7 +1,6 @@
 ---
 name: tzurot-docs
 description: "MUST invoke when: updating CURRENT.md, BACKLOG.md, or docs/ files. Also invoke at session start/end for workflow guidance. Invoke when user says 'wrap up', 'summarize', or 'done for now'."
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

@@ -1,7 +1,6 @@
 ---
 name: tzurot-types
 description: 'REQUIRED when: creating types, adding Zod schemas, or sharing constants across services. Contains common-types organization and validation patterns.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

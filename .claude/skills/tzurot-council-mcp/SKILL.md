@@ -1,7 +1,6 @@
 ---
 name: tzurot-council-mcp
 description: 'MUST invoke when: stuck on a problem, planning major refactors, or needing a second opinion. Contains MCP tool patterns for debugging and code review.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 
