@@ -9,6 +9,7 @@
  * - PUT /user/llm-config/:id - Update user config (advancedParameters)
  * - DELETE /user/llm-config/:id - Delete user config
  */
+/* eslint-disable max-lines -- CRUD route file with multiple handlers */
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
@@ -242,8 +243,9 @@ function createGetHandler(prisma: PrismaClient) {
   };
 }
 
+// eslint-disable-next-line max-lines-per-function -- straightforward CRUD handler with field validation
 function createCreateHandler(prisma: PrismaClient, userService: UserService) {
-  // eslint-disable-next-line complexity -- straightforward field validation in POST handler
+  // eslint-disable-next-line complexity, max-lines-per-function -- straightforward field validation in POST handler
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const body = req.body as CreateConfigBody;
@@ -265,6 +267,23 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
       if (validated === null) {
         return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
       }
+    }
+
+    // Validate context settings bounds (prevent DoS via excessive history fetch)
+    if (body.maxMessages !== undefined && (body.maxMessages < 1 || body.maxMessages > 100)) {
+      return sendError(
+        res,
+        ErrorResponses.validationError('maxMessages must be between 1 and 100')
+      );
+    }
+    if (body.maxImages !== undefined && (body.maxImages < 0 || body.maxImages > 20)) {
+      return sendError(res, ErrorResponses.validationError('maxImages must be between 0 and 20'));
+    }
+    if (body.maxAge !== undefined && body.maxAge !== null && body.maxAge < 1) {
+      return sendError(
+        res,
+        ErrorResponses.validationError('maxAge must be at least 1 (or null for no limit)')
+      );
     }
 
     // Get or create user
