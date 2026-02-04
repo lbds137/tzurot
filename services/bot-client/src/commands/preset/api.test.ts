@@ -34,6 +34,9 @@ const mockPresetData: PresetData = {
   contextWindowTokens: 8192,
   memoryScoreThreshold: null,
   memoryLimit: null,
+  maxMessages: 50,
+  maxAge: null,
+  maxImages: 10,
   params: {
     temperature: 0.7,
     top_p: 0.9,
