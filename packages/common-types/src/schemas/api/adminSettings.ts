@@ -71,12 +71,18 @@ export const ADMIN_SETTINGS_SINGLETON_ID = '550e8400-e29b-41d4-a716-446655440001
 
 /**
  * Source of a resolved setting value.
+ * - personality: From personality's default LlmConfig
+ * - user-personality: From user's per-personality override
+ * - user-default: From user's global default LlmConfig
+ * @deprecated 'global' and 'channel' were removed in Phase 2 config consolidation
  */
-export type SettingSource = 'global' | 'channel' | 'personality';
+export type SettingSource = 'personality' | 'user-personality' | 'user-default';
+
+const settingSourceEnum = z.enum(['personality', 'user-personality', 'user-default']);
 
 /**
  * Resolved extended context settings with source tracking.
- * Used by ExtendedContextSettingsResolver.
+ * Sources indicate where each context limit came from (personality default vs user override).
  */
 export const ResolvedExtendedContextSettingsSchema = z.object({
   // Effective values (what actually applies)
@@ -87,10 +93,10 @@ export const ResolvedExtendedContextSettingsSchema = z.object({
 
   // Sources (where each value came from)
   sources: z.object({
-    enabled: z.enum(['global', 'channel', 'personality']),
-    maxMessages: z.enum(['global', 'channel', 'personality']),
-    maxAge: z.enum(['global', 'channel', 'personality']),
-    maxImages: z.enum(['global', 'channel', 'personality']),
+    enabled: settingSourceEnum,
+    maxMessages: settingSourceEnum,
+    maxAge: settingSourceEnum,
+    maxImages: settingSourceEnum,
   }),
 });
 export type ResolvedExtendedContextSettings = z.infer<typeof ResolvedExtendedContextSettingsSchema>;

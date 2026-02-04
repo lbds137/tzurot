@@ -9,21 +9,18 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LlmConfigResolver } from './LlmConfigResolver.js';
-import type { LoadedPersonality, PrismaClient } from '@tzurot/common-types';
+import type { LoadedPersonality } from '../types/schemas.js';
+import type { PrismaClient } from './prisma.js';
 
 // Mock logger
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
-  return {
-    ...actual,
-    createLogger: () => ({
-      debug: vi.fn(),
-      info: vi.fn(),
-      warn: vi.fn(),
-      error: vi.fn(),
-    }),
-  };
-});
+vi.mock('../utils/logger.js', () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+  }),
+}));
 
 describe('LlmConfigResolver', () => {
   let resolver: LlmConfigResolver;

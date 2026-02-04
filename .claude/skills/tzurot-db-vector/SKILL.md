@@ -1,7 +1,8 @@
 ---
 name: tzurot-db-vector
 description: 'REQUIRED when: writing Prisma queries, running migrations, or using pgvector similarity search. Contains connection pooling and Railway-specific patterns.'
-lastUpdated: '2026-02-01'
+disable-model-invocation: true
+lastUpdated: '2026-02-03'
 ---
 
 # Tzurot v3 Database & Vector Memory
@@ -41,6 +42,7 @@ pnpm ops db:fix-drift <migration_name>
 3. **Migration-first** - Schema changes via Prisma migrations
 4. **Vector indexing** - Use ivfflat for fast similarity search
 5. **Review migrations** - Prisma tries to DROP pgvector indexes
+6. **Typed columns by default** - Use JSONB only for variable/nested data (see [Column Guidelines](../../../docs/reference/standards/DATABASE_COLUMN_GUIDELINES.md))
 
 ## Connection Management
 
@@ -376,3 +378,4 @@ This generates SQL that PGLite executes to create the same schema as your produc
 - pgvector docs: https://github.com/pgvector/pgvector
 - Schema: `prisma/schema.prisma`
 - Drift docs: `docs/database/PRISMA_DRIFT_ISSUES.md`
+- Column guidelines: `docs/reference/standards/DATABASE_COLUMN_GUIDELINES.md`

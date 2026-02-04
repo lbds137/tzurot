@@ -1,6 +1,7 @@
 ---
 name: tzurot-code-quality
 description: 'REQUIRED when: hitting ESLint errors, refactoring large functions, or extracting complex logic. Contains complexity limits and extraction patterns enforced by CI.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

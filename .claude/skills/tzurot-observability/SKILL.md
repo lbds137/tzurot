@@ -1,6 +1,7 @@
 ---
 name: tzurot-observability
 description: 'REQUIRED when: adding logging statements, debugging production issues, or analyzing Railway logs. Contains structured logging patterns and correlation ID usage.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

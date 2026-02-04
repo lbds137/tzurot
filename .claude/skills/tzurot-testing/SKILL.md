@@ -1,6 +1,7 @@
 ---
 name: tzurot-testing
 description: 'REQUIRED before writing any test code. Invoke when: creating .test.ts files, debugging test failures, mocking dependencies, or working with fake timers. Contains patterns that differ from defaults.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

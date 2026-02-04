@@ -1,6 +1,7 @@
 ---
 name: tzurot-caching
 description: 'MUST invoke when: adding Redis caching, setting TTLs, or debugging stale data issues. Contains invalidation patterns that prevent cache bugs.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

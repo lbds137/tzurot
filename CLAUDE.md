@@ -6,28 +6,15 @@
 
 > **Status**: v3 Public Beta on Railway. BYOK complete.
 
-## Skills Reference (MUST Invoke Before Work)
+## Skills System
 
-| Keywords                                | Skill                     | Enforces                |
-| --------------------------------------- | ------------------------- | ----------------------- |
-| `.test.ts`, `vitest`, `mock`            | `tzurot-testing`          | Coverage, test behavior |
-| `BullMQ`, `job`, `deferral`             | `tzurot-async-flow`       | Async patterns          |
-| `Prisma`, `pgvector`, `migration`       | `tzurot-db-vector`        | Query patterns          |
-| `Railway`, `deploy`, `logs`             | `tzurot-deployment`       | Deploy safety           |
-| `slash command`, `button`, `pagination` | `tzurot-slash-command-ux` | Standard naming         |
-| `git`, `commit`, `PR`                   | `tzurot-git-workflow`     | Git safety              |
-| `secret`, `security`, `execSync`        | `tzurot-security`         | Least privilege         |
-| `types`, `Zod`, `schema`                | `tzurot-types`            | Type safety             |
-| `refactor`, `lint`, `complexity`        | `tzurot-code-quality`     | ESLint rules            |
-| `CURRENT.md`, `BACKLOG.md`              | `tzurot-docs`             | Documentation           |
-| `MCP`, `council`                        | `tzurot-council-mcp`      | Second opinions         |
-| `architecture`, `service boundary`      | `tzurot-architecture`     | SRP                     |
-| `cache`, `TTL`                          | `tzurot-caching`          | Invalidation            |
-| `logging`, `debugging`                  | `tzurot-observability`    | Structured logging      |
-| `CLI`, `ops`, `script`                  | `tzurot-tooling`          | Ops CLI                 |
-| `skill`, `SKILL.md`                     | `tzurot-skills-guide`     | Skill quality           |
+**Skills do NOT auto-activate reliably.** A hook detects keywords and reminds you to load them.
 
-**Skills auto-load when relevant.** Claude invokes them based on task keywords. Use `Skill("tzurot-testing")` to load manually.
+- **Skill routing**: `.claude/rules/00-skill-routing.md` maps keywords to skills
+- **Invariants**: `.claude/rules/01-invariants.md` contains critical constraints (always loaded)
+- **Skill eval hook**: `.claude/hooks/skill-eval.sh` runs on every prompt
+
+When you see the skill check banner, invoke relevant skills with `Skill("skill-name")` BEFORE implementation.
 
 ## Critical Project Rules
 
@@ -41,57 +28,15 @@ Automated reviewers can be wrong. Check schema/source/tests before implementing 
 
 ### Mandatory Global Discovery ("Grep Rule")
 
-Before modifying config/infrastructure: Search ALL instances → List affected files → Justify exclusions.
+Before modifying config/infrastructure: Search ALL instances -> List affected files -> Justify exclusions.
 
 ### Never Merge PRs Without User Approval
 
-CI passing ≠ merge approval. User must explicitly request merge.
+CI passing != merge approval. User must explicitly request merge.
 
-### Deterministic UUIDs Required
+### Never Modify Tests to Make Them Pass
 
-Never use random UUIDs (v4). Use generators from `@tzurot/common-types`.
-
-### Database Access Rules
-
-| Service     | Prisma | Why              |
-| ----------- | ------ | ---------------- |
-| bot-client  | NEVER  | Use gateway APIs |
-| api-gateway | Yes    | Source of truth  |
-| ai-worker   | Yes    | Memory ops       |
-
-### Gateway Clients
-
-Never use direct `fetch()`. Use: `callGatewayApi()`, `adminFetch()`, or `GatewayClient`.
-
-## Engineering Standards
-
-### Code Quality (ESLint Enforced)
-
-- 500 lines/file (error), 100 lines/function, 15 complexity, 4 nesting depth
-- `strict: true`, no `any` types, no unsafe operations
-- 80% coverage (Codecov enforced)
-
-**See**: `tzurot-code-quality` skill for details
-
-### Error Handling
-
-Predictable errors return values; unexpected failures throw. Gateway APIs use Result pattern.
-
-### Discord 3-Second Rule
-
-```typescript
-await interaction.deferReply(); // Within 3 seconds
-// ... async work ...
-await interaction.editReply({ content: result });
-```
-
-### Bounded Queries
-
-All `findMany` must have `take` limit. No unbounded arrays.
-
-### Security
-
-**Never commit secrets.** Use `execFileSync` with arrays, not `execSync` with strings.
+If tests fail, the IMPLEMENTATION is wrong. Fix the code, not the tests.
 
 ## Tech Stack
 
@@ -109,14 +54,6 @@ pnpm quality          # lint + cpd + typecheck:spec
 pnpm ops db:migrate --env dev  # Run migrations
 ```
 
-**See**: `tzurot-tooling` skill for full CLI reference
-
-## Automation
-
-**Hooks**: PostToolUse runs `eslint --fix` on .ts/.tsx edits. Config: `.claude/settings.json`
-
-**Commands**: `/project:quality`, `/project:test-file`, `/project:pr-feedback`, `/project:session-end`
-
 ## Git Workflow
 
 **REBASE-ONLY. NO SQUASH. NO MERGE COMMITS.**
@@ -126,19 +63,19 @@ gh pr create --base develop --title "feat: description"
 gh pr merge <number> --rebase --delete-branch  # ONLY with user approval
 ```
 
-**See**: `tzurot-git-workflow` skill for safety protocol
-
 ## Project Structure
 
 ```
 tzurot/
-├── .claude/skills/         # 16 project-specific skills
+├── .claude/
+│   ├── rules/              # Always-loaded constraints
+│   ├── hooks/              # Automation (skill-eval, eslint)
+│   └── skills/             # 16 procedural skills
 ├── services/
-│   ├── bot-client/         # Discord interface
+│   ├── bot-client/         # Discord interface (NO Prisma)
 │   ├── api-gateway/        # HTTP API + BullMQ
 │   └── ai-worker/          # AI processing + memory
 ├── packages/common-types/  # Shared types
-├── personalities/          # Personality configs
 └── prisma/                 # Database schema
 ```
 
@@ -146,6 +83,7 @@ tzurot/
 
 | Date       | Incident                        | Rule                         |
 | ---------- | ------------------------------- | ---------------------------- |
+| 2026-02-03 | Context settings not cascading  | Trace full runtime flow      |
 | 2026-02-01 | Accepted wrong type from review | Verify against schema        |
 | 2026-01-30 | Gitignored data/ deleted        | Never rm -rf without okay    |
 | 2026-01-30 | Work reverted without consent   | Never abandon without asking |
@@ -156,7 +94,15 @@ tzurot/
 
 ## Key References
 
+- **Rules**: `.claude/rules/` (invariants, skill routing)
 - **Session**: `CURRENT.md`, `BACKLOG.md`
 - **Docs**: `docs/reference/` (standards, guides)
-- **Railway**: `docs/reference/RAILWAY_CLI_REFERENCE.md`
-- **GitHub**: `docs/reference/GITHUB_CLI_REFERENCE.md`
+
+## Compaction Instructions
+
+When compacting context, preserve:
+
+- List of all modified files in this session
+- Current task state and any blockers
+- Test commands that were run and their results
+- Re-read `.claude/rules/` files after compaction
