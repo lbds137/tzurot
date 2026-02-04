@@ -112,6 +112,10 @@ export interface DatabaseLlmConfig {
   memoryScoreThreshold: Decimal | null;
   memoryLimit: number | null;
   contextWindowTokens: number;
+  // Context settings (conversation history limits)
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
 }
 
 /**

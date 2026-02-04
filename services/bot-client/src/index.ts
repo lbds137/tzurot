@@ -1,4 +1,11 @@
-import { Client, GatewayIntentBits, Events, MessageFlags, Partials } from 'discord.js';
+import {
+  Client,
+  GatewayIntentBits,
+  Events,
+  MessageFlags,
+  Partials,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
 import { Redis } from 'ioredis';
 import {
   createLogger,
@@ -34,7 +41,6 @@ import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentServic
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
-import { ExtendedContextResolver } from './services/ExtendedContextResolver.js';
 import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
@@ -161,17 +167,13 @@ function createServices(): Services {
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
   const replyResolver = new ReplyResolutionService(personalityIdCache, gatewayClient);
 
-  // Extended context resolver for fetching recent channel messages
-  const extendedContextResolver = new ExtendedContextResolver(gatewayClient);
-
   // Personality message handler (used by multiple processors)
   const personalityHandler = new PersonalityMessageHandler(
     gatewayClient,
     jobTracker,
     contextBuilder,
     persistence,
-    referenceEnricher,
-    extendedContextResolver
+    referenceEnricher
   );
 
   // Create processor chain (order matters!)
@@ -208,7 +210,6 @@ function createServices(): Services {
     channelActivationCacheInvalidationService,
     messageContextBuilder: contextBuilder,
     conversationPersistence: persistence,
-    extendedContextResolver,
   });
 
   return {
@@ -274,9 +275,7 @@ client.on(Events.InteractionCreate, interaction => {
  * Get the subcommand path for looking up deferral mode overrides.
  * Returns 'group subcommand' for subcommand groups, or just 'subcommand' for simple subcommands.
  */
-function getSubcommandPath(
-  interaction: import('discord.js').ChatInputCommandInteraction
-): string | null {
+function getSubcommandPath(interaction: ChatInputCommandInteraction): string | null {
   try {
     const group = interaction.options.getSubcommandGroup(false);
     const subcommand = interaction.options.getSubcommand(false);
@@ -297,7 +296,7 @@ function getSubcommandPath(
  */
 function resolveEffectiveDeferralMode(
   command: import('./types.js').Command,
-  interaction: import('discord.js').ChatInputCommandInteraction
+  interaction: ChatInputCommandInteraction
 ): import('./utils/commandContext/index.js').DeferralMode {
   const defaultMode = command.deferralMode ?? 'ephemeral';
 
@@ -323,7 +322,7 @@ function resolveEffectiveDeferralMode(
  * allows per-subcommand overrides of the default deferral behavior.
  */
 async function handleCommandWithContext(
-  interaction: import('discord.js').ChatInputCommandInteraction,
+  interaction: ChatInputCommandInteraction,
   command: import('./types.js').Command
 ): Promise<void> {
   // Resolve effective deferral mode (may be overridden per-subcommand)

@@ -30,7 +30,7 @@ const logger = createLogger('LlmConfigResolver');
  * Resolved LLM config values that can override personality defaults.
  *
  * Extends ConvertedLlmParams to include ALL parameters from advancedParameters JSONB,
- * plus database-specific fields (memory, context window).
+ * plus database-specific fields (memory, context window, context settings).
  */
 export interface ResolvedLlmConfig extends ConvertedLlmParams {
   model: string;
@@ -38,6 +38,10 @@ export interface ResolvedLlmConfig extends ConvertedLlmParams {
   memoryScoreThreshold?: number | null;
   memoryLimit?: number | null;
   contextWindowTokens?: number;
+  // Context settings (conversation history limits)
+  maxMessages?: number;
+  maxAge?: number | null;
+  maxImages?: number;
 }
 
 /**
@@ -371,6 +375,10 @@ export class LlmConfigResolver {
         memoryScoreThreshold: mapped.memoryScoreThreshold,
         memoryLimit: mapped.memoryLimit,
         contextWindowTokens: mapped.contextWindowTokens,
+        // Context settings (conversation history limits)
+        maxMessages: mapped.maxMessages,
+        maxAge: mapped.maxAge,
+        maxImages: mapped.maxImages,
       };
 
       // Cache the result

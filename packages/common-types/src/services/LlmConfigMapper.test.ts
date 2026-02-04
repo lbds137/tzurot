@@ -43,6 +43,9 @@ describe('LlmConfigMapper', () => {
       memoryScoreThreshold: null,
       memoryLimit: null,
       contextWindowTokens: 128000,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       ...overrides,
     });
 
@@ -208,6 +211,9 @@ describe('LlmConfigMapper', () => {
         memoryScoreThreshold: null,
         memoryLimit: 100,
         contextWindowTokens: 128000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDbWithName(raw);
@@ -231,6 +237,9 @@ describe('LlmConfigMapper', () => {
         memoryScoreThreshold: new Prisma.Decimal(0.7),
         memoryLimit: 50,
         contextWindowTokens: 200000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDb(raw);
@@ -262,6 +271,9 @@ describe('LlmConfigMapper', () => {
         memoryScoreThreshold: null,
         memoryLimit: null,
         contextWindowTokens: 128000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDb(raw);
@@ -287,6 +299,9 @@ describe('LlmConfigMapper', () => {
         memoryScoreThreshold: null,
         memoryLimit: null,
         contextWindowTokens: 128000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
       };
 
       const result = mapLlmConfigFromDbWithName(raw);

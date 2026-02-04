@@ -7,7 +7,7 @@
  * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
-import type { ExtendedContextSource } from '../services/ExtendedContextResolver.js';
+import type { SettingSource } from '@tzurot/common-types';
 
 /**
  * Format tri-state value for display
@@ -25,7 +25,7 @@ export function formatTriState(value: boolean | null | undefined): string {
  * @param enabled - Whether the feature is effectively enabled
  * @param source - Where the setting came from
  */
-export function formatEffective(enabled: boolean, source: ExtendedContextSource): string {
+export function formatEffective(enabled: boolean, source: SettingSource): string {
   const status = enabled ? 'enabled' : 'disabled';
   return `**${status}** (from ${source})`;
 }
@@ -43,7 +43,7 @@ export interface StatusMessageConfig {
   /** Whether the feature is effectively enabled */
   effectiveEnabled: boolean;
   /** Where the effective setting came from */
-  source: ExtendedContextSource;
+  source: SettingSource;
   /** Description of what the setting does */
   description: string;
 }

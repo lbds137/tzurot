@@ -21,7 +21,6 @@ import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
-import type { ExtendedContextResolver } from './ExtendedContextResolver.js';
 
 // Service references - set during app initialization
 let jobTracker: JobTracker | undefined;
@@ -35,7 +34,6 @@ let channelActivationCacheInvalidationService:
   | undefined;
 let messageContextBuilder: MessageContextBuilder | undefined;
 let conversationPersistence: ConversationPersistence | undefined;
-let extendedContextResolver: ExtendedContextResolver | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -50,7 +48,6 @@ export interface RegisteredServices {
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   messageContextBuilder: MessageContextBuilder;
   conversationPersistence: ConversationPersistence;
-  extendedContextResolver: ExtendedContextResolver;
 }
 
 /**
@@ -67,7 +64,6 @@ export function registerServices(services: RegisteredServices): void {
   channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
   messageContextBuilder = services.messageContextBuilder;
   conversationPersistence = services.conversationPersistence;
-  extendedContextResolver = services.extendedContextResolver;
 }
 
 /**
@@ -175,18 +171,6 @@ export function getConversationPersistence(): ConversationPersistence {
 }
 
 /**
- * Get the ExtendedContextResolver instance
- * Used by /character chat to resolve extended context settings
- * @throws Error if services not registered
- */
-export function getExtendedContextResolver(): ExtendedContextResolver {
-  if (extendedContextResolver === undefined) {
-    throw new Error('ExtendedContextResolver not registered. Call registerServices() first.');
-  }
-  return extendedContextResolver;
-}
-
-/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -199,8 +183,7 @@ export function areServicesRegistered(): boolean {
     personaResolver !== undefined &&
     channelActivationCacheInvalidationService !== undefined &&
     messageContextBuilder !== undefined &&
-    conversationPersistence !== undefined &&
-    extendedContextResolver !== undefined
+    conversationPersistence !== undefined
   );
 }
 
@@ -223,5 +206,4 @@ export function resetServices(): void {
   channelActivationCacheInvalidationService = undefined;
   messageContextBuilder = undefined;
   conversationPersistence = undefined;
-  extendedContextResolver = undefined;
 }

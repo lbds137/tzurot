@@ -11,13 +11,3 @@ export {
   type PersonaMemoryInfo,
   type PersonaPromptData,
 } from './PersonaResolver.js';
-export {
-  resolveExtendedContextSettings,
-  resolveExtendedContextEnabled,
-  resolveNumericLimit,
-  resolveMaxAge,
-  toLevelSettings,
-  toGlobalSettings,
-  EXTENDED_CONTEXT_LIMITS,
-  type GlobalSettings,
-} from './ExtendedContextSettingsResolver.js';

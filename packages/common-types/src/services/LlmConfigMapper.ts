@@ -47,6 +47,10 @@ export const LLM_CONFIG_SELECT = {
   memoryScoreThreshold: true, // Decimal column (not in JSONB)
   memoryLimit: true, // Integer column (not in JSONB)
   contextWindowTokens: true, // Integer column (not in JSONB)
+  // Context settings - typed columns (not JSONB)
+  maxMessages: true, // Max messages to fetch from conversation history
+  maxAge: true, // Max age in seconds (null = no limit)
+  maxImages: true, // Max images to process from extended context
 } as const;
 
 /**
@@ -75,6 +79,10 @@ export interface RawLlmConfigFromDb {
   memoryScoreThreshold: unknown; // Prisma Decimal - converted via toNumber()
   memoryLimit: number | null;
   contextWindowTokens: number;
+  // Context settings - typed columns
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
 }
 
 /**
@@ -96,6 +104,10 @@ export interface MappedLlmConfig extends ConvertedLlmParams {
   memoryScoreThreshold: number | null;
   memoryLimit: number | null;
   contextWindowTokens: number;
+  // Context settings
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
 }
 
 /**
@@ -171,6 +183,10 @@ export function mapLlmConfigFromDb(raw: RawLlmConfigFromDb): MappedLlmConfig {
     memoryScoreThreshold: toNumber(raw.memoryScoreThreshold),
     memoryLimit: raw.memoryLimit,
     contextWindowTokens: raw.contextWindowTokens,
+    // Context settings (typed columns)
+    maxMessages: raw.maxMessages,
+    maxAge: raw.maxAge,
+    maxImages: raw.maxImages,
   };
 }
 
