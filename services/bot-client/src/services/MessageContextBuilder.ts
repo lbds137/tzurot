@@ -499,7 +499,11 @@ export class MessageContextBuilder {
     // Step 3: Fetch conversation history from PostgreSQL
     // Always fetch complete channel history (not personality-filtered)
     // Use maxMessages from resolved LLM config or extended context settings
-    const dbLimit = options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES;
+    // Hard cap at MAX_EXTENDED_CONTEXT (100) as defense-in-depth against API validation bypass
+    const dbLimit = Math.min(
+      options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
+      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
+    );
     const dbHistory = await this.fetchDbHistory(
       message.channel.id,
       personality.id,
