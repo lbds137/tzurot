@@ -101,6 +101,5 @@ Effective: **{enabled|disabled}** (from {entity|channel|global})
 ## Related Files
 
 - `services/bot-client/src/utils/triStateHelpers.ts` - Shared formatting helpers
-- `services/bot-client/src/services/ExtendedContextResolver.ts` - Example resolver
 - `services/bot-client/src/commands/channel/context.ts` - Channel command example
 - `services/bot-client/src/commands/character/settings.ts` - Entity command example

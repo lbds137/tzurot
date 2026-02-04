@@ -676,10 +676,11 @@ describe('LLM Advanced Params Schema', () => {
       }
     });
 
-    it('should have exactly 22 keys', () => {
+    it('should have exactly 25 keys', () => {
       // This test ensures we notice if keys are accidentally added or removed
       // Update this number when intentionally adding new config params
-      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(22);
+      // Added maxMessages, maxAge, maxImages for Phase 2 config consolidation
+      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(25);
     });
   });
 });

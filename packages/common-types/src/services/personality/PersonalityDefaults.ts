@@ -93,6 +93,21 @@ function getReasoningConfig(
 }
 
 /**
+ * Get context settings (conversation history limits)
+ * These control how many messages to fetch from the conversation history
+ */
+function getContextSettings(
+  pc: MappedLlmConfig | null,
+  gc: MappedLlmConfig | null
+): Pick<LoadedPersonality, 'maxMessages' | 'maxAge' | 'maxImages'> {
+  return {
+    maxMessages: getConfigValue(pc?.maxMessages, gc?.maxMessages),
+    maxAge: getConfigValue(pc?.maxAge, gc?.maxAge),
+    maxImages: getConfigValue(pc?.maxImages, gc?.maxImages),
+  };
+}
+
+/**
  * Process character definition fields with placeholder replacement
  */
 function processCharacterFields(
@@ -229,6 +244,7 @@ export function mapToPersonality(
     ...getSamplingConfig(personalityConfig, globalDefaultConfig),
     ...getMemoryAndVisionConfig(personalityConfig, globalDefaultConfig),
     ...getReasoningConfig(personalityConfig, globalDefaultConfig),
+    ...getContextSettings(personalityConfig, globalDefaultConfig),
 
     // Character definition fields (with placeholders replaced)
     ...processCharacterFields(db),

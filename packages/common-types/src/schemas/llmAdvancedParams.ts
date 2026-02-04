@@ -432,6 +432,10 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
   'memoryScoreThreshold',
   'memoryLimit',
   'contextWindowTokens',
+  // Context settings (conversation history limits)
+  'maxMessages',
+  'maxAge',
+  'maxImages',
 ] as const;
 
 /**

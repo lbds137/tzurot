@@ -7,14 +7,13 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
-import { createLogger, isTypingChannel } from '@tzurot/common-types';
+import type { LoadedPersonality, ResolvedExtendedContextSettings } from '@tzurot/common-types';
+import { createLogger, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { JobTracker } from './JobTracker.js';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
-import { ExtendedContextResolver } from './ExtendedContextResolver.js';
 import { handleNsfwVerification, sendVerificationConfirmation } from '../utils/nsfwVerification.js';
 
 const logger = createLogger('PersonalityMessageHandler');
@@ -23,15 +22,38 @@ const logger = createLogger('PersonalityMessageHandler');
  * Handles personality message processing
  */
 export class PersonalityMessageHandler {
-  // eslint-disable-next-line max-params -- Pre-existing: refactor to options object tracked in tech debt
   constructor(
     private readonly gatewayClient: GatewayClient,
     private readonly jobTracker: JobTracker,
     private readonly contextBuilder: MessageContextBuilder,
     private readonly persistence: ConversationPersistence,
-    private readonly referenceEnricher: ReferenceEnrichmentService,
-    private readonly extendedContextResolver: ExtendedContextResolver
+    private readonly referenceEnricher: ReferenceEnrichmentService
   ) {}
+
+  /**
+   * Build extended context settings from personality.
+   * Uses personality-level settings with sensible defaults.
+   * Previously this did 3-layer cascade (global > channel > personality).
+   */
+  private buildExtendedContextSettings(
+    personality: LoadedPersonality
+  ): ResolvedExtendedContextSettings {
+    return {
+      // Default to enabled unless personality explicitly disables
+      enabled: personality.extendedContext ?? true,
+      // Use LlmConfig-based limits from personality, with fallbacks
+      maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+      maxAge: personality.maxAge ?? null,
+      maxImages: personality.maxImages ?? 10,
+      // All values now come from personality (no cascade)
+      sources: {
+        enabled: 'personality',
+        maxMessages: 'personality',
+        maxAge: 'personality',
+        maxImages: 'personality',
+      },
+    };
+  }
 
   /**
    * Handle a message directed at a personality
@@ -62,11 +84,8 @@ export class PersonalityMessageHandler {
         void sendVerificationConfirmation(channel as SendableChannels);
       }
 
-      // Resolve all extended context settings for this channel + personality
-      const extendedContextSettings = await this.extendedContextResolver.resolveAll(
-        message.channel.id,
-        personality
-      );
+      // Build extended context settings from personality (simplified from 3-layer cascade)
+      const extendedContextSettings = this.buildExtendedContextSettings(personality);
 
       if (extendedContextSettings.enabled) {
         logger.debug(

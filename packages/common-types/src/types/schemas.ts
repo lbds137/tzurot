@@ -256,6 +256,11 @@ export const loadedPersonalitySchema = z.object({
   memoryScoreThreshold: z.number().optional(),
   memoryLimit: z.number().optional(),
 
+  // Context settings (conversation history limits from LlmConfig)
+  maxMessages: z.number().optional(), // Max messages to fetch from history
+  maxAge: z.number().nullable().optional(), // Max age in seconds (null = no limit)
+  maxImages: z.number().optional(), // Max images to process from extended context
+
   // Avatar URL with path-based cache-busting (timestamp embedded in filename)
   // e.g., /avatars/cold-1705827727111.png
   avatarUrl: z.string().optional(),

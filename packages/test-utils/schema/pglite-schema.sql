@@ -111,6 +111,9 @@ CREATE TABLE "llm_configs" (
     "memory_score_threshold" DECIMAL(3,2),
     "memory_limit" INTEGER,
     "context_window_tokens" INTEGER NOT NULL DEFAULT 131072,
+    "max_messages" INTEGER NOT NULL DEFAULT 50,
+    "max_age" INTEGER,
+    "max_images" INTEGER NOT NULL DEFAULT 10,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
