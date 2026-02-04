@@ -56,6 +56,8 @@ export {
   buildModelFooterText,
   isValidDiscordId,
   filterValidDiscordIds,
+  buildDiscordPersonaId,
+  extractDiscordId,
   type DiscordProviderChoice,
 } from './discord.js';
 

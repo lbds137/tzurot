@@ -190,6 +190,30 @@ export function filterValidDiscordIds(ids: string[]): string[] {
 }
 
 /**
+ * Build a personaId from a Discord user ID
+ * @param discordId - The Discord snowflake ID
+ * @returns personaId in format 'discord:123456789012345678'
+ */
+export function buildDiscordPersonaId(discordId: string): string {
+  return `${DISCORD_ID_PREFIX}${discordId}`;
+}
+
+/**
+ * Extract Discord ID from a personaId if it's a Discord-format persona
+ * @param personaId - The personaId to extract from
+ * @returns The Discord ID if valid format, undefined otherwise
+ */
+export function extractDiscordId(personaId: string | undefined): string | undefined {
+  if (personaId === undefined) {
+    return undefined;
+  }
+  if (!personaId.startsWith(DISCORD_ID_PREFIX)) {
+    return undefined;
+  }
+  return personaId.slice(DISCORD_ID_PREFIX.length);
+}
+
+/**
  * AI Provider choices for Discord slash commands
  *
  * Currently only OpenRouter is supported for BYOK.
