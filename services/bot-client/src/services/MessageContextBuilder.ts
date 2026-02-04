@@ -253,8 +253,9 @@ export class MessageContextBuilder {
         '[MessageContextBuilder] Batch created personas for extended context and reactor users'
       );
 
-      // Resolve personaIds and remap participantGuildInfo keys
-      const resolvedCount = await resolveExtendedContextPersonaIds(
+      // Resolve personaIds for BOTH message authors AND reactors in one batch
+      // Also remaps participantGuildInfo keys to use the new UUIDs
+      const resolved = await resolveExtendedContextPersonaIds(
         fetchResult.messages,
         userMap,
         personality.id,
@@ -262,9 +263,13 @@ export class MessageContextBuilder {
         fetchResult.participantGuildInfo
       );
 
-      if (resolvedCount > 0) {
+      if (resolved.total > 0) {
         logger.debug(
-          { resolved: resolvedCount, total: fetchResult.messages.length },
+          {
+            messageCount: resolved.messageCount,
+            reactorCount: resolved.reactorCount,
+            total: resolved.total,
+          },
           '[MessageContextBuilder] Resolved extended context personaIds to UUIDs'
         );
       }
