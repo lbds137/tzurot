@@ -84,6 +84,8 @@ export const apiConversationMessageSchema = z.object({
   // Discord message IDs (snowflakes) for quote deduplication
   // Array because long messages may be split into multiple Discord messages (chunks)
   discordMessageId: z.array(z.string()).optional(),
+  // Whether this message was forwarded from another channel
+  isForwarded: z.boolean().optional(),
   // AI personality info for multi-AI channel attribution
   // Allows correct attribution when multiple AI personalities respond in the same channel
   personalityId: z.string().optional(),
