@@ -14,7 +14,7 @@
 import { describe, it, expect } from 'vitest';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { execSync } from 'node:child_process';
+import { spawnSync } from 'node:child_process';
 
 const PROJECT_ROOT = path.resolve(__dirname, '../../..');
 
@@ -121,13 +121,17 @@ function findSourceFiles(dirs: string[]): string[] {
     if (!fs.existsSync(fullPath)) continue;
 
     try {
-      // Use find command to get all .ts files
-      const output = execSync(`find "${fullPath}" -name "*.ts" -type f`, {
+      // Use spawnSync with array args to prevent command injection
+      const result = spawnSync('find', [fullPath, '-name', '*.ts', '-type', 'f'], {
         encoding: 'utf-8',
         maxBuffer: 10 * 1024 * 1024,
       });
 
-      const files = output.trim().split('\n').filter(Boolean);
+      if (result.status !== 0 || result.stdout === null) {
+        continue;
+      }
+
+      const files = result.stdout.trim().split('\n').filter(Boolean);
       for (const file of files) {
         const relativePath = path.relative(PROJECT_ROOT, file);
         if (!shouldExclude(relativePath)) {
