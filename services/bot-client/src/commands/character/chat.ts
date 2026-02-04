@@ -438,7 +438,7 @@ export async function handleChat(
     // 4. Build extended context settings from personality
     const extendedContextSettings: ResolvedExtendedContextSettings = {
       enabled: personality.extendedContext ?? true,
-      maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+      maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       maxAge: personality.maxAge ?? null,
       maxImages: personality.maxImages ?? 10,
       sources: {
