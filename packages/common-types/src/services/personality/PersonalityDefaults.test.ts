@@ -184,6 +184,9 @@ describe('PersonalityDefaults', () => {
             memoryScoreThreshold: { toNumber: () => 0.7 } as never,
             memoryLimit: 10,
             contextWindowTokens: 200000,
+            maxMessages: 50,
+            maxAge: null,
+            maxImages: 10,
           },
         },
       });
@@ -219,6 +222,9 @@ describe('PersonalityDefaults', () => {
         memoryScoreThreshold: 0.6,
         memoryLimit: 20,
         contextWindowTokens: 100000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
       };
 
       const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
@@ -286,6 +292,9 @@ describe('PersonalityDefaults', () => {
             memoryScoreThreshold: { toNumber: () => 0.5 } as never,
             memoryLimit: 10,
             contextWindowTokens: 131072,
+            maxMessages: 50,
+            maxAge: null,
+            maxImages: 10,
           },
         },
       });
@@ -316,6 +325,9 @@ describe('PersonalityDefaults', () => {
         memoryScoreThreshold: 0.6,
         memoryLimit: 20,
         contextWindowTokens: 100000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
         showThinking: true,
         reasoning: {
           effort: 'high',
@@ -360,6 +372,81 @@ describe('PersonalityDefaults', () => {
       expect(result.personalityDislikes).toBe('TestBot dislikes bugs');
       expect(result.conversationalGoals).toBe('Help {user} learn');
       expect(result.conversationalExamples).toBe('TestBot: How can I help?');
+    });
+
+    it('should include context settings from personality LlmConfig', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        name: 'ContextBot',
+        slug: 'context-bot',
+        updatedAt: testDate,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'test-model',
+            visionModel: null,
+            advancedParameters: {
+              temperature: 0.7,
+              max_tokens: 4096,
+            },
+            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
+            memoryLimit: 10,
+            contextWindowTokens: 131072,
+            maxMessages: 25,
+            maxAge: 3600,
+            maxImages: 5,
+          },
+        },
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      // Context settings should flow from personality LlmConfig
+      expect(result.maxMessages).toBe(25);
+      expect(result.maxAge).toBe(3600);
+      expect(result.maxImages).toBe(5);
+    });
+
+    it('should inherit context settings from global config when not set on personality', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        name: 'InheritBot',
+        slug: 'inherit-bot',
+        updatedAt: testDate,
+        // No defaultConfigLink - should use global config
+      });
+
+      const globalConfig: MappedLlmConfig = {
+        model: 'global-model',
+        visionModel: null,
+        temperature: 0.7,
+        maxTokens: 2048,
+        memoryScoreThreshold: 0.5,
+        memoryLimit: 10,
+        contextWindowTokens: 100000,
+        maxMessages: 100,
+        maxAge: 7200,
+        maxImages: 15,
+      };
+
+      const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
+
+      // Should inherit from global config
+      expect(result.maxMessages).toBe(100);
+      expect(result.maxAge).toBe(7200);
+      expect(result.maxImages).toBe(15);
+    });
+
+    it('should use undefined for context settings when neither personality nor global config provides them', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        name: 'DefaultBot',
+        slug: 'default-bot',
+        updatedAt: testDate,
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      // No config provided - should be undefined
+      expect(result.maxMessages).toBeUndefined();
+      expect(result.maxAge).toBeUndefined();
+      expect(result.maxImages).toBeUndefined();
     });
   });
 });

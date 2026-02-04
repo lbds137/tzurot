@@ -47,9 +47,6 @@ describe('PersonalityMessageHandler', () => {
   let mockReferenceEnricher: {
     enrichWithPersonaNames: ReturnType<typeof vi.fn>;
   };
-  let mockExtendedContextResolver: {
-    resolveAll: ReturnType<typeof vi.fn>;
-  };
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -74,29 +71,12 @@ describe('PersonalityMessageHandler', () => {
       enrichWithPersonaNames: vi.fn().mockResolvedValue(undefined),
     };
 
-    // Default: extended context disabled with full settings
-    mockExtendedContextResolver = {
-      resolveAll: vi.fn().mockResolvedValue({
-        enabled: false,
-        maxMessages: 20,
-        maxAge: null,
-        maxImages: 0,
-        sources: {
-          enabled: 'global',
-          maxMessages: 'global',
-          maxAge: 'global',
-          maxImages: 'global',
-        },
-      }),
-    };
-
     handler = new PersonalityMessageHandler(
       mockGatewayClient as any,
       mockJobTracker as any,
       mockContextBuilder as any,
       mockPersistence as any,
-      mockReferenceEnricher as any,
-      mockExtendedContextResolver as any
+      mockReferenceEnricher as any
     );
   });
 
@@ -129,28 +109,23 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello AI');
 
-      // Should resolve extended context
-      expect(mockExtendedContextResolver.resolveAll).toHaveBeenCalledWith(
-        mockMessage.channel.id,
-        mockPersonality
-      );
-
-      // Should build context with extended context options
+      // Should build context with extended context options (derived from personality)
+      // When personality doesn't have context settings, defaults are used
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
         'Hello AI',
         {
           extendedContext: {
-            enabled: false,
-            maxMessages: 20,
+            enabled: true, // default when personality.extendedContext is undefined
+            maxMessages: 100, // MESSAGE_LIMITS.MAX_HISTORY_FETCH
             maxAge: null,
-            maxImages: 0,
+            maxImages: 10,
             sources: {
-              enabled: 'global',
-              maxMessages: 'global',
-              maxAge: 'global',
-              maxImages: 'global',
+              enabled: 'personality',
+              maxMessages: 'personality',
+              maxAge: 'personality',
+              maxImages: 'personality',
             },
           },
           botUserId: 'bot-123',
@@ -271,24 +246,16 @@ describe('PersonalityMessageHandler', () => {
       expect(mockReferenceEnricher.enrichWithPersonaNames).not.toHaveBeenCalled();
     });
 
-    it('should pass extended context enabled to buildContext when resolved', async () => {
+    it('should pass extended context settings from personality to buildContext', async () => {
       const mockMessage = createMockMessage();
-      const mockPersonality = createMockPersonality();
-
-      // Enable extended context with channel-level settings
-      const resolvedSettings = {
-        enabled: true,
+      // Create personality with explicit context settings
+      const mockPersonality = {
+        ...createMockPersonality(),
+        extendedContext: true,
         maxMessages: 15,
         maxAge: 3600,
         maxImages: 5,
-        sources: {
-          enabled: 'channel',
-          maxMessages: 'channel',
-          maxAge: 'channel',
-          maxImages: 'global',
-        },
-      };
-      mockExtendedContextResolver.resolveAll.mockResolvedValue(resolvedSettings);
+      } as LoadedPersonality;
 
       const mockContext = {
         userMessage: 'Hello with extended context',
@@ -311,12 +278,26 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello with extended context');
 
-      // Should build context with extended context settings
+      // Should build context with personality's extended context settings
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
         'Hello with extended context',
-        { extendedContext: resolvedSettings, botUserId: 'bot-123' }
+        {
+          extendedContext: {
+            enabled: true,
+            maxMessages: 15,
+            maxAge: 3600,
+            maxImages: 5,
+            sources: {
+              enabled: 'personality',
+              maxMessages: 'personality',
+              maxAge: 'personality',
+              maxImages: 'personality',
+            },
+          },
+          botUserId: 'bot-123',
+        }
       );
     });
 
@@ -348,12 +329,13 @@ describe('PersonalityMessageHandler', () => {
       await handler.handleMessage(mockMessage, mockPersonality, voiceTranscript);
 
       // Should build context with voice transcript
+      // Note: extendedContext.enabled defaults to true when personality.extendedContext is undefined
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
         voiceTranscript,
         expect.objectContaining({
-          extendedContext: expect.objectContaining({ enabled: false }),
+          extendedContext: expect.objectContaining({ enabled: true }),
           botUserId: 'bot-123',
         })
       );

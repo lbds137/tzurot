@@ -40,16 +40,6 @@ const mockConversationPersistence = {
   saveAssistantMessageFromFields: vi.fn().mockResolvedValue(undefined),
 };
 
-const mockExtendedContextResolver = {
-  resolveAll: vi.fn().mockResolvedValue({
-    enabled: true,
-    maxMessages: 100,
-    maxAge: undefined,
-    maxImages: 10,
-    sources: ['database', 'discord'],
-  }),
-};
-
 const mockPersonaResolver = {
   resolve: vi.fn().mockResolvedValue({
     config: {
@@ -65,7 +55,6 @@ vi.mock('../../services/serviceRegistry.js', () => ({
   getPersonalityService: () => mockPersonalityService,
   getMessageContextBuilder: () => mockMessageContextBuilder,
   getConversationPersistence: () => mockConversationPersistence,
-  getExtendedContextResolver: () => mockExtendedContextResolver,
   getPersonaResolver: () => mockPersonaResolver,
 }));
 

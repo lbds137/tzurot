@@ -16,16 +16,11 @@ import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
-import type { ExtendedContextResolver } from './ExtendedContextResolver.js';
 
 const mockConversationPersistence = {
   saveUserMessageFromFields: vi.fn(),
   saveAssistantMessageFromFields: vi.fn(),
 } as unknown as ConversationPersistence;
-
-const mockExtendedContextResolver = {
-  resolveAll: vi.fn(),
-} as unknown as ExtendedContextResolver;
 
 describe('serviceRegistry', () => {
   // Reset modules before each test to get clean state
@@ -97,13 +92,6 @@ describe('serviceRegistry', () => {
       );
     });
 
-    it('should throw when getting ExtendedContextResolver before registration', async () => {
-      const { getExtendedContextResolver } = await import('./serviceRegistry.js');
-      expect(() => getExtendedContextResolver()).toThrow(
-        'ExtendedContextResolver not registered. Call registerServices() first.'
-      );
-    });
-
     it('should report services not registered', async () => {
       const { areServicesRegistered } = await import('./serviceRegistry.js');
       expect(areServicesRegistered()).toBe(false);
@@ -139,7 +127,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getJobTracker()).toBe(mockJobTracker);
@@ -158,7 +145,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getWebhookManager()).toBe(mockWebhookManager);
@@ -177,7 +163,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getGatewayClient()).toBe(mockGatewayClient);
@@ -196,7 +181,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getPersonalityService()).toBe(mockPersonalityService);
@@ -216,7 +200,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getConversationHistoryService()).toBe(mockConversationHistoryService);
@@ -235,7 +218,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getPersonaResolver()).toBe(mockPersonaResolver);
@@ -255,7 +237,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getChannelActivationCacheInvalidationService()).toBe(
@@ -276,7 +257,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getMessageContextBuilder()).toBe(mockMessageContextBuilder);
@@ -295,29 +275,9 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(getConversationPersistence()).toBe(mockConversationPersistence);
-    });
-
-    it('should return registered ExtendedContextResolver', async () => {
-      const { registerServices, getExtendedContextResolver } = await import('./serviceRegistry.js');
-
-      registerServices({
-        jobTracker: mockJobTracker,
-        webhookManager: mockWebhookManager,
-        gatewayClient: mockGatewayClient,
-        personalityService: mockPersonalityService,
-        conversationHistoryService: mockConversationHistoryService,
-        personaResolver: mockPersonaResolver,
-        channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
-        messageContextBuilder: mockMessageContextBuilder,
-        conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
-      });
-
-      expect(getExtendedContextResolver()).toBe(mockExtendedContextResolver);
     });
 
     it('should report services as registered', async () => {
@@ -333,7 +293,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
-        extendedContextResolver: mockExtendedContextResolver,
       });
 
       expect(areServicesRegistered()).toBe(true);
@@ -356,7 +315,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: undefined,
         messageContextBuilder: undefined,
         conversationPersistence: undefined,
-        extendedContextResolver: undefined,
       } as unknown as {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
@@ -367,7 +325,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
         messageContextBuilder: MessageContextBuilder;
         conversationPersistence: ConversationPersistence;
-        extendedContextResolver: ExtendedContextResolver;
       };
 
       registerServices(partialServices);
@@ -398,9 +355,6 @@ describe('serviceRegistry', () => {
       const localMockConversationPersistence = {
         saveUserMessageFromFields: vi.fn(),
       } as unknown as ConversationPersistence;
-      const localMockExtendedContextResolver = {
-        resolveAll: vi.fn(),
-      } as unknown as ExtendedContextResolver;
 
       // Register services first
       registerServices({
@@ -413,7 +367,6 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: localMockMessageContextBuilder,
         conversationPersistence: localMockConversationPersistence,
-        extendedContextResolver: localMockExtendedContextResolver,
       });
 
       expect(areServicesRegistered()).toBe(true);

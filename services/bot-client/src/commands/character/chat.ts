@@ -25,6 +25,7 @@ import {
   TIMEOUTS,
   GUEST_MODE,
   AI_ENDPOINTS,
+  MESSAGE_LIMITS,
   characterChatOptions,
   buildModelFooterText,
 } from '@tzurot/common-types';
@@ -41,7 +42,6 @@ import {
   getWebhookManager,
   getMessageContextBuilder,
   getConversationPersistence,
-  getExtendedContextResolver,
   getPersonaResolver,
 } from '../../services/serviceRegistry.js';
 import type { MessageContext } from '../../types.js';
@@ -397,6 +397,7 @@ async function buildChatContext(
  * - Guild member info (roles, color, join date)
  * - User timezone for date/time formatting
  */
+// eslint-disable-next-line complexity -- pre-existing, refactor in follow-up
 export async function handleChat(
   context: DeferredCommandContext,
   _config: EnvConfig
@@ -434,11 +435,19 @@ export async function handleChat(
     const personaResult = await getPersonaResolver().resolve(userId, personality.id);
     const displayName = personaResult.config.preferredName ?? discordDisplayName;
 
-    // 4. Resolve extended context settings for this channel + personality
-    const extendedContextSettings = await getExtendedContextResolver().resolveAll(
-      channel.id,
-      personality
-    );
+    // 4. Build extended context settings from personality
+    const extendedContextSettings: ResolvedExtendedContextSettings = {
+      enabled: personality.extendedContext ?? true,
+      maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+      maxAge: personality.maxAge ?? null,
+      maxImages: personality.maxImages ?? 10,
+      sources: {
+        enabled: 'personality',
+        maxMessages: 'personality',
+        maxAge: 'personality',
+        maxImages: 'personality',
+      },
+    };
 
     // 5. Delete deferred reply before sending messages
     // Why delete first? The deferred reply shows "[bot] is thinking..." which would be
