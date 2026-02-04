@@ -1,7 +1,6 @@
 ---
 name: tzurot-tooling
 description: 'MUST invoke when: adding CLI commands, creating dev scripts, or using pnpm ops commands. Contains ops CLI reference and script organization.'
-disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 
