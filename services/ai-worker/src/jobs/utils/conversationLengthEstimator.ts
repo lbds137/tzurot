@@ -169,6 +169,8 @@ function estimateVoiceTranscriptsLength(transcripts: string[] | undefined): numb
 
 /**
  * Estimate length for reactions section
+ *
+ * New format: one <reaction from="Name" from_id="uuid">emoji</reaction> per reactor
  */
 function estimateReactionsLength(
   reactions: NonNullable<RawHistoryEntry['messageMetadata']>['reactions']
@@ -180,12 +182,18 @@ function estimateReactionsLength(
   // Account for <reactions> wrapper
   let length = '\n<reactions>\n</reactions>'.length;
 
-  // Add length for each reaction
+  // Add length for each reactor (one element per reactor, not per emoji)
   for (const reaction of reactions) {
     const customAttr = reaction.isCustom === true ? ' custom="true"' : '';
-    const reactorNames = reaction.reactors.map(r => r.displayName).join(', ');
-    length += `<reaction emoji="${reaction.emoji}"${customAttr}>${reactorNames}</reaction>\n`
-      .length;
+    for (const reactor of reaction.reactors) {
+      const fromIdAttr =
+        reactor.personaId !== undefined && reactor.personaId.length > 0
+          ? ` from_id="${reactor.personaId}"`
+          : '';
+      length +=
+        `<reaction from="${reactor.displayName}"${fromIdAttr}${customAttr}>${reaction.emoji}</reaction>\n`
+          .length;
+    }
   }
 
   return length;
@@ -228,6 +236,14 @@ export function getFormattedMessageCharLength(
   const overhead =
     `<message from="${speakerName}"${fromIdAttr} role="${role}"${timeAttr}></message>`.length;
   let totalLength = overhead + msg.content.length;
+
+  // Account for forwarded message wrapper
+  // Forwarded content is wrapped: <quoted_messages>\n<quote type="forward" author="Unknown">content</quote>\n</quoted_messages>
+  if (msg.isForwarded === true && msg.content.length > 0) {
+    totalLength +=
+      '<quoted_messages>\n<quote type="forward" author="Unknown"></quote>\n</quoted_messages>'
+        .length;
+  }
 
   // Add length for metadata sections
   const metadata = msg.messageMetadata;
