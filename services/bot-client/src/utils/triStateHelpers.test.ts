@@ -29,14 +29,16 @@ describe('triStateHelpers', () => {
   describe('formatEffective', () => {
     it('formats enabled state with source', () => {
       expect(formatEffective(true, 'personality')).toBe('**enabled** (from personality)');
-      expect(formatEffective(true, 'channel')).toBe('**enabled** (from channel)');
-      expect(formatEffective(true, 'global')).toBe('**enabled** (from global)');
+      expect(formatEffective(true, 'user-personality')).toBe('**enabled** (from user-personality)');
+      expect(formatEffective(true, 'user-default')).toBe('**enabled** (from user-default)');
     });
 
     it('formats disabled state with source', () => {
       expect(formatEffective(false, 'personality')).toBe('**disabled** (from personality)');
-      expect(formatEffective(false, 'channel')).toBe('**disabled** (from channel)');
-      expect(formatEffective(false, 'global')).toBe('**disabled** (from global)');
+      expect(formatEffective(false, 'user-personality')).toBe(
+        '**disabled** (from user-personality)'
+      );
+      expect(formatEffective(false, 'user-default')).toBe('**disabled** (from user-default)');
     });
   });
 
@@ -47,13 +49,13 @@ describe('triStateHelpers', () => {
         targetName: 'TestBot',
         currentValue: null,
         effectiveEnabled: true,
-        source: 'global',
+        source: 'user-default',
         description: 'Test description',
       });
 
       expect(message).toContain('**Extended Context for TestBot**');
       expect(message).toContain('Setting: **Auto**');
-      expect(message).toContain('**enabled** (from global)');
+      expect(message).toContain('**enabled** (from user-default)');
       expect(message).toContain('Test description');
     });
 
@@ -93,12 +95,12 @@ describe('triStateHelpers', () => {
         targetName: 'TestBot',
         newValue: null,
         effectiveEnabled: true,
-        source: 'global',
+        source: 'user-default',
         targetType: 'character',
       });
 
       expect(message).toContain('**Extended Context set to Auto** for **TestBot**');
-      expect(message).toContain('This will follow global settings');
+      expect(message).toContain('This will follow user-default settings');
       expect(message).toContain('Currently: **enabled**');
     });
 

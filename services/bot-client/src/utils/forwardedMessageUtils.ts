@@ -45,16 +45,36 @@ export interface ForwardedContentResult {
  *
  * This is the canonical check - use this everywhere instead of inline checks.
  *
- * A forwarded message has message.reference.type === MessageReferenceType.Forward.
- * Note: We do NOT require messageSnapshots to be present, as Discord may not
- * always populate them due to API limitations or permissions.
+ * A forwarded message is identified by EITHER:
+ * 1. message.reference.type === MessageReferenceType.Forward (primary check)
+ * 2. message.messageSnapshots exists and has size > 0 (fallback check)
+ *
+ * The fallback is needed because Discord.js may not always populate reference.type
+ * correctly, but messageSnapshots is a reliable indicator of forwarded content.
  *
  * @param message - Discord message to check
  * @returns true if the message is a forwarded message
  */
 export function isForwardedMessage(message: Message | null | undefined): boolean {
-  if (!message) {return false;}
-  return message.reference?.type === MessageReferenceType.Forward;
+  if (!message) {
+    return false;
+  }
+
+  // Primary check: reference type is Forward
+  if (message.reference?.type === MessageReferenceType.Forward) {
+    return true;
+  }
+
+  // Fallback check: messageSnapshots exist (only forwarded messages have these)
+  if (
+    message.messageSnapshots !== null &&
+    message.messageSnapshots !== undefined &&
+    message.messageSnapshots.size > 0
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 /**
@@ -67,7 +87,9 @@ export function isForwardedMessage(message: Message | null | undefined): boolean
  * @returns true if the message has forwarded snapshots
  */
 export function hasForwardedSnapshots(message: Message | null | undefined): boolean {
-  if (!message) {return false;}
+  if (!message) {
+    return false;
+  }
   return (
     isForwardedMessage(message) &&
     message.messageSnapshots !== undefined &&

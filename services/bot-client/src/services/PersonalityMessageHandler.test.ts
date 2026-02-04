@@ -27,6 +27,27 @@ vi.mock('../utils/nsfwVerification.js', () => ({
   NSFW_VERIFICATION_MESSAGE: 'Please verify your age by interacting in an NSFW channel first.',
 }));
 
+// Mock gateway client for config resolution
+// Default returns LlmConfig defaults (no personality overrides)
+vi.mock('../utils/userGatewayClient.js', () => ({
+  callGatewayApi: vi.fn().mockResolvedValue({
+    ok: true,
+    data: {
+      config: {
+        model: 'test-model',
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+      },
+      source: 'personality',
+    },
+  }),
+  GATEWAY_TIMEOUTS: { AUTOCOMPLETE: 2500, DEFERRED: 10000 },
+}));
+
+// Import for per-test mock manipulation
+import { callGatewayApi } from '../utils/userGatewayClient.js';
+
 // Import mocked functions for per-test manipulation
 import * as nsfwVerification from '../utils/nsfwVerification.js';
 
@@ -109,8 +130,8 @@ describe('PersonalityMessageHandler', () => {
 
       await handler.handleMessage(mockMessage, mockPersonality, 'Hello AI');
 
-      // Should build context with extended context options (derived from personality)
-      // When personality doesn't have context settings, defaults are used
+      // Should build context with extended context options (from resolved config)
+      // When personality doesn't have context settings, resolver returns LlmConfig defaults
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
@@ -118,7 +139,7 @@ describe('PersonalityMessageHandler', () => {
         {
           extendedContext: {
             enabled: true, // default when personality.extendedContext is undefined
-            maxMessages: 100, // MESSAGE_LIMITS.MAX_HISTORY_FETCH
+            maxMessages: 50, // from resolved config (LlmConfig default)
             maxAge: null,
             maxImages: 10,
             sources: {
@@ -256,6 +277,20 @@ describe('PersonalityMessageHandler', () => {
         maxAge: 3600,
         maxImages: 5,
       } as LoadedPersonality;
+
+      // Mock gateway to return personality's values (simulates resolver using personality config)
+      vi.mocked(callGatewayApi).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          config: {
+            model: mockPersonality.model || 'test-model',
+            maxMessages: 15,
+            maxAge: 3600,
+            maxImages: 5,
+          },
+          source: 'personality',
+        },
+      });
 
       const mockContext = {
         userMessage: 'Hello with extended context',
