@@ -58,13 +58,14 @@ export class PersonalityMessageHandler {
         { userId, personalityId: personality.id, error: result.error },
         '[PersonalityMessageHandler] Failed to resolve config, using personality defaults'
       );
-      // Fall back to personality defaults
+      // Fall back to personality defaults with hardcoded fallbacks for safety
+      // These ensure valid values even if personality has no config
       return {
         config: {
           model: personality.model,
-          maxMessages: personality.maxMessages,
-          maxAge: personality.maxAge,
-          maxImages: personality.maxImages,
+          maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
+          maxAge: personality.maxAge ?? null,
+          maxImages: personality.maxImages ?? MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
         },
         source: 'personality',
       };

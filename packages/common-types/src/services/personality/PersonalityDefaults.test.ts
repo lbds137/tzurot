@@ -443,10 +443,10 @@ describe('PersonalityDefaults', () => {
 
       const result = mapToPersonality(dbPersonality, null, mockLogger);
 
-      // No config provided - should be undefined
-      expect(result.maxMessages).toBeUndefined();
-      expect(result.maxAge).toBeUndefined();
-      expect(result.maxImages).toBeUndefined();
+      // No config provided - should use hardcoded defaults (maxAge has no default = undefined)
+      expect(result.maxMessages).toBe(50); // MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
+      expect(result.maxAge).toBeUndefined(); // No default for maxAge (null = no limit)
+      expect(result.maxImages).toBe(10); // MESSAGE_LIMITS.DEFAULT_MAX_IMAGES
     });
   });
 });
