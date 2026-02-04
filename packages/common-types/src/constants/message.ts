@@ -47,8 +47,14 @@ export const MESSAGE_LIMITS = {
   /**
    * Maximum messages to fetch from Discord for extended context
    * These are merged with DB history for broader channel awareness
+   * Also used as validation cap for maxMessages in LlmConfig
    */
   MAX_EXTENDED_CONTEXT: 100,
+  /**
+   * Maximum images allowed in extended context
+   * Validation cap for maxImages in LlmConfig (0 = disabled)
+   */
+  MAX_CONTEXT_IMAGES: 20,
   /**
    * Maximum number of Discord server roles to include per participant
    * Sorted by position (highest priority first), excluding @everyone

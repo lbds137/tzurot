@@ -26,7 +26,6 @@ import {
   safeValidateAdvancedParams,
   computeLlmConfigPermissions,
   AdvancedParamsSchema,
-  type AdvancedParams,
   AI_DEFAULTS,
   MESSAGE_LIMITS,
   optionalString,
@@ -45,26 +44,59 @@ const logger = createLogger('user-llm-config');
 const CONFIG_NOT_FOUND = 'Config not found';
 
 /**
- * Request body for creating/updating a config
- * All sampling params go into advancedParameters JSONB
+ * Shared context settings schema - used by both create and update handlers.
+ * Validation bounds prevent DoS via excessive history fetch.
+ * - maxMessages: 1-100 (capped at MAX_EXTENDED_CONTEXT)
+ * - maxImages: 0-20 (0 disables image processing, capped at MAX_CONTEXT_IMAGES)
+ * - maxAge: >= 1 or null (null = no time limit)
  */
-interface CreateConfigBody {
-  name: string;
-  description?: string;
-  provider?: string;
-  model: string;
-  visionModel?: string;
-  maxReferencedMessages?: number;
-  memoryScoreThreshold?: number;
-  memoryLimit?: number;
-  contextWindowTokens?: number;
-  // Context settings (typed columns)
-  maxMessages?: number;
-  maxAge?: number | null;
-  maxImages?: number;
-  // All params stored in advancedParameters
-  advancedParameters?: AdvancedParams;
-}
+const ContextSettingsSchema = {
+  maxMessages: z
+    .number()
+    .int()
+    .min(1, 'maxMessages must be at least 1')
+    .max(
+      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT,
+      `maxMessages cannot exceed ${MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT}`
+    )
+    .optional(),
+  maxAge: z
+    .number()
+    .int()
+    .min(1, 'maxAge must be at least 1 (or null for no limit)')
+    .optional()
+    .nullable(),
+  maxImages: z
+    .number()
+    .int()
+    .min(0, 'maxImages must be at least 0 (0 disables image processing)')
+    .max(
+      MESSAGE_LIMITS.MAX_CONTEXT_IMAGES,
+      `maxImages cannot exceed ${MESSAGE_LIMITS.MAX_CONTEXT_IMAGES}`
+    )
+    .optional(),
+};
+
+/**
+ * Zod schema for CreateConfigBody request validation.
+ */
+const CreateConfigBodySchema = z.object({
+  name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  description: z.string().max(500).optional().nullable(),
+  provider: z.string().max(50).optional(),
+  model: z.string().min(1, 'model is required').max(200),
+  visionModel: z.string().max(200).optional().nullable(),
+  maxReferencedMessages: z.number().int().positive().optional(),
+  memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
+  memoryLimit: z.number().int().positive().optional().nullable(),
+  contextWindowTokens: z.number().int().positive().optional(),
+  // Context settings
+  ...ContextSettingsSchema,
+  advancedParameters: AdvancedParamsSchema.optional(),
+});
+
+// Type is exported for use in tests
+export type CreateConfigBody = z.infer<typeof CreateConfigBodySchema>;
 
 /**
  * Zod schema for UpdateConfigBody request validation.
@@ -85,10 +117,8 @@ const UpdateConfigBodySchema = z.object({
   memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
   memoryLimit: z.number().int().positive().optional().nullable(),
   contextWindowTokens: z.number().int().positive().optional(),
-  // Context settings (typed columns for conversation history limits)
-  maxMessages: z.number().int().positive().max(100).optional(),
-  maxAge: z.number().int().positive().optional().nullable(),
-  maxImages: z.number().int().positive().max(20).optional(),
+  // Context settings (shared validation)
+  ...ContextSettingsSchema,
   advancedParameters: AdvancedParamsSchema.optional(),
   /** Toggle global visibility - users can share their presets */
   isGlobal: z.boolean().optional(),
@@ -243,48 +273,19 @@ function createGetHandler(prisma: PrismaClient) {
   };
 }
 
-// eslint-disable-next-line max-lines-per-function -- straightforward CRUD handler with field validation
 function createCreateHandler(prisma: PrismaClient, userService: UserService) {
-  // eslint-disable-next-line complexity, max-lines-per-function -- straightforward field validation in POST handler
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const body = req.body as CreateConfigBody;
 
-    // Validate required fields
-    if (!body.name || body.name.trim().length === 0) {
-      return sendError(res, ErrorResponses.validationError('name is required'));
+    // Validate request body with Zod schema
+    const parseResult = CreateConfigBodySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      // Include field path for clearer error messages
+      const path = firstIssue.path.length > 0 ? `${firstIssue.path.join('.')}: ` : '';
+      return sendError(res, ErrorResponses.validationError(`${path}${firstIssue.message}`));
     }
-    if (!body.model || body.model.trim().length === 0) {
-      return sendError(res, ErrorResponses.validationError('model is required'));
-    }
-    if (body.name.length > 100) {
-      return sendError(res, ErrorResponses.validationError('name must be 100 characters or less'));
-    }
-
-    // Validate advancedParameters if provided
-    if (body.advancedParameters !== undefined) {
-      const validated = safeValidateAdvancedParams(body.advancedParameters);
-      if (validated === null) {
-        return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
-      }
-    }
-
-    // Validate context settings bounds (prevent DoS via excessive history fetch)
-    if (body.maxMessages !== undefined && (body.maxMessages < 1 || body.maxMessages > 100)) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('maxMessages must be between 1 and 100')
-      );
-    }
-    if (body.maxImages !== undefined && (body.maxImages < 0 || body.maxImages > 20)) {
-      return sendError(res, ErrorResponses.validationError('maxImages must be between 0 and 20'));
-    }
-    if (body.maxAge !== undefined && body.maxAge !== null && body.maxAge < 1) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('maxAge must be at least 1 (or null for no limit)')
-      );
-    }
+    const body = parseResult.data;
 
     // Get or create user
     const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
