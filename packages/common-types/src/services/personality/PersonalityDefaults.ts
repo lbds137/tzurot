@@ -4,7 +4,12 @@
  */
 
 import type { LoadedPersonality } from '../../types/schemas.js';
-import { MODEL_DEFAULTS, AI_DEFAULTS, PLACEHOLDERS } from '../../constants/index.js';
+import {
+  MODEL_DEFAULTS,
+  AI_DEFAULTS,
+  MESSAGE_LIMITS,
+  PLACEHOLDERS,
+} from '../../constants/index.js';
 import type { DatabasePersonality } from './PersonalityValidator.js';
 import { mapLlmConfigFromDb, type MappedLlmConfig } from '../LlmConfigMapper.js';
 
@@ -94,16 +99,21 @@ function getReasoningConfig(
 
 /**
  * Get context settings (conversation history limits)
- * These control how many messages to fetch from the conversation history
+ * These control how many messages to fetch from the conversation history.
+ * Includes hardcoded fallbacks to ensure valid values even with no config.
  */
 function getContextSettings(
   pc: MappedLlmConfig | null,
   gc: MappedLlmConfig | null
 ): Pick<LoadedPersonality, 'maxMessages' | 'maxAge' | 'maxImages'> {
   return {
-    maxMessages: getConfigValue(pc?.maxMessages, gc?.maxMessages),
+    maxMessages: getConfigValue(
+      pc?.maxMessages,
+      gc?.maxMessages,
+      MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
+    ),
     maxAge: getConfigValue(pc?.maxAge, gc?.maxAge),
-    maxImages: getConfigValue(pc?.maxImages, gc?.maxImages),
+    maxImages: getConfigValue(pc?.maxImages, gc?.maxImages, MESSAGE_LIMITS.DEFAULT_MAX_IMAGES),
   };
 }
 
