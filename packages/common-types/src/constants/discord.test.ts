@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DISCORD_SNOWFLAKE,
+  DISCORD_ID_PREFIX,
   isValidDiscordId,
   filterValidDiscordIds,
   BOT_FOOTER_TEXT,
@@ -96,6 +97,24 @@ describe('Discord ID Validation', () => {
       const result = filterValidDiscordIds([]);
       expect(result).toEqual([]);
     });
+  });
+});
+
+describe('DISCORD_ID_PREFIX', () => {
+  it('should be the expected prefix string', () => {
+    expect(DISCORD_ID_PREFIX).toBe('discord:');
+  });
+
+  it('should be usable for building personaId strings', () => {
+    const discordId = '123456789012345678';
+    const personaId = `${DISCORD_ID_PREFIX}${discordId}`;
+    expect(personaId).toBe('discord:123456789012345678');
+  });
+
+  it('should be usable for extracting discordId from personaId', () => {
+    const personaId = 'discord:123456789012345678';
+    const discordId = personaId.replace(DISCORD_ID_PREFIX, '');
+    expect(discordId).toBe('123456789012345678');
   });
 });
 

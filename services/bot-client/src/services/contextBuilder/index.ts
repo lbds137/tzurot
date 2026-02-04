@@ -14,9 +14,6 @@ export {
   resolveExtendedContextPersonaIds,
   type ParticipantGuildInfo,
   type PersonaResolutionResult,
-  // Legacy exports (deprecated)
-  collectDiscordIdsNeedingResolution,
-  updateMessagesWithResolvedPersonas,
 } from './ExtendedContextPersonaResolver.js';
 
 // Guild Member Resolution

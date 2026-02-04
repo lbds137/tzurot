@@ -6,7 +6,12 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, MESSAGE_LIMITS, type MessageReaction } from '@tzurot/common-types';
+import {
+  createLogger,
+  MESSAGE_LIMITS,
+  DISCORD_ID_PREFIX,
+  type MessageReaction,
+} from '@tzurot/common-types';
 import type { ParticipantGuildInfo, ExtendedContextUser } from './types.js';
 
 const logger = createLogger('ParticipantContextCollector');
@@ -84,7 +89,7 @@ export function collectReactorUsers(
   for (const reaction of reactions) {
     for (const reactor of reaction.reactors) {
       // Extract Discord ID from personaId format ('discord:123456')
-      const discordId = reactor.personaId.replace('discord:', '');
+      const discordId = reactor.personaId.replace(DISCORD_ID_PREFIX, '');
       if (seenIds.has(discordId)) {
         continue;
       }

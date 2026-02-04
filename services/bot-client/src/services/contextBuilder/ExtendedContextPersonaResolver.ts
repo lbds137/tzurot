@@ -6,12 +6,15 @@
  * authors AND reaction reactors in a single batch to minimize API calls.
  */
 
-import { createLogger, type PersonaResolver, type ConversationMessage } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_ID_PREFIX,
+  type PersonaResolver,
+  type ConversationMessage,
+  type ReactionReactor,
+} from '@tzurot/common-types';
 
 const logger = createLogger('ExtendedContextPersonaResolver');
-
-/** Prefix used for unresolved Discord user IDs in personaId fields */
-const DISCORD_ID_PREFIX = 'discord:';
 
 /** Participant guild info type (roles, display color, join date) */
 export type ParticipantGuildInfo = Record<
@@ -148,15 +151,13 @@ interface ResolvedPersonaInfo {
 
 /**
  * Apply resolved persona to a single reactor if applicable.
+ * Uses ReactionReactor type from common-types for type safety.
  * @returns true if the reactor was updated, false otherwise
  */
 function applyResolvedPersonaToReactor(
-  reactor: { personaId?: string; displayName: string },
+  reactor: ReactionReactor,
   resolvedMap: Map<string, ResolvedPersonaInfo>
 ): boolean {
-  if (reactor.personaId === undefined) {
-    return false;
-  }
   if (!reactor.personaId.startsWith(DISCORD_ID_PREFIX)) {
     return false;
   }
@@ -301,33 +302,4 @@ export async function resolveExtendedContextPersonaIds(
   }
 
   return { messageCount, reactorCount, total };
-}
-
-// --- Legacy exports for backwards compatibility during transition ---
-// These can be removed once all callers are updated
-
-/** @deprecated Use collectAllDiscordIdsNeedingResolution instead */
-export function collectDiscordIdsNeedingResolution(
-  messages: ConversationMessage[],
-  userMap: Map<string, string>
-): Set<string> {
-  const uniqueDiscordIds = new Set<string>();
-  for (const msg of messages) {
-    if (msg.personaId?.startsWith(DISCORD_ID_PREFIX)) {
-      const discordId = msg.personaId.slice(DISCORD_ID_PREFIX.length);
-      if (userMap.has(discordId)) {
-        uniqueDiscordIds.add(discordId);
-      }
-    }
-  }
-  return uniqueDiscordIds;
-}
-
-/** @deprecated Use applyResolvedPersonas instead */
-export function updateMessagesWithResolvedPersonas(
-  messages: ConversationMessage[],
-  resolvedMap: Map<string, { personaId: string; preferredName: string | null | undefined }>
-): { resolvedCount: number; guildInfoRemap: Map<string, string> } {
-  const { messageCount, guildInfoRemap } = applyResolvedPersonas(messages, resolvedMap);
-  return { resolvedCount: messageCount, guildInfoRemap };
 }

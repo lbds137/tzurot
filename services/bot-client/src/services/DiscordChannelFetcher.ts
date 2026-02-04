@@ -10,6 +10,7 @@ import {
   createLogger,
   MessageRole,
   MESSAGE_LIMITS,
+  DISCORD_ID_PREFIX,
   ConversationSyncService,
 } from '@tzurot/common-types';
 import type {
@@ -367,7 +368,7 @@ export class DiscordChannelFetcher {
       role,
       content,
       createdAt: msg.createdAt,
-      personaId: role === MessageRole.User ? `discord:${msg.author.id}` : 'assistant',
+      personaId: role === MessageRole.User ? `${DISCORD_ID_PREFIX}${msg.author.id}` : 'assistant',
       personaName: role === MessageRole.User ? authorName : undefined,
       discordUsername: msg.author.username,
       discordMessageId: [msg.id],
