@@ -250,13 +250,31 @@ Same resource returns different fields from GET vs POST vs PUT.
 
 - [ ] Shared response builder functions per resource type
 
-#### 🏗️ Zod Schema/TypeScript Interface Mismatch
+#### 🏗️ Zod Schema/TypeScript Interface Mismatch (HIGH PRIORITY)
 
-Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data disappears.
+Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data silently disappears.
 
-- [ ] Contract tests ensuring Zod schema keys match interface fields
-- [ ] Use `.passthrough()` or `.strict()` during development
-- [ ] Audit: `schemas.ts`, `jobs.ts`, route schemas
+**Recent bug**: `isForwarded` field missing from `apiConversationMessageSchema` caused forwarded messages to lose their `forwarded="true"` attribute in prompts.
+
+**Immediate fix (DONE)**:
+
+- [x] Added regression test for `isForwarded` in `schemas.test.ts`
+- [x] Added comprehensive field preservation test for `apiConversationMessageSchema`
+
+**Medium-term solution (Option B - compile-time enforcement)**:
+
+- [ ] Create `ZodShape<T>` utility type that maps interface keys to Zod types
+- [ ] Use `satisfies ZodShape<ApiInterface>` on schemas to get compile errors for missing fields
+- [ ] Challenge: Internal types (Date) differ from API types (string), need separate API interfaces
+
+**Long-term solution (Option A - schema-first architecture)**:
+
+- [ ] Make Zod schemas the single source of truth for API types
+- [ ] Derive TypeScript types using `z.infer<typeof schema>`
+- [ ] Internal types with Date remain separate, conversion at boundaries
+- [ ] New types should be schema-first from the start
+
+**Reference**: MCP council recommendation (2026-02-04) - Option A is ideal, Option B is pragmatic
 
 ### Observability & Debugging
 

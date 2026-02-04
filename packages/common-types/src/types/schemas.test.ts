@@ -8,7 +8,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { loadedPersonalitySchema, generateRequestSchema } from './schemas.js';
+import {
+  loadedPersonalitySchema,
+  generateRequestSchema,
+  apiConversationMessageSchema,
+} from './schemas.js';
+import { MessageRole } from '../constants/index.js';
 
 describe('loadedPersonalitySchema', () => {
   it('should validate a complete personality object', () => {
@@ -106,6 +111,99 @@ describe('loadedPersonalitySchema', () => {
 
     const result = loadedPersonalitySchema.safeParse(invalidPersonality);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('apiConversationMessageSchema', () => {
+  /**
+   * CRITICAL: This test prevents schema drift for conversation history fields.
+   * When adding fields to ConversationMessage or the bot-client's history builder,
+   * add them here AND to the schema to ensure they survive API validation.
+   *
+   * Bug reference: isForwarded was missing from schema, causing forwarded messages
+   * in extended context to lose their forwarded="true" attribute in the prompt XML.
+   */
+  it('should preserve all conversation message fields through validation', () => {
+    // Simulate what MessageContextBuilder sends through the API
+    const messageWithAllFields = {
+      id: 'msg-123',
+      role: MessageRole.User,
+      content: 'Hello world',
+      createdAt: '2026-02-04T12:00:00.000Z',
+      tokenCount: 42,
+      personaId: 'persona-123',
+      personaName: 'TestUser',
+      discordUsername: 'testuser#1234',
+      discordMessageId: ['discord-msg-1', 'discord-msg-2'],
+      isForwarded: true, // CRITICAL: Must not be stripped
+      messageMetadata: {
+        referencedMessages: [],
+        imageDescriptions: [{ filename: 'test.png', description: 'A test image' }],
+      },
+      personalityId: 'personality-123',
+      personalityName: 'TestBot',
+    };
+
+    const result = apiConversationMessageSchema.safeParse(messageWithAllFields);
+    expect(result.success).toBe(true);
+
+    if (result.success) {
+      // CRITICAL FIELD CHECKS - add new fields here when extending the schema
+      expect(result.data.id).toBe('msg-123');
+      expect(result.data.role).toBe(MessageRole.User);
+      expect(result.data.content).toBe('Hello world');
+      expect(result.data.createdAt).toBe('2026-02-04T12:00:00.000Z');
+      expect(result.data.tokenCount).toBe(42);
+      expect(result.data.personaId).toBe('persona-123');
+      expect(result.data.personaName).toBe('TestUser');
+      expect(result.data.discordUsername).toBe('testuser#1234');
+      expect(result.data.discordMessageId).toEqual(['discord-msg-1', 'discord-msg-2']);
+      expect(result.data.isForwarded).toBe(true); // Regression test for schema drift bug
+      expect(result.data.messageMetadata).toBeDefined();
+      expect(result.data.personalityId).toBe('personality-123');
+      expect(result.data.personalityName).toBe('TestBot');
+    }
+  });
+
+  it('should NOT strip isForwarded field (regression test for forwarded message bug)', () => {
+    const forwardedMessage = {
+      role: MessageRole.User,
+      content: 'This was forwarded',
+      isForwarded: true,
+    };
+
+    const result = apiConversationMessageSchema.safeParse(forwardedMessage);
+    expect(result.success).toBe(true);
+
+    if (result.success) {
+      expect(result.data.isForwarded).toBe(true);
+      expect(result.data).toHaveProperty('isForwarded');
+    }
+  });
+
+  it('should allow isForwarded to be false or undefined', () => {
+    const notForwarded = {
+      role: MessageRole.User,
+      content: 'Regular message',
+      isForwarded: false,
+    };
+
+    const result1 = apiConversationMessageSchema.safeParse(notForwarded);
+    expect(result1.success).toBe(true);
+    if (result1.success) {
+      expect(result1.data.isForwarded).toBe(false);
+    }
+
+    const noForwardedField = {
+      role: MessageRole.User,
+      content: 'Regular message',
+    };
+
+    const result2 = apiConversationMessageSchema.safeParse(noForwardedField);
+    expect(result2.success).toBe(true);
+    if (result2.success) {
+      expect(result2.data.isForwarded).toBeUndefined();
+    }
   });
 });
 
