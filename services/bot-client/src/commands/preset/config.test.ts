@@ -354,13 +354,13 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
     expect(PRESET_DASHBOARD_CONFIG.entityType).toBe('preset');
   });
 
-  it('should have 4 sections', () => {
-    expect(PRESET_DASHBOARD_CONFIG.sections).toHaveLength(4);
+  it('should have 5 sections', () => {
+    expect(PRESET_DASHBOARD_CONFIG.sections).toHaveLength(5);
   });
 
   it('should have correct section IDs', () => {
     const sectionIds = PRESET_DASHBOARD_CONFIG.sections.map(s => s.id);
-    expect(sectionIds).toEqual(['identity', 'sampling', 'advanced', 'reasoning']);
+    expect(sectionIds).toEqual(['identity', 'sampling', 'advanced', 'context', 'reasoning']);
   });
 
   describe('getTitle', () => {
@@ -482,7 +482,7 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
   });
 
   describe('Reasoning section', () => {
-    const reasoningSection = PRESET_DASHBOARD_CONFIG.sections[3];
+    const reasoningSection = PRESET_DASHBOARD_CONFIG.sections[4];
 
     it('should have correct fields', () => {
       expect(reasoningSection.fields).toHaveLength(5);

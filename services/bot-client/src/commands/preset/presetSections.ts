@@ -8,6 +8,11 @@
 import { SectionStatus, type SectionDefinition } from '../../utils/dashboard/types.js';
 import type { FlattenedPresetData } from './types.js';
 
+/** Common separator for preview fields */
+const PREVIEW_SEPARATOR = ', ';
+/** Default preview message when no custom values set */
+const DEFAULT_PREVIEW = '_Using defaults_';
+
 // --- Section Definitions ---
 
 /**
@@ -150,7 +155,7 @@ export const coreSamplingSection: SectionDefinition<FlattenedPresetData> = {
     if (data.seed) {
       parts.push(`seed=${data.seed}`);
     }
-    return parts.length > 0 ? parts.join(', ') : '_Using defaults_';
+    return parts.length > 0 ? parts.join(PREVIEW_SEPARATOR) : DEFAULT_PREVIEW;
   },
 };
 
@@ -227,7 +232,76 @@ export const advancedSection: SectionDefinition<FlattenedPresetData> = {
     if (data.top_a) {
       parts.push(`top_a=${data.top_a}`);
     }
-    return parts.length > 0 ? parts.join(', ') : '_Using defaults_';
+    return parts.length > 0 ? parts.join(PREVIEW_SEPARATOR) : DEFAULT_PREVIEW;
+  },
+};
+
+export const contextSection: SectionDefinition<FlattenedPresetData> = {
+  id: 'context',
+  label: '📜 Context',
+  description: 'How much conversation history to include',
+  fieldIds: ['maxMessages', 'maxAge', 'maxImages'],
+  fields: [
+    {
+      id: 'maxMessages',
+      label: 'Max Messages (1-100)',
+      placeholder: '50',
+      required: false,
+      style: 'short',
+      maxLength: 3,
+    },
+    {
+      id: 'maxAge',
+      label: 'Max Age (seconds, empty = no limit)',
+      placeholder: '86400 (24 hours)',
+      required: false,
+      style: 'short',
+      maxLength: 10,
+    },
+    {
+      id: 'maxImages',
+      label: 'Max Images (0-20, 0 = disabled)',
+      placeholder: '10',
+      required: false,
+      style: 'short',
+      maxLength: 2,
+    },
+  ],
+  getStatus: data => {
+    const hasCustomMaxMessages =
+      data.maxMessages !== undefined && data.maxMessages !== '' && data.maxMessages !== '50';
+    const hasCustomMaxAge = data.maxAge !== undefined && data.maxAge !== '';
+    const hasCustomMaxImages =
+      data.maxImages !== undefined && data.maxImages !== '' && data.maxImages !== '10';
+    const hasCustom = hasCustomMaxMessages || hasCustomMaxAge || hasCustomMaxImages;
+    return hasCustom ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
+  },
+  getPreview: data => {
+    const parts: string[] = [];
+    if (data.maxMessages !== undefined && data.maxMessages !== '') {
+      parts.push(`msgs=${data.maxMessages}`);
+    }
+    if (data.maxAge !== undefined && data.maxAge !== '') {
+      // Convert seconds to human-readable
+      const seconds = parseInt(data.maxAge, 10);
+      if (!isNaN(seconds)) {
+        const SECONDS_PER_DAY = 86400;
+        const SECONDS_PER_HOUR = 3600;
+        if (seconds >= SECONDS_PER_DAY) {
+          parts.push(`age=${Math.floor(seconds / SECONDS_PER_DAY)}d`);
+        } else if (seconds >= SECONDS_PER_HOUR) {
+          parts.push(`age=${Math.floor(seconds / SECONDS_PER_HOUR)}h`);
+        } else {
+          parts.push(`age=${seconds}s`);
+        }
+      }
+    }
+    if (data.maxImages !== undefined && data.maxImages !== '') {
+      parts.push(`imgs=${data.maxImages}`);
+    }
+    return parts.length > 0
+      ? parts.join(PREVIEW_SEPARATOR)
+      : '_Using defaults (50 msgs, no limit, 10 imgs)_';
   },
 };
 
@@ -310,6 +384,6 @@ export const reasoningSection: SectionDefinition<FlattenedPresetData> = {
     if (data.show_thinking === 'true') {
       parts.push('💭 show thinking');
     }
-    return parts.length > 0 ? parts.join(', ') : '_Using defaults_';
+    return parts.length > 0 ? parts.join(PREVIEW_SEPARATOR) : DEFAULT_PREVIEW;
   },
 };

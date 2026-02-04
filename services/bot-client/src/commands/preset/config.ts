@@ -46,6 +46,10 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     reasoning_enabled: data.params.reasoning?.enabled?.toString() ?? '',
     // Output params
     show_thinking: data.params.show_thinking?.toString() ?? '',
+    // Context settings
+    maxMessages: String(data.maxMessages),
+    maxAge: data.maxAge !== null ? String(data.maxAge) : '',
+    maxImages: String(data.maxImages),
   };
 }
 
@@ -111,25 +115,47 @@ function parseReasoningParams(flat: Partial<FlattenedPresetData>): Record<string
   return Object.keys(reasoning).length > 0 ? reasoning : null;
 }
 
-/** Convert flattened form data back to API update payload */
-export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<string, unknown> {
-  const result: Record<string, unknown> = {};
+/** Parse optional integer field, returning undefined if invalid */
+function parseOptionalInt(value: string | undefined): number | undefined {
+  if (value === undefined || value.length === 0) {
+    return undefined;
+  }
+  const num = parseInt(value, 10);
+  return isNaN(num) ? undefined : num;
+}
 
-  // Basic fields
-  addStringField(result, 'name', flat.name);
-  addStringField(result, 'description', flat.description, true);
-  addStringField(result, 'provider', flat.provider);
-  addStringField(result, 'model', flat.model);
-  addStringField(result, 'visionModel', flat.visionModel, true);
+/** Parse integer context fields from flattened data */
+function parseContextSettings(
+  flat: Partial<FlattenedPresetData>,
+  result: Record<string, unknown>
+): void {
+  const maxMessages = parseOptionalInt(flat.maxMessages);
+  if (maxMessages !== undefined) {
+    result.maxMessages = maxMessages;
+  }
 
-  if (flat.maxReferencedMessages !== undefined && flat.maxReferencedMessages.length > 0) {
-    const num = parseInt(flat.maxReferencedMessages, 10);
-    if (!isNaN(num)) {
-      result.maxReferencedMessages = num;
+  // maxAge: empty string means null (no time limit)
+  if (flat.maxAge !== undefined) {
+    if (flat.maxAge.length === 0) {
+      result.maxAge = null;
+    } else {
+      const maxAge = parseOptionalInt(flat.maxAge);
+      if (maxAge !== undefined) {
+        result.maxAge = maxAge;
+      }
     }
   }
 
-  // Build advancedParameters
+  const maxImages = parseOptionalInt(flat.maxImages);
+  if (maxImages !== undefined) {
+    result.maxImages = maxImages;
+  }
+}
+
+/** Build advancedParameters object from flattened data */
+function buildAdvancedParameters(
+  flat: Partial<FlattenedPresetData>
+): Record<string, unknown> | null {
   const numericParams = [
     'temperature',
     'top_p',
@@ -154,7 +180,33 @@ export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<
     advancedParameters.show_thinking = flat.show_thinking.toLowerCase() === 'true';
   }
 
-  if (hasSampling || reasoning !== null || advancedParameters.show_thinking !== undefined) {
+  const hasAdvanced =
+    hasSampling || reasoning !== null || advancedParameters.show_thinking !== undefined;
+  return hasAdvanced ? advancedParameters : null;
+}
+
+/** Convert flattened form data back to API update payload */
+export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+
+  // Basic fields
+  addStringField(result, 'name', flat.name);
+  addStringField(result, 'description', flat.description, true);
+  addStringField(result, 'provider', flat.provider);
+  addStringField(result, 'model', flat.model);
+  addStringField(result, 'visionModel', flat.visionModel, true);
+
+  const maxReferencedMessages = parseOptionalInt(flat.maxReferencedMessages);
+  if (maxReferencedMessages !== undefined) {
+    result.maxReferencedMessages = maxReferencedMessages;
+  }
+
+  // Context settings
+  parseContextSettings(flat, result);
+
+  // Build advancedParameters
+  const advancedParameters = buildAdvancedParameters(flat);
+  if (advancedParameters !== null) {
     result.advancedParameters = advancedParameters;
   }
 
@@ -166,6 +218,7 @@ import {
   identitySection,
   coreSamplingSection,
   advancedSection,
+  contextSection,
   reasoningSection,
 } from './presetSections.js';
 
@@ -187,7 +240,13 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
     }
     return badges.length > 0 ? badges.join(' • ') : '';
   },
-  sections: [identitySection, coreSamplingSection, advancedSection, reasoningSection],
+  sections: [
+    identitySection,
+    coreSamplingSection,
+    advancedSection,
+    contextSection,
+    reasoningSection,
+  ],
   actions: [], // Refresh button already exists - no need for dropdown entry
   getFooter: () => 'Select a section to edit • Changes save automatically',
   color: 0x5865f2, // Discord blurple
