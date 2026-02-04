@@ -133,6 +133,20 @@ export const DISCORD_MENTIONS = {
 } as const;
 
 /**
+ * Prefix used for unresolved Discord user IDs in personaId fields.
+ *
+ * Extended context uses 'discord:XXXX' format for users before persona
+ * resolution. After resolution, these become actual persona UUIDs.
+ *
+ * @example
+ * // Before resolution
+ * personaId: 'discord:123456789012345678'
+ * // After resolution
+ * personaId: 'uuid-abc-123-def-456'
+ */
+export const DISCORD_ID_PREFIX = 'discord:';
+
+/**
  * Discord Snowflake ID validation
  *
  * Discord IDs (snowflakes) are 64-bit integers represented as strings.
