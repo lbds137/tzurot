@@ -48,7 +48,7 @@ const CONFIG_NOT_FOUND = 'Config not found';
  * Validation bounds prevent DoS via excessive history fetch.
  * - maxMessages: 1-100 (capped at MAX_EXTENDED_CONTEXT)
  * - maxImages: 0-20 (0 disables image processing, capped at MAX_CONTEXT_IMAGES)
- * - maxAge: >= 1 or null (null = no time limit)
+ * - maxAge: 1-2592000 (30 days) or null (null = no time limit)
  */
 const ContextSettingsSchema = {
   maxMessages: z
@@ -64,6 +64,10 @@ const ContextSettingsSchema = {
     .number()
     .int()
     .min(1, 'maxAge must be at least 1 second, or omit/set to null for no time limit')
+    .max(
+      MESSAGE_LIMITS.MAX_CONTEXT_AGE,
+      `maxAge cannot exceed ${MESSAGE_LIMITS.MAX_CONTEXT_AGE} seconds (30 days)`
+    )
     .optional()
     .nullable(),
   maxImages: z

@@ -56,6 +56,12 @@ export const MESSAGE_LIMITS = {
    */
   MAX_CONTEXT_IMAGES: 20,
   /**
+   * Maximum age for context messages in seconds (30 days)
+   * Validation cap for maxAge in LlmConfig (null = no limit)
+   * Prevents fetching years of history in busy channels
+   */
+  MAX_CONTEXT_AGE: 2592000, // 30 * 24 * 60 * 60
+  /**
    * Maximum number of Discord server roles to include per participant
    * Sorted by position (highest priority first), excluding @everyone
    * Balances context richness vs token usage
