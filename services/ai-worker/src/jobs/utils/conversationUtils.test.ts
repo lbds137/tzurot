@@ -625,6 +625,50 @@ describe('Conversation Utilities', () => {
       expect(result).not.toMatch(/message[^>]*forwarded="true"/);
     });
 
+    it('should nest attachments inside quote for forwarded messages', () => {
+      // When a user forwards a message with attachments, those attachments belong to
+      // the forwarded content, not to the forwarder - so they should be inside the quote
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Check out this screenshot',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [
+              {
+                filename: 'screenshot.png',
+                description: 'A screenshot of a Discord error',
+              },
+            ],
+            embedsXml: ['<embed title="Link Preview">Some preview</embed>'],
+            voiceTranscripts: ['Hello this is a voice message'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Attachments should be INSIDE the quote, not at message level
+      // The quote should contain: content + image_descriptions + embeds + voice_transcript
+      expect(result).toMatch(
+        /<quote type="forward" author="Unknown">.*<image_descriptions>.*<\/image_descriptions>.*<\/quote>/s
+      );
+      expect(result).toMatch(
+        /<quote type="forward" author="Unknown">.*<embeds>.*<\/embeds>.*<\/quote>/s
+      );
+      expect(result).toMatch(
+        /<quote type="forward" author="Unknown">.*<voice_transcripts>.*<\/voice_transcripts>.*<\/quote>/s
+      );
+
+      // Attachments should NOT appear outside the quoted_messages section
+      // (after </quoted_messages> and before </message>)
+      expect(result).not.toMatch(/<\/quoted_messages>\s*<image_descriptions>/);
+      expect(result).not.toMatch(/<\/quoted_messages>\s*<embeds>/);
+      expect(result).not.toMatch(/<\/quoted_messages>\s*<voice_transcripts>/);
+    });
+
     it('should include embeds in quoted messages', () => {
       const referencedMessage: StoredReferencedMessage = {
         discordMessageId: '123456',
