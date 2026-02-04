@@ -28,6 +28,9 @@ describe('flattenPresetData', () => {
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       params: {},
     };
 
@@ -59,6 +62,9 @@ describe('flattenPresetData', () => {
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       params: {},
     };
 
@@ -83,6 +89,9 @@ describe('flattenPresetData', () => {
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       params: {
         temperature: 0.7,
         top_p: 0.9,
@@ -116,6 +125,9 @@ describe('flattenPresetData', () => {
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       params: {
         frequency_penalty: 0.5,
         presence_penalty: 0.3,
@@ -149,6 +161,9 @@ describe('flattenPresetData', () => {
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       params: {
         reasoning: {
           effort: 'high',
@@ -182,6 +197,9 @@ describe('flattenPresetData', () => {
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
       params: {},
     };
 
