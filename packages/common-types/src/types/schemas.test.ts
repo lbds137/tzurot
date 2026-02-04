@@ -205,6 +205,108 @@ describe('apiConversationMessageSchema', () => {
       expect(result2.data.isForwarded).toBeUndefined();
     }
   });
+
+  /**
+   * CRITICAL: This test ensures reactions in messageMetadata survive schema validation.
+   * Reactions are added by extended context processing and must flow through to ai-worker.
+   */
+  it('should NOT strip reactions from messageMetadata (regression test for reactions bug)', () => {
+    const messageWithReactions = {
+      role: MessageRole.User,
+      content: 'Great news everyone!',
+      messageMetadata: {
+        reactions: [
+          {
+            emoji: '👍',
+            isCustom: false,
+            reactors: [
+              { personaId: 'discord:user1', displayName: 'Alice' },
+              { personaId: 'discord:user2', displayName: 'Bob' },
+            ],
+          },
+          {
+            emoji: ':pepe:',
+            isCustom: true,
+            reactors: [{ personaId: 'discord:user3', displayName: 'Carol' }],
+          },
+        ],
+      },
+    };
+
+    const result = apiConversationMessageSchema.safeParse(messageWithReactions);
+    expect(result.success).toBe(true);
+
+    if (result.success) {
+      // messageMetadata should be preserved
+      expect(result.data.messageMetadata).toBeDefined();
+
+      // Reactions should survive z.record(z.string(), z.unknown()) validation
+      const metadata = result.data.messageMetadata as Record<string, unknown>;
+      expect(metadata.reactions).toBeDefined();
+
+      // Verify structure is preserved (not just existence)
+      const reactions = metadata.reactions as Array<{
+        emoji: string;
+        isCustom?: boolean;
+        reactors: Array<{ personaId: string; displayName: string }>;
+      }>;
+      expect(reactions).toHaveLength(2);
+      expect(reactions[0].emoji).toBe('👍');
+      expect(reactions[0].reactors).toHaveLength(2);
+      expect(reactions[0].reactors[0].displayName).toBe('Alice');
+      expect(reactions[1].emoji).toBe(':pepe:');
+      expect(reactions[1].isCustom).toBe(true);
+    }
+  });
+
+  it('should preserve other messageMetadata fields alongside reactions', () => {
+    const messageWithMixedMetadata = {
+      role: MessageRole.User,
+      content: 'Check this out',
+      messageMetadata: {
+        referencedMessages: [
+          {
+            discordMessageId: 'ref-123',
+            authorUsername: 'testuser',
+            authorDisplayName: 'Test User',
+            content: 'Original message',
+            embeds: '',
+            timestamp: '2026-02-04T10:00:00.000Z',
+            locationContext: 'Server > Channel',
+          },
+        ],
+        reactions: [
+          {
+            emoji: '❤️',
+            reactors: [{ personaId: 'discord:user1', displayName: 'Alice' }],
+          },
+        ],
+        embedsXml: ['<embed title="Test"/>'],
+        voiceTranscripts: ['Hello from voice'],
+      },
+    };
+
+    const result = apiConversationMessageSchema.safeParse(messageWithMixedMetadata);
+    expect(result.success).toBe(true);
+
+    if (result.success) {
+      const metadata = result.data.messageMetadata as Record<string, unknown>;
+
+      // All fields should be preserved
+      expect(metadata.referencedMessages).toBeDefined();
+      expect(metadata.reactions).toBeDefined();
+      expect(metadata.embedsXml).toBeDefined();
+      expect(metadata.voiceTranscripts).toBeDefined();
+
+      // Verify reactions specifically
+      const reactions = metadata.reactions as Array<{
+        emoji: string;
+        reactors: Array<{ personaId: string; displayName: string }>;
+      }>;
+      expect(reactions).toHaveLength(1);
+      expect(reactions[0].emoji).toBe('❤️');
+    }
+  });
 });
 
 describe('generateRequestSchema', () => {
