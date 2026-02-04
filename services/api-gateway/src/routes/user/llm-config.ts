@@ -27,6 +27,7 @@ import {
   AdvancedParamsSchema,
   type AdvancedParams,
   AI_DEFAULTS,
+  MESSAGE_LIMITS,
   optionalString,
   nullableString,
 } from '@tzurot/common-types';
@@ -56,6 +57,10 @@ interface CreateConfigBody {
   memoryScoreThreshold?: number;
   memoryLimit?: number;
   contextWindowTokens?: number;
+  // Context settings (typed columns)
+  maxMessages?: number;
+  maxAge?: number | null;
+  maxImages?: number;
   // All params stored in advancedParameters
   advancedParameters?: AdvancedParams;
 }
@@ -79,6 +84,10 @@ const UpdateConfigBodySchema = z.object({
   memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
   memoryLimit: z.number().int().positive().optional().nullable(),
   contextWindowTokens: z.number().int().positive().optional(),
+  // Context settings (typed columns for conversation history limits)
+  maxMessages: z.number().int().positive().max(100).optional(),
+  maxAge: z.number().int().positive().optional().nullable(),
+  maxImages: z.number().int().positive().max(20).optional(),
   advancedParameters: AdvancedParamsSchema.optional(),
   /** Toggle global visibility - users can share their presets */
   isGlobal: z.boolean().optional(),
@@ -108,6 +117,10 @@ const CONFIG_DETAIL_SELECT = {
   memoryScoreThreshold: true,
   memoryLimit: true,
   contextWindowTokens: true,
+  // Context settings (typed columns)
+  maxMessages: true,
+  maxAge: true,
+  maxImages: true,
   ownerId: true,
 } as const;
 
@@ -217,6 +230,10 @@ function createGetHandler(prisma: PrismaClient) {
       memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
       memoryLimit: config.memoryLimit,
       contextWindowTokens: config.contextWindowTokens,
+      // Context settings
+      maxMessages: config.maxMessages,
+      maxAge: config.maxAge,
+      maxImages: config.maxImages,
       params,
     };
 
@@ -282,6 +299,10 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
         memoryScoreThreshold: body.memoryScoreThreshold ?? AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
         memoryLimit: body.memoryLimit ?? AI_DEFAULTS.MEMORY_LIMIT,
         contextWindowTokens: body.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
+        // Context settings
+        maxMessages: body.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
+        maxAge: body.maxAge ?? null,
+        maxImages: body.maxImages ?? MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
         advancedParameters: body.advancedParameters ?? undefined,
       },
       select: CONFIG_DETAIL_SELECT,
@@ -319,6 +340,10 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
           memoryScoreThreshold: config.memoryScoreThreshold?.toNumber() ?? null,
           memoryLimit: config.memoryLimit,
           contextWindowTokens: config.contextWindowTokens,
+          // Context settings
+          maxMessages: config.maxMessages,
+          maxAge: config.maxAge,
+          maxImages: config.maxImages,
           params,
         },
       },
@@ -417,6 +442,16 @@ function createUpdateHandler(
     if (body.advancedParameters !== undefined) {
       updateData.advancedParameters = body.advancedParameters;
     }
+    // Context settings
+    if (body.maxMessages !== undefined) {
+      updateData.maxMessages = body.maxMessages;
+    }
+    if (body.maxAge !== undefined) {
+      updateData.maxAge = body.maxAge;
+    }
+    if (body.maxImages !== undefined) {
+      updateData.maxImages = body.maxImages;
+    }
 
     if (Object.keys(updateData).length === 0) {
       return sendError(res, ErrorResponses.validationError('No fields to update'));
@@ -453,6 +488,10 @@ function createUpdateHandler(
       memoryScoreThreshold: updated.memoryScoreThreshold?.toNumber() ?? null,
       memoryLimit: updated.memoryLimit,
       contextWindowTokens: updated.contextWindowTokens,
+      // Context settings
+      maxMessages: updated.maxMessages,
+      maxAge: updated.maxAge,
+      maxImages: updated.maxImages,
       params,
     };
 

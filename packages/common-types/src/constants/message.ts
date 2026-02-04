@@ -40,6 +40,16 @@ export const MESSAGE_LIMITS = {
    */
   MAX_HISTORY_FETCH: 100,
   /**
+   * Default value for maxMessages in LlmConfig
+   * Controls how many messages to include in context for personality
+   */
+  DEFAULT_MAX_MESSAGES: 50,
+  /**
+   * Default value for maxImages in LlmConfig
+   * Controls how many images to process in extended context
+   */
+  DEFAULT_MAX_IMAGES: 10,
+  /**
    * Maximum messages to fetch from Discord for extended context
    * These are merged with DB history for broader channel awareness
    */
