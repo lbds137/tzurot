@@ -161,17 +161,24 @@ export function formatSingleHistoryEntryAsXml(
   const voiceSection = formatVoiceSection(msg);
   const reactionsSection = formatReactionsSection(msg);
 
-  // For forwarded messages, wrap content in quoted_messages to indicate uncertain authorship
+  // For forwarded messages, wrap content AND attachments in quoted_messages
   // The person who forwarded the message (from attribute) is NOT the original author
+  // Attachments belong to the forwarded snapshot, not to the forwarder
   let formattedContent: string;
+  let messageLevelAttachments: string;
   if (msg.isForwarded === true && safeContent.length > 0) {
-    // Wrap forwarded content to clearly indicate it's quoted from an unknown source
-    formattedContent = `<quoted_messages>\n<quote type="forward" author="Unknown">${safeContent}</quote>\n</quoted_messages>`;
+    // Include attachments inside the quote (they belong to the forwarded content)
+    const forwardedAttachments = `${imageSection}${embedsSection}${voiceSection}`;
+    formattedContent = `<quoted_messages>\n<quote type="forward" author="Unknown">${safeContent}${forwardedAttachments}</quote>\n</quoted_messages>`;
+    // Attachments already included in quote, don't duplicate at message level
+    messageLevelAttachments = '';
   } else {
     formattedContent = safeContent;
+    messageLevelAttachments = `${imageSection}${embedsSection}${voiceSection}`;
   }
 
-  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${formattedContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}${reactionsSection}</message>`;
+  // Reactions stay at message level (forwarder can react to their own forward)
+  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${formattedContent}${quotedSection}${messageLevelAttachments}${reactionsSection}</message>`;
 }
 
 /**

@@ -238,7 +238,8 @@ export function getFormattedMessageCharLength(
   let totalLength = overhead + msg.content.length;
 
   // Account for forwarded message wrapper
-  // Forwarded content is wrapped: <quoted_messages>\n<quote type="forward" author="Unknown">content</quote>\n</quoted_messages>
+  // Forwarded content + attachments are wrapped: <quoted_messages>\n<quote type="forward" author="Unknown">content + attachments</quote>\n</quoted_messages>
+  // The attachment lengths are calculated separately below, so we only add the wrapper overhead here
   if (msg.isForwarded === true && msg.content.length > 0) {
     totalLength +=
       '<quoted_messages>\n<quote type="forward" author="Unknown"></quote>\n</quoted_messages>'
