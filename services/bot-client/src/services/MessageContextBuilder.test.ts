@@ -263,7 +263,7 @@ describe('MessageContextBuilder', () => {
       // Verify history retrieval (2nd arg is limit, 3rd is contextEpoch - undefined when no STM clear)
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
-        100,
+        50,
         undefined
       );
 
@@ -688,7 +688,7 @@ describe('MessageContextBuilder', () => {
       // Verify history was fetched WITH the context epoch
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
-        100,
+        50,
         contextEpoch
       );
     });
@@ -715,7 +715,7 @@ describe('MessageContextBuilder', () => {
       // Verify history was fetched WITHOUT epoch (undefined)
       expect(mockHistoryService.getChannelHistory).toHaveBeenCalledWith(
         'channel-123',
-        100,
+        50,
         undefined
       );
     });

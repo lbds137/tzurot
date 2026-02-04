@@ -86,7 +86,7 @@ export class PersonalityMessageHandler {
       // Default to enabled unless personality explicitly disables
       enabled: personality.extendedContext ?? true,
       // Use resolved config limits (includes user overrides)
-      maxMessages: config.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+      maxMessages: config.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       maxAge: config.maxAge ?? null,
       maxImages: config.maxImages ?? 10,
       // Track source for debugging

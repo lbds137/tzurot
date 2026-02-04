@@ -35,11 +35,6 @@ export const MESSAGE_LIMITS = {
    */
   MAX_REFERENCED_MESSAGES: 20,
   /**
-   * Maximum conversation history messages to fetch from database
-   * AI worker will further trim based on token budget
-   */
-  MAX_HISTORY_FETCH: 100,
-  /**
    * Default value for maxMessages in LlmConfig
    * Controls how many messages to include in context for personality
    */
