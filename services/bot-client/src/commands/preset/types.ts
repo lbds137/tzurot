@@ -40,6 +40,13 @@ export interface PresetData {
   memoryLimit: number | null;
   /** Context window token budget */
   contextWindowTokens: number;
+  // Context settings - control how much history to fetch
+  /** Max messages to fetch from conversation history (1-100) */
+  maxMessages: number;
+  /** Max age in seconds for messages (null = no time limit) */
+  maxAge: number | null;
+  /** Max images to process from extended context (0-20, 0 disables) */
+  maxImages: number;
   params: {
     temperature?: number;
     top_p?: number;
@@ -99,6 +106,10 @@ export interface FlattenedPresetData {
   reasoning_enabled: string;
   // Output params
   show_thinking: string;
+  // Context settings
+  maxMessages: string;
+  maxAge: string;
+  maxImages: string;
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: BrowseContext;
 }
