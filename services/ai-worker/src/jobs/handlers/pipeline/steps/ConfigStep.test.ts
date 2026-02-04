@@ -7,7 +7,7 @@ import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
 import { ConfigStep } from './ConfigStep.js';
 import type { GenerationContext } from '../types.js';
-import type { LlmConfigResolver } from '../../../../services/LlmConfigResolver.js';
+import type { LlmConfigResolver } from '@tzurot/common-types';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {

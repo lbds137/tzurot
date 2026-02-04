@@ -12,17 +12,16 @@
  * This service only handles levels 1 and 2 - levels 3 and 4 are already in the personality.
  */
 
+import { createLogger } from '../utils/logger.js';
+import { INTERVALS } from '../constants/timing.js';
+import { LLM_CONFIG_OVERRIDE_KEYS, type ConvertedLlmParams } from '../schemas/llmAdvancedParams.js';
 import {
-  createLogger,
-  INTERVALS,
   LLM_CONFIG_SELECT_WITH_NAME,
-  LLM_CONFIG_OVERRIDE_KEYS,
   mapLlmConfigFromDbWithName,
-  type PrismaClient,
-  type LoadedPersonality,
   type MappedLlmConfigWithName,
-  type ConvertedLlmParams,
-} from '@tzurot/common-types';
+} from './LlmConfigMapper.js';
+import type { PrismaClient } from './prisma.js';
+import type { LoadedPersonality } from '../types/schemas.js';
 
 const logger = createLogger('LlmConfigResolver');
 

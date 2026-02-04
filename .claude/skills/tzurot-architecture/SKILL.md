@@ -1,6 +1,7 @@
 ---
 name: tzurot-architecture
 description: 'MUST invoke when: adding features across services, deciding where code belongs, or designing service interactions. Contains service boundaries and anti-patterns that prevent architectural mistakes.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

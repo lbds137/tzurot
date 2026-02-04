@@ -1,6 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'MUST invoke before: git commit, git push, creating PRs, rebasing, or any git operations. Contains safety rules that prevent data loss and PR merge requirements.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 
