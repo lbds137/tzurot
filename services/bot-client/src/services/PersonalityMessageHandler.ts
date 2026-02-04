@@ -7,9 +7,14 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import type { LoadedPersonality, ResolvedExtendedContextSettings } from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  ResolvedExtendedContextSettings,
+  ConfigResolutionResult,
+} from '@tzurot/common-types';
 import { createLogger, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
+import { callGatewayApi, GATEWAY_TIMEOUTS } from '../utils/userGatewayClient.js';
 import { JobTracker } from './JobTracker.js';
 import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
@@ -31,26 +36,65 @@ export class PersonalityMessageHandler {
   ) {}
 
   /**
-   * Build extended context settings from personality.
-   * Uses personality-level settings with sensible defaults.
-   * Previously this did 3-layer cascade (global > channel > personality).
+   * Resolve LLM config from gateway, applying user overrides.
+   * Falls back to personality defaults on error.
+   */
+  private async resolveConfig(
+    userId: string,
+    personality: LoadedPersonality
+  ): Promise<ConfigResolutionResult> {
+    const result = await callGatewayApi<ConfigResolutionResult>('/user/llm-config/resolve', {
+      method: 'POST',
+      userId,
+      body: {
+        personalityId: personality.id,
+        personalityConfig: personality,
+      },
+      timeout: GATEWAY_TIMEOUTS.AUTOCOMPLETE, // Fast timeout for pre-processing step
+    });
+
+    if (!result.ok) {
+      logger.warn(
+        { userId, personalityId: personality.id, error: result.error },
+        '[PersonalityMessageHandler] Failed to resolve config, using personality defaults'
+      );
+      // Fall back to personality defaults
+      return {
+        config: {
+          model: personality.model,
+          maxMessages: personality.maxMessages,
+          maxAge: personality.maxAge,
+          maxImages: personality.maxImages,
+        },
+        source: 'personality',
+      };
+    }
+
+    return result.data;
+  }
+
+  /**
+   * Build extended context settings from resolved config.
+   * Uses user-resolved settings with sensible defaults.
    */
   private buildExtendedContextSettings(
-    personality: LoadedPersonality
+    personality: LoadedPersonality,
+    resolvedConfig: ConfigResolutionResult
   ): ResolvedExtendedContextSettings {
+    const { config, source } = resolvedConfig;
     return {
       // Default to enabled unless personality explicitly disables
       enabled: personality.extendedContext ?? true,
-      // Use LlmConfig-based limits from personality, with fallbacks
-      maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH,
-      maxAge: personality.maxAge ?? null,
-      maxImages: personality.maxImages ?? 10,
-      // All values now come from personality (no cascade)
+      // Use resolved config limits (includes user overrides)
+      maxMessages: config.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH,
+      maxAge: config.maxAge ?? null,
+      maxImages: config.maxImages ?? 10,
+      // Track source for debugging
       sources: {
-        enabled: 'personality',
-        maxMessages: 'personality',
-        maxAge: 'personality',
-        maxImages: 'personality',
+        enabled: 'personality', // extendedContext toggle always from personality
+        maxMessages: source,
+        maxAge: source,
+        maxImages: source,
       },
     };
   }
@@ -84,8 +128,14 @@ export class PersonalityMessageHandler {
         void sendVerificationConfirmation(channel as SendableChannels);
       }
 
-      // Build extended context settings from personality (simplified from 3-layer cascade)
-      const extendedContextSettings = this.buildExtendedContextSettings(personality);
+      // Resolve LLM config from gateway (applies user overrides for context settings)
+      const resolvedConfig = await this.resolveConfig(message.author.id, personality);
+
+      // Build extended context settings from resolved config
+      const extendedContextSettings = this.buildExtendedContextSettings(
+        personality,
+        resolvedConfig
+      );
 
       if (extendedContextSettings.enabled) {
         logger.debug(
