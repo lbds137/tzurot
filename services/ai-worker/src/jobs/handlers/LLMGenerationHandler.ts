@@ -25,7 +25,7 @@ import {
   type LLMGenerationResult,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
-import { LlmConfigResolver } from '../../services/LlmConfigResolver.js';
+import { LlmConfigResolver } from '@tzurot/common-types';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import {
   type IPipelineStep,

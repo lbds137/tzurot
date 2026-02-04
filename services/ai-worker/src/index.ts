@@ -36,9 +36,19 @@ import {
   type AnyJobResult,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from './services/ApiKeyResolver.js';
-import { LlmConfigResolver } from './services/LlmConfigResolver.js';
+import { LlmConfigResolver } from '@tzurot/common-types';
 import { PersonaResolver } from './services/resolvers/index.js';
 import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
+
+// ============================================================================
+// CONSTANTS
+// ============================================================================
+
+/** Scheduled job names */
+const SCHEDULED_JOBS = {
+  PROCESS_PENDING_MEMORIES: 'process-pending-memories',
+  CLEANUP_DIAGNOSTIC_LOGS: 'cleanup-diagnostic-logs',
+} as const;
 
 // ============================================================================
 // TYPES
@@ -304,11 +314,11 @@ async function setupScheduledJobs(
   const scheduledWorker = new Worker(
     'scheduled-jobs',
     async (job: Job) => {
-      if (job.name === 'process-pending-memories') {
+      if (job.name === SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES) {
         logger.debug('[Scheduled] Running pending memory processor');
         return pendingMemoryProcessor.processPendingMemories();
       }
-      if (job.name === 'cleanup-diagnostic-logs') {
+      if (job.name === SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS) {
         logger.debug('[Scheduled] Running diagnostic log cleanup');
         return cleanupDiagnosticLogs(prisma);
       }
@@ -331,16 +341,16 @@ async function setupScheduledJobs(
 
   // Add repeatable job for pending memories (every 10 minutes)
   await scheduledQueue.add(
-    'process-pending-memories',
+    SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES,
     {},
-    { repeat: { pattern: '*/10 * * * *' }, jobId: 'process-pending-memories' }
+    { repeat: { pattern: '*/10 * * * *' }, jobId: SCHEDULED_JOBS.PROCESS_PENDING_MEMORIES }
   );
 
   // Add repeatable job for diagnostic log cleanup (hourly)
   await scheduledQueue.add(
-    'cleanup-diagnostic-logs',
+    SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS,
     {},
-    { repeat: { pattern: '0 * * * *' }, jobId: 'cleanup-diagnostic-logs' }
+    { repeat: { pattern: '0 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS }
   );
 
   logger.info(

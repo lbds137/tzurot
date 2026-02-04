@@ -16,9 +16,11 @@ import { z } from 'zod';
 import {
   createLogger,
   UserService,
+  LlmConfigResolver,
   type PrismaClient,
   type LlmConfigSummary,
   type LlmConfigCacheInvalidationService,
+  type LoadedPersonality,
   generateLlmConfigUuid,
   safeValidateAdvancedParams,
   computeLlmConfigPermissions,
@@ -36,6 +38,9 @@ import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-llm-config');
+
+/** Common error message for config not found */
+const CONFIG_NOT_FOUND = 'Config not found';
 
 /**
  * Request body for creating/updating a config
@@ -180,7 +185,7 @@ function createGetHandler(prisma: PrismaClient) {
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
     // Determine if user owns this config
@@ -327,7 +332,7 @@ function createUpdateHandler(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
 ) {
-  // eslint-disable-next-line max-lines-per-function, complexity, max-statements -- straightforward field validation in PUT handler
+  // eslint-disable-next-line max-lines-per-function, complexity, max-statements, sonarjs/cognitive-complexity -- straightforward field validation in PUT handler
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
@@ -357,7 +362,7 @@ function createUpdateHandler(
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
     // Users can only edit configs they own (including their own global presets)
@@ -489,7 +494,7 @@ function createDeleteHandler(prisma: PrismaClient) {
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound('Config not found'));
+      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
     // Use centralized permission computation for consistency
@@ -518,6 +523,69 @@ function createDeleteHandler(prisma: PrismaClient) {
   };
 }
 
+// --- Resolve Handler ---
+
+/**
+ * Request body for resolving config
+ * Bot-client sends this to get resolved config before context building
+ */
+interface ResolveConfigBody {
+  personalityId: string;
+  personalityConfig: LoadedPersonality;
+}
+
+const resolveConfigBodySchema = z.object({
+  personalityId: z.string().min(1),
+  personalityConfig: z
+    .object({
+      id: z.string(),
+      name: z.string(),
+      model: z.string(),
+    })
+    .passthrough(), // Allow additional LoadedPersonality fields
+});
+
+/**
+ * Create resolve handler
+ * POST /user/llm-config/resolve
+ *
+ * Resolves the effective LLM config for a user+personality combination.
+ * Used by bot-client to get context settings (maxMessages, maxAge, maxImages)
+ * before building conversation context.
+ */
+function createResolveHandler(prisma: PrismaClient) {
+  // Create resolver with cleanup disabled (short-lived request handler)
+  const resolver = new LlmConfigResolver(prisma, { enableCleanup: false });
+
+  return async (req: AuthenticatedRequest, res: Response) => {
+    const discordUserId = req.userId;
+
+    const parseResult = resolveConfigBodySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendError(res, ErrorResponses.validationError(parseResult.error.message));
+    }
+
+    const { personalityId, personalityConfig } = parseResult.data as ResolveConfigBody;
+
+    try {
+      const result = await resolver.resolveConfig(discordUserId, personalityId, personalityConfig);
+
+      logger.debug(
+        { discordUserId, personalityId, source: result.source },
+        '[LlmConfig] Config resolved'
+      );
+
+      sendCustomSuccess(res, result, StatusCodes.OK);
+    } catch (error) {
+      logger.error(
+        { err: error, discordUserId, personalityId },
+        '[LlmConfig] Failed to resolve config'
+      );
+      return sendError(res, ErrorResponses.internalError('Failed to resolve config'));
+    }
+  };
+}
+
 // --- Main Route Factory ---
 
 export function createLlmConfigRoutes(
@@ -530,6 +598,7 @@ export function createLlmConfigRoutes(
   router.get('/', requireUserAuth(), asyncHandler(createListHandler(prisma)));
   router.get('/:id', requireUserAuth(), asyncHandler(createGetHandler(prisma)));
   router.post('/', requireUserAuth(), asyncHandler(createCreateHandler(prisma, userService)));
+  router.post('/resolve', requireUserAuth(), asyncHandler(createResolveHandler(prisma)));
   router.put(
     '/:id',
     requireUserAuth(),

@@ -10,10 +10,7 @@ import {
   LLM_CONFIG_OVERRIDE_KEYS,
   type LoadedPersonality,
 } from '@tzurot/common-types';
-import type {
-  LlmConfigResolver,
-  ResolvedLlmConfig,
-} from '../../../../services/LlmConfigResolver.js';
+import type { LlmConfigResolver, ResolvedLlmConfig } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 
 const logger = createLogger('ConfigStep');

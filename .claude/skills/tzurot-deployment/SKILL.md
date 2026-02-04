@@ -1,6 +1,7 @@
 ---
 name: tzurot-deployment
 description: 'MUST invoke when: deploying to Railway, running production migrations, or debugging live issues. Contains safety procedures and log analysis patterns.'
+disable-model-invocation: true
 lastUpdated: '2026-02-01'
 ---
 

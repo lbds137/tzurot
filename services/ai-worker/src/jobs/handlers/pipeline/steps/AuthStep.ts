@@ -7,7 +7,7 @@
 
 import { createLogger, AIProvider, GUEST_MODE, isFreeModel } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../../../../services/ApiKeyResolver.js';
-import type { LlmConfigResolver } from '../../../../services/LlmConfigResolver.js';
+import type { LlmConfigResolver } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext } from '../types.js';
 
 const logger = createLogger('AuthStep');

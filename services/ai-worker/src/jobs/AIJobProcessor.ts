@@ -11,7 +11,7 @@ import { ConversationalRAGService } from '../services/ConversationalRAGService.j
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
-import { LlmConfigResolver } from '../services/LlmConfigResolver.js';
+import { LlmConfigResolver } from '@tzurot/common-types';
 import { PersonaResolver } from '../services/resolvers/index.js';
 import {
   createLogger,
