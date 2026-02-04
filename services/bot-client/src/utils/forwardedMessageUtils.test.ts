@@ -179,14 +179,15 @@ describe('forwardedMessageUtils', () => {
       expect(hasForwardedSnapshots(message)).toBe(false);
     });
 
-    it('should return false for non-forwarded message even with snapshots data', () => {
-      // Edge case: snapshots exist but reference type is not Forward
+    it('should return true when snapshots exist even if reference type is Default', () => {
+      // Snapshots only exist on forwarded messages, so their presence indicates forwarding
+      // This handles cases where Discord API may not correctly set reference.type
       const message = createMockMessage({
         referenceType: MessageReferenceType.Default,
         snapshots: [{ content: 'Some content' }],
       });
 
-      expect(hasForwardedSnapshots(message)).toBe(false);
+      expect(hasForwardedSnapshots(message)).toBe(true);
     });
   });
 
