@@ -137,9 +137,6 @@ export function formatSingleHistoryEntryAsXml(
       ? ` t="${escapeXml(formatPromptTimestamp(msg.createdAt))}"`
       : '';
 
-  // Format forwarded attribute (for messages forwarded from another channel)
-  const forwardedAttr = msg.isForwarded === true ? ' forwarded="true"' : '';
-
   // Escape content to prevent XML injection
   const safeContent = escapeXmlContent(msg.content);
   // Escape speaker name for use in attribute (quotes could break the XML)
@@ -164,7 +161,17 @@ export function formatSingleHistoryEntryAsXml(
   const voiceSection = formatVoiceSection(msg);
   const reactionsSection = formatReactionsSection(msg);
 
-  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}${forwardedAttr}>${safeContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}${reactionsSection}</message>`;
+  // For forwarded messages, wrap content in quoted_messages to indicate uncertain authorship
+  // The person who forwarded the message (from attribute) is NOT the original author
+  let formattedContent: string;
+  if (msg.isForwarded === true && safeContent.length > 0) {
+    // Wrap forwarded content to clearly indicate it's quoted from an unknown source
+    formattedContent = `<quoted_messages>\n<quote type="forward" author="Unknown">${safeContent}</quote>\n</quoted_messages>`;
+  } else {
+    formattedContent = safeContent;
+  }
+
+  return `<message from="${safeSpeaker}"${fromIdAttr} role="${role}"${timeAttr}>${formattedContent}${quotedSection}${imageSection}${embedsSection}${voiceSection}${reactionsSection}</message>`;
 }
 
 /**
