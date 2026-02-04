@@ -7,12 +7,16 @@
 
 // Extended Context Persona Resolution
 export {
-  collectDiscordIdsNeedingResolution,
+  collectAllDiscordIdsNeedingResolution,
   batchResolvePersonas,
-  updateMessagesWithResolvedPersonas,
+  applyResolvedPersonas,
   remapParticipantGuildInfoKeys,
   resolveExtendedContextPersonaIds,
   type ParticipantGuildInfo,
+  type PersonaResolutionResult,
+  // Legacy exports (deprecated)
+  collectDiscordIdsNeedingResolution,
+  updateMessagesWithResolvedPersonas,
 } from './ExtendedContextPersonaResolver.js';
 
 // Guild Member Resolution
