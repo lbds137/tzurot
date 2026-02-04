@@ -168,7 +168,7 @@ export class MessageContextBuilder {
     channelId: string,
     _personalityId: string,
     contextEpoch: Date | undefined,
-    limit: number = MESSAGE_LIMITS.MAX_HISTORY_FETCH
+    limit: number = MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
   ): Promise<ConversationMessage[]> {
     // Always use getChannelHistory for complete conversation context
     // This prevents divergence between DB and Discord message views
@@ -499,7 +499,7 @@ export class MessageContextBuilder {
     // Step 3: Fetch conversation history from PostgreSQL
     // Always fetch complete channel history (not personality-filtered)
     // Use maxMessages from resolved LLM config or extended context settings
-    const dbLimit = options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.MAX_HISTORY_FETCH;
+    const dbLimit = options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES;
     const dbHistory = await this.fetchDbHistory(
       message.channel.id,
       personality.id,
