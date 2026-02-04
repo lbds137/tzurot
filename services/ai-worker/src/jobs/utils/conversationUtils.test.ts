@@ -569,7 +569,7 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('Original message');
     });
 
-    it('should handle forwarded messages with forwarded attribute', () => {
+    it('should handle forwarded REFERENCED messages with forwarded attribute', () => {
       const referencedMessage: StoredReferencedMessage = {
         discordMessageId: '123456',
         authorUsername: 'unknown',
@@ -592,7 +592,37 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
+      // Referenced forwarded messages keep the forwarded="true" attribute
       expect(result).toContain('forwarded="true"');
+    });
+
+    it('should wrap forwarded MESSAGE content in quoted_messages structure', () => {
+      // When a user forwards a message, the content they shared is from an unknown author
+      // The forwarding user (from attribute) is NOT the original author
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Originally written by someone else',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Should have the user as the message sender
+      expect(result).toContain('from="Lila"');
+      expect(result).toContain('from_id="uuid-lila"');
+
+      // Content should be wrapped to indicate uncertain authorship
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('<quote type="forward" author="Unknown">');
+      expect(result).toContain('Originally written by someone else');
+      expect(result).toContain('</quote>');
+
+      // Should NOT have the old forwarded="true" attribute on the message itself
+      expect(result).not.toMatch(/message[^>]*forwarded="true"/);
     });
 
     it('should include embeds in quoted messages', () => {
@@ -1371,6 +1401,29 @@ describe('Conversation Utilities', () => {
       expect(forwarded).toBeGreaterThan(normal);
     });
 
+    it('should include forwarded message wrapper in length estimation', () => {
+      const forwardedMsg: RawHistoryEntry = {
+        role: 'user',
+        content: 'Forwarded content',
+        isForwarded: true,
+      };
+
+      const normalMsg: RawHistoryEntry = {
+        role: 'user',
+        content: 'Forwarded content',
+        isForwarded: false,
+      };
+
+      const forwarded = getFormattedMessageCharLength(forwardedMsg, 'TestBot');
+      const normal = getFormattedMessageCharLength(normalMsg, 'TestBot');
+
+      // Forwarded message includes <quoted_messages><quote type="forward" author="Unknown">...</quote></quoted_messages> wrapper
+      const wrapperLength =
+        '<quoted_messages>\n<quote type="forward" author="Unknown"></quote>\n</quoted_messages>'
+          .length;
+      expect(forwarded).toBe(normal + wrapperLength);
+    });
+
     it('should disambiguate when persona name matches personality name (case-insensitive)', () => {
       const msg: RawHistoryEntry = {
         role: 'user',
@@ -1973,7 +2026,7 @@ describe('Conversation Utilities', () => {
   });
 
   describe('reactions formatting (extended context)', () => {
-    it('should format reactions from messageMetadata.reactions', () => {
+    it('should format reactions with from/from_id attributes and emoji as content', () => {
       const history: RawHistoryEntry[] = [
         {
           role: 'user',
@@ -1985,8 +2038,8 @@ describe('Conversation Utilities', () => {
                 emoji: '👍',
                 isCustom: false,
                 reactors: [
-                  { personaId: 'discord:user1', displayName: 'Bob' },
-                  { personaId: 'discord:user2', displayName: 'Carol' },
+                  { personaId: 'uuid-bob-123', displayName: 'Bob' },
+                  { personaId: 'uuid-carol-456', displayName: 'Carol' },
                 ],
               },
             ],
@@ -1998,7 +2051,9 @@ describe('Conversation Utilities', () => {
 
       expect(result).toContain('<reactions>');
       expect(result).toContain('</reactions>');
-      expect(result).toContain('<reaction emoji="👍">Bob, Carol</reaction>');
+      // Each reactor gets their own <reaction> element
+      expect(result).toContain('<reaction from="Bob" from_id="uuid-bob-123">👍</reaction>');
+      expect(result).toContain('<reaction from="Carol" from_id="uuid-carol-456">👍</reaction>');
     });
 
     it('should format multiple reactions on same message', () => {
@@ -2012,12 +2067,12 @@ describe('Conversation Utilities', () => {
               {
                 emoji: '🎉',
                 isCustom: false,
-                reactors: [{ personaId: 'discord:user1', displayName: 'Bob' }],
+                reactors: [{ personaId: 'uuid-bob-123', displayName: 'Bob' }],
               },
               {
                 emoji: '❤️',
                 isCustom: false,
-                reactors: [{ personaId: 'discord:user2', displayName: 'Carol' }],
+                reactors: [{ personaId: 'uuid-carol-456', displayName: 'Carol' }],
               },
             ],
           },
@@ -2027,8 +2082,8 @@ describe('Conversation Utilities', () => {
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
       expect(result).toContain('<reactions>');
-      expect(result).toContain('<reaction emoji="🎉">Bob</reaction>');
-      expect(result).toContain('<reaction emoji="❤️">Carol</reaction>');
+      expect(result).toContain('<reaction from="Bob" from_id="uuid-bob-123">🎉</reaction>');
+      expect(result).toContain('<reaction from="Carol" from_id="uuid-carol-456">❤️</reaction>');
     });
 
     it('should include custom="true" attribute for custom emojis', () => {
@@ -2042,7 +2097,7 @@ describe('Conversation Utilities', () => {
               {
                 emoji: ':pepe:',
                 isCustom: true,
-                reactors: [{ personaId: 'discord:user1', displayName: 'Bob' }],
+                reactors: [{ personaId: 'uuid-bob-123', displayName: 'Bob' }],
               },
             ],
           },
@@ -2051,7 +2106,9 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      expect(result).toContain('<reaction emoji=":pepe:" custom="true">Bob</reaction>');
+      expect(result).toContain(
+        '<reaction from="Bob" from_id="uuid-bob-123" custom="true">:pepe:</reaction>'
+      );
     });
 
     it('should not include custom attribute for standard emojis', () => {
@@ -2065,7 +2122,7 @@ describe('Conversation Utilities', () => {
               {
                 emoji: '👏',
                 isCustom: false,
-                reactors: [{ personaId: 'discord:user1', displayName: 'Bob' }],
+                reactors: [{ personaId: 'uuid-bob-123', displayName: 'Bob' }],
               },
             ],
           },
@@ -2074,7 +2131,7 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      expect(result).toContain('<reaction emoji="👏">Bob</reaction>');
+      expect(result).toContain('<reaction from="Bob" from_id="uuid-bob-123">👏</reaction>');
       expect(result).not.toContain('custom=');
     });
 
@@ -2089,7 +2146,7 @@ describe('Conversation Utilities', () => {
               {
                 emoji: '👍',
                 isCustom: false,
-                reactors: [{ personaId: 'discord:user1', displayName: 'Bob & Carol' }],
+                reactors: [{ personaId: 'uuid-123', displayName: 'Bob & Carol' }],
               },
             ],
           },
@@ -2098,7 +2155,7 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      expect(result).toContain('Bob &amp; Carol');
+      expect(result).toContain('from="Bob &amp; Carol"');
     });
 
     it('should not include reactions section when reactions is empty', () => {
@@ -2143,8 +2200,8 @@ describe('Conversation Utilities', () => {
               emoji: '👍',
               isCustom: false,
               reactors: [
-                { personaId: 'discord:user1', displayName: 'Bob' },
-                { personaId: 'discord:user2', displayName: 'Carol' },
+                { personaId: 'uuid-bob-123', displayName: 'Bob' },
+                { personaId: 'uuid-carol-456', displayName: 'Carol' },
               ],
             },
           ],
@@ -2173,7 +2230,7 @@ describe('Conversation Utilities', () => {
               {
                 emoji: '❤️',
                 isCustom: false,
-                reactors: [{ personaId: 'discord:user1', displayName: 'Alice' }],
+                reactors: [{ personaId: 'uuid-alice-123', displayName: 'Alice' }],
               },
             ],
           },
@@ -2184,7 +2241,34 @@ describe('Conversation Utilities', () => {
 
       expect(result).toContain('role="assistant"');
       expect(result).toContain('<reactions>');
-      expect(result).toContain('<reaction emoji="❤️">Alice</reaction>');
+      expect(result).toContain('<reaction from="Alice" from_id="uuid-alice-123">❤️</reaction>');
+    });
+
+    it('should handle reactors with unresolved discord:XXX personaIds', () => {
+      // In case persona resolution fails, we should still format reactions
+      // but the from_id will be the unresolved discord:XXX format
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'Test',
+          personaName: 'Alice',
+          messageMetadata: {
+            reactions: [
+              {
+                emoji: '👍',
+                isCustom: false,
+                reactors: [{ personaId: 'discord:123456789', displayName: 'UnresolvedUser' }],
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      expect(result).toContain(
+        '<reaction from="UnresolvedUser" from_id="discord:123456789">👍</reaction>'
+      );
     });
   });
 
