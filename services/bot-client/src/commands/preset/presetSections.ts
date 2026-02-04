@@ -13,6 +13,14 @@ const PREVIEW_SEPARATOR = ', ';
 /** Default preview message when no custom values set */
 const DEFAULT_PREVIEW = '_Using defaults_';
 
+// Context section defaults
+const DEFAULT_MAX_MESSAGES = '50';
+const DEFAULT_MAX_IMAGES = '10';
+
+// Time conversion constants
+const SECONDS_PER_DAY = 86400;
+const SECONDS_PER_HOUR = 3600;
+
 // --- Section Definitions ---
 
 /**
@@ -269,10 +277,14 @@ export const contextSection: SectionDefinition<FlattenedPresetData> = {
   ],
   getStatus: data => {
     const hasCustomMaxMessages =
-      data.maxMessages !== undefined && data.maxMessages !== '' && data.maxMessages !== '50';
+      data.maxMessages !== undefined &&
+      data.maxMessages !== '' &&
+      data.maxMessages !== DEFAULT_MAX_MESSAGES;
     const hasCustomMaxAge = data.maxAge !== undefined && data.maxAge !== '';
     const hasCustomMaxImages =
-      data.maxImages !== undefined && data.maxImages !== '' && data.maxImages !== '10';
+      data.maxImages !== undefined &&
+      data.maxImages !== '' &&
+      data.maxImages !== DEFAULT_MAX_IMAGES;
     const hasCustom = hasCustomMaxMessages || hasCustomMaxAge || hasCustomMaxImages;
     return hasCustom ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
   },
@@ -285,8 +297,6 @@ export const contextSection: SectionDefinition<FlattenedPresetData> = {
       // Convert seconds to human-readable
       const seconds = parseInt(data.maxAge, 10);
       if (!isNaN(seconds)) {
-        const SECONDS_PER_DAY = 86400;
-        const SECONDS_PER_HOUR = 3600;
         if (seconds >= SECONDS_PER_DAY) {
           parts.push(`age=${Math.floor(seconds / SECONDS_PER_DAY)}d`);
         } else if (seconds >= SECONDS_PER_HOUR) {
@@ -301,7 +311,7 @@ export const contextSection: SectionDefinition<FlattenedPresetData> = {
     }
     return parts.length > 0
       ? parts.join(PREVIEW_SEPARATOR)
-      : '_Using defaults (50 msgs, no limit, 10 imgs)_';
+      : `_Using defaults (${DEFAULT_MAX_MESSAGES} msgs, no limit, ${DEFAULT_MAX_IMAGES} imgs)_`;
   },
 };
 

@@ -8,6 +8,8 @@ import {
   DISCORD_ID_PREFIX,
   isValidDiscordId,
   filterValidDiscordIds,
+  buildDiscordPersonaId,
+  extractDiscordId,
   BOT_FOOTER_TEXT,
   BOT_FOOTER_PATTERNS,
   buildModelFooterText,
@@ -115,6 +117,40 @@ describe('DISCORD_ID_PREFIX', () => {
     const personaId = 'discord:123456789012345678';
     const discordId = personaId.replace(DISCORD_ID_PREFIX, '');
     expect(discordId).toBe('123456789012345678');
+  });
+});
+
+describe('buildDiscordPersonaId', () => {
+  it('should build a personaId from a Discord ID', () => {
+    expect(buildDiscordPersonaId('123456789012345678')).toBe('discord:123456789012345678');
+  });
+
+  it('should work with any string (no validation)', () => {
+    // The function builds the string regardless of input validity
+    expect(buildDiscordPersonaId('invalid')).toBe('discord:invalid');
+  });
+});
+
+describe('extractDiscordId', () => {
+  it('should extract Discord ID from valid personaId', () => {
+    expect(extractDiscordId('discord:123456789012345678')).toBe('123456789012345678');
+  });
+
+  it('should return undefined for undefined input', () => {
+    expect(extractDiscordId(undefined)).toBeUndefined();
+  });
+
+  it('should return undefined for non-discord prefix', () => {
+    expect(extractDiscordId('uuid:abc-123')).toBeUndefined();
+    expect(extractDiscordId('abc-123-def-456')).toBeUndefined();
+  });
+
+  it('should return undefined for empty string', () => {
+    expect(extractDiscordId('')).toBeUndefined();
+  });
+
+  it('should handle edge case of just the prefix', () => {
+    expect(extractDiscordId('discord:')).toBe('');
   });
 });
 

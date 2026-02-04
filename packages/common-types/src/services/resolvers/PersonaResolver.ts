@@ -16,10 +16,15 @@
 
 import { createLogger } from '../../utils/logger.js';
 import { isValidUUID, UUID_REGEX } from '../../constants/service.js';
+import { DISCORD_ID_PREFIX, extractDiscordId } from '../../constants/discord.js';
 import type { PrismaClient } from '../prisma.js';
 import { BaseConfigResolver, type ResolutionResult } from './BaseConfigResolver.js';
 
 const logger = createLogger('PersonaResolver');
+
+/** Resolution source constants (used for source field in ResolutionResult) */
+const SOURCE_SYSTEM_DEFAULT = 'system-default' as const;
+const SOURCE_USER_DEFAULT = 'user-default' as const;
 
 /**
  * Resolved persona data
@@ -96,7 +101,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
   ): Promise<PersonaMemoryInfo | null> {
     const result = await this.resolve(discordUserId, personalityId);
 
-    if (result.source === 'system-default' || result.config.personaId === '') {
+    if (result.source === SOURCE_SYSTEM_DEFAULT || result.config.personaId === '') {
       return null;
     }
 
@@ -185,7 +190,7 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
 
     if (user === null) {
       logger.warn({ discordUserId }, 'User not found');
-      return { config: this.getSystemDefault(), source: 'system-default' };
+      return { config: this.getSystemDefault(), source: SOURCE_SYSTEM_DEFAULT };
     }
 
     // Priority 1: Per-personality override (separate query for cleaner typing)
@@ -227,8 +232,8 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     if (user.defaultPersona) {
       return {
         config: this.mapToResolvedPersona(user.defaultPersona),
-        source: 'user-default',
-        sourceName: 'user-default',
+        source: SOURCE_USER_DEFAULT,
+        sourceName: SOURCE_USER_DEFAULT,
       };
     }
 
@@ -246,14 +251,14 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
 
       return {
         config: this.mapToResolvedPersona(firstPersona),
-        source: 'user-default', // Treat as user-default since we just set it
+        source: SOURCE_USER_DEFAULT, // Treat as user-default since we just set it
         sourceName: 'auto-default',
       };
     }
 
     // No persona at all
     logger.warn({ discordUserId }, 'User has no personas');
-    return { config: this.getSystemDefault(), source: 'system-default' };
+    return { config: this.getSystemDefault(), source: SOURCE_SYSTEM_DEFAULT };
   }
 
   /**
@@ -394,27 +399,29 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     }
 
     // Check for discord: prefix format
-    if (personaId.startsWith('discord:')) {
-      const discordUserId = personaId.slice(8); // Remove 'discord:' prefix
-
+    const discordUserId = extractDiscordId(personaId);
+    if (discordUserId !== undefined) {
       // Resolve using the standard resolution flow
       const result = await this.resolve(discordUserId, personalityId);
 
       // If we got a system default (no persona), return null
-      if (result.source === 'system-default' || result.config.personaId === '') {
+      if (result.source === SOURCE_SYSTEM_DEFAULT || result.config.personaId === '') {
         return null;
       }
 
       logger.debug(
         { originalId: personaId, resolvedId: result.config.personaId },
-        'Resolved discord: format personaId to UUID'
+        `Resolved ${DISCORD_ID_PREFIX} format personaId to UUID`
       );
 
       return result.config.personaId;
     }
 
     // Unknown format
-    logger.warn({ personaId }, 'Unknown personaId format - not UUID or discord: prefix');
+    logger.warn(
+      { personaId },
+      `Unknown personaId format - not UUID or ${DISCORD_ID_PREFIX} prefix`
+    );
     return null;
   }
 }
