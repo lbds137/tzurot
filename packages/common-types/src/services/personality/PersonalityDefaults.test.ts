@@ -448,5 +448,55 @@ describe('PersonalityDefaults', () => {
       expect(result.maxAge).toBeUndefined(); // No default for maxAge (null = no limit)
       expect(result.maxImages).toBe(10); // MESSAGE_LIMITS.DEFAULT_MAX_IMAGES
     });
+
+    it('should prioritize personality config over global config for context settings (cascade priority)', () => {
+      // Personality has its own config via defaultConfigLink with specific context settings
+      const dbPersonality = createMockDatabasePersonality({
+        name: 'CustomBot',
+        slug: 'custom-bot',
+        updatedAt: testDate,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'anthropic/claude-3-opus',
+            visionModel: null,
+            advancedParameters: {
+              temperature: 0.9,
+              max_tokens: 4096,
+            },
+            memoryScoreThreshold: { toNumber: () => 0.7 } as never,
+            memoryLimit: 20,
+            contextWindowTokens: 200000,
+            maxMessages: 75, // Personality-specific
+            maxAge: 3600, // Personality-specific (1 hour)
+            maxImages: 5, // Personality-specific
+          },
+        },
+      });
+
+      // Global config has different values - should be overridden by personality
+      const globalConfig: MappedLlmConfig = {
+        model: 'openai/gpt-4',
+        visionModel: null,
+        temperature: 0.5,
+        maxTokens: 2048,
+        memoryScoreThreshold: 0.5,
+        memoryLimit: 10,
+        contextWindowTokens: 100000,
+        maxMessages: 100, // Should be overridden by personality (75)
+        maxAge: 7200, // Should be overridden by personality (3600)
+        maxImages: 15, // Should be overridden by personality (5)
+      };
+
+      const result = mapToPersonality(dbPersonality, globalConfig, mockLogger);
+
+      // Personality config should take priority over global config
+      expect(result.maxMessages).toBe(75); // From personality, not global (100)
+      expect(result.maxAge).toBe(3600); // From personality, not global (7200)
+      expect(result.maxImages).toBe(5); // From personality, not global (15)
+
+      // Also verify other config fields follow the same cascade
+      expect(result.model).toBe('anthropic/claude-3-opus'); // From personality
+      expect(result.temperature).toBe(0.9); // From personality
+    });
   });
 });
