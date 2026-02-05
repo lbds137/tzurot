@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, CacheInvalidationService } from '@tzurot/common-types';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 
 // Mock AuthMiddleware
@@ -63,6 +63,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -89,6 +90,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -137,6 +139,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -162,6 +165,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -192,6 +196,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -245,6 +250,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
 
       // customFields must be an object, not a primitive
@@ -260,6 +266,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -288,6 +295,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
 
       const response = await request(app).patch('/admin/personality/test-bot').send({
@@ -302,6 +310,7 @@ describe('PATCH /admin/personality/:slug', () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
         slug: 'test-bot',
+        isPublic: false,
       } as never);
       prisma.personality.update.mockResolvedValue({
         id: 'personality-123',
@@ -318,6 +327,222 @@ describe('PATCH /admin/personality/:slug', () => {
 
       expect(response.status).toBe(200);
       expect(optimizeAvatar).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('isPublic field', () => {
+    it('should update personality with isPublic: true', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+        isPublic: true,
+      } as never);
+
+      const response = await request(app).patch('/admin/personality/test-bot').send({
+        isPublic: true,
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.personality.update).toHaveBeenCalledWith({
+        where: { slug: 'test-bot' },
+        data: { isPublic: true },
+      });
+    });
+
+    it('should update personality with isPublic: false', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: true,
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+        isPublic: false,
+      } as never);
+
+      const response = await request(app).patch('/admin/personality/test-bot').send({
+        isPublic: false,
+      });
+
+      expect(response.status).toBe(200);
+      expect(prisma.personality.update).toHaveBeenCalledWith({
+        where: { slug: 'test-bot' },
+        data: { isPublic: false },
+      });
+    });
+  });
+
+  describe('cache invalidation', () => {
+    let mockCacheService: CacheInvalidationService;
+    let appWithCache: Express;
+
+    beforeEach(() => {
+      mockCacheService = {
+        invalidateAll: vi.fn().mockResolvedValue(undefined),
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        unsubscribe: vi.fn().mockResolvedValue(undefined),
+        publish: vi.fn().mockResolvedValue(undefined),
+      } as unknown as CacheInvalidationService;
+
+      appWithCache = express();
+      appWithCache.use(express.json());
+      appWithCache.use(
+        '/admin/personality',
+        createUpdatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+      );
+    });
+
+    it('should invalidate all caches when visibility changes from private to public', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false, // Was private
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      await request(appWithCache).patch('/admin/personality/test-bot').send({
+        isPublic: true, // Now public
+      });
+
+      expect(mockCacheService.invalidateAll).toHaveBeenCalled();
+      expect(mockCacheService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should invalidate all caches when visibility changes from public to private', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: true, // Was public
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      await request(appWithCache).patch('/admin/personality/test-bot').send({
+        isPublic: false, // Now private
+      });
+
+      expect(mockCacheService.invalidateAll).toHaveBeenCalled();
+      expect(mockCacheService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should invalidate all caches when updating a public personality (visibility unchanged)', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: true, // Was public
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Updated Public Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      await request(appWithCache).patch('/admin/personality/test-bot').send({
+        name: 'Updated Public Bot', // No visibility change
+      });
+
+      // Should still invalidate all since the personality is public
+      expect(mockCacheService.invalidateAll).toHaveBeenCalled();
+      expect(mockCacheService.invalidatePersonality).not.toHaveBeenCalled();
+    });
+
+    it('should only invalidate specific personality when updating a private personality (visibility unchanged)', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false, // Was private
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Updated Private Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      await request(appWithCache).patch('/admin/personality/test-bot').send({
+        name: 'Updated Private Bot', // No visibility change
+      });
+
+      // Should only invalidate this specific personality
+      expect(mockCacheService.invalidatePersonality).toHaveBeenCalledWith('personality-123');
+      expect(mockCacheService.invalidateAll).not.toHaveBeenCalled();
+    });
+
+    it('should handle cache invalidation errors gracefully', async () => {
+      mockCacheService.invalidateAll = vi
+        .fn()
+        .mockRejectedValue(new Error('Redis connection lost'));
+
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      const response = await request(appWithCache).patch('/admin/personality/test-bot').send({
+        isPublic: true,
+      });
+
+      // Should still succeed even if cache invalidation fails
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+
+    it('should not invalidate cache when no cache service is provided', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      // Use the original app without cache service
+      const response = await request(app).patch('/admin/personality/test-bot').send({
+        isPublic: true,
+      });
+
+      expect(response.status).toBe(200);
+      // No errors even though cache service is undefined
     });
   });
 });

@@ -8,9 +8,10 @@ import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
   AVATAR_LIMITS,
-  assertDefined,
   generatePersonalityUuid,
   type CacheInvalidationService,
+  PersonalityCreateSchema,
+  type PersonalityCreateInput,
 } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
@@ -18,94 +19,9 @@ import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
-import { validateSlug, validateCustomFields, validateRequired } from '../../utils/validators.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-create-personality');
-
-/** Request body for admin personality creation */
-interface CreatePersonalityBody {
-  name?: string;
-  slug?: string;
-  characterInfo?: string;
-  personalityTraits?: string;
-  displayName?: string | null;
-  personalityTone?: string | null;
-  personalityAge?: string | null;
-  personalityAppearance?: string | null;
-  personalityLikes?: string | null;
-  personalityDislikes?: string | null;
-  conversationalGoals?: string | null;
-  conversationalExamples?: string | null;
-  errorMessage?: string | null;
-  customFields?: Record<string, unknown> | null;
-  avatarData?: string;
-  /** Whether this personality should be publicly visible (defaults to false) */
-  isPublic?: boolean;
-}
-
-/** Validated required fields from request body */
-interface ValidatedFields {
-  name: string;
-  slug: string;
-  characterInfo: string;
-  personalityTraits: string;
-}
-
-/**
- * Validate required fields for admin personality creation
- */
-function validateRequiredFields(
-  body: CreatePersonalityBody
-): { ok: true; data: ValidatedFields } | { ok: false; error: ErrorResponse } {
-  const nameValidation = validateRequired(body.name, 'name');
-  if (!nameValidation.valid) {
-    return { ok: false, error: nameValidation.error };
-  }
-
-  const slugValidation = validateRequired(body.slug, 'slug');
-  if (!slugValidation.valid) {
-    return { ok: false, error: slugValidation.error };
-  }
-
-  const characterInfoValidation = validateRequired(body.characterInfo, 'characterInfo');
-  if (!characterInfoValidation.valid) {
-    return { ok: false, error: characterInfoValidation.error };
-  }
-
-  const traitsValidation = validateRequired(body.personalityTraits, 'personalityTraits');
-  if (!traitsValidation.valid) {
-    return { ok: false, error: traitsValidation.error };
-  }
-
-  // Use assertDefined for type narrowing
-  assertDefined(body.name, 'name');
-  assertDefined(body.slug, 'slug');
-  assertDefined(body.characterInfo, 'characterInfo');
-  assertDefined(body.personalityTraits, 'personalityTraits');
-
-  // Validate slug format
-  const slugFormatValidation = validateSlug(body.slug);
-  if (!slugFormatValidation.valid) {
-    return { ok: false, error: slugFormatValidation.error };
-  }
-
-  // Validate customFields if provided
-  const customFieldsValidation = validateCustomFields(body.customFields);
-  if (!customFieldsValidation.valid) {
-    return { ok: false, error: customFieldsValidation.error };
-  }
-
-  return {
-    ok: true,
-    data: {
-      name: body.name,
-      slug: body.slug,
-      characterInfo: body.characterInfo,
-      personalityTraits: body.personalityTraits,
-    },
-  };
-}
 
 /**
  * Process avatar data if provided
@@ -195,42 +111,40 @@ async function invalidateCacheIfPublic(
 }
 
 interface PersonalityCreateData {
-  body: CreatePersonalityBody;
-  validated: ValidatedFields;
+  validated: PersonalityCreateInput;
   ownerId: string;
   systemPromptId: string | null;
   avatarBuffer: Buffer | undefined;
 }
 
 /**
- * Build the personality create data object
+ * Build the personality create data object from validated schema input
  */
 function buildPersonalityCreateData(
   data: PersonalityCreateData
 ): Prisma.PersonalityUncheckedCreateInput {
-  const { body, validated, ownerId, systemPromptId, avatarBuffer } = data;
-  const { name, slug, characterInfo, personalityTraits } = validated;
+  const { validated, ownerId, systemPromptId, avatarBuffer } = data;
 
   return {
-    id: generatePersonalityUuid(slug),
-    name,
-    slug,
-    displayName: body.displayName ?? null,
-    characterInfo,
-    personalityTraits,
-    personalityTone: body.personalityTone ?? null,
-    personalityAge: body.personalityAge ?? null,
-    personalityAppearance: body.personalityAppearance ?? null,
-    personalityLikes: body.personalityLikes ?? null,
-    personalityDislikes: body.personalityDislikes ?? null,
-    conversationalGoals: body.conversationalGoals ?? null,
-    conversationalExamples: body.conversationalExamples ?? null,
-    errorMessage: body.errorMessage ?? null,
-    isPublic: body.isPublic ?? false,
+    id: generatePersonalityUuid(validated.slug),
+    name: validated.name,
+    slug: validated.slug,
+    displayName: validated.displayName ?? null,
+    characterInfo: validated.characterInfo,
+    personalityTraits: validated.personalityTraits,
+    personalityTone: validated.personalityTone ?? null,
+    personalityAge: validated.personalityAge ?? null,
+    personalityAppearance: validated.personalityAppearance ?? null,
+    personalityLikes: validated.personalityLikes ?? null,
+    personalityDislikes: validated.personalityDislikes ?? null,
+    conversationalGoals: validated.conversationalGoals ?? null,
+    conversationalExamples: validated.conversationalExamples ?? null,
+    errorMessage: validated.errorMessage ?? null,
+    isPublic: validated.isPublic ?? false,
     systemPromptId,
     ownerId,
-    ...(body.customFields !== null && body.customFields !== undefined
-      ? { customFields: body.customFields as Prisma.InputJsonValue }
+    ...(validated.customFields !== null && validated.customFields !== undefined
+      ? { customFields: validated.customFields as Prisma.InputJsonValue }
       : {}),
     avatarData: avatarBuffer !== undefined ? new Uint8Array(avatarBuffer) : null,
     voiceEnabled: false,
@@ -248,15 +162,19 @@ export function createCreatePersonalityRoute(
     '/',
     requireOwnerAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const body = req.body as CreatePersonalityBody;
       const discordUserId = req.userId;
 
-      // Validate required fields
-      const validation = validateRequiredFields(body);
-      if (!validation.ok) {
-        return sendError(res, validation.error);
+      // Validate request body with Zod schema
+      const parseResult = PersonalityCreateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const firstIssue = parseResult.error.issues[0];
+        return sendError(
+          res,
+          ErrorResponses.validationError(`${firstIssue.path.join('.')}: ${firstIssue.message}`)
+        );
       }
-      const { slug } = validation.data;
+      const validated = parseResult.data;
+      const { slug } = validated;
 
       // Get admin user's internal ID for ownership
       const adminUser = await prisma.user.findUnique({
@@ -279,7 +197,7 @@ export function createCreatePersonalityRoute(
       }
 
       // Process avatar if provided
-      const avatarResult = await processAvatarData(body.avatarData, slug);
+      const avatarResult = await processAvatarData(validated.avatarData, slug);
       if (!avatarResult.ok) {
         return sendError(res, avatarResult.error);
       }
@@ -292,8 +210,7 @@ export function createCreatePersonalityRoute(
 
       // Create personality in database
       const createData = buildPersonalityCreateData({
-        body,
-        validated: validation.data,
+        validated,
         ownerId: adminUser.id,
         systemPromptId: defaultSystemPrompt?.id ?? null,
         avatarBuffer: avatarResult.buffer,
@@ -304,7 +221,7 @@ export function createCreatePersonalityRoute(
 
       // Post-creation tasks
       await setupDefaultLlmConfig(prisma, personality.id, slug);
-      await invalidateCacheIfPublic(cacheInvalidationService, body.isPublic, personality.id);
+      await invalidateCacheIfPublic(cacheInvalidationService, validated.isPublic, personality.id);
 
       sendCustomSuccess(
         res,
