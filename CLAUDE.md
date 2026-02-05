@@ -1,51 +1,12 @@
-# Tzurot v3 - Project Configuration
+# Tzurot v3
 
 @~/.claude/CLAUDE.md
 
+Discord bot with AI personas. TypeScript monorepo on Railway.
+
 > **Session Start**: Read [CURRENT.md](CURRENT.md) → [BACKLOG.md](BACKLOG.md) → Continue or pull next task
 
-> **Status**: v3 Public Beta on Railway. BYOK complete.
-
-## Skills System
-
-**Skills do NOT auto-activate reliably.** A hook detects keywords and reminds you to load them.
-
-- **Skill routing**: `.claude/rules/00-skill-routing.md` maps keywords to skills
-- **Invariants**: `.claude/rules/01-invariants.md` contains critical constraints (always loaded)
-- **Skill eval hook**: `.claude/hooks/skill-eval.sh` runs on every prompt
-
-When you see the skill check banner, invoke relevant skills with `Skill("skill-name")` BEFORE implementation.
-
-## Critical Project Rules
-
-### No Backward Compatibility
-
-One-person project. Make the cleanest change, even if breaking.
-
-### Verify Before Accepting External Feedback
-
-Automated reviewers can be wrong. Check schema/source/tests before implementing suggestions.
-
-### Mandatory Global Discovery ("Grep Rule")
-
-Before modifying config/infrastructure: Search ALL instances -> List affected files -> Justify exclusions.
-
-### Never Merge PRs Without User Approval
-
-CI passing != merge approval. User must explicitly request merge.
-
-### Never Modify Tests to Make Them Pass
-
-If tests fail, the IMPLEMENTATION is wrong. Fix the code, not the tests.
-
-## Tech Stack
-
-- **Language**: TypeScript (Node.js 25+, pnpm workspaces)
-- **Services**: bot-client, api-gateway, ai-worker
-- **Database**: PostgreSQL + pgvector, Redis + BullMQ
-- **Deployment**: Railway (auto-deploy from develop)
-
-## Essential Commands
+## Commands
 
 ```bash
 pnpm dev              # Start all services
@@ -53,6 +14,28 @@ pnpm test             # Run tests
 pnpm quality          # lint + cpd + typecheck:spec
 pnpm ops db:migrate --env dev  # Run migrations
 ```
+
+## Project Structure
+
+```
+services/
+├── bot-client/         # Discord interface (NO Prisma access)
+├── api-gateway/        # HTTP API + BullMQ
+└── ai-worker/          # AI processing + memory
+packages/common-types/  # Shared types
+prisma/                 # Database schema
+```
+
+## Key Rules
+
+All rules load automatically from `.claude/rules/`:
+
+- **00-critical.md** - Security, git safety, testing (NEVER modify tests to pass)
+- **01-architecture.md** - Service boundaries (bot-client never uses Prisma)
+- **02-code-standards.md** - ESLint limits, TypeScript, testing patterns
+- **03-database.md** - Prisma, pgvector, caching
+- **04-discord.md** - 3-second deferral, slash commands, BullMQ
+- **05-tooling.md** - CLI reference, git workflow
 
 ## Git Workflow
 
@@ -63,40 +46,16 @@ gh pr create --base develop --title "feat: description"
 gh pr merge <number> --rebase --delete-branch  # ONLY with user approval
 ```
 
-## Project Structure
-
-```
-tzurot/
-├── .claude/
-│   ├── rules/              # Always-loaded constraints
-│   ├── hooks/              # Automation (skill-eval, eslint)
-│   └── skills/             # 16 procedural skills
-├── services/
-│   ├── bot-client/         # Discord interface (NO Prisma)
-│   ├── api-gateway/        # HTTP API + BullMQ
-│   └── ai-worker/          # AI processing + memory
-├── packages/common-types/  # Shared types
-└── prisma/                 # Database schema
-```
-
 ## Post-Mortems
 
-| Date       | Incident                        | Rule                         |
-| ---------- | ------------------------------- | ---------------------------- |
-| 2026-02-03 | Context settings not cascading  | Trace full runtime flow      |
-| 2026-02-01 | Accepted wrong type from review | Verify against schema        |
-| 2026-01-30 | Gitignored data/ deleted        | Never rm -rf without okay    |
-| 2026-01-30 | Work reverted without consent   | Never abandon without asking |
-| 2026-01-28 | Error metadata missing model    | Update producer and consumer |
-| 2026-01-24 | execSync with string commands   | Use execFileSync with arrays |
+| Date       | Incident                       | Rule                         |
+| ---------- | ------------------------------ | ---------------------------- |
+| 2026-02-03 | Context settings not cascading | Trace full runtime flow      |
+| 2026-01-30 | Gitignored data/ deleted       | Never rm -rf without okay    |
+| 2026-01-30 | Work reverted without consent  | Never abandon without asking |
+| 2026-01-24 | execSync with string commands  | Use execFileSync with arrays |
 
 **Full details**: [docs/incidents/PROJECT_POSTMORTEMS.md](docs/incidents/PROJECT_POSTMORTEMS.md)
-
-## Key References
-
-- **Rules**: `.claude/rules/` (invariants, skill routing)
-- **Session**: `CURRENT.md`, `BACKLOG.md`
-- **Docs**: `docs/reference/` (standards, guides)
 
 ## Compaction Instructions
 
