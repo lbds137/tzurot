@@ -9,7 +9,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 ---
 
-## Production Issues
+## 🚨 Production Issues
 
 _Active bugs observed in production. Fix before new features._
 
@@ -55,9 +55,9 @@ Provider returns 400 error but response may contain usable content. Currently tr
 
 ---
 
-## Inbox
+## 📥 Inbox
 
-_New items go here. Triage to appropriate section later._
+_New items go here. Triage to appropriate section weekly._
 
 ### 🧹 Add maxAge=0 Edge Case Test
 
@@ -73,17 +73,6 @@ it('should reject maxAge = 0 (use null for no limit)', () => {
 ```
 
 **File**: `packages/common-types/src/types/llm-config.schema.test.ts`
-
-### 🏗️ Audit Remaining Endpoints for Schema Duplication
-
-**Context**: PR #582 consolidated LLM config schemas. PR #582 (Phase 1.5) consolidated Personality schemas. Same pattern may exist in other admin/user endpoint pairs.
-
-**Remaining candidates to audit**:
-
-- Persona endpoints
-- Model override endpoints
-
-**Pattern**: Shared Zod schemas in common-types, scope-aware service layer.
 
 ### 🧹 Review structure.test.ts Exclusions
 
@@ -108,11 +97,111 @@ it('should reject maxAge = 0 (use null for no limit)', () => {
 
 ---
 
-## High Priority
+## 🎯 Current Focus
 
-_Top 3-5 items to pull into CURRENT next._
+_This week's active work. Max 3 items._
 
-### 🏗️ Bot-Client Package Split
+### 🏗️ Zod Schema Hardening - Phase 1 (CAUSES PRODUCTION BUGS)
+
+**Recent bug**: `isForwarded` field missing from `apiConversationMessageSchema` caused forwarded messages to lose their `forwarded="true"` attribute in prompts. Data silently disappeared.
+
+**Immediate fixes (DONE)**:
+
+- [x] Regression test for `isForwarded` in `schemas.test.ts`
+- [x] Field preservation test for `apiConversationMessageSchema`
+
+**This week - Consolidate remaining endpoint schemas**:
+
+- [ ] Consolidate Persona endpoint schemas (admin + user)
+- [ ] Consolidate Model override endpoint schemas
+- [ ] Pattern: Shared Zod schemas in common-types, scope-aware service layer
+
+---
+
+## ⚡️ Quick Wins
+
+_Small tasks that can be done between major features. Good for momentum._
+
+### ✨ Bot Health Status
+
+Admin command showing bot health and diagnostics.
+
+- [ ] `/admin health` - Show uptime, version, connected services
+- [ ] Include: Discord connection, Redis, PostgreSQL, BullMQ queue depth
+- [ ] Optional: memory usage, active personality count
+
+### ✨ Bot Presence Setting
+
+Allow setting the bot's status message (like user status).
+
+- [ ] `/admin presence set <type> <message>` - Set bot presence (Playing, Watching, etc.)
+- [ ] `/admin presence clear` - Clear custom presence
+- [ ] Persist across restarts (store in database or env)
+
+### ✨ Discord Emoji/Sticker Image Support
+
+Support custom Discord emoji and stickers in vision context.
+
+- [ ] Extract emoji URLs from message content (custom emoji format: `<:name:id>`)
+- [ ] Extract sticker URLs from message stickers
+- [ ] Include in vision context alongside attachments
+- [ ] Handle animated emoji/stickers (GIF vs static)
+
+### 🧹 Redis Failure Injection Tests
+
+SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
+
+### 🧹 Release Notifications
+
+Notify users of new releases.
+
+- [ ] `/changelog` command showing recent releases
+- [ ] Optional announcement channel integration
+- [ ] GitHub releases webhook
+
+---
+
+## 🏗 Active Epic: Zod Schema Hardening
+
+_Focus: Prevent silent data loss from schema/interface mismatch._
+
+**Problem areas** (consolidated from multiple backlog items):
+
+1. **Schema/Interface Mismatch** - Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data silently disappears.
+2. **Inconsistent Validation** - Mix of manual type checks, Zod schemas, and `as Type` casting across routes.
+3. **Response Inconsistency** - Same resource returns different fields from GET vs POST vs PUT.
+4. **Admin/User Duplication** - Persona and Model override endpoints still have duplicate schemas (LlmConfig and Personality already consolidated in PRs #582, #583).
+
+### Phase 1: Consolidate Remaining Endpoints (IN CURRENT FOCUS)
+
+Pattern: Shared Zod schemas in common-types, scope-aware service layer.
+
+### Phase 2: Compile-Time Enforcement (Option B - Pragmatic)
+
+- [ ] Create `ZodShape<T>` utility type that maps interface keys to Zod types
+- [ ] Use `satisfies ZodShape<ApiInterface>` on schemas to get compile errors for missing fields
+- [ ] Challenge: Internal types (Date) differ from API types (string), need separate API interfaces
+
+### Phase 3: Schema-First Architecture (Option A - Ideal, Longer-Term)
+
+- [ ] Make Zod schemas the single source of truth for API types
+- [ ] Derive TypeScript types using `z.infer<typeof schema>`
+- [ ] Internal types with Date remain separate, conversion at boundaries
+- [ ] New types should be schema-first from the start
+
+### Phase 4: Standardize Validation (Cleanup)
+
+- [ ] Audit: `routes/user/*.ts`, `routes/admin/*.ts`, `routes/internal/*.ts`
+- [ ] Use `safeParse` consistently everywhere
+- [ ] Shared response builder functions per resource type
+
+**Reference**: MCP council recommendation (2026-02-04) - Option A is ideal, Option B is pragmatic
+
+---
+
+## 📅 Next Epic: Bot-Client Package Split
+
+_Ready to start after Zod hardening. Analysis complete._
 
 **Context**: Gemini architectural review flagged bot-client as too heavy (~4.1MB, 424 files). Analysis identified extraction candidates.
 
@@ -136,119 +225,57 @@ _Top 3-5 items to pull into CURRENT next._
 
 **Not recommended for extraction:** services/, processors/, handlers/MessageHandler.ts - too tightly coupled to message pipeline.
 
-**Cognitive Complexity** (medium priority - refactoring):
-
-Functions exceeding 15 cognitive complexity limit:
-
-- ai-worker: `processMessage` (41), `generateResponse` (27), `buildSystemPrompt` (25+)
-- common-types: `ConversationHistoryService` functions, `formatElapsedTime` (19)
-- Run `pnpm lint 2>&1 | grep sonarjs/cognitive-complexity` for full list
-
-**Copy-Paste Duplication** (lower priority - extract to shared utils):
-
-- Cache invalidation service patterns (multiple files have identical subscribe/publish logic)
-- Personality factory patterns (persona.ts, wallet.ts, model-override.ts share 45-line blocks)
-- Settings dashboard handler (repeated embed building patterns)
-- Run `pnpm cpd:report` for detailed HTML report
-
-**Future tightening**: Once violations are reduced, lower CPD threshold from 5% to 2-3%.
-
-**Tooling Improvements**:
-
-- [ ] Make sonarjs rules `error` instead of `warn` - prevents new violations from accumulating
-- [ ] Add CPD HTML report to CI artifacts - makes reviewing duplication easier in PRs
-- [ ] Make CPD blocking in CI (remove `continue-on-error: true`)
-
-**Documentation & Polish** (from PR #558 review):
-
-- [ ] Add comment to `tsconfig.spec.json` files explaining test file inclusion pattern
-- [ ] Document which sonarjs rules were considered and rejected in STATIC_ANALYSIS.md
-- [ ] Add CPD suppression (`/* jscpd:ignore-start */`) guidance to code review checklist
-- [ ] Add link from CLAUDE.md "Code Quality Limits" section to `STATIC_ANALYSIS.md`
-
 **References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
 
-### ✨ Multi-Personality Per Channel
+---
 
-Allow multiple personalities active in a single channel.
+## 📦 Future Themes
 
-- [ ] Track multiple active personalities per channel
-- [ ] Natural order speaker selection (who responds next)
-- [ ] Handle @mentions when multiple personalities present
-- [ ] `/channel add-personality` and `/channel remove-personality` commands
+_Epics ordered by dependency. Pick the next one when current epic completes._
+
+### Theme: Memory System Overhaul
+
+_Dependency chain: Configuration Consolidation → LTM Summarization → Table Migration → OpenMemory_
+
+#### 1. ✨ LTM Summarization (Shapes.inc Style)
+
+Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
+
+- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
+- [ ] Separate LLM call for summarization (fast/cheap model)
+- [ ] Store summaries as LTM instead of verbatim turns
+
+#### 2. 🏗️ Memories Table Migration
+
+Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
+
+- [ ] Design unified memory format (draw from both sources)
+- [ ] One-time migration of existing tzurot-v3 memories
+- [ ] Run existing verbatim memories through summarizer
+
+#### 3. 🏗️ OpenMemory Migration
+
+Waypoint graph architecture with multi-sector storage.
+
+- [ ] Design waypoint graph schema
+- [ ] Migration path from current flat memories
+- [ ] See `docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md`
+
+#### 🏗️ Per-User Quotas
+
+No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000).
+
+#### 🏗️ Contrastive Retrieval for RAG
+
+Improve memory retrieval quality with contrastive methods.
 
 ---
 
-## Medium Priority
-
-_Significant refactors that can wait._
-
-### 🏗️ Reasoning/Thinking Modernization (See Plan - Phase 4)
-
-Custom fetch wrapper, XML tag injection, multiple extraction paths. Needs stable foundation from Configuration Consolidation first.
-
-**Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 4)
-
----
-
-## Epic: User-Requested Features
-
-_Features requested by actual users._
-
-### ✨ User System Prompts
-
-"Sidecar prompt" appended to system message per-user.
-
-- [ ] Add `systemPrompt` field to User or UserPersonalityConfig
-- [ ] `/me profile` dashboard upgrade to edit system prompt
-
-### ✨ Channel Allowlist/Denylist
-
-Prevents bot from spamming unwanted channels, reduces server kicks.
-
-- [ ] Add `mode` (allowlist/denylist) and `channels` array to ChannelSettings
-- [ ] `/channel restrict` command for server admins
-- [ ] Middleware check in message handler
-- [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
-
-### ✨ Multi-Character Invocation Per Message
-
-Support tagging multiple characters in one message, each responding in order.
-
-**Example**: `@character1 @character2 hello both` → both respond sequentially
-**Example**: Reply to character1 + tag @character2 → character1 responds first, then character2
-
-**Implementation sketch**:
-
-- [ ] Modify mention extraction to return array of all valid mentions
-- [ ] Combine reply target + mentions into ordered list (reply first, then mentions L→R)
-- [ ] Add max limit (3-4 characters per message) to prevent abuse
-- [ ] Sequential execution in processor (order matters for conversation flow)
-- [ ] Each response logged separately to conversation history
-- [ ] Error handling: continue with remaining characters if one fails
-
-**DM consideration**: Last character becomes sticky session, but extended context still provides continuity.
-
-**Complexity**: Medium (~1-2 days). Main challenge is refactoring processor chain from single-match to multi-match.
-
-### ✨ Emoji Reaction Actions
-
-Allow emoji reactions to trigger personality actions.
-
-- [ ] Define action mapping (❤️ = positive feedback, 👎 = regenerate, etc.)
-- [ ] Hook into reaction events (reactionAdd handler)
-- [ ] Action dispatch based on emoji → action mapping
-- [ ] Per-personality action configuration (optional)
-
-**Note**: Builds on reaction extraction (beta.61)
-
----
-
-## Epic: Character Portability
+### Theme: Character Portability
 
 _Import and export characters and user data. Users own their data._
 
-### ✨ User Data Export
+#### ✨ User Data Export
 
 Unified export of all user-owned data. Currently preset export and character export exist but are separate.
 
@@ -260,7 +287,7 @@ Unified export of all user-owned data. Currently preset export and character exp
 
 **Existing partial implementations**: `/preset export`, `/character export`
 
-### ✨ Character Card Import
+#### ✨ Character Card Import
 
 Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibility.
 
@@ -268,7 +295,7 @@ Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibi
 - [ ] Map character card fields to v3 personality schema
 - [ ] `/character import` support for PNG files
 
-### 🏗️ Shapes.inc Import
+#### 🏗️ Shapes.inc Import
 
 Migration path from v2. Legacy data migration.
 
@@ -279,90 +306,95 @@ Migration path from v2. Legacy data migration.
 
 ---
 
-## Epic: v2 Parity
+### Theme: User-Requested Features
 
-_Eventually kill v2, but not urgent._
+_Features requested by actual users. High value._
 
-### 🧹 Rate Limiting
+#### ✨ Multi-Personality Per Channel
 
-- [ ] Token bucket rate limiting
+Allow multiple personalities active in a single channel.
 
-### ✨ PluralKit Proxy Support
+- [ ] Track multiple active personalities per channel
+- [ ] Natural order speaker selection (who responds next)
+- [ ] Handle @mentions when multiple personalities present
+- [ ] `/channel add-personality` and `/channel remove-personality` commands
 
-- [ ] Support PluralKit proxied messages
+#### ✨ User System Prompts
+
+"Sidecar prompt" appended to system message per-user.
+
+- [ ] Add `systemPrompt` field to User or UserPersonalityConfig
+- [ ] `/me profile` dashboard upgrade to edit system prompt
+
+#### ✨ Channel Allowlist/Denylist
+
+Prevents bot from spamming unwanted channels, reduces server kicks.
+
+- [ ] Add `mode` (allowlist/denylist) and `channels` array to ChannelSettings
+- [ ] `/channel restrict` command for server admins
+- [ ] Middleware check in message handler
+- [ ] Consider "Ghost Mode" - bot listens but only replies when pinged
+
+#### ✨ Multi-Character Invocation Per Message
+
+Support tagging multiple characters in one message, each responding in order.
+
+**Example**: `@character1 @character2 hello both` → both respond sequentially
+
+- [ ] Modify mention extraction to return array of all valid mentions
+- [ ] Combine reply target + mentions into ordered list (reply first, then mentions L→R)
+- [ ] Add max limit (3-4 characters per message) to prevent abuse
+
+#### ✨ Emoji Reaction Actions
+
+Allow emoji reactions to trigger personality actions.
+
+- [ ] Define action mapping (❤️ = positive feedback, 👎 = regenerate, etc.)
+- [ ] Hook into reaction events (reactionAdd handler)
+- [ ] Action dispatch based on emoji → action mapping
 
 ---
 
-## Epic: Infrastructure & Stability
+### Theme: Next-Gen AI Capabilities
 
-_Backend health: API hardening, observability, logging. Consolidated for maintenance sprints._
+_Future features: agentic behavior, multi-modality, advanced prompts._
 
-### API & Validation Hardening
+#### Advanced Prompt Features
 
-#### 🏗️ Inconsistent Request Validation
+_SillyTavern-inspired prompt engineering._
 
-Mix of manual type checks, Zod schemas, and `as Type` casting.
+- **Lorebooks / Sticky Context** - Keyword-triggered lore injection with TTL
+- **Author's Note Depth Injection** - Insert notes at configurable depth in conversation
+- **Dynamic Directive Injection** - Anti-sycophancy prompt techniques
 
-- [ ] Standardize on Zod schemas for all POST/PUT bodies
-- [ ] Create `schemas/` directory, use `safeParse` consistently
-- [ ] Audit: `routes/user/*.ts`, `routes/admin/*.ts`, `routes/internal/*.ts`
+#### Agentic Features
 
-#### 🐛 API Response Consistency
+_Self-directed personality behaviors._
 
-Same resource returns different fields from GET vs POST vs PUT.
+- **Agentic Scaffolding** - Think → Act → Observe loop
+- **Dream Sequences** - Self-reflection and memory consolidation
+- **Relationship Graphs** - Track relationships between users and personalities
 
-- [ ] Shared response builder functions per resource type
+#### Multi-Modality
 
-#### 🏗️ Zod Schema/TypeScript Interface Mismatch (HIGH PRIORITY)
+_Beyond text: voice and images._
 
-Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data silently disappears.
+- **Voice Synthesis** - Open-source TTS/STT for voice interactions
+- **Image Generation** - AI-generated images from personalities
 
-**Recent bug**: `isForwarded` field missing from `apiConversationMessageSchema` caused forwarded messages to lose their `forwarded="true"` attribute in prompts.
+---
 
-**Immediate fix (DONE)**:
+### Theme: Observability & Tooling
 
-- [x] Added regression test for `isForwarded` in `schemas.test.ts`
-- [x] Added comprehensive field preservation test for `apiConversationMessageSchema`
-
-**Medium-term solution (Option B - compile-time enforcement)**:
-
-- [ ] Create `ZodShape<T>` utility type that maps interface keys to Zod types
-- [ ] Use `satisfies ZodShape<ApiInterface>` on schemas to get compile errors for missing fields
-- [ ] Challenge: Internal types (Date) differ from API types (string), need separate API interfaces
-
-**Long-term solution (Option A - schema-first architecture)**:
-
-- [ ] Make Zod schemas the single source of truth for API types
-- [ ] Derive TypeScript types using `z.infer<typeof schema>`
-- [ ] Internal types with Date remain separate, conversion at boundaries
-- [ ] New types should be schema-first from the start
-
-**Reference**: MCP council recommendation (2026-02-04) - Option A is ideal, Option B is pragmatic
-
-### Observability & Debugging
+_Backend health: monitoring, debugging, developer experience._
 
 #### ✨ Stop Sequence Stats Admin Command
 
 Expose stop sequence activation stats via `/admin stats stop-sequences`.
 
-**Current state**: `StopSequenceTracker` in ai-worker tracks activations in-memory and logs to structured JSON (`json.event="stop_sequence_triggered"`). Stats accessible via `getStopSequenceStats()` but not exposed to bot-client.
-
-**Implementation plan**:
-
 - [ ] Store stats in Redis (ai-worker writes on each activation)
 - [ ] Add gateway endpoint `GET /admin/stop-sequence-stats`
 - [ ] Add `/admin stats` subcommand with `stop-sequences` option
-- [ ] Display: total activations, by sequence, by model, uptime
-
-**Files**: `StopSequenceTracker.ts`, `api-gateway/routes/admin/`, `bot-client/commands/admin/`
-
-#### 🏗️ Basic Structured Logging
-
-Add event types: `rate_limit_hit`, `dedup_cache_hit`, `pipeline_step_failed`, `llm_request` with latency/tokens.
-
-#### ✨ Admin Debug Filtering
-
-Add `/admin debug recent` with personality/user/channel filters.
 
 #### 🏗️ Metrics & Monitoring (Prometheus)
 
@@ -370,383 +402,122 @@ Production observability with metrics collection.
 
 - [ ] Add Prometheus metrics endpoint
 - [ ] Key metrics: request latency, token usage, error rates, queue depth
-- [ ] Grafana dashboards (or Railway's built-in metrics)
 
-### Moderation & Access Control
+#### ✨ Admin Debug Filtering
+
+Add `/admin debug recent` with personality/user/channel filters.
+
+#### 🏗️ Database-Configurable Model Capabilities
+
+Move hardcoded model patterns to database for admin updates without deployment.
+
+#### 🧹 Ops CLI Command Migration
+
+Migrate stub commands to proper TypeScript implementations.
+
+---
+
+### Theme: Moderation & Access Control
 
 #### ✨ User Denylist
 
 Block specific Discord users from using the bot entirely.
 
 - [ ] Add `denylisted_users` table (discord_id, reason, denylisted_at, denylisted_by)
-- [ ] Early-exit middleware in message handler (before any processing)
-- [ ] `/admin denylist user add <user_id> [reason]` command
-- [ ] `/admin denylist user remove <user_id>` command
-- [ ] `/admin denylist user list` command
-- [ ] Consider: silent vs explicit rejection message
+- [ ] Early-exit middleware in message handler
 
 #### ✨ Server Denylist
 
 Block the bot from operating in specific Discord servers.
 
-- [ ] Add `denylisted_servers` table (guild_id, reason, denylisted_at, denylisted_by)
-- [ ] Early-exit in message handler and interaction handler
-- [ ] `/admin denylist server add <guild_id> [reason]` command
-- [ ] `/admin denylist server remove <guild_id>` command
-- [ ] `/admin denylist server list` command
-- [ ] Consider: auto-leave server when denylisted, or just go silent
+- [ ] Add `denylisted_servers` table
+- [ ] Auto-leave option when denylisted
 
-### Logging Review (Low Priority)
+---
 
-_High effort, low reward. Do opportunistically._
+## 🧊 Icebox
+
+_Ideas for later. Resist the shiny object._
+
+### v2 Parity (Low Priority)
+
+_Eventually kill v2, but these are rarely used features._
+
+- **Rate Limiting** - Token bucket rate limiting
+- **PluralKit Proxy Support** - Support PluralKit proxied messages
+
+### Infrastructure Debt (Do Opportunistically)
+
+#### 🏗️ Reasoning/Thinking Modernization
+
+Custom fetch wrapper, XML tag injection, multiple extraction paths. Needs stable foundation.
+
+**Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 4)
+
+#### 🏗️ Streaming Responses
+
+Stream LLM responses to Discord for better UX on long generations.
 
 #### 🏗️ Consistent Service Prefix Injection
 
-Currently manually hardcoding `[ServiceName]` in log messages. Should be injected automatically based on where the log originates.
-
-- [ ] Audit current `[Service]` prefix patterns across codebase
-- [ ] Design automatic prefix injection via logger factory
-- [ ] Migrate existing logs to use consistent pattern
-- [ ] Update `createLogger()` to auto-inject service context
-
-**Note**: Large refactor touching most files. Only do when logging becomes a pain point.
+Auto-inject `[ServiceName]` prefix in logs instead of hardcoding.
 
 #### 🧹 Logging Verbosity Audit
 
 Some operations log at INFO when they should be DEBUG.
 
-- [ ] Duplicate detection: PASSED → DEBUG, keep NEAR-MISS/DUPLICATE at INFO
-- [ ] Audit other high-frequency INFO logs
-- [ ] Document logging level guidelines
+#### 🏗️ File Naming Convention Audit
 
----
+Inconsistent casing between services. Low value / high effort.
 
-## Epic: Memory System Overhaul
-
-_Dependency chain: Configuration Consolidation → LTM Summarization → Table Migration → OpenMemory_
-
-### 1. ✨ LTM Summarization (Shapes.inc Style) ⛔ Blocked by Configuration Consolidation
-
-Verbatim conversation storage is redundant with extended context. Replace with LLM-generated summaries.
-
-- [ ] Configurable grouping (5, 10, 50 messages or 1h, 4h, 24h time windows)
-- [ ] Separate LLM call for summarization (fast/cheap model)
-- [ ] Store summaries as LTM instead of verbatim turns
-
-**Depends on**: Configuration Consolidation (removes dual context paths)
-
-### 2. 🏗️ Memories Table Migration ⛔ Blocked by LTM Summarization
-
-Two formats coexist (shapes.inc imports vs tzurot-v3 verbatim). Need unified format.
-
-- [ ] Design unified memory format (draw from both sources)
-- [ ] One-time migration of existing tzurot-v3 memories
-- [ ] Run existing verbatim memories through summarizer
-
-### 3. 🏗️ OpenMemory Migration
-
-Waypoint graph architecture with multi-sector storage.
-
-- [ ] Design waypoint graph schema
-- [ ] Migration path from current flat memories
-- [ ] See `docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md`
-
-### 🏗️ Per-User Quotas
-
-No limits on memories per persona. Add `maxMemoriesPerPersona` (default: 10,000).
-
-### 🏗️ Contrastive Retrieval for RAG
-
-Improve memory retrieval quality with contrastive methods.
-
-- [ ] Research contrastive retrieval approaches
-- [ ] Prototype with current embedding system
-- [ ] Benchmark against current similarity search
-
----
-
-## Epic: Incognito Mode Improvements
-
-### 🏗️ Parallel API Calls for Session Names
+#### 🏗️ Incognito Mode - Parallel API Calls
 
 Status command fires up to 100 parallel API calls. Have API return names with sessions.
 
----
+### Code Quality (Quarterly Review)
 
-## Epic: Next-Gen AI Capabilities
+#### 🧹 Periodic Complexity/Filesize Audit
 
-_Future features: agentic behavior, multi-modality, advanced prompts._
+Files and functions creep toward ESLint limits. Proactive audit prevents emergency extractions.
 
-### Advanced Prompt Features
+- [ ] `pnpm ops lint:complexity-report` - Generate report of files/functions near limits
+- [ ] Review files >400 lines, functions >80 statements or complexity >12
 
-_SillyTavern-inspired prompt engineering._
+#### 🧹 Audit Existing Tests for Type Violations
 
-#### ✨ Lorebooks / Sticky Context
+Review all `*.test.ts` files to ensure they match their naming convention.
 
-Keyword-triggered lore injection with TTL.
-
-- [ ] Design lorebook schema (keywords, content, activation rules)
-- [ ] Keyword detection in conversation context
-- [ ] Inject matched lore into system prompt or context
-- [ ] TTL/decay for injected content
-
-#### ✨ Author's Note Depth Injection
-
-Insert author's notes at configurable depth in conversation.
-
-- [ ] Add author's note field to personality/preset config
-- [ ] Configurable injection depth (N messages from end)
-- [ ] Support multiple author's notes with different depths
-
-#### 🏗️ Dynamic Directive Injection (Anti-Sycophancy)
-
-Dynamically inject directives to improve response quality.
-
-- [ ] Research anti-sycophancy prompt techniques
-- [ ] Configurable directive templates
-- [ ] A/B testing framework for directive effectiveness
-
-### Agentic Features
-
-_Self-directed personality behaviors._
-
-#### 🏗️ Agentic Scaffolding
-
-Think → Act → Observe loop for autonomous behavior.
-
-- [ ] Design agent loop architecture
-- [ ] Tool/action definitions for personalities
-- [ ] Observation and reflection mechanisms
-- [ ] Safety guardrails and intervention points
-
-#### ✨ Dream Sequences
-
-Self-reflection and memory consolidation.
-
-- [ ] Scheduled "dream" processing (off-peak hours)
-- [ ] Memory review and consolidation
-- [ ] Personality growth/change over time
-
-#### 🏗️ Relationship Graphs
-
-Track relationships between users and personalities.
-
-- [ ] Relationship schema (affinity, history, context)
-- [ ] Relationship-aware response generation
-- [ ] Visualization for users (`/me relationships`)
-
-### Multi-Modality
-
-_Beyond text: voice and images._
-
-#### ✨ Voice Synthesis
-
-Open-source TTS/STT for voice interactions.
-
-- [ ] Research open-source TTS options (Coqui, Bark, etc.)
-- [ ] Voice cloning for personality-specific voices
-- [ ] Discord voice channel integration
-- [ ] See `docs/research/voice-cloning-2026.md`
-
-#### ✨ Image Generation
-
-AI-generated images from personalities.
-
-- [ ] Integration with image generation APIs
-- [ ] Personality-specific art styles
-- [ ] `/imagine` command or inline generation triggers
-
----
-
-## Smaller Items
-
-_Opportunistic work between major features._
-
-### ✨ Discord Emoji/Sticker Image Support
-
-Support custom Discord emoji and stickers in vision context.
-
-- [ ] Extract emoji URLs from message content (custom emoji format: `<:name:id>`)
-- [ ] Extract sticker URLs from message stickers
-- [ ] Include in vision context alongside attachments
-- [ ] Handle animated emoji/stickers (GIF vs static)
-
-### ✨ Bot Presence Setting
-
-Allow setting the bot's status message (like user status).
-
-- [ ] `/admin presence set <type> <message>` - Set bot presence (Playing, Watching, etc.)
-- [ ] `/admin presence clear` - Clear custom presence
-- [ ] Persist across restarts (store in database or env)
-
-### ✨ Bot Health Status
-
-Admin command showing bot health and diagnostics.
-
-- [ ] `/admin health` - Show uptime, version, connected services
-- [ ] Include: Discord connection, Redis, PostgreSQL, BullMQ queue depth
-- [ ] Optional: memory usage, active personality count
-
-### ✨ Dynamic Model Selection for Presets
-
-Preset creation via slash command should use OpenRouter's model list dynamically instead of hardcoded options.
-
-- [ ] Fetch and cache OpenRouter model list (see `~/Projects/council-mcp` for reference implementation)
-- [ ] Model slug dropdown populated from cached models (autocomplete)
-- [ ] Vision model selection restricted to models with `image` modality
-- [ ] Context window tokens auto-calculated as half of model's advertised context
-- [ ] Free users restricted to free models only (both main model and vision model)
-- [ ] Cache TTL strategy (models don't change often, ~24h reasonable)
-
-**Reference**: OpenRouter `/api/v1/models` endpoint, council-mcp's model caching pattern
-
-### 🏗️ Type-Safe Command Options Hardening
-
-From beta.54 code review observations:
-
-- [ ] **CI Validation** - Add check to verify generated `commandOptions.ts` matches source command definitions (detect schema-handler drift)
-- [ ] **AST-Based Parsing** - Current regex parsing could fail on template literals, dynamic `setRequired()`, unusual whitespace. Consider `@babel/parser` for production-grade robustness
-- [ ] **Channel Type Refinement** - `typedOptions.ts:73` returns overly broad `Channel` type. Discord.js returns union of channel types; handlers may need runtime narrowing
-
-### 🧹 Redis Failure Injection Tests
-
-SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
-
-### 🏗️ Database-Configurable Model Capabilities
-
-Currently, model capability detection (stop sequence support, reasoning model detection) is hardcoded in `LLMInvoker.ts` and `reasoningModelUtils.ts`. When OpenRouter adds/changes models, we need code deployments.
-
-- [ ] Add `model_capabilities` table (model pattern → capabilities JSON)
-- [ ] Migrate hardcoded patterns to database
-- [ ] Admin command to update capabilities without deployment
-- [ ] Cache capabilities with TTL to avoid DB hits on every request
-
-**Reference**: `MODELS_WITHOUT_STOP_SUPPORT` in `LLMInvoker.ts`, `REASONING_MODEL_PATTERNS` in `reasoningModelUtils.ts`
-
-### 🏗️ Audit and Reduce Re-exports
+#### 🏗️ Audit and Reduce Re-exports
 
 Re-exports create spaghetti code and obscure module dependencies.
 
-- [ ] Audit existing re-exports in `utils/` index files
-- [ ] Eliminate non-essential re-exports
-- [ ] Exception: Package entry points (e.g., `@tzurot/common-types`)
+### Tooling Polish
 
-### 🧹 Periodic Complexity/Filesize Audit
+#### 🏗️ Type-Safe Command Options Hardening
 
-Files and functions creep toward ESLint limits over time. Proactive audit prevents emergency extractions.
+- [ ] CI validation for `commandOptions.ts` schema-handler drift
+- [ ] AST-based parsing for robustness
+- [ ] Channel type refinement
 
-- [ ] `pnpm ops lint:complexity-report` - Generate report of files/functions near limits
-- [ ] Review files >400 lines (limit is 500)
-- [ ] Review functions >80 statements (limit is 100) or complexity >12 (limit is 15)
-- [ ] Schedule quarterly or after major features
-
-**Trigger**: ConversationalRAGService.ts hit max-statements during beta.59 review feedback
-
-### 🧹 Ops CLI Command Migration
-
-Several commands in `pnpm ops` are stubs pointing to original shell/JS scripts. Migrate to proper TypeScript implementations in `packages/tooling/`.
-
-**Priority order** (per MCP council recommendation):
-
-1. **verify-build** (deployment) - High frequency, low risk. Good test of `execa` patterns
-2. **Data scripts** - Reuse db:safe-migrate's Prisma patterns
-   - [ ] `data:import` - Merge `import-personality` and `bulk-import` into single command with `--bulk` flag
-   - [ ] `data:backup-personalities` - Standardize backup location
-3. **Deployment** (last - high risk)
-   - [ ] `deploy:dev` - Railway CLI wrapper, needs careful `stdio` handling
-   - [ ] `deploy:update-gateway-url` - Rewrite with `fetch` instead of shell curl
-
-**Migration patterns**:
-
-- Shell scripts → Use `execa`, port Bash logic to TypeScript
-- Standalone TS → Extract logic to service functions, CLI handles args
-
-**Files**:
-
-- Stubs: `packages/tooling/src/deployment/`, `packages/tooling/src/data/`
-- Originals: `scripts/deployment/*.sh`, `scripts/data/`
-
-### 🧹 Consolidate import-personality Scripts
+#### 🧹 Consolidate import-personality Scripts
 
 `scripts/data/import-personality/` workspace needs cleanup.
 
-### 🧹 Railway Ops CLI Enhancements
+#### 🧹 Railway Ops CLI Enhancements
 
-Low priority quality-of-life improvements leveraging Railway's `--json` output:
+Low priority quality-of-life improvements.
 
-- [ ] `pnpm ops railway:status` - Parse `railway status --json` for nicer formatted output
-- [ ] `pnpm ops railway:vars` - View variables with secret hiding and service grouping
+#### ✨ Dynamic Model Selection for Presets
 
-### 🏗️ Streaming Responses
+Fetch OpenRouter model list dynamically instead of hardcoded options.
 
-Stream LLM responses to Discord for better UX on long generations.
+#### 🧹 Free-Tier Model Strategy
 
-- [ ] Research Discord message editing rate limits
-- [ ] Implement streaming from LangChain
-- [ ] Chunked updates to Discord (debounced edits)
-
-### 🧹 Free-Tier Model Strategy
-
-Sustainable free tier for users without API keys.
-
-- [ ] Define free-tier model allowlist
-- [ ] Usage quotas for free tier
-- [ ] Graceful upgrade prompts
-
-### 🧹 Release Notifications
-
-Notify users of new releases.
-
-- [ ] `/changelog` command showing recent releases
-- [ ] Optional announcement channel integration
-- [ ] GitHub releases webhook
-
-### Testing Debt
-
-Service integration test coverage is now tracked via `test-coverage-baseline.json` with automated Prisma detection.
-
-**Current status**: 0 service gaps (5/5 services with Prisma have integration tests)
-
-Run `pnpm ops test:audit --category=services` to check coverage.
-
-_Note: Services without direct Prisma calls are auto-excluded from the audit._
-
-### 🧹 Audit Existing Tests for Type Violations
-
-Review all `*.test.ts` files to ensure they match their naming convention:
-
-- [ ] Unit tests (`.test.ts`) should be fully mocked (no PGLite)
-- [ ] Integration tests (`.int.test.ts`) should use PGLite
-- [ ] Schema tests (`.schema.test.ts`) should only test Zod schemas
-- [ ] E2E tests (`.e2e.test.ts`) should use real services
-- [ ] Rename any misnamed test files to match their actual test type
+Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 ---
 
-## Icebox
-
-_Ideas for later. Resist the shiny object._
-
-### 🏗️ File Naming Convention Audit
-
-Inconsistent casing between services across the monorepo:
-
-- **PascalCase** for class-based service files (e.g., `JobTracker.ts`, `VerificationMessageCleanup.ts`)
-- **camelCase** for function-based modules/utilities (e.g., `serviceRegistry.ts`)
-
-The distinction isn't consistently applied. Calling both kinds "services" while using different casing is potentially misleading.
-
-- [ ] Audit all services directories across packages
-- [ ] Document the intended convention
-- [ ] Consider renaming for consistency (or document the semantic distinction)
-
-**Note**: Large refactor touching many files. Low value / high effort.
-
----
-
----
-
-## Deferred
+## ⏸️ Deferred
 
 _Decided not to do yet._
 
