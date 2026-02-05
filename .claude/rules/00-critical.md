@@ -56,19 +56,32 @@ logger.info({ userId: user.id }, 'User authenticated');
 
 **NO SQUASH. NO MERGE COMMITS. ONLY REBASE.**
 
+```bash
+# ❌ FORBIDDEN - Creates merge commits
+git merge develop
+git merge --no-ff feature-branch
+
+# ✅ CORRECT - Fast-forward only (fails if not possible)
+git rebase develop
+gh pr merge --rebase --delete-branch
+```
+
+**To update main from develop**: Use GitHub PR with rebase merge, or ensure fast-forward is possible.
+
 ### Destructive Commands - ASK FIRST
 
 **NEVER run these without explicit user permission:**
 
-| Command                       | Risk                       |
-| ----------------------------- | -------------------------- |
-| `git restore`                 | Discards uncommitted work  |
-| `git checkout .`              | Discards all changes       |
-| `git reset --hard`            | Undoes commits permanently |
-| `git clean -fd`               | Deletes untracked files    |
-| `git push --force`            | Rewrites history           |
-| `killall node` / `pkill node` | Kills Claude Code          |
-| `rm -rf` on gitignored paths  | Data is UNRECOVERABLE      |
+| Command                       | Risk                            |
+| ----------------------------- | ------------------------------- |
+| `git merge`                   | Creates forbidden merge commits |
+| `git restore`                 | Discards uncommitted work       |
+| `git checkout .`              | Discards all changes            |
+| `git reset --hard`            | Undoes commits permanently      |
+| `git clean -fd`               | Deletes untracked files         |
+| `git push --force`            | Rewrites history                |
+| `killall node` / `pkill node` | Kills Claude Code               |
+| `rm -rf` on gitignored paths  | Data is UNRECOVERABLE           |
 
 **Uncommitted changes = HOURS OF WORK.** When user says "get changes" → COMMIT, not DISCARD.
 
