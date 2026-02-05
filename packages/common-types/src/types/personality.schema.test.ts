@@ -12,6 +12,7 @@ import {
   ListPersonalitiesResponseSchema,
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
+  AdminPersonalityResponseSchema,
 } from '../schemas/api/index.js';
 
 describe('Personality API Contract Tests', () => {
@@ -415,6 +416,79 @@ describe('Personality API Contract Tests', () => {
       const result = PersonalityUpdateSchema.safeParse({
         extendedContextMaxImages: -1,
       });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('AdminPersonalityResponseSchema', () => {
+    const validResponse = {
+      success: true as const,
+      personality: {
+        id: '33333333-3333-5333-8333-333333333333',
+        name: 'Test Character',
+        slug: 'test-character',
+        displayName: 'Test Display Name',
+        hasAvatar: true,
+      },
+      timestamp: '2026-02-04T12:00:00.000Z',
+    };
+
+    it('should validate complete admin response', () => {
+      const result = AdminPersonalityResponseSchema.safeParse(validResponse);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate response with null displayName', () => {
+      const response = {
+        ...validResponse,
+        personality: { ...validResponse.personality, displayName: null },
+      };
+      const result = AdminPersonalityResponseSchema.safeParse(response);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate response with hasAvatar false', () => {
+      const response = {
+        ...validResponse,
+        personality: { ...validResponse.personality, hasAvatar: false },
+      };
+      const result = AdminPersonalityResponseSchema.safeParse(response);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid UUID for personality id', () => {
+      const response = {
+        ...validResponse,
+        personality: { ...validResponse.personality, id: 'not-a-uuid' },
+      };
+      const result = AdminPersonalityResponseSchema.safeParse(response);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject success not being literal true', () => {
+      const response = { ...validResponse, success: false };
+      const result = AdminPersonalityResponseSchema.safeParse(response);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid timestamp format', () => {
+      const response = { ...validResponse, timestamp: 'not-a-timestamp' };
+      const result = AdminPersonalityResponseSchema.safeParse(response);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing personality object', () => {
+      const { personality: _p, ...responseWithoutPersonality } = validResponse;
+      const result = AdminPersonalityResponseSchema.safeParse(responseWithoutPersonality);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing required personality fields', () => {
+      const response = {
+        ...validResponse,
+        personality: { id: validResponse.personality.id },
+      };
+      const result = AdminPersonalityResponseSchema.safeParse(response);
       expect(result.success).toBe(false);
     });
   });
