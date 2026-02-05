@@ -4,7 +4,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { createLogger, AVATAR_LIMITS } from '@tzurot/common-types';
+import { createLogger, AVATAR_LIMITS, type CacheInvalidationService } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
@@ -28,8 +28,11 @@ interface UpdatePersonalityBody {
   personalityDislikes?: string | null;
   conversationalGoals?: string | null;
   conversationalExamples?: string | null;
+  errorMessage?: string | null;
   customFields?: Record<string, unknown> | null;
   avatarData?: string;
+  /** Whether this personality should be publicly visible */
+  isPublic?: boolean;
 }
 
 // --- Helper Functions ---
@@ -87,6 +90,8 @@ function buildUpdateData(
     'personalityDislikes',
     'conversationalGoals',
     'conversationalExamples',
+    'errorMessage',
+    'isPublic',
   ];
 
   for (const field of fields) {
@@ -107,7 +112,10 @@ function buildUpdateData(
 
 // --- Route Handler ---
 
-export function createUpdatePersonalityRoute(prisma: PrismaClient): Router {
+export function createUpdatePersonalityRoute(
+  prisma: PrismaClient,
+  cacheInvalidationService?: CacheInvalidationService
+): Router {
   const router = Router();
 
   router.patch(
@@ -153,6 +161,22 @@ export function createUpdatePersonalityRoute(prisma: PrismaClient): Router {
       });
 
       logger.info(`[Admin] Updated personality: ${slug} (${personality.id})`);
+
+      // Invalidate cache after update
+      if (cacheInvalidationService !== undefined) {
+        try {
+          await cacheInvalidationService.invalidatePersonality(personality.id);
+          logger.info(
+            { personalityId: personality.id },
+            '[Admin] Invalidated personality cache after update'
+          );
+        } catch (error) {
+          logger.warn(
+            { err: error, personalityId: personality.id },
+            '[Admin] Failed to invalidate personality cache'
+          );
+        }
+      }
 
       sendCustomSuccess(res, {
         success: true,

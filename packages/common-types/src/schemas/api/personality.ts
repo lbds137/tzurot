@@ -1,12 +1,17 @@
 /**
- * Zod schemas for /user/personality API endpoints
+ * Zod schemas for personality API endpoints (admin and user)
  *
  * These schemas define the contract between api-gateway and bot-client.
  * BOTH services should import these to ensure type safety.
+ *
+ * Includes:
+ * - Input schemas for create/update operations (shared between admin and user)
+ * - Response schemas for GET operations
+ * - Prisma SELECT constants for consistent field selection
  */
 
 import { z } from 'zod';
-import { EntityPermissionsSchema } from './shared.js';
+import { EntityPermissionsSchema, nullableString } from './shared.js';
 
 // ============================================================================
 // Shared Sub-schemas
@@ -142,3 +147,161 @@ export const DeletePersonalityResponseSchema = z.object({
   deletedCounts: DeletedCountsSchema,
 });
 export type DeletePersonalityResponse = z.infer<typeof DeletePersonalityResponseSchema>;
+
+// ============================================================================
+// Input Schemas (shared between admin and user endpoints)
+// ============================================================================
+
+/**
+ * Slug validation pattern: lowercase letters, numbers, hyphens.
+ * Must start with a letter, 3-50 characters.
+ */
+const slugSchema = z
+  .string()
+  .min(3, 'slug must be at least 3 characters')
+  .max(50, 'slug must be 50 characters or less')
+  .regex(
+    /^[a-z][a-z0-9-]*$/,
+    'slug must start with a letter and contain only lowercase letters, numbers, and hyphens'
+  );
+
+/**
+ * Schema for creating a new personality.
+ *
+ * This is the unified schema for both admin and user create operations.
+ * The difference in behavior (ownerId, isPublic defaults) is handled by the service layer.
+ */
+export const PersonalityCreateSchema = z.object({
+  // Required fields
+  name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  slug: slugSchema,
+  characterInfo: z.string().min(1, 'characterInfo is required'),
+  personalityTraits: z.string().min(1, 'personalityTraits is required'),
+
+  // Optional display name (defaults to name if not provided)
+  displayName: nullableString(100),
+
+  // Character definition (all optional)
+  personalityTone: nullableString(500),
+  personalityAge: nullableString(100),
+  personalityAppearance: nullableString(1000),
+  personalityLikes: nullableString(500),
+  personalityDislikes: nullableString(500),
+  conversationalGoals: nullableString(1000),
+  conversationalExamples: nullableString(2000),
+  errorMessage: nullableString(500),
+
+  // Visibility - defaults to false, can be set to true to make public
+  isPublic: z.boolean().optional(),
+
+  // Custom fields (JSONB)
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+
+  // Avatar data (base64 encoded, processed separately)
+  avatarData: z.string().optional(),
+});
+
+export type PersonalityCreateInput = z.infer<typeof PersonalityCreateSchema>;
+
+/**
+ * Schema for updating an existing personality.
+ *
+ * All fields are optional - only provided fields are updated.
+ * Empty strings are transformed to null for nullable fields.
+ */
+export const PersonalityUpdateSchema = z.object({
+  // Core fields
+  name: z.string().min(1).max(100).optional(),
+  slug: slugSchema.optional(),
+  displayName: nullableString(100),
+  characterInfo: z.string().min(1).optional(),
+  personalityTraits: z.string().min(1).optional(),
+
+  // Character definition
+  personalityTone: nullableString(500),
+  personalityAge: nullableString(100),
+  personalityAppearance: nullableString(1000),
+  personalityLikes: nullableString(500),
+  personalityDislikes: nullableString(500),
+  conversationalGoals: nullableString(1000),
+  conversationalExamples: nullableString(2000),
+  errorMessage: nullableString(500),
+
+  // Visibility
+  isPublic: z.boolean().optional(),
+
+  // Custom fields (JSONB)
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+
+  // Avatar data (base64 encoded, processed separately)
+  avatarData: z.string().optional(),
+
+  // Extended context settings (deprecated - use LLM config instead)
+  extendedContext: z.boolean().optional().nullable(),
+  extendedContextMaxMessages: z.number().int().positive().optional().nullable(),
+  extendedContextMaxAge: z.number().int().positive().optional().nullable(),
+  extendedContextMaxImages: z.number().int().nonnegative().optional().nullable(),
+});
+
+export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
+
+// ============================================================================
+// Prisma SELECT constants
+// ============================================================================
+
+/**
+ * Select fields for list queries (summary data).
+ * Used when returning arrays of personalities.
+ */
+export const PERSONALITY_LIST_SELECT = {
+  id: true,
+  name: true,
+  displayName: true,
+  slug: true,
+  ownerId: true,
+  isPublic: true,
+  owner: {
+    select: {
+      discordId: true,
+    },
+  },
+} as const;
+
+/**
+ * Select fields for detail queries (includes all editable fields).
+ * Used when returning a single personality with full details.
+ */
+export const PERSONALITY_DETAIL_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  displayName: true,
+  characterInfo: true,
+  personalityTraits: true,
+  personalityTone: true,
+  personalityAge: true,
+  personalityAppearance: true,
+  personalityLikes: true,
+  personalityDislikes: true,
+  conversationalGoals: true,
+  conversationalExamples: true,
+  errorMessage: true,
+  birthMonth: true,
+  birthDay: true,
+  birthYear: true,
+  isPublic: true,
+  voiceEnabled: true,
+  imageEnabled: true,
+  extendedContext: true,
+  extendedContextMaxMessages: true,
+  extendedContextMaxAge: true,
+  extendedContextMaxImages: true,
+  ownerId: true,
+  avatarData: true,
+  customFields: true,
+  systemPromptId: true,
+  voiceSettings: true,
+  imageSettings: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;

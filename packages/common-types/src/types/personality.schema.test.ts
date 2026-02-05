@@ -10,6 +10,8 @@ import {
   EntityPermissionsSchema,
   PersonalitySummarySchema,
   ListPersonalitiesResponseSchema,
+  PersonalityCreateSchema,
+  PersonalityUpdateSchema,
 } from '../schemas/api/index.js';
 
 describe('Personality API Contract Tests', () => {
@@ -218,6 +220,202 @@ describe('Personality API Contract Tests', () => {
       // - No scattered `isOwned || isBotOwner()` checks in bot-client
 
       expect(true).toBe(true);
+    });
+  });
+
+  describe('PersonalityCreateSchema', () => {
+    const validCreateInput = {
+      name: 'Test Character',
+      slug: 'test-character',
+      characterInfo: 'A test character for testing',
+      personalityTraits: 'Friendly, helpful, curious',
+    };
+
+    it('should validate complete create input with required fields only', () => {
+      const result = PersonalityCreateSchema.safeParse(validCreateInput);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate create input with all optional fields', () => {
+      const fullInput = {
+        ...validCreateInput,
+        displayName: 'Test Display Name',
+        personalityTone: 'Friendly and warm',
+        personalityAge: '25',
+        personalityAppearance: 'Tall with dark hair',
+        personalityLikes: 'Reading, coding',
+        personalityDislikes: 'Spam messages',
+        conversationalGoals: 'Help users with tasks',
+        conversationalExamples: 'User: Hello\nBot: Hi there!',
+        errorMessage: 'I encountered an issue',
+        isPublic: true,
+        customFields: { favoriteColor: 'blue' },
+        avatarData: 'base64encodeddata',
+      };
+
+      const result = PersonalityCreateSchema.safeParse(fullInput);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing required field: name', () => {
+      const { name: _name, ...inputWithoutName } = validCreateInput;
+      const result = PersonalityCreateSchema.safeParse(inputWithoutName);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing required field: slug', () => {
+      const { slug: _slug, ...inputWithoutSlug } = validCreateInput;
+      const result = PersonalityCreateSchema.safeParse(inputWithoutSlug);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing required field: characterInfo', () => {
+      const { characterInfo: _info, ...inputWithoutInfo } = validCreateInput;
+      const result = PersonalityCreateSchema.safeParse(inputWithoutInfo);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing required field: personalityTraits', () => {
+      const { personalityTraits: _traits, ...inputWithoutTraits } = validCreateInput;
+      const result = PersonalityCreateSchema.safeParse(inputWithoutTraits);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject slug that is too short', () => {
+      const input = { ...validCreateInput, slug: 'ab' };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject slug with invalid characters', () => {
+      const input = { ...validCreateInput, slug: 'Test_Character!' };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject slug starting with number', () => {
+      const input = { ...validCreateInput, slug: '1test-character' };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should accept slug with numbers after first character', () => {
+      const input = { ...validCreateInput, slug: 'test-character-123' };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject name exceeding 100 characters', () => {
+      const input = { ...validCreateInput, name: 'a'.repeat(101) };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should transform empty displayName to null', () => {
+      const input = { ...validCreateInput, displayName: '' };
+      const result = PersonalityCreateSchema.safeParse(input);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.displayName).toBeNull();
+      }
+    });
+
+    it('should validate isPublic as boolean', () => {
+      const inputTrue = { ...validCreateInput, isPublic: true };
+      const inputFalse = { ...validCreateInput, isPublic: false };
+
+      expect(PersonalityCreateSchema.safeParse(inputTrue).success).toBe(true);
+      expect(PersonalityCreateSchema.safeParse(inputFalse).success).toBe(true);
+    });
+  });
+
+  describe('PersonalityUpdateSchema', () => {
+    it('should validate empty update (no changes)', () => {
+      const result = PersonalityUpdateSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate partial update with single field', () => {
+      const result = PersonalityUpdateSchema.safeParse({ name: 'New Name' });
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate update with all fields', () => {
+      const fullUpdate = {
+        name: 'Updated Name',
+        slug: 'updated-slug',
+        displayName: 'Updated Display',
+        characterInfo: 'Updated info',
+        personalityTraits: 'Updated traits',
+        personalityTone: 'Updated tone',
+        personalityAge: '30',
+        personalityAppearance: 'Updated appearance',
+        personalityLikes: 'Updated likes',
+        personalityDislikes: 'Updated dislikes',
+        conversationalGoals: 'Updated goals',
+        conversationalExamples: 'Updated examples',
+        errorMessage: 'Updated error',
+        isPublic: true,
+        customFields: { newField: 'value' },
+        avatarData: 'newbase64data',
+        extendedContext: true,
+        extendedContextMaxMessages: 50,
+        extendedContextMaxAge: 3600,
+        extendedContextMaxImages: 5,
+      };
+
+      const result = PersonalityUpdateSchema.safeParse(fullUpdate);
+      expect(result.success).toBe(true);
+    });
+
+    it('should transform empty string displayName to null', () => {
+      const result = PersonalityUpdateSchema.safeParse({ displayName: '' });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.displayName).toBeNull();
+      }
+    });
+
+    it('should validate isPublic toggle', () => {
+      const toggleOn = PersonalityUpdateSchema.safeParse({ isPublic: true });
+      const toggleOff = PersonalityUpdateSchema.safeParse({ isPublic: false });
+
+      expect(toggleOn.success).toBe(true);
+      expect(toggleOff.success).toBe(true);
+    });
+
+    it('should validate extendedContext settings', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        extendedContext: true,
+        extendedContextMaxMessages: 100,
+        extendedContextMaxAge: 86400,
+        extendedContextMaxImages: 10,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should allow null for extendedContext settings', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        extendedContext: null,
+        extendedContextMaxMessages: null,
+        extendedContextMaxAge: null,
+        extendedContextMaxImages: null,
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject negative extendedContextMaxMessages', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        extendedContextMaxMessages: -1,
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject negative extendedContextMaxImages', () => {
+      const result = PersonalityUpdateSchema.safeParse({
+        extendedContextMaxImages: -1,
+      });
+      expect(result.success).toBe(false);
     });
   });
 });
