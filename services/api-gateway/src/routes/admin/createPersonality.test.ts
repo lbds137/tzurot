@@ -6,7 +6,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import express, { type Express } from 'express';
 import request from 'supertest';
 import { createCreatePersonalityRoute } from './createPersonality.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import type { PrismaClient, CacheInvalidationService } from '@tzurot/common-types';
 
 // Mock AuthMiddleware
 vi.mock('../../services/AuthMiddleware.js', () => ({
@@ -594,6 +594,259 @@ describe('POST /admin/personality', () => {
           errorMessage: null,
         }),
       });
+    });
+  });
+
+  describe('isPublic field', () => {
+    it('should create personality with isPublic: true', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-public',
+        name: 'Public Bot',
+        slug: 'public-bot',
+        displayName: null,
+        characterInfo: 'A public assistant',
+        personalityTraits: 'Friendly',
+        isPublic: true,
+        errorMessage: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Public Bot',
+        slug: 'public-bot',
+        characterInfo: 'A public assistant',
+        personalityTraits: 'Friendly',
+        isPublic: true,
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          isPublic: true,
+        }),
+      });
+    });
+
+    it('should default isPublic to false when not provided', async () => {
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-private',
+        name: 'Private Bot',
+        slug: 'private-bot',
+        displayName: null,
+        characterInfo: 'A private assistant',
+        personalityTraits: 'Friendly',
+        isPublic: false,
+        errorMessage: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(app).post('/admin/personality').send({
+        name: 'Private Bot',
+        slug: 'private-bot',
+        characterInfo: 'A private assistant',
+        personalityTraits: 'Friendly',
+      });
+
+      expect(response.status).toBe(201);
+      expect(prisma.personality.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          isPublic: false,
+        }),
+      });
+    });
+  });
+
+  describe('cache invalidation', () => {
+    it('should invalidate cache when creating public personality', async () => {
+      const mockCacheService = {
+        invalidateAll: vi.fn().mockResolvedValue(undefined),
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        unsubscribe: vi.fn().mockResolvedValue(undefined),
+        publish: vi.fn().mockResolvedValue(undefined),
+      } as unknown as CacheInvalidationService;
+
+      // Create new app with cache service
+      const appWithCache = express();
+      appWithCache.use(express.json());
+      appWithCache.use(
+        '/admin/personality',
+        createCreatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+      );
+
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-public-cache',
+        name: 'Public Bot',
+        slug: 'public-bot-cache',
+        displayName: null,
+        characterInfo: 'A public assistant',
+        personalityTraits: 'Friendly',
+        isPublic: true,
+        errorMessage: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(appWithCache).post('/admin/personality').send({
+        name: 'Public Bot',
+        slug: 'public-bot-cache',
+        characterInfo: 'A public assistant',
+        personalityTraits: 'Friendly',
+        isPublic: true,
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockCacheService.invalidateAll).toHaveBeenCalled();
+    });
+
+    it('should not invalidate cache when creating private personality', async () => {
+      const mockCacheService = {
+        invalidateAll: vi.fn().mockResolvedValue(undefined),
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        unsubscribe: vi.fn().mockResolvedValue(undefined),
+        publish: vi.fn().mockResolvedValue(undefined),
+      } as unknown as CacheInvalidationService;
+
+      const appWithCache = express();
+      appWithCache.use(express.json());
+      appWithCache.use(
+        '/admin/personality',
+        createCreatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+      );
+
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-private-cache',
+        name: 'Private Bot',
+        slug: 'private-bot-cache',
+        displayName: null,
+        characterInfo: 'A private assistant',
+        personalityTraits: 'Friendly',
+        isPublic: false,
+        errorMessage: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      const response = await request(appWithCache).post('/admin/personality').send({
+        name: 'Private Bot',
+        slug: 'private-bot-cache',
+        characterInfo: 'A private assistant',
+        personalityTraits: 'Friendly',
+        isPublic: false,
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockCacheService.invalidateAll).not.toHaveBeenCalled();
+    });
+
+    it('should handle cache invalidation errors gracefully', async () => {
+      const mockCacheService = {
+        invalidateAll: vi.fn().mockRejectedValue(new Error('Redis connection failed')),
+        invalidatePersonality: vi.fn().mockResolvedValue(undefined),
+        subscribe: vi.fn().mockResolvedValue(undefined),
+        unsubscribe: vi.fn().mockResolvedValue(undefined),
+        publish: vi.fn().mockResolvedValue(undefined),
+      } as unknown as CacheInvalidationService;
+
+      const appWithCache = express();
+      appWithCache.use(express.json());
+      appWithCache.use(
+        '/admin/personality',
+        createCreatePersonalityRoute(prisma as unknown as PrismaClient, mockCacheService)
+      );
+
+      prisma.personality.findUnique.mockResolvedValue(null);
+      prisma.personality.create.mockResolvedValue({
+        id: 'personality-cache-fail',
+        name: 'Cache Fail Bot',
+        slug: 'cache-fail-bot',
+        displayName: null,
+        characterInfo: 'A test assistant',
+        personalityTraits: 'Friendly',
+        isPublic: true,
+        errorMessage: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        customFields: null,
+        avatarData: null,
+        voiceEnabled: false,
+        imageEnabled: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+
+      // Should still succeed even if cache invalidation fails
+      const response = await request(appWithCache).post('/admin/personality').send({
+        name: 'Cache Fail Bot',
+        slug: 'cache-fail-bot',
+        characterInfo: 'A test assistant',
+        personalityTraits: 'Friendly',
+        isPublic: true,
+      });
+
+      expect(response.status).toBe(201);
+      expect(mockCacheService.invalidateAll).toHaveBeenCalled();
     });
   });
 });
