@@ -262,6 +262,51 @@ describe('PATCH /admin/personality/:slug', () => {
       expect(response.body.error).toBe('VALIDATION_ERROR');
     });
 
+    it('should return 409 when changing slug to one that already exists', async () => {
+      // Current personality exists
+      prisma.personality.findUnique.mockResolvedValueOnce({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+
+      // Conflicting personality exists with the new slug
+      prisma.personality.findUnique.mockResolvedValueOnce({
+        id: 'personality-456',
+      } as never);
+
+      const response = await request(app).patch('/admin/personality/test-bot').send({
+        slug: 'existing-bot',
+      });
+
+      expect(response.status).toBe(409);
+      expect(response.body.error).toBe('CONFLICT');
+      expect(response.body.message).toContain('existing-bot');
+    });
+
+    it('should allow updating to same slug (no conflict)', async () => {
+      prisma.personality.findUnique.mockResolvedValue({
+        id: 'personality-123',
+        slug: 'test-bot',
+        isPublic: false,
+      } as never);
+
+      prisma.personality.update.mockResolvedValue({
+        id: 'personality-123',
+        name: 'Test Bot',
+        slug: 'test-bot',
+        displayName: null,
+        avatarData: null,
+      } as never);
+
+      const response = await request(app).patch('/admin/personality/test-bot').send({
+        slug: 'test-bot', // Same as current
+      });
+
+      // Should succeed - updating to same slug shouldn't trigger conflict check
+      expect(response.status).toBe(200);
+    });
+
     it('should allow null customFields to clear the field', async () => {
       prisma.personality.findUnique.mockResolvedValue({
         id: 'personality-123',
