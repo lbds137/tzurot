@@ -51,6 +51,9 @@ const mockPrisma = {
   userPersonalityConfig: {
     count: vi.fn(),
   },
+  personalityDefaultConfig: {
+    count: vi.fn(),
+  },
   $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
     const mockTx = {
       user: {
@@ -223,6 +226,7 @@ describe('/user/llm-config routes', () => {
         visionModel: null,
         isGlobal: false,
         isDefault: false,
+        ownerId: 'user-uuid-123', // Match user.id from beforeEach
       };
       mockPrisma.llmConfig.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([userConfig]);
 
@@ -764,9 +768,8 @@ describe('/user/llm-config routes', () => {
 
       await handler(req, res);
 
-      expect(mockCacheInvalidation.invalidateUserLlmConfig).toHaveBeenCalledWith(
-        'discord-user-123'
-      );
+      // Service uses invalidateAll for all cache operations
+      expect(mockCacheInvalidation.invalidateAll).toHaveBeenCalled();
     });
   });
 
@@ -784,7 +787,8 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should return 404 when config not found', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
+      // Service uses findUnique for getById
+      mockPrisma.llmConfig.findUnique.mockResolvedValue(null);
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:id');
@@ -797,12 +801,16 @@ describe('/user/llm-config routes', () => {
 
     it('should allow owner to delete their own global config', async () => {
       // Users can share their presets (isGlobal: true) while retaining control
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+      // Service uses findUnique for getById
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
         ownerId: 'user-uuid-123',
         isGlobal: true,
         name: 'User Shared Config',
       });
+      // Service's checkDeleteConstraints checks both counts
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
+      mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
       mockPrisma.llmConfig.delete.mockResolvedValue({} as unknown);
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -821,7 +829,8 @@ describe('/user/llm-config routes', () => {
     // "Global" just means visible to all users, not system-owned
 
     it('should reject deleting other user config', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+      // Service uses findUnique for getById
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
         ownerId: 'other-user',
         isGlobal: false,
@@ -838,12 +847,15 @@ describe('/user/llm-config routes', () => {
     });
 
     it('should reject deleting config in use', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+      // Service uses findUnique for getById
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
       });
+      // Service's checkDeleteConstraints checks both counts
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(2);
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
@@ -855,18 +867,21 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('in use'),
+          message: expect.stringContaining('used by'),
         })
       );
     });
 
     it('should delete owned config', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+      // Service uses findUnique for getById
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
         id: 'config-123',
         ownerId: 'user-uuid-123',
         isGlobal: false,
         name: 'My Config',
       });
+      // Service's checkDeleteConstraints checks both counts
+      mockPrisma.personalityDefaultConfig.count.mockResolvedValue(0);
       mockPrisma.userPersonalityConfig.count.mockResolvedValue(0);
 
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);

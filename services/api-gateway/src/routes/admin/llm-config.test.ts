@@ -88,8 +88,8 @@ describe('Admin LLM Config Routes', () => {
           model: 'anthropic/claude-sonnet-4',
           isGlobal: true,
           isDefault: true,
+          isFreeDefault: false,
           ownerId: 'admin-user-id',
-          owner: { discordId: 'admin-discord-id', username: 'admin' },
         },
         {
           id: 'config-2',
@@ -97,8 +97,8 @@ describe('Admin LLM Config Routes', () => {
           model: 'google/gemini-2.0-flash',
           isGlobal: false,
           isDefault: false,
+          isFreeDefault: false,
           ownerId: 'user-id',
-          owner: { discordId: '12345', username: 'testuser' },
         },
       ]);
 
@@ -107,10 +107,8 @@ describe('Admin LLM Config Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.configs).toHaveLength(2);
       expect(response.body.configs[0].name).toBe('Default Config');
-      expect(response.body.configs[1].ownerInfo).toEqual({
-        discordId: '12345',
-        username: 'testuser',
-      });
+      expect(response.body.configs[1].name).toBe('User Config');
+      expect(response.body.configs[1].ownerId).toBe('user-id');
     });
   });
 
@@ -751,12 +749,14 @@ describe('Admin LLM Config Routes', () => {
       });
 
       expect(response.status).toBe(200);
+      // Service's checkNameExists includes select: { id: true }
       expect(prisma.llmConfig.findFirst).toHaveBeenCalledWith({
         where: {
           isGlobal: true,
           name: 'Same Name',
           id: { not: 'config-id' },
         },
+        select: { id: true },
       });
     });
   });
