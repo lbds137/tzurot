@@ -205,7 +205,9 @@ interface PersonalityCreateData {
 /**
  * Build the personality create data object
  */
-function buildPersonalityCreateData(data: PersonalityCreateData): Prisma.PersonalityCreateInput {
+function buildPersonalityCreateData(
+  data: PersonalityCreateData
+): Prisma.PersonalityUncheckedCreateInput {
   const { body, validated, ownerId, systemPromptId, avatarBuffer } = data;
   const { name, slug, characterInfo, personalityTraits } = validated;
 
