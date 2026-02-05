@@ -5,7 +5,12 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, isBotOwner } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  isBotOwner,
+  PERSONALITY_DETAIL_SELECT,
+} from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -15,41 +20,6 @@ import { getParam } from '../../../utils/requestParams.js';
 import { canUserEditPersonality } from './helpers.js';
 
 const logger = createLogger('user-personality-get');
-
-const PERSONALITY_SELECT = {
-  id: true,
-  name: true,
-  displayName: true,
-  slug: true,
-  characterInfo: true,
-  personalityTraits: true,
-  personalityTone: true,
-  personalityAge: true,
-  personalityAppearance: true,
-  personalityLikes: true,
-  personalityDislikes: true,
-  conversationalGoals: true,
-  conversationalExamples: true,
-  errorMessage: true,
-  birthMonth: true,
-  birthDay: true,
-  birthYear: true,
-  isPublic: true,
-  voiceEnabled: true,
-  imageEnabled: true,
-  extendedContext: true,
-  extendedContextMaxMessages: true,
-  extendedContextMaxAge: true,
-  extendedContextMaxImages: true,
-  ownerId: true,
-  avatarData: true,
-  customFields: true,
-  systemPromptId: true,
-  voiceSettings: true,
-  imageSettings: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
 
 type PersonalityFromDb = Awaited<ReturnType<PrismaClient['personality']['findUnique']>> &
   NonNullable<unknown>;
@@ -172,7 +142,7 @@ function createHandler(prisma: PrismaClient) {
 
     const personality = await prisma.personality.findUnique({
       where: { slug },
-      select: PERSONALITY_SELECT,
+      select: PERSONALITY_DETAIL_SELECT,
     });
 
     if (personality === null) {
