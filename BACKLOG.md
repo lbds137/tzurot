@@ -13,7 +13,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _New items go here. Triage to appropriate section later._
 
-### 🏗️ Wire LlmConfigService into Route Handlers (Phase 2)
+### 🏗️ Wire LlmConfigService into Route Handlers (Phase 1 completion)
 
 **Context**: PR #582 created `LlmConfigService` with scope-based access control, but routes still use direct Prisma calls. Service layer is ready but not wired up.
 
@@ -29,21 +29,12 @@ _New items go here. Triage to appropriate section later._
 - `services/api-gateway/src/routes/user/llm-config.ts`
 - `services/api-gateway/src/services/LlmConfigService.ts`
 
-### 🏗️ DB-Level FK Constraints for Delete Protection
+### 🏗️ Audit Remaining Endpoints for Schema Duplication
 
-**Context**: PR #582 review noted that check-then-delete pattern has TOCTOU race. DB constraints would enforce at DB level.
+**Context**: PR #582 consolidated LLM config schemas. PR #582 (Phase 1.5) consolidated Personality schemas. Same pattern may exist in other admin/user endpoint pairs.
 
-**Implementation**: Add PostgreSQL foreign key constraints with `ON DELETE RESTRICT` to `LlmConfig` references.
+**Remaining candidates to audit**:
 
-**Priority**: Low - race window is tiny and caught by FK constraint error anyway.
-
-### 🏗️ Audit Other Endpoints for Schema Duplication
-
-**Context**: PR #582 successfully consolidated LLM config schemas. Same pattern likely exists in other admin/user endpoint pairs.
-
-**Candidates to audit**:
-
-- Personality endpoints (admin create/update vs user create/update)
 - Persona endpoints
 - Model override endpoints
 
