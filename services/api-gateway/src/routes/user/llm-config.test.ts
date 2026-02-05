@@ -901,4 +901,43 @@ describe('/user/llm-config routes', () => {
       );
     });
   });
+
+  describe('POST /user/llm-config/resolve', () => {
+    it('should reject missing personalityId', async () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should reject missing personalityConfig', async () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityId: 'personality-123',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should reject invalid personalityConfig structure', async () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityId: 'personality-123',
+        personalityConfig: { invalid: true }, // Missing required fields
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
+  });
 });
