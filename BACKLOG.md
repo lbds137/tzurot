@@ -34,24 +34,33 @@ Provider returns 400 error but response may contain usable content. Currently tr
 - [ ] Consider disabling `reasoning` param for providers that don't support it
 - [ ] Add model capability detection for reasoning support
 
-### 🐛 Free Model Quota Handling
+### 🐛 Error UX Improvements (Quota + General)
 
 **Observed**: 2026-02-03
 **Debug file**: `debug/402_quota_exceeded.json`
 
-402 quota exceeded errors on free models need better UX.
+Errors show generic messages without enough context for debugging. Users (and admins) need both human-friendly category AND technical details.
 
 **Symptoms**:
 
-- `nousresearch/hermes-3-llama-3.1-405b:free` returns 402
-- User sees generic error instead of helpful message
+- `nousresearch/hermes-3-llama-3.1-405b:free` returns 402 quota exceeded
+- User sees generic "something went wrong" instead of "Model quota exceeded - try again later"
+- No visibility into actual error code/message for debugging
 - No fallback to other free models
 
-**Fix approach**:
+**Fix approach - Error Display**:
+
+- [ ] Standardize error response format: `{ category, userMessage, technicalDetails }`
+- [ ] Discord embeds show category (bold) + user-friendly message
+- [ ] Add collapsible/spoiler section with technical details (error code, provider message, request ID)
+- [ ] Admin errors can show full technical context; user errors show sanitized version
+
+**Fix approach - Quota Handling**:
 
 - [ ] Detect 402 quota errors specifically
-- [ ] Show user-friendly "model busy, try again" message
+- [ ] Show user-friendly "model quota exceeded, try again in a few minutes" message
 - [ ] Consider automatic fallback to alternative free model
+- [ ] Track quota hits per model to avoid repeated failures
 
 ---
 
