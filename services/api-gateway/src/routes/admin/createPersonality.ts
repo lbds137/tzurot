@@ -10,6 +10,7 @@ import {
   AVATAR_LIMITS,
   assertDefined,
   generatePersonalityUuid,
+  type CacheInvalidationService,
 } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
@@ -39,6 +40,8 @@ interface CreatePersonalityBody {
   errorMessage?: string | null;
   customFields?: Record<string, unknown> | null;
   avatarData?: string;
+  /** Whether this personality should be publicly visible (defaults to false) */
+  isPublic?: boolean;
 }
 
 /** Validated required fields from request body */
@@ -171,7 +174,72 @@ async function setupDefaultLlmConfig(
   }
 }
 
-export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
+/**
+ * Invalidate cache if personality is public (so other users see it)
+ */
+async function invalidateCacheIfPublic(
+  cacheInvalidationService: CacheInvalidationService | undefined,
+  isPublic: boolean | undefined,
+  personalityId: string
+): Promise<void> {
+  if (cacheInvalidationService === undefined || isPublic !== true) {
+    return;
+  }
+
+  try {
+    await cacheInvalidationService.invalidateAll();
+    logger.info({ personalityId }, '[Admin] Invalidated personality cache after public create');
+  } catch (error) {
+    logger.warn({ err: error, personalityId }, '[Admin] Failed to invalidate personality cache');
+  }
+}
+
+interface PersonalityCreateData {
+  body: CreatePersonalityBody;
+  validated: ValidatedFields;
+  ownerId: string;
+  systemPromptId: string | null;
+  avatarBuffer: Buffer | undefined;
+}
+
+/**
+ * Build the personality create data object
+ */
+function buildPersonalityCreateData(data: PersonalityCreateData): Prisma.PersonalityCreateInput {
+  const { body, validated, ownerId, systemPromptId, avatarBuffer } = data;
+  const { name, slug, characterInfo, personalityTraits } = validated;
+
+  return {
+    id: generatePersonalityUuid(slug),
+    name,
+    slug,
+    displayName: body.displayName ?? null,
+    characterInfo,
+    personalityTraits,
+    personalityTone: body.personalityTone ?? null,
+    personalityAge: body.personalityAge ?? null,
+    personalityAppearance: body.personalityAppearance ?? null,
+    personalityLikes: body.personalityLikes ?? null,
+    personalityDislikes: body.personalityDislikes ?? null,
+    conversationalGoals: body.conversationalGoals ?? null,
+    conversationalExamples: body.conversationalExamples ?? null,
+    errorMessage: body.errorMessage ?? null,
+    isPublic: body.isPublic ?? false,
+    systemPromptId,
+    ownerId,
+    ...(body.customFields !== null && body.customFields !== undefined
+      ? { customFields: body.customFields as Prisma.InputJsonValue }
+      : {}),
+    avatarData: avatarBuffer !== undefined ? new Uint8Array(avatarBuffer) : null,
+    voiceEnabled: false,
+    imageEnabled: false,
+  };
+}
+
+export function createCreatePersonalityRoute(
+  prisma: PrismaClient,
+  cacheInvalidationService?: CacheInvalidationService
+): Router {
   const router = Router();
 
   router.post(
@@ -186,7 +254,7 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
       if (!validation.ok) {
         return sendError(res, validation.error);
       }
-      const { name, slug, characterInfo, personalityTraits } = validation.data;
+      const { slug } = validation.data;
 
       // Get admin user's internal ID for ownership
       const adminUser = await prisma.user.findUnique({
@@ -221,38 +289,20 @@ export function createCreatePersonalityRoute(prisma: PrismaClient): Router {
       });
 
       // Create personality in database
-      const personality = await prisma.personality.create({
-        data: {
-          id: generatePersonalityUuid(slug),
-          name,
-          slug,
-          displayName: body.displayName ?? null,
-          characterInfo,
-          personalityTraits,
-          personalityTone: body.personalityTone ?? null,
-          personalityAge: body.personalityAge ?? null,
-          personalityAppearance: body.personalityAppearance ?? null,
-          personalityLikes: body.personalityLikes ?? null,
-          personalityDislikes: body.personalityDislikes ?? null,
-          conversationalGoals: body.conversationalGoals ?? null,
-          conversationalExamples: body.conversationalExamples ?? null,
-          errorMessage: body.errorMessage ?? null,
-          systemPromptId: defaultSystemPrompt?.id ?? null,
-          ownerId: adminUser.id,
-          ...(body.customFields !== null && body.customFields !== undefined
-            ? { customFields: body.customFields as Prisma.InputJsonValue }
-            : {}),
-          avatarData:
-            avatarResult.buffer !== undefined ? new Uint8Array(avatarResult.buffer) : null,
-          voiceEnabled: false,
-          imageEnabled: false,
-        },
+      const createData = buildPersonalityCreateData({
+        body,
+        validated: validation.data,
+        ownerId: adminUser.id,
+        systemPromptId: defaultSystemPrompt?.id ?? null,
+        avatarBuffer: avatarResult.buffer,
       });
+      const personality = await prisma.personality.create({ data: createData });
 
       logger.info(`[Admin] Created personality: ${slug} (${personality.id})`);
 
-      // Set default LLM config (non-blocking)
+      // Post-creation tasks
       await setupDefaultLlmConfig(prisma, personality.id, slug);
+      await invalidateCacheIfPublic(cacheInvalidationService, body.isPublic, personality.id);
 
       sendCustomSuccess(
         res,
