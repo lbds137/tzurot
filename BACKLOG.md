@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-03
-> **Version**: v3.0.0-beta.66
+> **Last Updated**: 2026-02-05
+> **Version**: v3.0.0-beta.67
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -9,9 +9,70 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 ---
 
+## Production Issues
+
+_Active bugs observed in production. Fix before new features._
+
+### 🐛 Free Model Error Handling (GLM/Z-AI)
+
+**Observed**: 2026-02-03 to 2026-02-05
+**Debug files**: `debug/400_*.json`
+
+Provider returns 400 error but response may contain usable content. Currently treated as total failure.
+
+**Symptoms**:
+
+- `z-ai/glm-4.5-air:free` returns 400 with reasoning-only responses
+- Response has `rawContent` but we throw instead of extracting it
+- Users see error when model actually produced valid output
+
+**Root cause**: Reasoning-enabled requests to models that don't properly support the `reasoning` parameter, or return thinking without final content.
+
+**Fix approach**:
+
+- [ ] Check for extractable content before throwing on 400
+- [ ] Consider disabling `reasoning` param for providers that don't support it
+- [ ] Add model capability detection for reasoning support
+
+### 🐛 Free Model Quota Handling
+
+**Observed**: 2026-02-03
+**Debug file**: `debug/402_quota_exceeded.json`
+
+402 quota exceeded errors on free models need better UX.
+
+**Symptoms**:
+
+- `nousresearch/hermes-3-llama-3.1-405b:free` returns 402
+- User sees generic error instead of helpful message
+- No fallback to other free models
+
+**Fix approach**:
+
+- [ ] Detect 402 quota errors specifically
+- [ ] Show user-friendly "model busy, try again" message
+- [ ] Consider automatic fallback to alternative free model
+
+---
+
 ## Inbox
 
 _New items go here. Triage to appropriate section later._
+
+### 🧹 Add maxAge=0 Edge Case Test
+
+**Context**: PR #584 review noted missing test coverage for `maxAge = 0` validation.
+
+**Current behavior is correct** (rejects 0, requires null for no limit), just needs explicit test:
+
+```typescript
+it('should reject maxAge = 0 (use null for no limit)', () => {
+  const input = { name: 'Test', model: 'test-model', maxAge: 0 };
+  expect(LlmConfigCreateSchema.safeParse(input).success).toBe(false);
+});
+```
+
+**File**: `packages/common-types/src/types/llm-config.schema.test.ts`
 
 ### 🏗️ Audit Remaining Endpoints for Schema Duplication
 
