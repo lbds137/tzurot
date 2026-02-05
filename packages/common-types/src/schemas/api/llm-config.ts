@@ -27,9 +27,14 @@ import { MESSAGE_LIMITS, AI_DEFAULTS } from '../../constants/index.js';
  * Validation bounds prevent DoS via excessive history fetch.
  *
  * Fields:
- * - maxMessages: 1-100 (capped at MAX_EXTENDED_CONTEXT)
- * - maxImages: 0-20 (0 disables image processing, capped at MAX_CONTEXT_IMAGES)
- * - maxAge: 1-2592000 (30 days) or null (null = no time limit)
+ * - maxMessages: 1-100 (capped at MAX_EXTENDED_CONTEXT), defaults to DEFAULT_MAX_MESSAGES
+ * - maxImages: 0-20 (0 disables image processing, capped at MAX_CONTEXT_IMAGES), defaults to DEFAULT_MAX_IMAGES
+ * - maxAge: 1-2592000 (30 days) or null/undefined (no time limit applied)
+ *
+ * Cascade behavior (in PersonalityDefaults.getContextSettings):
+ * personalityConfig > globalConfig > hardcoded defaults
+ * When both personality and global configs have null/undefined maxAge,
+ * no time limit is applied to conversation history fetching.
  */
 export const ContextSettingsSchema = z.object({
   maxMessages: z
