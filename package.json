@@ -27,7 +27,7 @@
     "typecheck:spec": "turbo run typecheck:spec",
     "cpd": "jscpd ./services ./packages --config .jscpd.json",
     "cpd:report": "jscpd ./services ./packages --config .jscpd.json --reporters html",
-    "quality": "pnpm lint && pnpm cpd && pnpm typecheck:spec",
+    "quality": "pnpm lint && pnpm cpd && pnpm typecheck && pnpm typecheck:spec",
     "focus:lint": "pnpm ops dev:lint",
     "focus:test": "pnpm ops dev:test",
     "focus:build": "pnpm ops dev:focus build",
