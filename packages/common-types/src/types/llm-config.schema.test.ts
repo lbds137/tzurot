@@ -11,6 +11,9 @@ import {
   ListLlmConfigsResponseSchema,
   CreateLlmConfigResponseSchema,
   DeleteLlmConfigResponseSchema,
+  ContextSettingsSchema,
+  LlmConfigCreateSchema,
+  LlmConfigUpdateSchema,
 } from '../schemas/api/index.js';
 
 describe('LLM Config API Contract Tests', () => {
@@ -199,6 +202,292 @@ describe('LLM Config API Contract Tests', () => {
 
       const result = DeleteLlmConfigResponseSchema.safeParse(response);
       expect(result.success).toBe(false);
+    });
+  });
+
+  // ==========================================================================
+  // Input Schema Contract Tests (Phase 1 - Service Layer Consolidation)
+  // ==========================================================================
+
+  describe('ContextSettingsSchema', () => {
+    it('should validate complete context settings', () => {
+      const settings = {
+        maxMessages: 50,
+        maxAge: 3600, // 1 hour
+        maxImages: 10,
+      };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate empty object (all fields optional)', () => {
+      const result = ContextSettingsSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate maxAge as null (no time limit)', () => {
+      const settings = { maxAge: null };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate maxImages as 0 (disables image processing)', () => {
+      const settings = { maxImages: 0 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject maxMessages below minimum (1)', () => {
+      const settings = { maxMessages: 0 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject maxMessages above maximum (100)', () => {
+      const settings = { maxMessages: 101 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject maxAge below minimum (1 second)', () => {
+      const settings = { maxAge: 0 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject maxAge above maximum (30 days)', () => {
+      const settings = { maxAge: 2592001 }; // 30 days + 1 second
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject maxImages below minimum (0)', () => {
+      const settings = { maxImages: -1 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject maxImages above maximum (20)', () => {
+      const settings = { maxImages: 21 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-integer values', () => {
+      const settings = { maxMessages: 50.5 };
+
+      const result = ContextSettingsSchema.safeParse(settings);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('LlmConfigCreateSchema', () => {
+    const validCreateInput = {
+      name: 'My Custom Preset',
+      model: 'anthropic/claude-sonnet-4',
+    };
+
+    it('should validate minimal create input (only required fields)', () => {
+      const result = LlmConfigCreateSchema.safeParse(validCreateInput);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate complete create input with all optional fields', () => {
+      const completeInput = {
+        ...validCreateInput,
+        description: 'A detailed description',
+        provider: 'openrouter',
+        visionModel: 'anthropic/claude-sonnet-4',
+        maxReferencedMessages: 10,
+        advancedParameters: { temperature: 0.7, maxTokens: 2000 },
+        memoryScoreThreshold: 0.75,
+        memoryLimit: 50,
+        contextWindowTokens: 100000,
+        maxMessages: 50,
+        maxAge: 3600,
+        maxImages: 10,
+      };
+
+      const result = LlmConfigCreateSchema.safeParse(completeInput);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate create input with null optional fields', () => {
+      const inputWithNulls = {
+        ...validCreateInput,
+        description: null,
+        visionModel: null,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        maxAge: null,
+      };
+
+      const result = LlmConfigCreateSchema.safeParse(inputWithNulls);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing name', () => {
+      const { name: _name, ...inputWithoutName } = validCreateInput;
+
+      const result = LlmConfigCreateSchema.safeParse(inputWithoutName);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty name', () => {
+      const input = { ...validCreateInput, name: '' };
+
+      const result = LlmConfigCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject name exceeding max length (100)', () => {
+      const input = { ...validCreateInput, name: 'a'.repeat(101) };
+
+      const result = LlmConfigCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing model', () => {
+      const { model: _model, ...inputWithoutModel } = validCreateInput;
+
+      const result = LlmConfigCreateSchema.safeParse(inputWithoutModel);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty model', () => {
+      const input = { ...validCreateInput, model: '' };
+
+      const result = LlmConfigCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject memoryScoreThreshold outside 0-1 range', () => {
+      const inputAbove = { ...validCreateInput, memoryScoreThreshold: 1.5 };
+      const inputBelow = { ...validCreateInput, memoryScoreThreshold: -0.1 };
+
+      expect(LlmConfigCreateSchema.safeParse(inputAbove).success).toBe(false);
+      expect(LlmConfigCreateSchema.safeParse(inputBelow).success).toBe(false);
+    });
+
+    it('should reject non-positive memoryLimit', () => {
+      const inputZero = { ...validCreateInput, memoryLimit: 0 };
+      const inputNegative = { ...validCreateInput, memoryLimit: -1 };
+
+      expect(LlmConfigCreateSchema.safeParse(inputZero).success).toBe(false);
+      expect(LlmConfigCreateSchema.safeParse(inputNegative).success).toBe(false);
+    });
+
+    it('should reject contextWindowTokens below minimum (1000)', () => {
+      const input = { ...validCreateInput, contextWindowTokens: 999 };
+
+      const result = LlmConfigCreateSchema.safeParse(input);
+      expect(result.success).toBe(false);
+    });
+
+    it('should validate context settings through spread', () => {
+      // Verify that ContextSettingsSchema fields are included
+      const input = {
+        ...validCreateInput,
+        maxMessages: 100, // max allowed
+        maxAge: 2592000, // 30 days max
+        maxImages: 20, // max allowed
+      };
+
+      const result = LlmConfigCreateSchema.safeParse(input);
+      expect(result.success).toBe(true);
+    });
+  });
+
+  describe('LlmConfigUpdateSchema', () => {
+    it('should validate empty update (no fields changed)', () => {
+      const result = LlmConfigUpdateSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate partial update with single field', () => {
+      const updates = [
+        { name: 'New Name' },
+        { model: 'new-model' },
+        { description: 'New description' },
+        { isGlobal: true },
+        { memoryScoreThreshold: 0.8 },
+        { memoryLimit: 100 },
+        { contextWindowTokens: 50000 },
+        { maxMessages: 25 },
+        { maxAge: 7200 },
+        { maxImages: 5 },
+      ];
+
+      for (const update of updates) {
+        const result = LlmConfigUpdateSchema.safeParse(update);
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should validate complete update with all fields', () => {
+      const completeUpdate = {
+        name: 'Updated Preset',
+        description: 'Updated description',
+        provider: 'anthropic',
+        model: 'claude-sonnet-4',
+        visionModel: 'claude-sonnet-4',
+        maxReferencedMessages: 15,
+        advancedParameters: { temperature: 0.5 },
+        memoryScoreThreshold: 0.9,
+        memoryLimit: 75,
+        contextWindowTokens: 200000,
+        maxMessages: 75,
+        maxAge: 86400,
+        maxImages: 15,
+        isGlobal: false,
+      };
+
+      const result = LlmConfigUpdateSchema.safeParse(completeUpdate);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate clearing nullable fields with null', () => {
+      const clearingUpdate = {
+        description: null,
+        visionModel: null,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        maxAge: null,
+      };
+
+      const result = LlmConfigUpdateSchema.safeParse(clearingUpdate);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid field values (same validation as create)', () => {
+      const invalidUpdates = [
+        { memoryScoreThreshold: 1.5 }, // above max
+        { memoryLimit: 0 }, // not positive
+        { contextWindowTokens: 500 }, // below min
+        { maxMessages: 101 }, // above max
+        { maxImages: -1 }, // below min
+      ];
+
+      for (const update of invalidUpdates) {
+        const result = LlmConfigUpdateSchema.safeParse(update);
+        expect(result.success).toBe(false);
+      }
+    });
+
+    it('should validate isGlobal toggle (user sharing preset)', () => {
+      const toggleGlobal = { isGlobal: true };
+
+      const result = LlmConfigUpdateSchema.safeParse(toggleGlobal);
+      expect(result.success).toBe(true);
     });
   });
 

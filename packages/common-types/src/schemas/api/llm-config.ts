@@ -92,7 +92,8 @@ export const LlmConfigCreateSchema = z.object({
 
   // Memory settings (previously missing from admin endpoints)
   memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
-  memoryLimit: z.number().int().min(0).optional().nullable(),
+  memoryLimit: z.number().int().positive().optional().nullable(),
+  // contextWindowTokens min(1000) is intentional - reasonable minimum for context windows
   contextWindowTokens: z.number().int().min(1000).optional(),
 
   // Context settings (conversation history limits)
@@ -124,7 +125,7 @@ export const LlmConfigUpdateSchema = z.object({
 
   // Memory settings
   memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
-  memoryLimit: z.number().int().min(0).optional().nullable(),
+  memoryLimit: z.number().int().positive().optional().nullable(),
   contextWindowTokens: z.number().int().min(1000).optional(),
 
   // Context settings (shared validation)
