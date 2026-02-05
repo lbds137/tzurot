@@ -9,7 +9,7 @@
  * - PUT /user/llm-config/:id - Update user config (advancedParameters)
  * - DELETE /user/llm-config/:id - Delete user config
  */
-/* eslint-disable max-lines -- CRUD route file with multiple handlers */
+ 
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
@@ -25,11 +25,15 @@ import {
   generateLlmConfigUuid,
   safeValidateAdvancedParams,
   computeLlmConfigPermissions,
-  AdvancedParamsSchema,
   AI_DEFAULTS,
   MESSAGE_LIMITS,
-  optionalString,
-  nullableString,
+  // Shared schemas from common-types - single source of truth
+  LlmConfigCreateSchema,
+  LlmConfigUpdateSchema,
+  LLM_CONFIG_LIST_SELECT,
+  LLM_CONFIG_DETAIL_SELECT,
+  type LlmConfigCreateInput,
+  type LlmConfigUpdateInput,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -43,121 +47,16 @@ const logger = createLogger('user-llm-config');
 /** Common error message for config not found */
 const CONFIG_NOT_FOUND = 'Config not found';
 
-/**
- * Shared context settings schema - used by both create and update handlers.
- * Validation bounds prevent DoS via excessive history fetch.
- * - maxMessages: 1-100 (capped at MAX_EXTENDED_CONTEXT)
- * - maxImages: 0-20 (0 disables image processing, capped at MAX_CONTEXT_IMAGES)
- * - maxAge: 1-2592000 (30 days) or null (null = no time limit)
- */
-const ContextSettingsSchema = {
-  maxMessages: z
-    .number()
-    .int()
-    .min(1, 'maxMessages must be at least 1')
-    .max(
-      MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT,
-      `maxMessages cannot exceed ${MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT}`
-    )
-    .optional(),
-  maxAge: z
-    .number()
-    .int()
-    .min(1, 'maxAge must be at least 1 second, or omit/set to null for no time limit')
-    .max(
-      MESSAGE_LIMITS.MAX_CONTEXT_AGE,
-      `maxAge cannot exceed ${MESSAGE_LIMITS.MAX_CONTEXT_AGE} seconds (30 days)`
-    )
-    .optional()
-    .nullable(),
-  maxImages: z
-    .number()
-    .int()
-    .min(0, 'maxImages must be at least 0 (0 disables image processing)')
-    .max(
-      MESSAGE_LIMITS.MAX_CONTEXT_IMAGES,
-      `maxImages cannot exceed ${MESSAGE_LIMITS.MAX_CONTEXT_IMAGES}`
-    )
-    .optional(),
-};
+// ============================================================================
+// Schemas - imported from @tzurot/common-types (single source of truth)
+// ============================================================================
 
-/**
- * Zod schema for CreateConfigBody request validation.
- */
-const CreateConfigBodySchema = z.object({
-  name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
-  description: z.string().max(500).optional().nullable(),
-  provider: z.string().max(50).optional(),
-  model: z.string().min(1, 'model is required').max(200),
-  visionModel: z.string().max(200).optional().nullable(),
-  maxReferencedMessages: z.number().int().positive().optional(),
-  memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
-  memoryLimit: z.number().int().positive().optional().nullable(),
-  contextWindowTokens: z.number().int().positive().optional(),
-  // Context settings
-  ...ContextSettingsSchema,
-  advancedParameters: AdvancedParamsSchema.optional(),
-});
+// Re-export types for backward compatibility with tests
+export type CreateConfigBody = LlmConfigCreateInput;
+export type UpdateConfigBody = LlmConfigUpdateInput;
 
-// Type is exported for use in tests
-export type CreateConfigBody = z.infer<typeof CreateConfigBodySchema>;
-
-/**
- * Zod schema for UpdateConfigBody request validation.
- * Uses empty-to-undefined transforms so clients can send "" to "not update" a field.
- * This is the standard pattern for handling form inputs where clearing a field
- * sends empty string instead of omitting the field.
- */
-const UpdateConfigBodySchema = z.object({
-  // Required DB fields: empty string → undefined (preserve existing value)
-  name: optionalString(100),
-  provider: optionalString(50),
-  model: optionalString(200),
-  // Nullable DB fields: empty string → null (clear the value)
-  description: nullableString(500),
-  visionModel: nullableString(200),
-  // Non-string fields
-  maxReferencedMessages: z.number().int().positive().optional(),
-  memoryScoreThreshold: z.number().min(0).max(1).optional().nullable(),
-  memoryLimit: z.number().int().positive().optional().nullable(),
-  contextWindowTokens: z.number().int().positive().optional(),
-  // Context settings (shared validation)
-  ...ContextSettingsSchema,
-  advancedParameters: AdvancedParamsSchema.optional(),
-  /** Toggle global visibility - users can share their presets */
-  isGlobal: z.boolean().optional(),
-});
-
-// Type is exported for use in tests and documentation
-export type UpdateConfigBody = z.infer<typeof UpdateConfigBodySchema>;
-
-/** Select fields for list queries (summary data) */
-const CONFIG_SELECT = {
-  id: true,
-  name: true,
-  description: true,
-  provider: true,
-  model: true,
-  visionModel: true,
-  isGlobal: true,
-  isDefault: true,
-  ownerId: true,
-} as const;
-
-/** Select fields for detail queries (includes advancedParameters) */
-const CONFIG_DETAIL_SELECT = {
-  ...CONFIG_SELECT,
-  advancedParameters: true,
-  maxReferencedMessages: true,
-  memoryScoreThreshold: true,
-  memoryLimit: true,
-  contextWindowTokens: true,
-  // Context settings (typed columns)
-  maxMessages: true,
-  maxAge: true,
-  maxImages: true,
-  ownerId: true,
-} as const;
+// Use shared SELECT constants from common-types
+// LLM_CONFIG_LIST_SELECT and LLM_CONFIG_DETAIL_SELECT are imported above
 
 // --- Handler Factories ---
 
@@ -172,7 +71,7 @@ function createListHandler(prisma: PrismaClient) {
 
     const globalConfigs = await prisma.llmConfig.findMany({
       where: { isGlobal: true },
-      select: CONFIG_SELECT,
+      select: LLM_CONFIG_LIST_SELECT,
       orderBy: [{ isDefault: 'desc' }, { name: 'asc' }],
       take: 100,
     });
@@ -181,7 +80,7 @@ function createListHandler(prisma: PrismaClient) {
       user !== null
         ? await prisma.llmConfig.findMany({
             where: { ownerId: user.id, isGlobal: false },
-            select: CONFIG_SELECT,
+            select: LLM_CONFIG_LIST_SELECT,
             orderBy: { name: 'asc' },
             take: 100,
           })
@@ -229,7 +128,7 @@ function createGetHandler(prisma: PrismaClient) {
 
     const config = await prisma.llmConfig.findUnique({
       where: { id: configId },
-      select: CONFIG_DETAIL_SELECT,
+      select: LLM_CONFIG_DETAIL_SELECT,
     });
 
     if (config === null) {
@@ -281,8 +180,8 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
-    // Validate request body with Zod schema
-    const parseResult = CreateConfigBodySchema.safeParse(req.body);
+    // Validate request body with shared Zod schema from common-types
+    const parseResult = LlmConfigCreateSchema.safeParse(req.body);
     if (!parseResult.success) {
       const firstIssue = parseResult.error.issues[0];
       // Include field path for clearer error messages
@@ -329,7 +228,7 @@ function createCreateHandler(prisma: PrismaClient, userService: UserService) {
         maxImages: body.maxImages ?? MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
         advancedParameters: body.advancedParameters ?? undefined,
       },
-      select: CONFIG_DETAIL_SELECT,
+      select: LLM_CONFIG_DETAIL_SELECT,
     });
 
     // User always owns their own created config
@@ -386,8 +285,8 @@ function createUpdateHandler(
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
 
-    // Validate request body with Zod schema
-    const parseResult = UpdateConfigBodySchema.safeParse(req.body);
+    // Validate request body with shared Zod schema from common-types
+    const parseResult = LlmConfigUpdateSchema.safeParse(req.body);
     if (!parseResult.success) {
       const firstIssue = parseResult.error.issues[0];
       const fieldPath = firstIssue.path.join('.');
@@ -484,7 +383,7 @@ function createUpdateHandler(
     const updated = await prisma.llmConfig.update({
       where: { id: configId },
       data: updateData,
-      select: CONFIG_DETAIL_SELECT,
+      select: LLM_CONFIG_DETAIL_SELECT,
     });
 
     // Parse advancedParameters for response

@@ -274,6 +274,41 @@ describe('Admin LLM Config Routes', () => {
       expect(response.body.config.isGlobal).toBe(true);
     });
 
+    it('should accept memory settings in create (Phase 1 parity fix)', async () => {
+      // This test verifies the Phase 1 fix - memory settings were previously missing from admin
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config-id',
+        name: 'Config with Memory Settings',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.75 },
+        memoryLimit: 50,
+        contextWindowTokens: 100000,
+      });
+
+      const response = await request(app).post('/admin/llm-config').send({
+        name: 'Config with Memory Settings',
+        model: 'anthropic/claude-sonnet-4',
+        memoryScoreThreshold: 0.75,
+        memoryLimit: 50,
+        contextWindowTokens: 100000,
+      });
+
+      expect(response.status).toBe(201);
+      // Verify memory settings are passed to Prisma create
+      expect(prisma.llmConfig.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            memoryScoreThreshold: 0.75,
+            memoryLimit: 50,
+            contextWindowTokens: 100000,
+          }),
+        })
+      );
+    });
+
     it('should return 403 if admin user not found in database', async () => {
       prisma.user.findUnique.mockResolvedValue(null); // Admin not registered
 
@@ -292,7 +327,8 @@ describe('Admin LLM Config Routes', () => {
       });
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toMatch(/name is required/i);
+      // Zod schema validation - either "name is required" (min check) or type error for missing field
+      expect(response.body.message).toMatch(/name/i);
     });
 
     it('should reject when model is missing', async () => {
@@ -301,7 +337,8 @@ describe('Admin LLM Config Routes', () => {
       });
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toMatch(/model is required/i);
+      // Zod schema validation - either "model is required" (min check) or type error for missing field
+      expect(response.body.message).toMatch(/model/i);
     });
 
     it('should reject when name exceeds 100 characters', async () => {
@@ -358,6 +395,43 @@ describe('Admin LLM Config Routes', () => {
         data: { name: 'New Name', model: 'google/gemini-2.0-flash' },
         select: expect.any(Object),
       });
+    });
+
+    it('should accept memory settings in update (Phase 1 parity fix)', async () => {
+      // This test verifies the Phase 1 fix - memory settings were previously missing from admin
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Existing Config',
+        isGlobal: true,
+      });
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'Existing Config',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.8 },
+        memoryLimit: 100,
+        contextWindowTokens: 200000,
+      });
+
+      const response = await request(app).put('/admin/llm-config/config-id').send({
+        memoryScoreThreshold: 0.8,
+        memoryLimit: 100,
+        contextWindowTokens: 200000,
+      });
+
+      expect(response.status).toBe(200);
+      // Verify memory settings are passed to Prisma update
+      expect(prisma.llmConfig.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            memoryScoreThreshold: 0.8,
+            memoryLimit: 100,
+            contextWindowTokens: 200000,
+          }),
+        })
+      );
     });
 
     it('should return 404 when config not found', async () => {
