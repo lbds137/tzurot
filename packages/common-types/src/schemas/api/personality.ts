@@ -194,8 +194,11 @@ export const PersonalityCreateSchema = z.object({
   // Visibility - defaults to false, can be set to true to make public
   isPublic: z.boolean().optional(),
 
-  // Custom fields (JSONB)
-  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+  // Custom fields (JSONB) - constrained to JSON-serializable primitives
+  customFields: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional()
+    .nullable(),
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
@@ -230,8 +233,11 @@ export const PersonalityUpdateSchema = z.object({
   // Visibility
   isPublic: z.boolean().optional(),
 
-  // Custom fields (JSONB)
-  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
+  // Custom fields (JSONB) - constrained to JSON-serializable primitives
+  customFields: z
+    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
+    .optional()
+    .nullable(),
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
@@ -244,6 +250,26 @@ export const PersonalityUpdateSchema = z.object({
 });
 
 export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
+
+// ============================================================================
+// Admin Response Schemas (different format from user routes)
+// ============================================================================
+
+/**
+ * Admin create/update response - returns subset of fields plus metadata
+ */
+export const AdminPersonalityResponseSchema = z.object({
+  success: z.literal(true),
+  personality: z.object({
+    id: z.string().uuid(),
+    name: z.string(),
+    slug: z.string(),
+    displayName: z.string().nullable(),
+    hasAvatar: z.boolean(),
+  }),
+  timestamp: z.string().datetime(),
+});
+export type AdminPersonalityResponse = z.infer<typeof AdminPersonalityResponseSchema>;
 
 // ============================================================================
 // Prisma SELECT constants
