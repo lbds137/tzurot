@@ -13,6 +13,42 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _New items go here. Triage to appropriate section later._
 
+### 🏗️ Wire LlmConfigService into Route Handlers (Phase 2)
+
+**Context**: PR #582 created `LlmConfigService` with scope-based access control, but routes still use direct Prisma calls. Service layer is ready but not wired up.
+
+**Benefits**:
+
+- Remove duplicated business logic from routes (name validation, delete constraints, cache invalidation)
+- Routes become thin HTTP handlers, service owns business logic
+- Easier unit testing (mock service, not Prisma)
+
+**Files**:
+
+- `services/api-gateway/src/routes/admin/llm-config.ts`
+- `services/api-gateway/src/routes/user/llm-config.ts`
+- `services/api-gateway/src/services/LlmConfigService.ts`
+
+### 🏗️ DB-Level FK Constraints for Delete Protection
+
+**Context**: PR #582 review noted that check-then-delete pattern has TOCTOU race. DB constraints would enforce at DB level.
+
+**Implementation**: Add PostgreSQL foreign key constraints with `ON DELETE RESTRICT` to `LlmConfig` references.
+
+**Priority**: Low - race window is tiny and caught by FK constraint error anyway.
+
+### 🏗️ Audit Other Endpoints for Schema Duplication
+
+**Context**: PR #582 successfully consolidated LLM config schemas. Same pattern likely exists in other admin/user endpoint pairs.
+
+**Candidates to audit**:
+
+- Personality endpoints (admin create/update vs user create/update)
+- Persona endpoints
+- Model override endpoints
+
+**Pattern**: Shared Zod schemas in common-types, scope-aware service layer.
+
 ### 🧹 Review structure.test.ts Exclusions
 
 **Context**: Added meta-test to enforce test file coverage (`packages/common-types/src/structure.test.ts`). To get the test passing with existing codebase, added many exclusion patterns. Need to review whether these exclusions are appropriate or just masking untested code.
@@ -39,34 +75,6 @@ _New items go here. Triage to appropriate section later._
 ## High Priority
 
 _Top 3-5 items to pull into CURRENT next._
-
-### 🏗️ Configuration Consolidation (IN PROGRESS - PRs #577, #578)
-
-**Merged from**: "LLM Config Single Source of Truth" + "Extended Context Pipeline Refactor"
-
-Two related problems that are fundamentally the same issue - excessive duplication causing sync failures:
-
-1. **Dual Context Paths**: "Old context" vs "extended context" toggle creates parallel code paths that drift apart
-2. **Scattered Config**: Same LLM config fields defined in 5+ places (caused beta.60-62 thinking breakage)
-
-**Solution**: Remove legacy context path, make `LLM_CONFIG_FIELDS` single source of truth.
-
-**PRs Open**:
-
-- **#577**: `LLM_CONFIG_FIELDS` metadata - single source of truth for 22 config fields
-- **#578**: Always use `getChannelHistory()` - removed dual DB fetch paths
-
-**What's done**:
-
-- ✅ Created `llmConfigFields.ts` with field metadata, schemas, defaults, mappings
-- ✅ Re-exported from `llmAdvancedParams.ts` (no breaking changes)
-- ✅ Aligned `DiagnosticCollector` to use shared `ConvertedReasoningConfig`
-- ✅ Hard-switched `MessageContextBuilder` to always use `getChannelHistory()`
-- ✅ Deprecated `getRecentHistory()` (kept for backward compat)
-- ⏭️ Kept `ExtendedContextSettingsResolver` (still provides admin/personality overrides for Discord fetch)
-- ⏭️ Deferred PersonalityDefaults refactor (not worth the complexity)
-
-**Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 2)
 
 ### 🏗️ Bot-Client Package Split
 
@@ -699,25 +707,6 @@ The distinction isn't consistently applied. Calling both kinds "services" while 
 **Note**: Large refactor touching many files. Low value / high effort.
 
 ---
-
-## Completed
-
-_Recently completed items (clear periodically)._
-
-### ✅ Configuration Consolidation - Phase 2 (PRs #577, #578)
-
-Two PRs implementing configuration cleanup:
-
-- **#577**: `LLM_CONFIG_FIELDS` metadata as single source of truth (22 fields with schema, defaults, mappings)
-- **#578**: Always use `getChannelHistory()` for DB history (removed conditional extended context path)
-
-### ✅ Pino Logger Bug (v3.0.0-beta.66)
-
-Fixed `Cannot read properties of undefined (reading 'Symbol(pino.msgPrefix)')` in RetryDecisionHelper. Root cause: extracting pino methods loses `this` binding. Added integration test.
-
-### ✅ Large File Extractions - Phase 1 (v3.0.0-beta.65)
-
-PR #573 merged. Extracted 17 modules, 56% line reduction in target files.
 
 ---
 

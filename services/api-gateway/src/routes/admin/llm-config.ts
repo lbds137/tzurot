@@ -44,6 +44,75 @@ const CONFIG_NOT_FOUND = 'Config not found';
 // - LlmConfigUpdateSchema: Zod schema for update validation
 // - LLM_CONFIG_DETAIL_SELECT: Prisma select for detail queries
 
+// --- Response Formatting (DRY helper for Decimal conversion) ---
+
+interface RawConfigDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  visionModel: string | null;
+  isGlobal: boolean;
+  isDefault: boolean;
+  isFreeDefault: boolean;
+  maxReferencedMessages: number;
+  memoryScoreThreshold: { toNumber: () => number } | null;
+  memoryLimit: number | null;
+  contextWindowTokens: number;
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
+  advancedParameters: unknown;
+}
+
+/** Formatted config response type */
+interface FormattedConfigResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  provider: string;
+  model: string;
+  visionModel: string | null;
+  isGlobal: boolean;
+  isDefault: boolean;
+  isFreeDefault: boolean;
+  maxReferencedMessages: number;
+  memoryScoreThreshold: number | null;
+  memoryLimit: number | null;
+  contextWindowTokens: number;
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
+  params: Record<string, unknown>;
+}
+
+/**
+ * Format a raw config from Prisma for API response.
+ * Handles Decimal conversion and advancedParameters parsing.
+ */
+function formatConfigResponse(raw: RawConfigDetail): FormattedConfigResponse {
+  return {
+    id: raw.id,
+    name: raw.name,
+    description: raw.description,
+    provider: raw.provider,
+    model: raw.model,
+    visionModel: raw.visionModel,
+    isGlobal: raw.isGlobal,
+    isDefault: raw.isDefault,
+    isFreeDefault: raw.isFreeDefault,
+    maxReferencedMessages: raw.maxReferencedMessages,
+    memoryScoreThreshold: raw.memoryScoreThreshold?.toNumber() ?? null,
+    memoryLimit: raw.memoryLimit,
+    contextWindowTokens: raw.contextWindowTokens,
+    maxMessages: raw.maxMessages,
+    maxAge: raw.maxAge,
+    maxImages: raw.maxImages,
+    params: safeValidateAdvancedParams(raw.advancedParameters) ?? {},
+  };
+}
+
 // --- Handler Factories ---
 
 function createListHandler(prisma: PrismaClient) {
@@ -96,34 +165,7 @@ function createGetHandler(prisma: PrismaClient) {
       return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
-    // Parse advancedParameters with validation
-    const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
-
-    // Build response with parsed params
-    const response = {
-      id: config.id,
-      name: config.name,
-      description: config.description,
-      provider: config.provider,
-      model: config.model,
-      visionModel: config.visionModel,
-      isGlobal: config.isGlobal,
-      isDefault: config.isDefault,
-      isFreeDefault: config.isFreeDefault,
-      maxReferencedMessages: config.maxReferencedMessages,
-      // Memory settings (now aligned with user routes)
-      memoryScoreThreshold:
-        config.memoryScoreThreshold !== null && typeof config.memoryScoreThreshold === 'object'
-          ? (config.memoryScoreThreshold as { toNumber: () => number }).toNumber()
-          : config.memoryScoreThreshold,
-      memoryLimit: config.memoryLimit,
-      contextWindowTokens: config.contextWindowTokens,
-      // Context settings
-      maxMessages: config.maxMessages,
-      maxAge: config.maxAge,
-      maxImages: config.maxImages,
-      params,
-    };
+    const response = formatConfigResponse(config as RawConfigDetail);
 
     logger.debug({ configId }, '[AdminLlmConfig] Fetched config');
     sendCustomSuccess(res, { config: response }, StatusCodes.OK);
@@ -251,33 +293,7 @@ function createEditConfigHandler(
       select: LLM_CONFIG_DETAIL_SELECT,
     });
 
-    // Parse advancedParameters for response
-    const params = safeValidateAdvancedParams(config.advancedParameters) ?? {};
-
-    const response = {
-      id: config.id,
-      name: config.name,
-      description: config.description,
-      provider: config.provider,
-      model: config.model,
-      visionModel: config.visionModel,
-      isGlobal: config.isGlobal,
-      isDefault: config.isDefault,
-      isFreeDefault: config.isFreeDefault,
-      maxReferencedMessages: config.maxReferencedMessages,
-      // Memory settings (now aligned with user routes)
-      memoryScoreThreshold:
-        config.memoryScoreThreshold !== null && typeof config.memoryScoreThreshold === 'object'
-          ? (config.memoryScoreThreshold as { toNumber: () => number }).toNumber()
-          : config.memoryScoreThreshold,
-      memoryLimit: config.memoryLimit,
-      contextWindowTokens: config.contextWindowTokens,
-      // Context settings
-      maxMessages: config.maxMessages,
-      maxAge: config.maxAge,
-      maxImages: config.maxImages,
-      params,
-    };
+    const response = formatConfigResponse(config as RawConfigDetail);
 
     logger.info(
       { configId, name: config.name, updates: Object.keys(updateResult.data) },
@@ -459,8 +475,8 @@ async function buildUpdateData(
 ): Promise<BuildUpdateResult> {
   const updateData: Record<string, unknown> = {};
 
-  // Validate name if provided
-  if (body.name !== undefined && body.name.trim().length > 0) {
+  // Validate name if provided (Zod's optionalString already trims and rejects empty)
+  if (body.name !== undefined) {
     const nameResult = await validateNameUpdate(prisma, body.name, configId);
     if ('error' in nameResult) {
       return nameResult;
@@ -475,9 +491,9 @@ async function buildUpdateData(
     }
   }
 
-  // Handle model with trimming
-  if (body.model !== undefined && body.model.trim().length > 0) {
-    updateData.model = body.model.trim();
+  // Handle model (Zod's optionalString already trims and converts empty to undefined)
+  if (body.model !== undefined) {
+    updateData.model = body.model;
   }
 
   // Validate advancedParameters if provided

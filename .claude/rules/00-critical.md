@@ -88,6 +88,13 @@ CI passing != merge approval. User must explicitly request merge.
 - **Coverage required**: 80% minimum, Codecov blocks PRs below threshold
 - Run tests before pushing - no exceptions
 
+### Test Coverage Baseline
+
+- **NEVER add NEW code to `knownGaps` baseline** - write proper tests instead
+- `knownGaps` is for pre-existing tech debt, not new features
+- When audit fails with "NEW gaps", fix by adding tests, not by updating baseline
+- File: `.github/baselines/test-coverage-baseline.json`
+
 ## Project Rules
 
 ### No Backward Compatibility
