@@ -44,8 +44,8 @@ export function createAdminRouter(
   router.use('/db-sync', createDbSyncRoute());
 
   // Personality management endpoints
-  router.use('/personality', createCreatePersonalityRoute(prisma));
-  router.use('/personality', createUpdatePersonalityRoute(prisma));
+  router.use('/personality', createCreatePersonalityRoute(prisma, cacheInvalidationService));
+  router.use('/personality', createUpdatePersonalityRoute(prisma, cacheInvalidationService));
 
   // LLM config management endpoints
   router.use('/llm-config', createAdminLlmConfigRoutes(prisma, llmConfigCacheInvalidation));
