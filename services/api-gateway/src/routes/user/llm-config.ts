@@ -9,7 +9,6 @@
  * - PUT /user/llm-config/:id - Update user config (advancedParameters)
  * - DELETE /user/llm-config/:id - Delete user config
  */
- 
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
@@ -423,10 +422,15 @@ function createUpdateHandler(
       '[LlmConfig] Updated config'
     );
 
-    // Invalidate cache for the user who owns this config
+    // Invalidate cache - use invalidateAll when config becomes globally visible
     if (llmConfigCacheInvalidation) {
       try {
-        await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
+        // If user is sharing their config globally, other users need to see it
+        if (body.isGlobal === true) {
+          await llmConfigCacheInvalidation.invalidateAll();
+        } else {
+          await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
+        }
       } catch (err) {
         logger.error({ err, configId }, '[LlmConfig] Failed to invalidate cache');
       }
