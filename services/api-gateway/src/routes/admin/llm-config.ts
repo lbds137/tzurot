@@ -18,161 +18,50 @@ import {
   createLogger,
   type PrismaClient,
   type LlmConfigCacheInvalidationService,
-  generateLlmConfigUuid,
-  safeValidateAdvancedParams,
-  AI_DEFAULTS,
-  MESSAGE_LIMITS,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-  LLM_CONFIG_DETAIL_SELECT,
-  type LlmConfigUpdateInput,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import { LlmConfigService } from '../../services/LlmConfigService.js';
 
 const logger = createLogger('admin-llm-config');
 
 /** Repeated error message for missing configs */
 const CONFIG_NOT_FOUND = 'Config not found';
 
-// Schemas and SELECT constants are imported from @tzurot/common-types (single source of truth)
-// - LlmConfigCreateSchema: Zod schema for create validation
-// - LlmConfigUpdateSchema: Zod schema for update validation
-// - LLM_CONFIG_DETAIL_SELECT: Prisma select for detail queries
-
-// --- Response Formatting (DRY helper for Decimal conversion) ---
-
-interface RawConfigDetail {
-  id: string;
-  name: string;
-  description: string | null;
-  provider: string;
-  model: string;
-  visionModel: string | null;
-  isGlobal: boolean;
-  isDefault: boolean;
-  isFreeDefault: boolean;
-  maxReferencedMessages: number;
-  memoryScoreThreshold: { toNumber: () => number } | null;
-  memoryLimit: number | null;
-  contextWindowTokens: number;
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
-  advancedParameters: unknown;
-}
-
-/** Formatted config response type */
-interface FormattedConfigResponse {
-  id: string;
-  name: string;
-  description: string | null;
-  provider: string;
-  model: string;
-  visionModel: string | null;
-  isGlobal: boolean;
-  isDefault: boolean;
-  isFreeDefault: boolean;
-  maxReferencedMessages: number;
-  memoryScoreThreshold: number | null;
-  memoryLimit: number | null;
-  contextWindowTokens: number;
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
-  params: Record<string, unknown>;
-}
-
-/**
- * Format a raw config from Prisma for API response.
- * Handles Decimal conversion and advancedParameters parsing.
- */
-function formatConfigResponse(raw: RawConfigDetail): FormattedConfigResponse {
-  return {
-    id: raw.id,
-    name: raw.name,
-    description: raw.description,
-    provider: raw.provider,
-    model: raw.model,
-    visionModel: raw.visionModel,
-    isGlobal: raw.isGlobal,
-    isDefault: raw.isDefault,
-    isFreeDefault: raw.isFreeDefault,
-    maxReferencedMessages: raw.maxReferencedMessages,
-    memoryScoreThreshold: raw.memoryScoreThreshold?.toNumber() ?? null,
-    memoryLimit: raw.memoryLimit,
-    contextWindowTokens: raw.contextWindowTokens,
-    maxMessages: raw.maxMessages,
-    maxAge: raw.maxAge,
-    maxImages: raw.maxImages,
-    params: safeValidateAdvancedParams(raw.advancedParameters) ?? {},
-  };
-}
-
 // --- Handler Factories ---
 
-function createListHandler(prisma: PrismaClient) {
+function createListHandler(service: LlmConfigService) {
   return async (_req: Request, res: Response) => {
-    const configs = await prisma.llmConfig.findMany({
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        provider: true,
-        model: true,
-        visionModel: true,
-        isGlobal: true,
-        isDefault: true,
-        isFreeDefault: true,
-        ownerId: true,
-        owner: {
-          select: { discordId: true, username: true },
-        },
-      },
-      orderBy: [
-        { isDefault: 'desc' },
-        { isFreeDefault: 'desc' },
-        { isGlobal: 'desc' },
-        { name: 'asc' },
-      ],
-    });
-
-    const formattedConfigs = configs.map(c => ({
-      ...c,
-      ownerInfo: { discordId: c.owner.discordId, username: c.owner.username },
-      owner: undefined,
-    }));
+    const configs = await service.list({ type: 'GLOBAL' });
 
     logger.info({ count: configs.length }, '[AdminLlmConfig] Listed all configs');
-    sendCustomSuccess(res, { configs: formattedConfigs }, StatusCodes.OK);
+    sendCustomSuccess(res, { configs }, StatusCodes.OK);
   };
 }
 
-function createGetHandler(prisma: PrismaClient) {
+function createGetHandler(service: LlmConfigService) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
-    const config = await prisma.llmConfig.findUnique({
-      where: { id: configId },
-      select: LLM_CONFIG_DETAIL_SELECT,
-    });
-
+    const config = await service.getById(configId ?? '');
     if (config === null) {
       return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
-    const response = formatConfigResponse(config as RawConfigDetail);
+    const response = service.formatConfigDetail(config);
 
     logger.debug({ configId }, '[AdminLlmConfig] Fetched config');
     sendCustomSuccess(res, { config: response }, StatusCodes.OK);
   };
 }
 
-function createCreateConfigHandler(prisma: PrismaClient) {
+function createCreateConfigHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -197,63 +86,26 @@ function createCreateConfigHandler(prisma: PrismaClient) {
     }
 
     // Check for duplicate name among global configs
-    const existing = await prisma.llmConfig.findFirst({
-      where: { isGlobal: true, name: body.name.trim() },
-    });
-
-    if (existing !== null) {
+    const nameCheck = await service.checkNameExists(body.name, { type: 'GLOBAL' });
+    if (nameCheck.exists) {
       return sendError(
         res,
         ErrorResponses.validationError(`A global config named "${body.name}" already exists`)
       );
     }
 
-    const config = await prisma.llmConfig.create({
-      data: {
-        id: generateLlmConfigUuid(body.name.trim()),
-        name: body.name.trim(),
-        description: body.description ?? null,
-        ownerId: adminUser.id,
-        isGlobal: true,
-        isDefault: false,
-        provider: body.provider ?? 'openrouter',
-        model: body.model.trim(),
-        visionModel: body.visionModel ?? null,
-        maxReferencedMessages: body.maxReferencedMessages ?? AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
-        advancedParameters: body.advancedParameters ?? undefined,
-        // Memory settings (now aligned with user routes)
-        memoryScoreThreshold: body.memoryScoreThreshold ?? AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
-        memoryLimit: body.memoryLimit ?? AI_DEFAULTS.MEMORY_LIMIT,
-        contextWindowTokens: body.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
-        // Context settings
-        maxMessages: body.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
-        maxAge: body.maxAge ?? null,
-        maxImages: body.maxImages ?? MESSAGE_LIMITS.DEFAULT_MAX_IMAGES,
-      },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        provider: true,
-        model: true,
-        visionModel: true,
-        isGlobal: true,
-        isDefault: true,
-      },
-    });
+    const config = await service.create({ type: 'GLOBAL' }, body, adminUser.id);
+    const response = service.formatConfigDetail(config);
 
     logger.info(
       { configId: config.id, name: config.name },
       '[AdminLlmConfig] Created global config'
     );
-    sendCustomSuccess(res, { config }, StatusCodes.CREATED);
+    sendCustomSuccess(res, { config: response }, StatusCodes.CREATED);
   };
 }
 
-function createEditConfigHandler(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
-) {
+function createEditConfigHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
@@ -278,37 +130,33 @@ function createEditConfigHandler(
       return sendError(res, ErrorResponses.validationError('Can only edit global configs'));
     }
 
-    const updateResult = await buildUpdateData(prisma, configId, body);
-    if ('error' in updateResult) {
-      return sendError(res, updateResult.error);
+    // Check for duplicate name if name is being changed
+    if (body.name !== undefined) {
+      const nameCheck = await service.checkNameExists(body.name, { type: 'GLOBAL' }, configId);
+      if (nameCheck.exists) {
+        return sendError(
+          res,
+          ErrorResponses.validationError(`A global config named "${body.name}" already exists`)
+        );
+      }
     }
 
-    if (Object.keys(updateResult.data).length === 0) {
+    if (Object.keys(body).length === 0) {
       return sendError(res, ErrorResponses.validationError('No fields to update'));
     }
 
-    const config = await prisma.llmConfig.update({
-      where: { id: configId },
-      data: updateResult.data,
-      select: LLM_CONFIG_DETAIL_SELECT,
-    });
-
-    const response = formatConfigResponse(config as RawConfigDetail);
+    const config = await service.update(configId ?? '', body);
+    const response = service.formatConfigDetail(config);
 
     logger.info(
-      { configId, name: config.name, updates: Object.keys(updateResult.data) },
+      { configId, name: config.name, updates: Object.keys(body) },
       '[AdminLlmConfig] Updated global config'
     );
-
-    await invalidateCacheSafely(llmConfigCacheInvalidation, configId, 'Updated global config');
     sendCustomSuccess(res, { config: response }, StatusCodes.OK);
   };
 }
 
-function createSetDefaultHandler(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
-) {
+function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
@@ -327,27 +175,14 @@ function createSetDefaultHandler(
       );
     }
 
-    await prisma.$transaction(async tx => {
-      await tx.llmConfig.updateMany({
-        where: { isDefault: true },
-        data: { isDefault: false },
-      });
-      await tx.llmConfig.update({
-        where: { id: configId },
-        data: { isDefault: true },
-      });
-    });
+    await service.setAsDefault(configId ?? '');
 
     logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as system default');
-    await invalidateCacheSafely(llmConfigCacheInvalidation, configId, 'Set as system default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
   };
 }
 
-function createSetFreeDefaultHandler(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
-) {
+function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
@@ -374,24 +209,14 @@ function createSetFreeDefaultHandler(
       );
     }
 
-    await prisma.$transaction(async tx => {
-      await tx.llmConfig.updateMany({
-        where: { isFreeDefault: true },
-        data: { isFreeDefault: false },
-      });
-      await tx.llmConfig.update({
-        where: { id: configId },
-        data: { isFreeDefault: true },
-      });
-    });
+    await service.setAsFreeDefault(configId ?? '');
 
     logger.info({ configId, name: config.name }, '[AdminLlmConfig] Set as free tier default');
-    await invalidateCacheSafely(llmConfigCacheInvalidation, configId, 'Set as free tier default');
     sendCustomSuccess(res, { success: true, configName: config.name }, StatusCodes.OK);
   };
 }
 
-function createDeleteConfigHandler(prisma: PrismaClient) {
+function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClient) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
@@ -413,149 +238,17 @@ function createDeleteConfigHandler(prisma: PrismaClient) {
       );
     }
 
-    const deleteResult = await executeDeleteTransaction(prisma, configId);
-    if (!deleteResult.success) {
-      return sendError(res, ErrorResponses.validationError(deleteResult.error ?? 'Delete failed'));
+    // Check delete constraints
+    const constraintError = await service.checkDeleteConstraints(configId ?? '');
+    if (constraintError !== null) {
+      return sendError(res, ErrorResponses.validationError(constraintError));
     }
+
+    await service.delete(configId ?? '');
 
     logger.info({ configId, name: config.name }, '[AdminLlmConfig] Deleted global config');
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
   };
-}
-
-// --- Helper Functions ---
-
-type BuildUpdateResult =
-  | { data: Record<string, unknown> }
-  | { error: ReturnType<typeof ErrorResponses.validationError> };
-
-/** Fields that can be directly copied without validation */
-const SIMPLE_COPY_FIELDS = [
-  'description',
-  'provider',
-  'visionModel',
-  'maxReferencedMessages',
-  // Memory settings (now aligned with user routes)
-  'memoryScoreThreshold',
-  'memoryLimit',
-  'contextWindowTokens',
-  // Context settings
-  'maxMessages',
-  'maxAge',
-  'maxImages',
-] as const;
-
-/**
- * Validate and prepare name field for update
- * Returns error response if validation fails, trimmed name otherwise
- */
-async function validateNameUpdate(
-  prisma: PrismaClient,
-  name: string,
-  excludeConfigId: string | undefined
-): Promise<{ error: ReturnType<typeof ErrorResponses.validationError> } | { name: string }> {
-  if (name.length > 100) {
-    return { error: ErrorResponses.validationError('name must be 100 characters or less') };
-  }
-  const duplicate = await prisma.llmConfig.findFirst({
-    where: { isGlobal: true, name: name.trim(), id: { not: excludeConfigId } },
-  });
-  if (duplicate !== null) {
-    return {
-      error: ErrorResponses.validationError(`A global config named "${name}" already exists`),
-    };
-  }
-  return { name: name.trim() };
-}
-
-async function buildUpdateData(
-  prisma: PrismaClient,
-  configId: string | undefined,
-  body: LlmConfigUpdateInput
-): Promise<BuildUpdateResult> {
-  const updateData: Record<string, unknown> = {};
-
-  // Validate name if provided (Zod's optionalString already trims and rejects empty)
-  if (body.name !== undefined) {
-    const nameResult = await validateNameUpdate(prisma, body.name, configId);
-    if ('error' in nameResult) {
-      return nameResult;
-    }
-    updateData.name = nameResult.name;
-  }
-
-  // Copy simple fields that don't need validation
-  for (const field of SIMPLE_COPY_FIELDS) {
-    if (body[field] !== undefined) {
-      updateData[field] = body[field];
-    }
-  }
-
-  // Handle model (Zod's optionalString already trims and converts empty to undefined)
-  if (body.model !== undefined) {
-    updateData.model = body.model;
-  }
-
-  // Validate advancedParameters if provided
-  if (body.advancedParameters !== undefined) {
-    const validated = safeValidateAdvancedParams(body.advancedParameters);
-    if (validated === null) {
-      return { error: ErrorResponses.validationError('Invalid advancedParameters') };
-    }
-    updateData.advancedParameters = body.advancedParameters;
-  }
-
-  return { data: updateData };
-}
-
-async function executeDeleteTransaction(
-  prisma: PrismaClient,
-  configId: string | undefined
-): Promise<{ success: boolean; error?: string }> {
-  return prisma.$transaction(async tx => {
-    const personalityCount = await tx.personalityDefaultConfig.count({
-      where: { llmConfigId: configId },
-    });
-    if (personalityCount > 0) {
-      return {
-        success: false,
-        error: `Cannot delete: config is used as default by ${personalityCount} personality(ies)`,
-      };
-    }
-
-    const userOverrideCount = await tx.userPersonalityConfig.count({
-      where: { llmConfigId: configId },
-    });
-    if (userOverrideCount > 0) {
-      return {
-        success: false,
-        error: `Cannot delete: config is used by ${userOverrideCount} user override(s)`,
-      };
-    }
-
-    await tx.llmConfig.delete({ where: { id: configId } });
-    return { success: true };
-  });
-}
-
-async function invalidateCacheSafely(
-  llmConfigCacheInvalidation: LlmConfigCacheInvalidationService | undefined,
-  configId: string | undefined,
-  operation: string
-): Promise<void> {
-  if (!llmConfigCacheInvalidation) {
-    return;
-  }
-
-  try {
-    await llmConfigCacheInvalidation.invalidateAll();
-    logger.debug(
-      { configId },
-      `[AdminLlmConfig] Invalidated LLM config caches after: ${operation}`
-    );
-  } catch (err) {
-    logger.error({ err, configId }, '[AdminLlmConfig] Failed to invalidate caches');
-  }
 }
 
 // --- Main Route Factory ---
@@ -566,19 +259,16 @@ export function createAdminLlmConfigRoutes(
 ): Router {
   const router = Router();
 
-  router.get('/', asyncHandler(createListHandler(prisma)));
-  router.get('/:id', asyncHandler(createGetHandler(prisma)));
-  router.post('/', asyncHandler(createCreateConfigHandler(prisma)));
-  router.put('/:id', asyncHandler(createEditConfigHandler(prisma, llmConfigCacheInvalidation)));
-  router.put(
-    '/:id/set-default',
-    asyncHandler(createSetDefaultHandler(prisma, llmConfigCacheInvalidation))
-  );
-  router.put(
-    '/:id/set-free-default',
-    asyncHandler(createSetFreeDefaultHandler(prisma, llmConfigCacheInvalidation))
-  );
-  router.delete('/:id', asyncHandler(createDeleteConfigHandler(prisma)));
+  // Instantiate service with dependencies
+  const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
+
+  router.get('/', asyncHandler(createListHandler(service)));
+  router.get('/:id', asyncHandler(createGetHandler(service)));
+  router.post('/', asyncHandler(createCreateConfigHandler(service, prisma)));
+  router.put('/:id', asyncHandler(createEditConfigHandler(service, prisma)));
+  router.put('/:id/set-default', asyncHandler(createSetDefaultHandler(service, prisma)));
+  router.put('/:id/set-free-default', asyncHandler(createSetFreeDefaultHandler(service, prisma)));
+  router.delete('/:id', asyncHandler(createDeleteConfigHandler(service, prisma)));
 
   return router;
 }
