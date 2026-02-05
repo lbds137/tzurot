@@ -36,16 +36,15 @@ Waiting for production verification of new context columns before removing legac
 - [ ] Switch to unified `reasoning` parameter
 - [ ] Simplify extraction to use `additional_kwargs`
 - [ ] Verify reasoning not stored in conversation history
+- [ ] Add model capability detection for reasoning support (fixes GLM 400 errors)
+
+**Note**: This phase should resolve the Production Issue "Free Model Error Handling (GLM/Z-AI)" by detecting which models support reasoning and handling responses that return thinking without final content.
 
 ---
 
-## Backlog Triage Needed
+## Session Notes
 
-Items to reorganize in next session:
-
-1. **Zod schema issues** - Multiple mentions scattered across backlog, consolidate to High Priority
-2. **Production bugs** - Added to new "Production Issues" section (GLM 400 errors, quota handling)
-3. **Full reorganization** - Consider MCP council review of backlog structure
+**2026-02-05**: Backlog reorganization complete. See `.claude/rules/06-backlog.md` for structure documentation.
 
 ---
 
