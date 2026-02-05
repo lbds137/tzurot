@@ -470,6 +470,47 @@ describe('/user/llm-config routes', () => {
       expect(res.status).toHaveBeenCalledWith(201);
     });
 
+    it('should create config with memory settings (Phase 1 parity)', async () => {
+      // This test verifies Phase 1 parity - user routes must accept same fields as admin
+      mockPrisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config',
+        name: 'Memory Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'gpt-4',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        memoryScoreThreshold: { toNumber: () => 0.75 },
+        memoryLimit: 50,
+        contextWindowTokens: 100000,
+      });
+
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'Memory Config',
+        model: 'gpt-4',
+        memoryScoreThreshold: 0.75,
+        memoryLimit: 50,
+        contextWindowTokens: 100000,
+      });
+
+      await handler(req, res);
+
+      // Verify memory settings are passed to Prisma create
+      expect(mockPrisma.llmConfig.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            memoryScoreThreshold: 0.75,
+            memoryLimit: 50,
+            contextWindowTokens: 100000,
+          }),
+        })
+      );
+      expect(res.status).toHaveBeenCalledWith(201);
+    });
+
     it('should create user if not exists', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
