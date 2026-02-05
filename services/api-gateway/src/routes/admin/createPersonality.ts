@@ -35,15 +35,25 @@ async function processAvatarData(
   }
 
   try {
-    logger.info(`[Admin] Processing avatar for personality: ${slug}`);
+    logger.info({ slug }, '[Admin] Processing avatar for personality');
     const result = await optimizeAvatar(avatarData);
     logger.info(
-      `[Admin] Avatar optimized: ${result.originalSizeKB} KB → ${result.processedSizeKB} KB (quality: ${result.quality})`
+      {
+        slug,
+        originalSizeKB: result.originalSizeKB,
+        processedSizeKB: result.processedSizeKB,
+        quality: result.quality,
+      },
+      '[Admin] Avatar optimized'
     );
     if (result.exceedsTarget) {
       logger.warn(
-        {},
-        `[Admin] Avatar still exceeds ${AVATAR_LIMITS.TARGET_SIZE_KB}KB after optimization: ${result.processedSizeKB} KB`
+        {
+          slug,
+          processedSizeKB: result.processedSizeKB,
+          targetSizeKB: AVATAR_LIMITS.TARGET_SIZE_KB,
+        },
+        '[Admin] Avatar still exceeds target size after optimization'
       );
     }
     return { ok: true, buffer: result.buffer };
