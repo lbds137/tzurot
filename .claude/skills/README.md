@@ -1,77 +1,44 @@
 # Tzurot v3 Skills Index
 
-> **Quick Navigation**: 16 project-specific Claude Code Skills that codify Tzurot v3 development best practices.
+> **Important**: Requirements (rules) are now in `.claude/rules/` and load automatically every session.
+> Skills are now **pure procedures** - invoke them with `/skill-name` for step-by-step workflows.
 
-## 📋 All Skills
+## Available Skills (Procedures)
 
-| Skill                                                         | Category | Use When                            |
-| ------------------------------------------------------------- | -------- | ----------------------------------- |
-| [tzurot-code-quality](./tzurot-code-quality/SKILL.md)         | Core Dev | Lint errors, refactoring, ESLint    |
-| [tzurot-testing](./tzurot-testing/SKILL.md)                   | Core Dev | Writing tests, fake timers, mocking |
-| [tzurot-types](./tzurot-types/SKILL.md)                       | Core Dev | Types, constants, Zod schemas       |
-| [tzurot-git-workflow](./tzurot-git-workflow/SKILL.md)         | Core Dev | Commits, PRs, rebasing              |
-| [tzurot-security](./tzurot-security/SKILL.md)                 | Core Dev | Secrets, user input, security       |
-| [tzurot-observability](./tzurot-observability/SKILL.md)       | Core Dev | Logging, debugging, operations      |
-| [tzurot-tooling](./tzurot-tooling/SKILL.md)                   | Core Dev | CLI commands, dev scripts, ops CLI  |
-| [tzurot-architecture](./tzurot-architecture/SKILL.md)         | Design   | Service design, error patterns      |
-| [tzurot-docs](./tzurot-docs/SKILL.md)                         | Design   | Documentation, session handoff      |
-| [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)           | Design   | Consulting external AI              |
-| [tzurot-db-vector](./tzurot-db-vector/SKILL.md)               | Advanced | PostgreSQL, pgvector, migrations    |
-| [tzurot-async-flow](./tzurot-async-flow/SKILL.md)             | Advanced | BullMQ jobs, Discord deferrals      |
-| [tzurot-deployment](./tzurot-deployment/SKILL.md)             | Advanced | Railway deployment, troubleshooting |
-| [tzurot-caching](./tzurot-caching/SKILL.md)                   | Advanced | Cache patterns, horizontal scaling  |
-| [tzurot-slash-command-ux](./tzurot-slash-command-ux/SKILL.md) | Core Dev | Slash commands, pagination, buttons |
-| [tzurot-skills-guide](./tzurot-skills-guide/SKILL.md)         | Meta     | Writing and maintaining skills      |
+| Skill                                                 | Purpose                                | Invoke With            |
+| ----------------------------------------------------- | -------------------------------------- | ---------------------- |
+| [tzurot-git-workflow](./tzurot-git-workflow/SKILL.md) | Commit, PR, release procedures         | `/tzurot-git-workflow` |
+| [tzurot-deployment](./tzurot-deployment/SKILL.md)     | Railway deployment & troubleshooting   | `/tzurot-deployment`   |
+| [tzurot-docs](./tzurot-docs/SKILL.md)                 | Session start/end, CURRENT.md workflow | `/tzurot-docs`         |
+| [tzurot-db-vector](./tzurot-db-vector/SKILL.md)       | Prisma migrations, drift fixes         | `/tzurot-db-vector`    |
+| [tzurot-testing](./tzurot-testing/SKILL.md)           | Test execution, coverage audits        | `/tzurot-testing`      |
+| [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)   | External AI consultation               | `/tzurot-council-mcp`  |
 
-## 🎯 Quick Decision Tree
+## Rules (Auto-Loaded)
 
-| Task                     | Skill                   |
-| ------------------------ | ----------------------- |
-| Fixing lint warnings     | tzurot-code-quality     |
-| Refactoring complex code | tzurot-code-quality     |
-| Writing tests            | tzurot-testing          |
-| Creating types/constants | tzurot-types            |
-| Committing/pushing       | tzurot-git-workflow     |
-| Handling secrets         | tzurot-security         |
-| Adding logging           | tzurot-observability    |
-| CLI/dev scripts          | tzurot-tooling          |
-| Designing features       | tzurot-architecture     |
-| Database work            | tzurot-db-vector        |
-| BullMQ jobs              | tzurot-async-flow       |
-| Deploying to Railway     | tzurot-deployment       |
-| Updating docs            | tzurot-docs             |
-| Stuck on problem         | tzurot-council-mcp      |
-| Cache patterns           | tzurot-caching          |
-| Slash commands/buttons   | tzurot-slash-command-ux |
-| Creating/updating skills | tzurot-skills-guide     |
+The following rules load automatically every session - no invocation needed:
 
-## 🔗 Common Combinations
+| Rule                   | Content                                     |
+| ---------------------- | ------------------------------------------- |
+| `00-critical.md`       | Security, git safety, testing               |
+| `01-architecture.md`   | Service boundaries, where code belongs      |
+| `02-code-standards.md` | ESLint limits, TypeScript, testing patterns |
+| `03-database.md`       | Prisma, pgvector, caching                   |
+| `04-discord.md`        | 3-second deferral, slash commands, BullMQ   |
+| `05-tooling.md`        | CLI reference, git workflow                 |
 
-**New Feature**: architecture → async-flow → types → testing → docs
+## Common Workflows
 
-**Bug Fix**: observability → testing → git-workflow
+**New Feature**: Read rules → Code → `/tzurot-testing` → `/tzurot-git-workflow`
 
-**Refactoring**: code-quality → testing → git-workflow
+**Bug Fix**: Read rules → Fix → `/tzurot-testing` → `/tzurot-git-workflow`
 
-**Security Work**: security → observability → types → testing
+**Database Changes**: `/tzurot-db-vector` → `/tzurot-testing` → `/tzurot-git-workflow`
 
-**Database Changes**: db-vector → types → testing → observability
+**Deploy Issue**: `/tzurot-deployment` → check logs
 
-## 📊 Statistics
-
-- **Total Skills**: 16
-- **Total Lines**: ~3,600 lines
-- **All skills**: Under 350 lines (target: <300, max: 400)
-- **Pattern**: Progressive disclosure - essential info with references
-
-## 🔄 Maintenance
-
-See [tzurot-skills-guide](./tzurot-skills-guide/SKILL.md) for:
-
-- When to create vs update skills
-- Size limits and progressive disclosure
-- Quality checklist and anti-patterns
+**Session End**: `/tzurot-docs` → update CURRENT.md
 
 ---
 
-**Last Updated**: 2026-01-25
+**Last Updated**: 2026-02-04
