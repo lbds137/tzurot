@@ -194,11 +194,8 @@ export const PersonalityCreateSchema = z.object({
   // Visibility - defaults to false, can be set to true to make public
   isPublic: z.boolean().optional(),
 
-  // Custom fields (JSONB) - constrained to JSON-serializable primitives
-  customFields: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
-    .optional()
-    .nullable(),
+  // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
@@ -233,11 +230,8 @@ export const PersonalityUpdateSchema = z.object({
   // Visibility
   isPublic: z.boolean().optional(),
 
-  // Custom fields (JSONB) - constrained to JSON-serializable primitives
-  customFields: z
-    .record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()]))
-    .optional()
-    .nullable(),
+  // Custom fields (JSONB) - accepts arbitrary nested JSON to match Prisma Json? type
+  customFields: z.record(z.string(), z.unknown()).optional().nullable(),
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),

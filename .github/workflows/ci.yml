@@ -81,10 +81,10 @@ jobs:
           echo "✓ pglite-schema.sql is in sync with Prisma schema"
 
       - name: Audit contract test coverage
-        run: pnpm ops test:audit-contracts
+        run: pnpm ops test:audit --category=contracts
 
       - name: Audit service integration test coverage
-        run: pnpm ops test:audit-services
+        run: pnpm ops test:audit --category=services
 
   test:
     runs-on: ubuntu-latest
