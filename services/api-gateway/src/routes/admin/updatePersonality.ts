@@ -4,36 +4,23 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { createLogger, AVATAR_LIMITS, type CacheInvalidationService } from '@tzurot/common-types';
+import {
+  createLogger,
+  AVATAR_LIMITS,
+  type CacheInvalidationService,
+  PersonalityUpdateSchema,
+  type PersonalityUpdateInput,
+} from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
-import { validateSlug, validateCustomFields } from '../../utils/validators.js';
 import { getParam } from '../../utils/requestParams.js';
+import { validateSlug } from '../../utils/validators.js';
 
 const logger = createLogger('admin-update-personality');
-
-interface UpdatePersonalityBody {
-  name?: string;
-  characterInfo?: string;
-  personalityTraits?: string;
-  displayName?: string | null;
-  personalityTone?: string | null;
-  personalityAge?: string | null;
-  personalityAppearance?: string | null;
-  personalityLikes?: string | null;
-  personalityDislikes?: string | null;
-  conversationalGoals?: string | null;
-  conversationalExamples?: string | null;
-  errorMessage?: string | null;
-  customFields?: Record<string, unknown> | null;
-  avatarData?: string;
-  /** Whether this personality should be publicly visible */
-  isPublic?: boolean;
-}
 
 // --- Helper Functions ---
 
@@ -74,12 +61,13 @@ async function processAvatarIfProvided(
 }
 
 function buildUpdateData(
-  body: UpdatePersonalityBody,
+  validated: PersonalityUpdateInput,
   processedAvatarData?: Buffer
 ): Record<string, unknown> {
   const updateData: Record<string, unknown> = {};
-  const fields: (keyof Omit<UpdatePersonalityBody, 'avatarData' | 'customFields'>)[] = [
+  const fields: (keyof Omit<PersonalityUpdateInput, 'avatarData' | 'customFields'>)[] = [
     'name',
+    'slug',
     'characterInfo',
     'personalityTraits',
     'displayName',
@@ -92,22 +80,60 @@ function buildUpdateData(
     'conversationalExamples',
     'errorMessage',
     'isPublic',
+    'extendedContext',
+    'extendedContextMaxMessages',
+    'extendedContextMaxAge',
+    'extendedContextMaxImages',
   ];
 
   for (const field of fields) {
-    if (body[field] !== undefined) {
-      updateData[field] = body[field];
+    if (validated[field] !== undefined) {
+      updateData[field] = validated[field];
     }
   }
 
-  if (body.customFields !== undefined) {
-    updateData.customFields = body.customFields as Prisma.InputJsonValue;
+  if (validated.customFields !== undefined) {
+    updateData.customFields = validated.customFields as Prisma.InputJsonValue;
   }
   if (processedAvatarData !== undefined) {
     updateData.avatarData = new Uint8Array(processedAvatarData);
   }
 
   return updateData;
+}
+
+/**
+ * Invalidate cache after personality update.
+ * - If visibility changed (or is now public), invalidate all caches
+ * - Otherwise, just invalidate this specific personality
+ */
+async function invalidateCacheAfterUpdate(
+  cacheInvalidationService: CacheInvalidationService | undefined,
+  personalityId: string,
+  wasPublic: boolean,
+  isNowPublic: boolean
+): Promise<void> {
+  if (cacheInvalidationService === undefined) {
+    return;
+  }
+
+  try {
+    // If visibility changed or personality is public, invalidate all caches
+    // so other users see the change (or stop seeing it)
+    if (wasPublic !== isNowPublic || isNowPublic) {
+      await cacheInvalidationService.invalidateAll();
+      logger.info(
+        { personalityId, wasPublic, isNowPublic },
+        '[Admin] Invalidated all personality caches after visibility-affecting update'
+      );
+    } else {
+      // Private personality, visibility unchanged - just invalidate this one
+      await cacheInvalidationService.invalidatePersonality(personalityId);
+      logger.info({ personalityId }, '[Admin] Invalidated personality cache after private update');
+    }
+  } catch (error) {
+    logger.warn({ err: error, personalityId }, '[Admin] Failed to invalidate personality cache');
+  }
 }
 
 // --- Route Handler ---
@@ -127,34 +153,40 @@ export function createUpdatePersonalityRoute(
         return sendError(res, ErrorResponses.validationError('slug is required'));
       }
 
-      const body = req.body as UpdatePersonalityBody;
-
-      // Validate slug format
+      // Validate URL param slug format and reserved names
       const slugValidation = validateSlug(slug);
       if (!slugValidation.valid) {
         return sendError(res, slugValidation.error);
       }
 
-      // Check if personality exists
-      const existing = await prisma.personality.findUnique({ where: { slug } });
+      // Validate request body with Zod schema
+      const parseResult = PersonalityUpdateSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const firstIssue = parseResult.error.issues[0];
+        const errorPath = firstIssue?.path?.join('.') ?? '';
+        const errorMessage = firstIssue?.message ?? 'Invalid request body';
+        const fullMessage = errorPath.length > 0 ? `${errorPath}: ${errorMessage}` : errorMessage;
+        return sendError(res, ErrorResponses.validationError(fullMessage));
+      }
+      const validated = parseResult.data;
+
+      // Check if personality exists and get current visibility state
+      const existing = await prisma.personality.findUnique({
+        where: { slug },
+        select: { id: true, isPublic: true },
+      });
       if (existing === null) {
         return sendError(res, ErrorResponses.notFound(`Personality with slug '${slug}'`));
       }
 
-      // Validate customFields if provided
-      const customFieldsValidation = validateCustomFields(body.customFields);
-      if (!customFieldsValidation.valid) {
-        return sendError(res, customFieldsValidation.error);
-      }
-
       // Process avatar if provided
-      const avatarResult = await processAvatarIfProvided(body.avatarData, slug);
+      const avatarResult = await processAvatarIfProvided(validated.avatarData, slug);
       if (avatarResult !== null && 'error' in avatarResult) {
         return sendError(res, avatarResult.error);
       }
 
       // Build and execute update
-      const updateData = buildUpdateData(body, avatarResult?.buffer);
+      const updateData = buildUpdateData(validated, avatarResult?.buffer);
       const personality = await prisma.personality.update({
         where: { slug },
         data: updateData,
@@ -162,21 +194,15 @@ export function createUpdatePersonalityRoute(
 
       logger.info(`[Admin] Updated personality: ${slug} (${personality.id})`);
 
-      // Invalidate cache after update
-      if (cacheInvalidationService !== undefined) {
-        try {
-          await cacheInvalidationService.invalidatePersonality(personality.id);
-          logger.info(
-            { personalityId: personality.id },
-            '[Admin] Invalidated personality cache after update'
-          );
-        } catch (error) {
-          logger.warn(
-            { err: error, personalityId: personality.id },
-            '[Admin] Failed to invalidate personality cache'
-          );
-        }
-      }
+      // Invalidate cache with visibility-aware logic
+      const wasPublic = existing.isPublic;
+      const isNowPublic = validated.isPublic ?? wasPublic;
+      await invalidateCacheAfterUpdate(
+        cacheInvalidationService,
+        personality.id,
+        wasPublic,
+        isNowPublic
+      );
 
       sendCustomSuccess(res, {
         success: true,
