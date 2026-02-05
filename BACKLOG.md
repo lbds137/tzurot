@@ -13,22 +13,6 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _New items go here. Triage to appropriate section later._
 
-### 🏗️ Wire LlmConfigService into Route Handlers (Phase 1 completion)
-
-**Context**: PR #582 created `LlmConfigService` with scope-based access control, but routes still use direct Prisma calls. Service layer is ready but not wired up.
-
-**Benefits**:
-
-- Remove duplicated business logic from routes (name validation, delete constraints, cache invalidation)
-- Routes become thin HTTP handlers, service owns business logic
-- Easier unit testing (mock service, not Prisma)
-
-**Files**:
-
-- `services/api-gateway/src/routes/admin/llm-config.ts`
-- `services/api-gateway/src/routes/user/llm-config.ts`
-- `services/api-gateway/src/services/LlmConfigService.ts`
-
 ### 🏗️ Audit Remaining Endpoints for Schema Duplication
 
 **Context**: PR #582 consolidated LLM config schemas. PR #582 (Phase 1.5) consolidated Personality schemas. Same pattern may exist in other admin/user endpoint pairs.

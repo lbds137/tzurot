@@ -179,6 +179,20 @@ export function createUpdatePersonalityRoute(
         return sendError(res, ErrorResponses.notFound(`Personality with slug '${slug}'`));
       }
 
+      // Check slug uniqueness if being changed
+      if (validated.slug !== undefined && validated.slug !== slug) {
+        const conflicting = await prisma.personality.findUnique({
+          where: { slug: validated.slug },
+          select: { id: true },
+        });
+        if (conflicting !== null) {
+          return sendError(
+            res,
+            ErrorResponses.conflict(`A personality with slug '${validated.slug}' already exists`)
+          );
+        }
+      }
+
       // Process avatar if provided
       const avatarResult = await processAvatarIfProvided(validated.avatarData, slug);
       if (avatarResult !== null && 'error' in avatarResult) {
