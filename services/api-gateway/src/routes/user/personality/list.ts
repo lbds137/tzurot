@@ -11,6 +11,7 @@ import {
   type PersonalitySummary,
   isBotOwner,
   computePersonalityPermissions,
+  PERSONALITY_LIST_SELECT,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -18,17 +19,6 @@ import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('user-personality-list');
-
-/** Prisma select clause for personality queries */
-const PERSONALITY_SELECT = {
-  id: true,
-  name: true,
-  displayName: true,
-  slug: true,
-  ownerId: true,
-  isPublic: true,
-  owner: { select: { discordId: true } },
-} as const;
 
 /** Raw personality from database query */
 interface RawPersonality {
@@ -79,7 +69,7 @@ async function fetchAdminPersonalities(
   discordUserId: string
 ): Promise<PersonalitySummary[]> {
   const all = await prisma.personality.findMany({
-    select: PERSONALITY_SELECT,
+    select: PERSONALITY_LIST_SELECT,
     orderBy: { name: 'asc' },
     take: 500, // Bounded query - Discord autocomplete shows max 25 anyway
   });
@@ -97,7 +87,7 @@ async function fetchUserPersonalities(
   // Get public personalities
   const publicPersonalities = await prisma.personality.findMany({
     where: { isPublic: true },
-    select: PERSONALITY_SELECT,
+    select: PERSONALITY_LIST_SELECT,
     orderBy: { name: 'asc' },
     take: 500, // Bounded query - prevents OOM with large datasets
   });
@@ -119,7 +109,7 @@ async function fetchUserPersonalities(
         isPublic: false,
         OR: [{ ownerId: userId }, { id: { in: Array.from(ownedIdSet) } }],
       },
-      select: PERSONALITY_SELECT,
+      select: PERSONALITY_LIST_SELECT,
       orderBy: { name: 'asc' },
       take: 100, // Bounded query - users rarely own many private personalities
     });
