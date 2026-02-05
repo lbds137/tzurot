@@ -18,10 +18,15 @@ import {
   createLogger,
   type PrismaClient,
   type LlmConfigCacheInvalidationService,
-  type AdvancedParams,
   generateLlmConfigUuid,
   safeValidateAdvancedParams,
+  AI_DEFAULTS,
   MESSAGE_LIMITS,
+  // Shared schemas from common-types - single source of truth
+  LlmConfigCreateSchema,
+  LlmConfigUpdateSchema,
+  LLM_CONFIG_DETAIL_SELECT,
+  type LlmConfigUpdateInput,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
@@ -34,43 +39,10 @@ const logger = createLogger('admin-llm-config');
 /** Repeated error message for missing configs */
 const CONFIG_NOT_FOUND = 'Config not found';
 
-/**
- * Request body for creating/updating a global config
- * All sampling params go into advancedParameters JSONB
- */
-interface CreateGlobalConfigBody {
-  name: string;
-  description?: string;
-  provider?: string;
-  model: string;
-  visionModel?: string;
-  maxReferencedMessages?: number;
-  advancedParameters?: AdvancedParams;
-  // Context settings
-  maxMessages?: number;
-  maxAge?: number | null;
-  maxImages?: number;
-}
-
-/** Select fields for detail queries (includes advancedParameters) */
-const CONFIG_DETAIL_SELECT = {
-  id: true,
-  name: true,
-  description: true,
-  provider: true,
-  model: true,
-  visionModel: true,
-  isGlobal: true,
-  isDefault: true,
-  isFreeDefault: true,
-  advancedParameters: true,
-  maxReferencedMessages: true,
-  // Context settings
-  maxMessages: true,
-  maxAge: true,
-  maxImages: true,
-  ownerId: true,
-} as const;
+// Schemas and SELECT constants are imported from @tzurot/common-types (single source of truth)
+// - LlmConfigCreateSchema: Zod schema for create validation
+// - LlmConfigUpdateSchema: Zod schema for update validation
+// - LLM_CONFIG_DETAIL_SELECT: Prisma select for detail queries
 
 // --- Handler Factories ---
 
@@ -117,7 +89,7 @@ function createGetHandler(prisma: PrismaClient) {
 
     const config = await prisma.llmConfig.findUnique({
       where: { id: configId },
-      select: CONFIG_DETAIL_SELECT,
+      select: LLM_CONFIG_DETAIL_SELECT,
     });
 
     if (config === null) {
@@ -139,6 +111,13 @@ function createGetHandler(prisma: PrismaClient) {
       isDefault: config.isDefault,
       isFreeDefault: config.isFreeDefault,
       maxReferencedMessages: config.maxReferencedMessages,
+      // Memory settings (now aligned with user routes)
+      memoryScoreThreshold:
+        config.memoryScoreThreshold !== null && typeof config.memoryScoreThreshold === 'object'
+          ? (config.memoryScoreThreshold as { toNumber: () => number }).toNumber()
+          : config.memoryScoreThreshold,
+      memoryLimit: config.memoryLimit,
+      contextWindowTokens: config.contextWindowTokens,
       // Context settings
       maxMessages: config.maxMessages,
       maxAge: config.maxAge,
@@ -153,27 +132,16 @@ function createGetHandler(prisma: PrismaClient) {
 
 function createCreateConfigHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
-    const body = req.body as CreateGlobalConfigBody;
     const discordUserId = req.userId;
 
-    // Validate required fields
-    if (!body.name || body.name.trim().length === 0) {
-      return sendError(res, ErrorResponses.validationError('name is required'));
+    // Validate request body with shared Zod schema from common-types
+    const parseResult = LlmConfigCreateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      const path = firstIssue.path.length > 0 ? `${firstIssue.path.join('.')}: ` : '';
+      return sendError(res, ErrorResponses.validationError(`${path}${firstIssue.message}`));
     }
-    if (!body.model || body.model.trim().length === 0) {
-      return sendError(res, ErrorResponses.validationError('model is required'));
-    }
-    if (body.name.length > 100) {
-      return sendError(res, ErrorResponses.validationError('name must be 100 characters or less'));
-    }
-
-    // Validate advancedParameters if provided
-    if (body.advancedParameters !== undefined) {
-      const validated = safeValidateAdvancedParams(body.advancedParameters);
-      if (validated === null) {
-        return sendError(res, ErrorResponses.validationError('Invalid advancedParameters'));
-      }
-    }
+    const body = parseResult.data;
 
     // Get admin user's internal ID for ownership
     const adminUser = await prisma.user.findUnique({
@@ -209,8 +177,12 @@ function createCreateConfigHandler(prisma: PrismaClient) {
         provider: body.provider ?? 'openrouter',
         model: body.model.trim(),
         visionModel: body.visionModel ?? null,
-        maxReferencedMessages: body.maxReferencedMessages ?? 20,
+        maxReferencedMessages: body.maxReferencedMessages ?? AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
         advancedParameters: body.advancedParameters ?? undefined,
+        // Memory settings (now aligned with user routes)
+        memoryScoreThreshold: body.memoryScoreThreshold ?? AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
+        memoryLimit: body.memoryLimit ?? AI_DEFAULTS.MEMORY_LIMIT,
+        contextWindowTokens: body.contextWindowTokens ?? AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
         // Context settings
         maxMessages: body.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
         maxAge: body.maxAge ?? null,
@@ -242,7 +214,15 @@ function createEditConfigHandler(
 ) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
-    const body = req.body as Partial<CreateGlobalConfigBody>;
+
+    // Validate request body with shared Zod schema from common-types
+    const parseResult = LlmConfigUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      const firstIssue = parseResult.error.issues[0];
+      const path = firstIssue.path.length > 0 ? `${firstIssue.path.join('.')}: ` : '';
+      return sendError(res, ErrorResponses.validationError(`${path}${firstIssue.message}`));
+    }
+    const body = parseResult.data;
 
     const existing = await prisma.llmConfig.findUnique({
       where: { id: configId },
@@ -268,7 +248,7 @@ function createEditConfigHandler(
     const config = await prisma.llmConfig.update({
       where: { id: configId },
       data: updateResult.data,
-      select: CONFIG_DETAIL_SELECT,
+      select: LLM_CONFIG_DETAIL_SELECT,
     });
 
     // Parse advancedParameters for response
@@ -285,6 +265,13 @@ function createEditConfigHandler(
       isDefault: config.isDefault,
       isFreeDefault: config.isFreeDefault,
       maxReferencedMessages: config.maxReferencedMessages,
+      // Memory settings (now aligned with user routes)
+      memoryScoreThreshold:
+        config.memoryScoreThreshold !== null && typeof config.memoryScoreThreshold === 'object'
+          ? (config.memoryScoreThreshold as { toNumber: () => number }).toNumber()
+          : config.memoryScoreThreshold,
+      memoryLimit: config.memoryLimit,
+      contextWindowTokens: config.contextWindowTokens,
       // Context settings
       maxMessages: config.maxMessages,
       maxAge: config.maxAge,
@@ -432,6 +419,11 @@ const SIMPLE_COPY_FIELDS = [
   'provider',
   'visionModel',
   'maxReferencedMessages',
+  // Memory settings (now aligned with user routes)
+  'memoryScoreThreshold',
+  'memoryLimit',
+  'contextWindowTokens',
+  // Context settings
   'maxMessages',
   'maxAge',
   'maxImages',
@@ -463,7 +455,7 @@ async function validateNameUpdate(
 async function buildUpdateData(
   prisma: PrismaClient,
   configId: string | undefined,
-  body: Partial<CreateGlobalConfigBody>
+  body: LlmConfigUpdateInput
 ): Promise<BuildUpdateResult> {
   const updateData: Record<string, unknown> = {};
 
