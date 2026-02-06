@@ -86,6 +86,11 @@ export function enrichDbMessagesWithExtendedMetadata(
       dbMsg.messageMetadata = dbMsg.messageMetadata ?? {};
       dbMsg.messageMetadata.embedsXml = extendedMsg.messageMetadata.embedsXml;
     }
+
+    // Copy isForwarded flag from extended context (not stored in DB)
+    if (extendedMsg.isForwarded === true && dbMsg.isForwarded !== true) {
+      dbMsg.isForwarded = true;
+    }
   }
 
   if (reactionsEnrichedCount > 0) {

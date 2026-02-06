@@ -237,6 +237,54 @@ describe('HistoryMerger', () => {
       expect(dbHistory[0].messageMetadata?.embedsXml).toEqual(['<embed>DB Embed</embed>']);
     });
 
+    it('should copy isForwarded flag from extended context to DB messages', () => {
+      const dbHistory = [
+        createMockMessage({
+          discordMessageId: ['msg-1'],
+          content: 'Test',
+        }),
+      ];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          {
+            ...createMockMessage({
+              discordMessageId: ['msg-1'],
+            }),
+            isForwarded: true,
+          },
+        ],
+      ]);
+
+      enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+
+      expect(dbHistory[0].isForwarded).toBe(true);
+    });
+
+    it('should not overwrite isForwarded if already true on DB message', () => {
+      const dbMsg = {
+        ...createMockMessage({
+          discordMessageId: ['msg-1'],
+          content: 'Test',
+        }),
+        isForwarded: true,
+      };
+      const dbHistory = [dbMsg];
+      const extendedMessageMap = new Map<string, ConversationMessage>([
+        [
+          'msg-1',
+          createMockMessage({
+            discordMessageId: ['msg-1'],
+          }),
+          // isForwarded not set (undefined/false)
+        ],
+      ]);
+
+      enrichDbMessagesWithExtendedMetadata(dbHistory, extendedMessageMap);
+
+      expect(dbHistory[0].isForwarded).toBe(true);
+    });
+
     it('should handle messages not found in extended context', () => {
       const dbHistory = [
         createMockMessage({

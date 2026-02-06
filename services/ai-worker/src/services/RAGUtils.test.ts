@@ -8,6 +8,8 @@ import {
   buildAttachmentDescriptions,
   extractContentDescriptions,
   generateStopSequences,
+  injectImageDescriptions,
+  type RawHistoryEntry,
 } from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGService.js';
@@ -439,6 +441,83 @@ describe('RAGUtils', () => {
       // Should still generate correct stop sequences regardless of guildInfo
       expect(result).toContain('\nAlice:');
       expect(result).toContain('\nLilith:');
+    });
+  });
+
+  describe('injectImageDescriptions', () => {
+    it('should inject descriptions matching by entry.id (primary)', () => {
+      const history: RawHistoryEntry[] = [{ id: 'discord-msg-1', role: 'user', content: '' }];
+      const imageMap = new Map([
+        ['discord-msg-1', [{ filename: 'img.png', description: 'A sunset' }]],
+      ]);
+
+      injectImageDescriptions(history, imageMap);
+
+      expect(history[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'img.png', description: 'A sunset' },
+      ]);
+    });
+
+    it('should inject descriptions matching by discordMessageId fallback', () => {
+      // DB messages have UUID ids but Discord snowflake in discordMessageId
+      const history: RawHistoryEntry[] = [
+        { id: 'uuid-internal-123', discordMessageId: ['discord-msg-1'], role: 'user', content: '' },
+      ];
+      const imageMap = new Map([
+        ['discord-msg-1', [{ filename: 'img.png', description: 'A mountain' }]],
+      ]);
+
+      injectImageDescriptions(history, imageMap);
+
+      expect(history[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'img.png', description: 'A mountain' },
+      ]);
+    });
+
+    it('should prefer entry.id match over discordMessageId', () => {
+      const history: RawHistoryEntry[] = [
+        { id: 'discord-msg-1', discordMessageId: ['discord-msg-2'], role: 'user', content: '' },
+      ];
+      const imageMap = new Map([
+        ['discord-msg-1', [{ filename: 'primary.png', description: 'Primary match' }]],
+        ['discord-msg-2', [{ filename: 'fallback.png', description: 'Fallback match' }]],
+      ]);
+
+      injectImageDescriptions(history, imageMap);
+
+      expect(history[0].messageMetadata?.imageDescriptions).toEqual([
+        { filename: 'primary.png', description: 'Primary match' },
+      ]);
+    });
+
+    it('should skip entries with no matching IDs', () => {
+      const history: RawHistoryEntry[] = [{ id: 'unmatched-id', role: 'user', content: 'test' }];
+      const imageMap = new Map([
+        ['discord-msg-1', [{ filename: 'img.png', description: 'A photo' }]],
+      ]);
+
+      injectImageDescriptions(history, imageMap);
+
+      expect(history[0].messageMetadata).toBeUndefined();
+    });
+
+    it('should handle empty history', () => {
+      const imageMap = new Map([
+        ['discord-msg-1', [{ filename: 'img.png', description: 'A photo' }]],
+      ]);
+
+      // Should not throw
+      injectImageDescriptions([], imageMap);
+      injectImageDescriptions(undefined, imageMap);
+    });
+
+    it('should handle empty imageMap', () => {
+      const history: RawHistoryEntry[] = [{ id: 'discord-msg-1', role: 'user', content: '' }];
+      const imageMap = new Map<string, { filename: string; description: string }[]>();
+
+      injectImageDescriptions(history, imageMap);
+
+      expect(history[0].messageMetadata).toBeUndefined();
     });
   });
 });
