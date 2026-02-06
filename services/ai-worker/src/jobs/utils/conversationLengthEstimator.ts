@@ -209,6 +209,7 @@ function estimateReactionsLength(
  * @param personalityName - Name of the AI personality
  * @returns Character length of the formatted message
  */
+// eslint-disable-next-line complexity -- length estimation checks many optional metadata fields
 export function getFormattedMessageCharLength(
   msg: RawHistoryEntry,
   personalityName: string
@@ -240,7 +241,11 @@ export function getFormattedMessageCharLength(
   // Account for forwarded message wrapper
   // Forwarded content + attachments are wrapped: <quoted_messages>\n<quote type="forward" author="Unknown">content + attachments</quote>\n</quoted_messages>
   // The attachment lengths are calculated separately below, so we only add the wrapper overhead here
-  if (msg.isForwarded === true && msg.content.length > 0) {
+  const hasForwardedAttachments =
+    (msg.messageMetadata?.imageDescriptions?.length ?? 0) > 0 ||
+    (msg.messageMetadata?.embedsXml?.length ?? 0) > 0 ||
+    (msg.messageMetadata?.voiceTranscripts?.length ?? 0) > 0;
+  if (msg.isForwarded === true && (msg.content.length > 0 || hasForwardedAttachments)) {
     totalLength +=
       '<quoted_messages>\n<quote type="forward" author="Unknown"></quote>\n</quoted_messages>'
         .length;

@@ -625,6 +625,40 @@ describe('Conversation Utilities', () => {
       expect(result).not.toMatch(/message[^>]*forwarded="true"/);
     });
 
+    it('should wrap forwarded IMAGE-ONLY messages in quoted_messages structure', () => {
+      // Regression: forwarded messages with only images (no text) were appearing
+      // as completely empty <message></message> tags because the wrapping condition
+      // required safeContent.length > 0
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [
+              {
+                filename: 'img.png',
+                description: 'A beautiful sunset photo',
+              },
+            ],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Should have forwarded wrapping even with no text content
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('<quote type="forward" author="Unknown">');
+      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('A beautiful sunset photo');
+      expect(result).toContain('</quote>');
+      // Should NOT be empty
+      expect(result).not.toMatch(/<message[^>]*><\/message>/);
+    });
+
     it('should nest attachments inside quote for forwarded messages', () => {
       // When a user forwards a message with attachments, those attachments belong to
       // the forwarded content, not to the forwarder - so they should be inside the quote
@@ -1462,6 +1496,35 @@ describe('Conversation Utilities', () => {
       const normal = getFormattedMessageCharLength(normalMsg, 'TestBot');
 
       // Forwarded message includes <quoted_messages><quote type="forward" author="Unknown">...</quote></quoted_messages> wrapper
+      const wrapperLength =
+        '<quoted_messages>\n<quote type="forward" author="Unknown"></quote>\n</quoted_messages>'
+          .length;
+      expect(forwarded).toBe(normal + wrapperLength);
+    });
+
+    it('should include forwarded message wrapper for image-only forwards (no text)', () => {
+      const forwardedImageOnly: RawHistoryEntry = {
+        role: 'user',
+        content: '',
+        isForwarded: true,
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'img.png', description: 'A sunset photo' }],
+        },
+      };
+
+      const normalImageOnly: RawHistoryEntry = {
+        role: 'user',
+        content: '',
+        isForwarded: false,
+        messageMetadata: {
+          imageDescriptions: [{ filename: 'img.png', description: 'A sunset photo' }],
+        },
+      };
+
+      const forwarded = getFormattedMessageCharLength(forwardedImageOnly, 'TestBot');
+      const normal = getFormattedMessageCharLength(normalImageOnly, 'TestBot');
+
+      // Forwarded image-only message should include the wrapper
       const wrapperLength =
         '<quoted_messages>\n<quote type="forward" author="Unknown"></quote>\n</quoted_messages>'
           .length;

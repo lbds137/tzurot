@@ -943,6 +943,103 @@ describe('GenerationStep', () => {
         expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
       });
 
+      it('should preserve reasoning from first attempt when retry has no reasoning', async () => {
+        // First attempt: has reasoning but content is duplicate
+        const duplicateWithReasoning: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          thinkingContent: 'Let me think about how to respond to this situation...',
+        };
+
+        // Second attempt: unique content but no reasoning (model didn't produce it at high temp)
+        const uniqueNoReasoning: RAGResponse = {
+          content: 'A completely different and unique response here.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 45,
+          modelUsed: 'test-model',
+          // No thinkingContent
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateWithReasoning)
+          .mockResolvedValueOnce(uniqueNoReasoning);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponse },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe(uniqueNoReasoning.content);
+        // Reasoning from the first attempt should be preserved
+        expect(result.result?.metadata?.thinkingContent).toBe(
+          'Let me think about how to respond to this situation...'
+        );
+      });
+
+      it('should use latest reasoning when retry also has reasoning', async () => {
+        const duplicateWithReasoning: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          thinkingContent: 'First attempt reasoning...',
+        };
+
+        const uniqueWithReasoning: RAGResponse = {
+          content: 'A completely different and unique response here.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 45,
+          modelUsed: 'test-model',
+          thinkingContent: 'Retry reasoning - this should be used.',
+        };
+
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateWithReasoning)
+          .mockResolvedValueOnce(uniqueWithReasoning);
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponse },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        // When retry has its own reasoning, use it (not the preserved one)
+        expect(result.result?.metadata?.thinkingContent).toBe(
+          'Retry reasoning - this should be used.'
+        );
+      });
+
       it('should isolate context mutations across retry attempts', async () => {
         // This test verifies the fix for the repetition bug:
         // The RAG service mutates rawConversationHistory (e.g., injectImageDescriptions),

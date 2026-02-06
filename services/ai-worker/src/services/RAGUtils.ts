@@ -229,6 +229,7 @@ export function buildImageDescriptionMap(
 /** Raw conversation history entry shape for injection */
 export interface RawHistoryEntry {
   id?: string;
+  discordMessageId?: string[];
   role: string;
   content: string;
   tokenCount?: number;
@@ -236,6 +237,30 @@ export interface RawHistoryEntry {
     imageDescriptions?: InlineImageDescription[];
     [key: string]: unknown;
   };
+}
+
+/**
+ * Find image descriptions for a history entry by matching against the image map.
+ * Primary: match by entry.id (Discord snowflake for extended context messages)
+ * Fallback: match by discordMessageId (for DB messages with UUID ids)
+ */
+function findDescriptionsForEntry(
+  entry: RawHistoryEntry,
+  imageMap: Map<string, InlineImageDescription[]>
+): InlineImageDescription[] | undefined {
+  // Primary: match by entry.id (Discord snowflake for extended context messages)
+  if (entry.id !== undefined && entry.id.length > 0 && imageMap.has(entry.id)) {
+    return imageMap.get(entry.id);
+  }
+  // Fallback: match by discordMessageId (for DB messages with UUID ids)
+  if (entry.discordMessageId !== undefined) {
+    for (const id of entry.discordMessageId) {
+      if (id.length > 0 && imageMap.has(id)) {
+        return imageMap.get(id);
+      }
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -259,15 +284,11 @@ export function injectImageDescriptions(
   let injectedCount = 0;
 
   for (const entry of history) {
-    // For extended context messages, entry.id IS the Discord message ID
-    if (entry.id !== undefined && entry.id.length > 0 && imageMap.has(entry.id)) {
-      const descriptions = imageMap.get(entry.id);
-      if (descriptions !== undefined && descriptions.length > 0) {
-        // Ensure messageMetadata exists
-        entry.messageMetadata ??= {};
-        entry.messageMetadata.imageDescriptions = descriptions;
-        injectedCount++;
-      }
+    const descriptions = findDescriptionsForEntry(entry, imageMap);
+    if (descriptions !== undefined && descriptions.length > 0) {
+      entry.messageMetadata ??= {};
+      entry.messageMetadata.imageDescriptions = descriptions;
+      injectedCount++;
     }
   }
 
@@ -275,6 +296,15 @@ export function injectImageDescriptions(
     logger.info(
       { injectedCount },
       '[RAG] Injected image descriptions into history entries for inline display'
+    );
+  }
+
+  if (injectedCount === 0 && imageMap.size > 0) {
+    const historyIds = history.map(e => ({ id: e.id, discordIds: e.discordMessageId }));
+    const mapKeys = [...imageMap.keys()];
+    logger.warn(
+      { historyIds, mapKeys },
+      '[RAG] Image map had entries but no history matches — descriptions will not appear inline'
     );
   }
 }

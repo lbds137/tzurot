@@ -166,9 +166,9 @@ export function formatSingleHistoryEntryAsXml(
   // Attachments belong to the forwarded snapshot, not to the forwarder
   let formattedContent: string;
   let messageLevelAttachments: string;
-  if (msg.isForwarded === true && safeContent.length > 0) {
+  const forwardedAttachments = `${imageSection}${embedsSection}${voiceSection}`;
+  if (msg.isForwarded === true && (safeContent.length > 0 || forwardedAttachments.length > 0)) {
     // Include attachments inside the quote (they belong to the forwarded content)
-    const forwardedAttachments = `${imageSection}${embedsSection}${voiceSection}`;
     formattedContent = `<quoted_messages>\n<quote type="forward" author="Unknown">${safeContent}${forwardedAttachments}</quote>\n</quoted_messages>`;
     // Attachments already included in quote, don't duplicate at message level
     messageLevelAttachments = '';

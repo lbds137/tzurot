@@ -101,6 +101,17 @@ export class GenerationStep implements IPipelineStep {
     private readonly embeddingService?: EmbeddingServiceInterface
   ) {}
 
+  /** Inject preserved reasoning into a response that lacks its own */
+  private restoreThinking(response: RAGResponse, preserved: string | undefined): void {
+    if (
+      (response.thinkingContent === undefined || response.thinkingContent.length === 0) &&
+      preserved !== undefined &&
+      preserved.length > 0
+    ) {
+      response.thinkingContent = preserved;
+    }
+  }
+
   /**
    * Generate response with cross-turn duplication and empty response retry.
    * Treats duplicate and empty responses as retryable failures, matching LLM retry pattern.
@@ -110,6 +121,7 @@ export class GenerationStep implements IPipelineStep {
    * - Empty content after post-processing (e.g., model produced only thinking blocks)
    * - Duplicate responses matching recent assistant messages (up to 5)
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- retry loop with thinking preservation across multiple exit paths
   private async generateWithDuplicateRetry(opts: {
     personality: Parameters<ConversationalRAGService['generateResponse']>[0];
     message: MessageContent;
@@ -133,6 +145,7 @@ export class GenerationStep implements IPipelineStep {
 
     let duplicateRetries = 0;
     let emptyRetries = 0;
+    let preservedThinking: string | undefined;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -176,6 +189,13 @@ export class GenerationStep implements IPipelineStep {
         }
       );
 
+      // Preserve reasoning from any attempt (even failed/retried ones)
+      // Some models don't reliably produce reasoning at escalated temperature,
+      // so we carry forward reasoning from earlier attempts
+      if (response.thinkingContent !== undefined && response.thinkingContent.length > 0) {
+        preservedThinking = response.thinkingContent;
+      }
+
       // Check for empty content after post-processing (e.g., only thinking blocks)
       const emptyAction = shouldRetryEmptyResponse({ response, attempt, maxAttempts, jobId });
       if (emptyAction === 'retry') {
@@ -184,6 +204,7 @@ export class GenerationStep implements IPipelineStep {
       }
       if (emptyAction === 'return') {
         emptyRetries++;
+        this.restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries };
       }
 
@@ -202,6 +223,7 @@ export class GenerationStep implements IPipelineStep {
             '[GenerationStep] Retry succeeded - got valid unique response'
           );
         }
+        this.restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries };
       }
 
@@ -216,6 +238,7 @@ export class GenerationStep implements IPipelineStep {
         isGuestMode,
       });
       if (dupAction === 'return') {
+        this.restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries };
       }
     }
