@@ -175,6 +175,74 @@ describe('retryService', () => {
       expect(result.attempts).toBe(1);
     });
 
+    it('should normalize non-Error objects for logging', async () => {
+      // LangChain sometimes throws literal {} — verify we wrap it in a real Error
+      const emptyObj = {};
+      const fn = vi.fn().mockRejectedValueOnce(emptyObj).mockResolvedValue('success');
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        operationName: 'llm-call',
+      });
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      // The logger should receive a real Error, not the raw {}
+      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
+      const loggedErr = warnCall[0].err;
+      expect(loggedErr).toBeInstanceOf(Error);
+      expect(loggedErr.name).toBe('NormalizedError');
+      expect(loggedErr.message).toContain('llm-call');
+      expect(loggedErr.message).toContain('{}');
+    });
+
+    it('should normalize non-Error objects in non-retryable error path', async () => {
+      // Plain object thrown + shouldRetry returns false → handleNonRetryableError
+      const weirdError = { code: 'QUOTA_EXCEEDED' };
+      const fn = vi.fn().mockRejectedValue(weirdError);
+
+      const promise = withRetry(fn, {
+        maxAttempts: 3,
+        logger: mockLogger,
+        operationName: 'quota-test',
+        shouldRetry: () => false,
+      });
+
+      const assertionPromise = expect(promise).rejects.toThrow(RetryError);
+      await vi.runAllTimersAsync();
+      await assertionPromise;
+
+      // handleNonRetryableError should log a normalized Error
+      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
+      const loggedErr = warnCall[0].err;
+      expect(loggedErr).toBeInstanceOf(Error);
+      expect(loggedErr.name).toBe('NormalizedError');
+      expect(loggedErr.message).toContain('QUOTA_EXCEEDED');
+    });
+
+    it('should pass through real Error instances to logger unchanged', async () => {
+      const realError = new Error('Connection refused');
+      const fn = vi.fn().mockRejectedValueOnce(realError).mockResolvedValue('success');
+
+      const promise = withRetry(fn, {
+        maxAttempts: 2,
+        initialDelayMs: 100,
+        logger: mockLogger,
+        operationName: 'test-op',
+      });
+
+      await vi.runAllTimersAsync();
+      await promise;
+
+      const warnCall = (mockLogger.warn as ReturnType<typeof vi.fn>).mock.calls[0];
+      const loggedErr = warnCall[0].err;
+      // Should be the exact same Error instance, not wrapped
+      expect(loggedErr).toBe(realError);
+    });
+
     it('should include custom operation name in errors', async () => {
       const fn = vi.fn().mockRejectedValue(new Error('Fail'));
 

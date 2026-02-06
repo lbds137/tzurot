@@ -66,6 +66,34 @@ export class RetryError extends Error {
   }
 }
 
+/**
+ * Normalize a caught error for Pino logging.
+ *
+ * LangChain/OpenAI SDK sometimes throws plain objects (e.g., literal `{}`)
+ * instead of Error instances. Pino's error serializer can't extract useful
+ * info from these — they serialize as `{ _nonErrorObject: true, raw: "{}" }`.
+ *
+ * This wraps non-Error values in a real Error with context, so the log
+ * includes the operation name and a stringified snapshot of what was thrown.
+ */
+function normalizeErrorForLogging(error: unknown, operationName: string): Error {
+  if (error instanceof Error) {
+    return error;
+  }
+
+  let detail: string;
+  try {
+    const str = JSON.stringify(error);
+    detail = str.length > 500 ? str.substring(0, 500) + '...' : str;
+  } catch {
+    detail = String(error);
+  }
+
+  const normalized = new Error(`[${operationName}] Non-Error object thrown: ${detail}`);
+  normalized.name = 'NormalizedError';
+  return normalized;
+}
+
 interface TimeoutCheckContext {
   globalTimeoutMs: number | undefined;
   startTime: number;
@@ -112,7 +140,7 @@ function handleNonRetryableError(
 ): never {
   const totalTimeMs = Date.now() - startTime;
   logger?.warn(
-    { err: error, attempt, totalTimeMs },
+    { err: normalizeErrorForLogging(error, operationName), attempt, totalTimeMs },
     `[Retry] ${operationName} failed with non-retryable error, fast-failing`
   );
   throw new RetryError(`${operationName} failed with non-retryable error`, attempt, error);
@@ -230,7 +258,7 @@ export async function withRetry<T>(
       lastError = error;
       checkRetryableError({ error, shouldRetry, attempt, startTime, operationName, logger });
       logger?.warn(
-        { err: error, attempt, maxAttempts },
+        { err: normalizeErrorForLogging(error, operationName), attempt, maxAttempts },
         `[Retry] ${operationName} failed (attempt ${attempt}/${maxAttempts})`
       );
       await waitBeforeRetry({
