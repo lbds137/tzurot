@@ -77,6 +77,10 @@ export const INTERVALS = {
   VOICE_TRANSCRIPT_TTL: 5 * 60,
   /** Vision description cache TTL in Redis (1 hour in seconds - image URLs are stable for a while) */
   VISION_DESCRIPTION_TTL: 60 * 60,
+  /** Vision failure cache TTL for transient errors (10 minutes - cooldown before retry) */
+  VISION_FAILURE_TTL: 10 * 60,
+  /** Vision failure cache TTL for permanent errors (1 hour - longer cooldown, L2 is source of truth) */
+  VISION_FAILURE_PERMANENT_TTL: 60 * 60,
   /** OpenRouter models cache TTL in Redis (24 hours in seconds) */
   OPENROUTER_MODELS_TTL: 24 * 60 * 60,
 } as const;

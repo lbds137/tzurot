@@ -127,10 +127,13 @@ export {
   VisionDescriptionCache,
   type VisionCacheKeyOptions,
   type VisionStoreOptions,
+  type VisionFailureOptions,
+  type VisionFailureEntry,
 } from './services/VisionDescriptionCache.js';
 export {
   PersistentVisionCache,
   type PersistentVisionCacheEntry,
+  type PersistentVisionFailureEntry,
 } from './services/PersistentVisionCache.js';
 
 // Export resolvers (cascading configuration resolution)

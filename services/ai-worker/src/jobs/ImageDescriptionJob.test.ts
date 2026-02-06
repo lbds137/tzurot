@@ -9,13 +9,17 @@ import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-
 import { JobType, CONTENT_TYPES, AIProvider } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
-// Mock describeImage and withRetry
+// Mock describeImage, withRetry, and shouldRetryError
 vi.mock('../services/MultimodalProcessor.js', () => ({
   describeImage: vi.fn(),
 }));
 
 vi.mock('../utils/retry.js', () => ({
   withRetry: vi.fn(),
+}));
+
+vi.mock('../utils/apiErrorParser.js', () => ({
+  shouldRetryError: vi.fn((_error: unknown) => true),
 }));
 
 // Import the mocked modules
@@ -115,6 +119,7 @@ describe('ImageDescriptionJob', () => {
         expect.objectContaining({
           maxAttempts: 3,
           operationName: 'Image description (image1.png)',
+          shouldRetry: expect.any(Function),
         })
       );
     });

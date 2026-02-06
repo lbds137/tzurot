@@ -342,6 +342,7 @@ CREATE TABLE "image_description_cache" (
     "attachment_id" VARCHAR(20) NOT NULL,
     "description" TEXT NOT NULL,
     "model" VARCHAR(255) NOT NULL,
+    "failure_category" VARCHAR(50),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
