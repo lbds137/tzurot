@@ -24,11 +24,12 @@ const logger = createLogger('ModelFactory');
 const config = getConfig();
 
 /**
- * OpenRouter-specific parameters that need to be injected into the request body.
- * The OpenAI SDK v4+ strips unknown top-level keys from the params, so we need
- * to inject these after SDK validation via a custom fetch wrapper.
+ * OpenRouter-specific parameters injected into the request body via custom fetch.
  *
- * Reasoning is handled separately via the `reasoning` param in modelKwargs.
+ * Note: The OpenAI SDK does NOT strip unknown keys at runtime (it just
+ * JSON.stringify's the body). These could go in modelKwargs instead, but we
+ * already need the custom fetch wrapper for response interception (see below),
+ * so we inject them there for consistency.
  */
 export interface OpenRouterExtraParams {
   transforms?: string[];
@@ -75,26 +76,137 @@ function injectOpenRouterParams(
 }
 
 /**
- * Create a custom fetch function that injects OpenRouter-specific parameters
- * into the request body after SDK validation.
+ * Extract reasoning text from OpenRouter's reasoning_details array.
+ * Handles multiple detail types: reasoning.text, reasoning.summary.
+ * Encrypted blocks (reasoning.encrypted) are skipped (unreadable).
+ */
+function extractReasoningFromDetails(details: unknown[]): string | null {
+  const texts: string[] = [];
+  for (const item of details) {
+    if (typeof item !== 'object' || item === null) {
+      continue;
+    }
+    const detail = item as Record<string, unknown>;
+    if (detail.type === 'reasoning.text' && typeof detail.text === 'string') {
+      texts.push(detail.text);
+    } else if (detail.type === 'reasoning.summary' && typeof detail.summary === 'string') {
+      texts.push(detail.summary);
+    }
+  }
+  return texts.length > 0 ? texts.join('\n') : null;
+}
+
+/**
+ * Intercept OpenRouter API response to preserve reasoning content.
  *
- * The OpenAI SDK v4+ requires extra_body as a separate options argument,
- * but LangChain.js doesn't expose this. This workaround intercepts the
- * fetch call and modifies the body before sending.
+ * LangChain's Chat Completions converter only extracts function_call, tool_calls,
+ * and audio from the response message — reasoning fields are silently dropped.
+ * We intercept the raw response to extract reasoning and inject it into the
+ * message content as <reasoning> tags, which thinkingExtraction.ts then processes.
  *
- * Note: Response interception for reasoning was removed. Reasoning content
- * now flows through the standard OpenRouter `reasoning` param and is
- * preserved in LangChain's `additional_kwargs.reasoning`.
+ * Handles two response formats:
+ * - message.reasoning (string) — DeepSeek R1, Kimi K2, QwQ, GLM
+ * - message.reasoning_details (array) — Claude Extended Thinking, Gemini, o-series
+ */
+function interceptReasoningResponse(responseBody: Record<string, unknown>): boolean {
+  const choices = responseBody.choices;
+  if (!Array.isArray(choices)) {
+    return false;
+  }
+
+  let modified = false;
+  for (const choice of choices) {
+    if (typeof choice !== 'object' || choice === null) {
+      continue;
+    }
+    const msg = (choice as Record<string, unknown>).message;
+    if (typeof msg !== 'object' || msg === null) {
+      continue;
+    }
+    const message = msg as Record<string, unknown>;
+
+    let reasoning: string | null = null;
+
+    // Source 1: message.reasoning (string — DeepSeek R1, Kimi K2, QwQ)
+    if (typeof message.reasoning === 'string' && message.reasoning.length > 0) {
+      reasoning = message.reasoning;
+    }
+    // Source 2: message.reasoning_details (array — Claude, Gemini, o-series)
+    else if (Array.isArray(message.reasoning_details)) {
+      reasoning = extractReasoningFromDetails(message.reasoning_details);
+    }
+
+    if (reasoning !== null) {
+      const content = typeof message.content === 'string' ? message.content : '';
+      message.content = `<reasoning>${reasoning}</reasoning>\n${content}`;
+      modified = true;
+
+      logger.debug(
+        { reasoningLength: reasoning.length, contentLength: content.length },
+        '[ModelFactory] Injected reasoning from API response into content'
+      );
+    }
+  }
+  return modified;
+}
+
+/**
+ * Create a custom fetch function for OpenRouter requests.
+ *
+ * Two responsibilities:
+ * 1. REQUEST: Inject OpenRouter-specific params (transforms, route, verbosity)
+ * 2. RESPONSE: Extract reasoning content that LangChain would otherwise drop
+ *
+ * Response interception is necessary because LangChain's Chat Completions
+ * converter only preserves function_call/tool_calls/audio from the message
+ * object — the `reasoning` and `reasoning_details` fields are silently lost.
+ * We inject reasoning into message.content as <reasoning> tags before LangChain
+ * parses the response.
  */
 function createOpenRouterFetch(
   extraParams: OpenRouterExtraParams
 ): (url: string | URL | Request, init?: RequestInit) => Promise<Response> {
   return async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
-    if (init?.method === 'POST' && init.body !== undefined && init.body !== null) {
+    // REQUEST: Inject OpenRouter-specific params
+    const hasExtraParams = Object.keys(extraParams).length > 0;
+    if (
+      hasExtraParams &&
+      init?.method === 'POST' &&
+      init.body !== undefined &&
+      init.body !== null
+    ) {
       injectOpenRouterParams(url, init, extraParams);
     }
 
-    return fetch(url, init);
+    const response = await fetch(url, init);
+
+    // RESPONSE: Intercept to preserve reasoning content
+    // Only process successful JSON responses (non-streaming)
+    if (!response.ok) {
+      return response;
+    }
+    const contentType = response.headers.get('content-type');
+    if (contentType === null) {
+      return response;
+    }
+    if (!contentType.includes('application/json')) {
+      return response;
+    }
+
+    try {
+      const body = (await response.json()) as Record<string, unknown>;
+      interceptReasoningResponse(body);
+
+      // Re-create the response since we consumed the body via .json()
+      return new Response(JSON.stringify(body), {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    } catch {
+      // If response isn't valid JSON, something's wrong — return original
+      return response;
+    }
   };
 }
 
@@ -236,15 +348,15 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
 
   // Note: OpenRouter-specific params (transforms, route, verbosity) are injected via
-  // custom fetch wrapper, not modelKwargs, because the OpenAI SDK v4+ strips unknown
-  // top-level keys from the params object.
+  // custom fetch wrapper for consistency with the response interception logic.
 
   return kwargs;
 }
 
 /**
- * Build OpenRouter-specific parameters that need to be injected via custom fetch.
- * These can't go in modelKwargs because the OpenAI SDK strips unknown keys.
+ * Build OpenRouter-specific parameters that are injected via custom fetch.
+ * These could go in modelKwargs (the SDK doesn't strip keys), but since we
+ * already need custom fetch for response interception, we inject them there.
  */
 function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraParams {
   const params: OpenRouterExtraParams = {};
@@ -357,6 +469,12 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
       const extraParams = buildOpenRouterExtraParams(modelConfig);
       const hasExtraParams = Object.keys(extraParams).length > 0;
 
+      // Custom fetch is needed for:
+      // 1. Injecting OpenRouter-specific request params (transforms, route, verbosity)
+      // 2. Intercepting responses to preserve reasoning content (LangChain drops it)
+      const hasReasoning = modelConfig.reasoning !== undefined;
+      const needsCustomFetch = hasExtraParams || hasReasoning;
+
       logger.debug(
         {
           provider,
@@ -368,6 +486,8 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           maxTokens,
           modelKwargs: hasModelKwargs ? modelKwargs : undefined,
           extraParams: hasExtraParams ? extraParams : undefined,
+          reasoningEnabled: hasReasoning,
+          customFetch: needsCustomFetch,
         },
         '[ModelFactory] Creating model'
       );
@@ -384,9 +504,8 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           modelKwargs: hasModelKwargs ? modelKwargs : undefined,
           configuration: {
             baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
-            // Use custom fetch to inject OpenRouter-specific params that
-            // the OpenAI SDK would otherwise strip from the request body
-            fetch: hasExtraParams ? createOpenRouterFetch(extraParams) : undefined,
+            // Custom fetch for OpenRouter param injection + reasoning response interception
+            fetch: needsCustomFetch ? createOpenRouterFetch(extraParams) : undefined,
           },
         }),
         modelName,

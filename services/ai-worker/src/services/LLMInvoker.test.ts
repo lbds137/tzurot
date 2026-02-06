@@ -714,7 +714,7 @@ describe('LLMInvoker', () => {
         expect(mockModel.invoke).toHaveBeenCalledTimes(1);
       });
 
-      it('should strip thinking tags from response content', async () => {
+      it('should NOT strip thinking tags (delegated to ResponsePostProcessor)', async () => {
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({
             content: '<thinking>Let me think about this...</thinking>Here is my answer.',
@@ -724,14 +724,17 @@ describe('LLMInvoker', () => {
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-        // Use a model name that enables thinking tag stripping
+        // LLMInvoker no longer strips tags — ResponsePostProcessor handles extraction
         const result = await invoker.invokeWithRetry({
           model: mockModel,
           messages,
           modelName: 'anthropic/claude-3-7-sonnet:thinking',
         });
 
-        expect(result.content).toBe('Here is my answer.');
+        // Tags preserved for downstream extraction by ResponsePostProcessor
+        expect(result.content).toBe(
+          '<thinking>Let me think about this...</thinking>Here is my answer.'
+        );
       });
 
       it('should preserve response if no thinking tags present', async () => {
@@ -755,7 +758,7 @@ describe('LLMInvoker', () => {
         expect(result.additional_kwargs).toEqual({ key: 'value' });
       });
 
-      it('should handle multimodal array content in reasoning model response', async () => {
+      it('should preserve multimodal array content for reasoning model response', async () => {
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({
             content: [{ text: '<thinking>Analyzing...</thinking>' }, { text: 'The answer is 42.' }],
@@ -771,8 +774,11 @@ describe('LLMInvoker', () => {
           modelName: 'anthropic/claude-3-7-sonnet:thinking',
         });
 
-        // Should strip thinking tags from combined content
-        expect(result.content).toBe('The answer is 42.');
+        // Content preserved as-is — ResponsePostProcessor handles extraction
+        expect(result.content).toEqual([
+          { text: '<thinking>Analyzing...</thinking>' },
+          { text: 'The answer is 42.' },
+        ]);
       });
 
       it('should handle array content blocks with non-text elements', async () => {
@@ -818,7 +824,7 @@ describe('LLMInvoker', () => {
         expect(result.content).toBe('<thinking>This is valid content</thinking>');
       });
 
-      it('should handle Gemini thinking models', async () => {
+      it('should preserve Gemini thinking model content for downstream extraction', async () => {
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({
             content: '<thinking>Working on it</thinking>The result is here.',
@@ -828,14 +834,14 @@ describe('LLMInvoker', () => {
 
         const messages: BaseMessage[] = [new HumanMessage('Hello')];
 
-        // Gemini thinking pattern is "gemini-2.0-flash-thinking"
+        // Gemini thinking pattern — tags preserved for ResponsePostProcessor
         const result = await invoker.invokeWithRetry({
           model: mockModel,
           messages,
           modelName: 'google/gemini-2.0-flash-thinking',
         });
 
-        expect(result.content).toBe('The result is here.');
+        expect(result.content).toBe('<thinking>Working on it</thinking>The result is here.');
       });
     });
 
