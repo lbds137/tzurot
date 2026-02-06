@@ -21,6 +21,7 @@ import {
   type LoadedPersonality,
 } from '@tzurot/common-types';
 import { withParallelRetry } from '../utils/retry.js';
+import { shouldRetryError, parseApiError } from '../utils/apiErrorParser.js';
 import { describeImage } from './multimodal/VisionProcessor.js';
 import { transcribeAudio } from './multimodal/AudioProcessor.js';
 
@@ -111,6 +112,7 @@ export async function processAttachments(
       maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
       logger,
       operationName: 'Attachment processing',
+      shouldRetry: shouldRetryError,
     }
   );
 
@@ -122,11 +124,13 @@ export async function processAttachments(
       return result.value;
     }
 
-    // Failed after all retries - provide fallback description
+    // Failed after all retries - provide fallback description with error category
     const isImage = attachment?.contentType?.startsWith(CONTENT_TYPES.IMAGE_PREFIX) ?? false;
+    const errorCategory =
+      result.error !== undefined ? parseApiError(result.error).category : 'unknown';
     const fallbackDescription = isImage
-      ? `Image processing failed after ${RETRY_CONFIG.MAX_ATTEMPTS} attempts`
-      : `Audio transcription failed after ${RETRY_CONFIG.MAX_ATTEMPTS} attempts`;
+      ? `Image processing failed after ${result.attempts} attempts (${errorCategory})`
+      : `Audio transcription failed after ${result.attempts} attempts (${errorCategory})`;
 
     logger.warn(
       {

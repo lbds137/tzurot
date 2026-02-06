@@ -18,6 +18,7 @@ import {
 } from '@tzurot/common-types';
 import { describeImage } from '../services/MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
+import { shouldRetryError } from '../utils/apiErrorParser.js';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 const logger = createLogger('ImageDescriptionJob');
@@ -90,6 +91,7 @@ async function processSingleImage(
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
         logger,
         operationName: `Image description (${attachment.name})`,
+        shouldRetry: shouldRetryError,
       }
     );
     return { url: attachment.url, description: result.value, success: true };

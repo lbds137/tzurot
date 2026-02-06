@@ -375,7 +375,7 @@ export async function withParallelRetry<TItem, TResult>(
   fn: (item: TItem, index: number) => Promise<TResult>,
   options: ParallelRetryOptions = {}
 ): Promise<ParallelItemResult<TResult>[]> {
-  const { maxAttempts = 3, logger, operationName = 'operation' } = options;
+  const { maxAttempts = 3, logger, operationName = 'operation', shouldRetry } = options;
 
   // Track results for each item
   const results: ParallelItemResult<TResult>[] = items.map((_, index) => ({
@@ -426,14 +426,20 @@ export async function withParallelRetry<TItem, TResult>(
         } else {
           results[index].status = 'failed';
           results[index].error = error;
-          stillFailing.push(index);
+          const canRetry = shouldRetry === undefined || shouldRetry(error);
+          if (canRetry) {
+            stillFailing.push(index);
+          }
         }
       } else {
         // Promise itself was rejected (shouldn't happen with our setup)
         results[index].attempts = attempt;
         results[index].status = 'failed';
         results[index].error = promiseResult.reason;
-        stillFailing.push(index);
+        const canRetry = shouldRetry === undefined || shouldRetry(promiseResult.reason);
+        if (canRetry) {
+          stillFailing.push(index);
+        }
       }
     });
 

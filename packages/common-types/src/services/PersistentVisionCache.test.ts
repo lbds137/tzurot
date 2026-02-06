@@ -146,6 +146,76 @@ describe('PersistentVisionCache', () => {
     });
   });
 
+  describe('setFailure', () => {
+    it('should upsert a permanent failure with sentinel description', async () => {
+      mockImageDescriptionCache.upsert.mockResolvedValue({});
+
+      await cache.setFailure('123456789012345678', 'authentication');
+
+      expect(mockImageDescriptionCache.upsert).toHaveBeenCalledWith({
+        where: { attachmentId: '123456789012345678' },
+        create: {
+          id: generateImageDescriptionCacheUuid('123456789012345678'),
+          attachmentId: '123456789012345678',
+          description: '[permanent failure]',
+          model: 'none',
+          failureCategory: 'authentication',
+        },
+        update: {
+          description: '[permanent failure]',
+          model: 'none',
+          failureCategory: 'authentication',
+        },
+      });
+    });
+
+    it('should propagate database errors', async () => {
+      mockImageDescriptionCache.upsert.mockRejectedValue(new Error('DB error'));
+
+      await expect(cache.setFailure('123', 'authentication')).rejects.toThrow('DB error');
+    });
+  });
+
+  describe('getFailure', () => {
+    it('should return failure entry when failureCategory is set', async () => {
+      mockImageDescriptionCache.findUnique.mockResolvedValue({
+        failureCategory: 'content_policy',
+      });
+
+      const result = await cache.getFailure('123456789012345678');
+
+      expect(result).toEqual({ category: 'content_policy' });
+      expect(mockImageDescriptionCache.findUnique).toHaveBeenCalledWith({
+        where: { attachmentId: '123456789012345678' },
+        select: { failureCategory: true },
+      });
+    });
+
+    it('should return null when entry has no failureCategory', async () => {
+      mockImageDescriptionCache.findUnique.mockResolvedValue({
+        failureCategory: null,
+      });
+
+      const result = await cache.getFailure('123456789012345678');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when entry does not exist', async () => {
+      mockImageDescriptionCache.findUnique.mockResolvedValue(null);
+
+      const result = await cache.getFailure('nonexistent');
+
+      expect(result).toBeNull();
+    });
+
+    it('should propagate database errors', async () => {
+      mockImageDescriptionCache.findUnique.mockRejectedValue(new Error('DB error'));
+
+      await expect(cache.getFailure('123')).rejects.toThrow('DB error');
+    });
+  });
+
   describe('delete', () => {
     it('should delete entry from cache', async () => {
       mockImageDescriptionCache.delete.mockResolvedValue({});
