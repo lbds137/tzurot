@@ -9,31 +9,44 @@ import { AttachmentType, CONTENT_TYPES } from '@tzurot/common-types';
 
 // Use vi.hoisted() to create mocks that persist across test resets
 const {
-  mockChatOpenAIInvoke,
-  mockChatOpenAIConstructor,
+  mockModelInvoke,
+  mockCreateChatModel,
   mockWhisperCreate,
   mockGetVoiceTranscript,
   mockCheckModelVisionSupport,
   mockVisionCacheGet,
   mockVisionCacheStore,
+  mockVisionCacheGetFailure,
+  mockVisionCacheStoreFailure,
 } = vi.hoisted(() => ({
-  mockChatOpenAIInvoke: vi.fn(),
-  mockChatOpenAIConstructor: vi.fn(),
+  mockModelInvoke: vi.fn(),
+  mockCreateChatModel: vi.fn(),
   mockWhisperCreate: vi.fn(),
   mockGetVoiceTranscript: vi.fn(),
   mockCheckModelVisionSupport: vi.fn(),
   mockVisionCacheGet: vi.fn(),
   mockVisionCacheStore: vi.fn(),
+  mockVisionCacheGetFailure: vi.fn(),
+  mockVisionCacheStoreFailure: vi.fn(),
 }));
 
-// Mock dependencies
-vi.mock('@langchain/openai', () => ({
-  ChatOpenAI: class MockChatOpenAI {
-    invoke = mockChatOpenAIInvoke;
-    constructor(config: { modelName?: string; apiKey?: string; configuration?: object }) {
-      mockChatOpenAIConstructor(config);
-    }
-  },
+// Mock ModelFactory (used by VisionProcessor)
+vi.mock('./multimodal/../ModelFactory.js', () => ({
+  createChatModel: (...args: unknown[]) => mockCreateChatModel(...args),
+}));
+
+// Mock apiErrorParser (used by VisionProcessor and MultimodalProcessor)
+vi.mock('../utils/apiErrorParser.js', () => ({
+  parseApiError: (error: unknown) => ({
+    category: 'transient',
+    type: 'UNKNOWN',
+    statusCode: undefined,
+    shouldRetry: true,
+    technicalMessage: error instanceof Error ? error.message : String(error),
+    referenceId: 'test-ref',
+    requestId: undefined,
+  }),
+  shouldRetryError: () => true,
 }));
 
 vi.mock('openai', () => ({
@@ -56,6 +69,8 @@ vi.mock('../redis.js', () => ({
   visionDescriptionCache: {
     get: mockVisionCacheGet,
     store: mockVisionCacheStore,
+    getFailure: mockVisionCacheGetFailure,
+    storeFailure: mockVisionCacheStoreFailure,
   },
 }));
 
@@ -79,8 +94,13 @@ describe('MultimodalProcessor', () => {
     vi.clearAllMocks();
 
     // Reset mock implementations to default
-    mockChatOpenAIInvoke.mockResolvedValue({
+    mockModelInvoke.mockResolvedValue({
       content: 'Mocked image description',
+    });
+
+    mockCreateChatModel.mockReturnValue({
+      model: { invoke: mockModelInvoke },
+      modelName: 'test-model',
     });
 
     // Whisper with response_format:'text' returns string directly, not {text: string}
@@ -91,9 +111,8 @@ describe('MultimodalProcessor', () => {
     mockCheckModelVisionSupport.mockResolvedValue(false); // Default to no vision support
     mockVisionCacheGet.mockResolvedValue(null); // Default: cache miss
     mockVisionCacheStore.mockResolvedValue(undefined);
-
-    // Don't reset fetch - let tests set it up themselves
-    // (global.fetch as any).mockReset();
+    mockVisionCacheGetFailure.mockResolvedValue(null); // Default: no failure cached
+    mockVisionCacheStoreFailure.mockResolvedValue(undefined);
   });
 
   afterEach(() => {
@@ -128,7 +147,7 @@ describe('MultimodalProcessor', () => {
     });
 
     it('should handle vision model errors gracefully', async () => {
-      mockChatOpenAIInvoke.mockRejectedValue(new Error('Vision API error'));
+      mockModelInvoke.mockRejectedValue(new Error('Vision API error'));
 
       await expect(describeImage(mockAttachment, mockPersonality)).rejects.toThrow(
         'Vision API error'
@@ -249,8 +268,6 @@ describe('MultimodalProcessor', () => {
       expect(results).toHaveLength(1);
       expect(results[0].type).toBe(AttachmentType.Audio);
       expect(results[0].originalUrl).toBe('https://example.com/audio1.ogg');
-      // Note: Audio transcription is tested directly in transcribeAudio tests
-      // This test focuses on processAttachments handling audio attachments
 
       // Restore fake timers for subsequent tests
       vi.useFakeTimers();
@@ -292,8 +309,6 @@ describe('MultimodalProcessor', () => {
       expect(results[0].type).toBe(AttachmentType.Image);
       expect(results[1].type).toBe(AttachmentType.Image);
       expect(results[2].type).toBe(AttachmentType.Audio);
-      // Note: Specific audio/image descriptions are tested in their direct function tests
-      // This test focuses on parallel processing of mixed attachment types
 
       // Restore fake timers for subsequent tests
       vi.useFakeTimers();
@@ -309,7 +324,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      mockChatOpenAIInvoke
+      mockModelInvoke
         .mockRejectedValueOnce(new Error('Temporary error'))
         .mockRejectedValueOnce(new Error('Temporary error'))
         .mockResolvedValueOnce({ content: 'Success after retries' });
@@ -323,10 +338,10 @@ describe('MultimodalProcessor', () => {
 
       expect(results).toHaveLength(1);
       expect(results[0].description).toBe('Success after retries');
-      expect(mockChatOpenAIInvoke).toHaveBeenCalledTimes(3);
+      expect(mockModelInvoke).toHaveBeenCalledTimes(3);
     });
 
-    it('should provide fallback description for permanently failed attachments', async () => {
+    it('should provide fallback description with error category for permanently failed attachments', async () => {
       const attachments: AttachmentMetadata[] = [
         {
           url: 'https://example.com/image1.png',
@@ -336,7 +351,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      mockChatOpenAIInvoke.mockRejectedValue(new Error('Permanent failure'));
+      mockModelInvoke.mockRejectedValue(new Error('Permanent failure'));
 
       const promise = processAttachments(attachments, mockPersonality);
 
@@ -348,10 +363,12 @@ describe('MultimodalProcessor', () => {
       expect(results).toHaveLength(1);
       expect(results[0]).toMatchObject({
         type: AttachmentType.Image,
-        description: 'Image processing failed after 3 attempts',
         originalUrl: 'https://example.com/image1.png',
       });
-      expect(mockChatOpenAIInvoke).toHaveBeenCalledTimes(3);
+      // Fallback now includes attempt count and error category
+      expect(results[0].description).toMatch(/Image processing failed after \d+ attempts \(/);
+      expect(results[0].description).toContain('transient');
+      expect(mockModelInvoke).toHaveBeenCalledTimes(3);
     });
 
     it('should handle mixed success and failure in parallel processing', async () => {
@@ -370,9 +387,7 @@ describe('MultimodalProcessor', () => {
         },
       ];
 
-      let callCount = 0;
-      mockChatOpenAIInvoke.mockImplementation((messages: any) => {
-        callCount++;
+      mockModelInvoke.mockImplementation((messages: any) => {
         // Extract URL from the message content to identify which attachment
         const imageUrl = messages[messages.length - 1]?.content?.find(
           (c: any) => c.type === 'image_url'
@@ -395,7 +410,8 @@ describe('MultimodalProcessor', () => {
 
       expect(results).toHaveLength(2);
       expect(results[0].description).toBe('Success');
-      expect(results[1].description).toBe('Image processing failed after 3 attempts');
+      // Fallback includes error category
+      expect(results[1].description).toMatch(/Image processing failed after \d+ attempts \(/);
     });
 
     it('should handle audio attachment failures with appropriate fallback', async () => {
@@ -419,9 +435,10 @@ describe('MultimodalProcessor', () => {
       expect(results).toHaveLength(1);
       expect(results[0]).toMatchObject({
         type: AttachmentType.Audio,
-        description: 'Audio transcription failed after 3 attempts',
         originalUrl: 'https://example.com/audio1.ogg',
       });
+      // Fallback includes error category
+      expect(results[0].description).toMatch(/Audio transcription failed after \d+ attempts \(/);
     });
 
     it('should process empty attachment array', async () => {
@@ -436,14 +453,14 @@ describe('MultimodalProcessor', () => {
   describe('BYOK API key integration', () => {
     beforeEach(() => {
       vi.useFakeTimers();
-      mockChatOpenAIConstructor.mockClear();
+      mockCreateChatModel.mockClear();
     });
 
     afterEach(() => {
       vi.useRealTimers();
     });
 
-    it('should pass userApiKey to ChatOpenAI constructor for image processing', async () => {
+    it('should pass userApiKey to createChatModel for image processing', async () => {
       const attachments: AttachmentMetadata[] = [
         {
           url: 'https://example.com/image.png',
@@ -459,8 +476,8 @@ describe('MultimodalProcessor', () => {
       await vi.runAllTimersAsync();
       await promise;
 
-      // Verify ChatOpenAI was constructed with the user's API key
-      expect(mockChatOpenAIConstructor).toHaveBeenCalledWith(
+      // Verify createChatModel was called with the user's API key
+      expect(mockCreateChatModel).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: userApiKey,
         })
@@ -482,11 +499,10 @@ describe('MultimodalProcessor', () => {
       await vi.runAllTimersAsync();
       await promise;
 
-      // Verify ChatOpenAI was constructed (with system key from config)
-      expect(mockChatOpenAIConstructor).toHaveBeenCalled();
-      // The apiKey should NOT be the user's key (it's undefined, so system key is used)
-      const constructorArg = mockChatOpenAIConstructor.mock.calls[0][0];
-      expect(constructorArg.apiKey).not.toBe('user-test-key-12345');
+      // Verify createChatModel was called (with undefined apiKey → system key from config)
+      expect(mockCreateChatModel).toHaveBeenCalled();
+      const constructorArg = mockCreateChatModel.mock.calls[0][0];
+      expect(constructorArg.apiKey).toBeUndefined();
     });
 
     it('should pass isGuestMode flag through for guest users', async () => {
@@ -506,7 +522,7 @@ describe('MultimodalProcessor', () => {
       await promise;
 
       // Guest mode should still process images (using free vision models)
-      expect(mockChatOpenAIConstructor).toHaveBeenCalled();
+      expect(mockCreateChatModel).toHaveBeenCalled();
     });
 
     it('should use BYOK key even when isGuestMode is false', async () => {
@@ -526,7 +542,7 @@ describe('MultimodalProcessor', () => {
       await promise;
 
       // BYOK user should have their key used
-      expect(mockChatOpenAIConstructor).toHaveBeenCalledWith(
+      expect(mockCreateChatModel).toHaveBeenCalledWith(
         expect.objectContaining({
           apiKey: userApiKey,
         })

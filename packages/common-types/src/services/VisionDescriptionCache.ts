@@ -51,6 +51,22 @@ export interface VisionStoreOptions extends VisionCacheKeyOptions {
   model?: string;
 }
 
+/** Options for storing a vision failure */
+export interface VisionFailureOptions extends VisionCacheKeyOptions {
+  /** Error category (e.g., 'authentication', 'rate_limit') */
+  category: string;
+  /** True = permanent failure (auth, content policy); false = transient (timeout, rate limit) */
+  permanent: boolean;
+}
+
+/** Cached failure entry returned from getFailure */
+export interface VisionFailureEntry {
+  /** Error category */
+  category: string;
+  /** Whether this is a permanent failure */
+  permanent: boolean;
+}
+
 export class VisionDescriptionCache {
   private l2Cache: PersistentVisionCache | null = null;
 
@@ -163,6 +179,104 @@ export class VisionDescriptionCache {
   }
 
   /**
+   * Store a vision failure in the negative cache
+   * Prevents re-hammering the same failing image
+   *
+   * @param options Failure details including category and permanence
+   */
+  async storeFailure(options: VisionFailureOptions): Promise<void> {
+    try {
+      const key = this.getFailureKey(options);
+      const value = JSON.stringify({
+        category: options.category,
+        permanent: options.permanent,
+      });
+
+      if (options.permanent) {
+        // Permanent: L1 (1h TTL) + L2 (PostgreSQL)
+        await this.redis.setex(key, INTERVALS.VISION_FAILURE_PERMANENT_TTL, value);
+
+        if (
+          this.l2Cache !== null &&
+          options.attachmentId !== undefined &&
+          options.attachmentId !== ''
+        ) {
+          await this.l2Cache.setFailure(options.attachmentId, options.category);
+        }
+      } else {
+        // Transient: L1 only (10-min cooldown)
+        await this.redis.setex(key, INTERVALS.VISION_FAILURE_TTL, value);
+      }
+
+      logger.info(
+        {
+          attachmentId: options.attachmentId,
+          category: options.category,
+          permanent: options.permanent,
+        },
+        '[VisionDescriptionCache] Stored failure in negative cache'
+      );
+    } catch (error) {
+      logger.error({ err: error }, '[VisionDescriptionCache] Failed to store failure');
+    }
+  }
+
+  /**
+   * Check if a vision failure is cached (negative cache check)
+   *
+   * @param options Cache key options
+   * @returns Failure entry if cached, null if OK to retry
+   */
+  async getFailure(options: VisionCacheKeyOptions): Promise<VisionFailureEntry | null> {
+    try {
+      // Check L1 (Redis)
+      const key = this.getFailureKey(options);
+      const l1Value = await this.redis.get(key);
+
+      if (l1Value !== null && l1Value.length > 0) {
+        const entry = JSON.parse(l1Value) as VisionFailureEntry;
+        logger.info(
+          {
+            attachmentId: options.attachmentId,
+            category: entry.category,
+            permanent: entry.permanent,
+          },
+          '[VisionDescriptionCache] Negative cache HIT (L1)'
+        );
+        return entry;
+      }
+
+      // Check L2 (PostgreSQL) for permanent failures
+      if (
+        this.l2Cache !== null &&
+        options.attachmentId !== undefined &&
+        options.attachmentId !== ''
+      ) {
+        const l2Entry = await this.l2Cache.getFailure(options.attachmentId);
+
+        if (l2Entry !== null) {
+          // Repopulate L1 from L2
+          const value = JSON.stringify({
+            category: l2Entry.category,
+            permanent: true,
+          });
+          await this.redis.setex(key, INTERVALS.VISION_FAILURE_PERMANENT_TTL, value);
+          logger.info(
+            { attachmentId: options.attachmentId, category: l2Entry.category },
+            '[VisionDescriptionCache] Negative cache HIT (L2 → L1)'
+          );
+          return { category: l2Entry.category, permanent: true };
+        }
+      }
+
+      return null;
+    } catch (error) {
+      logger.error({ err: error }, '[VisionDescriptionCache] Failed to check failure cache');
+      return null;
+    }
+  }
+
+  /**
    * Write to L2 cache with exponential backoff retry
    * Fire-and-forget with logging - doesn't throw on failure
    */
@@ -227,5 +341,18 @@ export class VisionDescriptionCache {
     const baseUrl = options.url.split('?')[0];
     const urlHash = createHash('sha256').update(baseUrl).digest('hex');
     return `${REDIS_KEY_PREFIXES.VISION_DESCRIPTION}url:${urlHash}`;
+  }
+
+  /**
+   * Generate failure cache key (separate namespace from success cache)
+   */
+  private getFailureKey(options: VisionCacheKeyOptions): string {
+    if (options.attachmentId !== undefined && options.attachmentId !== '') {
+      return `${REDIS_KEY_PREFIXES.VISION_FAILURE}id:${options.attachmentId}`;
+    }
+
+    const baseUrl = options.url.split('?')[0];
+    const urlHash = createHash('sha256').update(baseUrl).digest('hex');
+    return `${REDIS_KEY_PREFIXES.VISION_FAILURE}url:${urlHash}`;
   }
 }

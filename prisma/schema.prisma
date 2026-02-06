@@ -529,6 +529,8 @@ model ImageDescriptionCache {
   description  String
   /// Model that generated the description (for cache invalidation if model changes)
   model        String   @db.VarChar(255)
+  /// Failure category for negative caching (null = success, non-null = permanent failure type)
+  failureCategory String?  @map("failure_category") @db.VarChar(50)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 

@@ -481,6 +481,47 @@ describe('retryService', () => {
       expect(results).toHaveLength(2);
       expect(results.every(r => r.status === 'success')).toBe(true);
     });
+
+    it('should respect shouldRetry and skip retries for non-retryable errors', async () => {
+      const items = [1, 2, 3];
+      const retryableError = new Error('Retryable: timeout');
+      const permanentError = new Error('Permanent: 401 unauthorized');
+
+      const fn = vi.fn((item: number) => {
+        if (item === 2) return Promise.reject(permanentError);
+        if (item === 3) return Promise.reject(retryableError);
+        return Promise.resolve(item * 2);
+      });
+
+      // Only retry retryable errors, not permanent ones
+      const shouldRetry = vi.fn((error: unknown) => {
+        return error === retryableError;
+      });
+
+      const promise = withParallelRetry(items, fn, {
+        maxAttempts: 3,
+        logger: mockLogger,
+        shouldRetry,
+      });
+
+      await vi.runAllTimersAsync();
+      const results = await promise;
+
+      expect(results).toHaveLength(3);
+      // Item 1 succeeds immediately
+      expect(results[0]).toEqual({ index: 0, status: 'success', value: 2, attempts: 1 });
+      // Item 2 fails permanently - should NOT be retried (only 1 attempt)
+      expect(results[1].status).toBe('failed');
+      expect(results[1].attempts).toBe(1);
+      expect(results[1].error).toBe(permanentError);
+      // Item 3 fails with retryable error - should be retried (3 attempts)
+      expect(results[2].status).toBe('failed');
+      expect(results[2].attempts).toBe(3);
+      expect(results[2].error).toBe(retryableError);
+
+      // shouldRetry should have been called for each failed item on each attempt
+      expect(shouldRetry).toHaveBeenCalled();
+    });
   });
 
   describe('RetryError', () => {

@@ -554,15 +554,16 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 _Decided not to do yet._
 
-| Item                              | Why                                           |
-| --------------------------------- | --------------------------------------------- |
-| Schema versioning for BullMQ jobs | No breaking changes yet                       |
-| Contract tests for HTTP API       | Single consumer, integration tests sufficient |
-| Redis pipelining                  | Fast enough at current traffic                |
-| BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                    |
-| Dependency Cruiser                | ESLint catches most issues                    |
-| Handler factory generator         | Add when creating many new routes             |
-| Scaling preparation (timers)      | Single-instance sufficient for now            |
+| Item                              | Why                                                                                 |
+| --------------------------------- | ----------------------------------------------------------------------------------- |
+| Schema versioning for BullMQ jobs | No breaking changes yet                                                             |
+| Contract tests for HTTP API       | Single consumer, integration tests sufficient                                       |
+| Redis pipelining                  | Fast enough at current traffic                                                      |
+| BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                          |
+| Dependency Cruiser                | ESLint catches most issues                                                          |
+| Handler factory generator         | Add when creating many new routes                                                   |
+| Scaling preparation (timers)      | Single-instance sufficient for now                                                  |
+| Vision failure JIT repair         | Negative cache prevents re-hammering; manual clear or TTL expiry sufficient for now |
 
 ---
 

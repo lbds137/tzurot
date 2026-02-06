@@ -24,6 +24,10 @@ export interface PersistentVisionCacheEntry {
   model: string;
 }
 
+export interface PersistentVisionFailureEntry {
+  category: string;
+}
+
 export class PersistentVisionCache {
   constructor(private prisma: PrismaClient) {}
 
@@ -90,6 +94,57 @@ export class PersistentVisionCache {
       where: { attachmentId },
     });
     return count > 0;
+  }
+
+  /**
+   * Store a permanent failure in PostgreSQL
+   * Uses upsert to handle duplicates - overwrites any previous success entry
+   * @param attachmentId Discord attachment snowflake ID
+   * @param category Failure category (e.g., 'authentication', 'content_policy')
+   */
+  async setFailure(attachmentId: string, category: string): Promise<void> {
+    await this.prisma.imageDescriptionCache.upsert({
+      where: { attachmentId },
+      create: {
+        id: generateImageDescriptionCacheUuid(attachmentId),
+        attachmentId,
+        description: '[permanent failure]',
+        model: 'none',
+        failureCategory: category,
+      },
+      update: {
+        description: '[permanent failure]',
+        model: 'none',
+        failureCategory: category,
+      },
+    });
+
+    logger.debug(
+      { attachmentId, category },
+      '[PersistentVisionCache] Stored permanent failure in L2 cache'
+    );
+  }
+
+  /**
+   * Get a cached failure from PostgreSQL
+   * @param attachmentId Discord attachment snowflake ID
+   * @returns Failure category, or null if no failure is cached
+   */
+  async getFailure(attachmentId: string): Promise<PersistentVisionFailureEntry | null> {
+    const entry = await this.prisma.imageDescriptionCache.findUnique({
+      where: { attachmentId },
+      select: { failureCategory: true },
+    });
+
+    if (entry?.failureCategory !== null && entry?.failureCategory !== undefined) {
+      logger.info(
+        { attachmentId, category: entry.failureCategory },
+        '[PersistentVisionCache] L2 failure cache HIT'
+      );
+      return { category: entry.failureCategory };
+    }
+
+    return null;
   }
 
   /**
