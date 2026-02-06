@@ -138,12 +138,10 @@ describe('PersonalityMessageHandler', () => {
         'Hello AI',
         {
           extendedContext: {
-            enabled: true, // default when personality.extendedContext is undefined
             maxMessages: 50, // from resolved config (LlmConfig default)
             maxAge: null,
             maxImages: 10,
             sources: {
-              enabled: 'personality',
               maxMessages: 'personality',
               maxAge: 'personality',
               maxImages: 'personality',
@@ -272,7 +270,6 @@ describe('PersonalityMessageHandler', () => {
       // Create personality with explicit context settings
       const mockPersonality = {
         ...createMockPersonality(),
-        extendedContext: true,
         maxMessages: 15,
         maxAge: 3600,
         maxImages: 5,
@@ -320,12 +317,10 @@ describe('PersonalityMessageHandler', () => {
         'Hello with extended context',
         {
           extendedContext: {
-            enabled: true,
             maxMessages: 15,
             maxAge: 3600,
             maxImages: 5,
             sources: {
-              enabled: 'personality',
               maxMessages: 'personality',
               maxAge: 'personality',
               maxImages: 'personality',
@@ -364,13 +359,12 @@ describe('PersonalityMessageHandler', () => {
       await handler.handleMessage(mockMessage, mockPersonality, voiceTranscript);
 
       // Should build context with voice transcript
-      // Note: extendedContext.enabled defaults to true when personality.extendedContext is undefined
       expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
         mockMessage,
         mockPersonality,
         voiceTranscript,
         expect.objectContaining({
-          extendedContext: expect.objectContaining({ enabled: true }),
+          extendedContext: expect.objectContaining({ maxMessages: 50 }),
           botUserId: 'bot-123',
         })
       );

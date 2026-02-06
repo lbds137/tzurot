@@ -54,12 +54,7 @@ vi.mock('../utils/reasoningModelUtils.js', () => ({
   isReasoningModel: (modelName: string) => mockIsReasoningModel(modelName),
 }));
 
-import {
-  createChatModel,
-  getModelCacheKey,
-  injectReasoningIntoContent,
-  type ModelConfig,
-} from './ModelFactory.js';
+import { createChatModel, getModelCacheKey, type ModelConfig } from './ModelFactory.js';
 
 describe('ModelFactory', () => {
   beforeEach(() => {
@@ -372,7 +367,7 @@ describe('ModelFactory', () => {
     // Reasoning parameters (CRITICAL for thinking models)
     // ===================================
 
-    it('should pass reasoning with effort via modelKwargs and use custom fetch for include_reasoning', () => {
+    it('should pass reasoning with effort via modelKwargs', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: { effort: 'high' },
@@ -389,8 +384,8 @@ describe('ModelFactory', () => {
       // reasoning goes in modelKwargs
       expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'high' });
 
-      // include_reasoning is injected via custom fetch (not in modelKwargs)
-      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+      // No custom fetch needed - reasoning is handled natively via modelKwargs
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
     it('should pass reasoning with maxTokens (converted to snake_case) via modelKwargs', () => {
@@ -407,8 +402,8 @@ describe('ModelFactory', () => {
       };
 
       expect(callArgs?.modelKwargs?.reasoning).toEqual({ max_tokens: 16000 });
-      // Custom fetch used for include_reasoning
-      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+      // No custom fetch needed - reasoning is handled natively via modelKwargs
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
     it('should pass reasoning object with all fields except maxTokens when effort is set', () => {
@@ -437,11 +432,11 @@ describe('ModelFactory', () => {
         exclude: false,
         enabled: true,
       });
-      // Custom fetch used because exclude !== true
-      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+      // No custom fetch needed - reasoning is handled natively via modelKwargs
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
-    it('should use maxTokens when effort is not set and NOT use custom fetch when exclude: true', () => {
+    it('should use maxTokens when effort is not set and pass exclude in reasoning object', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         reasoning: {
@@ -457,12 +452,12 @@ describe('ModelFactory', () => {
         configuration?: { fetch?: unknown };
       };
 
-      // reasoning object should be present
+      // reasoning object should be present with exclude flag
       expect(callArgs?.modelKwargs?.reasoning).toEqual({
         max_tokens: 16000,
         exclude: true,
       });
-      // No custom fetch when exclude: true (no include_reasoning needed)
+      // No custom fetch needed - reasoning is handled natively via modelKwargs
       expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
@@ -470,7 +465,7 @@ describe('ModelFactory', () => {
     // OpenRouter-specific parameters (via custom fetch)
     // ===================================
 
-    it('should use custom fetch when showThinking is true (for include_reasoning)', () => {
+    it('should NOT use custom fetch for showThinking alone (reasoning handled natively)', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         showThinking: true,
@@ -482,27 +477,12 @@ describe('ModelFactory', () => {
         configuration?: { fetch?: unknown };
       };
 
-      // showThinking: true should trigger custom fetch for include_reasoning injection
-      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
-    });
-
-    it('should NOT use custom fetch when showThinking is false or undefined', () => {
-      const config: ModelConfig = {
-        modelName: 'test-model',
-        showThinking: false,
-      };
-
-      createChatModel(config);
-
-      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
-        configuration?: { fetch?: unknown };
-      };
-
-      // No custom fetch when showThinking is false and no other OpenRouter params
+      // showThinking no longer triggers custom fetch - reasoning is handled
+      // natively via the reasoning param in modelKwargs
       expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
-    it('should use custom fetch when reasoning.enabled is true even if showThinking is false', () => {
+    it('should NOT use custom fetch for reasoning config alone (handled natively via modelKwargs)', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         showThinking: false,
@@ -512,11 +492,16 @@ describe('ModelFactory', () => {
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        modelKwargs?: Record<string, unknown>;
         configuration?: { fetch?: unknown };
       };
 
-      // reasoning.enabled should trigger custom fetch for include_reasoning injection
-      expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
+      // reasoning goes in modelKwargs, no custom fetch needed
+      expect(callArgs?.modelKwargs?.reasoning).toEqual({
+        enabled: true,
+        effort: 'medium',
+      });
+      expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
     it('should use custom fetch for transforms', () => {
@@ -599,7 +584,7 @@ describe('ModelFactory', () => {
         reasoning: { effort: 'high' },
       });
 
-      // OpenRouter-specific params (include_reasoning, transforms, route) via custom fetch
+      // OpenRouter-specific params (transforms, route) injected via custom fetch
       expect(callArgs?.configuration?.fetch).toBeInstanceOf(Function);
     });
   });
@@ -835,171 +820,7 @@ describe('ModelFactory', () => {
     });
   });
 
-  // ===================================
-  // Response Mutation (Reasoning Injection)
-  // ===================================
-
-  describe('injectReasoningIntoContent', () => {
-    /**
-     * Helper to create a mock Response with OpenRouter-style body
-     */
-    function createMockResponse(body: Record<string, unknown>): Response {
-      return new Response(JSON.stringify(body), {
-        status: 200,
-        statusText: 'OK',
-        headers: { 'content-type': 'application/json' },
-      });
-    }
-
-    it('should inject reasoning into content with <reasoning> tags', async () => {
-      const mockBody = {
-        id: 'gen-123',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: 'The answer is 42.',
-              reasoning: 'Let me think about this carefully...',
-            },
-            finish_reason: 'stop',
-          },
-        ],
-      };
-
-      const response = createMockResponse(mockBody);
-      const result = await injectReasoningIntoContent(response);
-
-      const resultBody = (await result.json()) as Record<string, unknown>;
-      const choices = resultBody.choices as Record<string, unknown>[];
-      const message = choices[0].message as Record<string, unknown>;
-
-      // Reasoning should be injected into content with tags
-      expect(message.content).toBe(
-        '<reasoning>\nLet me think about this carefully...\n</reasoning>\n\nThe answer is 42.'
-      );
-
-      // Original reasoning field should be removed
-      expect(message.reasoning).toBeUndefined();
-    });
-
-    it('should preserve content unchanged when no reasoning is present', async () => {
-      const mockBody = {
-        id: 'gen-123',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: 'The answer is 42.',
-            },
-            finish_reason: 'stop',
-          },
-        ],
-      };
-
-      const response = createMockResponse(mockBody);
-      const result = await injectReasoningIntoContent(response);
-
-      const resultBody = (await result.json()) as Record<string, unknown>;
-      const choices = resultBody.choices as Record<string, unknown>[];
-      const message = choices[0].message as Record<string, unknown>;
-
-      // Content should be unchanged
-      expect(message.content).toBe('The answer is 42.');
-    });
-
-    it('should preserve content unchanged when reasoning is empty string', async () => {
-      const mockBody = {
-        id: 'gen-123',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: 'The answer is 42.',
-              reasoning: '',
-            },
-            finish_reason: 'stop',
-          },
-        ],
-      };
-
-      const response = createMockResponse(mockBody);
-      const result = await injectReasoningIntoContent(response);
-
-      const resultBody = (await result.json()) as Record<string, unknown>;
-      const choices = resultBody.choices as Record<string, unknown>[];
-      const message = choices[0].message as Record<string, unknown>;
-
-      // Content should be unchanged
-      expect(message.content).toBe('The answer is 42.');
-    });
-
-    it('should handle response with no message gracefully', async () => {
-      const mockBody = {
-        id: 'gen-123',
-        choices: [
-          {
-            finish_reason: 'stop',
-            // No message field
-          },
-        ],
-      };
-
-      const response = createMockResponse(mockBody);
-      const result = await injectReasoningIntoContent(response);
-
-      // Should return a valid response without crashing
-      expect(result.status).toBe(200);
-      const resultBody = (await result.json()) as Record<string, unknown>;
-      expect(resultBody.id).toBe('gen-123');
-    });
-
-    it('should handle empty content with reasoning', async () => {
-      const mockBody = {
-        id: 'gen-123',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: '', // Empty content
-              reasoning: 'I thought about this but have no response.',
-            },
-            finish_reason: 'stop',
-          },
-        ],
-      };
-
-      const response = createMockResponse(mockBody);
-      const result = await injectReasoningIntoContent(response);
-
-      const resultBody = (await result.json()) as Record<string, unknown>;
-      const choices = resultBody.choices as Record<string, unknown>[];
-      const message = choices[0].message as Record<string, unknown>;
-
-      // Reasoning should still be injected even with empty content
-      expect(message.content).toBe(
-        '<reasoning>\nI thought about this but have no response.\n</reasoning>\n\n'
-      );
-    });
-
-    it('should preserve response status and headers', async () => {
-      const mockBody = {
-        id: 'gen-123',
-        choices: [
-          {
-            message: {
-              role: 'assistant',
-              content: 'Test',
-              reasoning: 'Thinking...',
-            },
-          },
-        ],
-      };
-
-      const response = createMockResponse(mockBody);
-      const result = await injectReasoningIntoContent(response);
-
-      expect(result.status).toBe(200);
-      expect(result.statusText).toBe('OK');
-    });
-  });
+  // Note: injectReasoningIntoContent was removed in the reasoning modernization.
+  // Reasoning content now flows through the standard OpenRouter `reasoning` param
+  // and is preserved in LangChain's `additional_kwargs.reasoning` without response mutation.
 });

@@ -235,12 +235,6 @@ export const PersonalityUpdateSchema = z.object({
 
   // Avatar data (base64 encoded, processed separately)
   avatarData: z.string().optional(),
-
-  // Extended context settings (deprecated - use LLM config instead)
-  extendedContext: z.boolean().optional().nullable(),
-  extendedContextMaxMessages: z.number().int().positive().optional().nullable(),
-  extendedContextMaxAge: z.number().int().positive().optional().nullable(),
-  extendedContextMaxImages: z.number().int().nonnegative().optional().nullable(),
 });
 
 export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
@@ -312,10 +306,6 @@ export const PERSONALITY_DETAIL_SELECT = {
   isPublic: true,
   voiceEnabled: true,
   imageEnabled: true,
-  extendedContext: true,
-  extendedContextMaxMessages: true,
-  extendedContextMaxAge: true,
-  extendedContextMaxImages: true,
   ownerId: true,
   avatarData: true,
   customFields: true,

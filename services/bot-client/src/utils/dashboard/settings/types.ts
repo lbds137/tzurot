@@ -64,7 +64,6 @@ export interface SettingValue<T = unknown> {
  * All settings values for the dashboard
  */
 export interface SettingsData {
-  enabled: SettingValue<boolean>;
   maxMessages: SettingValue<number>;
   maxAge: SettingValue<number | null>; // null = disabled
   maxImages: SettingValue<number>;

@@ -33,7 +33,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   return {
     ...actual,
     ConversationHistoryService: class {
-      getRecentHistory = vi.fn();
       getChannelHistory = vi.fn();
     },
     UserService: class {
@@ -772,12 +771,10 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
         extendedContext: {
-          enabled: true,
           maxMessages: 20,
           maxAge: null,
           maxImages: 0,
           sources: {
-            enabled: 'personality',
             maxMessages: 'personality',
             maxAge: 'personality',
             maxImages: 'personality',
@@ -804,45 +801,9 @@ describe('MessageContextBuilder', () => {
       expect(result.conversationHistory).toHaveLength(2);
     });
 
-    it('should not fetch extended context when disabled', async () => {
-      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
-      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
-      mockExtractReferencesWithReplacement.mockResolvedValue({
-        references: [],
-        updatedContent: 'Hello',
-      });
-      mockResolveAllMentions.mockResolvedValue({
-        processedContent: 'Hello',
-        mentionedUsers: [],
-        mentionedChannels: [],
-      });
-
-      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
-        extendedContext: {
-          enabled: false,
-          maxMessages: 20,
-          maxAge: null,
-          maxImages: 0,
-          sources: {
-            enabled: 'personality',
-            maxMessages: 'personality',
-            maxAge: 'personality',
-            maxImages: 'personality',
-          },
-        },
-        botUserId: 'bot-123',
-      });
-
-      // Should not call channel fetcher when extended context is disabled
-      expect(mockFetchRecentMessages).not.toHaveBeenCalled();
-      expect(mockMergeWithHistory).not.toHaveBeenCalled();
-    });
-
     it('should not fetch extended context when botUserId is not provided', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
         references: [],
@@ -856,12 +817,10 @@ describe('MessageContextBuilder', () => {
 
       await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
         extendedContext: {
-          enabled: true,
           maxMessages: 20,
           maxAge: null,
           maxImages: 0,
           sources: {
-            enabled: 'personality',
             maxMessages: 'personality',
             maxAge: 'personality',
             maxImages: 'personality',
@@ -877,7 +836,6 @@ describe('MessageContextBuilder', () => {
     it('should collect image attachments when maxImages > 0', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
       // Extended context with image attachments
@@ -934,12 +892,10 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
         extendedContext: {
-          enabled: true,
           maxMessages: 20,
           maxAge: null,
           maxImages: 2, // Only take 2 images
           sources: {
-            enabled: 'personality',
             maxMessages: 'personality',
             maxAge: 'personality',
             maxImages: 'personality',
@@ -962,7 +918,6 @@ describe('MessageContextBuilder', () => {
     it('should not collect images when maxImages is 0', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
-      // When extendedContext.enabled is true, getChannelHistory is used instead of getRecentHistory
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
 
       // Need messages so the extended context block executes
@@ -1004,12 +959,10 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
         extendedContext: {
-          enabled: true,
           maxMessages: 20,
           maxAge: null,
           maxImages: 0, // No images
           sources: {
-            enabled: 'personality',
             maxMessages: 'personality',
             maxAge: 'personality',
             maxImages: 'personality',
@@ -1112,12 +1065,10 @@ describe('MessageContextBuilder', () => {
 
       const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
         extendedContext: {
-          enabled: true,
           maxMessages: 20,
           maxAge: null,
           maxImages: 0,
           sources: {
-            enabled: 'personality',
             maxMessages: 'personality',
             maxAge: 'personality',
             maxImages: 'personality',

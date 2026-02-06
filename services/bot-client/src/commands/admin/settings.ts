@@ -164,26 +164,23 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
 /**
  * Convert API response to dashboard SettingsData format
  */
-function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData {
+function convertToSettingsData(_settings: GetAdminSettingsResponse): SettingsData {
+  // Note: Global context limits are now managed via LlmConfig.
+  // These dashboards show defaults until fully migrated.
   return {
-    enabled: {
-      localValue: settings.extendedContextDefault,
-      effectiveValue: settings.extendedContextDefault,
-      source: 'default',
-    },
     maxMessages: {
-      localValue: settings.extendedContextMaxMessages,
-      effectiveValue: settings.extendedContextMaxMessages,
+      localValue: 20,
+      effectiveValue: 20,
       source: 'default',
     },
     maxAge: {
-      localValue: settings.extendedContextMaxAge,
-      effectiveValue: settings.extendedContextMaxAge,
+      localValue: null,
+      effectiveValue: null,
       source: 'default',
     },
     maxImages: {
-      localValue: settings.extendedContextMaxImages,
-      effectiveValue: settings.extendedContextMaxImages,
+      localValue: 0,
+      effectiveValue: 0,
       source: 'default',
     },
   };
@@ -237,11 +234,6 @@ async function handleSettingUpdate(
  */
 function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
-    case 'enabled':
-      // For global settings, null means default (true)
-      // So we always store the actual value
-      return { extendedContextDefault: value ?? true };
-
     case 'maxMessages':
       // null means use default (20)
       return { extendedContextMaxMessages: value ?? 20 };

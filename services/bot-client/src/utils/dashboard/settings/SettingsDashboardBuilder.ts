@@ -216,7 +216,9 @@ export function buildTriStateButtons(
   session: SettingsDashboardSession,
   setting: SettingDefinition
 ): ActionRowBuilder<MessageActionRowComponentBuilder> {
-  const value = session.data[setting.id as keyof typeof session.data] as SettingValue<boolean>;
+  const value = session.data[
+    setting.id as keyof typeof session.data
+  ] as unknown as SettingValue<boolean>;
   const localValue = value.localValue;
 
   const row = new ActionRowBuilder<MessageActionRowComponentBuilder>();

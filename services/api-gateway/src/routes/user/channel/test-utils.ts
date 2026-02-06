@@ -145,10 +145,6 @@ export function createMockActivation(
     createdBy: MOCK_USER_UUID,
     createdAt: createMockCreatedAt(),
     autoRespond: true,
-    extendedContext: false,
-    extendedContextMaxMessages: null,
-    extendedContextMaxAge: null,
-    extendedContextMaxImages: null,
     activatedPersonalityId: MOCK_PERSONALITY_UUID,
     activatedPersonality: {
       slug: 'test-character',

@@ -3,8 +3,6 @@
  *
  * AdminSettings is a SINGLETON model with typed columns.
  * Replaces the legacy key-value BotSettings pattern.
- *
- * @see docs/planning/EXTENDED_CONTEXT_IMPROVEMENTS.md
  */
 
 import { z } from 'zod';
@@ -16,18 +14,15 @@ import { z } from 'zod';
 /**
  * AdminSettings singleton record.
  * Contains all bot-wide configuration with proper types.
+ *
+ * Note: extendedContext* columns still exist in DB but are no longer exposed
+ * via the API. They will be dropped in a follow-up Prisma migration.
  */
 export const AdminSettingsSchema = z.object({
   id: z.string().uuid(),
   updatedBy: z.string().uuid().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
-
-  // Extended Context Settings
-  extendedContextDefault: z.boolean(),
-  extendedContextMaxMessages: z.number().int().min(1).max(100),
-  extendedContextMaxAge: z.number().int().min(1).nullable(), // seconds, null = disabled
-  extendedContextMaxImages: z.number().int().min(0).max(20),
 });
 export type AdminSettings = z.infer<typeof AdminSettingsSchema>;
 
@@ -41,15 +36,10 @@ export type GetAdminSettingsResponse = z.infer<typeof GetAdminSettingsResponseSc
 
 // ============================================================================
 // PATCH /admin/settings
-// Partially update AdminSettings
+// Partially update AdminSettings (currently no updatable fields via this endpoint)
 // ============================================================================
 
-export const UpdateAdminSettingsRequestSchema = z.object({
-  extendedContextDefault: z.boolean().optional(),
-  extendedContextMaxMessages: z.number().int().min(1).max(100).optional(),
-  extendedContextMaxAge: z.number().int().min(1).nullable().optional(),
-  extendedContextMaxImages: z.number().int().min(0).max(20).optional(),
-});
+export const UpdateAdminSettingsRequestSchema = z.object({});
 export type UpdateAdminSettingsRequest = z.infer<typeof UpdateAdminSettingsRequestSchema>;
 
 export const UpdateAdminSettingsResponseSchema = AdminSettingsSchema;
@@ -74,7 +64,6 @@ export const ADMIN_SETTINGS_SINGLETON_ID = '550e8400-e29b-41d4-a716-446655440001
  * - personality: From personality's default LlmConfig
  * - user-personality: From user's per-personality override
  * - user-default: From user's global default LlmConfig
- * @deprecated 'global' and 'channel' were removed in Phase 2 config consolidation
  */
 export type SettingSource = 'personality' | 'user-personality' | 'user-default';
 
@@ -82,32 +71,20 @@ const settingSourceEnum = z.enum(['personality', 'user-personality', 'user-defau
 
 /**
  * Resolved extended context settings with source tracking.
+ * Extended context is always enabled — these settings control the limits.
  * Sources indicate where each context limit came from (personality default vs user override).
  */
 export const ResolvedExtendedContextSettingsSchema = z.object({
   // Effective values (what actually applies)
-  enabled: z.boolean(),
   maxMessages: z.number().int(),
   maxAge: z.number().int().nullable(), // null = disabled
   maxImages: z.number().int(),
 
   // Sources (where each value came from)
   sources: z.object({
-    enabled: settingSourceEnum,
     maxMessages: settingSourceEnum,
     maxAge: settingSourceEnum,
     maxImages: settingSourceEnum,
   }),
 });
 export type ResolvedExtendedContextSettings = z.infer<typeof ResolvedExtendedContextSettingsSchema>;
-
-/**
- * Raw settings at a single level (channel or personality).
- * null means "inherit from parent level".
- */
-export interface LevelSettings {
-  extendedContext: boolean | null;
-  extendedContextMaxMessages: number | null;
-  extendedContextMaxAge: number | null;
-  extendedContextMaxImages: number | null;
-}

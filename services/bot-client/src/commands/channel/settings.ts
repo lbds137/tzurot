@@ -209,47 +209,26 @@ function extractChannelId(customId: string): string | null {
  * Convert API responses to dashboard SettingsData format
  */
 function convertToSettingsData(
-  channelSettings: { settings?: Record<string, unknown> } | null,
-  adminSettings: Record<string, unknown>
+  _channelSettings: { settings?: Record<string, unknown> } | null,
+  _adminSettings: Record<string, unknown>
 ): SettingsData {
-  const channel = channelSettings?.settings ?? {};
-
-  // Extended Context
-  const enabledLocal = channel.extendedContext as boolean | null | undefined;
-  const enabledGlobal = adminSettings.extendedContextDefault as boolean;
-
-  // Max Messages
-  const maxMessagesLocal = channel.extendedContextMaxMessages as number | null | undefined;
-  const maxMessagesGlobal = adminSettings.extendedContextMaxMessages as number;
-
-  // Max Age
-  const maxAgeLocal = channel.extendedContextMaxAge as number | null | undefined;
-  const maxAgeGlobal = adminSettings.extendedContextMaxAge as number | null;
-
-  // Max Images
-  const maxImagesLocal = channel.extendedContextMaxImages as number | null | undefined;
-  const maxImagesGlobal = adminSettings.extendedContextMaxImages as number;
-
+  // Note: Channel-level context limits are now managed via LlmConfig.
+  // These dashboards show defaults until fully migrated.
   return {
-    enabled: {
-      localValue: enabledLocal ?? null,
-      effectiveValue: enabledLocal ?? enabledGlobal,
-      source: enabledLocal !== null && enabledLocal !== undefined ? 'channel' : 'global',
-    },
     maxMessages: {
-      localValue: maxMessagesLocal ?? null,
-      effectiveValue: maxMessagesLocal ?? maxMessagesGlobal,
-      source: maxMessagesLocal !== null && maxMessagesLocal !== undefined ? 'channel' : 'global',
+      localValue: null,
+      effectiveValue: 20,
+      source: 'default',
     },
     maxAge: {
-      localValue: maxAgeLocal ?? null,
-      effectiveValue: maxAgeLocal ?? maxAgeGlobal,
-      source: maxAgeLocal !== null && maxAgeLocal !== undefined ? 'channel' : 'global',
+      localValue: null,
+      effectiveValue: null,
+      source: 'default',
     },
     maxImages: {
-      localValue: maxImagesLocal ?? null,
-      effectiveValue: maxImagesLocal ?? maxImagesGlobal,
-      source: maxImagesLocal !== null && maxImagesLocal !== undefined ? 'channel' : 'global',
+      localValue: null,
+      effectiveValue: 0,
+      source: 'default',
     },
   };
 }
@@ -316,10 +295,6 @@ async function handleSettingUpdate(
  */
 function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
-    case 'enabled':
-      // null means auto (inherit from global)
-      return { extendedContext: value };
-
     case 'maxMessages':
       // null means auto (inherit from global)
       return { extendedContextMaxMessages: value };

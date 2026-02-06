@@ -7,6 +7,7 @@ import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  Prisma,
   type PrismaClient,
   isBotOwner,
   PERSONALITY_DETAIL_SELECT,
@@ -21,8 +22,7 @@ import { canUserEditPersonality } from './helpers.js';
 
 const logger = createLogger('user-personality-get');
 
-type PersonalityFromDb = Awaited<ReturnType<PrismaClient['personality']['findUnique']>> &
-  NonNullable<unknown>;
+type PersonalityFromDb = Prisma.PersonalityGetPayload<{ select: typeof PERSONALITY_DETAIL_SELECT }>;
 
 interface PersonalityResponse {
   id: string;
@@ -45,10 +45,6 @@ interface PersonalityResponse {
   isPublic: boolean;
   voiceEnabled: boolean;
   imageEnabled: boolean;
-  extendedContext: boolean | null;
-  extendedContextMaxMessages: number | null;
-  extendedContextMaxAge: number | null;
-  extendedContextMaxImages: number | null;
   ownerId: string;
   hasAvatar: boolean;
   customFields: unknown;
@@ -113,10 +109,6 @@ function formatPersonalityResponse(
     isPublic: personality.isPublic,
     voiceEnabled: personality.voiceEnabled,
     imageEnabled: personality.imageEnabled,
-    extendedContext: personality.extendedContext,
-    extendedContextMaxMessages: personality.extendedContextMaxMessages,
-    extendedContextMaxAge: personality.extendedContextMaxAge,
-    extendedContextMaxImages: personality.extendedContextMaxImages,
     ownerId: personality.ownerId,
     hasAvatar: personality.avatarData !== null,
     customFields: personality.customFields,

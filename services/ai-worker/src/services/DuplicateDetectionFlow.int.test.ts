@@ -191,11 +191,7 @@ describe('Duplicate Detection Data Flow', () => {
       });
 
       // Fetch history via service (mimics production flow)
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
 
       // Verify we got all messages
       expect(history).toHaveLength(4);
@@ -222,11 +218,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
 
       // Verify the role value and type are exactly what duplicate detection expects
       expect(history).toHaveLength(1);
@@ -263,11 +255,7 @@ describe('Duplicate Detection Data Flow', () => {
       });
 
       // Fetch history (production flow)
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
 
       // Extract assistant messages
       const assistantMessages = getRecentAssistantMessages(history);
@@ -290,11 +278,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
       const assistantMessages = getRecentAssistantMessages(history);
 
       // A completely different response
@@ -349,11 +333,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
       const assistantMessages = getRecentAssistantMessages(history);
 
       // Should have both assistant messages
@@ -389,11 +369,7 @@ describe('Duplicate Detection Data Flow', () => {
         guildId: testGuildId,
       });
 
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
 
       const assistantMessages = getRecentAssistantMessages(history);
 
@@ -406,11 +382,7 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should handle empty history', async () => {
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 10);
 
       expect(history).toHaveLength(0);
 
@@ -422,7 +394,7 @@ describe('Duplicate Detection Data Flow', () => {
     });
 
     it('should handle history with mixed chronological order correctly', async () => {
-      // Messages are added in order; getRecentHistory returns them in chronological order
+      // Messages are added in order; getChannelHistory returns them in chronological order
       // getRecentAssistantMessages expects most recent first (reversed)
       for (let i = 1; i <= 5; i++) {
         await conversationService.addMessage({
@@ -444,11 +416,7 @@ describe('Duplicate Detection Data Flow', () => {
         });
       }
 
-      const history = await conversationService.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        20
-      );
+      const history = await conversationService.getChannelHistory(testChannelId, 20);
 
       // 10 messages total (5 user + 5 assistant)
       expect(history).toHaveLength(10);

@@ -23,10 +23,6 @@ export const ChannelSettingsSchema = z.object({
   personalitySlug: z.string().min(1).nullable(), // Null if no personality activated
   personalityName: z.string().min(1).nullable(), // Null if no personality activated
   autoRespond: z.boolean(),
-  extendedContext: z.boolean().nullable(), // null = use global default
-  extendedContextMaxMessages: z.number().int().min(1).max(100).nullable(), // null = use global
-  extendedContextMaxAge: z.number().int().min(1).nullable(), // seconds, null = use global
-  extendedContextMaxImages: z.number().int().min(0).max(20).nullable(), // null = use global
   activatedBy: z.string().uuid().nullable(),
   createdAt: z.string(),
 });
@@ -123,31 +119,3 @@ export const UpdateChannelGuildResponseSchema = z.object({
   updated: z.boolean(),
 });
 export type UpdateChannelGuildResponse = z.infer<typeof UpdateChannelGuildResponseSchema>;
-
-// ============================================================================
-// PATCH /user/channel/:channelId/extended-context
-// Updates extended context settings for a channel
-// All fields are optional - only specified fields are updated
-// ============================================================================
-
-export const UpdateChannelExtendedContextRequestSchema = z
-  .object({
-    extendedContext: z.boolean().nullable().optional(), // null = use global default
-    extendedContextMaxMessages: z.number().int().min(1).max(100).nullable().optional(),
-    extendedContextMaxAge: z.number().int().min(1).nullable().optional(), // seconds
-    extendedContextMaxImages: z.number().int().min(0).max(20).nullable().optional(),
-  })
-  .refine(data => Object.values(data).some(v => v !== undefined), {
-    message: 'At least one field must be specified',
-  });
-export type UpdateChannelExtendedContextRequest = z.infer<
-  typeof UpdateChannelExtendedContextRequestSchema
->;
-
-export const UpdateChannelExtendedContextResponseSchema = z.object({
-  updated: z.boolean(),
-  settings: ChannelSettingsSchema,
-});
-export type UpdateChannelExtendedContextResponse = z.infer<
-  typeof UpdateChannelExtendedContextResponseSchema
->;

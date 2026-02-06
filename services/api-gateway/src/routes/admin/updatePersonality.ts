@@ -90,10 +90,6 @@ function buildUpdateData(
     'conversationalExamples',
     'errorMessage',
     'isPublic',
-    'extendedContext',
-    'extendedContextMaxMessages',
-    'extendedContextMaxAge',
-    'extendedContextMaxImages',
   ];
 
   for (const field of fields) {
