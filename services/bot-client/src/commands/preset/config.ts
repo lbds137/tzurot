@@ -50,6 +50,11 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     maxMessages: String(data.maxMessages),
     maxAge: data.maxAge !== null ? String(data.maxAge) : '',
     maxImages: String(data.maxImages),
+    // Memory and context window settings
+    contextWindowTokens: String(data.contextWindowTokens),
+    memoryScoreThreshold:
+      data.memoryScoreThreshold !== null ? String(data.memoryScoreThreshold) : '',
+    memoryLimit: data.memoryLimit !== null ? String(data.memoryLimit) : '',
   };
 }
 
@@ -122,6 +127,26 @@ function parseOptionalInt(value: string | undefined): number | undefined {
   }
   const num = parseInt(value, 10);
   return isNaN(num) ? undefined : num;
+}
+
+/** Parse a nullable numeric field: empty string → null, valid number → number, else skip */
+function parseNullableNumeric(
+  value: string | undefined,
+  result: Record<string, unknown>,
+  key: string,
+  parser: (v: string) => number
+): void {
+  if (value === undefined) {
+    return;
+  }
+  if (value.length === 0) {
+    result[key] = null;
+  } else {
+    const num = parser(value);
+    if (!isNaN(num)) {
+      result[key] = num;
+    }
+  }
 }
 
 /** Parse integer context fields from flattened data */
@@ -203,6 +228,14 @@ export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<
 
   // Context settings
   parseContextSettings(flat, result);
+
+  // Memory and context window settings
+  const contextWindowTokens = parseOptionalInt(flat.contextWindowTokens);
+  if (contextWindowTokens !== undefined) {
+    result.contextWindowTokens = contextWindowTokens;
+  }
+  parseNullableNumeric(flat.memoryScoreThreshold, result, 'memoryScoreThreshold', parseFloat);
+  parseNullableNumeric(flat.memoryLimit, result, 'memoryLimit', v => parseInt(v, 10));
 
   // Build advancedParameters
   const advancedParameters = buildAdvancedParameters(flat);

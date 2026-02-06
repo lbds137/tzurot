@@ -213,6 +213,12 @@ describe('Preset Dashboard Buttons', () => {
       reasoning_exclude: '',
       reasoning_enabled: '',
       show_thinking: '',
+      maxMessages: '50',
+      maxAge: '',
+      maxImages: '10',
+      contextWindowTokens: '131072',
+      memoryScoreThreshold: '',
+      memoryLimit: '',
       ...overrides,
     }) as FlattenedPresetData;
 
@@ -649,6 +655,49 @@ describe('Preset Dashboard Buttons', () => {
         expect.objectContaining({ name: 'Preset (Copy) Edition (Copy)' }),
         expect.anything(),
         expect.anything()
+      );
+    });
+
+    it('should copy context, memory, and advanced settings when cloning', async () => {
+      const mockInteraction = createMockButtonInteraction('preset::clone::preset-123');
+
+      mockSessionManager.get.mockResolvedValue({
+        data: createMockFlattenedPreset({
+          name: 'Full Preset',
+          temperature: '0.8',
+          maxMessages: '30',
+          maxAge: '86400',
+          maxImages: '5',
+          contextWindowTokens: '262144',
+          memoryScoreThreshold: '0.75',
+          memoryLimit: '20',
+        }),
+      });
+      const clonedPreset = {
+        id: 'cloned-preset',
+        name: 'Full Preset (Copy)',
+        slug: 'full-preset-copy',
+      };
+      mockCreatePreset.mockResolvedValue(clonedPreset);
+      mockFetchPreset.mockResolvedValue(createMockPresetResponse({ id: 'cloned-preset' }));
+
+      await handleCloneButton(mockInteraction, 'preset-123');
+
+      // Verify update was called with context, memory, and advanced settings
+      expect(mockUpdatePreset).toHaveBeenCalledWith(
+        'cloned-preset',
+        expect.objectContaining({
+          maxMessages: 30,
+          maxAge: 86400,
+          maxImages: 5,
+          contextWindowTokens: 262144,
+          memoryScoreThreshold: 0.75,
+          memoryLimit: 20,
+          advancedParameters: expect.objectContaining({
+            temperature: 0.8,
+          }),
+        }),
+        'user-123'
       );
     });
 

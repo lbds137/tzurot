@@ -110,6 +110,10 @@ export interface FlattenedPresetData {
   maxMessages: string;
   maxAge: string;
   maxImages: string;
+  // Memory and context window settings
+  contextWindowTokens: string;
+  memoryScoreThreshold: string;
+  memoryLimit: string;
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: BrowseContext;
 }

@@ -36,6 +36,9 @@ import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
 
 const logger = createLogger('preset-dashboard-buttons');
 
+/** Recovery command shown in expired session messages */
+const PRESET_RECOVERY_CMD = '/preset browse';
+
 /**
  * Pattern to match a trailing (Copy) or (Copy N) suffix.
  * Defined at module scope to avoid regex recompilation on each call.
@@ -208,7 +211,7 @@ export async function handleToggleGlobalButton(
     interaction,
     'preset',
     entityId,
-    '/preset browse'
+    PRESET_RECOVERY_CMD
   );
   if (session === null) {
     return;
@@ -363,7 +366,7 @@ export async function handleCancelDeleteButton(
     interaction,
     'preset',
     entityId,
-    '/preset browse'
+    PRESET_RECOVERY_CMD
   );
   if (session === null) {
     return;
@@ -386,7 +389,7 @@ export async function handleCloneButton(
     interaction,
     'preset',
     entityId,
-    '/preset browse'
+    PRESET_RECOVERY_CMD
   );
   if (session === null) {
     return;
@@ -423,14 +426,16 @@ export async function handleCloneButton(
       config
     );
 
-    // Build update payload for additional fields
-    const advancedParams = unflattenPresetData(sourceData);
-    const updatePayload: Record<string, unknown> = {};
+    // Build update payload with all non-basic fields from source
+    const updatePayload = unflattenPresetData(sourceData);
 
-    // Copy advanced parameters if the source had any
-    if (advancedParams.advancedParameters !== undefined) {
-      updatePayload.advancedParameters = advancedParams.advancedParameters;
-    }
+    // Remove fields already set during creation
+    delete updatePayload.name;
+    delete updatePayload.model;
+    delete updatePayload.provider;
+    delete updatePayload.description;
+    delete updatePayload.visionModel;
+    delete updatePayload.maxReferencedMessages;
 
     // Copy visibility setting (isGlobal)
     if (sourceData.isGlobal === true) {
@@ -493,7 +498,7 @@ export async function handleBackButton(
     interaction,
     'preset',
     entityId,
-    '/preset browse'
+    PRESET_RECOVERY_CMD
   );
   if (session === null) {
     return;
@@ -503,7 +508,7 @@ export async function handleBackButton(
   if (!browseContext) {
     // Session exists but no browse context - shouldn't happen, show expired
     await interaction.editReply({
-      content: formatSessionExpiredMessage('/preset browse'),
+      content: formatSessionExpiredMessage(PRESET_RECOVERY_CMD),
       embeds: [],
       components: [],
     });

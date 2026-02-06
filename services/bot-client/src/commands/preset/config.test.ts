@@ -45,6 +45,38 @@ describe('flattenPresetData', () => {
     expect(result.isGlobal).toBe(false);
     expect(result.isOwned).toBe(true);
     expect(result.maxReferencedMessages).toBe('10');
+    // Memory and context window settings
+    expect(result.contextWindowTokens).toBe('8192');
+    expect(result.memoryScoreThreshold).toBe('');
+    expect(result.memoryLimit).toBe('');
+  });
+
+  it('should flatten memory and context window settings with values', () => {
+    const preset: PresetData = {
+      id: 'preset-123',
+      name: 'My Preset',
+      description: null,
+      provider: 'openrouter',
+      model: 'anthropic/claude-sonnet-4',
+      visionModel: null,
+      isGlobal: false,
+      isOwned: true,
+      permissions: { canEdit: true, canDelete: true },
+      maxReferencedMessages: 10,
+      contextWindowTokens: 131072,
+      memoryScoreThreshold: 0.75,
+      memoryLimit: 20,
+      maxMessages: 50,
+      maxAge: null,
+      maxImages: 10,
+      params: {},
+    };
+
+    const result = flattenPresetData(preset);
+
+    expect(result.contextWindowTokens).toBe('131072');
+    expect(result.memoryScoreThreshold).toBe('0.75');
+    expect(result.memoryLimit).toBe('20');
   });
 
   it('should handle null description and visionModel', () => {
@@ -404,6 +436,68 @@ describe('unflattenPresetData', () => {
     expect(result.maxMessages).toBeUndefined();
     expect(result.maxAge).toBeUndefined();
     expect(result.maxImages).toBeUndefined();
+  });
+
+  it('should unflatten contextWindowTokens', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      contextWindowTokens: '131072',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.contextWindowTokens).toBe(131072);
+  });
+
+  it('should unflatten memoryScoreThreshold', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      memoryScoreThreshold: '0.75',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.memoryScoreThreshold).toBe(0.75);
+  });
+
+  it('should set memoryScoreThreshold to null when empty', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      memoryScoreThreshold: '',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.memoryScoreThreshold).toBeNull();
+  });
+
+  it('should unflatten memoryLimit', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      memoryLimit: '20',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.memoryLimit).toBe(20);
+  });
+
+  it('should set memoryLimit to null when empty', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      memoryLimit: '',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.memoryLimit).toBeNull();
+  });
+
+  it('should not include memory/context window settings when undefined', () => {
+    const flat: Partial<FlattenedPresetData> = {
+      name: 'Test',
+    };
+
+    const result = unflattenPresetData(flat);
+
+    expect(result.contextWindowTokens).toBeUndefined();
+    expect(result.memoryScoreThreshold).toBeUndefined();
+    expect(result.memoryLimit).toBeUndefined();
   });
 });
 
