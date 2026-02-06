@@ -193,7 +193,8 @@ export class VisionDescriptionCache {
       });
 
       if (options.permanent) {
-        // Permanent: L1 (1h TTL) + L2 (PostgreSQL)
+        // Permanent: L1 (1h TTL) + L2 (PostgreSQL, no TTL — source of truth)
+        // L2 persists indefinitely; L1 acts as a read-through cache repopulated from L2
         await this.redis.setex(key, INTERVALS.VISION_FAILURE_PERMANENT_TTL, value);
 
         if (

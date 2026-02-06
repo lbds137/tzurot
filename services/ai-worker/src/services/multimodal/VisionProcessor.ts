@@ -26,6 +26,21 @@ import { checkModelVisionSupport, visionDescriptionCache } from '../../redis.js'
 const logger = createLogger('VisionProcessor');
 const config = getConfig();
 
+/** User-friendly labels for error categories in fallback descriptions */
+const FAILURE_LABELS: Record<string, string> = {
+  authentication: 'API key issue',
+  quota_exceeded: 'quota exceeded',
+  content_policy: 'content filtered',
+  bad_request: 'invalid request',
+  model_not_found: 'model unavailable',
+  rate_limit: 'rate limited',
+  server_error: 'server error',
+  timeout: 'timed out',
+  network: 'network error',
+  empty_response: 'empty response',
+  censored: 'content filtered',
+};
+
 /**
  * Check if a model has vision support using OpenRouter's cached model data.
  *
@@ -163,7 +178,8 @@ export async function describeImage(
         { attachmentId: attachment.id, category: failureEntry.category },
         'Skipping vision API call - permanent failure cached'
       );
-      return `[Image unavailable: ${failureEntry.category}]`;
+      const label = FAILURE_LABELS[failureEntry.category] ?? failureEntry.category;
+      return `[Image unavailable: ${label}]`;
     }
     logger.info(
       { attachmentId: attachment.id, category: failureEntry.category },
