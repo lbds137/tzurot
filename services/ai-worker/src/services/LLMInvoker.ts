@@ -59,6 +59,8 @@ const MODELS_WITHOUT_STOP_SUPPORT: RegExp[] = [
   /gemma-3-27b-it:free/i,
   // Meta Llama 3.3 70B free tier
   /llama-3\.3-70b-instruct:free/i,
+  // DeepSeek R1-0528 free tier (stop not in supported_parameters)
+  /deepseek-r1-0528:free/i,
 ];
 
 /**

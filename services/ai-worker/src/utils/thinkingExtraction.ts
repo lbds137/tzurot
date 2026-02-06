@@ -94,6 +94,15 @@ const CHIMERA_ARTIFACT_PATTERN =
 const ORPHAN_CLOSING_TAG_CLEANUP =
   /<\/(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
 
+/**
+ * Pattern to clean up OpenAI "Harmony" format tokens that leak from GPT-OSS-120B.
+ * These are raw training tokens that sometimes appear in the model's output:
+ *   <|start|>assistant<|channel|>analysis...
+ *   <|end|>
+ * Note: Uses non-greedy matching with a length cap to prevent pathological backtracking.
+ */
+const HARMONY_TOKEN_PATTERN = /<\|(?:start|end|channel|separator|im_start|im_end)\|>/gi;
+
 /** Minimum content length to extract from orphan closing tags */
 const MIN_ORPHAN_CONTENT_LENGTH = 20;
 
@@ -161,6 +170,9 @@ function cleanupVisibleContent(content: string): string {
 
   // Remove remaining orphan closing tags
   result = result.replace(ORPHAN_CLOSING_TAG_CLEANUP, '');
+
+  // Remove OpenAI Harmony format token leakage (GPT-OSS-120B)
+  result = result.replace(HARMONY_TOKEN_PATTERN, '');
 
   // Clean whitespace
   return result
