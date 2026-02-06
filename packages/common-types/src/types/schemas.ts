@@ -280,12 +280,6 @@ export const loadedPersonalitySchema = z.object({
 
   // Custom error message for this personality (shown to users on LLM failures)
   errorMessage: z.string().optional(),
-
-  // Extended context configuration (tri-state: null=auto, true=on, false=off)
-  extendedContext: z.boolean().nullable().optional(),
-  extendedContextMaxMessages: z.number().nullable().optional(), // Override max messages limit
-  extendedContextMaxAge: z.number().nullable().optional(), // Override max age (seconds)
-  extendedContextMaxImages: z.number().nullable().optional(), // Override max images to process
 });
 
 /**

@@ -62,20 +62,11 @@ describe('Character Settings Dashboard', () => {
       id: 'personality-123',
       name: 'Aurora',
       slug: 'aurora',
-      extendedContext: null,
-      extendedContextMaxMessages: null,
-      extendedContextMaxAge: null,
-      extendedContextMaxImages: null,
       ownerId: 'user-456',
     },
   };
 
-  const mockAdminSettings = {
-    extendedContextDefault: true,
-    extendedContextMaxMessages: 50,
-    extendedContextMaxAge: 7200,
-    extendedContextMaxImages: 5,
-  };
+  const mockAdminSettings = {};
 
   const mockConfig: EnvConfig = {} as EnvConfig;
 
@@ -222,7 +213,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 4 settings fields', async () => {
+    it('should include all 3 settings fields', async () => {
       const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
@@ -235,7 +226,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(4);
+      expect(embedJson.fields).toHaveLength(3);
     });
 
     it('should handle character not found', async () => {
@@ -310,9 +301,9 @@ describe('Character Settings Dashboard', () => {
   describe('isCharacterSettingsInteraction', () => {
     it('should return true for character settings custom IDs', () => {
       expect(isCharacterSettingsInteraction('character-settings::select::aurora')).toBe(true);
-      expect(isCharacterSettingsInteraction('character-settings::set::aurora::enabled:true')).toBe(
-        true
-      );
+      expect(
+        isCharacterSettingsInteraction('character-settings::set::aurora::maxMessages:auto')
+      ).toBe(true);
       expect(isCharacterSettingsInteraction('character-settings::back::aurora')).toBe(true);
       expect(isCharacterSettingsInteraction('character-settings::close::aurora')).toBe(true);
     });
@@ -340,90 +331,9 @@ describe('Character Settings Dashboard', () => {
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
 
-    it('should call update handler when setting enabled to true', async () => {
-      const interaction = {
-        customId: 'character-settings::set::aurora::enabled:true',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'aurora',
-          data: {
-            enabled: { localValue: null, effectiveValue: true, source: 'global' },
-            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
-            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
-            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PUT request
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality }); // GET refresh
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
-
-      await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
-        expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContext: true },
-        })
-      );
-    });
-
-    it('should handle setting enabled to auto (null)', async () => {
-      const interaction = {
-        customId: 'character-settings::set::aurora::enabled:auto',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'aurora',
-          data: {
-            enabled: { localValue: true, effectiveValue: true, source: 'personality' },
-            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
-            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
-            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
-
-      await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
-
-      // For personality settings, auto means null (inherit)
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
-        expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContext: null },
-        })
-      );
-    });
-
     it('should handle permission denied (401) response', async () => {
       const interaction = {
-        customId: 'character-settings::set::aurora::enabled:true',
+        customId: 'character-settings::set::aurora::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -435,13 +345,12 @@ describe('Character Settings Dashboard', () => {
           userId: 'user-456',
           entityId: 'aurora',
           data: {
-            enabled: { localValue: null, effectiveValue: true, source: 'global' },
             maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
             maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
           },
           view: 'setting',
-          activeSetting: 'enabled',
+          activeSetting: 'maxMessages',
         },
       });
 
@@ -462,7 +371,7 @@ describe('Character Settings Dashboard', () => {
 
     it('should handle character not found (404) response', async () => {
       const interaction = {
-        customId: 'character-settings::set::aurora::enabled:true',
+        customId: 'character-settings::set::aurora::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -474,13 +383,12 @@ describe('Character Settings Dashboard', () => {
           userId: 'user-456',
           entityId: 'aurora',
           data: {
-            enabled: { localValue: null, effectiveValue: true, source: 'global' },
             maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
             maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
           },
           view: 'setting',
-          activeSetting: 'enabled',
+          activeSetting: 'maxMessages',
         },
       });
 
@@ -531,7 +439,6 @@ describe('Character Settings Dashboard', () => {
         userId: 'user-456',
         entityId: 'aurora',
         data: {
-          enabled: { localValue: null, effectiveValue: true, source: 'global' },
           maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
           maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
           maxImages: { localValue: null, effectiveValue: 5, source: 'global' },

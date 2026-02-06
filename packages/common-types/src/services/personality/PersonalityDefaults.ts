@@ -261,12 +261,5 @@ export function mapToPersonality(
 
     // Custom error message
     errorMessage: db.errorMessage ?? undefined,
-
-    // Extended context configuration (tri-state: null=auto, true=on, false=off)
-    extendedContext: db.extendedContext,
-    // Extended context limits (null = follow hierarchy)
-    extendedContextMaxMessages: db.extendedContextMaxMessages,
-    extendedContextMaxAge: db.extendedContextMaxAge,
-    extendedContextMaxImages: db.extendedContextMaxImages,
   };
 }

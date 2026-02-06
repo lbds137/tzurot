@@ -169,7 +169,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
     });
   });
 
-  describe('getRecentHistory - Token Count Retrieval', () => {
+  describe('getChannelHistory - Token Count Retrieval', () => {
     it('should include cached token counts in returned messages', async () => {
       // Mock returns messages in DESC order (newest first)
       const mockMessages = [
@@ -211,7 +211,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
-      const result = await service.getRecentHistory('channel-123', 'personality-456', 20);
+      const result = await service.getChannelHistory('channel-123', 20);
 
       expect(result).toHaveLength(2);
       // Service reverses to chronological order (oldest first)
@@ -269,7 +269,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
 
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
-      const result = await service.getRecentHistory('channel-123', 'personality-456', 20);
+      const result = await service.getChannelHistory('channel-123', 20);
 
       expect(result).toHaveLength(2);
       // Service reverses to chronological order (oldest first)
@@ -560,7 +560,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
 
       // Retrieve messages
-      await service.getRecentHistory('channel-123', 'personality-456', 20);
+      await service.getChannelHistory('channel-123', 20);
 
       // Token counter should NOT be called during retrieval
       expect(tokenCounter.countTextTokens).not.toHaveBeenCalled();
@@ -943,11 +943,11 @@ describe('ConversationHistoryService - Token Count Caching', () => {
   // Note: clearHistory and cleanupOldHistory tests moved to ConversationRetentionService.test.ts
   // Note: Soft delete / edit sync tests moved to ConversationSyncService.test.ts
 
-  describe('getRecentHistory - Soft Delete Filtering', () => {
+  describe('getChannelHistory - Soft Delete Filtering', () => {
     it('should exclude soft-deleted messages (deletedAt not null)', async () => {
       mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
 
-      await service.getRecentHistory('channel-123', 'personality-456', 20);
+      await service.getChannelHistory('channel-123', 20);
 
       expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -970,7 +970,7 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           where: expect.objectContaining({
             channelId: 'channel-123',
             deletedAt: null,
-            // Note: NO personalityId filter - that's the key difference from getRecentHistory
+            // Note: NO personalityId filter - fetches all messages in the channel
           }),
         })
       );
@@ -1108,11 +1108,11 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       expect(result).toBe(false);
     });
 
-    it('should return empty array when getRecentHistory fails', async () => {
+    it('should return empty array when getChannelHistory fails', async () => {
       const error = new Error('Database query failed');
       mockPrismaClient.conversationHistory.findMany.mockRejectedValue(error);
 
-      const result = await service.getRecentHistory('channel-123', 'personality-456', 20);
+      const result = await service.getChannelHistory('channel-123', 20);
 
       expect(result).toEqual([]);
     });

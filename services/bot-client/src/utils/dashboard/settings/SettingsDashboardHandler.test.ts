@@ -45,11 +45,6 @@ const createTestConfig = (): SettingsDashboardConfig => ({
 });
 
 const createTestData = (): SettingsData => ({
-  enabled: {
-    localValue: null,
-    effectiveValue: true,
-    source: 'global',
-  },
   maxMessages: {
     localValue: null,
     effectiveValue: 50,
@@ -374,7 +369,6 @@ describe('SettingsDashboardHandler', () => {
     it('should handle null values in settings data', async () => {
       const config = createTestConfig();
       const data: SettingsData = {
-        enabled: { localValue: null, effectiveValue: false, source: 'global' },
         maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
         maxAge: { localValue: null, effectiveValue: null, source: 'global' },
         maxImages: { localValue: null, effectiveValue: 0, source: 'global' },
@@ -397,7 +391,6 @@ describe('SettingsDashboardHandler', () => {
     it('should handle override values', async () => {
       const config = createTestConfig();
       const data: SettingsData = {
-        enabled: { localValue: true, effectiveValue: true, source: 'channel' },
         maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
         maxAge: { localValue: 3600, effectiveValue: 3600, source: 'channel' },
         maxImages: { localValue: 5, effectiveValue: 5, source: 'channel' },
@@ -419,11 +412,6 @@ describe('SettingsDashboardHandler', () => {
   });
 
   describe('setting types', () => {
-    it('should recognize TRI_STATE settings', () => {
-      const setting = EXTENDED_CONTEXT_SETTINGS.find(s => s.id === 'enabled');
-      expect(setting?.type).toBe(SettingType.TRI_STATE);
-    });
-
     it('should recognize NUMERIC settings', () => {
       const maxMessages = EXTENDED_CONTEXT_SETTINGS.find(s => s.id === 'maxMessages');
       const maxImages = EXTENDED_CONTEXT_SETTINGS.find(s => s.id === 'maxImages');
@@ -462,7 +450,7 @@ describe('SettingsDashboardHandler', () => {
     });
 
     it('should return early for invalid customId', async () => {
-      const interaction = createSelectInteraction('invalid', 'enabled');
+      const interaction = createSelectInteraction('invalid', 'maxMessages');
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -475,7 +463,7 @@ describe('SettingsDashboardHandler', () => {
     it('should reply with expired message when session not found', async () => {
       mockSessionManager.get.mockReturnValue(null);
 
-      const interaction = createSelectInteraction('test-settings::select::entity-1', 'enabled');
+      const interaction = createSelectInteraction('test-settings::select::entity-1', 'maxMessages');
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -500,7 +488,7 @@ describe('SettingsDashboardHandler', () => {
 
       const interaction = createSelectInteraction(
         'test-settings::select::entity-1',
-        'enabled',
+        'maxMessages',
         'user-123'
       );
       const config = createTestConfig();
@@ -551,7 +539,7 @@ describe('SettingsDashboardHandler', () => {
         },
       });
 
-      const interaction = createSelectInteraction('test-settings::select::entity-1', 'enabled');
+      const interaction = createSelectInteraction('test-settings::select::entity-1', 'maxMessages');
       const config = createTestConfig();
       const updateHandler = vi.fn();
 
@@ -633,7 +621,7 @@ describe('SettingsDashboardHandler', () => {
             entityId: 'entity-1',
             data: createTestData(),
             view: 'setting',
-            activeSetting: 'enabled',
+            activeSetting: 'maxMessages',
           },
         });
 
@@ -733,11 +721,13 @@ describe('SettingsDashboardHandler', () => {
             entityId: 'entity-1',
             data: createTestData(),
             view: 'setting',
-            activeSetting: 'enabled',
+            activeSetting: 'maxMessages',
           },
         });
 
-        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:auto');
+        const interaction = createButtonInteraction(
+          'test-settings::set::entity-1::maxMessages:auto'
+        );
         const config = createTestConfig();
         const updateHandler = vi
           .fn()
@@ -748,62 +738,8 @@ describe('SettingsDashboardHandler', () => {
         expect(updateHandler).toHaveBeenCalledWith(
           expect.anything(),
           expect.anything(),
-          'enabled',
+          'maxMessages',
           null
-        );
-      });
-
-      it('should parse "true" value as boolean true', async () => {
-        mockSessionManager.get.mockReturnValue({
-          data: {
-            userId: 'user-123',
-            entityId: 'entity-1',
-            data: createTestData(),
-            view: 'setting',
-            activeSetting: 'enabled',
-          },
-        });
-
-        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
-        const config = createTestConfig();
-        const updateHandler = vi
-          .fn()
-          .mockResolvedValue({ success: true, newData: createTestData() });
-
-        await handleSettingsButton(interaction as never, config, updateHandler);
-
-        expect(updateHandler).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.anything(),
-          'enabled',
-          true
-        );
-      });
-
-      it('should parse "false" value as boolean false', async () => {
-        mockSessionManager.get.mockReturnValue({
-          data: {
-            userId: 'user-123',
-            entityId: 'entity-1',
-            data: createTestData(),
-            view: 'setting',
-            activeSetting: 'enabled',
-          },
-        });
-
-        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:false');
-        const config = createTestConfig();
-        const updateHandler = vi
-          .fn()
-          .mockResolvedValue({ success: true, newData: createTestData() });
-
-        await handleSettingsButton(interaction as never, config, updateHandler);
-
-        expect(updateHandler).toHaveBeenCalledWith(
-          expect.anything(),
-          expect.anything(),
-          'enabled',
-          false
         );
       });
 
@@ -814,11 +750,13 @@ describe('SettingsDashboardHandler', () => {
             entityId: 'entity-1',
             data: createTestData(),
             view: 'setting',
-            activeSetting: 'enabled',
+            activeSetting: 'maxMessages',
           },
         });
 
-        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
+        const interaction = createButtonInteraction(
+          'test-settings::set::entity-1::maxMessages:auto'
+        );
         const config = createTestConfig();
         const updateHandler = vi.fn().mockResolvedValue({ success: false, error: 'API error' });
 
@@ -838,14 +776,16 @@ describe('SettingsDashboardHandler', () => {
             entityId: 'entity-1',
             data: createTestData(),
             view: 'setting',
-            activeSetting: 'enabled',
+            activeSetting: 'maxMessages',
           },
         });
 
-        const interaction = createButtonInteraction('test-settings::set::entity-1::enabled:true');
+        const interaction = createButtonInteraction(
+          'test-settings::set::entity-1::maxMessages:auto'
+        );
         const config = createTestConfig();
         const newData = createTestData();
-        newData.enabled.localValue = true;
+        newData.maxMessages.localValue = null;
         const updateHandler = vi.fn().mockResolvedValue({ success: true, newData });
 
         await handleSettingsButton(interaction as never, config, updateHandler);

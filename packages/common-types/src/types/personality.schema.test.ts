@@ -359,10 +359,6 @@ describe('Personality API Contract Tests', () => {
         isPublic: true,
         customFields: { newField: 'value' },
         avatarData: 'newbase64data',
-        extendedContext: true,
-        extendedContextMaxMessages: 50,
-        extendedContextMaxAge: 3600,
-        extendedContextMaxImages: 5,
       };
 
       const result = PersonalityUpdateSchema.safeParse(fullUpdate);
@@ -383,40 +379,6 @@ describe('Personality API Contract Tests', () => {
 
       expect(toggleOn.success).toBe(true);
       expect(toggleOff.success).toBe(true);
-    });
-
-    it('should validate extendedContext settings', () => {
-      const result = PersonalityUpdateSchema.safeParse({
-        extendedContext: true,
-        extendedContextMaxMessages: 100,
-        extendedContextMaxAge: 86400,
-        extendedContextMaxImages: 10,
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('should allow null for extendedContext settings', () => {
-      const result = PersonalityUpdateSchema.safeParse({
-        extendedContext: null,
-        extendedContextMaxMessages: null,
-        extendedContextMaxAge: null,
-        extendedContextMaxImages: null,
-      });
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject negative extendedContextMaxMessages', () => {
-      const result = PersonalityUpdateSchema.safeParse({
-        extendedContextMaxMessages: -1,
-      });
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject negative extendedContextMaxImages', () => {
-      const result = PersonalityUpdateSchema.safeParse({
-        extendedContextMaxImages: -1,
-      });
-      expect(result.success).toBe(false);
     });
   });
 

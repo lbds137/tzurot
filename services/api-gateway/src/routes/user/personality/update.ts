@@ -40,10 +40,6 @@ interface UpdatePersonalityBody {
   conversationalExamples?: string | null;
   errorMessage?: string | null;
   avatarData?: string;
-  extendedContext?: boolean | null;
-  extendedContextMaxMessages?: number | null;
-  extendedContextMaxAge?: number | null;
-  extendedContextMaxImages?: number | null;
 }
 
 const PERSONALITY_SELECT = {
@@ -67,10 +63,6 @@ const PERSONALITY_SELECT = {
   isPublic: true,
   voiceEnabled: true,
   imageEnabled: true,
-  extendedContext: true,
-  extendedContextMaxMessages: true,
-  extendedContextMaxAge: true,
-  extendedContextMaxImages: true,
   ownerId: true,
   avatarData: true,
   customFields: true,
@@ -101,10 +93,6 @@ function buildUpdateData(
     'conversationalGoals',
     'conversationalExamples',
     'errorMessage',
-    'extendedContext',
-    'extendedContextMaxMessages',
-    'extendedContextMaxAge',
-    'extendedContextMaxImages',
   ];
 
   for (const field of simpleFields) {
@@ -186,7 +174,7 @@ async function handleSlugCacheInvalidation(
   }
 }
 
-type PersonalityFromDb = NonNullable<Awaited<ReturnType<PrismaClient['personality']['update']>>>;
+type PersonalityFromDb = Prisma.PersonalityGetPayload<{ select: typeof PERSONALITY_SELECT }>;
 
 interface PersonalityResponse {
   id: string;
@@ -209,10 +197,6 @@ interface PersonalityResponse {
   isPublic: boolean;
   voiceEnabled: boolean;
   imageEnabled: boolean;
-  extendedContext: boolean | null;
-  extendedContextMaxMessages: number | null;
-  extendedContextMaxAge: number | null;
-  extendedContextMaxImages: number | null;
   ownerId: string;
   hasAvatar: boolean;
   customFields: unknown;
@@ -245,10 +229,6 @@ function formatResponse(updated: PersonalityFromDb): PersonalityResponse {
     isPublic: updated.isPublic,
     voiceEnabled: updated.voiceEnabled,
     imageEnabled: updated.imageEnabled,
-    extendedContext: updated.extendedContext,
-    extendedContextMaxMessages: updated.extendedContextMaxMessages,
-    extendedContextMaxAge: updated.extendedContextMaxAge,
-    extendedContextMaxImages: updated.extendedContextMaxImages,
     ownerId: updated.ownerId,
     hasAvatar: updated.avatarData !== null,
     customFields: updated.customFields,
@@ -263,6 +243,7 @@ function formatResponse(updated: PersonalityFromDb): PersonalityResponse {
 // --- Handler Factory ---
 
 function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing, update handler with many fields
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);

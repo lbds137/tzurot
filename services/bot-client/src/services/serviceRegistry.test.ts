@@ -104,7 +104,7 @@ describe('serviceRegistry', () => {
     const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
     const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
     const mockConversationHistoryService = {
-      getRecentHistory: vi.fn(),
+      getChannelHistory: vi.fn(),
     } as unknown as ConversationHistoryService;
     const mockPersonaResolver = { resolve: vi.fn() } as unknown as PersonaResolver;
     const mockChannelActivationCacheInvalidationService = {
@@ -343,7 +343,7 @@ describe('serviceRegistry', () => {
       const mockGatewayClient = { generate: vi.fn() } as unknown as GatewayClient;
       const mockPersonalityService = { loadPersonality: vi.fn() } as unknown as PersonalityService;
       const mockConversationHistoryService = {
-        getRecentHistory: vi.fn(),
+        getChannelHistory: vi.fn(),
       } as unknown as ConversationHistoryService;
       const mockPersonaResolver = { resolve: vi.fn() } as unknown as PersonaResolver;
       const mockChannelActivationCacheInvalidationService = {

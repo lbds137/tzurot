@@ -198,60 +198,6 @@ export class ConversationHistoryService {
   }
 
   /**
-   * Get recent conversation history for a channel + personality
-   * Returns messages in chronological order (oldest first)
-   *
-   * @deprecated Use `getChannelHistory()` instead. This method filters by personality
-   * which causes issues when extended context includes messages to other personalities.
-   * The `getChannelHistory()` method returns ALL channel messages regardless of personality.
-   * This method will be removed in a future version.
-   *
-   * @param channelId Channel ID
-   * @param personalityId Personality ID
-   * @param limit Number of messages to fetch (default: 20)
-   * @param contextEpoch Optional epoch timestamp - messages before this time are excluded (STM reset)
-   */
-  async getRecentHistory(
-    channelId: string,
-    personalityId: string,
-    limit = 20,
-    contextEpoch?: Date
-  ): Promise<ConversationMessage[]> {
-    try {
-      const messages = await this.prisma.conversationHistory.findMany({
-        where: {
-          channelId,
-          personalityId,
-          // Exclude soft-deleted messages
-          deletedAt: null,
-          // Filter by context epoch if provided (STM reset feature)
-          ...(contextEpoch !== undefined && {
-            createdAt: {
-              gt: contextEpoch,
-            },
-          }),
-        },
-        orderBy: {
-          createdAt: 'desc',
-        },
-        take: limit,
-        select: conversationHistorySelect,
-      });
-
-      // Reverse to get chronological order (oldest first) and map to domain objects
-      const history = mapToConversationMessages(messages.reverse());
-
-      logger.debug(
-        `Retrieved ${history.length} messages from history (channel: ${channelId}, personality: ${personalityId})`
-      );
-      return history;
-    } catch (error) {
-      logger.error({ err: error }, `Failed to get conversation history`);
-      return [];
-    }
-  }
-
-  /**
    * Get paginated conversation history with cursor support
    * Returns messages in chronological order (oldest first)
    *
@@ -409,7 +355,7 @@ export class ConversationHistoryService {
    * Get recent conversation history for a channel across ALL personalities.
    * Returns messages in chronological order (oldest first).
    *
-   * Unlike getRecentHistory(), this method does NOT filter by personalityId.
+   * This method does NOT filter by personalityId — it returns all messages in the channel.
    * Use this when you need complete channel context (e.g., extended context scenarios).
    *
    * @param channelId Channel ID

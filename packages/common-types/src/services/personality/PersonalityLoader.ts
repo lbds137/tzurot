@@ -27,10 +27,6 @@ const PERSONALITY_SELECT = {
   isPublic: true,
   ownerId: true,
   updatedAt: true, // For avatar cache-busting
-  extendedContext: true, // Extended context tri-state: null=auto, true=on, false=off
-  extendedContextMaxMessages: true, // Override max messages limit
-  extendedContextMaxAge: true, // Override max age (seconds)
-  extendedContextMaxImages: true, // Override max images to process
   characterInfo: true,
   personalityTraits: true,
   personalityTone: true,
@@ -150,6 +146,7 @@ export class PersonalityLoader {
    * @param userId - Discord user ID for access control (optional - omit for internal operations)
    * @returns DatabasePersonality or null if not found or access denied
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing, multi-strategy lookup
   async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
     // Resolve Discord user ID to database UUID for ownership checks
     const ownerUuid = await this.resolveOwnerUuid(userId);

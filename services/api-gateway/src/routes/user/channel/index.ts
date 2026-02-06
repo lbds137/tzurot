@@ -8,7 +8,6 @@
  * - GET /user/channel/:channelId - Get settings for a channel
  * - GET /user/channel/list - List all channel settings
  * - PATCH /user/channel/update-guild - Update guildId for backfill
- * - PATCH /user/channel/extended-context/:channelId - Update extended context setting
  */
 
 import { Router } from 'express';
@@ -18,7 +17,6 @@ import { createDeactivateHandler } from './deactivate.js';
 import { createGetHandler } from './get.js';
 import { createListHandler } from './list.js';
 import { createUpdateGuildHandler } from './updateGuild.js';
-import { createExtendedContextHandler } from './extendedContext.js';
 
 /**
  * Create channel activation router with injected dependencies
@@ -38,9 +36,6 @@ export function createChannelRoutes(prisma: PrismaClient): Router {
 
   // Update guildId - PATCH /update-guild (for lazy backfill)
   router.patch('/update-guild', ...createUpdateGuildHandler(prisma));
-
-  // Update extended context - PATCH /extended-context/:channelId
-  router.patch('/extended-context/:channelId', ...createExtendedContextHandler(prisma));
 
   // Get settings - GET /:channelId
   router.get('/:channelId', ...createGetHandler(prisma));

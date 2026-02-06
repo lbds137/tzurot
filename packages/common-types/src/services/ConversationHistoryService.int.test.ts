@@ -100,7 +100,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toHaveLength(1);
       expect(history[0].role).toBe(MessageRole.User);
       expect(history[0].content).toBe('Hello bot!');
@@ -118,7 +118,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toHaveLength(1);
       expect(history[0].role).toBe(MessageRole.Assistant);
       expect(history[0].content).toBe('Hello human!');
@@ -135,7 +135,7 @@ describe('ConversationHistoryService Component Test', () => {
         discordMessageId: 'discord-msg-123',
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history[0].discordMessageId).toEqual(['discord-msg-123']);
     });
 
@@ -150,7 +150,7 @@ describe('ConversationHistoryService Component Test', () => {
         discordMessageId: ['chunk-1', 'chunk-2', 'chunk-3'],
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history[0].discordMessageId).toEqual(['chunk-1', 'chunk-2', 'chunk-3']);
     });
 
@@ -165,7 +165,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history[0].tokenCount).toBeDefined();
       expect(history[0].tokenCount).toBeGreaterThan(0);
     });
@@ -180,13 +180,13 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: null, // DM = no guild
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toHaveLength(1);
       expect(history[0].content).toBe('DM message');
     });
   });
 
-  describe('getRecentHistory', () => {
+  describe('getChannelHistory', () => {
     it('should return messages in chronological order (oldest first)', async () => {
       // Sequential awaits ensure created_at timestamps preserve insertion order
       await service.addMessage({
@@ -214,7 +214,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
 
       expect(history).toHaveLength(3);
       expect(history[0].content).toBe('First message');
@@ -235,7 +235,7 @@ describe('ConversationHistoryService Component Test', () => {
         });
       }
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 3);
+      const history = await service.getChannelHistory(testChannelId, 3);
 
       expect(history).toHaveLength(3);
       // Should return the 3 most recent messages
@@ -245,13 +245,12 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should return empty array for non-existent channel', async () => {
-      const history = await service.getRecentHistory('non-existent', testPersonalityId, 10);
+      const history = await service.getChannelHistory('non-existent', 10);
       expect(history).toEqual([]);
     });
 
-    it('should filter by personality', async () => {
-      // This test requires another personality, but we can test that the filter works
-      // by ensuring we only get messages for the specified personality
+    it('should return all messages regardless of personality', async () => {
+      // getChannelHistory does NOT filter by personalityId - it fetches ALL channel messages
       await service.addMessage({
         channelId: testChannelId,
         personalityId: testPersonalityId,
@@ -261,16 +260,9 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toHaveLength(1);
-
-      // Different personality ID should return empty
-      const otherHistory = await service.getRecentHistory(
-        testChannelId,
-        '00000000-0000-0000-0000-000000000099',
-        10
-      );
-      expect(otherHistory).toEqual([]);
+      expect(history[0].content).toBe('Message to TestBot');
     });
   });
 
@@ -361,7 +353,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(success).toBe(true);
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history[0].content).toBe('Updated content with attachment description');
     });
 
@@ -389,7 +381,7 @@ describe('ConversationHistoryService Component Test', () => {
         guildId: testGuildId,
       });
 
-      const historyBefore = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const historyBefore = await service.getChannelHistory(testChannelId, 10);
       const tokensBefore = historyBefore[0].tokenCount;
 
       await service.updateLastUserMessage(
@@ -399,7 +391,7 @@ describe('ConversationHistoryService Component Test', () => {
         longContent
       );
 
-      const historyAfter = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const historyAfter = await service.getChannelHistory(testChannelId, 10);
       const tokensAfter = historyAfter[0].tokenCount;
 
       expect(tokensAfter).toBeGreaterThan(tokensBefore!);
@@ -426,7 +418,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(success).toBe(true);
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history[0].discordMessageId).toEqual(['discord-id-1', 'discord-id-2']);
     });
 
@@ -509,7 +501,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(deletedCount).toBe(2);
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toEqual([]);
     });
 
@@ -519,7 +511,7 @@ describe('ConversationHistoryService Component Test', () => {
     });
   });
 
-  describe('getRecentHistory with contextEpoch', () => {
+  describe('getChannelHistory with contextEpoch', () => {
     it('should filter out messages before epoch', async () => {
       // Add first message
       await service.addMessage({
@@ -547,16 +539,11 @@ describe('ConversationHistoryService Component Test', () => {
       });
 
       // Without epoch - should see both
-      const allHistory = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const allHistory = await service.getChannelHistory(testChannelId, 10);
       expect(allHistory).toHaveLength(2);
 
       // With epoch - should only see message after epoch
-      const filteredHistory = await service.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10,
-        epochTime
-      );
+      const filteredHistory = await service.getChannelHistory(testChannelId, 10, epochTime);
       expect(filteredHistory).toHaveLength(1);
       expect(filteredHistory[0].content).toBe('New message after epoch');
     });
@@ -575,12 +562,7 @@ describe('ConversationHistoryService Component Test', () => {
       const futureEpoch = new Date();
       futureEpoch.setDate(futureEpoch.getDate() + 1);
 
-      const history = await service.getRecentHistory(
-        testChannelId,
-        testPersonalityId,
-        10,
-        futureEpoch
-      );
+      const history = await service.getChannelHistory(testChannelId, 10, futureEpoch);
       expect(history).toEqual([]);
     });
   });
@@ -773,7 +755,7 @@ describe('ConversationHistoryService Component Test', () => {
       expect(deletedCount).toBe(1);
 
       // Recent message should still exist
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toHaveLength(1);
       expect(history[0].content).toBe('Recent message');
     });
@@ -792,7 +774,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(deletedCount).toBe(0);
 
-      const history = await service.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await service.getChannelHistory(testChannelId, 10);
       expect(history).toHaveLength(1);
     });
   });

@@ -69,10 +69,6 @@ interface PersonalityResponse {
     id: string;
     name: string;
     slug: string;
-    extendedContext: boolean | null;
-    extendedContextMaxMessages: number | null;
-    extendedContextMaxAge: number | null;
-    extendedContextMaxImages: number | null;
     ownerId: string;
   };
 }
@@ -239,44 +235,33 @@ function extractCharacterSlug(customId: string): string | null {
  */
 function convertToSettingsData(
   personality: PersonalityResponse['personality'],
-  adminSettings: Record<string, unknown>
+  _adminSettings: Record<string, unknown>
 ): SettingsData {
-  // Extended Context
-  const enabledLocal = personality.extendedContext;
-  const enabledGlobal = adminSettings.extendedContextDefault as boolean;
-
-  // Max Messages
-  const maxMessagesLocal = personality.extendedContextMaxMessages;
-  const maxMessagesGlobal = adminSettings.extendedContextMaxMessages as number;
-
-  // Max Age
-  const maxAgeLocal = personality.extendedContextMaxAge;
-  const maxAgeGlobal = adminSettings.extendedContextMaxAge as number | null;
-
-  // Max Images
-  const maxImagesLocal = personality.extendedContextMaxImages;
-  const maxImagesGlobal = adminSettings.extendedContextMaxImages as number;
+  // Note: maxMessages/maxAge/maxImages now come from LlmConfig,
+  // but these dashboards still show personality-level values for reference.
+  // These will be fully migrated to LlmConfig dashboards in a follow-up.
+  const maxMessagesLocal =
+    ((personality as Record<string, unknown>).extendedContextMaxMessages as number | null) ?? null;
+  const maxAgeLocal =
+    ((personality as Record<string, unknown>).extendedContextMaxAge as number | null) ?? null;
+  const maxImagesLocal =
+    ((personality as Record<string, unknown>).extendedContextMaxImages as number | null) ?? null;
 
   return {
-    enabled: {
-      localValue: enabledLocal,
-      effectiveValue: enabledLocal ?? enabledGlobal,
-      source: enabledLocal !== null ? 'personality' : 'global',
-    },
     maxMessages: {
       localValue: maxMessagesLocal,
-      effectiveValue: maxMessagesLocal ?? maxMessagesGlobal,
-      source: maxMessagesLocal !== null ? 'personality' : 'global',
+      effectiveValue: maxMessagesLocal ?? 20,
+      source: maxMessagesLocal !== null ? 'personality' : 'default',
     },
     maxAge: {
       localValue: maxAgeLocal,
-      effectiveValue: maxAgeLocal ?? maxAgeGlobal,
-      source: maxAgeLocal !== null ? 'personality' : 'global',
+      effectiveValue: maxAgeLocal ?? null,
+      source: maxAgeLocal !== null ? 'personality' : 'default',
     },
     maxImages: {
       localValue: maxImagesLocal,
-      effectiveValue: maxImagesLocal ?? maxImagesGlobal,
-      source: maxImagesLocal !== null ? 'personality' : 'global',
+      effectiveValue: maxImagesLocal ?? 0,
+      source: maxImagesLocal !== null ? 'personality' : 'default',
     },
   };
 }
@@ -369,10 +354,6 @@ async function handleSettingUpdate(
  */
 function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
-    case 'enabled':
-      // null means auto (inherit from channel/global)
-      return { extendedContext: value };
-
     case 'maxMessages':
       // null means auto (inherit from channel/global)
       return { extendedContextMaxMessages: value };

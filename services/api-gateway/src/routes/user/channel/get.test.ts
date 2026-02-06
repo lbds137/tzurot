@@ -69,7 +69,6 @@ describe('GET /user/channel/:channelId', () => {
           personalitySlug: 'test-character',
           personalityName: 'Test Character',
           autoRespond: true,
-          extendedContext: false,
           activatedBy: MOCK_USER_UUID,
           createdAt: createMockCreatedAt().toISOString(),
         }),

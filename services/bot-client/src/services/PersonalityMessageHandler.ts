@@ -7,11 +7,7 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import type {
-  LoadedPersonality,
-  ResolvedExtendedContextSettings,
-  ConfigResolutionResult,
-} from '@tzurot/common-types';
+import type { LoadedPersonality, ConfigResolutionResult } from '@tzurot/common-types';
 import { createLogger, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../utils/userGatewayClient.js';
@@ -76,23 +72,27 @@ export class PersonalityMessageHandler {
 
   /**
    * Build extended context settings from resolved config.
-   * Uses user-resolved settings with sensible defaults.
+   * Extended context is always enabled — these settings control the limits.
    */
   private buildExtendedContextSettings(
-    personality: LoadedPersonality,
+    _personality: LoadedPersonality,
     resolvedConfig: ConfigResolutionResult
-  ): ResolvedExtendedContextSettings {
+  ): {
+    maxMessages: number;
+    maxAge: number | null;
+    maxImages: number;
+    sources: {
+      maxMessages: 'personality' | 'user-personality' | 'user-default';
+      maxAge: 'personality' | 'user-personality' | 'user-default';
+      maxImages: 'personality' | 'user-personality' | 'user-default';
+    };
+  } {
     const { config, source } = resolvedConfig;
     return {
-      // Default to enabled unless personality explicitly disables
-      enabled: personality.extendedContext ?? true,
-      // Use resolved config limits (includes user overrides)
       maxMessages: config.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       maxAge: config.maxAge ?? null,
       maxImages: config.maxImages ?? 10,
-      // Track source for debugging
       sources: {
-        enabled: 'personality', // extendedContext toggle always from personality
         maxMessages: source,
         maxAge: source,
         maxImages: source,
@@ -138,19 +138,17 @@ export class PersonalityMessageHandler {
         resolvedConfig
       );
 
-      if (extendedContextSettings.enabled) {
-        logger.debug(
-          {
-            channelId: message.channel.id,
-            personalityId: personality.id,
-            maxMessages: extendedContextSettings.maxMessages,
-            maxAge: extendedContextSettings.maxAge,
-            maxImages: extendedContextSettings.maxImages,
-            sources: extendedContextSettings.sources,
-          },
-          '[PersonalityMessageHandler] Extended context enabled for this request'
-        );
-      }
+      logger.debug(
+        {
+          channelId: message.channel.id,
+          personalityId: personality.id,
+          maxMessages: extendedContextSettings.maxMessages,
+          maxAge: extendedContextSettings.maxAge,
+          maxImages: extendedContextSettings.maxImages,
+          sources: extendedContextSettings.sources,
+        },
+        '[PersonalityMessageHandler] Extended context settings for this request'
+      );
 
       // Build AI context (user lookup, history, references, attachments, environment)
       // Pass extended context settings to enable Discord channel message fetching
