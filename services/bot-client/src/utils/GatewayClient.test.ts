@@ -652,10 +652,6 @@ describe('GatewayClient', () => {
         updatedBy: null,
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-        extendedContextDefault: true,
-        extendedContextMaxMessages: 50,
-        extendedContextMaxAge: 3600,
-        extendedContextMaxImages: 10,
       };
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -703,10 +699,6 @@ describe('GatewayClient', () => {
         updatedBy: null,
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-        extendedContextDefault: false,
-        extendedContextMaxMessages: 20,
-        extendedContextMaxAge: null,
-        extendedContextMaxImages: 10,
       };
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -731,10 +723,6 @@ describe('GatewayClient', () => {
         updatedBy: null,
         createdAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-01T00:00:00.000Z',
-        extendedContextDefault: true,
-        extendedContextMaxMessages: 50,
-        extendedContextMaxAge: null,
-        extendedContextMaxImages: 10,
       };
       mockFetch.mockResolvedValue({
         ok: true,
@@ -751,56 +739,6 @@ describe('GatewayClient', () => {
       // Second call - should fetch again
       await client.getAdminSettings();
       expect(mockFetch).toHaveBeenCalledTimes(2);
-    });
-  });
-
-  describe('getExtendedContextDefault()', () => {
-    it('should return true when extendedContextDefault is true', async () => {
-      const client = new GatewayClient('http://test.gateway');
-
-      vi.spyOn(client, 'getAdminSettings').mockResolvedValueOnce({
-        id: ADMIN_SETTINGS_SINGLETON_ID,
-        updatedBy: null,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        extendedContextDefault: true,
-        extendedContextMaxMessages: 50,
-        extendedContextMaxAge: null,
-        extendedContextMaxImages: 10,
-      });
-
-      const result = await client.getExtendedContextDefault();
-
-      expect(result).toBe(true);
-    });
-
-    it('should return false when extendedContextDefault is false', async () => {
-      const client = new GatewayClient('http://test.gateway');
-
-      vi.spyOn(client, 'getAdminSettings').mockResolvedValueOnce({
-        id: ADMIN_SETTINGS_SINGLETON_ID,
-        updatedBy: null,
-        createdAt: '2024-01-01T00:00:00.000Z',
-        updatedAt: '2024-01-01T00:00:00.000Z',
-        extendedContextDefault: false,
-        extendedContextMaxMessages: 20,
-        extendedContextMaxAge: null,
-        extendedContextMaxImages: 10,
-      });
-
-      const result = await client.getExtendedContextDefault();
-
-      expect(result).toBe(false);
-    });
-
-    it('should return false when settings are null (API error)', async () => {
-      const client = new GatewayClient('http://test.gateway');
-
-      vi.spyOn(client, 'getAdminSettings').mockResolvedValueOnce(null);
-
-      const result = await client.getExtendedContextDefault();
-
-      expect(result).toBe(false);
     });
   });
 

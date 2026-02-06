@@ -27,92 +27,13 @@ const config = getConfig();
  * OpenRouter-specific parameters that need to be injected into the request body.
  * The OpenAI SDK v4+ strips unknown top-level keys from the params, so we need
  * to inject these after SDK validation via a custom fetch wrapper.
+ *
+ * Reasoning is handled separately via the `reasoning` param in modelKwargs.
  */
 export interface OpenRouterExtraParams {
-  include_reasoning?: boolean;
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';
-}
-
-/**
- * Inject reasoning content from OpenRouter response into the content field.
- *
- * Problem: The OpenAI SDK strips the `reasoning` field from responses before
- * LangChain can preserve it in additional_kwargs.
- *
- * Solution: Intercept the response and prepend reasoning to content with
- * `<reasoning>` tags. Our existing thinkingExtraction.ts will extract it.
- *
- * @internal Exported for testing
- * @returns Modified Response with reasoning injected into content, or original if no reasoning
- */
-export async function injectReasoningIntoContent(response: Response): Promise<Response> {
-  try {
-    const responseBody = (await response.json()) as Record<string, unknown>;
-    const choices = responseBody.choices as Record<string, unknown>[] | undefined;
-    const firstChoice = choices?.[0];
-    const message = firstChoice?.message as Record<string, unknown> | undefined;
-
-    if (!message) {
-      // No message - return a fresh Response with the same body
-      return new Response(JSON.stringify(responseBody), {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      });
-    }
-
-    // Check for reasoning content (OpenRouter uses `reasoning` field for DeepSeek R1)
-    const reasoning = message.reasoning;
-
-    logger.debug(
-      {
-        hasReasoning: reasoning !== undefined,
-        hasReasoningContent: message.reasoning_content !== undefined,
-        messageKeys: Object.keys(message),
-      },
-      '[ModelFactory] OpenRouter response structure'
-    );
-
-    if (typeof reasoning !== 'string' || reasoning.length === 0) {
-      // No reasoning to inject - return fresh Response
-      return new Response(JSON.stringify(responseBody), {
-        status: response.status,
-        statusText: response.statusText,
-        headers: response.headers,
-      });
-    }
-
-    // Inject reasoning into content with <reasoning> tags
-    // Our thinkingExtraction.ts already handles this tag pattern
-    const originalContent = typeof message.content === 'string' ? message.content : '';
-    message.content = `<reasoning>\n${reasoning}\n</reasoning>\n\n${originalContent}`;
-
-    // Remove the reasoning field to avoid confusion
-    delete message.reasoning;
-
-    logger.info(
-      {
-        reasoningLength: reasoning.length,
-        originalContentLength: originalContent.length,
-        newContentLength: (message.content as string).length,
-      },
-      '[ModelFactory] Injected reasoning into content with <reasoning> tags'
-    );
-
-    // Return new Response with modified body
-    return new Response(JSON.stringify(responseBody), {
-      status: response.status,
-      statusText: response.statusText,
-      headers: response.headers,
-    });
-  } catch (err) {
-    // On error, try to return a fresh response
-    // Note: we've already consumed the body, so create a minimal error response
-    logger.warn({ err }, '[ModelFactory] Failed to process response for reasoning injection');
-    throw err; // Let the SDK handle the error
-  }
 }
 
 /**
@@ -128,9 +49,6 @@ function injectOpenRouterParams(
     const body = JSON.parse(init.body as string) as Record<string, unknown>;
 
     // Inject OpenRouter-specific parameters
-    if (extraParams.include_reasoning === true) {
-      body.include_reasoning = true;
-    }
     if (extraParams.transforms !== undefined && extraParams.transforms.length > 0) {
       body.transforms = extraParams.transforms;
     }
@@ -146,7 +64,6 @@ function injectOpenRouterParams(
       {
         url: urlStr,
         injectedParams: extraParams,
-        hasIncludeReasoning: body.include_reasoning,
       },
       '[ModelFactory] Custom fetch injecting OpenRouter params'
     );
@@ -164,6 +81,10 @@ function injectOpenRouterParams(
  * The OpenAI SDK v4+ requires extra_body as a separate options argument,
  * but LangChain.js doesn't expose this. This workaround intercepts the
  * fetch call and modifies the body before sending.
+ *
+ * Note: Response interception for reasoning was removed. Reasoning content
+ * now flows through the standard OpenRouter `reasoning` param and is
+ * preserved in LangChain's `additional_kwargs.reasoning`.
  */
 function createOpenRouterFetch(
   extraParams: OpenRouterExtraParams
@@ -173,18 +94,7 @@ function createOpenRouterFetch(
       injectOpenRouterParams(url, init, extraParams);
     }
 
-    const response = await fetch(url, init);
-
-    // Inject reasoning content into response before SDK strips it
-    // The SDK removes unknown fields like `reasoning`, so we move it to content
-    // IMPORTANT: Only process successful responses - error responses have different
-    // structure ({ error: ... } instead of { choices: ... }) and should pass through
-    // to LangChain's error handling directly
-    if (extraParams.include_reasoning === true && init?.method === 'POST' && response.ok) {
-      return injectReasoningIntoContent(response);
-    }
-
-    return response;
+    return fetch(url, init);
   };
 }
 
@@ -325,9 +235,9 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
   // The 'reasoning' object configures effort/tokens (OpenAI o1/o3 style)
   addIfHasKeys(kwargs, 'reasoning', buildReasoningParams(modelConfig.reasoning));
 
-  // Note: OpenRouter-specific params (include_reasoning, transforms, route, verbosity)
-  // are injected via custom fetch wrapper, not modelKwargs, because the OpenAI SDK v4+
-  // strips unknown top-level keys from the params object.
+  // Note: OpenRouter-specific params (transforms, route, verbosity) are injected via
+  // custom fetch wrapper, not modelKwargs, because the OpenAI SDK v4+ strips unknown
+  // top-level keys from the params object.
 
   return kwargs;
 }
@@ -338,18 +248,6 @@ function buildModelKwargs(modelConfig: ModelConfig): Record<string, unknown> {
  */
 function buildOpenRouterExtraParams(modelConfig: ModelConfig): OpenRouterExtraParams {
   const params: OpenRouterExtraParams = {};
-
-  // include_reasoning: opt-in flag for OpenRouter to return thinking content
-  // Without this, reasoning models' thinking is stripped from the response
-  // Set when EITHER:
-  // 1. showThinking is true (user wants to see thinking blocks)
-  // 2. reasoning config exists and exclude !== true (explicit reasoning config)
-  const wantsThinking = modelConfig.showThinking === true;
-  const hasReasoningConfig =
-    modelConfig.reasoning !== undefined && modelConfig.reasoning.exclude !== true;
-  if (wantsThinking || hasReasoningConfig) {
-    params.include_reasoning = true;
-  }
 
   // OpenRouter-specific routing/transform options
   if (modelConfig.transforms !== undefined && modelConfig.transforms.length > 0) {
@@ -551,8 +449,8 @@ export function getModelCacheKey(modelConfig: ModelConfig): string {
     cacheVal(modelConfig.maxTokens),
     cacheArr(modelConfig.stop),
     cacheVal(modelConfig.responseFormat?.type),
-    cacheVal(modelConfig.showThinking), // Affects include_reasoning in custom fetch
-    // Reasoning - all fields affect include_reasoning in custom fetch
+    cacheVal(modelConfig.showThinking),
+    // Reasoning - all fields affect reasoning param in modelKwargs
     cacheVal(modelConfig.reasoning?.enabled),
     cacheVal(modelConfig.reasoning?.exclude),
     cacheVal(modelConfig.reasoning?.effort),

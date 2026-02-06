@@ -12,8 +12,6 @@ import {
   ListChannelActivationsResponseSchema,
   UpdateChannelGuildRequestSchema,
   UpdateChannelGuildResponseSchema,
-  UpdateChannelExtendedContextRequestSchema,
-  UpdateChannelExtendedContextResponseSchema,
 } from './channel.js';
 
 /** Helper to create valid channel settings data */
@@ -25,10 +23,6 @@ function createValidChannelSettings(overrides = {}) {
     personalitySlug: 'lilith',
     personalityName: 'Lilith',
     autoRespond: true,
-    extendedContext: null,
-    extendedContextMaxMessages: null,
-    extendedContextMaxAge: null,
-    extendedContextMaxImages: null,
     activatedBy: '550e8400-e29b-41d4-a716-446655440001',
     createdAt: '2025-01-15T12:00:00.000Z',
     ...overrides,
@@ -57,19 +51,6 @@ describe('Channel Settings Schemas', () => {
 
     it('should accept null activatedBy', () => {
       const data = createValidChannelSettings({ activatedBy: null });
-      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
-    });
-
-    it('should accept boolean extendedContext', () => {
-      const data = createValidChannelSettings({ extendedContext: true });
-      expect(ChannelSettingsSchema.parse(data)).toEqual(data);
-
-      const data2 = createValidChannelSettings({ extendedContext: false });
-      expect(ChannelSettingsSchema.parse(data2)).toEqual(data2);
-    });
-
-    it('should accept null extendedContext (use global default)', () => {
-      const data = createValidChannelSettings({ extendedContext: null });
       expect(ChannelSettingsSchema.parse(data)).toEqual(data);
     });
 
@@ -329,88 +310,6 @@ describe('Channel Settings Schemas', () => {
 
     it('should reject missing updated field', () => {
       expect(() => UpdateChannelGuildResponseSchema.parse({})).toThrow();
-    });
-  });
-
-  describe('UpdateChannelExtendedContextRequestSchema', () => {
-    it('should accept boolean extendedContext', () => {
-      expect(UpdateChannelExtendedContextRequestSchema.parse({ extendedContext: true })).toEqual({
-        extendedContext: true,
-      });
-      expect(UpdateChannelExtendedContextRequestSchema.parse({ extendedContext: false })).toEqual({
-        extendedContext: false,
-      });
-    });
-
-    it('should accept null extendedContext (clear override)', () => {
-      expect(UpdateChannelExtendedContextRequestSchema.parse({ extendedContext: null })).toEqual({
-        extendedContext: null,
-      });
-    });
-
-    it('should accept maxMessages, maxAge, and maxImages', () => {
-      expect(
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: 50 })
-      ).toEqual({ extendedContextMaxMessages: 50 });
-      expect(
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxAge: 7200 })
-      ).toEqual({ extendedContextMaxAge: 7200 });
-      expect(
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxImages: 10 })
-      ).toEqual({ extendedContextMaxImages: 10 });
-    });
-
-    it('should accept null for numeric fields (use global)', () => {
-      expect(
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: null })
-      ).toEqual({ extendedContextMaxMessages: null });
-    });
-
-    it('should accept multiple fields at once', () => {
-      const result = UpdateChannelExtendedContextRequestSchema.parse({
-        extendedContext: true,
-        extendedContextMaxMessages: 75,
-        extendedContextMaxAge: null,
-      });
-      expect(result).toEqual({
-        extendedContext: true,
-        extendedContextMaxMessages: 75,
-        extendedContextMaxAge: null,
-      });
-    });
-
-    it('should reject empty object (at least one field required)', () => {
-      expect(() => UpdateChannelExtendedContextRequestSchema.parse({})).toThrow();
-    });
-
-    it('should reject invalid numeric values', () => {
-      expect(() =>
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: 0 })
-      ).toThrow();
-      expect(() =>
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxMessages: 150 })
-      ).toThrow();
-      expect(() =>
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxImages: -1 })
-      ).toThrow();
-      expect(() =>
-        UpdateChannelExtendedContextRequestSchema.parse({ extendedContextMaxImages: 25 })
-      ).toThrow();
-    });
-  });
-
-  describe('UpdateChannelExtendedContextResponseSchema', () => {
-    it('should accept valid response', () => {
-      const data = {
-        updated: true,
-        settings: createValidChannelSettings({ extendedContext: true }),
-      };
-      expect(UpdateChannelExtendedContextResponseSchema.parse(data)).toEqual(data);
-    });
-
-    it('should reject missing fields', () => {
-      expect(() => UpdateChannelExtendedContextResponseSchema.parse({})).toThrow();
-      expect(() => UpdateChannelExtendedContextResponseSchema.parse({ updated: true })).toThrow();
     });
   });
 });

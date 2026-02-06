@@ -102,7 +102,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Get the message ID
-      const history = await historyService.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await historyService.getChannelHistory(testChannelId, 10);
       const messageId = history[0].id;
 
       // Soft delete
@@ -146,7 +146,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Get message IDs
-      const history = await historyService.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await historyService.getChannelHistory(testChannelId, 10);
       const messageIds = history.map(h => h.id);
 
       // Bulk soft delete
@@ -186,7 +186,7 @@ describe('ConversationSyncService Integration Test', () => {
         discordMessageId: 'discord-edit',
       });
 
-      const history = await historyService.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await historyService.getChannelHistory(testChannelId, 10);
       const messageId = history[0].id;
 
       // Update content
@@ -214,7 +214,7 @@ describe('ConversationSyncService Integration Test', () => {
         guildId: testGuildId,
       });
 
-      const history = await historyService.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await historyService.getChannelHistory(testChannelId, 10);
       const messageId = history[0].id;
       const originalTokens = history[0].tokenCount;
 
@@ -293,7 +293,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Soft delete it
-      const history = await historyService.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await historyService.getChannelHistory(testChannelId, 10);
       await syncService.softDeleteMessage(history[0].id);
 
       // Should still find it by Discord ID
@@ -395,7 +395,7 @@ describe('ConversationSyncService Integration Test', () => {
       });
 
       // Soft delete first message
-      const history = await historyService.getRecentHistory(testChannelId, testPersonalityId, 10);
+      const history = await historyService.getChannelHistory(testChannelId, 10);
       const deleteMsg = history.find(h => h.content === 'Will be deleted');
       await syncService.softDeleteMessage(deleteMsg!.id);
 

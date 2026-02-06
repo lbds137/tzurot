@@ -58,10 +58,6 @@ describe('Admin Settings Dashboard', () => {
     updatedBy: 'user-123',
     createdAt: '2025-01-15T00:00:00.000Z',
     updatedAt: '2025-01-15T00:00:00.000Z',
-    extendedContextDefault: true,
-    extendedContextMaxMessages: 50,
-    extendedContextMaxAge: 7200, // 2 hours in seconds
-    extendedContextMaxImages: 5,
   };
 
   /**
@@ -192,7 +188,7 @@ describe('Admin Settings Dashboard', () => {
       expect(embedJson.title).toBe('Global Settings');
     });
 
-    it('should include all 4 settings fields', async () => {
+    it('should include all 3 settings fields', async () => {
       const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
@@ -204,51 +200,14 @@ describe('Admin Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(4);
+      expect(embedJson.fields).toHaveLength(3);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
-          expect.stringContaining('Extended Context'),
           expect.stringContaining('Max Messages'),
           expect.stringContaining('Max Age'),
           expect.stringContaining('Max Images'),
         ])
       );
-    });
-
-    it('should show enabled status correctly', async () => {
-      const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: true }),
-      });
-
-      await handleSettings(context);
-
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
-      const enabledField = embedJson.fields.find((f: { name: string }) =>
-        f.name.includes('Extended Context')
-      );
-
-      expect(enabledField.value).toContain('Enabled');
-    });
-
-    it('should show disabled status correctly', async () => {
-      const context = createMockContext();
-      mockAdminFetch.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: false }),
-      });
-
-      await handleSettings(context);
-
-      const editReplyCall = context.editReply.mock.calls[0][0];
-      const embedJson = editReplyCall.embeds[0].toJSON();
-      const enabledField = embedJson.fields.find((f: { name: string }) =>
-        f.name.includes('Extended Context')
-      );
-
-      expect(enabledField.value).toContain('Disabled');
     });
 
     it('should include select menu and close button', async () => {
@@ -306,7 +265,9 @@ describe('Admin Settings Dashboard', () => {
   describe('isAdminSettingsInteraction', () => {
     it('should return true for admin settings custom IDs', () => {
       expect(isAdminSettingsInteraction('admin-settings::select::global')).toBe(true);
-      expect(isAdminSettingsInteraction('admin-settings::set::global::enabled:true')).toBe(true);
+      expect(isAdminSettingsInteraction('admin-settings::set::global::maxMessages:auto')).toBe(
+        true
+      );
       expect(isAdminSettingsInteraction('admin-settings::back::global')).toBe(true);
       expect(isAdminSettingsInteraction('admin-settings::close::global')).toBe(true);
     });
@@ -334,124 +295,9 @@ describe('Admin Settings Dashboard', () => {
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
 
-    it('should call update handler when setting enabled to true', async () => {
-      const interaction = {
-        customId: 'admin-settings::set::global::enabled:true',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'global',
-          data: {
-            enabled: { localValue: false, effectiveValue: false, source: 'default' },
-            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
-            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
-            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: true }),
-      });
-
-      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
-
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings',
-        { extendedContextDefault: true },
-        'user-456'
-      );
-    });
-
-    it('should handle setting enabled to false', async () => {
-      const interaction = {
-        customId: 'admin-settings::set::global::enabled:false',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'global',
-          data: {
-            enabled: { localValue: true, effectiveValue: true, source: 'default' },
-            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
-            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
-            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: false }),
-      });
-
-      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
-
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings',
-        { extendedContextDefault: false },
-        'user-456'
-      );
-    });
-
-    it('should handle setting enabled to auto (default)', async () => {
-      const interaction = {
-        customId: 'admin-settings::set::global::enabled:auto',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'global',
-          data: {
-            enabled: { localValue: false, effectiveValue: false, source: 'default' },
-            maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
-            maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
-            maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockAdminPatchJson.mockResolvedValue({
-        ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextDefault: true }),
-      });
-
-      await handleAdminSettingsButton(interaction as unknown as ButtonInteraction);
-
-      // For global settings, auto means default (true)
-      expect(mockAdminPatchJson).toHaveBeenCalledWith(
-        '/admin/settings',
-        { extendedContextDefault: true },
-        'user-456'
-      );
-    });
-
     it('should handle API failure gracefully', async () => {
       const interaction = {
-        customId: 'admin-settings::set::global::enabled:true',
+        customId: 'admin-settings::set::global::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -463,13 +309,12 @@ describe('Admin Settings Dashboard', () => {
           userId: 'user-456',
           entityId: 'global',
           data: {
-            enabled: { localValue: false, effectiveValue: false, source: 'default' },
             maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
             maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
             maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
           },
           view: 'setting',
-          activeSetting: 'enabled',
+          activeSetting: 'maxMessages',
         },
       });
 
@@ -501,7 +346,6 @@ describe('Admin Settings Dashboard', () => {
           userId: 'user-456',
           entityId: 'global',
           data: {
-            enabled: { localValue: true, effectiveValue: true, source: 'default' },
             maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
             maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
             maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },
@@ -552,7 +396,6 @@ describe('Admin Settings Dashboard', () => {
         userId: 'user-456',
         entityId: 'global',
         data: {
-          enabled: { localValue: true, effectiveValue: true, source: 'default' },
           maxMessages: { localValue: 50, effectiveValue: 50, source: 'default' },
           maxAge: { localValue: 7200, effectiveValue: 7200, source: 'default' },
           maxImages: { localValue: 5, effectiveValue: 5, source: 'default' },

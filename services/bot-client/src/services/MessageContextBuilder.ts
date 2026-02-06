@@ -52,9 +52,9 @@ const logger = createLogger('MessageContextBuilder');
  */
 export interface ContextBuildOptions {
   /**
-   * Extended context settings: resolved settings for fetching recent Discord messages.
-   * Includes enabled flag, maxMessages, maxAge, and maxImages limits.
-   * When enabled, merges Discord messages with DB conversation history.
+   * Extended context settings: resolved limits for fetching recent Discord messages.
+   * Includes maxMessages, maxAge, and maxImages limits.
+   * When provided, merges Discord messages with DB conversation history.
    */
   extendedContext?: ResolvedExtendedContextSettings;
   /**
@@ -198,7 +198,7 @@ export class MessageContextBuilder {
     let attachments: AttachmentMetadata[] | undefined;
     let participantGuildInfo: ExtendedContextResult['participantGuildInfo'];
 
-    if (options.extendedContext?.enabled !== true || options.botUserId === undefined) {
+    if (options.extendedContext === undefined || options.botUserId === undefined) {
       return { history: mergedHistory };
     }
 

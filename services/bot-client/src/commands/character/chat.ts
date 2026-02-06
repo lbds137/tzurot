@@ -29,11 +29,7 @@ import {
   characterChatOptions,
   buildModelFooterText,
 } from '@tzurot/common-types';
-import type {
-  EnvConfig,
-  LoadedPersonality,
-  ResolvedExtendedContextSettings,
-} from '@tzurot/common-types';
+import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import { buildErrorContent } from '../../utils/buildErrorContent.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import {
@@ -337,7 +333,16 @@ interface BuildChatContextParams {
   anchorMessage: Message;
   personality: LoadedPersonality;
   messageContent: string;
-  extendedContextSettings: ResolvedExtendedContextSettings;
+  extendedContextSettings: {
+    maxMessages: number;
+    maxAge: number | null;
+    maxImages: number;
+    sources: {
+      maxMessages: 'personality' | 'user-personality' | 'user-default';
+      maxAge: 'personality' | 'user-personality' | 'user-default';
+      maxImages: 'personality' | 'user-personality' | 'user-default';
+    };
+  };
   commandContext: DeferredCommandContext;
   isWeighInMode: boolean;
 }
@@ -397,7 +402,7 @@ async function buildChatContext(
  * - Guild member info (roles, color, join date)
  * - User timezone for date/time formatting
  */
-// eslint-disable-next-line complexity -- pre-existing, refactor in follow-up
+ 
 export async function handleChat(
   context: DeferredCommandContext,
   _config: EnvConfig
@@ -436,16 +441,14 @@ export async function handleChat(
     const displayName = personaResult.config.preferredName ?? discordDisplayName;
 
     // 4. Build extended context settings from personality
-    const extendedContextSettings: ResolvedExtendedContextSettings = {
-      enabled: personality.extendedContext ?? true,
+    const extendedContextSettings = {
       maxMessages: personality.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       maxAge: personality.maxAge ?? null,
       maxImages: personality.maxImages ?? 10,
       sources: {
-        enabled: 'personality',
-        maxMessages: 'personality',
-        maxAge: 'personality',
-        maxImages: 'personality',
+        maxMessages: 'personality' as const,
+        maxAge: 'personality' as const,
+        maxImages: 'personality' as const,
       },
     };
 

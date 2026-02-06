@@ -30,10 +30,6 @@ interface ChannelSettingsResult {
   channelId: string;
   guildId: string | null;
   autoRespond: boolean;
-  extendedContext: boolean | null;
-  extendedContextMaxMessages: number | null;
-  extendedContextMaxAge: number | null;
-  extendedContextMaxImages: number | null;
   createdBy: string | null;
   createdAt: Date;
   activatedPersonality: { slug: string; displayName: string | null } | null;
@@ -48,10 +44,6 @@ interface ActivationResponse {
     personalitySlug: string | null;
     personalityName: string | null;
     autoRespond: boolean;
-    extendedContext: boolean | null;
-    extendedContextMaxMessages: number | null;
-    extendedContextMaxAge: number | null;
-    extendedContextMaxImages: number | null;
     activatedBy: string | null;
     createdAt: string;
   };
@@ -73,10 +65,6 @@ function buildActivationResponse(
       personalitySlug: settings.activatedPersonality?.slug ?? null,
       personalityName: settings.activatedPersonality?.displayName ?? null,
       autoRespond: settings.autoRespond,
-      extendedContext: settings.extendedContext,
-      extendedContextMaxMessages: settings.extendedContextMaxMessages,
-      extendedContextMaxAge: settings.extendedContextMaxAge,
-      extendedContextMaxImages: settings.extendedContextMaxImages,
       activatedBy: settings.createdBy,
       createdAt: settings.createdAt.toISOString(),
     },
@@ -158,10 +146,6 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
         channelId: true,
         guildId: true,
         autoRespond: true,
-        extendedContext: true,
-        extendedContextMaxMessages: true,
-        extendedContextMaxAge: true,
-        extendedContextMaxImages: true,
         createdBy: true,
         createdAt: true,
         activatedPersonality: { select: { slug: true, displayName: true } },

@@ -12,15 +12,6 @@ import { SettingType, type SettingDefinition } from './types.js';
  */
 export const EXTENDED_CONTEXT_SETTINGS: SettingDefinition[] = [
   {
-    id: 'enabled',
-    label: 'Extended Context',
-    emoji: '📜',
-    description:
-      'When enabled, the AI can see recent messages in the channel for better context. ' +
-      'This helps the AI understand ongoing conversations.',
-    type: SettingType.TRI_STATE,
-  },
-  {
     id: 'maxMessages',
     label: 'Max Messages',
     emoji: '💬',

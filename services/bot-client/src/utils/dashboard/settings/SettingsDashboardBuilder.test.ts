@@ -17,6 +17,7 @@ import {
   getSettingById,
 } from './SettingsDashboardBuilder.js';
 import {
+  type SettingDefinition,
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingsData,
@@ -48,11 +49,6 @@ const createTestSession = (
   lastActivityAt: new Date(),
   view: DashboardView.OVERVIEW,
   data: {
-    enabled: {
-      localValue: null,
-      effectiveValue: true,
-      source: 'global',
-    },
     maxMessages: {
       localValue: null,
       effectiveValue: 50,
@@ -123,33 +119,7 @@ describe('SettingsDashboardBuilder', () => {
       const embed = buildOverviewEmbed(config, session);
       const fields = getEmbedFields(embed);
 
-      expect(fields).toHaveLength(4); // enabled, maxMessages, maxAge, maxImages
-    });
-
-    it('should show enabled status with checkbox emoji', () => {
-      const config = createTestConfig();
-      const session = createTestSession({
-        enabled: { localValue: true, effectiveValue: true, source: 'global' },
-      });
-
-      const embed = buildOverviewEmbed(config, session);
-      const fields = getEmbedFields(embed);
-      const enabledField = fields.find(f => f.name?.includes('Extended Context'));
-
-      expect(enabledField?.value).toContain('Enabled');
-    });
-
-    it('should show disabled status with X emoji', () => {
-      const config = createTestConfig();
-      const session = createTestSession({
-        enabled: { localValue: false, effectiveValue: false, source: 'global' },
-      });
-
-      const embed = buildOverviewEmbed(config, session);
-      const fields = getEmbedFields(embed);
-      const enabledField = fields.find(f => f.name?.includes('Extended Context'));
-
-      expect(enabledField?.value).toContain('Disabled');
+      expect(fields).toHaveLength(3); // maxMessages, maxAge, maxImages
     });
 
     it('should show override status when local value set', () => {
@@ -171,9 +141,9 @@ describe('SettingsDashboardBuilder', () => {
 
       const embed = buildOverviewEmbed(config, session);
       const fields = getEmbedFields(embed);
-      const enabledField = fields.find(f => f.name?.includes('Extended Context'));
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
 
-      expect(enabledField?.value).toContain('Auto');
+      expect(maxMessagesField?.value).toContain('Auto');
     });
 
     it('should format duration values', () => {
@@ -207,18 +177,18 @@ describe('SettingsDashboardBuilder', () => {
     it('should create embed with setting title', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // enabled
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const embed = buildSettingEmbed(config, session, setting);
       const json = embed.toJSON();
 
-      expect(json.title).toBe('📜 Extended Context');
+      expect(json.title).toBe('💬 Max Messages');
     });
 
     it('should include setting description', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[0];
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const embed = buildSettingEmbed(config, session, setting);
       const json = embed.toJSON();
@@ -231,7 +201,7 @@ describe('SettingsDashboardBuilder', () => {
       const session = createTestSession({
         maxMessages: { localValue: 30, effectiveValue: 30, source: 'channel' },
       });
-      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxMessages
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const embed = buildSettingEmbed(config, session, setting);
       const fields = getEmbedFields(embed);
@@ -245,7 +215,7 @@ describe('SettingsDashboardBuilder', () => {
       const session = createTestSession({
         maxMessages: { localValue: 30, effectiveValue: 30, source: 'channel' },
       });
-      const setting = EXTENDED_CONTEXT_SETTINGS[1];
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const embed = buildSettingEmbed(config, session, setting);
       const fields = getEmbedFields(embed);
@@ -257,7 +227,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should show entity name in footer', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[0];
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const embed = buildSettingEmbed(config, session, setting);
       const json = embed.toJSON();
@@ -268,7 +238,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should show help text when available', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxMessages has helpText
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages has helpText
 
       const embed = buildSettingEmbed(config, session, setting);
       const fields = getEmbedFields(embed);
@@ -297,7 +267,7 @@ describe('SettingsDashboardBuilder', () => {
       const row = buildSettingsSelectMenu(config, session);
       const menu = getSelectMenu(row);
 
-      expect(menu?.options).toHaveLength(4);
+      expect(menu?.options).toHaveLength(3);
     });
 
     it('should include setting labels and values', () => {
@@ -306,32 +276,60 @@ describe('SettingsDashboardBuilder', () => {
 
       const row = buildSettingsSelectMenu(config, session);
       const menu = getSelectMenu(row);
-      const enabledOption = menu?.options?.find((o: { value?: string }) => o.value === 'enabled');
+      const maxMessagesOption = menu?.options?.find(
+        (o: { value?: string }) => o.value === 'maxMessages'
+      );
 
-      expect(enabledOption?.label).toBe('Extended Context');
+      expect(maxMessagesOption?.label).toBe('Max Messages');
     });
 
     it('should include current value in description', () => {
       const config = createTestConfig();
       const session = createTestSession({
-        enabled: { localValue: true, effectiveValue: true, source: 'global' },
+        maxMessages: { localValue: 30, effectiveValue: 30, source: 'channel' },
       });
 
       const row = buildSettingsSelectMenu(config, session);
       const menu = getSelectMenu(row);
-      const enabledOption = menu?.options?.find((o: { value?: string }) => o.value === 'enabled');
+      const maxMessagesOption = menu?.options?.find(
+        (o: { value?: string }) => o.value === 'maxMessages'
+      );
 
-      expect(enabledOption?.description).toContain('Enabled');
+      expect(maxMessagesOption?.description).toContain('30');
     });
   });
 
   describe('buildTriStateButtons', () => {
+    // buildTriStateButtons still exists as infrastructure but no current settings use it.
+    // Use a synthetic TRI_STATE setting + session data to test the builder.
+    const syntheticTriStateSetting: SettingDefinition = {
+      id: 'testToggle',
+      label: 'Test Toggle',
+      emoji: '🧪',
+      description: 'A synthetic tri-state setting for testing',
+      type: SettingType.TRI_STATE,
+    };
+
+    const createTriStateSession = (
+      localValue: boolean | null,
+      effectiveValue: boolean,
+      source: 'global' | 'channel' = 'global'
+    ) => {
+      const session = createTestSession();
+      // Inject synthetic field into data so the builder can read it
+      (session.data as unknown as Record<string, unknown>)['testToggle'] = {
+        localValue,
+        effectiveValue,
+        source,
+      };
+      return session;
+    };
+
     it('should create three buttons: Auto, Enable, Disable', () => {
       const config = createTestConfig();
-      const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // enabled
+      const session = createTriStateSession(null, true);
 
-      const row = buildTriStateButtons(config, session, setting);
+      const row = buildTriStateButtons(config, session, syntheticTriStateSetting);
       const buttons = getButtons(row);
 
       expect(buttons).toHaveLength(3);
@@ -342,12 +340,9 @@ describe('SettingsDashboardBuilder', () => {
 
     it('should highlight Auto button when local value is null', () => {
       const config = createTestConfig();
-      const session = createTestSession({
-        enabled: { localValue: null, effectiveValue: true, source: 'global' },
-      });
-      const setting = EXTENDED_CONTEXT_SETTINGS[0];
+      const session = createTriStateSession(null, true);
 
-      const row = buildTriStateButtons(config, session, setting);
+      const row = buildTriStateButtons(config, session, syntheticTriStateSetting);
       const buttons = getButtons(row);
 
       expect(buttons[0].style).toBe(ButtonStyle.Primary); // Auto highlighted
@@ -357,12 +352,9 @@ describe('SettingsDashboardBuilder', () => {
 
     it('should highlight Enable button when local value is true', () => {
       const config = createTestConfig();
-      const session = createTestSession({
-        enabled: { localValue: true, effectiveValue: true, source: 'channel' },
-      });
-      const setting = EXTENDED_CONTEXT_SETTINGS[0];
+      const session = createTriStateSession(true, true, 'channel');
 
-      const row = buildTriStateButtons(config, session, setting);
+      const row = buildTriStateButtons(config, session, syntheticTriStateSetting);
       const buttons = getButtons(row);
 
       expect(buttons[0].style).toBe(ButtonStyle.Secondary);
@@ -372,12 +364,9 @@ describe('SettingsDashboardBuilder', () => {
 
     it('should highlight Disable button when local value is false', () => {
       const config = createTestConfig();
-      const session = createTestSession({
-        enabled: { localValue: false, effectiveValue: false, source: 'channel' },
-      });
-      const setting = EXTENDED_CONTEXT_SETTINGS[0];
+      const session = createTriStateSession(false, false, 'channel');
 
-      const row = buildTriStateButtons(config, session, setting);
+      const row = buildTriStateButtons(config, session, syntheticTriStateSetting);
       const buttons = getButtons(row);
 
       expect(buttons[0].style).toBe(ButtonStyle.Secondary);
@@ -387,15 +376,14 @@ describe('SettingsDashboardBuilder', () => {
 
     it('should have correct custom IDs', () => {
       const config = createTestConfig();
-      const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[0];
+      const session = createTriStateSession(null, true);
 
-      const row = buildTriStateButtons(config, session, setting);
+      const row = buildTriStateButtons(config, session, syntheticTriStateSetting);
       const buttons = getButtons(row);
 
-      expect(buttons[0].custom_id).toBe('test-settings::set::test-entity::enabled:auto');
-      expect(buttons[1].custom_id).toBe('test-settings::set::test-entity::enabled:true');
-      expect(buttons[2].custom_id).toBe('test-settings::set::test-entity::enabled:false');
+      expect(buttons[0].custom_id).toBe('test-settings::set::test-entity::testToggle:auto');
+      expect(buttons[1].custom_id).toBe('test-settings::set::test-entity::testToggle:true');
+      expect(buttons[2].custom_id).toBe('test-settings::set::test-entity::testToggle:false');
     });
   });
 
@@ -403,7 +391,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should create Edit and Reset buttons', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxMessages
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const row = buildEditButtons(config, session, setting);
       const buttons = getButtons(row);
@@ -418,7 +406,7 @@ describe('SettingsDashboardBuilder', () => {
       const session = createTestSession({
         maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
       });
-      const setting = EXTENDED_CONTEXT_SETTINGS[1];
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const row = buildEditButtons(config, session, setting);
       const buttons = getButtons(row);
@@ -431,7 +419,7 @@ describe('SettingsDashboardBuilder', () => {
       const session = createTestSession({
         maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
       });
-      const setting = EXTENDED_CONTEXT_SETTINGS[1];
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const row = buildEditButtons(config, session, setting);
       const buttons = getButtons(row);
@@ -442,7 +430,7 @@ describe('SettingsDashboardBuilder', () => {
     it('should have correct custom IDs', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxMessages
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages
 
       const row = buildEditButtons(config, session, setting);
       const buttons = getButtons(row);
@@ -493,21 +481,21 @@ describe('SettingsDashboardBuilder', () => {
   });
 
   describe('buildSettingMessage', () => {
-    it('should return embed and components for tri-state setting', () => {
+    it('should return embed and components for numeric setting', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // enabled (TRI_STATE)
+      const setting = EXTENDED_CONTEXT_SETTINGS[0]; // maxMessages (NUMERIC)
 
       const message = buildSettingMessage(config, session, setting);
 
       expect(message.embeds).toHaveLength(1);
-      expect(message.components).toHaveLength(2); // tri-state buttons + back button
+      expect(message.components).toHaveLength(2); // edit buttons + back button
     });
 
-    it('should return embed and components for numeric setting', () => {
+    it('should return embed and components for duration setting', () => {
       const config = createTestConfig();
       const session = createTestSession();
-      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxMessages (NUMERIC)
+      const setting = EXTENDED_CONTEXT_SETTINGS[1]; // maxAge (DURATION)
 
       const message = buildSettingMessage(config, session, setting);
 
@@ -518,11 +506,11 @@ describe('SettingsDashboardBuilder', () => {
 
   describe('getSettingById', () => {
     it('should return setting definition by ID', () => {
-      const setting = getSettingById('enabled');
+      const setting = getSettingById('maxMessages');
 
       expect(setting).toBeDefined();
-      expect(setting?.id).toBe('enabled');
-      expect(setting?.type).toBe(SettingType.TRI_STATE);
+      expect(setting?.id).toBe('maxMessages');
+      expect(setting?.type).toBe(SettingType.NUMERIC);
     });
 
     it('should return undefined for unknown ID', () => {
@@ -532,7 +520,6 @@ describe('SettingsDashboardBuilder', () => {
     });
 
     it('should find all extended context settings', () => {
-      expect(getSettingById('enabled')).toBeDefined();
       expect(getSettingById('maxMessages')).toBeDefined();
       expect(getSettingById('maxAge')).toBeDefined();
       expect(getSettingById('maxImages')).toBeDefined();

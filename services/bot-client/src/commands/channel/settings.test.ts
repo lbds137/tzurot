@@ -71,20 +71,10 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
 
 describe('Channel Context Dashboard', () => {
   const mockChannelSettings = {
-    settings: {
-      extendedContext: null,
-      extendedContextMaxMessages: null,
-      extendedContextMaxAge: null,
-      extendedContextMaxImages: null,
-    },
+    settings: {},
   };
 
-  const mockAdminSettings = {
-    extendedContextDefault: true,
-    extendedContextMaxMessages: 50,
-    extendedContextMaxAge: 7200,
-    extendedContextMaxImages: 5,
-  };
+  const mockAdminSettings = {};
 
   /**
    * Create a mock DeferredCommandContext for testing.
@@ -232,7 +222,7 @@ describe('Channel Context Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 4 settings fields', async () => {
+    it('should include all 3 settings fields', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
@@ -242,7 +232,7 @@ describe('Channel Context Dashboard', () => {
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(4);
+      expect(embedJson.fields).toHaveLength(3);
     });
 
     it('should handle admin settings fetch failure', async () => {
@@ -287,7 +277,7 @@ describe('Channel Context Dashboard', () => {
   describe('isChannelContextInteraction', () => {
     it('should return true for channel context custom IDs', () => {
       expect(isChannelContextInteraction('channel-settings::select::chan-123')).toBe(true);
-      expect(isChannelContextInteraction('channel-settings::set::chan-123::enabled:true')).toBe(
+      expect(isChannelContextInteraction('channel-settings::set::chan-123::maxMessages:auto')).toBe(
         true
       );
       expect(isChannelContextInteraction('channel-settings::back::chan-123')).toBe(true);
@@ -315,87 +305,9 @@ describe('Channel Context Dashboard', () => {
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
 
-    it('should call update handler when setting enabled to true', async () => {
-      const interaction = {
-        customId: 'channel-settings::set::channel-123::enabled:true',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'channel-123',
-          data: {
-            enabled: { localValue: null, effectiveValue: true, source: 'global' },
-            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
-            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
-            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
-      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
-
-      await handleChannelContextButton(interaction as unknown as ButtonInteraction);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/extended-context',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { extendedContext: true },
-        })
-      );
-    });
-
-    it('should handle setting enabled to auto (null)', async () => {
-      const interaction = {
-        customId: 'channel-settings::set::channel-123::enabled:auto',
-        user: { id: 'user-456' },
-        reply: vi.fn(),
-        update: vi.fn(),
-        showModal: vi.fn(),
-      };
-
-      mockSessionManager.get.mockReturnValue({
-        data: {
-          userId: 'user-456',
-          entityId: 'channel-123',
-          data: {
-            enabled: { localValue: true, effectiveValue: true, source: 'channel' },
-            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
-            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
-            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
-          },
-          view: 'setting',
-          activeSetting: 'enabled',
-        },
-      });
-
-      mockCallGatewayApi.mockResolvedValue({ ok: true });
-      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
-
-      await handleChannelContextButton(interaction as unknown as ButtonInteraction);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/extended-context',
-        expect.objectContaining({
-          method: 'PATCH',
-          body: { extendedContext: null },
-        })
-      );
-    });
-
     it('should handle API failure gracefully', async () => {
       const interaction = {
-        customId: 'channel-settings::set::channel-123::enabled:true',
+        customId: 'channel-settings::set::channel-123::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -407,13 +319,12 @@ describe('Channel Context Dashboard', () => {
           userId: 'user-456',
           entityId: 'channel-123',
           data: {
-            enabled: { localValue: null, effectiveValue: true, source: 'global' },
             maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
             maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
           },
           view: 'setting',
-          activeSetting: 'enabled',
+          activeSetting: 'maxMessages',
         },
       });
 
@@ -460,7 +371,6 @@ describe('Channel Context Dashboard', () => {
         userId: 'user-456',
         entityId: 'channel-123',
         data: {
-          enabled: { localValue: null, effectiveValue: true, source: 'global' },
           maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
           maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
           maxImages: { localValue: null, effectiveValue: 5, source: 'global' },

@@ -436,22 +436,6 @@ export class GatewayClient {
   }
 
   /**
-   * Get the global extended context default setting
-   *
-   * @returns true if extended context is enabled by default, false otherwise
-   */
-  async getExtendedContextDefault(): Promise<boolean> {
-    const settings = await this.getAdminSettings();
-
-    if (settings === null) {
-      // Default to false if settings unavailable
-      return false;
-    }
-
-    return settings.extendedContextDefault;
-  }
-
-  /**
    * Lookup which personality sent a message by Discord message ID.
    * Used by ReplyResolutionService to resolve DM reply targets.
    *
