@@ -69,17 +69,10 @@ vi.mock('../ModelFactory.js', () => ({
   createChatModel: (...args: unknown[]) => mockCreateChatModel(...args),
 }));
 
-// Mock apiErrorParser
+// Mock apiErrorParser - configurable per test via mockParseApiError
+const mockParseApiError = vi.fn();
 vi.mock('../../utils/apiErrorParser.js', () => ({
-  parseApiError: (error: unknown) => ({
-    category: 'transient',
-    type: 'UNKNOWN',
-    statusCode: undefined,
-    shouldRetry: true,
-    technicalMessage: error instanceof Error ? error.message : String(error),
-    referenceId: 'test-ref',
-    requestId: undefined,
-  }),
+  parseApiError: (error: unknown) => mockParseApiError(error),
 }));
 
 describe('VisionProcessor', () => {
@@ -92,6 +85,16 @@ describe('VisionProcessor', () => {
       model: { invoke: mockModelInvoke },
       modelName: 'test-model',
     });
+    // Default parseApiError: transient/retryable
+    mockParseApiError.mockImplementation((error: unknown) => ({
+      category: 'transient',
+      type: 'UNKNOWN',
+      statusCode: undefined,
+      shouldRetry: true,
+      technicalMessage: error instanceof Error ? error.message : String(error),
+      referenceId: 'test-ref',
+      requestId: undefined,
+    }));
     // Default mock behavior - return false unless specified
     mockCheckModelVisionSupport.mockResolvedValue(false);
     // Default cache behavior - miss (null)
@@ -463,7 +466,7 @@ describe('VisionProcessor', () => {
     });
 
     describe('negative caching (failure cache)', () => {
-      it('should return permanent failure fallback when failure is cached', async () => {
+      it('should return permanent failure fallback with friendly label', async () => {
         mockVisionCacheGetFailure.mockResolvedValue({
           category: 'authentication',
           permanent: true,
@@ -476,9 +479,41 @@ describe('VisionProcessor', () => {
 
         const result = await describeImage(mockAttachment, personality);
 
-        expect(result).toBe('[Image unavailable: authentication]');
+        expect(result).toBe('[Image unavailable: API key issue]');
         expect(mockModelInvoke).not.toHaveBeenCalled();
         expect(mockVisionCacheStore).not.toHaveBeenCalled();
+      });
+
+      it('should use friendly label for content_policy failures', async () => {
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'content_policy',
+          permanent: true,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('[Image unavailable: content filtered]');
+      });
+
+      it('should fall back to raw category for unknown categories', async () => {
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'some_new_category',
+          permanent: true,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe('[Image unavailable: some_new_category]');
       });
 
       it('should return transient failure fallback when cooldown is active', async () => {
@@ -540,6 +575,132 @@ describe('VisionProcessor', () => {
           attachmentId: mockAttachment.id,
           url: mockAttachment.url,
           category: 'transient',
+          permanent: false,
+        });
+      });
+
+      it('should store permanent failure for authentication errors', async () => {
+        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetFailure.mockResolvedValue(null);
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockRejectedValue(new Error('Invalid API key'));
+        mockParseApiError.mockReturnValue({
+          category: 'authentication',
+          type: 'PERMANENT',
+          statusCode: 401,
+          shouldRetry: false,
+          technicalMessage: 'Invalid API key',
+          referenceId: 'test-ref',
+          requestId: undefined,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow('Invalid API key');
+
+        expect(mockVisionCacheStoreFailure).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+          category: 'authentication',
+          permanent: true,
+        });
+      });
+
+      it('should store permanent failure for content policy violations', async () => {
+        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetFailure.mockResolvedValue(null);
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockRejectedValue(new Error('Content policy violation'));
+        mockParseApiError.mockReturnValue({
+          category: 'content_policy',
+          type: 'PERMANENT',
+          statusCode: 403,
+          shouldRetry: false,
+          technicalMessage: 'Content policy violation',
+          referenceId: 'test-ref',
+          requestId: undefined,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(
+          'Content policy violation'
+        );
+
+        expect(mockVisionCacheStoreFailure).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+          category: 'content_policy',
+          permanent: true,
+        });
+      });
+
+      it('should store transient failure for timeout errors', async () => {
+        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetFailure.mockResolvedValue(null);
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockRejectedValue(new Error('Request timed out'));
+        mockParseApiError.mockReturnValue({
+          category: 'timeout',
+          type: 'TRANSIENT',
+          statusCode: undefined,
+          shouldRetry: true,
+          technicalMessage: 'Request timed out',
+          referenceId: 'test-ref',
+          requestId: undefined,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(
+          'Request timed out'
+        );
+
+        expect(mockVisionCacheStoreFailure).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+          category: 'timeout',
+          permanent: false,
+        });
+      });
+
+      it('should store transient failure for rate limit errors', async () => {
+        mockVisionCacheGet.mockResolvedValue(null);
+        mockVisionCacheGetFailure.mockResolvedValue(null);
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockRejectedValue(new Error('Rate limit exceeded'));
+        mockParseApiError.mockReturnValue({
+          category: 'rate_limit',
+          type: 'TRANSIENT',
+          statusCode: 429,
+          shouldRetry: true,
+          technicalMessage: 'Rate limit exceeded',
+          referenceId: 'test-ref',
+          requestId: undefined,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await expect(describeImage(mockAttachment, personality)).rejects.toThrow(
+          'Rate limit exceeded'
+        );
+
+        expect(mockVisionCacheStoreFailure).toHaveBeenCalledWith({
+          attachmentId: mockAttachment.id,
+          url: mockAttachment.url,
+          category: 'rate_limit',
           permanent: false,
         });
       });
