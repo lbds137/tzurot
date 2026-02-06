@@ -13,26 +13,24 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-### 🐛 Free Model Error Handling (GLM/Z-AI)
+### 🐛 Free Model Error Handling (GLM/Z-AI) — PARTIALLY FIXED
 
 **Observed**: 2026-02-03 to 2026-02-05
-**Debug files**: `debug/400_*.json`
+**Debug files**: `debug/400_*.json`, `debug/glm_4.5_air_*.json`
 
 Provider returns 400 error but response may contain usable content. Currently treated as total failure.
 
-**Symptoms**:
+**Root causes identified and fixed (on `develop`, pending deploy)**:
 
-- `z-ai/glm-4.5-air:free` returns 400 with reasoning-only responses
-- Response has `rawContent` but we throw instead of extracting it
-- Users see error when model actually produced valid output
+- [x] `frequency_penalty` causes 400 on GLM 4.5 Air (restricted param set) — **fixed**: parameter filtering in ModelFactory
+- [x] `maxTokens` defaulting to 4096 instead of auto-scaling for reasoning models — **fixed**: made maxTokens optional, removed hardcoded default
+- [x] Missing model detection patterns (GPT-OSS, StepFun, Hermes 4, MiMo) — **fixed**: added to reasoningModelUtils
+- [x] Stop sequences sent to models that don't support them (R1-0528:free) — **fixed**: added to blocklist
 
-**Root cause**: Reasoning-enabled requests to models that don't properly support the `reasoning` parameter, or return thinking without final content.
+**Remaining**:
 
-**Fix approach**:
-
-- [ ] Check for extractable content before throwing on 400
-- [ ] Consider disabling `reasoning` param for providers that don't support it
-- [ ] Add model capability detection for reasoning support
+- [ ] Check for extractable content before throwing on 400 (model sometimes returns valid output alongside error)
+- [ ] GLM 4.5 Air empty reasoning with low `maxTokens` — model skips thinking when budget is tight (may be unavoidable)
 
 ### 🐛 Error UX Improvements (Quota + General)
 
@@ -67,6 +65,32 @@ Errors show generic messages without enough context for debugging. Users (and ad
 ## 📥 Inbox
 
 _New items go here. Triage to appropriate section weekly._
+
+### ✨ Expose `max_tokens` in Preset Edit/Creation Flow
+
+**Context**: Top-level `max_tokens` (output token limit) is not exposed in the Discord preset dashboard. Users can only set it by manually editing `advanced_parameters` in the DB. This became apparent when GLM 4.5 Air configs had `reasoning.max_tokens` set but no top-level `max_tokens`, causing the model to use a scaled default instead of an explicit value.
+
+**What to add**:
+
+- [ ] Add `max_tokens` field to preset create/edit dashboard (numeric input)
+- [ ] Show current effective value (explicit, scaled from reasoning effort, or API default)
+- [ ] Sensible range validation (e.g., 256–131072) with model-specific guidance
+- [ ] Help text: "Maximum tokens in the response. Leave empty to auto-scale based on reasoning effort."
+
+**Priority**: Medium — power users need this, casual users are fine with auto-scaling.
+
+### ✨ Reasoning Param UX: Effort vs Max Tokens Mutual Exclusivity
+
+**Context**: OpenRouter only accepts ONE of `reasoning.effort` OR `reasoning.max_tokens`, not both. Our `buildReasoningParams()` silently drops `max_tokens` when `effort` is set, but the UI doesn't communicate this. Users set both and wonder why `max_tokens` has no effect.
+
+**What to add**:
+
+- [ ] When `reasoning.effort` is set, disable/hide `reasoning.max_tokens` field
+- [ ] Tooltip or inline help: "Effort level and token budget are mutually exclusive. Effort is recommended for most use cases."
+- [ ] If both exist in saved config, show a warning badge on the reasoning section
+- [ ] Consider: validation in `configValidation.ts` that warns about this conflict
+
+**Priority**: Medium — prevents confusion for anyone configuring reasoning models.
 
 ### 🧹 Add maxAge=0 Edge Case Test
 

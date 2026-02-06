@@ -304,6 +304,10 @@ describe('PersonalityDefaults', () => {
       expect(result.reasoning?.enabled).toBe(true);
       expect(result.reasoning?.exclude).toBe(false);
       expect(result.showThinking).toBe(true);
+
+      // maxTokens should be undefined when not explicitly set in advancedParameters
+      // This allows ModelFactory.getEffectiveMaxTokens() to auto-scale for reasoning models
+      expect(result.maxTokens).toBeUndefined();
     });
 
     it('should include reasoning config from global default when personality has none', () => {
@@ -337,6 +341,73 @@ describe('PersonalityDefaults', () => {
       expect(result.reasoning).toBeDefined();
       expect(result.reasoning?.effort).toBe('high');
       expect(result.showThinking).toBe(true);
+    });
+
+    it('should NOT fill in default maxTokens when not in advancedParameters', () => {
+      // REGRESSION TEST: Previously PersonalityDefaults always filled in AI_DEFAULTS.MAX_TOKENS (4096)
+      // as a fallback, which masked the "not set" state and prevented ModelFactory from
+      // auto-scaling maxTokens for reasoning models based on effort level.
+      const dbPersonality = createMockDatabasePersonality({
+        name: 'NoMaxTokensBot',
+        slug: 'no-max-tokens-bot',
+        updatedAt: testDate,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'z-ai/glm-4.5-air:free',
+            visionModel: null,
+            advancedParameters: {
+              temperature: 1,
+              top_p: 0.95,
+              reasoning: { effort: 'medium', enabled: true },
+              // NOTE: no max_tokens here — should NOT default to 4096
+            },
+            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
+            memoryLimit: 10,
+            contextWindowTokens: 131072,
+            maxMessages: 50,
+            maxAge: null,
+            maxImages: 10,
+          },
+        },
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      // maxTokens must be undefined so ModelFactory can auto-scale based on reasoning effort
+      expect(result.maxTokens).toBeUndefined();
+      // Other config fields should still be populated
+      expect(result.model).toBe('z-ai/glm-4.5-air:free');
+      expect(result.temperature).toBe(1);
+      expect(result.reasoning?.effort).toBe('medium');
+    });
+
+    it('should use explicit max_tokens from advancedParameters when set', () => {
+      const dbPersonality = createMockDatabasePersonality({
+        name: 'ExplicitMaxTokensBot',
+        slug: 'explicit-max-tokens-bot',
+        updatedAt: testDate,
+        defaultConfigLink: {
+          llmConfig: {
+            model: 'anthropic/claude-sonnet-4.5',
+            visionModel: null,
+            advancedParameters: {
+              temperature: 0.7,
+              max_tokens: 16384, // Explicitly set
+            },
+            memoryScoreThreshold: { toNumber: () => 0.5 } as never,
+            memoryLimit: 10,
+            contextWindowTokens: 200000,
+            maxMessages: 50,
+            maxAge: null,
+            maxImages: 10,
+          },
+        },
+      });
+
+      const result = mapToPersonality(dbPersonality, null, mockLogger);
+
+      // Explicit value should be preserved
+      expect(result.maxTokens).toBe(16384);
     });
 
     it('should replace placeholders in all character fields', () => {

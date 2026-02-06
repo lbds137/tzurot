@@ -590,6 +590,97 @@ describe('ModelFactory', () => {
   });
 
   // ===================================
+  // Restricted parameter filtering
+  // ===================================
+
+  describe('restricted parameter filtering', () => {
+    it('should filter frequencyPenalty for GLM 4.5 Air', () => {
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-4.5-air:free',
+        frequencyPenalty: 0.5,
+        temperature: 0.9,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.frequencyPenalty).toBeUndefined();
+      expect(callArgs.temperature).toBe(0.9); // Other params preserved
+    });
+
+    it('should filter presencePenalty for GLM 4.5 Air', () => {
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-4.5-air:free',
+        presencePenalty: 0.3,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.presencePenalty).toBeUndefined();
+    });
+
+    it('should filter seed from modelKwargs for GLM 4.5 Air', () => {
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-4.5-air:free',
+        seed: 42,
+        topK: 40, // topK IS supported
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as {
+        modelKwargs?: Record<string, unknown>;
+      };
+      expect(callArgs.modelKwargs).toBeDefined();
+      expect(callArgs.modelKwargs?.seed).toBeUndefined();
+      expect(callArgs.modelKwargs?.top_k).toBe(40); // Supported param preserved
+    });
+
+    it('should preserve all params for non-restricted models', () => {
+      const config: ModelConfig = {
+        modelName: 'anthropic/claude-sonnet-4.5',
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        seed: 42,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      expect(callArgs.frequencyPenalty).toBe(0.5);
+      expect(callArgs.presencePenalty).toBe(0.3);
+      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
+      expect(kwargs.seed).toBe(42);
+    });
+
+    it('should filter multiple unsupported params at once for GLM 4.5 Air', () => {
+      const config: ModelConfig = {
+        modelName: 'z-ai/glm-4.5-air:free',
+        frequencyPenalty: 0.5,
+        presencePenalty: 0.3,
+        seed: 42,
+        topP: 0.95,
+        topK: 40,
+        repetitionPenalty: 1.05,
+      };
+
+      createChatModel(config);
+
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      // Unsupported params filtered
+      expect(callArgs.frequencyPenalty).toBeUndefined();
+      expect(callArgs.presencePenalty).toBeUndefined();
+      // Supported params preserved
+      expect(callArgs.topP).toBe(0.95);
+      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
+      expect(kwargs.seed).toBeUndefined();
+      expect(kwargs.top_k).toBe(40);
+      expect(kwargs.repetition_penalty).toBe(1.05);
+    });
+  });
+
+  // ===================================
   // maxTokens Scaling for Reasoning Models
   // ===================================
 

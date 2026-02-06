@@ -214,7 +214,7 @@ export const loadedPersonalitySchema = z.object({
 
   // LLM parameters
   temperature: z.number(),
-  maxTokens: z.number(),
+  maxTokens: z.number().optional(),
   topP: z.number().optional(),
   topK: z.number().optional(),
   frequencyPenalty: z.number().optional(),
