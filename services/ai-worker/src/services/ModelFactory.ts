@@ -255,6 +255,76 @@ function createOpenRouterFetch(
 }
 
 /**
+ * Models with restricted parameter sets.
+ * Some providers only support a subset of sampling parameters.
+ * Sending unsupported params causes 400 "Provider returned error" from OpenRouter.
+ *
+ * Maps model patterns to sets of unsupported parameter names (snake_case API keys).
+ * Filtering covers both first-class ChatOpenAI params and modelKwargs.
+ */
+const RESTRICTED_PARAM_MODELS: { pattern: RegExp; unsupported: ReadonlySet<string> }[] = [
+  {
+    // GLM 4.5 Air supports only: temperature, top_p, top_k, max_tokens,
+    // repetition_penalty, reasoning, tools, tool_choice
+    // frequency_penalty confirmed to cause 400 errors in production
+    pattern: /glm-4\.5-air/i,
+    unsupported: new Set(['frequency_penalty', 'presence_penalty', 'seed']),
+  },
+];
+
+/**
+ * Filter unsupported sampling params for models with restricted parameter sets.
+ * Mutates modelKwargs in place and returns cleaned first-class params.
+ *
+ * @returns Object with filtered first-class params (frequency_penalty, presence_penalty)
+ */
+function filterRestrictedParams(
+  modelName: string,
+  firstClassParams: { frequencyPenalty?: number; presencePenalty?: number },
+  modelKwargs: Record<string, unknown>
+): { frequencyPenalty?: number; presencePenalty?: number } {
+  // Find restricted param set for this model
+  let unsupported: ReadonlySet<string> | null = null;
+  for (const entry of RESTRICTED_PARAM_MODELS) {
+    if (entry.pattern.test(modelName)) {
+      unsupported = entry.unsupported;
+      break;
+    }
+  }
+  if (unsupported === null) {
+    return firstClassParams;
+  }
+
+  const filtered: string[] = [];
+  let { frequencyPenalty, presencePenalty } = firstClassParams;
+
+  if (frequencyPenalty !== undefined && unsupported.has('frequency_penalty')) {
+    frequencyPenalty = undefined;
+    filtered.push('frequency_penalty');
+  }
+  if (presencePenalty !== undefined && unsupported.has('presence_penalty')) {
+    presencePenalty = undefined;
+    filtered.push('presence_penalty');
+  }
+  // Filter from modelKwargs (keys are already snake_case)
+  for (const key of Object.keys(modelKwargs)) {
+    if (unsupported.has(key)) {
+       
+      delete modelKwargs[key];
+      filtered.push(key);
+    }
+  }
+  if (filtered.length > 0) {
+    logger.warn(
+      { modelName, filteredParams: filtered },
+      '[ModelFactory] Filtered unsupported params for restricted model to prevent 400 errors'
+    );
+  }
+
+  return { frequencyPenalty, presencePenalty };
+}
+
+/**
  * Validate and normalize model name
  */
 function validateModelName(requestedModel: string | undefined): string {
@@ -485,8 +555,6 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
   // See: https://openrouter.ai/docs - different models have different optimal defaults
   const temperature = modelConfig.temperature;
   const topP = modelConfig.topP;
-  const frequencyPenalty = modelConfig.frequencyPenalty;
-  const presencePenalty = modelConfig.presencePenalty;
 
   // Calculate effective maxTokens - scaled for reasoning models with effort configured
   const maxTokens = getEffectiveMaxTokens(
@@ -497,6 +565,17 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
 
   // Build kwargs for provider-specific params (top_k, repetition_penalty)
   const modelKwargs = buildModelKwargs(modelConfig);
+
+  // Filter unsupported params for restricted models (prevents 400 errors)
+  const { frequencyPenalty, presencePenalty } = filterRestrictedParams(
+    modelName,
+    {
+      frequencyPenalty: modelConfig.frequencyPenalty,
+      presencePenalty: modelConfig.presencePenalty,
+    },
+    modelKwargs
+  );
+
   const hasModelKwargs = Object.keys(modelKwargs).length > 0;
 
   switch (provider) {

@@ -38,9 +38,10 @@ function getRequiredLlmConfig(
     temperature:
       getConfigValue(pc?.temperature, gc?.temperature, AI_DEFAULTS.TEMPERATURE) ??
       AI_DEFAULTS.TEMPERATURE,
-    maxTokens:
-      getConfigValue(pc?.maxTokens, gc?.maxTokens, AI_DEFAULTS.MAX_TOKENS) ??
-      AI_DEFAULTS.MAX_TOKENS,
+    // maxTokens intentionally has NO default — when not explicitly set:
+    // - Reasoning models: ModelFactory scales based on reasoning.effort
+    // - Standard models: OpenRouter uses per-model defaults
+    maxTokens: getConfigValue(pc?.maxTokens, gc?.maxTokens),
     contextWindowTokens:
       getConfigValue(
         pc?.contextWindowTokens,
