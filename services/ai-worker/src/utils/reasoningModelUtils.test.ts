@@ -194,6 +194,46 @@ describe('ReasoningModelUtils', () => {
       });
     });
 
+    describe('GPT-OSS detection', () => {
+      it('should detect GPT-OSS models', () => {
+        expect(detectReasoningModelType('openai/gpt-oss-120b:free')).toBe(
+          ReasoningModelType.GptOss
+        );
+        expect(detectReasoningModelType('gpt-oss-120b')).toBe(ReasoningModelType.GptOss);
+      });
+    });
+
+    describe('StepFun detection', () => {
+      it('should detect StepFun Step 3.5 models', () => {
+        expect(detectReasoningModelType('stepfun/step-3.5-flash:free')).toBe(
+          ReasoningModelType.StepFun
+        );
+        expect(detectReasoningModelType('step-3.5-flash')).toBe(ReasoningModelType.StepFun);
+      });
+    });
+
+    describe('Hermes 4 detection', () => {
+      it('should detect Hermes 4 models', () => {
+        expect(detectReasoningModelType('nousresearch/hermes-4-70b')).toBe(
+          ReasoningModelType.Hermes4
+        );
+        expect(detectReasoningModelType('hermes-4-70b')).toBe(ReasoningModelType.Hermes4);
+      });
+
+      it('should NOT detect Hermes 3 models', () => {
+        expect(detectReasoningModelType('nousresearch/hermes-3-llama-3.1-405b:free')).toBe(
+          ReasoningModelType.Standard
+        );
+      });
+    });
+
+    describe('MiMo detection', () => {
+      it('should detect MiMo v2 models', () => {
+        expect(detectReasoningModelType('xiaomi/mimo-v2-flash')).toBe(ReasoningModelType.MiMo);
+        expect(detectReasoningModelType('mimo-v2-flash')).toBe(ReasoningModelType.MiMo);
+      });
+    });
+
     describe('generic thinking detection', () => {
       it('should detect models with "thinking" in name', () => {
         expect(detectReasoningModelType('some-model-thinking-v1')).toBe(
@@ -305,6 +345,10 @@ describe('ReasoningModelUtils', () => {
       expect(isReasoningModel('qwen/qwq-32b')).toBe(true);
       expect(isReasoningModel('glm-4.7')).toBe(true);
       expect(isReasoningModel('kimi-k2')).toBe(true);
+      expect(isReasoningModel('openai/gpt-oss-120b:free')).toBe(true);
+      expect(isReasoningModel('stepfun/step-3.5-flash:free')).toBe(true);
+      expect(isReasoningModel('nousresearch/hermes-4-70b')).toBe(true);
+      expect(isReasoningModel('xiaomi/mimo-v2-flash')).toBe(true);
     });
 
     it('should return false for standard models', () => {

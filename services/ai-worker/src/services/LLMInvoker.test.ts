@@ -1178,6 +1178,11 @@ describe('supportsStopSequences', () => {
       expect(supportsStopSequences('meta-llama/llama-3.3-70b-instruct:free')).toBe(false);
       expect(supportsStopSequences('llama-3.3-70b-instruct:free')).toBe(false);
     });
+
+    it('should return false for DeepSeek R1-0528 free tier', () => {
+      expect(supportsStopSequences('deepseek/deepseek-r1-0528:free')).toBe(false);
+      expect(supportsStopSequences('deepseek-r1-0528:free')).toBe(false);
+    });
   });
 
   describe('models that DO support stop sequences', () => {

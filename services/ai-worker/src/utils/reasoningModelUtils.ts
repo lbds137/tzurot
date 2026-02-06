@@ -44,6 +44,18 @@ export const REASONING_MODEL_PATTERNS = {
   // Kimi K2/K2.5 thinking models - emit <think> tags
   KIMI_THINKING: /kimi.*k2.*thinking|kimi-k2/i,
 
+  // OpenAI GPT-OSS-120B - mandatory reasoning with effort levels
+  GPT_OSS: /gpt-oss/i,
+
+  // StepFun Step 3.5 - mandatory reasoning, always thinks
+  STEPFUN: /step-3\.5/i,
+
+  // NousResearch Hermes 4 - hybrid reasoning with optional <think> tags
+  HERMES_4: /hermes-4/i,
+
+  // Xiaomi MiMo - optional <think> when reasoning enabled
+  MIMO: /mimo-v2/i,
+
   // Generic thinking model pattern (any model with "thinking" in name)
   GENERIC_THINKING: /thinking/i,
 } as const;
@@ -68,6 +80,14 @@ export enum ReasoningModelType {
   GlmThinking = 'glm-thinking',
   /** Kimi K2 thinking models - emit <think> tags */
   KimiThinking = 'kimi-thinking',
+  /** OpenAI GPT-OSS-120B - mandatory reasoning */
+  GptOss = 'gpt-oss',
+  /** StepFun Step 3.5 - mandatory reasoning */
+  StepFun = 'stepfun',
+  /** NousResearch Hermes 4 - hybrid reasoning */
+  Hermes4 = 'hermes-4',
+  /** Xiaomi MiMo - optional reasoning */
+  MiMo = 'mimo',
   /** Generic thinking model (matched by name pattern) */
   GenericThinking = 'generic-thinking',
 }
@@ -89,52 +109,41 @@ export interface ReasoningModelConfig {
 }
 
 /**
+ * Pattern-to-type mapping for data-driven detection.
+ * Order matters: more specific patterns should be checked first.
+ * Generic thinking is last to avoid false positives.
+ */
+const DETECTION_ORDER: readonly { pattern: RegExp; type: ReasoningModelType }[] = [
+  { pattern: REASONING_MODEL_PATTERNS.OPENAI_O_SERIES, type: ReasoningModelType.OpenAIReasoning },
+  {
+    pattern: REASONING_MODEL_PATTERNS.CLAUDE_EXTENDED_THINKING,
+    type: ReasoningModelType.ClaudeExtendedThinking,
+  },
+  { pattern: REASONING_MODEL_PATTERNS.GEMINI_THINKING, type: ReasoningModelType.GeminiThinking },
+  { pattern: REASONING_MODEL_PATTERNS.DEEPSEEK_R1, type: ReasoningModelType.DeepSeekR1 },
+  { pattern: REASONING_MODEL_PATTERNS.QWEN_REASONING, type: ReasoningModelType.QwenReasoning },
+  { pattern: REASONING_MODEL_PATTERNS.GLM_THINKING, type: ReasoningModelType.GlmThinking },
+  { pattern: REASONING_MODEL_PATTERNS.KIMI_THINKING, type: ReasoningModelType.KimiThinking },
+  { pattern: REASONING_MODEL_PATTERNS.GPT_OSS, type: ReasoningModelType.GptOss },
+  { pattern: REASONING_MODEL_PATTERNS.STEPFUN, type: ReasoningModelType.StepFun },
+  { pattern: REASONING_MODEL_PATTERNS.HERMES_4, type: ReasoningModelType.Hermes4 },
+  { pattern: REASONING_MODEL_PATTERNS.MIMO, type: ReasoningModelType.MiMo },
+  // Generic thinking is last to avoid false positives on models with "thinking" in name
+  { pattern: REASONING_MODEL_PATTERNS.GENERIC_THINKING, type: ReasoningModelType.GenericThinking },
+] as const;
+
+/**
  * Detect the type of reasoning model from its name
  *
  * @param modelName - The model identifier (e.g., "openai/o1-preview", "deepseek/deepseek-r1")
  * @returns The type of reasoning model
  */
 export function detectReasoningModelType(modelName: string): ReasoningModelType {
-  // Check for OpenAI o-series first (most restrictive)
-  if (REASONING_MODEL_PATTERNS.OPENAI_O_SERIES.test(modelName)) {
-    return ReasoningModelType.OpenAIReasoning;
+  for (const { pattern, type } of DETECTION_ORDER) {
+    if (pattern.test(modelName)) {
+      return type;
+    }
   }
-
-  // Check for Claude extended thinking
-  if (REASONING_MODEL_PATTERNS.CLAUDE_EXTENDED_THINKING.test(modelName)) {
-    return ReasoningModelType.ClaudeExtendedThinking;
-  }
-
-  // Check for Gemini thinking
-  if (REASONING_MODEL_PATTERNS.GEMINI_THINKING.test(modelName)) {
-    return ReasoningModelType.GeminiThinking;
-  }
-
-  // Check for DeepSeek R1 reasoning
-  if (REASONING_MODEL_PATTERNS.DEEPSEEK_R1.test(modelName)) {
-    return ReasoningModelType.DeepSeekR1;
-  }
-
-  // Check for Qwen QwQ reasoning
-  if (REASONING_MODEL_PATTERNS.QWEN_REASONING.test(modelName)) {
-    return ReasoningModelType.QwenReasoning;
-  }
-
-  // Check for GLM thinking
-  if (REASONING_MODEL_PATTERNS.GLM_THINKING.test(modelName)) {
-    return ReasoningModelType.GlmThinking;
-  }
-
-  // Check for Kimi thinking
-  if (REASONING_MODEL_PATTERNS.KIMI_THINKING.test(modelName)) {
-    return ReasoningModelType.KimiThinking;
-  }
-
-  // Check for generic thinking pattern last (catches models with "thinking" in name)
-  if (REASONING_MODEL_PATTERNS.GENERIC_THINKING.test(modelName)) {
-    return ReasoningModelType.GenericThinking;
-  }
-
   return ReasoningModelType.Standard;
 }
 
@@ -175,11 +184,16 @@ export function getReasoningModelConfig(modelName: string): ReasoningModelConfig
         mayContainThinkingTags: true,
       };
 
-    // DeepSeek, Qwen, GLM, Kimi - all emit <think> tags in text output
+    // DeepSeek, Qwen, GLM, Kimi, GPT-OSS, StepFun, Hermes 4, MiMo
+    // All emit <think> tags in text output
     case ReasoningModelType.DeepSeekR1:
     case ReasoningModelType.QwenReasoning:
     case ReasoningModelType.GlmThinking:
     case ReasoningModelType.KimiThinking:
+    case ReasoningModelType.GptOss:
+    case ReasoningModelType.StepFun:
+    case ReasoningModelType.Hermes4:
+    case ReasoningModelType.MiMo:
     case ReasoningModelType.GenericThinking:
       return {
         type,
@@ -218,6 +232,7 @@ export function isReasoningModel(modelName: string): boolean {
  * @param modelConfig - Reasoning model configuration
  * @returns Transformed messages array
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing: message transformation has inherent branching
 export function transformMessagesForReasoningModel(
   messages: BaseMessage[],
   modelConfig: ReasoningModelConfig

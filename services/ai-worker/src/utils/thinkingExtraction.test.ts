@@ -418,6 +418,25 @@ Different perspectives offer various answers, from self-determined purpose to co
       expect(result.blockCount).toBe(1);
     });
 
+    it('should clean up OpenAI Harmony format tokens (GPT-OSS-120B)', () => {
+      const content =
+        '<think>analyzing the request</think><|start|>assistant<|channel|>Here is the actual response.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('analyzing the request');
+      expect(result.visibleContent).toBe('assistantHere is the actual response.');
+      expect(result.visibleContent).not.toContain('<|');
+      expect(result.visibleContent).not.toContain('|>');
+    });
+
+    it('should clean up multiple Harmony tokens', () => {
+      const content = '<|im_start|>assistant<|separator|>Hello world<|im_end|>';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.visibleContent).toBe('assistantHello world');
+      expect(result.visibleContent).not.toContain('<|');
+    });
+
     it('should handle response with code blocks inside thinking', () => {
       const content = `<think>
 Let me write a function:
