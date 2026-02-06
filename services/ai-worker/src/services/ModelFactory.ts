@@ -97,16 +97,58 @@ function extractReasoningFromDetails(details: unknown[]): string | null {
 }
 
 /**
+ * Extract reasoning from a single response message and inject it into content.
+ * Returns true if reasoning was found and injected.
+ *
+ * Handles two response formats:
+ * - message.reasoning (string) — DeepSeek R1, Kimi K2, QwQ, GLM
+ * - message.reasoning_details (array) — Claude Extended Thinking, Gemini, o-series
+ */
+function injectReasoningIntoMessage(message: Record<string, unknown>): boolean {
+  // Log what keys the message has for debugging
+  logger.info(
+    {
+      messageKeys: Object.keys(message),
+      hasReasoning: typeof message.reasoning === 'string',
+      reasoningLength: typeof message.reasoning === 'string' ? message.reasoning.length : 0,
+      hasReasoningDetails: Array.isArray(message.reasoning_details),
+    },
+    '[ModelFactory] Inspecting response message for reasoning content'
+  );
+
+  let reasoning: string | null = null;
+
+  // Source 1: message.reasoning (string — DeepSeek R1, Kimi K2, QwQ)
+  if (typeof message.reasoning === 'string' && message.reasoning.length > 0) {
+    reasoning = message.reasoning;
+  }
+  // Source 2: message.reasoning_details (array — Claude, Gemini, o-series)
+  else if (Array.isArray(message.reasoning_details)) {
+    reasoning = extractReasoningFromDetails(message.reasoning_details);
+  }
+
+  if (reasoning === null) {
+    return false;
+  }
+
+  const content = typeof message.content === 'string' ? message.content : '';
+  message.content = `<reasoning>${reasoning}</reasoning>\n${content}`;
+
+  logger.debug(
+    { reasoningLength: reasoning.length, contentLength: content.length },
+    '[ModelFactory] Injected reasoning from API response into content'
+  );
+
+  return true;
+}
+
+/**
  * Intercept OpenRouter API response to preserve reasoning content.
  *
  * LangChain's Chat Completions converter only extracts function_call, tool_calls,
  * and audio from the response message — reasoning fields are silently dropped.
  * We intercept the raw response to extract reasoning and inject it into the
  * message content as <reasoning> tags, which thinkingExtraction.ts then processes.
- *
- * Handles two response formats:
- * - message.reasoning (string) — DeepSeek R1, Kimi K2, QwQ, GLM
- * - message.reasoning_details (array) — Claude Extended Thinking, Gemini, o-series
  */
 function interceptReasoningResponse(responseBody: Record<string, unknown>): boolean {
   const choices = responseBody.choices;
@@ -123,28 +165,8 @@ function interceptReasoningResponse(responseBody: Record<string, unknown>): bool
     if (typeof msg !== 'object' || msg === null) {
       continue;
     }
-    const message = msg as Record<string, unknown>;
-
-    let reasoning: string | null = null;
-
-    // Source 1: message.reasoning (string — DeepSeek R1, Kimi K2, QwQ)
-    if (typeof message.reasoning === 'string' && message.reasoning.length > 0) {
-      reasoning = message.reasoning;
-    }
-    // Source 2: message.reasoning_details (array — Claude, Gemini, o-series)
-    else if (Array.isArray(message.reasoning_details)) {
-      reasoning = extractReasoningFromDetails(message.reasoning_details);
-    }
-
-    if (reasoning !== null) {
-      const content = typeof message.content === 'string' ? message.content : '';
-      message.content = `<reasoning>${reasoning}</reasoning>\n${content}`;
+    if (injectReasoningIntoMessage(msg as Record<string, unknown>)) {
       modified = true;
-
-      logger.debug(
-        { reasoningLength: reasoning.length, contentLength: content.length },
-        '[ModelFactory] Injected reasoning from API response into content'
-      );
     }
   }
   return modified;
@@ -178,14 +200,29 @@ function createOpenRouterFetch(
       injectOpenRouterParams(url, init, extraParams);
     }
 
+    const urlStr = typeof url === 'string' ? url : url instanceof URL ? url.href : '[Request]';
+    logger.info(
+      { url: urlStr, method: init?.method },
+      '[ModelFactory] Custom fetch intercepting request'
+    );
+
     const response = await fetch(url, init);
 
     // RESPONSE: Intercept to preserve reasoning content
     // Only process successful JSON responses (non-streaming)
+    const contentType = response.headers.get('content-type');
+    logger.info(
+      {
+        status: response.status,
+        ok: response.ok,
+        contentType,
+      },
+      '[ModelFactory] Custom fetch received response'
+    );
+
     if (!response.ok) {
       return response;
     }
-    const contentType = response.headers.get('content-type');
     if (contentType === null) {
       return response;
     }
@@ -195,7 +232,9 @@ function createOpenRouterFetch(
 
     try {
       const body = (await response.json()) as Record<string, unknown>;
-      interceptReasoningResponse(body);
+      const modified = interceptReasoningResponse(body);
+
+      logger.info({ reasoningInjected: modified }, '[ModelFactory] Response interception complete');
 
       // Re-create the response since we consumed the body via .json()
       return new Response(JSON.stringify(body), {
@@ -203,8 +242,13 @@ function createOpenRouterFetch(
         statusText: response.statusText,
         headers: response.headers,
       });
-    } catch {
+    } catch (err) {
+      logger.warn(
+        { err },
+        '[ModelFactory] Failed to parse response JSON for reasoning interception'
+      );
       // If response isn't valid JSON, something's wrong — return original
+      // NOTE: body is consumed at this point, so the caller will get an empty body
       return response;
     }
   };
