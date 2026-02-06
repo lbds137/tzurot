@@ -7,10 +7,10 @@
  * Reasoning Model Support:
  * - Detects and handles reasoning/thinking models (o1, Claude 3.7+, Gemini Thinking)
  * - Transforms messages for models that don't support system messages
- * - Strips <thinking> tags from output
+ * - Thinking tag extraction delegated to ResponsePostProcessor
  */
 
-import { BaseMessage, AIMessage } from '@langchain/core/messages';
+import { BaseMessage } from '@langchain/core/messages';
 import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   createLogger,
@@ -31,9 +31,7 @@ import { recordStopSequenceActivation } from './StopSequenceTracker.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,
-  stripThinkingTags,
   ReasoningModelType,
-  type ReasoningModelConfig,
 } from '../utils/reasoningModelUtils.js';
 
 const logger = createLogger('LLMInvoker');
@@ -204,63 +202,16 @@ export class LLMInvoker {
       }
     );
 
-    // Post-process response for reasoning models (strip thinking tags)
-    const processedResponse = this.processReasoningModelResponse(
-      result.value,
-      reasoningConfig,
-      modelName
-    );
+    // Note: Thinking tag extraction is handled by ResponsePostProcessor downstream.
+    // We do NOT strip tags here to avoid losing reasoning content before it can be
+    // extracted and displayed to users (when showThinking is enabled).
 
     logger.info(
       { modelName, attempts: result.attempts, totalTimeMs: result.totalTimeMs },
       '[LLMInvoker] LLM invocation completed'
     );
 
-    return processedResponse;
-  }
-
-  /**
-   * Process response from reasoning models to strip thinking tags
-   */
-  private processReasoningModelResponse(
-    response: BaseMessage,
-    config: ReasoningModelConfig,
-    modelName: string
-  ): BaseMessage {
-    if (!config.mayContainThinkingTags) {
-      return response;
-    }
-
-    // Extract content
-    const originalContent = Array.isArray(response.content)
-      ? response.content.map(c => (typeof c === 'object' && 'text' in c ? c.text : '')).join('')
-      : typeof response.content === 'string'
-        ? response.content
-        : '';
-
-    // Strip thinking tags
-    const strippedContent = stripThinkingTags(originalContent);
-
-    if (strippedContent !== originalContent) {
-      const removedLength = originalContent.length - strippedContent.length;
-      logger.info(
-        {
-          modelName,
-          originalLength: originalContent.length,
-          strippedLength: strippedContent.length,
-          removedLength,
-        },
-        '[LLMInvoker] Stripped thinking tags from reasoning model response'
-      );
-
-      // Return new AIMessage with stripped content
-      return new AIMessage({
-        content: strippedContent,
-        additional_kwargs: response.additional_kwargs,
-      });
-    }
-
-    return response;
+    return result.value;
   }
 
   /**

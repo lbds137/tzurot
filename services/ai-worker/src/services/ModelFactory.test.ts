@@ -384,8 +384,8 @@ describe('ModelFactory', () => {
       // reasoning goes in modelKwargs
       expect(callArgs?.modelKwargs?.reasoning).toEqual({ effort: 'high' });
 
-      // No custom fetch needed - reasoning is handled natively via modelKwargs
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
+      expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
     it('should pass reasoning with maxTokens (converted to snake_case) via modelKwargs', () => {
@@ -402,8 +402,8 @@ describe('ModelFactory', () => {
       };
 
       expect(callArgs?.modelKwargs?.reasoning).toEqual({ max_tokens: 16000 });
-      // No custom fetch needed - reasoning is handled natively via modelKwargs
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
+      expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
     it('should pass reasoning object with all fields except maxTokens when effort is set', () => {
@@ -432,8 +432,8 @@ describe('ModelFactory', () => {
         exclude: false,
         enabled: true,
       });
-      // No custom fetch needed - reasoning is handled natively via modelKwargs
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
+      expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
     it('should use maxTokens when effort is not set and pass exclude in reasoning object', () => {
@@ -457,8 +457,8 @@ describe('ModelFactory', () => {
         max_tokens: 16000,
         exclude: true,
       });
-      // No custom fetch needed - reasoning is handled natively via modelKwargs
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      // Custom fetch needed for response interception (LangChain drops reasoning from responses)
+      expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
     // ===================================
@@ -482,7 +482,7 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.fetch).toBeUndefined();
     });
 
-    it('should NOT use custom fetch for reasoning config alone (handled natively via modelKwargs)', () => {
+    it('should use custom fetch for reasoning config (needed for response interception)', () => {
       const config: ModelConfig = {
         modelName: 'test-model',
         showThinking: false,
@@ -496,12 +496,12 @@ describe('ModelFactory', () => {
         configuration?: { fetch?: unknown };
       };
 
-      // reasoning goes in modelKwargs, no custom fetch needed
+      // reasoning goes in modelKwargs AND custom fetch intercepts responses
       expect(callArgs?.modelKwargs?.reasoning).toEqual({
         enabled: true,
         effort: 'medium',
       });
-      expect(callArgs?.configuration?.fetch).toBeUndefined();
+      expect(callArgs?.configuration?.fetch).toBeDefined();
     });
 
     it('should use custom fetch for transforms', () => {
