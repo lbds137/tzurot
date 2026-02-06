@@ -44,6 +44,10 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     maxMessages: '50',
     maxAge: '',
     maxImages: '10',
+    // Memory and context window settings
+    contextWindowTokens: '131072',
+    memoryScoreThreshold: '',
+    memoryLimit: '',
     ...overrides,
   };
 }
