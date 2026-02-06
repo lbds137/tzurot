@@ -96,6 +96,7 @@ async function lookupByMessageId(messageId: string): Promise<LookupResult> {
         success: false,
         errorMessage:
           '❌ No diagnostic logs found for this message.\n' +
+          // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing: shared error bullet points
           '• The log may have expired (24h retention)\n' +
           '• The message may not have triggered or been an AI response\n' +
           '• The message ID may be incorrect',
@@ -313,6 +314,35 @@ function buildAttachments(
 }
 
 /**
+ * Build the reasoning diagnostics field for the embed (when reasoning config is present).
+ */
+function buildReasoningField(payload: DiagnosticPayload): { name: string; value: string } | null {
+  const reasoningConfig = payload.llmConfig.allParams.reasoning as
+    | { effort?: string; enabled?: boolean }
+    | undefined;
+  if (reasoningConfig === undefined) {
+    return null;
+  }
+
+  const { postProcessing, llmResponse } = payload;
+  const reasoningDebug = llmResponse.reasoningDebug;
+  const hasInterceptionTags = reasoningDebug?.hasReasoningTagsInContent === true;
+  const thinkingLen = postProcessing.thinkingContent?.length ?? 0;
+  const lowTokenWarning =
+    llmResponse.completionTokens < 100 && llmResponse.completionTokens > 0 ? ' ⚠️ LOW' : '';
+
+  return {
+    name: '💭 Reasoning',
+    value: [
+      `**Config:** effort=${reasoningConfig.effort ?? 'default'}, enabled=${String(reasoningConfig.enabled ?? true)}`,
+      `**Interception:** <reasoning> tags ${hasInterceptionTags ? 'found ✅' : 'not found ❌'}`,
+      `**Thinking Extracted:** ${thinkingLen > 0 ? `Yes (${thinkingLen.toLocaleString()} chars)` : 'No'}`,
+      `**Completion Tokens:** ${llmResponse.completionTokens}${lowTokenWarning}`,
+    ].join('\n'),
+  };
+}
+
+/**
  * Build a summary embed with key diagnostic stats
  */
 function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
@@ -413,6 +443,12 @@ function buildDiagnosticEmbed(payload: DiagnosticPayload): EmbedBuilder {
       inline: true,
     }
   );
+
+  // Add reasoning diagnostics when reasoning config is present
+  const reasoningField = buildReasoningField(payload);
+  if (reasoningField !== null) {
+    embed.addFields({ ...reasoningField, inline: false });
+  }
 
   embed
     .setTimestamp(new Date(meta.timestamp))

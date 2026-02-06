@@ -335,6 +335,8 @@ export class ConversationalRAGService {
             typeof additionalKwargs?.reasoning === 'string' ? additionalKwargs.reasoning.length : 0,
           responseMetadataKeys: responseMetadata !== undefined ? Object.keys(responseMetadata) : [],
           hasReasoningDetails: Array.isArray(responseMetadata?.reasoning_details),
+          hasReasoningTagsInContent: rawContent.includes('<reasoning>'),
+          rawContentPreview: rawContent.substring(0, 200),
         },
       });
     }

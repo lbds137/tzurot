@@ -657,6 +657,100 @@ describe('handleDebug', () => {
     });
   });
 
+  describe('reasoning diagnostics in embed', () => {
+    function createSuccessResponseWithLog(payload: DiagnosticPayload) {
+      return new Response(
+        JSON.stringify({
+          log: {
+            id: 'log-uuid',
+            requestId: 'test-req-123',
+            personalityId: 'personality-uuid',
+            userId: '123456789',
+            guildId: '987654321',
+            channelId: '111222333',
+            model: 'test',
+            provider: 'test',
+            durationMs: 100,
+            createdAt: '2026-01-22T12:00:00Z',
+            data: payload,
+          },
+        }),
+        { status: 200 }
+      );
+    }
+
+    it('should include reasoning field when reasoning config is present', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      mockPayload.llmConfig.allParams = {
+        reasoning: { effort: 'medium', enabled: true },
+      };
+      mockPayload.llmResponse.reasoningDebug = {
+        additionalKwargsKeys: [],
+        hasReasoningInKwargs: false,
+        reasoningKwargsLength: 0,
+        responseMetadataKeys: [],
+        hasReasoningDetails: false,
+        hasReasoningTagsInContent: true,
+        rawContentPreview: '<reasoning>thinking...</reasoning>Response',
+      };
+      mockPayload.postProcessing.thinkingContent = 'thinking...';
+      mockPayload.postProcessing.thinkingExtracted = true;
+
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponseWithLog(mockPayload));
+
+      const context = createMockContext('test-req-123');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { fields: { name: string; value: string }[] } }[];
+      };
+      const fields = editReplyArgs.embeds[0].data.fields;
+      const reasoningField = fields.find((f: { name: string }) => f.name === '💭 Reasoning');
+      expect(reasoningField).toBeDefined();
+      expect(reasoningField?.value).toContain('effort=medium');
+      expect(reasoningField?.value).toContain('found ✅');
+      expect(reasoningField?.value).toContain('Yes (11 chars)');
+    });
+
+    it('should not include reasoning field when no reasoning config', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      // No reasoning in allParams
+
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponseWithLog(mockPayload));
+
+      const context = createMockContext('test-req-123');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { fields: { name: string; value: string }[] } }[];
+      };
+      const fields = editReplyArgs.embeds[0].data.fields;
+      const reasoningField = fields.find((f: { name: string }) => f.name === '💭 Reasoning');
+      expect(reasoningField).toBeUndefined();
+    });
+
+    it('should show LOW warning when completion tokens < 100', async () => {
+      const mockPayload = createMockDiagnosticPayload();
+      mockPayload.llmConfig.allParams = {
+        reasoning: { effort: 'high', enabled: true },
+      };
+      mockPayload.llmResponse.completionTokens = 35;
+
+      vi.mocked(fetch).mockResolvedValue(createSuccessResponseWithLog(mockPayload));
+
+      const context = createMockContext('test-req-123');
+      await handleDebug(context);
+
+      const editReplyArgs = vi.mocked(context.editReply).mock.calls[0][0] as {
+        embeds: { data: { fields: { name: string; value: string }[] } }[];
+      };
+      const fields = editReplyArgs.embeds[0].data.fields;
+      const reasoningField = fields.find((f: { name: string }) => f.name === '💭 Reasoning');
+      expect(reasoningField).toBeDefined();
+      expect(reasoningField?.value).toContain('⚠️ LOW');
+    });
+  });
+
   describe('format option', () => {
     function createSuccessResponse(payload: DiagnosticPayload) {
       return new Response(

@@ -148,6 +148,8 @@ export interface LlmResponseData {
     reasoningKwargsLength: number;
     responseMetadataKeys: string[];
     hasReasoningDetails: boolean;
+    hasReasoningTagsInContent: boolean;
+    rawContentPreview: string;
   };
 }
 
@@ -542,6 +544,7 @@ export class DiagnosticCollector {
   }
 
   // Default values for missing stages (indicates something went wrong in the pipeline)
+  /* eslint-disable sonarjs/no-duplicate-string -- pre-existing: '[not recorded]' sentinel values for missing stages */
 
   private getDefaultInputProcessing(): DiagnosticInputProcessing {
     return {
@@ -609,4 +612,6 @@ export class DiagnosticCollector {
       finalContent: '[not recorded]',
     };
   }
+
+  /* eslint-enable sonarjs/no-duplicate-string */
 }

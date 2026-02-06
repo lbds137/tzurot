@@ -218,6 +218,10 @@ export interface DiagnosticLlmResponse {
     responseMetadataKeys: string[];
     /** Whether reasoning_details array exists in response_metadata */
     hasReasoningDetails: boolean;
+    /** Whether <reasoning> tags were found in raw content (proves interception worked) */
+    hasReasoningTagsInContent: boolean;
+    /** First ~200 chars of raw content for quick visual inspection */
+    rawContentPreview: string;
   };
 }
 
