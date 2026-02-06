@@ -474,6 +474,8 @@ describe('DiagnosticCollector', () => {
           reasoningKwargsLength: 1500,
           responseMetadataKeys: ['finish_reason', 'model'],
           hasReasoningDetails: false,
+          hasReasoningTagsInContent: true,
+          rawContentPreview: '<reasoning>Let me think...</reasoning>Response with reasoning',
         },
       });
 
@@ -485,6 +487,8 @@ describe('DiagnosticCollector', () => {
         reasoningKwargsLength: 1500,
         responseMetadataKeys: ['finish_reason', 'model'],
         hasReasoningDetails: false,
+        hasReasoningTagsInContent: true,
+        rawContentPreview: '<reasoning>Let me think...</reasoning>Response with reasoning',
       });
     });
 
