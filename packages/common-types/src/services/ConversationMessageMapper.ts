@@ -80,6 +80,8 @@ export function parseMessageMetadata(raw: unknown): MessageMetadata | undefined 
 export function mapToConversationMessage(
   record: ConversationHistoryQueryResult
 ): ConversationMessage {
+  const metadata = parseMessageMetadata(record.messageMetadata);
+
   return {
     id: record.id,
     role: record.role as MessageRole,
@@ -90,7 +92,8 @@ export function mapToConversationMessage(
     personaName: record.persona.preferredName ?? record.persona.name,
     discordUsername: record.persona.owner.username,
     discordMessageId: record.discordMessageId,
-    messageMetadata: parseMessageMetadata(record.messageMetadata),
+    isForwarded: metadata?.isForwarded === true ? true : undefined,
+    messageMetadata: metadata,
     // AI personality info for multi-AI channel attribution
     personalityId: record.personalityId,
     personalityName: record.personality.displayName ?? record.personality.name,

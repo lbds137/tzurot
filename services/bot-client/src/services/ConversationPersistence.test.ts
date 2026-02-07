@@ -30,6 +30,10 @@ vi.mock('../utils/attachmentPlaceholders.js', () => ({
   }),
 }));
 
+vi.mock('../utils/forwardedMessageUtils.js', () => ({
+  isForwardedMessage: vi.fn(() => false),
+}));
+
 // Note: referenceFormatter is no longer used - references are stored in messageMetadata
 
 describe('ConversationPersistence', () => {
@@ -198,6 +202,35 @@ describe('ConversationPersistence', () => {
             },
           ],
         },
+      });
+    });
+
+    it('should persist isForwarded in messageMetadata for forwarded messages', async () => {
+      const { isForwardedMessage } = await import('../utils/forwardedMessageUtils.js');
+      vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
+
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-fwd',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Forwarded content',
+      });
+
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith({
+        channelId: 'channel-123',
+        personalityId: 'personality-123',
+        personaId: 'persona-uuid-123',
+        role: MessageRole.User,
+        content: 'Forwarded content',
+        guildId: 'guild-123',
+        discordMessageId: 'discord-msg-fwd',
+        messageMetadata: { isForwarded: true },
       });
     });
 

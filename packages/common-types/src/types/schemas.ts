@@ -182,6 +182,8 @@ export const messageMetadataSchema = z.object({
   voiceTranscripts: z.array(z.string()).optional(),
   /** Reactions on this message (for extended context messages) */
   reactions: z.array(messageReactionSchema).optional(),
+  /** Whether this message was forwarded from another channel */
+  isForwarded: z.boolean().optional(),
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 

@@ -17,6 +17,7 @@ import type {
   ConversationMessage,
   AttachmentMetadata,
   MessageReaction,
+  StoredReferencedMessage,
 } from '@tzurot/common-types';
 import { buildMessageContent, hasMessageContent } from '../utils/MessageContentBuilder.js';
 import { isUserContentMessage } from '../utils/messageTypeUtils.js';
@@ -100,6 +101,7 @@ export class DiscordChannelFetcher {
 
       // Convert Collection to array for processing
       let messagesToProcess = [...discordMessages.values()];
+      let resolvedReferences: Map<string, StoredReferencedMessage[]> | undefined;
       const shouldResolveLinks = options.resolveLinks !== false;
 
       if (shouldResolveLinks && messagesToProcess.length > 0) {
@@ -122,10 +124,15 @@ export class DiscordChannelFetcher {
         }
 
         messagesToProcess = linkResult.messages;
+        resolvedReferences = linkResult.resolvedReferences;
       }
 
       // Filter and convert messages (async for transcript retrieval)
-      const processResult = await this.processMessages(messagesToProcess, options);
+      const processResult = await this.processMessages(
+        messagesToProcess,
+        options,
+        resolvedReferences
+      );
 
       const participantCount = Object.keys(processResult.participantGuildInfo).length;
       const userCount = processResult.extendedContextUsers.length;
@@ -178,7 +185,8 @@ export class DiscordChannelFetcher {
   // eslint-disable-next-line complexity, max-lines-per-function, sonarjs/cognitive-complexity -- Cohesive message processing
   private async processMessages(
     messages: Message[],
-    options: FetchOptions
+    options: FetchOptions,
+    resolvedReferences?: Map<string, StoredReferencedMessage[]>
   ): Promise<{
     messages: ConversationMessage[];
     imageAttachments: AttachmentMetadata[];
@@ -260,10 +268,11 @@ export class DiscordChannelFetcher {
       }
 
       // Convert to ConversationMessage
-      const conversionResult = await this.convertMessage(msg, {
-        ...options,
-        getTranscript: getTranscriptWithFallback,
-      });
+      const conversionResult = await this.convertMessage(
+        msg,
+        { ...options, getTranscript: getTranscriptWithFallback },
+        resolvedReferences
+      );
 
       if (conversionResult) {
         messageIdToIndex.set(msg.id, result.length);
@@ -327,9 +336,11 @@ export class DiscordChannelFetcher {
   /**
    * Convert a Discord message to ConversationMessage format
    */
+  // eslint-disable-next-line complexity -- pre-existing; convertMessage has inherent branching for message types
   private async convertMessage(
     msg: Message,
-    options: FetchOptions
+    options: FetchOptions,
+    resolvedReferences?: Map<string, StoredReferencedMessage[]>
   ): Promise<{ message: ConversationMessage; attachments: AttachmentMetadata[] } | null> {
     const isBot = msg.author.id === options.botUserId;
     const role = isBot ? MessageRole.Assistant : MessageRole.User;
@@ -361,7 +372,19 @@ export class DiscordChannelFetcher {
 
     const content = rawContent;
     const hasMetadata = embedsXml !== undefined || voiceTranscripts !== undefined;
-    const messageMetadata = hasMetadata ? { embedsXml, voiceTranscripts } : undefined;
+    let messageMetadata: ConversationMessage['messageMetadata'] = hasMetadata
+      ? { embedsXml, voiceTranscripts }
+      : undefined;
+
+    // Merge resolved link references into messageMetadata
+    const linkedRefs = resolvedReferences?.get(msg.id);
+    if (linkedRefs !== undefined && linkedRefs.length > 0) {
+      messageMetadata = messageMetadata ?? {};
+      messageMetadata.referencedMessages = [
+        ...(messageMetadata.referencedMessages ?? []),
+        ...linkedRefs,
+      ];
+    }
 
     const message: ConversationMessage = {
       id: msg.id,

@@ -171,15 +171,50 @@ describe('RAGUtils', () => {
       expect(result).toBe('A beautiful sunset\n\nHello, how are you today?');
     });
 
-    it('should filter out placeholder descriptions starting with [', () => {
+    it('should filter out bare placeholder descriptions', () => {
       const attachments: ProcessedAttachment[] = [
-        createAttachment(AttachmentType.Image, '[image]', { name: 'failed.jpg' }), // Placeholder when vision fails
+        createAttachment(AttachmentType.Image, '[image]', { name: 'failed.jpg' }),
         createAttachment(AttachmentType.Image, 'A valid description', { name: 'good.jpg' }),
-        createAttachment(AttachmentType.Audio, '[audio]', { name: 'failed.ogg' }), // Placeholder when transcription fails
+        createAttachment(AttachmentType.Audio, '[audio]', { name: 'failed.ogg' }),
       ];
 
       const result = extractContentDescriptions(attachments);
       expect(result).toBe('A valid description');
+    });
+
+    it('should NOT filter out vision failure descriptions', () => {
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, '[Image unavailable: bad_request]', {
+          name: 'failed.jpg',
+        }),
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('[Image unavailable: bad_request]');
+    });
+
+    it('should NOT filter out temporary unavailable descriptions', () => {
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, '[Image temporarily unavailable]', {
+          name: 'retry.jpg',
+        }),
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('[Image temporarily unavailable]');
+    });
+
+    it('should keep both real descriptions and unavailable labels', () => {
+      const attachments: ProcessedAttachment[] = [
+        createAttachment(AttachmentType.Image, 'A sunset over mountains', { name: 'sunset.jpg' }),
+        createAttachment(AttachmentType.Image, '[Image unavailable: bad_request]', {
+          name: 'broken.jpg',
+        }),
+        createAttachment(AttachmentType.Image, '[image]', { name: 'placeholder.jpg' }),
+      ];
+
+      const result = extractContentDescriptions(attachments);
+      expect(result).toBe('A sunset over mountains\n\n[Image unavailable: bad_request]');
     });
 
     it('should filter out empty descriptions', () => {
