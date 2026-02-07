@@ -1,6 +1,8 @@
 # Documentation Philosophy
 
-> **Last Updated**: 2026-01-24
+> **Last Updated**: 2026-02-07
+
+> **Quick reference**: `.claude/rules/07-documentation.md` has the placement table and lifecycle rules. This doc covers the full rationale.
 
 This document explains what documentation to keep vs delete in the Tzurot project.
 
@@ -126,5 +128,7 @@ Is this documentation about...
 
 ## Related Resources
 
-- [tzurot-docs skill](/.claude/skills/tzurot-docs/SKILL.md) - Documentation procedures
-- [docs/research/README.md](/docs/research/README.md) - Research notes archive
+- `.claude/rules/07-documentation.md` - Documentation standards (placement, naming, lifecycle)
+- `.claude/skills/tzurot-doc-audit/SKILL.md` - Audit procedure for freshness checks
+- `.claude/skills/tzurot-docs/SKILL.md` - Session workflow procedures
+- `docs/research/README.md` - Research notes archive
