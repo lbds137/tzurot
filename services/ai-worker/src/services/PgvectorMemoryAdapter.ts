@@ -34,7 +34,6 @@ export {
   MemoryDocument,
   MemoryMetadata,
   MemoryMetadataSchema,
-  MemoryQueryResult,
 } from './PgvectorTypes.js';
 
 import type {

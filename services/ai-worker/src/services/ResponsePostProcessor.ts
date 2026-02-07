@@ -22,7 +22,7 @@ import { replacePromptPlaceholders } from '../utils/promptPlaceholders.js';
 const logger = createLogger('ResponsePostProcessor');
 
 /** Result of processing a raw LLM response */
-export interface ProcessedResponse {
+interface ProcessedResponse {
   /** Cleaned visible content for the user */
   cleanedContent: string;
   /** Extracted thinking/reasoning content (if any) */
@@ -32,7 +32,7 @@ export interface ProcessedResponse {
 }
 
 /** Context needed for response processing */
-export interface ResponseProcessingContext {
+interface ResponseProcessingContext {
   /** Personality name for artifact detection */
   personalityName: string;
   /** User's display name for placeholder replacement */

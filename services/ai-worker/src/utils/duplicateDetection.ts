@@ -27,7 +27,7 @@ const logger = createLogger('DuplicateDetection');
 // ============================================================================
 
 // Re-export types from dedicated types file
-export type { EmbeddingServiceInterface, DuplicateCheckResult } from './duplicateDetectionTypes.js';
+export type { EmbeddingServiceInterface } from './duplicateDetectionTypes.js';
 
 // Re-export cross-turn detection functions
 export {

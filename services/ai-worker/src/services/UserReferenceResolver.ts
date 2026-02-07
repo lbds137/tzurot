@@ -50,7 +50,7 @@ function setPersonalityField(
 /**
  * Resolved persona info for a user reference
  */
-export interface ResolvedPersona {
+interface ResolvedPersona {
   /** Persona UUID */
   personaId: string;
   /** Display name (preferredName or name) */
@@ -66,7 +66,7 @@ export interface ResolvedPersona {
 /**
  * Result of resolving user references in text
  */
-export interface UserReferenceResolutionResult {
+interface UserReferenceResolutionResult {
   /** Text with all user references replaced with persona names */
   processedText: string;
   /** Personas that were resolved (for adding to participants) */
@@ -76,7 +76,7 @@ export interface UserReferenceResolutionResult {
 /**
  * Result of resolving user references across all personality fields
  */
-export interface PersonalityResolutionResult {
+interface PersonalityResolutionResult {
   /** Personality with all text fields resolved */
   resolvedPersonality: LoadedPersonality;
   /** Deduplicated personas found across all fields (for adding to participants) */

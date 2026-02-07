@@ -31,7 +31,7 @@ const config = getConfig();
  * already need the custom fetch wrapper for response interception (see below),
  * so we inject them there for consistency.
  */
-export interface OpenRouterExtraParams {
+interface OpenRouterExtraParams {
   transforms?: string[];
   route?: 'fallback';
   verbosity?: 'low' | 'medium' | 'high';

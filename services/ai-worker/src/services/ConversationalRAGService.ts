@@ -52,12 +52,10 @@ import type {
 // Re-export public types for external consumers
 export type {
   MemoryDocument,
-  ParticipantPersona,
   DiscordEnvironment,
   ConversationContext,
   RAGResponse,
   ParticipantInfo,
-  DeferredMemoryData,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationalRAGService');

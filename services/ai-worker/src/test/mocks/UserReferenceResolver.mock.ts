@@ -20,7 +20,7 @@ import { vi } from 'vitest';
 /**
  * Type definition for the UserReferenceResolver mock instance
  */
-export interface MockUserReferenceResolverInstance {
+interface MockUserReferenceResolverInstance {
   resolveUserReferences: ReturnType<typeof vi.fn>;
   resolvePersonalityReferences: ReturnType<typeof vi.fn>;
 }

@@ -47,67 +47,22 @@
  */
 
 // Service mocks
-export {
-  mockLLMInvoker,
-  getLLMInvokerMock,
-  resetLLMInvokerMock,
-  type MockLLMInvokerInstance,
-} from './LLMInvoker.mock.js';
+export { getLLMInvokerMock } from './LLMInvoker.mock.js';
 
-export {
-  mockMemoryRetriever,
-  getMemoryRetrieverMock,
-  resetMemoryRetrieverMock,
-  type MockMemoryRetrieverInstance,
-} from './MemoryRetriever.mock.js';
+export { getMemoryRetrieverMock } from './MemoryRetriever.mock.js';
 
-export {
-  mockPromptBuilder,
-  getPromptBuilderMock,
-  resetPromptBuilderMock,
-  type MockPromptBuilderInstance,
-} from './PromptBuilder.mock.js';
+export { getPromptBuilderMock } from './PromptBuilder.mock.js';
 
-export {
-  mockContextWindowManager,
-  getContextWindowManagerMock,
-  resetContextWindowManagerMock,
-  type MockContextWindowManagerInstance,
-} from './ContextWindowManager.mock.js';
+export { getContextWindowManagerMock } from './ContextWindowManager.mock.js';
 
-export {
-  mockLongTermMemoryService,
-  getLongTermMemoryServiceMock,
-  resetLongTermMemoryServiceMock,
-  type MockLongTermMemoryServiceInstance,
-} from './LongTermMemoryService.mock.js';
+export { getLongTermMemoryServiceMock } from './LongTermMemoryService.mock.js';
 
-export {
-  mockReferencedMessageFormatter,
-  getReferencedMessageFormatterMock,
-  resetReferencedMessageFormatterMock,
-  type MockReferencedMessageFormatterInstance,
-} from './ReferencedMessageFormatter.mock.js';
+export { getReferencedMessageFormatterMock } from './ReferencedMessageFormatter.mock.js';
 
-export {
-  mockUserReferenceResolver,
-  getUserReferenceResolverMock,
-  resetUserReferenceResolverMock,
-  type MockUserReferenceResolverInstance,
-} from './UserReferenceResolver.mock.js';
+export { getUserReferenceResolverMock } from './UserReferenceResolver.mock.js';
 
 // Utility function mocks
-export {
-  mockProcessAttachments,
-  mockMultimodalProcessor,
-  mockStripResponseArtifacts,
-  mockResponseCleanup,
-  mockReplacePromptPlaceholders,
-  mockPromptPlaceholders,
-  mockLogAndThrow,
-  mockErrorHandling,
-  resetUtilityMocks,
-} from './utils.mock.js';
+export { mockProcessAttachments, mockReplacePromptPlaceholders } from './utils.mock.js';
 
 // Fixtures
 export * from './fixtures/index.js';

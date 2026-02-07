@@ -24,8 +24,6 @@ import {
 import type { EmbeddingServiceInterface } from './duplicateDetectionTypes.js';
 
 // Re-export types for convenience
-export type { EmbeddingServiceInterface, DuplicateCheckResult } from './duplicateDetectionTypes.js';
-
 const logger = createLogger('CrossTurnDetection');
 
 /** Minimum response length to check for cross-turn similarity */
@@ -157,6 +155,7 @@ export function isCrossTurnDuplicate(
  * @param threshold Similarity threshold (default 0.85)
  * @returns Object with isDuplicate flag and matchIndex
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export function isRecentDuplicate(
   newResponse: string,
   recentMessages: string[],

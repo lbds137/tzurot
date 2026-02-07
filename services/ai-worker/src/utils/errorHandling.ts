@@ -10,12 +10,12 @@ import type { Logger } from 'pino';
 /**
  * Additional context to include in error logs
  */
-export type ErrorContext = Record<string, unknown>;
+type ErrorContext = Record<string, unknown>;
 
 /**
  * Structured error details extracted from an error object
  */
-export interface ErrorDetails {
+interface ErrorDetails {
   errorType: string;
   errorMessage: string;
   [key: string]: unknown;

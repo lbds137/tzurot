@@ -9,7 +9,7 @@ import { vi } from 'vitest';
 /**
  * Type definition for the LongTermMemoryService mock instance
  */
-export interface MockLongTermMemoryServiceInstance {
+interface MockLongTermMemoryServiceInstance {
   storeInteraction: ReturnType<typeof vi.fn>;
 }
 

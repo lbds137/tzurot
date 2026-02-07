@@ -18,7 +18,7 @@ const RETENTION_HOURS = 24;
 /**
  * Result of cleanup operation
  */
-export interface DiagnosticCleanupResult {
+interface DiagnosticCleanupResult {
   /** Number of diagnostic logs deleted */
   deletedCount: number;
   /** Cutoff timestamp used for deletion */

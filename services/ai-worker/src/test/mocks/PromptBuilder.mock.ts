@@ -10,7 +10,7 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 /**
  * Type definition for the PromptBuilder mock instance
  */
-export interface MockPromptBuilderInstance {
+interface MockPromptBuilderInstance {
   formatUserMessage: ReturnType<typeof vi.fn>;
   buildSearchQuery: ReturnType<typeof vi.fn>;
   buildFullSystemPrompt: ReturnType<typeof vi.fn>;
