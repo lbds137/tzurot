@@ -155,6 +155,18 @@ _This week's active work. Max 3 items._
 
 _Small tasks that can be done between major features. Good for momentum._
 
+### 🏗️ Schema Cleanup: Remove Legacy `extendedContext*` Columns
+
+**Context**: `extendedContext` toggle was removed — always enabled now. New context columns (`maxMessages`, `maxAge`, `maxImages`) replaced it. Legacy columns still exist in DB.
+
+**Prerequisite**: Verify new context columns working in production first.
+
+- [ ] Migration: Remove `extendedContext*` columns from AdminSettings
+- [ ] Migration: Remove `extendedContext*` columns from ChannelSettings
+- [ ] Migration: Remove `extendedContext*` columns from Personality
+- [ ] Delete `getRecentHistory()` method (if still present)
+- [ ] Clean up Prisma schema definitions
+
 ### ✨ Bot Health Status
 
 Admin command showing bot health and diagnostics.

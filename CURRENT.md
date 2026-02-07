@@ -1,49 +1,36 @@
 # Current
 
-> **Session**: 2026-02-05
+> **Session**: 2026-02-06
 > **Version**: v3.0.0-beta.67
 > **Branch**: `develop`
 
 ---
 
-## Just Released: v3.0.0-beta.67
+## Recently Completed
 
-### Service Layer Consolidation
+### Negative Caching for Vision Failures (PR #586)
 
-- **LlmConfigService** - Unified service with scope-based access (GLOBAL/USER)
-- **Shared schemas** - `LlmConfigCreateSchema`, `LlmConfigUpdateSchema` in common-types
-- **Context settings** - `maxMessages`, `maxAge`, `maxImages` with cascade behavior
-- **Feature parity** - User routes now support all memory settings
+Two-tier negative cache prevents re-hammering failed vision API calls:
 
-**PRs merged**: #582, #583, #584
+- Transient failures → L1 Redis cooldown (10 min)
+- Permanent failures → L1 Redis (1h) + L2 PostgreSQL
+- User-friendly fallback labels (`[Image unavailable: API key issue]`)
+- New `failureCategory` column on `ImageDescriptionCache`
 
----
+### Incremental Refactoring (PRs #580–#584)
 
-## Remaining Plan Items
+- Phase 0: Claude Code config → rules files
+- Phase 1: LlmConfigService consolidation
+- Phase 1.5: Personality service consolidation
+- Phase 3: Reasoning modernization (fetch wrapper retained — LangChain upstream limitation)
 
-**Full plan**: `~/.claude/plans/tender-tinkering-stonebraker.md`
-
-### Phase 2: Schema Cleanup (DEFERRED)
-
-Waiting for production verification of new context columns before removing legacy `extendedContext*` columns.
-
-- [ ] Remove `extendedContext*` columns from AdminSettings/ChannelSettings/Personality
-- [ ] Delete `getRecentHistory()` method
-- [ ] Clean up Prisma schema
-
-### Phase 3: Reasoning/Thinking Modernization (FUTURE)
-
-- [ ] Switch to unified `reasoning` parameter
-- [ ] Simplify extraction to use `additional_kwargs`
-- [ ] Verify reasoning not stored in conversation history
-- [ ] Add model capability detection for reasoning support (fixes GLM 400 errors)
-
-**Note**: This phase should resolve the Production Issue "Free Model Error Handling (GLM/Z-AI)" by detecting which models support reasoning and handling responses that return thinking without final content.
+**Remaining**: Schema cleanup (remove legacy `extendedContext*` columns) — moved to BACKLOG Quick Wins, pending production verification.
 
 ---
 
 ## Session Notes
 
+**2026-02-06**: Negative caching merged. Plan files cleaned up — remaining schema cleanup moved to BACKLOG.
 **2026-02-05**: Backlog reorganization complete. See `.claude/rules/06-backlog.md` for structure documentation.
 
 ---
