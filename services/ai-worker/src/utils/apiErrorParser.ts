@@ -105,6 +105,7 @@ function extractStatusCode(error: unknown): number | undefined {
   }
 
   // Response object with status
+  // eslint-disable-next-line sonarjs/no-collapsible-if -- pre-existing
   if (isErrorObject(error.response)) {
     if (typeof error.response.status === 'number') {
       return error.response.status;
@@ -112,6 +113,7 @@ function extractStatusCode(error: unknown): number | undefined {
   }
 
   // Status in cause
+  // eslint-disable-next-line sonarjs/no-collapsible-if -- pre-existing
   if (isErrorObject(error.cause)) {
     if (typeof error.cause.status === 'number') {
       return error.cause.status;
@@ -350,6 +352,6 @@ export function getErrorLogContext(error: unknown): Record<string, unknown> {
     // Explicit naming to distinguish from internal job requestId
     openRouterRequestId: info.requestId,
     // Truncate technical message for logs (prevents log flooding)
-    technicalMessage: info.technicalMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH),
+    technicalMessage: info.technicalMessage?.substring(0, MAX_ERROR_MESSAGE_LENGTH),
   };
 }

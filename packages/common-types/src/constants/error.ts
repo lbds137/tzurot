@@ -172,26 +172,10 @@ export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
 ]);
 
 /**
- * Structured error info for consistent error handling
+ * Structured error info for consistent error handling.
+ * Derived from errorInfoSchema (Zod) in schemas.ts — single source of truth.
  */
-export interface ApiErrorInfo {
-  /** Error type for retry logic */
-  type: ApiErrorType;
-  /** Specific error category */
-  category: ApiErrorCategory;
-  /** HTTP status code if available */
-  statusCode?: number;
-  /** User-friendly message */
-  userMessage: string;
-  /** Technical details for logging */
-  technicalMessage: string;
-  /** Unique reference ID for support */
-  referenceId: string;
-  /** Whether this error should be retried */
-  shouldRetry: boolean;
-  /** OpenRouter request ID if available (for support) */
-  requestId?: string;
-}
+export type { ErrorInfo as ApiErrorInfo } from '../types/schemas.js';
 
 /**
  * Generate a unique error reference ID
@@ -249,11 +233,18 @@ export const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
  * Format error details for Discord spoiler tags
  * @param category - Error category for context
  * @param referenceId - Unique reference ID
+ * @param technicalMessage - Optional technical detail (e.g., "402 Payment Required")
  * @returns Formatted spoiler text
  */
-export function formatErrorSpoiler(category: ApiErrorCategory, referenceId: string): string {
+export function formatErrorSpoiler(
+  category: ApiErrorCategory,
+  referenceId: string,
+  technicalMessage?: string
+): string {
   const categoryLabel = category.replace(/_/g, ' ');
-  return `||*(error: ${categoryLabel}; reference: ${referenceId})*||`;
+  const techPart =
+    technicalMessage !== undefined && technicalMessage.length > 0 ? ` — "${technicalMessage}"` : '';
+  return `||*(error: ${categoryLabel}${techPart}; ref: ${referenceId})*||`;
 }
 
 /**
@@ -262,14 +253,16 @@ export function formatErrorSpoiler(category: ApiErrorCategory, referenceId: stri
  * @param personalityMessage - The personality's configured error message
  * @param category - Error category
  * @param referenceId - Unique reference ID
+ * @param technicalMessage - Optional technical detail for the spoiler
  * @returns Message with error details in spoiler tags
  */
 export function formatPersonalityErrorMessage(
   personalityMessage: string,
   category: ApiErrorCategory,
-  referenceId: string
+  referenceId: string,
+  technicalMessage?: string
 ): string {
-  const spoilerContent = formatErrorSpoiler(category, referenceId);
+  const spoilerContent = formatErrorSpoiler(category, referenceId, technicalMessage);
 
   // Cap message length to prevent abuse
   const safeMessage = personalityMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);

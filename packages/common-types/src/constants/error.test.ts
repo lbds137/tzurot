@@ -168,17 +168,36 @@ describe('isTransientError', () => {
 describe('formatErrorSpoiler', () => {
   it('should format category and reference ID in spoiler tags', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.QUOTA_EXCEEDED, 'abc123');
-    expect(result).toBe('||*(error: quota exceeded; reference: abc123)*||');
+    expect(result).toBe('||*(error: quota exceeded; ref: abc123)*||');
   });
 
   it('should replace underscores with spaces in category', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.EMPTY_RESPONSE, 'xyz789');
-    expect(result).toBe('||*(error: empty response; reference: xyz789)*||');
+    expect(result).toBe('||*(error: empty response; ref: xyz789)*||');
   });
 
   it('should handle single-word categories', () => {
     const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001');
-    expect(result).toBe('||*(error: timeout; reference: ref001)*||');
+    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
+  });
+
+  it('should include technicalMessage when provided', () => {
+    const result = formatErrorSpoiler(
+      ApiErrorCategory.QUOTA_EXCEEDED,
+      'abc123',
+      '402 Payment Required'
+    );
+    expect(result).toBe('||*(error: quota exceeded — "402 Payment Required"; ref: abc123)*||');
+  });
+
+  it('should omit technicalMessage when undefined', () => {
+    const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', undefined);
+    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
+  });
+
+  it('should omit technicalMessage when empty string', () => {
+    const result = formatErrorSpoiler(ApiErrorCategory.TIMEOUT, 'ref001', '');
+    expect(result).toBe('||*(error: timeout; ref: ref001)*||');
   });
 });
 
@@ -188,14 +207,12 @@ describe('formatPersonalityErrorMessage', () => {
   it('should append error spoiler to personality message', () => {
     const input = 'I had trouble thinking...';
     const result = formatPersonalityErrorMessage(input, ApiErrorCategory.SERVER_ERROR, testRefId);
-    expect(result).toBe(
-      'I had trouble thinking... ||*(error: server error; reference: test123)*||'
-    );
+    expect(result).toBe('I had trouble thinking... ||*(error: server error; ref: test123)*||');
   });
 
   it('should handle empty personality message', () => {
     const result = formatPersonalityErrorMessage('', ApiErrorCategory.TIMEOUT, testRefId);
-    expect(result).toBe(' ||*(error: timeout; reference: test123)*||');
+    expect(result).toBe(' ||*(error: timeout; ref: test123)*||');
   });
 
   it('should include category in error spoiler', () => {
@@ -204,7 +221,29 @@ describe('formatPersonalityErrorMessage', () => {
       ApiErrorCategory.QUOTA_EXCEEDED,
       testRefId
     );
-    expect(result).toBe('Oops! ||*(error: quota exceeded; reference: test123)*||');
+    expect(result).toBe('Oops! ||*(error: quota exceeded; ref: test123)*||');
+  });
+
+  it('should pass through technicalMessage to spoiler', () => {
+    const result = formatPersonalityErrorMessage(
+      'Oops!',
+      ApiErrorCategory.QUOTA_EXCEEDED,
+      testRefId,
+      '402 Payment Required'
+    );
+    expect(result).toBe(
+      'Oops! ||*(error: quota exceeded — "402 Payment Required"; ref: test123)*||'
+    );
+  });
+
+  it('should work without technicalMessage', () => {
+    const result = formatPersonalityErrorMessage(
+      'Error!',
+      ApiErrorCategory.TIMEOUT,
+      testRefId,
+      undefined
+    );
+    expect(result).toBe('Error! ||*(error: timeout; ref: test123)*||');
   });
 });
 
@@ -272,17 +311,17 @@ describe('TRANSIENT_ERROR_CATEGORIES', () => {
 
 describe('stripErrorSpoiler', () => {
   it('should remove error spoiler from end of message', () => {
-    const input = 'Oops! Something went wrong ||*(error: timeout; reference: abc123)*||';
+    const input = 'Oops! Something went wrong ||*(error: timeout; ref: abc123)*||';
     expect(stripErrorSpoiler(input)).toBe('Oops! Something went wrong');
   });
 
   it('should remove error spoiler with different categories', () => {
-    const input = 'I had trouble thinking... ||*(error: quota exceeded; reference: xyz789)*||';
+    const input = 'I had trouble thinking... ||*(error: quota exceeded; ref: xyz789)*||';
     expect(stripErrorSpoiler(input)).toBe('I had trouble thinking...');
   });
 
   it('should handle message with only spoiler', () => {
-    const input = '||*(error: server error; reference: ref001)*||';
+    const input = '||*(error: server error; ref: ref001)*||';
     expect(stripErrorSpoiler(input)).toBe('');
   });
 
@@ -303,7 +342,12 @@ describe('stripErrorSpoiler', () => {
   });
 
   it('should trim whitespace after removing spoiler', () => {
-    const input = 'Error message   ||*(error: timeout; reference: ref)*||';
+    const input = 'Error message   ||*(error: timeout; ref: ref)*||';
     expect(stripErrorSpoiler(input)).toBe('Error message');
+  });
+
+  it('should strip spoiler with technicalMessage', () => {
+    const input = 'Oops! ||*(error: quota exceeded — "402 Payment Required"; ref: abc123)*||';
+    expect(stripErrorSpoiler(input)).toBe('Oops!');
   });
 });
