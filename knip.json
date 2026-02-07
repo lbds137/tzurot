@@ -3,27 +3,33 @@
   "ignoreWorkspaces": ["scripts", "tests"],
   "workspaces": {
     ".": {
-      "vitest": false
+      "vitest": false,
+      "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
     },
     "services/bot-client": {
-      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
+      "ignoreDependencies": ["redis"]
     },
     "services/api-gateway": {
-      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
+      "ignoreDependencies": ["openai", "pino", "redis"]
     },
     "services/ai-worker": {
-      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
+      "ignoreDependencies": ["langchain", "onnxruntime-node", "redis", "sharp"]
     },
     "packages/common-types": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
-      "includeEntryExports": true
+      "includeEntryExports": true,
+      "ignoreDependencies": ["openai", "pg", "redis"]
     },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"]
     },
     "packages/embeddings": {
       "entry": ["src/**/*.test.ts"],
-      "includeEntryExports": true
+      "includeEntryExports": true,
+      "ignoreDependencies": ["@huggingface/transformers", "onnxruntime-node"]
     },
     "packages/test-utils": {
       "includeEntryExports": true

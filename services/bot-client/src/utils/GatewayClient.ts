@@ -58,20 +58,6 @@ export function clearAllChannelSettingsCache(): void {
 }
 
 /**
- * Alias for testing compatibility
- * @internal For testing only
- */
-export const _clearChannelSettingsCacheForTesting = clearAllChannelSettingsCache;
-
-// Backward compatibility aliases
-/** @deprecated Use invalidateChannelSettingsCache */
-export const invalidateChannelActivationCache = invalidateChannelSettingsCache;
-/** @deprecated Use clearAllChannelSettingsCache */
-export const clearAllChannelActivationCache = clearAllChannelSettingsCache;
-/** @deprecated Use _clearChannelSettingsCacheForTesting */
-export const _clearChannelActivationCacheForTesting = clearAllChannelSettingsCache;
-
-/**
  * Clear admin settings cache.
  * @internal For testing only
  */

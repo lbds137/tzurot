@@ -28,11 +28,6 @@ export const ChannelSettingsSchema = z.object({
 });
 export type ChannelSettings = z.infer<typeof ChannelSettingsSchema>;
 
-/** @deprecated Use ChannelSettingsSchema - kept for backward compatibility during migration */
-export const ActivatedChannelSchema = ChannelSettingsSchema;
-/** @deprecated Use ChannelSettings - kept for backward compatibility during migration */
-export type ActivatedChannel = ChannelSettings;
-
 // ============================================================================
 // POST /user/channel/activate
 // Activates a personality in a channel (replaces any existing activation)

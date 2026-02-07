@@ -12,7 +12,7 @@ import { StatusCodes } from 'http-status-codes';
 import {
   type PrismaClient,
   Prisma,
-  GetAdminSettingsResponseSchema,
+  AdminSettingsSchema,
   ADMIN_SETTINGS_SINGLETON_ID,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -68,7 +68,7 @@ export function createAdminSettingsRoutes(prisma: PrismaClient): Router {
         updatedAt: settings.updatedAt.toISOString(),
       };
 
-      GetAdminSettingsResponseSchema.parse(response);
+      AdminSettingsSchema.parse(response);
       sendCustomSuccess(res, response, StatusCodes.OK);
     })
   );

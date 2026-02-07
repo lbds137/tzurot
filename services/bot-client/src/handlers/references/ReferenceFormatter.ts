@@ -5,10 +5,10 @@
  * Separates view concerns from extraction/traversal logic
  */
 
-import { Message, MessageReferenceType } from 'discord.js';
+import type { Message } from 'discord.js';
 import { createLogger, type ReferencedMessage } from '@tzurot/common-types';
 import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
-import type { ReferenceMetadata } from './types.js';
+import { isForwardedMessage, type ReferenceMetadata } from './types.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
 
@@ -40,6 +40,7 @@ export class ReferenceFormatter {
    * @param maxReferences - Maximum number of references to include
    * @returns Formatted references and updated content
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
   async format(
     originalContent: string,
     crawledMessages: Map<string, { message: Message; metadata: ReferenceMetadata }>,
@@ -77,10 +78,7 @@ export class ReferenceFormatter {
 
     for (const { message, metadata } of selected) {
       // Check if this is a forwarded message with snapshots
-      if (
-        message.reference?.type === MessageReferenceType.Forward &&
-        message.messageSnapshots?.size
-      ) {
+      if (isForwardedMessage(message)) {
         // Extract each snapshot from the forward as a separate reference
         for (const snapshot of message.messageSnapshots.values()) {
           const snapshotReference = this.snapshotFormatter.formatSnapshot(
