@@ -130,7 +130,7 @@ function computePackageSummary(
  * Run the xray analysis: discover → parse → format → output.
  */
 export async function runXray(options: XrayOptions = {}): Promise<void> {
-  const { format = 'terminal', output } = options;
+  const { format = 'terminal', output, summary = false } = options;
   const rootDir = process.cwd();
 
   const start = performance.now();
@@ -145,11 +145,11 @@ export async function runXray(options: XrayOptions = {}): Promise<void> {
       break;
     }
     case 'md': {
-      result = formatMarkdown(report, rootDir);
+      result = formatMarkdown(report, rootDir, { summary });
       break;
     }
     default: {
-      result = formatTerminal(report, rootDir);
+      result = formatTerminal(report, rootDir, { summary });
       break;
     }
   }

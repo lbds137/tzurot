@@ -20,8 +20,17 @@ const HEALTH_THRESHOLDS = {
   avgDeclarationsPerFile: 8,
 } as const;
 
+interface FormatOptions {
+  summary?: boolean;
+}
+
 // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
-export function formatTerminal(report: XrayReport, rootDir: string): string {
+export function formatTerminal(
+  report: XrayReport,
+  rootDir: string,
+  options: FormatOptions = {}
+): string {
+  const { summary: summaryOnly = false } = options;
   const lines: string[] = [];
 
   lines.push(chalk.cyan.bold(SEPARATOR));
@@ -68,8 +77,10 @@ export function formatTerminal(report: XrayReport, rootDir: string): string {
         `  ${chalk.green(relPath)} ${lineInfo} ${chalk.dim(`(${declCount} decl)`)}${suppressionInfo}`
       );
 
-      for (const decl of file.declarations) {
-        lines.push(`    ${formatDeclaration(decl)}`);
+      if (!summaryOnly) {
+        for (const decl of file.declarations) {
+          lines.push(`    ${formatDeclaration(decl)}`);
+        }
       }
 
       lines.push('');

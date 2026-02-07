@@ -152,6 +152,40 @@ Version management:
 
 These use `gh api` directly, bypassing the broken GraphQL calls.
 
+## Xray Commands
+
+Analyze TypeScript codebase structure via AST parsing. Extracts classes, functions, interfaces, types, imports, and lint suppressions.
+
+| Command                                 | Description                                   |
+| --------------------------------------- | --------------------------------------------- |
+| `pnpm ops xray`                         | Full analysis (terminal format)               |
+| `pnpm ops xray --summary`               | File-level overview (no per-declaration list) |
+| `pnpm ops xray bot-client`              | Analyze a single package                      |
+| `pnpm ops xray bot-client ai-worker`    | Analyze multiple packages                     |
+| `pnpm ops xray --format md`             | Markdown output (GFM tables, for LLMs)        |
+| `pnpm ops xray --format json`           | JSON output (for tooling)                     |
+| `pnpm ops xray --summary --output f.md` | Write summary to file                         |
+| `pnpm ops xray --include-private`       | Include non-exported declarations             |
+| `pnpm ops xray --include-tests`         | Include test files                            |
+| `pnpm ops xray --imports`               | Include import analysis (auto for md/json)    |
+
+**Options:**
+
+- `--format <fmt>` - Output format: `terminal` (default), `md`, `json`
+- `--summary` - File-level overview without individual declarations (64% smaller output)
+- `--include-private` - Include non-exported declarations (default: exported only)
+- `--include-tests` - Include `*.test.ts` and `*.spec.ts` files
+- `--imports` - Include import analysis (defaults to on for md/json, off for terminal)
+- `--output <file>` - Write to file instead of stdout
+
+**Health warnings:** Xray flags packages that exceed thresholds (>3000 lines, >40 files, >50 exports, >400-line files, >8 avg decl/file, >20 lint suppressions).
+
+**Suppression tracking:** Counts `eslint-disable`, `eslint-disable-next-line`, `@ts-expect-error`, and `@ts-nocheck` comments as tech debt signals. Extracts rule names and justifications where present.
+
+**Generated code:** `generated/` directories are automatically excluded from analysis.
+
+**Use case:** Architectural overview, tech debt assessment, LLM context for refactoring.
+
 ## Test Audit Commands
 
 Ratchet audits to enforce test coverage (CI runs these automatically):

@@ -8,12 +8,21 @@ import { relative } from 'node:path';
 
 import type { Declaration, FileInfo, PackageInfo, SuppressionInfo, XrayReport } from '../types.js';
 
-export function formatMarkdown(report: XrayReport, rootDir: string): string {
+interface FormatOptions {
+  summary?: boolean;
+}
+
+export function formatMarkdown(
+  report: XrayReport,
+  rootDir: string,
+  options: FormatOptions = {}
+): string {
+  const { summary: summaryOnly = false } = options;
   const sections = [
     formatHeader(report),
     formatSummaryTable(report),
     formatHealthWarnings(report),
-    ...report.packages.map(pkg => formatPackageDetail(pkg, rootDir)),
+    ...report.packages.map(pkg => formatPackageDetail(pkg, rootDir, summaryOnly)),
   ];
 
   return sections.filter(s => s !== '').join('\n');
@@ -83,25 +92,38 @@ function formatHealthWarnings(report: XrayReport): string {
   return lines.join('\n');
 }
 
-function formatPackageDetail(pkg: PackageInfo, rootDir: string): string {
+function formatPackageDetail(pkg: PackageInfo, rootDir: string, summaryOnly: boolean): string {
   const lines: string[] = [];
 
   lines.push(`## ${pkg.name}`);
   lines.push('');
 
   for (const file of pkg.files) {
-    lines.push(formatFileDetail(file, rootDir));
+    lines.push(formatFileDetail(file, rootDir, summaryOnly));
   }
 
   return lines.join('\n');
 }
 
-function formatFileDetail(file: FileInfo, rootDir: string): string {
+function formatFileDetail(file: FileInfo, rootDir: string, summaryOnly: boolean): string {
   const lines: string[] = [];
   const relPath = relative(rootDir, file.path);
+  const declCount = file.declarations.length;
+  const suppressCount = file.suppressions.length;
+  const extras = suppressCount > 0 ? `, ${suppressCount} suppressions` : '';
 
-  lines.push(`### \`${relPath}\` (${file.lineCount} lines)`);
+  lines.push(`### \`${relPath}\` (${file.lineCount} lines, ${declCount} decl${extras})`);
   lines.push('');
+
+  if (summaryOnly) return lines.join('\n');
+
+  lines.push(...formatFileDeclarations(file));
+
+  return lines.join('\n');
+}
+
+function formatFileDeclarations(file: FileInfo): string[] {
+  const lines: string[] = [];
 
   if (file.declarations.length > 0) {
     lines.push('| Export | Kind | Name | Signature | Lines |');
@@ -112,24 +134,21 @@ function formatFileDetail(file: FileInfo, rootDir: string): string {
     lines.push('');
   }
 
-  // Class members
   for (const decl of file.declarations) {
     if (decl.kind === 'class' && decl.members !== undefined && decl.members.length > 0) {
       lines.push(formatClassMembers(decl));
     }
   }
 
-  // Suppressions
   if (file.suppressions.length > 0) {
     lines.push(formatSuppressionsDetail(file.suppressions));
   }
 
-  // Imports
   if (file.imports.length > 0) {
     lines.push(formatImportsDetail(file));
   }
 
-  return lines.join('\n');
+  return lines;
 }
 
 function formatClassMembers(decl: Declaration): string {
