@@ -74,7 +74,7 @@ export const LlmConfigSchema = z
 /**
  * Inferred TypeScript type from the Zod schema
  */
-export type LlmConfig = z.infer<typeof LlmConfigSchema>;
+type LlmConfig = z.infer<typeof LlmConfigSchema>;
 
 /**
  * Safely parses an unknown database object into a clean LlmConfig object

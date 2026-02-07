@@ -38,7 +38,6 @@ export const ActivateChannelRequestSchema = z.object({
   personalitySlug: z.string().min(1),
   guildId: z.string().min(1),
 });
-export type ActivateChannelRequest = z.infer<typeof ActivateChannelRequestSchema>;
 
 export const ActivateChannelResponseSchema = z.object({
   activation: ChannelSettingsSchema,
@@ -54,7 +53,6 @@ export type ActivateChannelResponse = z.infer<typeof ActivateChannelResponseSche
 export const DeactivateChannelRequestSchema = z.object({
   channelId: z.string().min(1),
 });
-export type DeactivateChannelRequest = z.infer<typeof DeactivateChannelRequestSchema>;
 
 export const DeactivateChannelResponseSchema = z.object({
   deactivated: z.boolean(),
@@ -78,9 +76,6 @@ export const GetChannelActivationResponseSchema = z.object({
   isActivated: z.boolean(),
   activation: ChannelSettingsSchema.optional(),
 });
-/** @deprecated Use GetChannelSettingsResponse */
-export type GetChannelActivationResponse = z.infer<typeof GetChannelActivationResponseSchema>;
-
 // ============================================================================
 // GET /user/channel/list
 // Lists all channel settings (optionally filtered by guild)
@@ -96,9 +91,6 @@ export type ListChannelSettingsResponse = z.infer<typeof ListChannelSettingsResp
 export const ListChannelActivationsResponseSchema = z.object({
   activations: z.array(ChannelSettingsSchema),
 });
-/** @deprecated Use ListChannelActivationsResponse */
-export type ListChannelActivationsResponse = z.infer<typeof ListChannelActivationsResponseSchema>;
-
 // ============================================================================
 // PATCH /user/channel/update-guild
 // Updates guildId for an existing channel settings record
@@ -108,9 +100,7 @@ export const UpdateChannelGuildRequestSchema = z.object({
   channelId: z.string().min(1),
   guildId: z.string().min(1),
 });
-export type UpdateChannelGuildRequest = z.infer<typeof UpdateChannelGuildRequestSchema>;
 
 export const UpdateChannelGuildResponseSchema = z.object({
   updated: z.boolean(),
 });
-export type UpdateChannelGuildResponse = z.infer<typeof UpdateChannelGuildResponseSchema>;

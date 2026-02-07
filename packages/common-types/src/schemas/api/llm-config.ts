@@ -67,8 +67,6 @@ export const ContextSettingsSchema = z.object({
     .optional(),
 });
 
-export type ContextSettings = z.infer<typeof ContextSettingsSchema>;
-
 // ============================================================================
 // Input Schemas (shared between admin and user endpoints)
 // ============================================================================

@@ -57,7 +57,7 @@ export interface AutocompleteOptionConfig {
 }
 
 /** Standard autocomplete option structure for Discord.js */
-export interface AutocompleteOption {
+interface AutocompleteOption {
   /** Formatted display string shown to user */
   name: string;
   /** Value returned when user selects this option */

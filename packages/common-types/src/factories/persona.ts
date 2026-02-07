@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- pre-existing: test factory data with repeated literals */
 /**
  * Validated Mock Factories for Persona API Responses
  *
@@ -17,7 +18,6 @@ import {
   ListPersonasResponseSchema,
   GetPersonaResponseSchema,
   CreatePersonaResponseSchema,
-  UpdatePersonaResponseSchema,
   SetDefaultPersonaResponseSchema,
   UpdatePersonaSettingsResponseSchema,
   OverrideInfoResponseSchema,
@@ -27,7 +27,6 @@ import {
   type ListPersonasResponse,
   type GetPersonaResponse,
   type CreatePersonaResponse,
-  type UpdatePersonaResponse,
   type SetDefaultPersonaResponse,
   type UpdatePersonaSettingsResponse,
   type OverrideInfoResponse,
@@ -173,24 +172,6 @@ export function mockCreatePersonaResponse(
     setAsDefault: false,
   };
   return CreatePersonaResponseSchema.parse(deepMerge(base, overrides));
-}
-
-// ============================================================================
-// Update Persona (PUT /user/persona/:id)
-// ============================================================================
-
-/**
- * Create a validated mock for PUT /user/persona/:id
- * @throws ZodError if the resulting mock doesn't match the schema
- */
-export function mockUpdatePersonaResponse(
-  overrides?: DeepPartial<UpdatePersonaResponse>
-): UpdatePersonaResponse {
-  const base: UpdatePersonaResponse = {
-    success: true,
-    persona: createBasePersonaDetails(),
-  };
-  return UpdatePersonaResponseSchema.parse(deepMerge(base, overrides));
 }
 
 // ============================================================================

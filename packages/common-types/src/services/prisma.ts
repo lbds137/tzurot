@@ -59,4 +59,3 @@ export { PrismaClient, Prisma } from '../generated/prisma/client.js';
 
 // Explicitly re-export Null types from runtime library to fix TypeScript type inference
 // issues with pnpm workspaces (TS2742 errors about non-portable type references)
-export { DbNull, JsonNull, AnyNull } from '@prisma/client-runtime-utils';

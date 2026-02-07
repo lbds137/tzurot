@@ -42,7 +42,7 @@ export interface ConversationMessage {
 /**
  * Options for adding a message to conversation history
  */
-export interface AddMessageOptions {
+interface AddMessageOptions {
   /** Discord channel ID */
   channelId: string;
   /** Personality ID */

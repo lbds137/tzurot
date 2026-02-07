@@ -103,8 +103,6 @@ const EXCLUDE_PATTERNS = [
   /Base[A-Z].*\.ts$/,
   // Job utils (tested via integration in conversationUtils.test.ts)
   /\/jobs\/utils\//,
-  // Circuit breaker (infrastructure pattern)
-  /CircuitBreaker\.ts$/,
   // Browse helpers (UI helpers tested via command tests)
   /browseHelpers\.ts$/,
 ];

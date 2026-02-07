@@ -13,7 +13,7 @@ import { AI_DEFAULTS } from '../constants/ai.js';
 /**
  * Result of splitting text by tokens
  */
-export interface ChunkResult {
+interface ChunkResult {
   /** Array of text chunks, each within the token limit */
   chunks: string[];
   /** Token count of the original (unsplit) text */
@@ -25,7 +25,7 @@ export interface ChunkResult {
 /**
  * Options for text chunking
  */
-export interface ChunkOptions {
+interface ChunkOptions {
   /**
    * Tiktoken model for token counting (default: 'gpt-4')
    *

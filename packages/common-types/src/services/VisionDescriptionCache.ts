@@ -38,7 +38,7 @@ const L2_RETRY_CONFIG = {
 const logger = createLogger('VisionDescriptionCache');
 
 /** Options for cache key generation */
-export interface VisionCacheKeyOptions {
+interface VisionCacheKeyOptions {
   /** Discord attachment ID (stable, preferred) */
   attachmentId?: string;
   /** Image URL (fallback) */
@@ -46,13 +46,13 @@ export interface VisionCacheKeyOptions {
 }
 
 /** Options for storing with L2 cache */
-export interface VisionStoreOptions extends VisionCacheKeyOptions {
+interface VisionStoreOptions extends VisionCacheKeyOptions {
   /** Model that generated the description (for L2 cache) */
   model?: string;
 }
 
 /** Options for storing a vision failure */
-export interface VisionFailureOptions extends VisionCacheKeyOptions {
+interface VisionFailureOptions extends VisionCacheKeyOptions {
   /** Error category (e.g., 'authentication', 'rate_limit') */
   category: string;
   /** True = permanent failure (auth, content policy); false = transient (timeout, rate limit) */
@@ -60,7 +60,7 @@ export interface VisionFailureOptions extends VisionCacheKeyOptions {
 }
 
 /** Cached failure entry returned from getFailure */
-export interface VisionFailureEntry {
+interface VisionFailureEntry {
   /** Error category */
   category: string;
   /** Whether this is a permanent failure */

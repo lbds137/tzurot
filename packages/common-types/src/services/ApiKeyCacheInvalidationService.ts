@@ -28,11 +28,6 @@ import type { Redis } from 'ioredis';
 export type ApiKeyInvalidationEvent = StandardInvalidationEvent;
 
 /**
- * Callback function for handling invalidation events
- */
-export type ApiKeyInvalidationCallback = (event: ApiKeyInvalidationEvent) => void;
-
-/**
  * Type guard to validate ApiKeyInvalidationEvent structure
  */
 export const isValidApiKeyInvalidationEvent =

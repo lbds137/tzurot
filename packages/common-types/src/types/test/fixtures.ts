@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- pre-existing: test fixture data */
 /**
  * Shared Test Fixtures for Contract Tests
  *
@@ -6,12 +7,7 @@
  */
 
 import { MessageRole } from '../../constants/message.js';
-import type {
-  LoadedPersonality,
-  RequestContext,
-  AttachmentMetadata,
-  ReferencedMessage,
-} from '../api-types.js';
+import type { LoadedPersonality, RequestContext, AttachmentMetadata } from '../api-types.js';
 import type { ResponseDestination } from '../jobs.js';
 
 /**
@@ -104,68 +100,12 @@ export const AUDIO_ATTACHMENT: AttachmentMetadata = {
 };
 
 /**
- * Standard image attachment for vision tests
- */
-export const IMAGE_ATTACHMENT: AttachmentMetadata = {
-  url: 'https://example.com/image.png',
-  contentType: 'image/png',
-  name: 'image.png',
-  size: 2048,
-};
-
-/**
- * Standard PDF attachment for document tests
- */
-export const PDF_ATTACHMENT: AttachmentMetadata = {
-  url: 'https://example.com/document.pdf',
-  contentType: 'application/pdf',
-  name: 'document.pdf',
-  size: 4096,
-};
-
-/**
  * Standard Discord response destination
  */
 export const DISCORD_DESTINATION: ResponseDestination = {
   type: 'discord',
   channelId: 'channel-123',
 };
-
-/**
- * Referenced message for reply context tests
- */
-export const REFERENCED_MESSAGE: ReferencedMessage = {
-  referenceNumber: 1,
-  discordMessageId: 'msg-referenced',
-  discordUserId: 'user-456',
-  authorUsername: 'OtherUser',
-  authorDisplayName: 'Other User',
-  content: 'This is a referenced message',
-  embeds: '',
-  timestamp: new Date('2025-01-01T12:00:00Z').toISOString(),
-  locationContext: 'Test Server / #general',
-};
-
-/**
- * Conversation history with multiple turns
- */
-export const CONVERSATION_HISTORY = [
-  {
-    role: MessageRole.User,
-    content: 'Hello!',
-    createdAt: new Date('2025-01-01T10:00:00Z').toISOString(),
-  },
-  {
-    role: MessageRole.Assistant,
-    content: 'Hi there! How can I help you?',
-    createdAt: new Date('2025-01-01T10:00:05Z').toISOString(),
-  },
-  {
-    role: MessageRole.User,
-    content: 'Tell me about yourself',
-    createdAt: new Date('2025-01-01T10:01:00Z').toISOString(),
-  },
-];
 
 /**
  * Standard request IDs for different job types

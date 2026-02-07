@@ -10,7 +10,7 @@ import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
 const logger = createLogger('RedisUtils');
 
-export interface RedisConnectionConfig {
+interface RedisConnectionConfig {
   host: string;
   port: number;
   password?: string;
@@ -18,7 +18,7 @@ export interface RedisConnectionConfig {
   family?: 4 | 6;
 }
 
-export interface RedisSocketConfig {
+interface RedisSocketConfig {
   socket: {
     host: string;
     port: number;
@@ -36,7 +36,7 @@ export interface RedisSocketConfig {
   enableReadyCheck: boolean;
 }
 
-export interface BullMQRedisConfig {
+interface BullMQRedisConfig {
   host: string;
   port: number;
   password?: string;

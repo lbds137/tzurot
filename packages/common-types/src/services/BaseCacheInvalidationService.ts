@@ -28,7 +28,7 @@ import type { Redis } from 'ioredis';
 /**
  * Standard event types supported by all cache invalidation services
  */
-export interface BaseInvalidationEvent {
+interface BaseInvalidationEvent {
   type: string;
 }
 
@@ -56,7 +56,7 @@ export type StandardInvalidationEvent = UserInvalidationEvent | AllInvalidationE
 /**
  * Callback function for handling invalidation events
  */
-export type InvalidationCallback<TEvent> = (event: TEvent) => void;
+type InvalidationCallback<TEvent> = (event: TEvent) => void;
 
 /**
  * Type guard function signature
@@ -92,7 +92,7 @@ export function createStandardEventValidator<
 /**
  * Options for logging invalidation events
  */
-export interface InvalidationLogOptions<TEvent> {
+interface InvalidationLogOptions<TEvent> {
   /** Extract log context from event (e.g., { discordId: event.discordId }) */
   getLogContext?: (event: TEvent) => Record<string, unknown>;
   /** Get human-readable description for log message */

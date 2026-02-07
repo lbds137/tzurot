@@ -408,7 +408,7 @@ export const errorInfoSchema = z.object({
  * Following DRY principle while maintaining proper decoupling between
  * API contracts and internal formats.
  */
-export const generationPayloadSchema = z.object({
+const generationPayloadSchema = z.object({
   content: z.string(),
   attachmentDescriptions: z.string().optional(),
   referencedMessagesDescriptions: z.string().optional(),
@@ -566,7 +566,6 @@ export const historyHardDeleteResponseSchema = z.object({
 });
 
 // Infer TypeScript types from schemas
-export type CustomFields = z.infer<typeof customFieldsSchema>;
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type ErrorInfo = z.infer<typeof errorInfoSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
@@ -582,7 +581,6 @@ export type GuildMemberInfo = z.infer<typeof guildMemberInfoSchema>;
 export type LoadedPersonality = z.infer<typeof loadedPersonalitySchema>;
 export type RequestContext = z.infer<typeof requestContextSchema>;
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
-export type GenerationPayload = z.infer<typeof generationPayloadSchema>;
 export type LLMGenerationResult = z.infer<typeof llmGenerationResultSchema>;
 
 // History API types

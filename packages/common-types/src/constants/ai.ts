@@ -175,11 +175,6 @@ export const MODEL_DEFAULTS = {
 } as const;
 
 /**
- * Model name type derived from defaults
- */
-export type DefaultModelName = (typeof MODEL_DEFAULTS)[keyof typeof MODEL_DEFAULTS];
-
-/**
  * AI provider identifiers
  *
  * Note: Only OpenRouter is supported for user-facing BYOK. The system still uses

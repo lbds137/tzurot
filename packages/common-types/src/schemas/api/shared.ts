@@ -155,4 +155,3 @@ export const EntityPermissionsSchema = z.object({
   /** Whether the requesting user can delete this entity */
   canDelete: z.boolean(),
 });
-export type EntityPermissionsDto = z.infer<typeof EntityPermissionsSchema>;

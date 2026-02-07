@@ -16,11 +16,9 @@
 import { AIProvider } from '../constants/ai.js';
 import {
   ListWalletKeysResponseSchema,
-  SetWalletKeyResponseSchema,
   RemoveWalletKeyResponseSchema,
   TestWalletKeyResponseSchema,
   type ListWalletKeysResponse,
-  type SetWalletKeyResponse,
   type RemoveWalletKeyResponse,
   type TestWalletKeyResponse,
   type WalletKey,
@@ -101,25 +99,6 @@ export function mockListWalletKeysResponse(
 }
 
 // ============================================================================
-// Set Wallet Key (POST /wallet/set)
-// ============================================================================
-
-/**
- * Create a validated mock for POST /wallet/set
- * @throws ZodError if the resulting mock doesn't match the schema
- */
-export function mockSetWalletKeyResponse(
-  overrides?: DeepPartial<SetWalletKeyResponse>
-): SetWalletKeyResponse {
-  const base: SetWalletKeyResponse = {
-    success: true,
-    provider: AIProvider.OpenRouter,
-    timestamp: new Date().toISOString(),
-  };
-  return SetWalletKeyResponseSchema.parse(deepMerge(base, overrides));
-}
-
-// ============================================================================
 // Remove Wallet Key (DELETE /wallet/:provider)
 // ============================================================================
 
@@ -153,22 +132,6 @@ export function mockTestWalletKeyResponse(
   const base: TestWalletKeyResponse = {
     valid: true,
     provider: AIProvider.OpenRouter,
-    timestamp: new Date().toISOString(),
-  };
-  return TestWalletKeyResponseSchema.parse(deepMerge(base, overrides));
-}
-
-/**
- * Create a validated mock for POST /wallet/test (failed)
- * @throws ZodError if the resulting mock doesn't match the schema
- */
-export function mockTestWalletKeyFailedResponse(
-  overrides?: DeepPartial<TestWalletKeyResponse>
-): TestWalletKeyResponse {
-  const base: TestWalletKeyResponse = {
-    valid: false,
-    provider: AIProvider.OpenRouter,
-    error: 'Invalid API key',
     timestamp: new Date().toISOString(),
   };
   return TestWalletKeyResponseSchema.parse(deepMerge(base, overrides));
