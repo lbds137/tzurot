@@ -22,8 +22,8 @@ import {
 } from '@tzurot/common-types';
 import {
   GatewayClient,
-  invalidateChannelActivationCache,
-  clearAllChannelActivationCache,
+  invalidateChannelSettingsCache,
+  clearAllChannelSettingsCache,
 } from './utils/GatewayClient.js';
 import { WebhookManager } from './utils/WebhookManager.js';
 import { MessageHandler } from './handlers/MessageHandler.js';
@@ -499,10 +499,10 @@ async function subscribeToCacheInvalidation(): Promise<void> {
 
   await services.channelActivationCacheInvalidationService.subscribe(event => {
     if (event.type === 'channel') {
-      invalidateChannelActivationCache(event.channelId);
-      logger.debug({ channelId: event.channelId }, '[Bot] Invalidated channel activation cache');
+      invalidateChannelSettingsCache(event.channelId);
+      logger.debug({ channelId: event.channelId }, '[Bot] Invalidated channel settings cache');
     } else if (event.type === 'all') {
-      clearAllChannelActivationCache();
+      clearAllChannelSettingsCache();
       logger.debug('[Bot] Invalidated all channel activation caches');
     }
   });

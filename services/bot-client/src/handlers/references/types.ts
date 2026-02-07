@@ -4,6 +4,9 @@
  * Lightweight DTOs to reduce Discord.js dependencies and improve testability
  */
 
+import type { Message } from 'discord.js';
+import { MessageReferenceType } from 'discord.js';
+
 /**
  * Reference type enum
  */
@@ -11,6 +14,17 @@ export enum ReferenceType {
   REPLY = 'REPLY',
   LINK = 'LINK',
   FORWARD = 'FORWARD',
+}
+
+/**
+ * Check if a Discord message is a forwarded message with snapshots.
+ * Centralizes the Discord.js MessageReferenceType.Forward check.
+ */
+export function isForwardedMessage(message: Message): boolean {
+  return (
+    message.reference?.type === MessageReferenceType.Forward &&
+    (message.messageSnapshots?.size ?? 0) > 0
+  );
 }
 
 /**

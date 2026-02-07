@@ -25,6 +25,7 @@ export {
   parseRedisUrl,
   createRedisSocketConfig,
   createBullMQRedisConfig,
+  createIORedisClient,
   type RedisConnectionConfig,
   type RedisSocketConfig,
   type BullMQRedisConfig,

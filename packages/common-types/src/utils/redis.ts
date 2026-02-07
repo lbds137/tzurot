@@ -3,6 +3,8 @@
  * Shared across all services that use Redis
  */
 
+import { Redis as IORedis } from 'ioredis';
+import type { Logger } from 'pino';
 import { createLogger } from './logger.js';
 import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
@@ -170,4 +172,71 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     lazyConnect: false, // Connect immediately to fail fast
     enableReadyCheck: true, // Verify Redis is ready
   };
+}
+
+/**
+ * Create a standard IORedis client with logging and connection config.
+ *
+ * Uses BullMQ-compatible config but leaves maxRetriesPerRequest at default (20)
+ * for general Redis operations (BullMQ queues should use createBullMQRedisConfig directly).
+ *
+ * @param redisUrl - Redis connection URL (e.g., redis://default:password@host:port)
+ * @param serviceName - Service name for log messages
+ * @param serviceLogger - Pino logger instance
+ * @returns Configured IORedis client
+ */
+export function createIORedisClient(
+  redisUrl: string,
+  serviceName: string,
+  serviceLogger: Logger
+): IORedis {
+  const parsedUrl = parseRedisUrl(redisUrl);
+  const ioredisConfig = createBullMQRedisConfig({
+    host: parsedUrl.host,
+    port: parsedUrl.port,
+    password: parsedUrl.password,
+    username: parsedUrl.username,
+    family: 6, // Railway private network uses IPv6
+  });
+
+  serviceLogger.info(
+    {
+      host: ioredisConfig.host,
+      port: ioredisConfig.port,
+      hasPassword: ioredisConfig.password !== undefined,
+      connectTimeout: ioredisConfig.connectTimeout,
+      commandTimeout: ioredisConfig.commandTimeout,
+    },
+    `[${serviceName}] Redis config (ioredis):`
+  );
+
+  const client = new IORedis({
+    host: ioredisConfig.host,
+    port: ioredisConfig.port,
+    password: ioredisConfig.password,
+    username: ioredisConfig.username,
+    family: ioredisConfig.family,
+    connectTimeout: ioredisConfig.connectTimeout,
+    commandTimeout: ioredisConfig.commandTimeout,
+    keepAlive: ioredisConfig.keepAlive,
+    lazyConnect: ioredisConfig.lazyConnect,
+    enableReadyCheck: ioredisConfig.enableReadyCheck,
+    // Note: maxRetriesPerRequest is set to null for BullMQ queues, but we want
+    // standard retries for general Redis operations. Leave as default (20).
+  });
+
+  client.on('error', (error: Error) => {
+    serviceLogger.error({ err: error }, `[${serviceName}] Redis client error`);
+  });
+  client.on('connect', () => {
+    serviceLogger.info(`[${serviceName}] Connected to Redis`);
+  });
+  client.on('ready', () => {
+    serviceLogger.info(`[${serviceName}] Redis client ready`);
+  });
+  client.on('reconnecting', () => {
+    serviceLogger.info(`[${serviceName}] Reconnecting to Redis`);
+  });
+
+  return client;
 }

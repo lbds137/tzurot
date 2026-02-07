@@ -10,6 +10,7 @@ import type { ReferencedMessage } from '@tzurot/common-types';
 import { MessageLinkParser, type ParsedMessageLink } from '../../utils/MessageLinkParser.js';
 import { MessageFormatter } from './MessageFormatter.js';
 import { SnapshotFormatter } from './SnapshotFormatter.js';
+import { isForwardedMessage } from './types.js';
 
 const logger = createLogger('LinkExtractor');
 
@@ -31,6 +32,7 @@ export class LinkExtractor {
    * @param startNumber - Starting reference number
    * @returns Array of referenced messages and map of link URLs to reference numbers
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
   async extractLinkReferences(
     message: Message,
     extractedMessageIds: Set<string>,
@@ -38,7 +40,6 @@ export class LinkExtractor {
     conversationHistoryTimestamps: Date[],
     startNumber: number
   ): Promise<[ReferencedMessage[], Map<string, number>]> {
-    const { MessageReferenceType } = await import('discord.js');
     const links = MessageLinkParser.parseMessageLinks(message.content);
     const references: ReferencedMessage[] = [];
     const linkMap = new Map<string, number>(); // Map Discord URL to reference number
@@ -71,10 +72,7 @@ export class LinkExtractor {
         }
 
         // Check if this is a forwarded message with snapshots
-        if (
-          referencedMessage.reference?.type === MessageReferenceType.Forward &&
-          referencedMessage.messageSnapshots?.size
-        ) {
+        if (isForwardedMessage(referencedMessage)) {
           // Extract each snapshot from the forward
           for (const snapshot of referencedMessage.messageSnapshots.values()) {
             const snapshotReference = this.snapshotFormatter.formatSnapshot(

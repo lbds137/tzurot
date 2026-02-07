@@ -7,7 +7,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   GatewayClient,
-  _clearChannelActivationCacheForTesting,
   _clearAdminSettingsCacheForTesting,
   invalidateChannelSettingsCache,
   clearAllChannelSettingsCache,
@@ -46,7 +45,7 @@ describe('GatewayClient', () => {
     AbortSignal.timeout = () => new AbortController().signal;
 
     // Clear caches between tests
-    _clearChannelActivationCacheForTesting();
+    clearAllChannelSettingsCache();
     _clearAdminSettingsCacheForTesting();
   });
 

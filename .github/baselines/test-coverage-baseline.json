@@ -14,13 +14,11 @@
   "contracts": {
     "knownGaps": [
       "adminSettings:AdminSettingsSchema",
-      "adminSettings:GetAdminSettingsResponseSchema",
       "adminSettings:ResolvedExtendedContextSettingsSchema",
       "adminSettings:UpdateAdminSettingsRequestSchema",
       "adminSettings:UpdateAdminSettingsResponseSchema",
       "channel:ActivateChannelRequestSchema",
       "channel:ActivateChannelResponseSchema",
-      "channel:ActivatedChannelSchema",
       "channel:ChannelSettingsSchema",
       "channel:DeactivateChannelRequestSchema",
       "channel:DeactivateChannelResponseSchema",
