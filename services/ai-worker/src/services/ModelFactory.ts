@@ -173,6 +173,45 @@ function interceptReasoningResponse(responseBody: Record<string, unknown>): bool
 }
 
 /**
+ * Try to recover valid content from a 400-class error response.
+ *
+ * Some models (free-tier GLM, etc.) return HTTP 400 with usable content in
+ * choices[].message.content that would otherwise be lost when LangChain throws
+ * on the error status code. If content is found, returns a synthetic 200 Response.
+ *
+ * @returns Synthetic 200 Response with recovered content, or null if not recoverable
+ */
+async function tryRecoverErrorContent(response: Response): Promise<Response | null> {
+  try {
+    const clone = response.clone();
+    const body = (await clone.json()) as Record<string, unknown>;
+    const choices = body.choices;
+    if (!Array.isArray(choices) || choices.length === 0) {
+      return null;
+    }
+    const firstChoice = choices[0] as Record<string, unknown> | undefined;
+    const msg = firstChoice?.message as Record<string, unknown> | undefined;
+    const content = msg?.content;
+    if (typeof content !== 'string' || content.length === 0) {
+      return null;
+    }
+
+    logger.warn(
+      { status: response.status, contentLength: content.length },
+      '[ModelFactory] Recovered valid content from error response — synthesizing 200'
+    );
+    interceptReasoningResponse(body);
+    return new Response(JSON.stringify(body), {
+      status: 200,
+      statusText: 'OK',
+      headers: response.headers,
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Create a custom fetch function for OpenRouter requests.
  *
  * Two responsibilities:
@@ -220,7 +259,18 @@ function createOpenRouterFetch(
       '[ModelFactory] Custom fetch received response'
     );
 
+    // For 400-class errors with JSON body, try to recover valid content
     if (!response.ok) {
+      const isJsonClientError =
+        response.status >= 400 &&
+        response.status < 500 &&
+        contentType?.includes('application/json') === true;
+      if (isJsonClientError) {
+        const recovered = await tryRecoverErrorContent(response);
+        if (recovered !== null) {
+          return recovered;
+        }
+      }
       return response;
     }
     if (contentType === null) {
@@ -230,13 +280,15 @@ function createOpenRouterFetch(
       return response;
     }
 
+    // Clone before consuming so the original body stays intact on parse failure
+    const clone = response.clone();
     try {
-      const body = (await response.json()) as Record<string, unknown>;
+      const body = (await clone.json()) as Record<string, unknown>;
       const modified = interceptReasoningResponse(body);
 
       logger.info({ reasoningInjected: modified }, '[ModelFactory] Response interception complete');
 
-      // Re-create the response since we consumed the body via .json()
+      // Re-create the response from the parsed (possibly modified) body
       return new Response(JSON.stringify(body), {
         status: response.status,
         statusText: response.statusText,
@@ -247,8 +299,7 @@ function createOpenRouterFetch(
         { err },
         '[ModelFactory] Failed to parse response JSON for reasoning interception'
       );
-      // If response isn't valid JSON, something's wrong — return original
-      // NOTE: body is consumed at this point, so the caller will get an empty body
+      // Clone was consumed, but original response body is intact — return it
       return response;
     }
   };
@@ -309,7 +360,6 @@ function filterRestrictedParams(
   // Filter from modelKwargs (keys are already snake_case)
   for (const key of Object.keys(modelKwargs)) {
     if (unsupported.has(key)) {
-       
       delete modelKwargs[key];
       filtered.push(key);
     }

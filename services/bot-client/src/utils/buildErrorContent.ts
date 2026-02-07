@@ -7,6 +7,7 @@
 
 import {
   formatPersonalityErrorMessage,
+  formatErrorSpoiler,
   USER_ERROR_MESSAGES,
   type LLMGenerationResult,
 } from '@tzurot/common-types';
@@ -24,26 +25,37 @@ const DEFAULT_ERROR =
  *
  * Example with placeholder:
  *   Input: "Oops! Something went wrong ||*(an error has occurred)*||"
- *   Output: "Oops! Something went wrong ||*(quota exceeded; ref: m5abc123)*||"
+ *   Output: "Oops! Something went wrong ||*(error: quota exceeded — "402 Payment Required"; ref: m5abc123)*||"
  *
  * Example without placeholder:
  *   Input: "I'm having trouble thinking right now..."
- *   Output: "I'm having trouble thinking right now... ||*(quota exceeded; ref: m5abc123)*||"
+ *   Output: "I'm having trouble thinking right now... ||*(error: quota exceeded; ref: m5abc123)*||"
  */
 export function buildErrorContent(result: LLMGenerationResult): string {
   // If we have structured error info, use it for dynamic messaging
   if (result.errorInfo) {
-    const { category, referenceId } = result.errorInfo;
+    const { category, referenceId, technicalMessage } = result.errorInfo;
+
+    // Guard: referenceId is required by Zod schema, but be defensive for edge cases
+    if (referenceId === undefined || referenceId.length === 0) {
+      const userMessage = USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
+      return result.personalityErrorMessage ?? userMessage;
+    }
 
     // If personality has a custom error message, format it with error details
     if (result.personalityErrorMessage !== undefined && result.personalityErrorMessage !== '') {
-      return formatPersonalityErrorMessage(result.personalityErrorMessage, category, referenceId);
+      return formatPersonalityErrorMessage(
+        result.personalityErrorMessage,
+        category,
+        referenceId,
+        technicalMessage
+      );
     }
 
-    // No personality message - use the category-specific user message
+    // No personality message - use the category-specific user message with spoiler
     const userMessage = USER_ERROR_MESSAGES[category] ?? DEFAULT_ERROR;
-    const refFooter = referenceId !== undefined ? ` ||*(reference: ${referenceId})*||` : '';
-    return `${userMessage}${refFooter}`;
+    const spoiler = formatErrorSpoiler(category, referenceId, technicalMessage);
+    return `${userMessage} ${spoiler}`;
   }
 
   // No error info available - fall back to basic error message

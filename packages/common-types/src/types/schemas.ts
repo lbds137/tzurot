@@ -385,6 +385,8 @@ export const errorInfoSchema = z.object({
   statusCode: z.number().optional(),
   /** User-friendly error message */
   userMessage: z.string(),
+  /** Technical details for logging (e.g., raw HTTP error message) */
+  technicalMessage: z.string().optional(),
   /** Unique reference ID for support */
   referenceId: z.string(),
   /** Whether this error should have been retried */
