@@ -13,6 +13,8 @@
 | [tzurot-db-vector](./tzurot-db-vector/SKILL.md)       | Prisma migrations, drift fixes         | `/tzurot-db-vector`    |
 | [tzurot-testing](./tzurot-testing/SKILL.md)           | Test execution, coverage audits        | `/tzurot-testing`      |
 | [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)   | External AI consultation               | `/tzurot-council-mcp`  |
+| [tzurot-doc-audit](./tzurot-doc-audit/SKILL.md)       | Documentation freshness audit          | `/tzurot-doc-audit`    |
+| [tzurot-arch-audit](./tzurot-arch-audit/SKILL.md)     | Architecture health audit              | `/tzurot-arch-audit`   |
 
 ## Rules (Auto-Loaded)
 
@@ -26,6 +28,8 @@ The following rules load automatically every session - no invocation needed:
 | `03-database.md`       | Prisma, pgvector, caching                   |
 | `04-discord.md`        | 3-second deferral, slash commands, BullMQ   |
 | `05-tooling.md`        | CLI reference, git workflow                 |
+| `06-backlog.md`        | Backlog structure, session workflow         |
+| `07-documentation.md`  | Doc placement, naming, lifecycle            |
 
 ## Common Workflows
 
@@ -39,6 +43,10 @@ The following rules load automatically every session - no invocation needed:
 
 **Session End**: `/tzurot-docs` → update CURRENT.md
 
+**Doc Audit**: `/tzurot-doc-audit` → fix staleness → commit
+
+**Architecture Audit**: `/tzurot-arch-audit` → quick scan → fix findings → update baselines
+
 ---
 
-**Last Updated**: 2026-02-04
+**Last Updated**: 2026-02-07

@@ -73,3 +73,15 @@ Available in `bot-client/src/utils/autocomplete/`:
 | ------------------------------- | ------------------------- |
 | `handlePersonalityAutocomplete` | Personality selection     |
 | `handlePersonaAutocomplete`     | Profile/persona selection |
+
+## Architecture Verification
+
+Run `/tzurot-arch-audit` periodically to verify these rules programmatically.
+
+Automated enforcement:
+
+- `pnpm depcruise` — boundary violations (service imports, Prisma access, circular deps)
+- `pnpm ops xray --summary` — package health (size, complexity, API surface)
+- `pnpm knip` — dead code detection
+
+**Watch for common-types bloat.** If it exceeds 50 exports or 3000 lines (xray thresholds), consider extracting domain-specific packages.
