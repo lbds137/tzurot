@@ -119,7 +119,7 @@ describe('PromptBuilder', () => {
       expect(result).toBe('An image description');
     });
 
-    it('should filter out placeholder descriptions starting with [', () => {
+    it('should filter out bare placeholder descriptions', () => {
       const attachments: ProcessedAttachment[] = [
         {
           type: AttachmentType.Image,
@@ -129,7 +129,7 @@ describe('PromptBuilder', () => {
         },
         {
           type: AttachmentType.Image,
-          description: '[Placeholder: image pending]',
+          description: '[image]',
           originalUrl: 'https://example.com/image2.jpg',
           metadata: { url: 'https://example.com/image2.jpg', contentType: 'image/jpeg' },
         },

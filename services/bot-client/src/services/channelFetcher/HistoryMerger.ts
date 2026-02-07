@@ -87,7 +87,8 @@ export function enrichDbMessagesWithExtendedMetadata(
       dbMsg.messageMetadata.embedsXml = extendedMsg.messageMetadata.embedsXml;
     }
 
-    // Copy isForwarded flag from extended context (not stored in DB)
+    // Copy isForwarded flag from extended context (safety net for pre-persistence data)
+    // New messages persist isForwarded in messageMetadata via ConversationPersistence
     if (extendedMsg.isForwarded === true && dbMsg.isForwarded !== true) {
       dbMsg.isForwarded = true;
     }

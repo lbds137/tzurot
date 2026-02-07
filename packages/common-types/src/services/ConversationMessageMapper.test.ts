@@ -229,6 +229,31 @@ describe('ConversationMessageMapper', () => {
 
       expect(result.role).toBe(MessageRole.Assistant);
     });
+
+    it('restores isForwarded from messageMetadata', () => {
+      const record = createMockRecord({
+        messageMetadata: {
+          isForwarded: true,
+        },
+      });
+
+      const result = mapToConversationMessage(record);
+
+      expect(result.isForwarded).toBe(true);
+      expect(result.messageMetadata?.isForwarded).toBe(true);
+    });
+
+    it('does not set isForwarded when not in metadata', () => {
+      const record = createMockRecord({
+        messageMetadata: {
+          referencedMessages: [],
+        },
+      });
+
+      const result = mapToConversationMessage(record);
+
+      expect(result.isForwarded).toBeUndefined();
+    });
   });
 
   describe('mapToConversationMessages', () => {

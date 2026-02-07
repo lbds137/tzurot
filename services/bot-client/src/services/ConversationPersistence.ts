@@ -20,6 +20,7 @@ import type {
   StoredReferencedMessage,
 } from '@tzurot/common-types';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
+import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
 
 const logger = createLogger('ConversationPersistence');
 
@@ -130,6 +131,8 @@ export interface SaveUserMessageFromFieldsOptions {
   }[];
   /** Referenced messages (optional) */
   referencedMessages?: ReferencedMessage[];
+  /** Whether this message was forwarded from another channel */
+  isForwarded?: boolean;
   /** Explicit timestamp (optional, for ensuring user < assistant ordering) */
   timestamp?: Date;
 }
@@ -193,6 +196,7 @@ export class ConversationPersistence {
       messageContent,
       attachments,
       referencedMessages,
+      isForwarded: isForwardedMessage(message) || undefined,
     });
   }
 
@@ -279,6 +283,7 @@ export class ConversationPersistence {
       messageContent,
       attachments,
       referencedMessages,
+      isForwarded,
       timestamp,
     } = options;
 
@@ -297,6 +302,12 @@ export class ConversationPersistence {
       metadata = {
         referencedMessages: convertToStoredReferences(referencedMessages),
       };
+    }
+
+    // Persist forwarded flag in metadata for DB round-trip
+    if (isForwarded === true) {
+      metadata = metadata ?? {};
+      metadata.isForwarded = true;
     }
 
     // Save atomically with placeholder descriptions and structured metadata

@@ -20,6 +20,14 @@ const logger = createLogger('RAGUtils');
 const MAX_STOP_SEQUENCES = 16;
 
 /**
+ * Bare placeholder descriptions that should be filtered from content.
+ * These are generic type labels produced when processing fails completely.
+ * Vision failure descriptions like `[Image unavailable: bad_request]` are NOT
+ * filtered — they provide useful context about what was in the message.
+ */
+const BARE_PLACEHOLDERS = new Set(['[image]', '[audio]', '[unsupported format]']);
+
+/**
  * Extract content-only descriptions from processed attachments.
  *
  * Filters out placeholder descriptions (like `[image]` or `[audio]` when processing fails)
@@ -40,7 +48,7 @@ export function extractContentDescriptions(processedAttachments: ProcessedAttach
 
   return processedAttachments
     .map(a => a.description)
-    .filter(d => d.length > 0 && !d.startsWith('[')) // Filter out placeholders like [image], [audio]
+    .filter(d => d.length > 0 && !BARE_PLACEHOLDERS.has(d))
     .join('\n\n');
 }
 

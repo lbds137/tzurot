@@ -19,6 +19,7 @@
 
 import type { Message, Client } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
+import type { StoredReferencedMessage } from '@tzurot/common-types';
 import { MessageLinkParser, type ParsedMessageLink } from './MessageLinkParser.js';
 import { buildMessageContent } from './MessageContentBuilder.js';
 
@@ -38,6 +39,8 @@ export interface LinkResolutionResult {
   skippedCount: number;
   /** Number of messages trimmed to stay within budget */
   trimmedCount: number;
+  /** Resolved references grouped by source message ID, for structured XML formatting */
+  resolvedReferences: Map<string, StoredReferencedMessage[]>;
 }
 
 /**
@@ -64,8 +67,14 @@ interface ResolvedLink {
   sourceMessageId: string;
   /** Resolved content to inject */
   content: string;
-  /** Author of the resolved message */
+  /** Author display name of the resolved message */
   author: string;
+  /** Discord message ID of the resolved message */
+  messageId: string;
+  /** Username of the resolved message author */
+  authorUsername: string;
+  /** ISO 8601 timestamp of the resolved message */
+  timestamp: string;
 }
 
 /**
@@ -110,6 +119,7 @@ export async function resolveHistoryLinks(
       failedCount: 0,
       skippedCount: 0,
       trimmedCount: 0,
+      resolvedReferences: new Map(),
     };
   }
 
@@ -151,8 +161,11 @@ export async function resolveHistoryLinks(
   const resolvedCount = resolvedLinks.length;
   const failedCount = linksToFetch.length - resolvedCount;
 
-  // Inject resolved content into messages
-  const processedMessages = injectResolvedLinks(messages, resolvedLinks);
+  // Process resolved content: strip URLs and build structured references
+  const { messages: processedMessages, resolvedReferences } = injectResolvedLinks(
+    messages,
+    resolvedLinks
+  );
 
   // Trim oldest messages to stay within budget
   // Budget = original messages + resolved links
@@ -180,6 +193,7 @@ export async function resolveHistoryLinks(
     failedCount,
     skippedCount: skippedCount + (uniqueLinks.length - linksToFetch.length),
     trimmedCount,
+    resolvedReferences,
   };
 }
 
@@ -225,6 +239,9 @@ async function resolveLinksWithConcurrency(
               sourceMessageId: sourceMessage.id,
               content: resolved.content,
               author: resolved.author,
+              messageId: resolved.messageId,
+              authorUsername: resolved.authorUsername,
+              timestamp: resolved.timestamp,
             };
           }
         } catch (error) {
@@ -254,7 +271,13 @@ async function fetchAndFormatMessage(
   link: ParsedMessageLink,
   client: Client,
   timeout: number
-): Promise<{ content: string; author: string } | null> {
+): Promise<{
+  content: string;
+  author: string;
+  messageId: string;
+  authorUsername: string;
+  timestamp: string;
+} | null> {
   try {
     // Try to get guild from cache first
     const guild = client.guilds.cache.get(link.guildId);
@@ -295,7 +318,13 @@ async function fetchAndFormatMessage(
       message.author.username ??
       'Unknown';
 
-    return { content, author };
+    return {
+      content,
+      author,
+      messageId: message.id,
+      authorUsername: message.author.username ?? 'unknown',
+      timestamp: message.createdAt.toISOString(),
+    };
   } catch (error) {
     logger.debug(
       { messageId: link.messageId, error: (error as Error).message },
@@ -306,10 +335,15 @@ async function fetchAndFormatMessage(
 }
 
 /**
- * Inject resolved link content into messages
- * Replaces Discord links with inline blockquotes
+ * Process resolved links: strip URLs from message content and build structured references.
+ * Returns both the modified messages and a map of source message ID → StoredReferencedMessage[].
  */
-function injectResolvedLinks(messages: Message[], resolvedLinks: ResolvedLink[]): Message[] {
+function injectResolvedLinks(
+  messages: Message[],
+  resolvedLinks: ResolvedLink[]
+): { messages: Message[]; resolvedReferences: Map<string, StoredReferencedMessage[]> } {
+  const resolvedReferences = new Map<string, StoredReferencedMessage[]>();
+
   // Build map of URL -> resolved content
   const urlToResolved = new Map<string, ResolvedLink>();
   for (const resolved of resolvedLinks) {
@@ -328,17 +362,31 @@ function injectResolvedLinks(messages: Message[], resolvedLinks: ResolvedLink[])
     for (const link of links) {
       const resolved = urlToResolved.get(link.fullUrl);
       if (resolved !== undefined) {
-        // Format as inline blockquote
-        // Truncate long content to avoid token bloat
-        const truncatedContent = truncateContent(resolved.content, 500);
-        const blockquote = `\n> [Linked message from ${resolved.author}]: ${truncatedContent}\n`;
+        // Strip the URL from content (replace with empty string)
+        newContent = newContent.replace(link.fullUrl, '');
 
-        // Replace the URL with the blockquote
-        newContent = newContent.replace(link.fullUrl, blockquote);
+        // Build structured reference
+        const truncatedContent = truncateContent(resolved.content, 500);
+        const ref: StoredReferencedMessage = {
+          discordMessageId: resolved.messageId,
+          authorUsername: resolved.authorUsername,
+          authorDisplayName: resolved.author,
+          content: truncatedContent,
+          timestamp: resolved.timestamp,
+          locationContext: '',
+        };
+
+        // Group by source message ID
+        const existing = resolvedReferences.get(msg.id) ?? [];
+        existing.push(ref);
+        resolvedReferences.set(msg.id, existing);
       }
     }
 
-    // Inject the new content
+    // Clean up whitespace from stripped URLs
+    newContent = newContent.replace(/\s+/g, ' ').trim();
+
+    // Update the message content
     if (newContent !== msg.content) {
       Object.defineProperty(msg, 'content', {
         value: newContent,
@@ -348,7 +396,7 @@ function injectResolvedLinks(messages: Message[], resolvedLinks: ResolvedLink[])
     }
   }
 
-  return messages;
+  return { messages, resolvedReferences };
 }
 
 /**
