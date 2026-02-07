@@ -6,7 +6,7 @@
 # Development
 pnpm dev              # Start all services
 pnpm test             # Run tests
-pnpm quality          # lint + cpd + depcruise + typecheck:spec
+pnpm quality          # lint + cpd + depcruise + typecheck + typecheck:spec
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
 

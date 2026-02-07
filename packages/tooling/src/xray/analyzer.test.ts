@@ -167,8 +167,9 @@ describe('analyzeMonorepo', () => {
 
     const report = analyzeMonorepo('/root');
 
-    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipped'));
-    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('bad.ts'));
+    expect(consoleWarnSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/Warning: Skipped .+bad\.ts: EACCES: permission denied/)
+    );
     // Only the good file should be in the report
     expect(report.packages[0].files).toHaveLength(1);
     expect(report.packages[0].files[0].path).toContain('good.ts');
