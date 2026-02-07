@@ -57,7 +57,7 @@ export interface DiagnosticCollectorOptions {
 /**
  * Input data for recording the input processing stage
  */
-export interface InputProcessingData {
+interface InputProcessingData {
   rawUserMessage: string;
   processedAttachments: ProcessedAttachment[];
   referencedMessages?: {
@@ -70,7 +70,7 @@ export interface InputProcessingData {
 /**
  * Memory data for recording the memory retrieval stage
  */
-export interface MemoryRetrievalData {
+interface MemoryRetrievalData {
   retrievedMemories: MemoryDocument[];
   selectedMemories: MemoryDocument[];
   focusModeEnabled: boolean;
@@ -79,7 +79,7 @@ export interface MemoryRetrievalData {
 /**
  * Token budget data for recording allocation
  */
-export interface TokenBudgetData {
+interface TokenBudgetData {
   contextWindowSize: number;
   systemPromptTokens: number;
   memoryTokensUsed: number;
@@ -101,7 +101,7 @@ interface ReasoningConfig {
 /**
  * LLM configuration data
  */
-export interface LlmConfigData {
+interface LlmConfigData {
   model: string;
   provider: string;
   // Basic sampling
@@ -134,7 +134,7 @@ export interface LlmConfigData {
 /**
  * Raw LLM response data
  */
-export interface LlmResponseData {
+interface LlmResponseData {
   rawContent: string;
   finishReason: string;
   stopSequenceTriggered: string | null;
@@ -156,7 +156,7 @@ export interface LlmResponseData {
 /**
  * Post-processing data
  */
-export interface PostProcessingData {
+interface PostProcessingData {
   rawContent: string;
   deduplicatedContent: string;
   thinkingContent: string | null;

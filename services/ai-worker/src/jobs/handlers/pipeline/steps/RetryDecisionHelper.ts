@@ -11,10 +11,10 @@ import type { RAGResponse } from '../../../../services/ConversationalRAGService.
 const logger = createLogger('RetryDecisionHelper');
 
 /** Return type for retry decisions */
-export type RetryAction = 'retry' | 'return' | 'continue';
+type RetryAction = 'retry' | 'return' | 'continue';
 
 /** Options for empty response check */
-export interface EmptyResponseCheckOptions {
+interface EmptyResponseCheckOptions {
   response: RAGResponse;
   attempt: number;
   maxAttempts: number;
@@ -22,7 +22,7 @@ export interface EmptyResponseCheckOptions {
 }
 
 /** Options for duplicate detection logging */
-export interface DuplicateDetectionOptions {
+interface DuplicateDetectionOptions {
   response: RAGResponse;
   attempt: number;
   maxAttempts: number;

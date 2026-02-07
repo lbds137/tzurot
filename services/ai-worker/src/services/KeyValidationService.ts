@@ -56,7 +56,7 @@ export class ValidationTimeoutError extends Error {
 /**
  * Result of API key validation
  */
-export interface KeyValidationResult {
+interface KeyValidationResult {
   /** Whether the key is valid and working */
   valid: boolean;
   /** Provider that was validated */

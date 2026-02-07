@@ -155,7 +155,7 @@ function formatComplexMessageContent(message: ComplexMessage): {
 }
 
 /** Options for building a full system prompt */
-export interface BuildFullSystemPromptOptions {
+interface BuildFullSystemPromptOptions {
   personality: LoadedPersonality;
   participantPersonas: Map<string, ParticipantInfo>;
   relevantMemories: MemoryDocument[];

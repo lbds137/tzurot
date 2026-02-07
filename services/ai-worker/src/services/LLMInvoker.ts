@@ -81,7 +81,7 @@ export function supportsStopSequences(modelName: string): boolean {
 /**
  * Options for invoking an LLM with retry logic
  */
-export interface InvokeWithRetryOptions {
+interface InvokeWithRetryOptions {
   /** LangChain chat model to invoke */
   model: BaseChatModel;
   /** Message array to send to the model */

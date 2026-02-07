@@ -10,7 +10,7 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 /**
  * Type definition for the ContextWindowManager mock instance
  */
-export interface MockContextWindowManagerInstance {
+interface MockContextWindowManagerInstance {
   buildContext: ReturnType<typeof vi.fn>;
   calculateHistoryBudget: ReturnType<typeof vi.fn>;
   selectAndSerializeHistory: ReturnType<typeof vi.fn>;

@@ -28,7 +28,7 @@ const logger = createLogger('MemoryRetriever');
 /**
  * Result of memory retrieval including metadata
  */
-export interface MemoryRetrievalResult {
+interface MemoryRetrievalResult {
   memories: MemoryDocument[];
   focusModeEnabled: boolean;
 }
@@ -208,6 +208,7 @@ export class MemoryRetriever {
    * @param context - Conversation context with participants
    * @param personalityId - Personality ID for resolving per-personality persona overrides
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
   async getAllParticipantPersonas(
     context: ConversationContext,
     personalityId: string

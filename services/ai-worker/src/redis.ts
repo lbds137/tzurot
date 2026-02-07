@@ -20,7 +20,7 @@ import {
   getPrismaClient,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
-import { modelSupportsVision, clearCapabilityCache } from './services/ModelCapabilityChecker.js';
+import { modelSupportsVision } from './services/ModelCapabilityChecker.js';
 
 const logger = createLogger('Redis');
 const config = getConfig();
@@ -60,16 +60,4 @@ visionDescriptionCache.setL2Cache(persistentVisionCache);
  */
 export async function checkModelVisionSupport(modelId: string): Promise<boolean> {
   return modelSupportsVision(modelId, redis);
-}
-
-/**
- * Clear the model capability cache (useful when model data is updated)
- */
-export { clearCapabilityCache };
-
-/**
- * Close Redis connection for graceful shutdown
- */
-export async function closeRedis(): Promise<void> {
-  await redisService.close();
 }

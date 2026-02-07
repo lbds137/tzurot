@@ -9,7 +9,7 @@ import { vi } from 'vitest';
 /**
  * Type definition for the ReferencedMessageFormatter mock instance
  */
-export interface MockReferencedMessageFormatterInstance {
+interface MockReferencedMessageFormatterInstance {
   formatReferencedMessages: ReturnType<typeof vi.fn>;
   extractTextForSearch: ReturnType<typeof vi.fn>;
 }

@@ -20,7 +20,7 @@ const logger = createLogger('ReasoningModelUtils');
  * These models may emit thinking tags that need to be stripped from output.
  * Detection enables early stripping in LLMInvoker as a first line of defense.
  */
-export const REASONING_MODEL_PATTERNS = {
+const REASONING_MODEL_PATTERNS = {
   // OpenAI o1/o3 models - require no system messages
   OPENAI_O_SERIES: /^(openai\/)?o[13](-mini|-preview)?(-\d+)?$/i,
 
@@ -95,7 +95,7 @@ export enum ReasoningModelType {
 /**
  * Configuration adjustments needed for reasoning models
  */
-export interface ReasoningModelConfig {
+interface ReasoningModelConfig {
   /** Type of reasoning model */
   type: ReasoningModelType;
   /** Whether system messages are allowed */
