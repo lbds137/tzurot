@@ -140,4 +140,35 @@ describe('discoverFiles', () => {
     // Should have index.ts and utils/helper.ts, but NOT anything from skipped dirs
     expect(result[0].files).toHaveLength(2);
   });
+
+  it('should skip generated/ directories', () => {
+    vi.mocked(readdirSync).mockImplementation(((dir: unknown) => {
+      const d = String(dir);
+      if (d === '/root/services') return [];
+      if (d === '/root/packages') return ['common-types'];
+      if (d.endsWith('/src')) return ['generated', 'utils', 'index.ts'];
+      if (d.endsWith('/generated')) return ['client.ts', 'models.ts'];
+      if (d.endsWith('/utils')) return ['helper.ts'];
+      return [];
+    }) as typeof readdirSync);
+
+    vi.mocked(statSync).mockImplementation(((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith('/src') || p.endsWith('/generated') || p.endsWith('/utils')) {
+        return { isDirectory: () => true } as ReturnType<typeof statSync>;
+      }
+      return { isDirectory: () => false } as ReturnType<typeof statSync>;
+    }) as typeof statSync);
+
+    const result = discoverFiles('/root');
+
+    expect(result).toHaveLength(1);
+    // Should have index.ts and utils/helper.ts, but NOT generated/client.ts or generated/models.ts
+    expect(result[0].files).toHaveLength(2);
+    const fileNames = result[0].files.map(f => f.split('/').pop());
+    expect(fileNames).toContain('index.ts');
+    expect(fileNames).toContain('helper.ts');
+    expect(fileNames).not.toContain('client.ts');
+    expect(fileNames).not.toContain('models.ts');
+  });
 });

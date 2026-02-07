@@ -10,7 +10,7 @@ import { basename, join } from 'node:path';
 
 import type { XrayOptions } from './types.js';
 
-const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', '__mocks__']);
+const SKIP_DIRS = new Set(['node_modules', 'dist', '.turbo', '__mocks__', 'generated']);
 
 interface DiscoveredPackage {
   name: string;

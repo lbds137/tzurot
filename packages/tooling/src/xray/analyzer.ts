@@ -76,12 +76,18 @@ function computeSummary(packages: PackageInfo[], rootDir: string): ReportSummary
   // Aggregate totals from per-package summaries
   const allDecls = packages.flatMap(p => p.files.flatMap(f => f.declarations));
 
+  const totalSuppressions = packages.reduce(
+    (sum, p) => sum + p.files.reduce((fSum, f) => fSum + f.suppressions.length, 0),
+    0
+  );
+
   return {
     totalFiles: packages.reduce((sum, p) => sum + p.files.length, 0),
     totalClasses: allDecls.filter(d => d.kind === 'class').length,
     totalFunctions: allDecls.filter(d => d.kind === 'function').length,
     totalInterfaces: allDecls.filter(d => d.kind === 'interface').length,
     totalTypes: allDecls.filter(d => d.kind === 'type').length,
+    totalSuppressions,
     byPackage,
   };
 }
@@ -99,10 +105,13 @@ function computePackageSummary(
     }
   }
 
+  const totalSuppressions = pkg.files.reduce((sum, f) => sum + f.suppressions.length, 0);
+
   const health: PackageHealth = {
     totalLines: pkg.files.reduce((sum, f) => sum + f.lineCount, 0),
     fileCount: pkg.files.length,
     exportedDeclarations: allDecls.filter(d => d.exported).length,
+    totalSuppressions,
     largestFile,
     avgDeclarationsPerFile: pkg.files.length > 0 ? allDecls.length / pkg.files.length : 0,
     warnings: [],
