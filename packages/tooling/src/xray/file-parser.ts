@@ -22,6 +22,8 @@ import type {
   ImportInfo,
   MemberInfo,
   ParameterInfo,
+  SuppressionInfo,
+  SuppressionKind,
 } from './types.js';
 
 interface ParseOptions {
@@ -48,8 +50,9 @@ export function parseFile(filePath: string, content: string, options: ParseOptio
   declarations.sort((a, b) => a.line - b.line);
 
   const imports = includeImports ? extractImports(sourceFile) : [];
+  const suppressions = extractSuppressions(content);
 
-  return { path: filePath, lineCount, declarations, imports };
+  return { path: filePath, lineCount, declarations, imports, suppressions };
 }
 
 function extractDeclarations(sourceFile: SourceFile, includePrivate: boolean): Declaration[] {
@@ -235,4 +238,64 @@ function getNodeLineCount(node: {
   getEndLineNumber: () => number;
 }): number {
   return node.getEndLineNumber() - node.getStartLineNumber() + 1;
+}
+
+const SUPPRESSION_PATTERNS: {
+  kind: SuppressionKind;
+  regex: RegExp;
+}[] = [
+  {
+    kind: 'eslint-disable-next-line',
+    regex: /\/\/\s*eslint-disable-next-line(?:\s+([^\s-][^\n]*?))?(?:\s+--\s+(.+))?$/,
+  },
+  {
+    kind: 'eslint-disable',
+    regex: /\/\*\s*eslint-disable(?:\s+([^\s*][^*]*?))?(?:\s+--\s+(.+?))?\s*\*\//,
+  },
+  {
+    kind: 'ts-expect-error',
+    regex: /\/\/\s*@ts-expect-error(?:\s+--\s+(.+)|(\s+.+))?$/,
+  },
+  {
+    kind: 'ts-nocheck',
+    regex: /\/\/\s*@ts-nocheck/,
+  },
+];
+
+/**
+ * Extract lint suppression comments from raw file content.
+ */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pattern-matching loop with simple branches
+export function extractSuppressions(content: string): SuppressionInfo[] {
+  const suppressions: SuppressionInfo[] = [];
+  const lines = content.split('\n');
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    for (const { kind, regex } of SUPPRESSION_PATTERNS) {
+      const match = regex.exec(line);
+      if (match === null) continue;
+
+      const info: SuppressionInfo = { kind, line: i + 1 };
+
+      if (kind === 'eslint-disable-next-line' || kind === 'eslint-disable') {
+        if (match[1] !== undefined && match[1].trim() !== '') info.rule = match[1].trim();
+        if (match[2] !== undefined && match[2].trim() !== '') {
+          info.justification = match[2].trim();
+        }
+      } else if (kind === 'ts-expect-error') {
+        // match[1] is after " -- ", match[2] is trailing text without " -- "
+        const justText = match[1] ?? match[2];
+        if (justText !== undefined && justText.trim() !== '') {
+          info.justification = justText.trim();
+        }
+      }
+
+      suppressions.push(info);
+      break; // Only match first pattern per line
+    }
+  }
+
+  return suppressions;
 }

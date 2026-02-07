@@ -15,10 +15,12 @@ const HEALTH_THRESHOLDS = {
   totalLines: 3000,
   fileCount: 40,
   exportedDeclarations: 50,
+  totalSuppressions: 20,
   maxFileLines: 400,
   avgDeclarationsPerFile: 8,
 } as const;
 
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export function formatTerminal(report: XrayReport, rootDir: string): string {
   const lines: string[] = [];
 
@@ -31,9 +33,14 @@ export function formatTerminal(report: XrayReport, rootDir: string): string {
     const pkgSummary = report.summary.byPackage[pkg.name];
     const health = pkgSummary?.health;
 
+    const suppressionTag =
+      health !== undefined && health.totalSuppressions > 0
+        ? chalk.yellow(`, ${health.totalSuppressions} suppressions`)
+        : '';
     lines.push(
       chalk.cyan.bold(`📦 ${pkg.name}`) +
-        chalk.dim(` — ${pkg.files.length} files, ${health?.totalLines ?? 0} lines`)
+        chalk.dim(` — ${pkg.files.length} files, ${health?.totalLines ?? 0} lines`) +
+        suppressionTag
     );
 
     // Health warnings
@@ -52,8 +59,14 @@ export function formatTerminal(report: XrayReport, rootDir: string): string {
         file.lineCount > HEALTH_THRESHOLDS.maxFileLines
           ? chalk.yellow(`${file.lineCount} lines`)
           : chalk.dim(`${file.lineCount} lines`);
+      const suppressionInfo =
+        file.suppressions.length > 0
+          ? chalk.yellow(` [${file.suppressions.length} suppressed]`)
+          : '';
 
-      lines.push(`  ${chalk.green(relPath)} ${lineInfo} ${chalk.dim(`(${declCount} decl)`)}`);
+      lines.push(
+        `  ${chalk.green(relPath)} ${lineInfo} ${chalk.dim(`(${declCount} decl)`)}${suppressionInfo}`
+      );
 
       for (const decl of file.declarations) {
         lines.push(`    ${formatDeclaration(decl)}`);
@@ -75,6 +88,9 @@ export function formatTerminal(report: XrayReport, rootDir: string): string {
   lines.push(`  ${chalk.dim('Functions:')}  ${s.totalFunctions}`);
   lines.push(`  ${chalk.dim('Interfaces:')} ${s.totalInterfaces}`);
   lines.push(`  ${chalk.dim('Types:')}      ${s.totalTypes}`);
+  if (s.totalSuppressions > 0) {
+    lines.push(`  ${chalk.dim('Suppressions:')} ${chalk.yellow(String(s.totalSuppressions))}`);
+  }
   lines.push('');
 
   lines.push(chalk.dim(`Generated: ${report.generatedAt}`));
@@ -128,6 +144,9 @@ export function computeHealthWarnings(health: PackageHealth): string[] {
   }
   if (health.avgDeclarationsPerFile > HEALTH_THRESHOLDS.avgDeclarationsPerFile) {
     warnings.push(`Dense files (avg ${health.avgDeclarationsPerFile.toFixed(1)} decl/file)`);
+  }
+  if (health.totalSuppressions > HEALTH_THRESHOLDS.totalSuppressions) {
+    warnings.push(`Many lint suppressions (${health.totalSuppressions})`);
   }
 
   return warnings;

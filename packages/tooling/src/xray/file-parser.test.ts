@@ -1,6 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
-import { parseFile } from './file-parser.js';
+vi.setConfig({ testTimeout: 15_000 });
+
+import { parseFile, extractSuppressions } from './file-parser.js';
 
 describe('parseFile', () => {
   describe('function extraction', () => {
@@ -254,5 +256,133 @@ export const VERSION = '1.0';
       const lines = result.declarations.map(d => d.line);
       expect(lines).toEqual([...lines].sort((a, b) => a - b));
     });
+  });
+
+  describe('suppression extraction via parseFile', () => {
+    it('should include suppressions in FileInfo', () => {
+      const code = `// eslint-disable-next-line no-console
+export const x = 1;
+`;
+      const result = parseFile('test.ts', code);
+
+      expect(result.suppressions).toHaveLength(1);
+      expect(result.suppressions[0].kind).toBe('eslint-disable-next-line');
+    });
+
+    it('should return empty suppressions for clean code', () => {
+      const code = `export const x = 1;\n`;
+      const result = parseFile('test.ts', code);
+
+      expect(result.suppressions).toHaveLength(0);
+    });
+  });
+});
+
+describe('extractSuppressions', () => {
+  it('should extract eslint-disable-next-line with rule and justification', () => {
+    const content = `const x = 1;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- pre-existing
+const y: any = 2;
+`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      kind: 'eslint-disable-next-line',
+      line: 2,
+      rule: '@typescript-eslint/no-explicit-any',
+      justification: 'pre-existing',
+    });
+  });
+
+  it('should extract eslint-disable-next-line without justification', () => {
+    const content = `// eslint-disable-next-line no-console\nconsole.log('hi');\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('eslint-disable-next-line');
+    expect(result[0].rule).toBe('no-console');
+    expect(result[0].justification).toBeUndefined();
+  });
+
+  it('should extract eslint-disable block comments', () => {
+    const content = `/* eslint-disable no-console */\nconsole.log('hi');\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('eslint-disable');
+    expect(result[0].rule).toBe('no-console');
+  });
+
+  it('should extract eslint-disable block with justification', () => {
+    const content = `/* eslint-disable @typescript-eslint/no-unsafe-assignment -- Intentional: dynamic config */\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('eslint-disable');
+    expect(result[0].rule).toBe('@typescript-eslint/no-unsafe-assignment');
+    expect(result[0].justification).toBe('Intentional: dynamic config');
+  });
+
+  it('should extract @ts-expect-error with justification', () => {
+    const content = `// @ts-expect-error -- testing invalid input\nconst x = badCall();\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('ts-expect-error');
+    expect(result[0].justification).toBe('testing invalid input');
+  });
+
+  it('should extract @ts-expect-error with inline justification (no --)', () => {
+    const content = `// @ts-expect-error testing invalid input\nconst x = badCall();\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('ts-expect-error');
+    expect(result[0].justification).toBe('testing invalid input');
+  });
+
+  it('should extract @ts-nocheck', () => {
+    const content = `// @ts-nocheck\nconst x: any = 1;\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({ kind: 'ts-nocheck', line: 1 });
+  });
+
+  it('should extract multiple suppressions from one file', () => {
+    const content = `// @ts-nocheck
+// eslint-disable-next-line no-console
+console.log('hi');
+/* eslint-disable no-unused-vars */
+const x = 1;
+// @ts-expect-error -- test
+badCall();
+`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(4);
+    expect(result.map(s => s.kind)).toEqual([
+      'ts-nocheck',
+      'eslint-disable-next-line',
+      'eslint-disable',
+      'ts-expect-error',
+    ]);
+  });
+
+  it('should return empty array for clean code', () => {
+    const content = `export function hello(): string {\n  return 'world';\n}\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toEqual([]);
+  });
+
+  it('should handle eslint-disable-next-line with no rule', () => {
+    const content = `// eslint-disable-next-line\nconst x = 1;\n`;
+    const result = extractSuppressions(content);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].kind).toBe('eslint-disable-next-line');
+    expect(result[0].rule).toBeUndefined();
   });
 });

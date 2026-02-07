@@ -6,7 +6,7 @@
 
 import { relative } from 'node:path';
 
-import type { Declaration, FileInfo, PackageInfo, XrayReport } from '../types.js';
+import type { Declaration, FileInfo, PackageInfo, SuppressionInfo, XrayReport } from '../types.js';
 
 export function formatMarkdown(report: XrayReport, rootDir: string): string {
   const sections = [
@@ -28,23 +28,33 @@ function formatSummaryTable(report: XrayReport): string {
 
   lines.push('## Summary');
   lines.push('');
-  lines.push('| Package | Files | Classes | Functions | Interfaces | Types | Lines | Warnings |');
-  lines.push('|---------|-------|---------|-----------|------------|-------|-------|----------|');
+  lines.push(
+    '| Package | Files | Classes | Functions | Interfaces | Types | Lines | Suppressions | Warnings |'
+  );
+  lines.push(
+    '|---------|-------|---------|-----------|------------|-------|-------|--------------|----------|'
+  );
 
   for (const pkg of report.packages) {
     const s = report.summary.byPackage[pkg.name];
     const health = s?.health;
     const warningCount = health?.warnings.length ?? 0;
     const warningCell = warningCount > 0 ? `⚠️ ${warningCount}` : '✅';
+    const suppressionCount = health?.totalSuppressions ?? 0;
+    const suppressionCell = suppressionCount > 0 ? String(suppressionCount) : '-';
     const allDecls = pkg.files.flatMap(f => f.declarations);
     lines.push(
-      `| ${pkg.name} | ${s?.files ?? 0} | ${s?.classes ?? 0} | ${s?.functions ?? 0} | ${countByKind(allDecls, 'interface')} | ${countByKind(allDecls, 'type')} | ${health?.totalLines ?? 0} | ${warningCell} |`
+      `| ${pkg.name} | ${s?.files ?? 0} | ${s?.classes ?? 0} | ${s?.functions ?? 0} | ${countByKind(allDecls, 'interface')} | ${countByKind(allDecls, 'type')} | ${health?.totalLines ?? 0} | ${suppressionCell} | ${warningCell} |`
     );
   }
 
   lines.push('');
+  const suppressionTotal =
+    report.summary.totalSuppressions > 0
+      ? `, ${report.summary.totalSuppressions} suppressions`
+      : '';
   lines.push(
-    `**Totals:** ${report.summary.totalFiles} files, ${report.summary.totalClasses} classes, ${report.summary.totalFunctions} functions, ${report.summary.totalInterfaces} interfaces, ${report.summary.totalTypes} types`
+    `**Totals:** ${report.summary.totalFiles} files, ${report.summary.totalClasses} classes, ${report.summary.totalFunctions} functions, ${report.summary.totalInterfaces} interfaces, ${report.summary.totalTypes} types${suppressionTotal}`
   );
   lines.push('');
 
@@ -109,6 +119,11 @@ function formatFileDetail(file: FileInfo, rootDir: string): string {
     }
   }
 
+  // Suppressions
+  if (file.suppressions.length > 0) {
+    lines.push(formatSuppressionsDetail(file.suppressions));
+  }
+
   // Imports
   if (file.imports.length > 0) {
     lines.push(formatImportsDetail(file));
@@ -151,6 +166,23 @@ function formatImportsDetail(file: FileInfo): string {
     const names =
       imp.namedImports.length > 0 ? `{ ${imp.namedImports.join(', ')} }` : '(side-effect)';
     lines.push(`- \`${imp.source}\`${typeTag}: ${names}`);
+  }
+  lines.push('');
+  lines.push('</details>');
+  lines.push('');
+
+  return lines.join('\n');
+}
+
+function formatSuppressionsDetail(suppressions: SuppressionInfo[]): string {
+  const lines: string[] = [];
+
+  lines.push(`<details><summary>Suppressions (${suppressions.length})</summary>`);
+  lines.push('');
+  for (const s of suppressions) {
+    const rule = s.rule !== undefined ? ` \`${s.rule}\`` : '';
+    const just = s.justification !== undefined ? ` — ${s.justification}` : '';
+    lines.push(`- L${s.line}: \`${s.kind}\`${rule}${just}`);
   }
   lines.push('');
   lines.push('</details>');

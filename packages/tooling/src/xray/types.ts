@@ -16,11 +16,25 @@ export interface PackageInfo {
   files: FileInfo[];
 }
 
+export type SuppressionKind =
+  | 'eslint-disable'
+  | 'eslint-disable-next-line'
+  | 'ts-expect-error'
+  | 'ts-nocheck';
+
+export interface SuppressionInfo {
+  kind: SuppressionKind;
+  line: number;
+  rule?: string;
+  justification?: string;
+}
+
 export interface FileInfo {
   path: string;
   lineCount: number;
   declarations: Declaration[];
   imports: ImportInfo[];
+  suppressions: SuppressionInfo[];
 }
 
 export type DeclarationKind = 'class' | 'function' | 'interface' | 'type' | 'const' | 'enum';
@@ -62,6 +76,7 @@ export interface PackageHealth {
   totalLines: number;
   fileCount: number;
   exportedDeclarations: number;
+  totalSuppressions: number;
   largestFile: { path: string; lines: number };
   avgDeclarationsPerFile: number;
   warnings: string[];
@@ -73,6 +88,7 @@ export interface ReportSummary {
   totalFunctions: number;
   totalInterfaces: number;
   totalTypes: number;
+  totalSuppressions: number;
   byPackage: Record<
     string,
     {
