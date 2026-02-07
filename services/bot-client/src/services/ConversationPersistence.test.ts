@@ -34,8 +34,6 @@ vi.mock('../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn(() => false),
 }));
 
-// Note: referenceFormatter is no longer used - references are stored in messageMetadata
-
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
   let mockConversationHistory: {
