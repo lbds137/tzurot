@@ -362,8 +362,8 @@ function injectResolvedLinks(
     for (const link of links) {
       const resolved = urlToResolved.get(link.fullUrl);
       if (resolved !== undefined) {
-        // Strip the URL from content (replace with empty string)
-        newContent = newContent.replace(link.fullUrl, '');
+        // Strip the URL from content (replace with single space to avoid joining words)
+        newContent = newContent.replace(link.fullUrl, ' ');
 
         // Build structured reference
         const truncatedContent = truncateContent(resolved.content, 500);
@@ -383,8 +383,8 @@ function injectResolvedLinks(
       }
     }
 
-    // Clean up whitespace from stripped URLs
-    newContent = newContent.replace(/\s+/g, ' ').trim();
+    // Clean up extra spaces from stripped URLs (preserve intentional newlines)
+    newContent = newContent.replace(/ {2,}/g, ' ').trim();
 
     // Update the message content
     if (newContent !== msg.content) {
