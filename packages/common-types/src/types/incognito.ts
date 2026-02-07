@@ -51,28 +51,10 @@ export const IncognitoSessionSchema = z.object({
   duration: z.enum(['30m', '1h', '4h', 'forever']),
 });
 
-/**
- * Request to enable incognito mode
- */
-export interface EnableIncognitoRequest {
-  /** Personality ID (UUID) or 'all' for global incognito */
-  personalityId: string;
-  /** Duration of incognito mode */
-  duration: IncognitoDuration;
-}
-
 export const EnableIncognitoRequestSchema = z.object({
   personalityId: z.union([z.string().uuid(), z.literal('all')]),
   duration: z.enum(['30m', '1h', '4h', 'forever']),
 });
-
-/**
- * Request to disable incognito mode
- */
-export interface DisableIncognitoRequest {
-  /** Personality ID (UUID) or 'all' to disable global incognito */
-  personalityId: string;
-}
 
 export const DisableIncognitoRequestSchema = z.object({
   personalityId: z.union([z.string().uuid(), z.literal('all')]),
@@ -86,16 +68,6 @@ export interface IncognitoStatusResponse {
   active: boolean;
   /** Active sessions (may be multiple if per-personality) */
   sessions: IncognitoSession[];
-}
-
-/**
- * Request for retroactive forget
- */
-export interface IncognitoForgetRequest {
-  /** Personality ID (UUID) or 'all' */
-  personalityId: string;
-  /** How far back to delete (e.g., '5m', '15m', '1h') */
-  timeframe: string;
 }
 
 export const IncognitoForgetRequestSchema = z.object({
@@ -118,14 +90,4 @@ export function getDurationLabel(duration: IncognitoDuration): string {
     case 'forever':
       return 'until manually disabled';
   }
-}
-
-/**
- * Response for retroactive forget
- */
-export interface IncognitoForgetResponse {
-  /** Number of memories deleted */
-  deletedCount: number;
-  /** Personality name(s) affected */
-  personalities: string[];
 }

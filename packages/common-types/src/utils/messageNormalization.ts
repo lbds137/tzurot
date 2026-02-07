@@ -157,7 +157,7 @@ export interface LooseConversationMessage {
  * Normalized conversation message with strict types.
  * Safe to use throughout the AI pipeline.
  */
-export interface NormalizedConversationMessage {
+interface NormalizedConversationMessage {
   id?: string;
   role: MessageRole;
   content: string;

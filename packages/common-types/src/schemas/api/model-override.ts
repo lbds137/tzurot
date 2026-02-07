@@ -20,7 +20,7 @@ import { z } from 'zod';
  * Note: ModelOverrideSummary type is exported from types/byok.ts
  * This schema validates the same shape.
  */
-export const ModelOverrideSummarySchema = z.object({
+const ModelOverrideSummarySchema = z.object({
   personalityId: z.string(),
   personalityName: z.string(),
   configId: z.string().nullable(),
@@ -62,8 +62,6 @@ export type SetModelOverrideResponse = z.infer<typeof SetModelOverrideResponseSc
 export const GetDefaultConfigResponseSchema = z.object({
   default: UserDefaultConfigSchema,
 });
-export type GetDefaultConfigResponse = z.infer<typeof GetDefaultConfigResponseSchema>;
-
 // ============================================================================
 // PUT /user/model-override/default
 // Sets user's global default LLM config

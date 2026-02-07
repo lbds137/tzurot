@@ -12,7 +12,6 @@ export {
   AIProvider,
   GUEST_MODE,
   isFreeModel,
-  type DefaultModelName,
 } from './ai.js';
 
 // Timing constants
@@ -35,7 +34,6 @@ export {
   JOB_PREFIXES,
   JOB_REQUEST_SUFFIXES,
   REDIS_KEY_PREFIXES,
-  REDIS_CHANNELS,
   JobStatus,
   JobType,
 } from './queue.js';
@@ -49,35 +47,24 @@ export {
   DISCORD_COLORS,
   DISCORD_MENTIONS,
   DISCORD_ID_PREFIX,
-  DISCORD_SNOWFLAKE,
   DISCORD_PROVIDER_CHOICES,
   BOT_FOOTER_TEXT,
-  BOT_FOOTER_PATTERNS,
   buildModelFooterText,
   isValidDiscordId,
   filterValidDiscordIds,
-  buildDiscordPersonaId,
-  extractDiscordId,
-  type DiscordProviderChoice,
 } from './discord.js';
 
 // Error constants
 export {
   TransientErrorCode,
-  ERROR_NAMES,
   ERROR_MESSAGES,
   MAX_ERROR_MESSAGE_LENGTH,
   ApiErrorType,
   ApiErrorCategory,
   USER_ERROR_MESSAGES,
-  HTTP_STATUS_TO_CATEGORY,
-  PERMANENT_ERROR_CATEGORIES,
-  TRANSIENT_ERROR_CATEGORIES,
-  ERROR_SPOILER_PATTERN,
   generateErrorReferenceId,
   classifyHttpStatus,
   isPermanentError,
-  isTransientError,
   formatErrorSpoiler,
   formatPersonalityErrorMessage,
   stripErrorSpoiler,
@@ -117,8 +104,7 @@ export {
   TIMEZONE_DISCORD_CHOICES,
   isValidTimezone,
   getTimezoneInfo,
-  type TimezoneOption,
 } from './timezone.js';
 
 // Wallet (BYOK) constants
-export { WALLET_ERROR_MESSAGES, API_KEY_FORMATS, WALLET_SUCCESS_MESSAGES } from './wallet.js';
+export { WALLET_ERROR_MESSAGES, API_KEY_FORMATS } from './wallet.js';

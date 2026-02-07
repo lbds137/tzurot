@@ -17,13 +17,11 @@ import type { ModelOverrideSummary } from '../types/byok.js';
 import {
   ListModelOverridesResponseSchema,
   SetModelOverrideResponseSchema,
-  GetDefaultConfigResponseSchema,
   SetDefaultConfigResponseSchema,
   ClearDefaultConfigResponseSchema,
   DeleteModelOverrideResponseSchema,
   type ListModelOverridesResponse,
   type SetModelOverrideResponse,
-  type GetDefaultConfigResponse,
   type SetDefaultConfigResponse,
   type ClearDefaultConfigResponse,
   type DeleteModelOverrideResponse,
@@ -134,23 +132,6 @@ export function mockSetModelOverrideResponse(
     override: createBaseModelOverrideSummary(),
   };
   return SetModelOverrideResponseSchema.parse(deepMerge(base, overrides));
-}
-
-// ============================================================================
-// Get Default Config (GET /user/model-override/default)
-// ============================================================================
-
-/**
- * Create a validated mock for GET /user/model-override/default
- * @throws ZodError if the resulting mock doesn't match the schema
- */
-export function mockGetDefaultConfigResponse(
-  overrides?: DeepPartial<GetDefaultConfigResponse>
-): GetDefaultConfigResponse {
-  const base: GetDefaultConfigResponse = {
-    default: createBaseUserDefaultConfig(),
-  };
-  return GetDefaultConfigResponseSchema.parse(deepMerge(base, overrides));
 }
 
 // ============================================================================

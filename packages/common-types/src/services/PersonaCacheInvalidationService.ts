@@ -28,11 +28,6 @@ import type { Redis } from 'ioredis';
 export type PersonaInvalidationEvent = StandardInvalidationEvent;
 
 /**
- * Callback function for handling invalidation events
- */
-export type PersonaInvalidationCallback = (event: PersonaInvalidationEvent) => void;
-
-/**
  * Type guard to validate PersonaInvalidationEvent structure
  */
 export const isValidPersonaInvalidationEvent =

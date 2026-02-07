@@ -21,92 +21,35 @@ export * from './types/schemas.js';
 // Export utilities
 export { splitMessage, truncateText, stripBotFooters, stripDmPrefix } from './utils/discord.js';
 export { createLogger } from './utils/logger.js';
-export {
-  parseRedisUrl,
-  createRedisSocketConfig,
-  createBullMQRedisConfig,
-  createIORedisClient,
-  type RedisConnectionConfig,
-  type RedisSocketConfig,
-  type BullMQRedisConfig,
-} from './utils/redis.js';
-export {
-  CircuitBreaker,
-  type CircuitState,
-  type CircuitBreakerOptions,
-} from './utils/CircuitBreaker.js';
+export { parseRedisUrl, createBullMQRedisConfig, createIORedisClient } from './utils/redis.js';
 export * from './utils/dateFormatting.js';
 export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';
 export * from './utils/tokenCounter.js';
 export * from './utils/textChunker.js';
 export * from './utils/autocompleteFormat.js';
-export {
-  Duration,
-  DurationParseError,
-  type DurationBounds,
-  type DurationValidation,
-} from './utils/Duration.js';
+export { Duration, DurationParseError } from './utils/Duration.js';
 export {
   shouldShowGap,
   calculateTimeGap,
-  formatTimeGap,
   formatTimeGapMarker,
-  DEFAULT_TIME_GAP_CONFIG,
   type TimeGapConfig,
 } from './utils/timeGap.js';
-export { isBotOwner, requireBotOwner } from './utils/ownerMiddleware.js';
+export { isBotOwner } from './utils/ownerMiddleware.js';
 export {
   computePersonalityPermissions,
   computeLlmConfigPermissions,
-  computePersonaPermissions,
   type EntityPermissions,
 } from './utils/permissions.js';
-export { TTLCache, type TTLCacheOptions } from './utils/TTLCache.js';
-export { assertDefined, assertNotNull, assertExists } from './utils/typeGuards.js';
-export {
-  defineTypedOptions,
-  createSchema,
-  type OptionType,
-  type OptionConfig,
-  type OptionSchema,
-  type TypedOptionsAccessor,
-} from './utils/typedOptions.js';
-
+export { TTLCache } from './utils/TTLCache.js';
+export { assertDefined } from './utils/typeGuards.js';
 // Generated command option schemas
 export * from './generated/commandOptions.js';
-export {
-  encryptApiKey,
-  decryptApiKey,
-  isValidEncryptedData,
-  type EncryptedData,
-} from './utils/encryption.js';
-export {
-  sanitizeLogMessage,
-  sanitizeObject,
-  createSanitizedSerializers,
-  sanitizeLogHook,
-} from './utils/logSanitizer.js';
-export { escapeXmlContent, containsXmlTags } from './utils/promptSanitizer.js';
-export {
-  escapeXml,
-  xml,
-  xmlAttrs,
-  xmlElement,
-  xmlSelfClosing,
-  XML_TAGS,
-} from './utils/xmlBuilder.js';
+export { encryptApiKey, decryptApiKey } from './utils/encryption.js';
+export { escapeXmlContent } from './utils/promptSanitizer.js';
+export { escapeXml } from './utils/xmlBuilder.js';
 export { formatLocationAsXml } from './utils/environmentFormatter.js';
-export {
-  normalizeRole,
-  isRoleMatch,
-  normalizeTimestamp,
-  extractTimestampMs,
-  normalizeConversationMessage,
-  normalizeConversationHistory,
-  type LooseConversationMessage,
-  type NormalizedConversationMessage,
-} from './utils/messageNormalization.js';
+export { normalizeRole, normalizeTimestamp } from './utils/messageNormalization.js';
 
 // Export services
 export * from './services/prisma.js';
@@ -124,18 +67,8 @@ export * from './services/LlmConfigCacheInvalidationService.js';
 export * from './services/PersonaCacheInvalidationService.js';
 export * from './services/ChannelActivationCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
-export {
-  VisionDescriptionCache,
-  type VisionCacheKeyOptions,
-  type VisionStoreOptions,
-  type VisionFailureOptions,
-  type VisionFailureEntry,
-} from './services/VisionDescriptionCache.js';
-export {
-  PersistentVisionCache,
-  type PersistentVisionCacheEntry,
-  type PersistentVisionFailureEntry,
-} from './services/PersistentVisionCache.js';
+export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
+export { PersistentVisionCache } from './services/PersistentVisionCache.js';
 
 // Export resolvers (cascading configuration resolution)
 export * from './services/resolvers/index.js';

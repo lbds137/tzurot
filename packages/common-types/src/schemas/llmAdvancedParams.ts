@@ -57,8 +57,6 @@ export const SamplingParamsSchema = z.object({
   seed: z.number().int().optional(),
 });
 
-export type SamplingParams = z.infer<typeof SamplingParamsSchema>;
-
 // ============================================
 // REASONING PARAMETERS (Unified by OpenRouter)
 // Works across: OpenAI o1/o3, Claude, Gemini, DeepSeek R1
@@ -93,7 +91,7 @@ export const ReasoningConfigSchema = z.object({
   enabled: z.boolean().optional(),
 });
 
-export type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>;
+type ReasoningConfig = z.infer<typeof ReasoningConfigSchema>;
 
 /**
  * Parameters containing reasoning configuration.
@@ -102,8 +100,6 @@ export const ReasoningParamsSchema = z.object({
   /** Reasoning token configuration */
   reasoning: ReasoningConfigSchema.optional(),
 });
-
-export type ReasoningParams = z.infer<typeof ReasoningParamsSchema>;
 
 // ============================================
 // OUTPUT CONTROL PARAMETERS
@@ -138,8 +134,6 @@ export const OutputParamsSchema = z.object({
   show_thinking: z.boolean().optional(),
 });
 
-export type OutputParams = z.infer<typeof OutputParamsSchema>;
-
 // ============================================
 // OPENROUTER-SPECIFIC PARAMETERS
 // ============================================
@@ -157,8 +151,6 @@ export const OpenRouterParamsSchema = z.object({
   /** Response verbosity level */
   verbosity: z.enum(['low', 'medium', 'high']).optional(),
 });
-
-export type OpenRouterParams = z.infer<typeof OpenRouterParamsSchema>;
 
 // ============================================
 // COMBINED SCHEMA
@@ -442,4 +434,3 @@ export const LLM_CONFIG_OVERRIDE_KEYS = [
  * Type for LLM config override keys.
  * Useful for type-safe iteration and validation.
  */
-export type LlmConfigOverrideKey = (typeof LLM_CONFIG_OVERRIDE_KEYS)[number];

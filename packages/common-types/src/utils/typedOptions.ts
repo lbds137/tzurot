@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- pre-existing: option type string literals */
 /**
  * Type-Safe Command Option Accessors
  *
@@ -25,7 +26,7 @@ import type { ChatInputCommandInteraction } from 'discord.js';
 /**
  * Supported Discord.js option types
  */
-export type OptionType =
+type OptionType =
   | 'string'
   | 'integer'
   | 'number'
@@ -39,7 +40,7 @@ export type OptionType =
 /**
  * Configuration for a single command option
  */
-export interface OptionConfig {
+interface OptionConfig {
   type: OptionType;
   required: boolean;
 }
@@ -47,7 +48,7 @@ export interface OptionConfig {
 /**
  * Schema defining all options for a command
  */
-export type OptionSchema = Record<string, OptionConfig>;
+type OptionSchema = Record<string, OptionConfig>;
 
 /**
  * Return type for option accessor based on config
@@ -83,7 +84,7 @@ type OptionValueType<T extends OptionType> = T extends 'string'
  * Typed accessor object for command options
  * Each key becomes a function that retrieves the typed value
  */
-export type TypedOptionsAccessor<TSchema extends OptionSchema> = {
+type TypedOptionsAccessor<TSchema extends OptionSchema> = {
   [K in keyof TSchema]: () => OptionReturnType<TSchema[K]>;
 };
 

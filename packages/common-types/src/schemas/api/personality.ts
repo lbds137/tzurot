@@ -37,7 +37,6 @@ export const PersonalitySummarySchema = z.object({
   /** Computed permissions for the requesting user */
   permissions: EntityPermissionsSchema,
 });
-export type PersonalitySummaryDto = z.infer<typeof PersonalitySummarySchema>;
 
 /** Full personality data for dashboard/editing */
 export const PersonalityFullSchema = z.object({
@@ -80,24 +79,6 @@ export const CreatePersonalityResponseSchema = z.object({
 export type CreatePersonalityResponse = z.infer<typeof CreatePersonalityResponseSchema>;
 
 // ============================================================================
-// PUT /user/personality/:slug
-// Updates an existing personality
-// ============================================================================
-
-export const UpdatePersonalityResponseSchema = z.object({
-  success: z.literal(true),
-  personality: PersonalityFullSchema.pick({
-    id: true,
-    name: true,
-    slug: true,
-    displayName: true,
-    isPublic: true,
-    updatedAt: true,
-  }),
-});
-export type UpdatePersonalityResponse = z.infer<typeof UpdatePersonalityResponseSchema>;
-
-// ============================================================================
 // GET /user/personality/:slug
 // Gets a single personality by slug
 // ============================================================================
@@ -123,7 +104,7 @@ export type ListPersonalitiesResponse = z.infer<typeof ListPersonalitiesResponse
 // ============================================================================
 
 /** Counts of deleted related records for user feedback */
-export const DeletedCountsSchema = z.object({
+const DeletedCountsSchema = z.object({
   /** Number of conversation history messages deleted */
   conversationHistory: z.number().int().nonnegative(),
   /** Number of memory entries deleted */
@@ -135,7 +116,6 @@ export const DeletedCountsSchema = z.object({
   /** Number of aliases deleted */
   aliases: z.number().int().nonnegative(),
 });
-export type DeletedCounts = z.infer<typeof DeletedCountsSchema>;
 
 export const DeletePersonalityResponseSchema = z.object({
   success: z.literal(true),
@@ -146,7 +126,6 @@ export const DeletePersonalityResponseSchema = z.object({
   /** Counts of deleted related records */
   deletedCounts: DeletedCountsSchema,
 });
-export type DeletePersonalityResponse = z.infer<typeof DeletePersonalityResponseSchema>;
 
 // ============================================================================
 // Input Schemas (shared between admin and user endpoints)
@@ -257,7 +236,6 @@ export const AdminPersonalityResponseSchema = z.object({
   }),
   timestamp: z.string().datetime(),
 });
-export type AdminPersonalityResponse = z.infer<typeof AdminPersonalityResponseSchema>;
 
 // ============================================================================
 // Prisma SELECT constants

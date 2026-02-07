@@ -50,17 +50,3 @@ export const API_KEY_FORMATS = {
   /** Placeholder example for OpenRouter keys (for documentation/UI) */
   OPENROUTER_PLACEHOLDER: 'sk-or-v1-xxxx...',
 } as const;
-
-/**
- * Wallet operation success messages
- */
-export const WALLET_SUCCESS_MESSAGES = {
-  /** API key stored successfully */
-  KEY_STORED: 'API key stored successfully',
-
-  /** API key removed successfully */
-  KEY_REMOVED: 'API key removed successfully',
-
-  /** API key validation passed */
-  KEY_VALID: 'API key is valid',
-} as const;

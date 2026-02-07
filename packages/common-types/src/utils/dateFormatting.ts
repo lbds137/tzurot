@@ -259,7 +259,7 @@ export function formatRelativeTimeDelta(timestamp: Date | string | number): stri
 /**
  * Result type for memory timestamp with delta
  */
-export interface TimestampWithDelta {
+interface TimestampWithDelta {
   /** Absolute date (e.g., "Mon, Jan 15, 2025") */
   absolute: string;
   /** Relative time delta (e.g., "2 weeks ago") */

@@ -35,13 +35,6 @@ export type ChannelActivationInvalidationEvent =
   | { type: 'all' };
 
 /**
- * Callback function for handling invalidation events
- */
-export type ChannelActivationInvalidationCallback = (
-  event: ChannelActivationInvalidationEvent
-) => void;
-
-/**
  * Type guard to validate ChannelActivationInvalidationEvent structure
  */
 export function isValidChannelActivationInvalidationEvent(

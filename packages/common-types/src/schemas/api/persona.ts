@@ -16,28 +16,25 @@ import { z } from 'zod';
 // ============================================================================
 
 /** Reference to a personality (minimal data for display) */
-export const PersonalityRefSchema = z.object({
+const PersonalityRefSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   displayName: z.string().nullable(),
 });
-export type PersonalityRef = z.infer<typeof PersonalityRefSchema>;
 
 /** Reference to a persona (minimal data for display) */
-export const PersonaRefSchema = z.object({
+const PersonaRefSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
   preferredName: z.string().nullable(),
 });
-export type PersonaRef = z.infer<typeof PersonaRefSchema>;
 
 /** Full persona data (for detailed views) */
-export const PersonaFullSchema = PersonaRefSchema.extend({
+const PersonaFullSchema = PersonaRefSchema.extend({
   description: z.string().nullable(),
   pronouns: z.string().nullable(),
   content: z.string().nullable(),
 });
-export type PersonaFull = z.infer<typeof PersonaFullSchema>;
 
 /** Persona details (full data with metadata) */
 export const PersonaDetailsSchema = PersonaFullSchema.extend({
@@ -104,7 +101,6 @@ export const UpdatePersonaResponseSchema = z.object({
   success: z.literal(true),
   persona: PersonaDetailsSchema,
 });
-export type UpdatePersonaResponse = z.infer<typeof UpdatePersonaResponseSchema>;
 
 // ============================================================================
 // PATCH /user/persona/:id/default

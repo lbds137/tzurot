@@ -7,7 +7,7 @@
 /**
  * Timezone option for UI dropdowns
  */
-export interface TimezoneOption {
+interface TimezoneOption {
   /** IANA timezone identifier (e.g., 'America/New_York') */
   value: string;
   /** Human-readable label (e.g., 'Eastern Time (US)') */

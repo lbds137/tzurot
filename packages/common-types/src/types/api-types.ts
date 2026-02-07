@@ -21,7 +21,6 @@ export type {
   ReferencedMessage,
   StoredReferencedMessage,
   MessageMetadata,
-  GenerationPayload,
   LLMGenerationResult,
   // History API types
   HistoryClearRequest,
@@ -37,18 +36,11 @@ export type {
 // Re-export schemas for runtime validation
 export {
   attachmentMetadataSchema,
-  apiConversationMessageSchema,
   generateRequestSchema,
-  discordEnvironmentSchema,
   loadedPersonalitySchema,
-  mentionedPersonaSchema,
-  referencedChannelSchema,
   requestContextSchema,
   referencedMessageSchema,
-  storedReferencedMessageSchema,
-  messageMetadataSchema,
-  generationPayloadSchema,
-  llmGenerationResultSchema,
+
   // History API schemas
   historyClearRequestSchema,
   historyClearResponseSchema,
