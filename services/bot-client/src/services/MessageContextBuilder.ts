@@ -353,6 +353,17 @@ export class MessageContextBuilder {
     history: ConversationMessage[],
     isWeighInMode = false
   ): Promise<ReferencesAndMentionsResult> {
+    // In weigh-in mode, the anchor message is the latest channel message (not from the invoking user).
+    // Its reply references are irrelevant to the weigh-in prompt — skip extraction entirely.
+    if (isWeighInMode) {
+      return {
+        messageContent: content,
+        referencedMessages: [],
+        mentionedPersonas: undefined,
+        referencedChannels: undefined,
+      };
+    }
+
     const conversationHistoryMessageIds = history
       .flatMap(msg => msg.discordMessageId ?? [])
       .filter((id): id is string => id !== undefined && id !== null);
