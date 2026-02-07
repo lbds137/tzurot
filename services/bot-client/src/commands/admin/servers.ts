@@ -31,7 +31,7 @@ const logger = createLogger('admin-servers');
 const SERVERS_PER_PAGE = 10;
 
 /** Sort options */
-export type ServerBrowseSortType = 'name' | 'members';
+type ServerBrowseSortType = 'name' | 'members';
 
 /** Default sort type */
 const DEFAULT_SORT: ServerBrowseSortType = 'members';

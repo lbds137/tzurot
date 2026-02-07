@@ -43,14 +43,7 @@ import {
   getOldestTimestamp,
 } from './channelFetcher/SyncValidator.js';
 
-export type {
-  ParticipantGuildInfo,
-  ExtendedContextUser,
-  FetchResult,
-  FetchOptions,
-  FetchableChannel,
-  SyncResult,
-} from './channelFetcher/types.js';
+export type { FetchableChannel } from './channelFetcher/types.js';
 
 import type {
   ParticipantGuildInfo,

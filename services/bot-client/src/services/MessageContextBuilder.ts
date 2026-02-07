@@ -50,7 +50,7 @@ const logger = createLogger('MessageContextBuilder');
 /**
  * Options for building message context
  */
-export interface ContextBuildOptions {
+interface ContextBuildOptions {
   /**
    * Extended context settings: resolved limits for fetching recent Discord messages.
    * Includes maxMessages, maxAge, and maxImages limits.
@@ -84,7 +84,7 @@ export interface ContextBuildOptions {
 /**
  * Result of building message context
  */
-export interface ContextBuildResult {
+interface ContextBuildResult {
   /** Full AI context ready to send to api-gateway */
   context: MessageContext;
   /** User's database UUID */

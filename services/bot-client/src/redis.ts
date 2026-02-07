@@ -14,7 +14,6 @@ import {
   getConfig,
   createIORedisClient,
   VoiceTranscriptCache,
-  PersonaCacheInvalidationService,
 } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 import { initSessionManager, shutdownSessionManager } from './utils/dashboard/index.js';
@@ -40,11 +39,6 @@ export const redisService = new RedisService(redis);
 // Export singleton VoiceTranscriptCache instance
 // eslint-disable-next-line @tzurot/no-singleton-export -- Redis requires singleton pattern for connection reuse
 export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
-
-// Export singleton PersonaCacheInvalidationService instance
-// Used by persona commands to broadcast cache invalidation events to ai-worker instances
-// eslint-disable-next-line @tzurot/no-singleton-export -- Redis requires singleton pattern for connection reuse
-export const personaCacheInvalidationService = new PersonaCacheInvalidationService(redis);
 
 // Initialize Dashboard Session Manager
 // This enables Redis-backed session storage for dashboard editing sessions

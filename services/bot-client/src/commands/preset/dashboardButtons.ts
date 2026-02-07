@@ -107,7 +107,7 @@ export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionBu
 /**
  * Refresh the dashboard UI with updated data.
  */
-export async function refreshDashboardUI(
+async function refreshDashboardUI(
   interaction: ButtonInteraction,
   entityId: string,
   flattenedData: FlattenedPresetData

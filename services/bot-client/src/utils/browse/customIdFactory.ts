@@ -15,12 +15,12 @@ import type { ParsedBrowseCustomId } from './types.js';
  * Maximum query length in customIds.
  * Discord customIds have a 100-char limit, and the base format uses ~45-50 chars.
  */
-export const MAX_CUSTOMID_QUERY_LENGTH = 50;
+const MAX_CUSTOMID_QUERY_LENGTH = 50;
 
 /**
  * Configuration for creating browse customId helpers
  */
-export interface BrowseCustomIdConfig<TFilter extends string> {
+interface BrowseCustomIdConfig<TFilter extends string> {
   /** Command prefix (e.g., 'character', 'preset') */
   prefix: string;
   /** Valid filter values for type safety */
@@ -106,7 +106,7 @@ function parseCustomIdCore<TFilter extends string>(
 /**
  * Result of createBrowseCustomIdHelpers
  */
-export interface BrowseCustomIdHelpers<TFilter extends string> {
+interface BrowseCustomIdHelpers<TFilter extends string> {
   /** Build customId for browse pagination */
   build: (page: number, filter: TFilter, sort: BrowseSortType, query: string | null) => string;
   /** Build customId for browse select menu */

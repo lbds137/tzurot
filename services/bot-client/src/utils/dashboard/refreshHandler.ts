@@ -20,7 +20,7 @@ const logger = createLogger('dashboard-refresh');
 /**
  * Options for creating a refresh handler
  */
-export interface RefreshHandlerOptions<TData, TRaw = TData> {
+interface RefreshHandlerOptions<TData, TRaw = TData> {
   /** Entity type (e.g., 'persona', 'character', 'preset') */
   entityType: string;
   /** Dashboard configuration */

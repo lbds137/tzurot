@@ -10,23 +10,23 @@
  */
 
 import type { Logger } from 'pino';
-import type { DeferredCommandContext, SafeCommandContext } from './commandContext/types.js';
+import type { DeferredCommandContext } from './commandContext/types.js';
 
 /**
  * Handler function signature for context-aware subcommands.
  * Receives DeferredCommandContext which does NOT have deferReply().
  */
-export type SubcommandContextHandler = (context: DeferredCommandContext) => Promise<void>;
+type SubcommandContextHandler = (context: DeferredCommandContext) => Promise<void>;
 
 /**
  * Map of subcommand names to their context-aware handlers
  */
-export type SubcommandContextMap = Record<string, SubcommandContextHandler>;
+type SubcommandContextMap = Record<string, SubcommandContextHandler>;
 
 /**
  * Options for the context-aware subcommand router
  */
-export interface ContextRouterOptions {
+interface ContextRouterOptions {
   /** Logger instance for logging subcommand execution */
   logger?: Logger;
   /** Prefix for log messages (e.g., '[Channel]') */
@@ -86,13 +86,4 @@ export function createSubcommandContextRouter(
       await context.editReply({ content: '❌ Unknown subcommand' });
     }
   };
-}
-
-/**
- * Type guard to narrow SafeCommandContext to DeferredCommandContext.
- * Use when a command with deferralMode receives context and needs to pass
- * it to a context-aware router.
- */
-export function asDeferredContext(ctx: SafeCommandContext): DeferredCommandContext {
-  return ctx as DeferredCommandContext;
 }

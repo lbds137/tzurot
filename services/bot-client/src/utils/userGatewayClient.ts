@@ -19,23 +19,23 @@ export { GATEWAY_TIMEOUTS };
 /**
  * Gateway API response wrapper
  */
-export interface GatewayResponse<T> {
+interface GatewayResponse<T> {
   ok: true;
   data: T;
 }
 
-export interface GatewayError {
+interface GatewayError {
   ok: false;
   error: string;
   status: number;
 }
 
-export type GatewayResult<T> = GatewayResponse<T> | GatewayError;
+type GatewayResult<T> = GatewayResponse<T> | GatewayError;
 
 /**
  * Options for gateway API calls
  */
-export interface GatewayCallOptions {
+interface GatewayCallOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   userId: string;
   body?: unknown;

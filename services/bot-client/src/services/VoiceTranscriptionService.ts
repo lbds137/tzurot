@@ -110,7 +110,7 @@ function extractAudioFromForwardedSnapshots(message: Message): TranscriptionAtta
 /**
  * Result of voice transcription
  */
-export interface VoiceTranscriptionResult {
+interface VoiceTranscriptionResult {
   /** Transcript text */
   transcript: string;
   /** Whether the message also targets a personality (mention/reply) */

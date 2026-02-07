@@ -24,7 +24,7 @@ export const CUSTOM_ID_DELIMITER = '::';
 // ============================================================================
 
 /** Sort options for character list */
-export type CharacterListSortType = 'date' | 'name';
+type CharacterListSortType = 'date' | 'name';
 
 /** Result type for CharacterCustomIds.parse */
 interface CharacterParseResult {
@@ -321,7 +321,7 @@ export const DestructiveCustomIds = {
 // ============================================================================
 
 /** Sort options for channel list */
-export type ChannelListSortType = 'date' | 'name';
+type ChannelListSortType = 'date' | 'name';
 
 /** Result type for ChannelCustomIds.parse */
 interface ChannelParseResult {
@@ -444,6 +444,7 @@ export const PersonaCustomIds = {
   browseInfo: () => 'persona::browse::info' as const,
 
   /** Parse persona customId */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
   parse: (customId: string): PersonaParseResult | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
     if (parts[0] !== 'persona' || parts.length < 2) {

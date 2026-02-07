@@ -1,3 +1,4 @@
+/* eslint-disable sonarjs/no-duplicate-string -- pre-existing */
 /**
  * Settings Dashboard Handler
  *
@@ -25,7 +26,6 @@ import {
   type SettingUpdateHandler,
   DashboardView,
   parseSettingsCustomId,
-  isSettingsInteraction,
   SettingType,
 } from './types.js';
 import {
@@ -41,7 +41,7 @@ const logger = createLogger('SettingsDashboardHandler');
 /**
  * Options for creating a settings dashboard
  */
-export interface CreateDashboardOptions {
+interface CreateDashboardOptions {
   /** Dashboard configuration */
   config: SettingsDashboardConfig;
   /** Initial settings data */
@@ -595,8 +595,3 @@ export function getUpdateHandler(
   const key = getSessionKey(userId, entityType, entityId);
   return sessionMetadata.get(key)?.updateHandler;
 }
-
-/**
- * Check if a custom ID belongs to a settings dashboard
- */
-export { isSettingsInteraction };

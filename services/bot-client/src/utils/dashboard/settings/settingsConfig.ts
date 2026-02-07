@@ -49,10 +49,3 @@ export const EXTENDED_CONTEXT_SETTINGS: SettingDefinition[] = [
     helpText: '0 = lazy mode (process on reference), higher values = proactive processing',
   },
 ];
-
-/**
- * Get a setting definition by ID
- */
-export function getSettingDefinition(settingId: string): SettingDefinition | undefined {
-  return EXTENDED_CONTEXT_SETTINGS.find(s => s.id === settingId);
-}

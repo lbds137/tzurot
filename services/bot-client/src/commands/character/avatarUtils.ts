@@ -32,7 +32,7 @@ type SupportedFormat = (typeof SUPPORTED_FORMATS)[number];
 /**
  * Result of avatar processing
  */
-export interface AvatarProcessingResult {
+interface AvatarProcessingResult {
   success: true;
   buffer: Buffer;
   wasResized: boolean;
@@ -42,13 +42,13 @@ export interface AvatarProcessingResult {
 /**
  * Error result from avatar processing
  */
-export interface AvatarProcessingError {
+interface AvatarProcessingError {
   success: false;
   error: 'too_large' | 'processing_failed' | 'invalid_format' | 'dimensions_too_large';
   message: string;
 }
 
-export type ProcessAvatarResult = AvatarProcessingResult | AvatarProcessingError;
+type ProcessAvatarResult = AvatarProcessingResult | AvatarProcessingError;
 
 /**
  * Apply format-specific compression to a sharp pipeline.

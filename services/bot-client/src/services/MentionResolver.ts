@@ -19,14 +19,6 @@ import type {
 } from './MentionResolverTypes.js';
 
 // Re-export types for consumers
-export type {
-  MentionedUserInfo,
-  MentionResolutionResult,
-  FullMentionResolutionResult,
-  ResolvedChannel,
-  ResolvedRole,
-} from './MentionResolverTypes.js';
-
 const logger = createLogger('MentionResolver');
 
 /**

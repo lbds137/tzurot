@@ -21,17 +21,14 @@ import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { truncateForSelect, MAX_SELECT_LABEL_LENGTH } from '../../utils/browse/index.js';
 
 // Re-export API functions for backward compatibility
-export { fetchMemory, updateMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
 import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
 
 // Re-export modal functions for backward compatibility
 export {
-  buildEditModal,
   handleEditButton,
   handleEditTruncatedButton,
   handleCancelEditButton,
   handleEditModalSubmit,
-  MAX_MODAL_CONTENT_LENGTH,
 } from './detailModals.js';
 import { formatDateShort, formatDateTime, EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 

@@ -38,7 +38,7 @@ let conversationPersistence: ConversationPersistence | undefined;
 /**
  * Services that can be registered and accessed globally
  */
-export interface RegisteredServices {
+interface RegisteredServices {
   jobTracker: JobTracker;
   webhookManager: WebhookManager;
   gatewayClient: GatewayClient;

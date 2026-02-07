@@ -25,7 +25,7 @@ const logger = createLogger('DiscordResponseSender');
 /**
  * Result of sending a Discord response
  */
-export interface DiscordSendResult {
+interface DiscordSendResult {
   /** Discord message IDs for all chunks sent */
   chunkMessageIds: string[];
   /** Number of chunks sent */
@@ -35,7 +35,7 @@ export interface DiscordSendResult {
 /**
  * Options for sending a Discord response
  */
-export interface SendResponseOptions {
+interface SendResponseOptions {
   /** The AI response content */
   content: string;
   /** The personality to send as */

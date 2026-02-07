@@ -34,7 +34,7 @@ export function shouldNotifyUser(channelId: string, userId: string): boolean {
  * Periodically clean up old entries from the notification cache.
  * Removes entries that have expired past the cooldown period.
  */
-export function cleanupNotificationCache(): void {
+function cleanupNotificationCache(): void {
   const now = Date.now();
   for (const [key, timestamp] of notificationCache.entries()) {
     if (now - timestamp > NOTIFICATION_COOLDOWN_MS) {

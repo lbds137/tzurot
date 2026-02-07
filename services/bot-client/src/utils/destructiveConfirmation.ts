@@ -252,7 +252,7 @@ export async function handleDestructiveModalSubmit(
 /**
  * Options for creating a hard-delete config
  */
-export interface HardDeleteConfigOptions {
+interface HardDeleteConfigOptions {
   /** What's being deleted (e.g., 'conversation history') */
   entityType: string;
   /** Name of the specific entity (e.g., personality name) */

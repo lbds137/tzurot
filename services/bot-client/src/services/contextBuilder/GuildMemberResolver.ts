@@ -8,7 +8,7 @@ import type { Message, GuildMember } from 'discord.js';
 import { MESSAGE_LIMITS, type GuildMemberInfo } from '@tzurot/common-types';
 
 /** Options that may contain member override */
-export interface MemberResolveOptions {
+interface MemberResolveOptions {
   /** Override guild member for context building */
   overrideMember?: GuildMember | null;
   /** Override user for context building (used to fetch member if no overrideMember) */

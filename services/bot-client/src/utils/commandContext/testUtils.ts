@@ -28,7 +28,7 @@ import type { DeferredCommandContext, ModalCommandContext, ManualCommandContext 
 /**
  * Options for creating mock contexts
  */
-export interface MockContextOptions {
+interface MockContextOptions {
   /** User ID (defaults to 'user-123') */
   userId?: string;
   /** Guild ID (defaults to 'guild-123', null for DMs) */

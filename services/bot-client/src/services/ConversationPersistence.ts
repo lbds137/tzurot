@@ -45,7 +45,7 @@ function convertToStoredReferences(references: ReferencedMessage[]): StoredRefer
 /**
  * Options for saving a user message
  */
-export interface SaveUserMessageOptions {
+interface SaveUserMessageOptions {
   /** Discord message */
   message: Message;
   /** Personality being addressed */
@@ -71,7 +71,7 @@ export interface SaveUserMessageOptions {
 /**
  * Options for saving an assistant message
  */
-export interface SaveAssistantMessageOptions {
+interface SaveAssistantMessageOptions {
   /** Discord message (for channel/guild context) */
   message: Message;
   /** Personality that responded */
@@ -89,7 +89,7 @@ export interface SaveAssistantMessageOptions {
 /**
  * Options for updating a user message with rich descriptions
  */
-export interface UpdateUserMessageOptions {
+interface UpdateUserMessageOptions {
   /** Discord message */
   message: Message;
   /** Personality being addressed */
@@ -106,7 +106,7 @@ export interface UpdateUserMessageOptions {
  * Options for saving a user message from fields (core implementation).
  * Used directly by slash commands, or via saveUserMessage() wrapper for Message objects.
  */
-export interface SaveUserMessageFromFieldsOptions {
+interface SaveUserMessageFromFieldsOptions {
   /** Discord channel ID */
   channelId: string;
   /** Discord guild ID (null for DMs) */
@@ -141,7 +141,7 @@ export interface SaveUserMessageFromFieldsOptions {
  * Options for saving an assistant message from fields (core implementation).
  * Used directly by slash commands, or via saveAssistantMessage() wrapper for Message objects.
  */
-export interface SaveAssistantMessageFromFieldsOptions {
+interface SaveAssistantMessageFromFieldsOptions {
   /** Discord channel ID */
   channelId: string;
   /** Discord guild ID (null for DMs) */
