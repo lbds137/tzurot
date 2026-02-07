@@ -20,7 +20,7 @@ import type { PersonalityService } from './personality/index.js';
 
 const logger = createLogger('CacheInvalidationService');
 
-export type InvalidationEvent = { type: 'personality'; personalityId: string } | { type: 'all' };
+type InvalidationEvent = { type: 'personality'; personalityId: string } | { type: 'all' };
 
 /**
  * Type guard to validate InvalidationEvent structure

@@ -25,14 +25,6 @@ export enum TransientErrorCode {
 }
 
 /**
- * Error names for transient errors
- */
-export const ERROR_NAMES = {
-  /** DOMException thrown by AbortController when operation times out */
-  ABORT_ERROR: 'AbortError',
-} as const;
-
-/**
  * Error messages for LLM invocation failures
  */
 export const ERROR_MESSAGES = {
@@ -227,7 +219,7 @@ export function isTransientError(category: ApiErrorCategory): boolean {
  * Note: Character class excludes | and ) to prevent ReDoS on nested ||*( sequences
  * Length limited to 500 chars (matches MAX_ERROR_MESSAGE_LENGTH) for additional safety
  */
-export const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
+const ERROR_SPOILER_PATTERN = /\|\|\*\(([^)|]{1,500})\)\*\|\|/;
 
 /**
  * Format error details for Discord spoiler tags

@@ -2,25 +2,6 @@
  * AI-related types
  */
 
-import { MessageRole } from '../constants/index.js';
-
-export interface ChatCompletionRequest {
-  model: string;
-  messages: { role: string; content: string }[];
-  temperature?: number;
-  max_tokens?: number;
-  stream?: boolean;
-  user?: string;
-}
-
-export interface ConversationHistory {
-  messages: {
-    role: MessageRole;
-    content: string;
-    timestamp?: Date;
-  }[];
-}
-
 export type MessageContent =
   | string
   | {

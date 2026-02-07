@@ -16,7 +16,7 @@ import { z } from 'zod';
 // ============================================================================
 
 /** Valid time periods for usage queries */
-export const UsagePeriodSchema = z.enum(['day', 'week', 'month', 'all']);
+const UsagePeriodSchema = z.enum(['day', 'week', 'month', 'all']);
 
 /** Token usage breakdown by category */
 export const UsageBreakdownSchema = z.object({
@@ -42,4 +42,3 @@ export const GetUsageResponseSchema = z.object({
   byModel: z.record(z.string(), UsageBreakdownSchema),
   byRequestType: z.record(z.string(), UsageBreakdownSchema),
 });
-export type GetUsageResponse = z.infer<typeof GetUsageResponseSchema>;

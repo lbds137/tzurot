@@ -22,14 +22,14 @@
 
 import parseDuration from 'parse-duration';
 
-export interface DurationBounds {
+interface DurationBounds {
   /** Minimum seconds (when enabled) */
   min?: number;
   /** Maximum seconds */
   max?: number;
 }
 
-export interface DurationValidation {
+interface DurationValidation {
   valid: boolean;
   error?: string;
 }

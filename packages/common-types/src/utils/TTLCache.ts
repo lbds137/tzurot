@@ -17,7 +17,7 @@ import { createLogger } from './logger.js';
 
 const logger = createLogger('TTLCache');
 
-export interface TTLCacheOptions {
+interface TTLCacheOptions {
   /** Time-to-live for cache entries in milliseconds */
   ttl?: number;
   /** Maximum number of entries to cache */

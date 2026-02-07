@@ -18,13 +18,13 @@ import { generateImageDescriptionCacheUuid } from '../utils/deterministicUuid.js
 
 const logger = createLogger('PersistentVisionCache');
 
-export interface PersistentVisionCacheEntry {
+interface PersistentVisionCacheEntry {
   attachmentId: string;
   description: string;
   model: string;
 }
 
-export interface PersistentVisionFailureEntry {
+interface PersistentVisionFailureEntry {
   category: string;
 }
 

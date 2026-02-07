@@ -17,7 +17,7 @@ import { AIProvider } from '../../constants/ai.js';
 // ============================================================================
 
 /** API provider enum as Zod schema */
-export const AIProviderSchema = z.nativeEnum(AIProvider);
+const AIProviderSchema = z.nativeEnum(AIProvider);
 
 /** Wallet key metadata (never includes actual key) */
 export const WalletKeySchema = z.object({
@@ -50,8 +50,6 @@ export const SetWalletKeyResponseSchema = z.object({
   credits: z.number().optional(), // Available credits if provider supports it
   timestamp: z.string(), // ISO date string
 });
-export type SetWalletKeyResponse = z.infer<typeof SetWalletKeyResponseSchema>;
-
 // ============================================================================
 // DELETE /wallet/:provider
 // Removes an API key for a provider

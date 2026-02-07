@@ -225,11 +225,6 @@ export function extractDiscordId(personaId: string | undefined): string | undefi
 export const DISCORD_PROVIDER_CHOICES = [{ name: 'OpenRouter', value: 'openrouter' }] as const;
 
 /**
- * Type for provider choice values
- */
-export type DiscordProviderChoice = (typeof DISCORD_PROVIDER_CHOICES)[number]['value'];
-
-/**
  * Bot-added footer text constants.
  *
  * Single source of truth for footer strings used in Discord messages.

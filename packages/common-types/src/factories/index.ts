@@ -28,6 +28,3 @@ export * from './timezone.js';
 
 // LLM Config endpoint mocks
 export * from './llm-config.js';
-
-// Usage endpoint mocks
-export * from './usage.js';

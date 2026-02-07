@@ -112,7 +112,7 @@ export interface ResponseDestination {
 /**
  * Base job data - common fields for all job types
  */
-export interface BaseJobData {
+interface BaseJobData {
   /** Unique request ID */
   requestId: string;
   /** Job type */
@@ -270,14 +270,11 @@ export const audioTranscriptionResultSchema = z.object({
     .optional(),
 });
 
-// Type inference from result schema
-export type AudioTranscriptionResultFromSchema = z.infer<typeof audioTranscriptionResultSchema>;
-
 /**
  * Response Destination Schema
  * Where to send job results
  */
-export const responseDestinationSchema = z.object({
+const responseDestinationSchema = z.object({
   type: z.enum(['discord', 'webhook', 'api']),
   channelId: z.string().optional(),
   webhookUrl: z.string().optional(),
@@ -288,7 +285,7 @@ export const responseDestinationSchema = z.object({
  * Job Dependency Schema
  * Represents a preprocessing job that must complete first
  */
-export const jobDependencySchema = z.object({
+const jobDependencySchema = z.object({
   jobId: z.string(),
   type: z.nativeEnum(JobType),
   status: z.nativeEnum(JobStatus),
@@ -299,7 +296,7 @@ export const jobDependencySchema = z.object({
  * Job Context Schema
  * Shared context across all job types
  */
-export const jobContextSchema = z.object({
+const jobContextSchema = z.object({
   userId: z.string(),
   userInternalId: z.string().optional(),
   userName: z.string().optional(),
@@ -388,12 +385,3 @@ export const anyJobDataSchema = z.discriminatedUnion('jobType', [
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
 ]);
-
-// Type inference from schemas (ensures types stay in sync with schemas)
-export type ResponseDestinationFromSchema = z.infer<typeof responseDestinationSchema>;
-export type JobDependencyFromSchema = z.infer<typeof jobDependencySchema>;
-export type JobContextFromSchema = z.infer<typeof jobContextSchema>;
-export type AudioTranscriptionJobDataFromSchema = z.infer<typeof audioTranscriptionJobDataSchema>;
-export type ImageDescriptionJobDataFromSchema = z.infer<typeof imageDescriptionJobDataSchema>;
-export type LLMGenerationJobDataFromSchema = z.infer<typeof llmGenerationJobDataSchema>;
-export type AnyJobDataFromSchema = z.infer<typeof anyJobDataSchema>;

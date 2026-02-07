@@ -26,15 +26,10 @@ import type { Redis } from 'ioredis';
  * Event types for LLM config cache invalidation
  * Extends standard events with config-specific invalidation
  */
-export type LlmConfigInvalidationEvent =
+type LlmConfigInvalidationEvent =
   | { type: 'user'; discordId: string }
   | { type: 'config'; configId: string }
   | { type: 'all' };
-
-/**
- * Callback function for handling invalidation events
- */
-export type LlmConfigInvalidationCallback = (event: LlmConfigInvalidationEvent) => void;
 
 /**
  * Type guard to validate LlmConfigInvalidationEvent structure
