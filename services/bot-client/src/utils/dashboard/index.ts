@@ -22,20 +22,9 @@
 // Types
 export {
   SectionStatus,
-  STATUS_EMOJI,
   type DashboardContext,
-  type ContextAware,
-  resolveContextAware,
-  type FieldDefinition,
   type SectionDefinition,
-  type ActionDefinition,
   type DashboardConfig,
-  type DashboardSession,
-  type DashboardUpdateResult,
-  type EditSelectionHandler,
-  type ModalSubmitHandler,
-  type ActionHandler,
-  type DashboardRepository,
   type BrowseContext,
   isDashboardInteraction,
   parseDashboardCustomId,
@@ -45,65 +34,28 @@ export {
 // Dashboard Builder
 export {
   buildDashboardEmbed,
-  buildEditMenu,
-  buildActionButtons,
   buildDashboardComponents,
-  getOverallStatus,
   type ActionButtonOptions,
 } from './DashboardBuilder.js';
 
 // Modal Factory
-export {
-  buildSectionModal,
-  buildSimpleModal,
-  extractModalValues,
-  validateModalValues,
-} from './ModalFactory.js';
+export { buildSectionModal, extractModalValues } from './ModalFactory.js';
 
 // Session Manager
-export {
-  DashboardSessionManager,
-  initSessionManager,
-  getSessionManager,
-  isSessionManagerInitialized,
-  shutdownSessionManager,
-  type SetSessionOptions,
-} from './SessionManager.js';
+export { initSessionManager, getSessionManager, shutdownSessionManager } from './SessionManager.js';
 
 // Messages
-export {
-  DASHBOARD_MESSAGES,
-  formatSessionExpiredMessage,
-  formatNotFoundMessage,
-} from './messages.js';
+export { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from './messages.js';
 
 // Close Handler
-export { handleDashboardClose, createCloseHandler } from './closeHandler.js';
+export { handleDashboardClose } from './closeHandler.js';
 
 // Session Helpers
-export {
-  fetchOrCreateSession,
-  getSessionOrExpired,
-  getSessionDataOrReply,
-  type FetchOrCreateOptions,
-  type FetchOrCreateResult,
-  type FetchOrCreateError,
-} from './sessionHelpers.js';
+export { getSessionOrExpired, getSessionDataOrReply } from './sessionHelpers.js';
 
 // Refresh Handler
-export {
-  createRefreshHandler,
-  refreshDashboardUI,
-  type RefreshHandlerOptions,
-} from './refreshHandler.js';
-
 // Delete Confirmation
-export {
-  buildDeleteConfirmation,
-  buildDeleteSuccessMessage,
-  buildDeleteSummary,
-  type DeleteConfirmationOptions,
-} from './deleteConfirmation.js';
+export { buildDeleteConfirmation } from './deleteConfirmation.js';
 
 // Permission Checks
-export { checkEditPermission, checkOwnership, isOwner } from './permissionChecks.js';
+export { checkOwnership } from './permissionChecks.js';

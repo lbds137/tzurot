@@ -37,23 +37,9 @@ export interface PaginationConfig {
 }
 
 /**
- * Options for building pagination buttons
- */
-export interface PaginationButtonOptions {
-  /** Current page (0-indexed) */
-  currentPage: number;
-  /** Total number of pages (or estimated if hasMore is true) */
-  totalPages: number;
-  /** Current sort type */
-  currentSort: ListSortType;
-  /** Whether there may be more pages beyond totalPages */
-  hasMore?: boolean;
-}
-
-/**
  * Parsed pagination custom ID result
  */
-export interface PaginationParseResult {
+interface PaginationParseResult {
   /** The command prefix */
   prefix: string;
   /** Action type: 'list' for navigation, 'sort' for sort toggle */

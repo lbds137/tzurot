@@ -14,29 +14,12 @@ import type {
   SlashCommandSubcommandsOnlyBuilder,
   SlashCommandOptionsOnlyBuilder,
 } from 'discord.js';
-import type {
-  AttachmentMetadata,
-  ApiConversationMessage,
-  GenerateResponse,
-  LoadedPersonality,
-  DiscordEnvironment,
-  MentionedPersona,
-  RequestContext,
-  ReferencedMessage,
-} from '@tzurot/common-types';
+import type { GenerateResponse, LoadedPersonality, RequestContext } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
 import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
 
 // Re-export shared API types
-export type {
-  AttachmentMetadata,
-  ApiConversationMessage,
-  GenerateResponse,
-  LoadedPersonality,
-  DiscordEnvironment,
-  MentionedPersona,
-  ReferencedMessage,
-};
+export type { GenerateResponse, LoadedPersonality };
 
 /**
  * Message context for AI generation

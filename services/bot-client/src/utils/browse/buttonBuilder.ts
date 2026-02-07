@@ -11,7 +11,7 @@ import type { BrowseSortType } from './constants.js';
 /**
  * Configuration for building browse buttons
  */
-export interface BrowseButtonConfig<TFilter extends string> {
+interface BrowseButtonConfig<TFilter extends string> {
   /** Current page (0-indexed) */
   currentPage: number;
   /** Total number of pages */

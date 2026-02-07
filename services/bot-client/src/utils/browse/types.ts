@@ -10,7 +10,7 @@ import type { BrowseSortType } from './constants.js';
 /**
  * Pagination state for browse lists
  */
-export interface PaginationState {
+interface PaginationState {
   /** Current page (0-indexed) */
   page: number;
   /** Total number of pages */
@@ -19,20 +19,6 @@ export interface PaginationState {
   totalItems: number;
   /** Items per page */
   itemsPerPage: number;
-}
-
-/**
- * Generic browse state that can be extended by specific commands
- */
-export interface BrowseState<TFilter extends string = string> {
-  /** Current page (0-indexed) */
-  page: number;
-  /** Current filter value */
-  filter: TFilter;
-  /** Current sort type */
-  sort: BrowseSortType;
-  /** Search query if any */
-  query: string | null;
 }
 
 /**

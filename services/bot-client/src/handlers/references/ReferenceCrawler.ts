@@ -17,7 +17,7 @@ const logger = createLogger('ReferenceCrawler');
 /**
  * Options for reference crawler
  */
-export interface ReferenceCrawlerOptions {
+interface ReferenceCrawlerOptions {
   /** Maximum references to collect */
   maxReferences: number;
   /** Extraction strategies to use */
@@ -33,7 +33,7 @@ export interface ReferenceCrawlerOptions {
 /**
  * Result of crawling references
  */
-export interface CrawlResult {
+interface CrawlResult {
   /** Map of message ID to message and metadata */
   messages: Map<string, { message: Message; metadata: ReferenceMetadata }>;
   /** Total depth reached */
@@ -63,6 +63,7 @@ export class ReferenceCrawler {
    * @param rootMessage - Starting message
    * @returns Crawl result with fetched messages and metadata
    */
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
   async crawl(rootMessage: Message): Promise<CrawlResult> {
     const extractedMessageIds = new Set<string>();
     const messages = new Map<string, { message: Message; metadata: ReferenceMetadata }>();

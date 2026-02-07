@@ -16,6 +16,3 @@ export const MAX_SELECT_DESCRIPTION_LENGTH = 100;
 
 /** Default sort options */
 export type BrowseSortType = 'name' | 'date';
-
-/** Default sort type for browse commands */
-export const DEFAULT_BROWSE_SORT: BrowseSortType = 'name';

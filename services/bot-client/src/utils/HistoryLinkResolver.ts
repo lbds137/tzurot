@@ -28,7 +28,7 @@ const logger = createLogger('HistoryLinkResolver');
 /**
  * Result of resolving links in history
  */
-export interface LinkResolutionResult {
+interface LinkResolutionResult {
   /** Messages with links resolved (possibly trimmed to budget) */
   messages: Message[];
   /** Number of links successfully resolved */
@@ -46,7 +46,7 @@ export interface LinkResolutionResult {
 /**
  * Options for link resolution
  */
-export interface LinkResolutionOptions {
+interface LinkResolutionOptions {
   /** Discord client for fetching messages */
   client: Client;
   /** Maximum total messages (including resolved links) */

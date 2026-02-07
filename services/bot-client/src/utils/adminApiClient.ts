@@ -13,7 +13,7 @@ import { getConfig, CONTENT_TYPES } from '@tzurot/common-types';
 /**
  * Options for admin API requests
  */
-export interface AdminFetchOptions extends Omit<RequestInit, 'headers'> {
+interface AdminFetchOptions extends Omit<RequestInit, 'headers'> {
   headers?: Record<string, string>;
   /**
    * Discord user ID for bot owner verification.

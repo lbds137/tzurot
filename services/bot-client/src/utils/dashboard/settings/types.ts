@@ -148,7 +148,7 @@ export type SettingUpdateHandler = (
 /**
  * Custom ID delimiter for settings dashboard
  */
-export const SETTINGS_CUSTOM_ID_DELIMITER = '::';
+const SETTINGS_CUSTOM_ID_DELIMITER = '::';
 
 /**
  * Build a custom ID for settings dashboard interactions

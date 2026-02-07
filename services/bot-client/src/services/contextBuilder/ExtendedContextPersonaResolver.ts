@@ -23,7 +23,7 @@ export type ParticipantGuildInfo = Record<
 >;
 
 /** Result of persona resolution */
-export interface PersonaResolutionResult {
+interface PersonaResolutionResult {
   /** Number of message author personaIds resolved */
   messageCount: number;
   /** Number of reactor personaIds resolved */

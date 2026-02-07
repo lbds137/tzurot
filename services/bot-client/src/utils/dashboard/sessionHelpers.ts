@@ -21,7 +21,7 @@ const logger = createLogger('session-helpers');
 /**
  * Options for fetchOrCreateSession
  */
-export interface FetchOrCreateOptions<T, R> {
+interface FetchOrCreateOptions<T, R> {
   /** User ID */
   userId: string;
   /** Entity type (e.g., 'persona', 'character', 'preset') */
@@ -39,7 +39,7 @@ export interface FetchOrCreateOptions<T, R> {
 /**
  * Result of fetchOrCreateSession
  */
-export interface FetchOrCreateResult<T> {
+interface FetchOrCreateResult<T> {
   /** Whether operation succeeded */
   success: true;
   /** Session data */
@@ -51,7 +51,7 @@ export interface FetchOrCreateResult<T> {
 /**
  * Error result when fetch fails
  */
-export interface FetchOrCreateError {
+interface FetchOrCreateError {
   success: false;
   error: 'not_found';
 }

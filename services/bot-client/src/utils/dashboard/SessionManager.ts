@@ -29,7 +29,7 @@ const logger = createLogger('DashboardSessionManager');
 /**
  * Options for creating or updating a session
  */
-export interface SetSessionOptions<T> {
+interface SetSessionOptions<T> {
   /** User ID */
   userId: string;
   /** Entity type (e.g., 'character', 'profile') */

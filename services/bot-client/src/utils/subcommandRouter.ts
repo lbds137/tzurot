@@ -18,19 +18,22 @@ import type { Logger } from 'pino';
 /**
  * Handler function signature for subcommands
  */
-export type SubcommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> =
-  (interaction: T) => Promise<void>;
+type SubcommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = (
+  interaction: T
+) => Promise<void>;
 
 /**
  * Map of subcommand names to their handlers
  */
-export type SubcommandMap<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> =
-  Record<string, SubcommandHandler<T>>;
+type SubcommandMap<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = Record<
+  string,
+  SubcommandHandler<T>
+>;
 
 /**
  * Options for the subcommand router
  */
-export interface RouterOptions {
+interface RouterOptions {
   /** Logger instance for logging subcommand execution */
   logger?: Logger;
   /** Prefix for log messages (e.g., '[Wallet]') */
@@ -113,12 +116,12 @@ import type { DeferredCommandContext } from './commandContext/types.js';
 /**
  * Handler function signature for subcommands using typed context
  */
-export type TypedSubcommandHandler = (context: DeferredCommandContext) => Promise<void>;
+type TypedSubcommandHandler = (context: DeferredCommandContext) => Promise<void>;
 
 /**
  * Map of subcommand names to typed handlers
  */
-export type TypedSubcommandMap = Record<string, TypedSubcommandHandler>;
+type TypedSubcommandMap = Record<string, TypedSubcommandHandler>;
 
 /**
  * Creates a subcommand router for commands using DeferredCommandContext.

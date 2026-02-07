@@ -33,7 +33,7 @@ export function formatEffective(enabled: boolean, source: SettingSource): string
 /**
  * Configuration for building status messages
  */
-export interface StatusMessageConfig {
+interface StatusMessageConfig {
   /** The setting name (e.g., "Extended Context") */
   settingName: string;
   /** The target name (e.g., character name or "this channel") */
@@ -64,7 +64,7 @@ export function buildTriStateStatusMessage(config: StatusMessageConfig): string 
 /**
  * Configuration for building update confirmation messages
  */
-export interface UpdateMessageConfig {
+interface UpdateMessageConfig {
   /** The setting name (e.g., "Extended Context") */
   settingName: string;
   /** The target name (e.g., character name or "this channel") */

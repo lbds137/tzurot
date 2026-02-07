@@ -22,12 +22,12 @@ import { isThreadChannel, getThreadParent } from './discordChannelTypes.js';
 
 const logger = createLogger('nsfw-verification');
 
-export interface NsfwStatus {
+interface NsfwStatus {
   nsfwVerified: boolean;
   nsfwVerifiedAt: string | null;
 }
 
-export interface NsfwVerifyResponse {
+interface NsfwVerifyResponse {
   nsfwVerified: boolean;
   nsfwVerifiedAt: string | null;
   alreadyVerified: boolean;
@@ -173,7 +173,7 @@ export async function trackPendingVerificationMessage(
 /**
  * Result of NSFW verification flow
  */
-export interface NsfwVerificationResult {
+interface NsfwVerificationResult {
   /** Should processing continue? */
   allowed: boolean;
   /** Was this a new verification (first time)? */

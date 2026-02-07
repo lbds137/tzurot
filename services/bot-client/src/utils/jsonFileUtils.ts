@@ -16,17 +16,17 @@ const logger = createLogger('json-file-utils');
 // ============================================================================
 
 /** Result of JSON file validation */
-export interface JsonValidationResult {
+interface JsonValidationResult {
   valid: true;
 }
 
 /** Result of JSON download and parse */
-export interface JsonDownloadResult<T = Record<string, unknown>> {
+interface JsonDownloadResult<T = Record<string, unknown>> {
   data: T;
 }
 
 /** Error result for validation/download operations */
-export interface JsonErrorResult {
+interface JsonErrorResult {
   error: string;
 }
 

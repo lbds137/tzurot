@@ -11,7 +11,7 @@ import { DASHBOARD_MESSAGES } from './messages.js';
 /**
  * Options for building a delete confirmation dialog
  */
-export interface DeleteConfirmationOptions {
+interface DeleteConfirmationOptions {
   /** Entity type being deleted (e.g., 'Persona', 'Preset') */
   entityType: string;
   /** Display name of the entity being deleted */

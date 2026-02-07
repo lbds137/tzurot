@@ -26,7 +26,7 @@ const logger = createLogger('MessageReferenceExtractor');
 /**
  * Result of reference extraction with link replacement
  */
-export interface ReferenceExtractionResult {
+interface ReferenceExtractionResult {
   /** Extracted referenced messages */
   references: ReferencedMessage[];
   /** Updated message content with Discord links replaced by [Reference N] */
@@ -36,7 +36,7 @@ export interface ReferenceExtractionResult {
 /**
  * Options for message reference extraction
  */
-export interface ReferenceExtractionOptions {
+interface ReferenceExtractionOptions {
   /** Prisma client for database operations */
   prisma: PrismaClient;
   /** Maximum number of references to extract (default: 10) */

@@ -34,7 +34,7 @@ import { CHANNELS_PER_PAGE, CHANNELS_PER_PAGE_ALL_SERVERS, type GuildPage } from
 const logger = createLogger('channel-browse');
 
 /** Browse filter options */
-export type ChannelBrowseFilter = 'current' | 'all';
+type ChannelBrowseFilter = 'current' | 'all';
 
 /** Valid filters for channel browse */
 const VALID_FILTERS = ['current', 'all'] as const;

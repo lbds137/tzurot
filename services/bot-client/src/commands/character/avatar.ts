@@ -99,4 +99,3 @@ export async function handleAvatar(
 }
 
 // Re-export constants for testing (from avatarUtils)
-export { VALID_IMAGE_TYPES, MAX_INPUT_SIZE_MB, MAX_INPUT_SIZE_BYTES } from './avatarUtils.js';

@@ -28,8 +28,6 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
 
 // Re-export for backward compatibility
-export { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
-
 const logger = createLogger('character-view');
 
 /** Field info for tracking truncation */
@@ -59,7 +57,7 @@ interface PersonalityResponse {
  * Truncate text to fit Discord embed field limit (1024 chars)
  * Returns info about whether truncation occurred
  */
-export function truncateField(
+function truncateField(
   text: string | null | undefined,
   maxLength = DISCORD_LIMITS.EMBED_FIELD - TEXT_LIMITS.TRUNCATION_SUFFIX.length
 ): FieldInfo {
@@ -238,7 +236,7 @@ const PAGE_BUILDERS = [
 /**
  * Build a single page of the character view embed
  */
-export function buildCharacterViewPage(character: CharacterData, page: number): ViewPageResult {
+function buildCharacterViewPage(character: CharacterData, page: number): ViewPageResult {
   const displayName = escapeMarkdown(character.displayName ?? character.name);
   const safePage = Math.max(0, Math.min(page, VIEW_TOTAL_PAGES - 1));
   const truncatedFields: string[] = [];
@@ -263,7 +261,8 @@ export function buildCharacterViewPage(character: CharacterData, page: number): 
  * Build pagination and expand buttons for character view
  * Returns array of action rows (pagination + expand buttons if needed)
  */
-export function buildViewComponents(
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+function buildViewComponents(
   slug: string,
   currentPage: number,
   truncatedFields: string[]

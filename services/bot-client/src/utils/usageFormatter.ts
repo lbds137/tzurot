@@ -8,7 +8,7 @@ import { DISCORD_COLORS } from '@tzurot/common-types';
 /**
  * Base usage stats structure (shared between user and admin)
  */
-export interface BaseUsageStats {
+interface BaseUsageStats {
   totalRequests: number;
   totalTokensIn: number;
   totalTokensOut: number;
@@ -32,7 +32,7 @@ export interface AdminUsageStats extends BaseUsageStats {
 /**
  * Format token count with K/M suffix for readability
  */
-export function formatTokens(tokens: number): string {
+function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) {
     return `${(tokens / 1_000_000).toFixed(2)}M`;
   }
@@ -45,7 +45,7 @@ export function formatTokens(tokens: number): string {
 /**
  * Add provider breakdown to embed
  */
-export function addProviderBreakdown(
+function addProviderBreakdown(
   embed: EmbedBuilder,
   byProvider: BaseUsageStats['byProvider'],
   maxItems = 5
@@ -73,7 +73,7 @@ export function addProviderBreakdown(
 /**
  * Add request type breakdown to embed
  */
-export function addRequestTypeBreakdown(
+function addRequestTypeBreakdown(
   embed: EmbedBuilder,
   byRequestType: BaseUsageStats['byRequestType']
 ): void {
@@ -99,7 +99,7 @@ export function addRequestTypeBreakdown(
 /**
  * Add top models breakdown to embed
  */
-export function addModelBreakdown(
+function addModelBreakdown(
   embed: EmbedBuilder,
   byModel: BaseUsageStats['byModel'],
   maxItems = 5,
@@ -132,7 +132,7 @@ export function addModelBreakdown(
 /**
  * Add top users breakdown to embed (admin only)
  */
-export function addTopUsersBreakdown(
+function addTopUsersBreakdown(
   embed: EmbedBuilder,
   topUsers: AdminUsageStats['topUsers'],
   maxItems = 5
@@ -150,53 +150,6 @@ export function addTopUsersBreakdown(
     value: userLines.join('\n'),
     inline: false,
   });
-}
-
-/**
- * Build a usage stats embed for user-level stats
- */
-export function buildUserUsageEmbed(stats: BaseUsageStats, periodName: string): EmbedBuilder {
-  const embed = new EmbedBuilder()
-    .setTitle('📊 Your Usage Statistics')
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setDescription(`**Period:** ${periodName}`)
-    .setTimestamp();
-
-  if (stats.totalRequests === 0) {
-    embed.addFields({
-      name: 'No Usage',
-      value: `You haven't made any requests in this period.\n\nStart chatting with personalities to see your usage here!`,
-      inline: false,
-    });
-  } else {
-    embed.addFields(
-      {
-        name: 'Total Requests',
-        value: stats.totalRequests.toLocaleString(),
-        inline: true,
-      },
-      {
-        name: 'Tokens In',
-        value: formatTokens(stats.totalTokensIn),
-        inline: true,
-      },
-      {
-        name: 'Tokens Out',
-        value: formatTokens(stats.totalTokensOut),
-        inline: true,
-      }
-    );
-
-    addProviderBreakdown(embed, stats.byProvider);
-    addRequestTypeBreakdown(embed, stats.byRequestType);
-    addModelBreakdown(embed, stats.byModel, 3, false);
-  }
-
-  embed.setFooter({
-    text: 'Usage is tracked for monitoring and preventing abuse',
-  });
-
-  return embed;
 }
 
 /**

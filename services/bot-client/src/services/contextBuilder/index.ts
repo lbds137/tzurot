@@ -6,28 +6,10 @@
  */
 
 // Extended Context Persona Resolution
-export {
-  collectAllDiscordIdsNeedingResolution,
-  batchResolvePersonas,
-  applyResolvedPersonas,
-  remapParticipantGuildInfoKeys,
-  resolveExtendedContextPersonaIds,
-  type ParticipantGuildInfo,
-  type PersonaResolutionResult,
-} from './ExtendedContextPersonaResolver.js';
+export { resolveExtendedContextPersonaIds } from './ExtendedContextPersonaResolver.js';
 
 // Guild Member Resolution
-export {
-  extractGuildMemberInfo,
-  resolveEffectiveMember,
-  type MemberResolveOptions,
-} from './GuildMemberResolver.js';
+export { extractGuildMemberInfo, resolveEffectiveMember } from './GuildMemberResolver.js';
 
 // User Context Resolution
-export {
-  lookupContextEpoch,
-  resolveUserContext,
-  type UserContextResult,
-  type UserInfo,
-  type UserContextDeps,
-} from './UserContextResolver.js';
+export { resolveUserContext } from './UserContextResolver.js';
