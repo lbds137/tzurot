@@ -13,8 +13,10 @@ export function registerXrayCommands(cli: CAC): void {
     .option('--include-tests', 'Include test files', { default: false })
     .option('--include-private', 'Include non-exported declarations', { default: false })
     .option('--imports', 'Include import analysis')
+    .option('--summary', 'File-level overview without individual declarations')
     .option('--output <file>', 'Write to file instead of stdout')
     .example('pnpm ops xray')
+    .example('pnpm ops xray --summary')
     .example('pnpm ops xray bot-client --format md')
     .example('pnpm ops xray --format json --output xray.json')
     .example('pnpm ops xray ai-worker --include-private')
@@ -26,6 +28,7 @@ export function registerXrayCommands(cli: CAC): void {
           includeTests?: boolean;
           includePrivate?: boolean;
           imports?: boolean;
+          summary?: boolean;
           output?: string;
         }
       ) => {
@@ -60,6 +63,7 @@ export function registerXrayCommands(cli: CAC): void {
           includeTests: options.includeTests,
           includePrivate: options.includePrivate,
           imports: options.imports,
+          summary: options.summary,
           output: options.output,
         });
       }

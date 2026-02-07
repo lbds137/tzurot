@@ -26,6 +26,13 @@ pnpm ops db:migrate --env dev # Run migrations on Railway dev
 pnpm ops data:import <name>  # Import a personality
 pnpm ops data:bulk-import    # Bulk import all
 
+# Codebase analysis (xray)
+pnpm ops xray                # Full analysis (terminal)
+pnpm ops xray --summary      # File-level overview (no declarations)
+pnpm ops xray bot-client     # Single package
+pnpm ops xray --format md    # Markdown output (for LLMs)
+pnpm ops xray --format json  # JSON output (for tooling)
+
 # Deployment
 pnpm ops deploy:dev          # Deploy to Railway dev
 pnpm ops deploy:verify       # Verify build
@@ -87,11 +94,17 @@ packages/tooling/
 │   │   ├── db.ts           # Database commands
 │   │   ├── data.ts         # Data import/export commands
 │   │   ├── deploy.ts       # Deployment commands
-│   │   └── cache.ts        # Cache management commands
+│   │   ├── cache.ts        # Cache management commands
+│   │   └── xray.ts         # Codebase analysis commands
 │   ├── db/                 # Database utilities
 │   ├── data/               # Data import utilities
 │   ├── deployment/         # Deployment utilities
 │   ├── cache/              # Cache management utilities
+│   ├── xray/               # TypeScript AST analysis
+│   │   ├── analyzer.ts     # Orchestrator (discover → parse → format)
+│   │   ├── file-discovery.ts # Package/file scanning
+│   │   ├── file-parser.ts  # ts-morph AST + suppression extraction
+│   │   └── formatters/     # terminal, markdown, json output
 │   └── eslint/             # Custom ESLint rules
 └── package.json
 ```

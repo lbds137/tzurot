@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach, type MockInstance } from 'vitest';
 
+// ts-morph has a cold-start cost (~500ms) that can exceed the default 5s timeout on slower CI runners
+vi.setConfig({ testTimeout: 15_000 });
+
 vi.mock('chalk', () => ({
   default: {
     cyan: Object.assign((s: string) => s, { bold: (s: string) => s }),
