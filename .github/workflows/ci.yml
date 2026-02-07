@@ -46,6 +46,14 @@ jobs:
         run: pnpm cpd
         continue-on-error: true
 
+      - name: Check dependency boundaries
+        run: pnpm depcruise
+        continue-on-error: true
+
+      - name: Check for unused code (knip)
+        run: pnpm knip
+        continue-on-error: true
+
       - name: Run typecheck:spec
         run: pnpm typecheck:spec
 

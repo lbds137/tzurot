@@ -42,12 +42,17 @@ export function analyzeMonorepo(rootDir: string, options: XrayOptions = {}): Xra
     const files: FileInfo[] = [];
 
     for (const filePath of pkg.files) {
-      const content = readFileSync(filePath, 'utf-8');
-      const fileInfo = parseFile(filePath, content, {
-        includePrivate,
-        includeImports: resolvedImports,
-      });
-      files.push(fileInfo);
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+        const fileInfo = parseFile(filePath, content, {
+          includePrivate,
+          includeImports: resolvedImports,
+        });
+        files.push(fileInfo);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`Warning: Skipped ${relative(rootDir, filePath)}: ${msg}`);
+      }
     }
 
     packages.push({
