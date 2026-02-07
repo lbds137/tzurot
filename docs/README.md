@@ -46,29 +46,21 @@ Root-level reference files: `DOCUMENTATION_PHILOSOPHY.md`, `STATIC_ANALYSIS.md`,
 
 **Active proposals:**
 
-- `proposals/active/GIT_HOOK_IMPROVEMENTS.md` - Git hook enhancements
-- `proposals/active/MEMORY_MANAGEMENT_COMMANDS.md` - Memory management commands
 - `proposals/active/V2_FEATURE_TRACKING.md` - Feature parity tracking
 
 **Backlog proposals (selected):**
 
+- `proposals/backlog/GIT_HOOK_IMPROVEMENTS.md` - Git hook enhancements (Phase 2 complete)
+- `proposals/backlog/MEMORY_MANAGEMENT_COMMANDS.md` - Memory management (Phase 1-2 complete)
 - `proposals/backlog/multi-personality-support.md` - Multi-personality channels
 - `proposals/backlog/ltm-context-separation.md` - Memory isolation improvements
 - `proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md` - Future architecture
-- `proposals/backlog/SHAPES_INC_SLASH_COMMAND_DESIGN.md` - Import feature design
 
 ### [incidents/](incidents/)
 
 **What went wrong** - Post-mortems and lessons learned.
 
 - `incidents/PROJECT_POSTMORTEMS.md` - All v3 development post-mortems
-
-### [migration/](migration/)
-
-**Active migration guides** - Data migration procedures.
-
-- `migration/PERSONA_MIGRATION_GUIDE.md` - Migrating persona data
-- `migration/SHAPES_INC_IMPORT_PLAN.md` - Importing from Shapes.inc
 
 ### [research/](research/)
 

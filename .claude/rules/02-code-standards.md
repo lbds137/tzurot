@@ -6,10 +6,11 @@
 | ------------------------ | ----- | ----- | ---------------------- |
 | `max-lines`              | 500   | Error | Split into modules     |
 | `max-lines-per-function` | 100   | Warn  | Extract helpers        |
-| `complexity`             | 15    | Warn  | Data-driven approach   |
+| `complexity`             | 20    | Warn  | Data-driven approach   |
 | `max-depth`              | 4     | Warn  | Early returns, extract |
 | `max-params`             | 5     | Warn  | Options object pattern |
-| `max-statements`         | 30    | Warn  | Extract helpers        |
+| `max-nested-callbacks`   | 3     | Warn  | Extract/flatten        |
+| `max-statements`         | 50    | Warn  | Extract helpers        |
 
 ## TypeScript Strict Rules
 

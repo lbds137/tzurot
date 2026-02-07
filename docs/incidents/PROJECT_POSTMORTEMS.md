@@ -6,7 +6,10 @@
 
 | Date       | Incident                        | Rule Established                                  |
 | ---------- | ------------------------------- | ------------------------------------------------- |
+| 2026-02-03 | Context settings not cascading  | Trace full runtime flow before declaring "done"   |
 | 2026-01-30 | Gitignored data/ deleted        | NEVER rm -rf without explicit user approval       |
+| 2026-01-30 | Work reverted without consent   | Never abandon uncommitted work without asking     |
+| 2026-01-24 | execSync with string commands   | Use execFileSync with arrays for external data    |
 | 2026-01-28 | Model footer missing on errors  | Both producer & consumer must be updated together |
 | 2026-01-26 | Dashboard prefix not registered | Test componentPrefixes for dashboard entityTypes  |
 | 2026-01-17 | Wrong branch migration deploy   | Run migrations from correct branch checkout       |
@@ -18,6 +21,62 @@
 | 2025-12-05 | Direct fetch broke /character   | Use gateway clients, not direct fetch             |
 | 2025-12-06 | API contract mismatch           | Use shared Zod schemas for contracts              |
 | 2025-12-14 | Random UUIDs broke db-sync      | Use deterministic v5 UUIDs for all entities       |
+
+---
+
+## 2026-02-03 - Context Settings Not Cascading Correctly
+
+**What Happened**: Extended context settings (like `max_output_tokens`, `reasoning`) were not cascading through the personality → user-personality → user-default hierarchy. Settings set at one level were being ignored or overridden incorrectly at runtime.
+
+**Root Cause**: The cascading config resolution logic was tested at the unit level but the full runtime flow — from API request through settings resolution to the actual LLM call — was never traced end-to-end. The unit tests verified each layer independently, but the integration between layers had subtle bugs in how `null` vs `undefined` vs explicit values were handled.
+
+**Impact**: Users setting custom reasoning or token limits on their personality configs would get unexpected behavior — sometimes the defaults would override their explicit settings.
+
+**Prevention**:
+
+1. **Trace the full runtime flow** before declaring cascading features "done"
+2. Add integration tests that verify settings at each cascade level reach the LLM call
+3. Be explicit about `null` vs `undefined` semantics in config resolution
+
+**Universal Lesson**: Unit tests passing on each layer does not guarantee the layers work together. For cascading/inheritance systems, always test the full stack.
+
+---
+
+## 2026-01-30 - Work Reverted Without User Consent
+
+**What Happened**: During a session, uncommitted work was discarded without explicit user approval. The user's in-progress changes were lost when git operations were performed that assumed a clean working tree was desired.
+
+**Root Cause**: Misinterpreted the user's intent regarding their working tree state. Performed git operations that discarded changes rather than preserving them.
+
+**Impact**: Lost in-progress work that the user had been developing. Required reconstruction of changes.
+
+**Prevention**:
+
+1. **Never abandon uncommitted work without asking** — uncommitted changes represent hours of effort
+2. When a user says "get changes" → COMMIT them, never DISCARD them
+3. Always confirm before any git operation that modifies the working tree
+4. When in doubt about intent, ask explicitly: "Should I commit these changes or discard them?"
+
+**Universal Lesson**: Treat uncommitted changes as sacred. The default assumption should always be to preserve work, never to discard it.
+
+---
+
+## 2026-01-24 - execSync with String Command Injection Vulnerability
+
+**What Happened**: Shell commands were being constructed using string interpolation with `execSync()`, creating a command injection vulnerability. User-supplied or dynamic values were interpolated directly into shell command strings.
+
+**Root Cause**: Used `execSync(\`git commit -m "${message}"\`)`pattern instead of the safe`execFileSync('git', ['commit', '-m', message])` pattern. String interpolation in shell commands allows injection of arbitrary shell metacharacters.
+
+**Impact**: Potential command injection vulnerability. While not exploited, this is a critical security anti-pattern that could allow arbitrary command execution.
+
+**Prevention**:
+
+1. **NEVER** use string interpolation in `execSync()` calls
+2. Use `execFileSync(cmd, args)` when any argument contains external data
+3. `execSync()` is only safe for fully static command strings with no interpolation
+4. Added to `00-critical.md` security rules with examples table
+
+**Universal Lesson**: Shell command construction is a common injection vector. Always pass arguments as arrays via `execFileSync`, never interpolate into strings.
 
 ---
 

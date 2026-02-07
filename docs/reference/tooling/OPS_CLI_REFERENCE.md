@@ -75,8 +75,8 @@ Quick codebase state for AI session startup:
 - Git branch and recent commits
 - CI status (pass/fail/pending)
 - Uncommitted changes summary
-- CURRENT_WORK.md excerpt
-- Next ROADMAP.md items
+- CURRENT.md excerpt
+- Next BACKLOG.md items
 - Pending migrations (optional)
 
 **Session save/load:** Captures state to `.claude-session.json` for continuity across sessions.
@@ -212,18 +212,18 @@ See `tzurot-testing` skill for chip-away workflow details.
 
 Root `package.json` provides shortcuts for common ops CLI commands:
 
-| Script                 | Maps To                         | Description              |
-| ---------------------- | ------------------------------- | ------------------------ |
-| `pnpm focus:lint`      | `pnpm ops dev:lint`             | Lint changed packages    |
-| `pnpm focus:test`      | `pnpm ops dev:test`             | Test changed packages    |
-| `pnpm focus:build`     | `pnpm ops dev:focus build`      | Build changed packages   |
-| `pnpm test:summary`    | `pnpm ops dev:test-summary`     | Summarize test results   |
-| `pnpm audit:*`         | `pnpm ops test:audit-*`         | Coverage ratchet audits  |
-| `pnpm with-env`        | `pnpm ops run --env`            | Run with Railway env     |
-| `pnpm bump-version`    | `pnpm ops release:bump`         | Bump monorepo version    |
-| `pnpm generate:pglite` | `pnpm ops test:generate-schema` | Regenerate PGLite schema |
-
-**Note:** Data import scripts use original implementations (not yet migrated):
-
-- `pnpm import-personality` → `tsx scripts/data/import-personality/import-personality.ts`
-- `pnpm bulk-import` → `tsx scripts/data/import-personality/bulk-import.ts`
+| Script                        | Maps To                                 | Description                |
+| ----------------------------- | --------------------------------------- | -------------------------- |
+| `pnpm focus:lint`             | `pnpm ops dev:lint`                     | Lint changed packages      |
+| `pnpm focus:test`             | `pnpm ops dev:test`                     | Test changed packages      |
+| `pnpm focus:build`            | `pnpm ops dev:focus build`              | Build changed packages     |
+| `pnpm test:summary`           | `pnpm ops dev:test-summary`             | Summarize test results     |
+| `pnpm audit:*`                | `pnpm ops test:audit-*`                 | Coverage ratchet audits    |
+| `pnpm with-env`               | `pnpm ops run --env`                    | Run with Railway env       |
+| `pnpm bump-version`           | `pnpm ops release:bump`                 | Bump monorepo version      |
+| `pnpm focus:typecheck`        | `pnpm ops dev:typecheck`                | Typecheck changed packages |
+| `pnpm generate:pglite`        | `pnpm ops test:generate-schema`         | Regenerate PGLite schema   |
+| `pnpm generate:command-types` | `tsx scripts/generate-command-types.ts` | Generate command type defs |
+| `pnpm update-deps`            | `pnpm ops dev:update-deps`              | Update dependencies        |
+| `pnpm import-personality`     | `pnpm ops data:import`                  | Import a personality       |
+| `pnpm bulk-import`            | `pnpm ops data:bulk-import`             | Bulk import personalities  |

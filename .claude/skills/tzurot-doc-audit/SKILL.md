@@ -123,7 +123,16 @@ ls .claude/skills/*/SKILL.md
 | `docs/steam-deck/` | Setup guides still accurate for current SteamOS version? |
 | `docs/testing/`    | Not duplicating `docs/reference/testing/`?               |
 
-### 10. Root CLAUDE.md
+### 10. Root README.md
+
+- [ ] Project structure lists all packages in `packages/`
+- [ ] Architecture diagram matches actual services
+- [ ] Slash commands list matches actual commands in `services/bot-client/src/commands/`
+- [ ] Quick Start prerequisites are current (Node version, tools)
+- [ ] Documentation links point to files that exist
+- [ ] Planned features section is accurate (none secretly implemented)
+
+### 11. Root CLAUDE.md
 
 - [ ] All rules listed in Key Rules section (check `ls .claude/rules/`)
 - [ ] Rules descriptions match actual rule file contents
@@ -131,7 +140,7 @@ ls .claude/skills/*/SKILL.md
 - [ ] Post-mortem table includes recent incidents
 - [ ] Project structure is accurate
 
-### 11. Cross-Reference Checks
+### 12. Cross-Reference Checks
 
 These catch drift between docs and code:
 

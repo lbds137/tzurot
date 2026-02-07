@@ -62,14 +62,23 @@ new ButtonBuilder().setLabel('Back').setEmoji('◀️');
 
 **ALWAYS check for existing utilities before implementing:**
 
-| Pattern            | Shared Utility                  | Location                            |
-| ------------------ | ------------------------------- | ----------------------------------- |
-| Browse pagination  | `createBrowseCustomIdHelpers`   | `utils/browse/customIdFactory.ts`   |
-| Browse buttons     | `buildBrowseButtons`            | `utils/browse/buttonBuilder.ts`     |
-| Dashboard messages | `DASHBOARD_MESSAGES`            | `utils/dashboard/messages.ts`       |
-| Session management | `fetchOrCreateSession`          | `utils/dashboard/sessionHelpers.ts` |
-| Autocomplete       | `handlePersonalityAutocomplete` | `utils/autocomplete/`               |
-| List sorting       | `createListComparator`          | `utils/listSorting.ts`              |
+| Pattern              | Shared Utility                  | Location                                |
+| -------------------- | ------------------------------- | --------------------------------------- |
+| Browse pagination    | `createBrowseCustomIdHelpers`   | `utils/browse/customIdFactory.ts`       |
+| Browse buttons       | `buildBrowseButtons`            | `utils/browse/buttonBuilder.ts`         |
+| Browse truncation    | `truncateForSelect`             | `utils/browse/truncation.ts`            |
+| Dashboard builder    | `buildDashboardEmbed`           | `utils/dashboard/DashboardBuilder.ts`   |
+| Dashboard modals     | `buildSectionModal`             | `utils/dashboard/ModalFactory.ts`       |
+| Dashboard sessions   | `initSessionManager`            | `utils/dashboard/SessionManager.ts`     |
+| Dashboard messages   | `DASHBOARD_MESSAGES`            | `utils/dashboard/messages.ts`           |
+| Dashboard close      | `handleDashboardClose`          | `utils/dashboard/closeHandler.ts`       |
+| Dashboard refresh    | `createRefreshHandler`          | `utils/dashboard/refreshHandler.ts`     |
+| Dashboard delete     | `buildDeleteConfirmation`       | `utils/dashboard/deleteConfirmation.ts` |
+| Dashboard perms      | `checkEditPermission`           | `utils/dashboard/permissionChecks.ts`   |
+| Session helpers      | `fetchOrCreateSession`          | `utils/dashboard/sessionHelpers.ts`     |
+| Personality autocomp | `handlePersonalityAutocomplete` | `utils/autocomplete/`                   |
+| Persona autocomplete | `handlePersonaAutocomplete`     | `utils/autocomplete/`                   |
+| List sorting         | `createListComparator`          | `utils/listSorting.ts`                  |
 
 **Never reimplement these patterns locally.**
 

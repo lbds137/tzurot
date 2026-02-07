@@ -119,37 +119,16 @@ Shapes.inc (v2's AI provider) killed their API to force users to their website o
   - `ai-worker/` - Background AI processing
 - **`packages/`** - Shared code
   - `common-types/` - TypeScript types, schemas, and shared utilities
+  - `embeddings/` - Local embedding model (BGE-small-en-v1.5)
+  - `test-utils/` - Shared test helpers and PGLite integration
+  - `tooling/` - Ops CLI (`pnpm ops`) and codebase analysis
 - **`prisma/`** - Database schema and migrations
 - **`scripts/`** - Development and deployment utilities
 - **`tzurot-legacy/`** - Archived v2 codebase (for reference)
 
 ## AI Provider System
 
-The system is designed to be vendor-agnostic:
-
-```typescript
-// Easy to switch providers
-const provider = AIProviderFactory.create('openrouter', {
-  apiKey: process.env.OPENROUTER_API_KEY,
-});
-
-// Or use a different provider
-const provider = AIProviderFactory.create('openai', {
-  apiKey: process.env.OPENAI_API_KEY,
-});
-```
-
-### Currently Supported
-
-- ✅ OpenRouter (400+ models via one API, including free tier)
-
-### Planned Support
-
-- ⏳ Direct Anthropic Claude
-- ⏳ Direct OpenAI
-- ⏳ Direct Gemini
-- ⏳ Local models (Ollama)
-- ⏳ Custom endpoints
+All AI model access goes through OpenRouter's unified API, with model selection configured per-personality via `ModelFactory`. This provides access to 400+ models (including free tier) through a single API key.
 
 ## Features
 
@@ -183,13 +162,14 @@ const provider = AIProviderFactory.create('openai', {
   - `/character chat` - Direct chat with a character
   - `/character avatar/template` - Avatar management and utilities
   - `/preset create/edit/browse` - Custom LLM presets (model + parameters)
+  - `/preset export/import/template` - Preset portability
   - `/preset global default/free-default` - View/set global default presets
   - `/channel activate/deactivate/browse/settings` - Channel auto-response management
   - `/history clear/stats/undo/hard-delete` - Conversation history management
   - `/memory browse/search/stats` - Browse and search long-term memories
-  - `/memory focus/forget/purge/delete` - Memory management operations
-  - `/memory incognito enable/disable/status` - Temporary privacy mode
-  - `/admin ping/servers/kick/usage/cleanup/db-sync/settings` - Bot administration (owner only)
+  - `/memory focus/purge/delete` - Memory management operations
+  - `/memory incognito enable/disable/status/forget` - Temporary privacy mode
+  - `/admin ping/servers/kick/usage/cleanup/db-sync/settings/debug` - Bot administration (owner only)
   - `/help` - Show available commands
 
 ### 📋 Planned Features
@@ -250,12 +230,13 @@ railway logs --service bot-client
 railway status
 ```
 
-### Local Development with Docker
+### Local Development
 
-Local development uses Docker Compose for Redis:
+Local development requires PostgreSQL (with pgvector) and Redis. Start them before running services:
 
 ```bash
-docker-compose up -d
+# Using Podman (SteamOS/Distrobox) or Docker
+podman start tzurot-redis tzurot-postgres
 pnpm dev
 ```
 
