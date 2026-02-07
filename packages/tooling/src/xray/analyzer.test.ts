@@ -111,6 +111,43 @@ describe('analyzeMonorepo', () => {
     const file = report.packages[0].files[0];
     expect(file.imports).toHaveLength(0);
   });
+
+  it('should count suppressions in package health', () => {
+    setupMockPackage('test-pkg', 'packages', {
+      'index.ts': `// eslint-disable-next-line no-console\nconsole.log('hi');\nexport const x = 1;\n`,
+    });
+
+    const report = analyzeMonorepo('/root');
+
+    const health = report.summary.byPackage['test-pkg']?.health;
+    expect(health?.totalSuppressions).toBe(1);
+    expect(report.summary.totalSuppressions).toBe(1);
+  });
+
+  it('should report zero suppressions for clean code', () => {
+    setupMockPackage('test-pkg', 'packages', {
+      'index.ts': 'export const x = 1;\n',
+    });
+
+    const report = analyzeMonorepo('/root');
+
+    const health = report.summary.byPackage['test-pkg']?.health;
+    expect(health?.totalSuppressions).toBe(0);
+    expect(report.summary.totalSuppressions).toBe(0);
+  });
+
+  it('should include suppressions in file data', () => {
+    setupMockPackage('test-pkg', 'packages', {
+      'index.ts': `// @ts-expect-error -- test\nexport const x = 1;\n// eslint-disable-next-line no-unused-vars\nconst y = 2;\n`,
+    });
+
+    const report = analyzeMonorepo('/root', { includePrivate: true });
+
+    const file = report.packages[0].files[0];
+    expect(file.suppressions).toHaveLength(2);
+    expect(file.suppressions[0].kind).toBe('ts-expect-error');
+    expect(file.suppressions[1].kind).toBe('eslint-disable-next-line');
+  });
 });
 
 describe('runXray', () => {
