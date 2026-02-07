@@ -177,8 +177,9 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
 /**
  * Create a standard IORedis client with logging and connection config.
  *
- * Uses BullMQ-compatible config but leaves maxRetriesPerRequest at default (20)
- * for general Redis operations (BullMQ queues should use createBullMQRedisConfig directly).
+ * Uses BullMQ connection settings (timeouts, keepAlive, reconnect strategy) but
+ * retains default maxRetriesPerRequest (20) for general Redis operations.
+ * For BullMQ queues, use createBullMQRedisConfig directly (requires null).
  *
  * @param redisUrl - Redis connection URL (e.g., redis://default:password@host:port)
  * @param serviceName - Service name for log messages

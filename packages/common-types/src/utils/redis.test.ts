@@ -4,9 +4,26 @@
  * Tests for Redis connection configuration builders.
  */
 
-import { describe, it, expect } from 'vitest';
-import { parseRedisUrl, createRedisSocketConfig, createBullMQRedisConfig } from './redis.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  parseRedisUrl,
+  createRedisSocketConfig,
+  createBullMQRedisConfig,
+  createIORedisClient,
+} from './redis.js';
 import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
+
+// Mock ioredis - must use class so `new Redis()` works as constructor
+const mockOn = vi.fn().mockReturnThis();
+const mockDisconnect = vi.fn();
+vi.mock('ioredis', () => {
+  class MockRedis {
+    on = mockOn;
+    disconnect = mockDisconnect;
+    constructor(public opts?: Record<string, unknown>) {}
+  }
+  return { Redis: MockRedis };
+});
 
 describe('parseRedisUrl', () => {
   it('should parse a complete Redis URL', () => {
@@ -278,5 +295,94 @@ describe('createBullMQRedisConfig', () => {
     // But capped at REDIS_MAX_DELAY (test within valid range)
     const delayMax = config.reconnectStrategy(RETRY_CONFIG.REDIS_MAX_RETRIES - 1) as number;
     expect(delayMax).toBeLessThanOrEqual(RETRY_CONFIG.REDIS_MAX_DELAY);
+  });
+});
+
+describe('createIORedisClient', () => {
+  let mockLogger: {
+    info: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn>;
+    error: ReturnType<typeof vi.fn>;
+    debug: ReturnType<typeof vi.fn>;
+  };
+
+  beforeEach(() => {
+    mockLogger = {
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+      debug: vi.fn(),
+    };
+    mockOn.mockClear();
+    mockDisconnect.mockClear();
+  });
+
+  it('should create an IORedis client from a Redis URL', () => {
+    const client = createIORedisClient(
+      'redis://default:password@redis.railway.internal:6379',
+      'TestService',
+      mockLogger as never
+    );
+
+    expect(client).toBeDefined();
+    expect(client.on).toBeDefined();
+  });
+
+  it('should log connection config with service name', () => {
+    createIORedisClient(
+      'redis://default:password@redis.railway.internal:6379',
+      'MyWorker',
+      mockLogger as never
+    );
+
+    expect(mockLogger.info).toHaveBeenCalledWith(
+      expect.objectContaining({
+        host: 'redis.railway.internal',
+        port: 6379,
+        hasPassword: true,
+        connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
+        commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
+      }),
+      '[MyWorker] Redis config (ioredis):'
+    );
+  });
+
+  it('should register error, connect, ready, and reconnecting event handlers', () => {
+    createIORedisClient('redis://localhost:6379', 'TestService', mockLogger as never);
+
+    const onCalls = mockOn.mock.calls;
+    const eventNames = onCalls.map((call: string[]) => call[0]);
+
+    expect(eventNames).toContain('error');
+    expect(eventNames).toContain('connect');
+    expect(eventNames).toContain('ready');
+    expect(eventNames).toContain('reconnecting');
+  });
+
+  it('should use IPv6 family for Railway private network', () => {
+    const client = createIORedisClient(
+      'redis://localhost:6379',
+      'TestService',
+      mockLogger as never
+    );
+
+    // The mock class stores opts on the instance
+    const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
+    expect(opts).toEqual(
+      expect.objectContaining({
+        family: 6,
+      })
+    );
+  });
+
+  it('should not pass maxRetriesPerRequest (use default)', () => {
+    const client = createIORedisClient(
+      'redis://localhost:6379',
+      'TestService',
+      mockLogger as never
+    );
+
+    const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
+    expect(opts).not.toHaveProperty('maxRetriesPerRequest');
   });
 });
