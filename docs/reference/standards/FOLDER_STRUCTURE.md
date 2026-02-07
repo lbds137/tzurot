@@ -147,8 +147,7 @@ src/
     ├── embedImageExtractor.ts
     ├── EmbedParser.ts
     ├── MessageLinkParser.ts
-    ├── personalityMentionParser.ts
-    └── referenceFormatter.ts
+    └── personalityMentionParser.ts
 ```
 
 **Notes**:
