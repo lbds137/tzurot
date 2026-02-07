@@ -43,10 +43,12 @@ function createMockMessage(options: {
   content: string;
   createdTimestamp?: number;
 }): Message {
+  const ts = options.createdTimestamp ?? Date.now();
   return {
     id: options.id,
     content: options.content,
-    createdTimestamp: options.createdTimestamp ?? Date.now(),
+    createdTimestamp: ts,
+    createdAt: new Date(ts),
     author: {
       id: USER_ID,
       globalName: 'TestUser',
@@ -138,9 +140,10 @@ describe('HistoryLinkResolver', () => {
       expect(result.skippedCount).toBe(0);
       expect(result.trimmedCount).toBe(0);
       expect(result.messages).toHaveLength(2);
+      expect(result.resolvedReferences.size).toBe(0);
     });
 
-    it('resolves a single link and injects content inline', async () => {
+    it('resolves a single link and builds structured reference', async () => {
       const linkedMessage = createMockMessage({
         id: LINKED_MSG_ID,
         content: 'This is the linked content',
@@ -165,9 +168,14 @@ describe('HistoryLinkResolver', () => {
       expect(result.resolvedCount).toBe(1);
       expect(result.failedCount).toBe(0);
       expect(result.messages).toHaveLength(1);
-      // Content should include the blockquote
-      expect(result.messages[0].content).toContain('Linked message from');
-      expect(result.messages[0].content).toContain('Mocked resolved content');
+      // URL should be stripped from content
+      expect(result.messages[0].content).not.toContain('discord.com/channels');
+      expect(result.messages[0].content).toContain('Check this out:');
+      // Structured reference should exist for the source message
+      const refs = result.resolvedReferences.get('msg-1');
+      expect(refs).toHaveLength(1);
+      expect(refs![0].content).toBe('Mocked resolved content');
+      expect(refs![0].authorDisplayName).toBe('TestUser');
     });
 
     it('skips links to messages already in context', async () => {
@@ -218,8 +226,10 @@ describe('HistoryLinkResolver', () => {
       expect(result.resolvedCount).toBe(0);
       expect(result.failedCount).toBe(1);
       expect(result.messages).toHaveLength(1);
-      // Original content should be unchanged
+      // Original content should be unchanged (URL not stripped on failure)
       expect(result.messages[0].content).toContain('https://discord.com/channels');
+      // No references in the map
+      expect(result.resolvedReferences.size).toBe(0);
     });
 
     it('trims oldest messages when budget exceeded', async () => {
@@ -353,8 +363,11 @@ describe('HistoryLinkResolver', () => {
       });
 
       expect(result.resolvedCount).toBe(2);
-      // Both should be injected
-      expect(result.messages[0].content).toContain('Linked message from');
+      // Both URLs should be stripped
+      expect(result.messages[0].content).not.toContain('discord.com/channels');
+      // Both should be in the resolvedReferences map for msg-1
+      const refs = result.resolvedReferences.get('msg-1');
+      expect(refs).toHaveLength(2);
     });
 
     it('handles inaccessible guild gracefully', async () => {

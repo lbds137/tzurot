@@ -110,11 +110,13 @@ async function invokeVisionModel(
     const errorInfo = parseApiError(error);
     logger.error(
       {
+        err: error,
         modelName,
         errorCategory: errorInfo.category,
         errorType: errorInfo.type,
         statusCode: errorInfo.statusCode,
         shouldRetry: errorInfo.shouldRetry,
+        technicalMessage: errorInfo.technicalMessage,
       },
       'Vision model invocation failed'
     );
