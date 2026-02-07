@@ -13,7 +13,6 @@ import { MessageReferenceType } from 'discord.js';
 export enum ReferenceType {
   REPLY = 'REPLY',
   LINK = 'LINK',
-  FORWARD = 'FORWARD',
 }
 
 /**
