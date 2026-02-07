@@ -31,7 +31,6 @@ if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
 const redis = createIORedisClient(config.REDIS_URL, 'Redis', logger);
 
 // Export raw Redis client for direct access (e.g., pending verification messages)
- 
 export { redis };
 
 // Export singleton RedisService instance
