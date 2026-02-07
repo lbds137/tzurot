@@ -29,7 +29,7 @@ Provider returns 400 error but response may contain usable content. Currently tr
 
 **Remaining**:
 
-- [ ] Check for extractable content before throwing on 400 (model sometimes returns valid output alongside error)
+- [x] Check for extractable content before throwing on 400 — **fixed in PR #587**: `tryRecoverErrorContent()` extracts valid content from 400 responses
 - [ ] GLM 4.5 Air empty reasoning with low `maxTokens` — model skips thinking when budget is tight (may be unavoidable)
 
 ### 🐛 Error UX Improvements (Quota + General)
@@ -46,17 +46,17 @@ Errors show generic messages without enough context for debugging. Users (and ad
 - No visibility into actual error code/message for debugging
 - No fallback to other free models
 
-**Fix approach - Error Display**:
+**Fix approach - Error Display** (MOSTLY DONE — PR #587):
 
-- [ ] Standardize error response format: `{ category, userMessage, technicalDetails }`
-- [ ] Discord embeds show category (bold) + user-friendly message
-- [ ] Add collapsible/spoiler section with technical details (error code, provider message, request ID)
+- [x] Standardize error response format: `{ category, userMessage, technicalDetails }` — unified `ApiErrorInfo` with Zod schema
+- [x] Discord embeds show category (bold) + user-friendly message — `USER_ERROR_MESSAGES[category]`
+- [x] Add collapsible/spoiler section with technical details (error code, provider message, request ID) — `formatErrorSpoiler()`
 - [ ] Admin errors can show full technical context; user errors show sanitized version
 
-**Fix approach - Quota Handling**:
+**Fix approach - Quota Handling** (PARTIALLY DONE — PR #587):
 
-- [ ] Detect 402 quota errors specifically
-- [ ] Show user-friendly "model quota exceeded, try again in a few minutes" message
+- [x] Detect 402 quota errors specifically — `apiErrorParser` classifies 402 → `QUOTA_EXCEEDED`
+- [x] Show user-friendly "model quota exceeded, try again in a few minutes" message — `USER_ERROR_MESSAGES.QUOTA_EXCEEDED`
 - [ ] Consider automatic fallback to alternative free model
 - [ ] Track quota hits per model to avoid repeated failures
 

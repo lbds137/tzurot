@@ -8,6 +8,13 @@
 
 ## Recently Completed
 
+### Error Handling, Content Recovery & Diagnostics (PR #587)
+
+- **DeepSeek R1 crash fix**: Clone response before consuming body — prevents crash when reasoning interception fails
+- **400 content recovery**: Extract valid content from error responses (free-tier models returning content alongside 400)
+- **ApiErrorInfo → Zod unification**: Deleted manual interface, derived type from Zod schema (`technicalMessage` field added)
+- **Technical message in Discord spoilers**: Error spoilers now show category + technical details + ref ID
+
 ### Negative Caching for Vision Failures (PR #586)
 
 Two-tier negative cache prevents re-hammering failed vision API calls:
@@ -30,6 +37,7 @@ Two-tier negative cache prevents re-hammering failed vision API calls:
 
 ## Session Notes
 
+**2026-02-06**: Error handling PR #587 merged. Preparing release to production.
 **2026-02-06**: Negative caching merged. Plan files cleaned up — remaining schema cleanup moved to BACKLOG.
 **2026-02-05**: Backlog reorganization complete. See `.claude/rules/06-backlog.md` for structure documentation.
 
