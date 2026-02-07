@@ -213,8 +213,8 @@ Each package has `tsconfig.spec.json` that extends the main `tsconfig.json` but:
 
 ## CI Integration
 
-- **Pre-push hook**: Runs `typecheck:spec` and `cpd` (both warnings until baseline fixed)
-- **CI pipeline**: `typecheck:spec` is blocking; `cpd` has `continue-on-error: true`
+- **Pre-push hook**: `typecheck:spec` (blocking), `cpd` (warning), `depcruise` (warning)
+- **CI pipeline**: `typecheck:spec` is blocking; `cpd`, `depcruise`, `knip` have `continue-on-error: true`
 
 ## Quality Command
 
@@ -274,20 +274,18 @@ Currently, static analysis checks run as **warnings** to allow time to fix basel
 
 1. **CPD (CI)**: Remove `continue-on-error: true` from `.github/workflows/ci.yml` (line ~47)
 
-2. **typecheck:spec (Pre-push)**: Already blocking in CI. To make blocking in pre-push, move it back into the main turbo command in `.husky/pre-push`:
-
-   ```bash
-   # Change from separate warning step to blocking
-   pnpm turbo run build lint test typecheck:spec $TURBO_FILTER $TURBO_ARGS
-   ```
+2. **typecheck:spec (Pre-push)**: Already blocking in both CI and pre-push.
 
 3. **CPD (Pre-push)**: Change from warning to blocking by adding `exit 1`:
+
    ```bash
    if ! pnpm cpd 2>/dev/null; then
        echo "${RED}Copy-paste detection found violations${NC}"
        exit 1
    fi
    ```
+
+4. **depcruise (Pre-push)**: Same pattern as CPD — change from warning to blocking.
 
 ### Target State
 
