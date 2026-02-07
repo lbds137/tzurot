@@ -418,6 +418,7 @@ export class GenerationStep implements IPipelineStep {
               type: ApiErrorType.TRANSIENT,
               category: ApiErrorCategory.EMPTY_RESPONSE,
               userMessage: USER_ERROR_MESSAGES[ApiErrorCategory.EMPTY_RESPONSE],
+              technicalMessage: emptyErrorMessage,
               referenceId: emptyReferenceId,
               shouldRetry: false, // Already retried with escalated params - model consistently produces empty
             },
