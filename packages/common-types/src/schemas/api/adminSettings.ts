@@ -26,16 +26,8 @@ export const AdminSettingsSchema = z.object({
 });
 export type AdminSettings = z.infer<typeof AdminSettingsSchema>;
 
-// ============================================================================
-// GET /admin/settings
-// Returns the singleton AdminSettings object
-// ============================================================================
-
-export const GetAdminSettingsResponseSchema = AdminSettingsSchema;
-export type GetAdminSettingsResponse = z.infer<typeof GetAdminSettingsResponseSchema>;
-
-// Note: PATCH /admin/settings endpoint was removed — no updatable fields remain
-// after extendedContext* cleanup. Re-add when new admin settings are introduced.
+/** GET /admin/settings response uses AdminSettingsSchema directly */
+export type GetAdminSettingsResponse = AdminSettings;
 
 // ============================================================================
 // Deterministic UUID for Singleton

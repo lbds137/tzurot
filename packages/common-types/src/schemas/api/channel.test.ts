@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
   ChannelSettingsSchema,
-  ActivatedChannelSchema,
   ActivateChannelRequestSchema,
   ActivateChannelResponseSchema,
   DeactivateChannelRequestSchema,
@@ -67,14 +66,6 @@ describe('Channel Settings Schemas', () => {
     it('should reject empty personalitySlug (use null instead)', () => {
       const data = createValidChannelSettings({ personalitySlug: '' });
       expect(() => ChannelSettingsSchema.parse(data)).toThrow();
-    });
-  });
-
-  // ActivatedChannelSchema is an alias for ChannelSettingsSchema
-  describe('ActivatedChannelSchema (deprecated alias)', () => {
-    it('should work the same as ChannelSettingsSchema', () => {
-      const data = createValidChannelSettings();
-      expect(ActivatedChannelSchema.parse(data)).toEqual(data);
     });
   });
 
