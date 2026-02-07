@@ -7,7 +7,7 @@
       "ignoreDependencies": ["@typescript-eslint/eslint-plugin", "@typescript-eslint/parser"]
     },
     "services/bot-client": {
-      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts", "src/commands/*/index.ts"],
       "ignoreDependencies": ["redis"]
     },
     "services/api-gateway": {
@@ -21,7 +21,8 @@
     "packages/common-types": {
       "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
       "includeEntryExports": true,
-      "ignoreDependencies": ["openai", "pg", "redis"]
+      "ignoreDependencies": ["openai", "pg", "redis"],
+      "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/tooling": {
       "entry": ["src/**/*.test.ts"]
@@ -42,8 +43,10 @@
     "tzurot-legacy/**",
     "**/vitest.config.ts",
     "**/vitest.int.config.ts",
-    "**/test/setup.ts"
+    "**/test/setup.ts",
+    "vitest.workspace.ts"
   ],
+  "ignoreBinaries": ["dot", "diff", "railway"],
   "ignoreDependencies": [
     "@secretlint/secretlint-rule-preset-recommend",
     "eslint-formatter-pretty",
