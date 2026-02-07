@@ -64,6 +64,11 @@ if echo "$PROMPT" | grep -qiE 'CURRENT\.md|BACKLOG\.md|wrap.?up|session.?end|sum
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-docs"
 fi
 
+# Documentation Audit
+if echo "$PROMPT" | grep -qiE 'doc.*audit|audit.*doc|documentation.*fresh|stale.*doc|review.*doc'; then
+    RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-doc-audit"
+fi
+
 # MCP Council
 if echo "$PROMPT" | grep -qiE 'mcp|council|second.?opinion|stuck|brainstorm'; then
     RELEVANT_SKILLS="$RELEVANT_SKILLS tzurot-council-mcp"

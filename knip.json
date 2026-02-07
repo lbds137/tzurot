@@ -1,0 +1,46 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreWorkspaces": ["scripts", "tests"],
+  "workspaces": {
+    ".": {
+      "vitest": false
+    },
+    "services/bot-client": {
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+    },
+    "services/api-gateway": {
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+    },
+    "services/ai-worker": {
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"]
+    },
+    "packages/common-types": {
+      "entry": ["src/**/*.test.ts", "src/**/*.int.test.ts"],
+      "includeEntryExports": true
+    },
+    "packages/tooling": {
+      "entry": ["src/**/*.test.ts"]
+    },
+    "packages/embeddings": {
+      "entry": ["src/**/*.test.ts"],
+      "includeEntryExports": true
+    },
+    "packages/test-utils": {
+      "includeEntryExports": true
+    }
+  },
+  "ignore": [
+    "**/dist/**",
+    "**/generated/**",
+    "prisma/**",
+    "tzurot-legacy/**",
+    "**/vitest.config.ts",
+    "**/vitest.int.config.ts",
+    "**/test/setup.ts"
+  ],
+  "ignoreDependencies": [
+    "@secretlint/secretlint-rule-preset-recommend",
+    "eslint-formatter-pretty",
+    "pino-pretty"
+  ]
+}

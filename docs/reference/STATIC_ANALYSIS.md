@@ -115,6 +115,71 @@ function processOrder(order: Order): Result {
 }
 ```
 
+### dependency-cruiser — Architecture Enforcement
+
+Validates dependency rules at the import graph level. Encodes the architectural boundaries from `01-architecture.md` as machine-enforceable rules.
+
+**Commands:**
+
+```bash
+pnpm depcruise            # Check for violations (exits non-zero on NEW violations)
+pnpm depcruise:baseline   # Update baseline after fixing violations
+pnpm depcruise:graph      # Generate SVG dependency graph (requires graphviz)
+```
+
+**Configuration:** `.dependency-cruiser.cjs`
+
+**Baseline:** `.dependency-cruiser-baseline.json` — known violations that existed before adoption. CI passes as long as no NEW violations are introduced. Same pattern as `test-coverage-baseline.json`.
+
+**Rules enforced:**
+
+| Rule                       | Severity | Description                                         |
+| -------------------------- | -------- | --------------------------------------------------- |
+| `bot-client-no-prisma`     | error    | bot-client must never import @prisma/client         |
+| `no-cross-service-imports` | error    | Services cannot import from each other              |
+| `no-circular-dependencies` | error    | No circular dependency chains                       |
+| `ai-worker-no-discord`     | warn     | ai-worker should use common-types for Discord types |
+
+**Fixing violations:**
+
+1. Run `pnpm depcruise` to see current violations
+2. Fix the import (move shared code to common-types, use API calls instead of direct imports)
+3. If fixing a legacy violation, run `pnpm depcruise:baseline` to update the baseline
+
+**Adding new rules:**
+
+Edit `.dependency-cruiser.cjs` → `forbidden` array. Rules use regex `from`/`to` pairs. Use `$1` backreferences for dynamic matching.
+
+### knip — Dead Code Detection
+
+Finds unused exports, files, dependencies, and types across the monorepo.
+
+**Commands:**
+
+```bash
+pnpm knip               # Report all unused code
+pnpm knip:fix           # Auto-remove unused exports (review diff carefully!)
+```
+
+**Configuration:** `knip.json`
+
+**What it detects:**
+
+- Unused exported functions, types, and constants
+- Files not imported by any entry point
+- Dependencies in `package.json` not used in code
+- Unlisted dependencies (used but not in `package.json`)
+- Unused enum members
+
+**Important:** Library packages (common-types, embeddings, test-utils) have `includeEntryExports: true` so their public API exports are not flagged as unused.
+
+**Fixing unused exports:**
+
+1. Run `pnpm knip` to see the full report
+2. Verify the export is truly unused (check tests, runtime usage)
+3. Remove the export, or add to ignore if it's a false positive
+4. `pnpm knip:fix` can auto-remove unused exports (review the diff before committing)
+
 ### Test File Type Checking
 
 Tests are excluded from the main build (`tsconfig.json`) but type-checked separately.
@@ -224,11 +289,13 @@ Currently, static analysis checks run as **warnings** to allow time to fix basel
 
 ### Target State
 
-| Check          | Target                    | When to Make Blocking           |
-| -------------- | ------------------------- | ------------------------------- |
-| CPD            | Under 3% duplication      | After extracting shared utils   |
-| typecheck:spec | Zero test type errors     | After fixing all test types     |
-| sonarjs        | Zero cognitive violations | After refactoring complex funcs |
+| Check          | Target                         | When to Make Blocking           |
+| -------------- | ------------------------------ | ------------------------------- |
+| CPD            | Under 3% duplication           | After extracting shared utils   |
+| typecheck:spec | Zero test type errors          | After fixing all test types     |
+| sonarjs        | Zero cognitive violations      | After refactoring complex funcs |
+| depcruise      | Zero baseline violations       | After fixing all circular deps  |
+| knip           | Triaged, false positives clean | After first clean advisory run  |
 
 ### Tracking Progress
 
