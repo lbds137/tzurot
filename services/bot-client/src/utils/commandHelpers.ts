@@ -112,6 +112,7 @@ export function createWarningEmbed(title: string, description: string): EmbedBui
  * Create a danger embed for destructive action confirmations
  * Uses ERROR color (red) to clearly indicate high-risk operations
  */
+// eslint-disable-next-line sonarjs/no-identical-functions -- pre-existing
 export function createDangerEmbed(title: string, description: string): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(title)
@@ -123,14 +124,14 @@ export function createDangerEmbed(title: string, description: string): EmbedBuil
 /**
  * Handler function type for safe wrapper
  */
-export type CommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = (
+type CommandHandler<T extends ChatInputCommandInteraction = ChatInputCommandInteraction> = (
   interaction: T
 ) => Promise<void>;
 
 /**
  * Options for createSafeHandler
  */
-export interface SafeHandlerOptions {
+interface SafeHandlerOptions {
   /** Command name for logging (e.g., 'Wallet List') */
   commandName: string;
 }

@@ -46,11 +46,7 @@ import type { DeferralMode, SafeCommandContext } from './commandContext/index.js
 
 // Re-export context types for convenience
 export type { DeferralMode, SafeCommandContext } from './commandContext/index.js';
-export type {
-  DeferredCommandContext,
-  ModalCommandContext,
-  ManualCommandContext,
-} from './commandContext/index.js';
+export type { DeferredCommandContext } from './commandContext/index.js';
 
 /**
  * Command definition that can be passed to defineCommand.

@@ -14,15 +14,9 @@
  * } from './commandContext/index.js';
  */
 
-export type {
-  DeferralMode,
-  DeferredCommandContext,
-  ModalCommandContext,
-  ManualCommandContext,
-  SafeCommandContext,
-} from './types.js';
+export type { DeferralMode, DeferredCommandContext, SafeCommandContext } from './types.js';
 
-export { isDeferredContext, isModalContext, isManualContext } from './types.js';
+export { isDeferredContext } from './types.js';
 
 export {
   createDeferredContext,

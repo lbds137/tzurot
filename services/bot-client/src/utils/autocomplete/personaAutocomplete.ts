@@ -24,7 +24,7 @@ export const CREATE_NEW_PERSONA_VALUE = '__create_new__';
 /**
  * Options for persona autocomplete
  */
-export interface PersonaAutocompleteOptions {
+interface PersonaAutocompleteOptions {
   /** Name of the option to check (default: 'profile') */
   optionName?: string;
   /** Whether to include "Create new profile..." option (default: false) */

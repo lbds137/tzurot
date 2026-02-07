@@ -17,7 +17,7 @@ import {
 import type { FlattenedPersonaData, PersonaDetails } from './types.js';
 
 // Re-export types for convenience
-export type { FlattenedPersonaData, PersonaDetails } from './types.js';
+export type { FlattenedPersonaData } from './types.js';
 
 /**
  * Convert API response to flattened form data

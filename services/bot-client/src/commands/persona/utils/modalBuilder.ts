@@ -11,7 +11,7 @@ import { DISCORD_LIMITS } from '@tzurot/common-types';
 /**
  * Existing profile data for pre-filling modal fields
  */
-export interface PersonaModalData {
+interface PersonaModalData {
   name?: string | null;
   description?: string | null;
   preferredName?: string | null;
@@ -22,7 +22,7 @@ export interface PersonaModalData {
 /**
  * Options for customizing modal field labels and placeholders
  */
-export interface PersonaModalOptions {
+interface PersonaModalOptions {
   /** Whether to include the profile name field (default: true) */
   includeNameField?: boolean;
   /** Custom placeholder for profile name */

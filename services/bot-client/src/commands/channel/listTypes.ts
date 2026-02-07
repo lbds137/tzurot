@@ -10,9 +10,6 @@ export const CHANNELS_PER_PAGE = 10;
 /** Channels per page for all-servers mode (smaller to account for guild headers) */
 export const CHANNELS_PER_PAGE_ALL_SERVERS = 8;
 
-/** Button collector timeout in milliseconds (60 seconds) */
-export const COLLECTOR_TIMEOUT_MS = 60_000;
-
 /**
  * Represents a page of channel settings for all-servers view
  */

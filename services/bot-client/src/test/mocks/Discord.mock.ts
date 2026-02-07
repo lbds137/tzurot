@@ -66,7 +66,7 @@ export function createMockCollection<K, V>(initialValues: [K, V][] = []): Collec
 /**
  * Create a mock MessageMentions object
  */
-export function createMockMessageMentions(
+function createMockMessageMentions(
   overrides: MockInput<MessageMentions> = EMPTY_OVERRIDES
 ): MessageMentions {
   const defaults: Partial<MessageMentions> = {
@@ -188,7 +188,7 @@ export function createMockTextChannel(
 /**
  * Create a mock Discord DM Channel
  */
-export function createMockDMChannel(overrides: MockInput<DMChannel> = EMPTY_OVERRIDES): DMChannel {
+function createMockDMChannel(overrides: MockInput<DMChannel> = EMPTY_OVERRIDES): DMChannel {
   const id = overrides.id ?? '333333333333333333';
 
   const defaults: Partial<DMChannel> = {
@@ -239,9 +239,7 @@ export function createMockThreadChannel(
 /**
  * Create a mock Discord Guild Member
  */
-export function createMockGuildMember(
-  overrides: MockInput<GuildMember> = EMPTY_OVERRIDES
-): GuildMember {
+function createMockGuildMember(overrides: MockInput<GuildMember> = EMPTY_OVERRIDES): GuildMember {
   const id = overrides.id ?? '123456789012345678';
 
   const defaults = {

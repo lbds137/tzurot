@@ -27,7 +27,7 @@ import { extractEmbedImages } from './embedImageExtractor.js';
 /**
  * Content extracted from a forwarded message or its snapshots
  */
-export interface ForwardedContentResult {
+interface ForwardedContentResult {
   /** Text content from forwarded message */
   content: string;
   /** Attachments from forwarded message (files, images, voice) */
@@ -190,7 +190,7 @@ export function extractForwardedAttachments(message: Message): AttachmentMetadat
  * @param message - Discord message (should be a forwarded message)
  * @returns Array of embeds from snapshots
  */
-export function extractForwardedEmbeds(message: Message): (APIEmbed | { toJSON(): APIEmbed })[] {
+function extractForwardedEmbeds(message: Message): (APIEmbed | { toJSON(): APIEmbed })[] {
   const embeds: (APIEmbed | { toJSON(): APIEmbed })[] = [];
 
   const snapshots = getSnapshots(message);

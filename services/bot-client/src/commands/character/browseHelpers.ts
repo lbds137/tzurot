@@ -25,7 +25,7 @@ export interface ListItem {
  * Create a character comparator for sorting.
  * Uses shared listSorting utility for consistent sort behavior.
  */
-export const characterComparator = createListComparator<CharacterData>(
+const characterComparator = createListComparator<CharacterData>(
   c => c.displayName ?? c.name,
   c => c.updatedAt
 );
@@ -33,7 +33,7 @@ export const characterComparator = createListComparator<CharacterData>(
 /**
  * Format a character line for the list
  */
-export function formatCharacterLine(c: CharacterData): string {
+function formatCharacterLine(c: CharacterData): string {
   const visibility = c.isPublic ? '🌐' : '🔒';
   const displayName = escapeMarkdown(c.displayName ?? c.name);
   return `${visibility} **${displayName}** (\`${c.slug}\`)`;
@@ -94,6 +94,7 @@ export function filterCharacters(
  * Groups are sorted by owner name, characters within groups by sort type.
  * This ensures owner groups stay together across page boundaries.
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export function createListItems(
   ownCharacters: CharacterData[],
   othersPublic: CharacterData[],

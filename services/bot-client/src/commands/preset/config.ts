@@ -256,8 +256,6 @@ import {
 } from './presetSections.js';
 
 // Re-export for tests
-export { reasoningSection };
-
 // --- Dashboard Config ---
 
 export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {

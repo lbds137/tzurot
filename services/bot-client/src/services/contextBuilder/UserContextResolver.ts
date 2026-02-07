@@ -16,7 +16,7 @@ import {
 const logger = createLogger('UserContextResolver');
 
 /** Result of resolving user, persona, and history */
-export interface UserContextResult {
+interface UserContextResult {
   internalUserId: string;
   discordUserId: string;
   personaId: string;
@@ -27,14 +27,14 @@ export interface UserContextResult {
 }
 
 /** User info for context resolution */
-export interface UserInfo {
+interface UserInfo {
   id: string;
   username: string;
   bot?: boolean;
 }
 
 /** Dependencies for user context resolution */
-export interface UserContextDeps {
+interface UserContextDeps {
   userService: UserService;
   personaResolver: PersonaResolver;
   prisma: PrismaClient;

@@ -17,7 +17,7 @@ const logger = createLogger('ReferenceFormatter');
 /**
  * Formatted reference result
  */
-export interface FormattedResult {
+interface FormattedResult {
   /** Formatted references with numbers assigned */
   references: ReferencedMessage[];
   /** Updated message content with links replaced by [Reference N] */

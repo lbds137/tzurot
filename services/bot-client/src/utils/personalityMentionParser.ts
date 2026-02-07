@@ -16,7 +16,7 @@ const logger = createLogger('PersonalityMentionParser');
 const MAX_MENTION_WORDS = 4;
 const MAX_POTENTIAL_MENTIONS = 10; // Security: Prevent resource exhaustion from excessive @mentions
 
-export interface PersonalityMentionResult {
+interface PersonalityMentionResult {
   personalityName: string;
   cleanContent: string;
 }
@@ -194,6 +194,7 @@ export async function findPersonalityMention(
  * @param trailingPunctuationRegex - Regex to remove trailing punctuation
  * @returns Array of unique potential mentions with their word counts
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 function extractPotentialMentions(
   content: string,
   escapedChar: string,

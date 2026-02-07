@@ -5,11 +5,6 @@
  * /character, /profile, /preset, and other entity editing flows.
  */
 
-import type {
-  StringSelectMenuInteraction,
-  ModalSubmitInteraction,
-  ButtonInteraction,
-} from 'discord.js';
 import { z } from 'zod';
 
 /**
@@ -173,51 +168,6 @@ export interface DashboardSession<T> {
   createdAt: Date;
   /** Timestamp of last activity */
   lastActivityAt: Date;
-}
-
-/**
- * Result of a dashboard update operation
- */
-export interface DashboardUpdateResult<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-}
-
-/**
- * Handler function types for dashboard interactions
- */
-export type EditSelectionHandler<T> = (
-  interaction: StringSelectMenuInteraction,
-  session: DashboardSession<T>,
-  sectionId: string
-) => Promise<void>;
-
-export type ModalSubmitHandler<T> = (
-  interaction: ModalSubmitInteraction,
-  session: DashboardSession<T>,
-  sectionId: string,
-  values: Record<string, string>
-) => Promise<DashboardUpdateResult<T>>;
-
-export type ActionHandler<T> = (
-  interaction: StringSelectMenuInteraction | ButtonInteraction,
-  session: DashboardSession<T>,
-  actionId: string
-) => Promise<void>;
-
-/**
- * Data persistence interface for dashboard entities
- */
-export interface DashboardRepository<T> {
-  /** Fetch entity by ID */
-  findById(id: string): Promise<T | null>;
-  /** Create new entity */
-  create(data: Partial<T>): Promise<T>;
-  /** Update entity */
-  update(id: string, data: Partial<T>): Promise<T>;
-  /** Delete entity */
-  delete(id: string): Promise<void>;
 }
 
 /**

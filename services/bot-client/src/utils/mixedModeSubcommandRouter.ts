@@ -37,17 +37,17 @@ import { isDeferredContext } from './commandContext/index.js';
 /**
  * Handler for deferred subcommands (receives DeferredCommandContext)
  */
-export type DeferredSubcommandHandler = (context: DeferredCommandContext) => Promise<void>;
+type DeferredSubcommandHandler = (context: DeferredCommandContext) => Promise<void>;
 
 /**
  * Handler for modal subcommands (receives ModalCommandContext)
  */
-export type ModalSubcommandHandler = (context: ModalCommandContext) => Promise<void>;
+type ModalSubcommandHandler = (context: ModalCommandContext) => Promise<void>;
 
 /**
  * Configuration for mixed-mode subcommand handlers
  */
-export interface MixedModeHandlers {
+interface MixedModeHandlers {
   /** Handlers for subcommands that are deferred (ephemeral or public) */
   deferred?: Record<string, DeferredSubcommandHandler>;
   /** Handlers for subcommands that show modals */
@@ -57,7 +57,7 @@ export interface MixedModeHandlers {
 /**
  * Options for the mixed-mode router
  */
-export interface MixedModeRouterOptions {
+interface MixedModeRouterOptions {
   /** Logger instance for logging subcommand execution */
   logger?: Logger;
   /** Prefix for log messages (e.g., '[Wallet]') */

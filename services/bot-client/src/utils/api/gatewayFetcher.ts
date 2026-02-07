@@ -11,14 +11,14 @@ import { callGatewayApi } from '../userGatewayClient.js';
 /**
  * Result type that matches callGatewayApi return
  */
-export type GatewayResult<T> =
+type GatewayResult<T> =
   | { ok: true; data: T; status: number }
   | { ok: false; error: string; status: number };
 
 /**
  * Options for creating a fetch function
  */
-export interface FetcherOptions<TResponse, TResult> {
+interface FetcherOptions<TResponse, TResult> {
   /** Logger name for this fetcher */
   loggerName: string;
   /** Function to extract the result from the response */
@@ -63,7 +63,7 @@ export function createEntityFetcher<TResponse, TResult>(
 /**
  * Options for creating an update function
  */
-export interface UpdaterOptions<TResponse, TResult> {
+interface UpdaterOptions<TResponse, TResult> {
   /** Logger name for this updater */
   loggerName: string;
   /** Function to extract the result from the response */
@@ -127,7 +127,7 @@ export function createEntityUpdater<TResponse, TResult>(
 /**
  * Delete result with error information
  */
-export interface DeleteResult {
+interface DeleteResult {
   success: boolean;
   error?: string;
 }
@@ -135,7 +135,7 @@ export interface DeleteResult {
 /**
  * Options for creating a delete function
  */
-export interface DeleterOptions {
+interface DeleterOptions {
   /** Logger name for this deleter */
   loggerName: string;
   /** Action name for log messages (e.g., 'delete persona') */
@@ -183,7 +183,7 @@ export function createEntityDeleter(
 /**
  * Options for creating a list fetcher
  */
-export interface ListFetcherOptions<TResponse, TResult> {
+interface ListFetcherOptions<TResponse, TResult> {
   /** Logger name for this fetcher */
   loggerName: string;
   /** Function to extract the list from the response */
