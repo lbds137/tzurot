@@ -1,7 +1,7 @@
 ---
 name: tzurot-docs
 description: 'Session workflow procedures. Invoke with /tzurot-docs for session start/end, CURRENT.md/BACKLOG.md management.'
-lastUpdated: '2026-02-04'
+lastUpdated: '2026-02-07'
 ---
 
 # Documentation & Session Workflow
@@ -104,28 +104,13 @@ Add to **Inbox** in BACKLOG.md with a tag:
 2. Move to **Recent Highlights** (keep last 3-5)
 3. Pull next task from BACKLOG High Priority
 
-## Documentation Structure
+## Documentation Standards
 
-```
-docs/
-├── reference/           # THE TRUTH - What currently exists
-│   ├── architecture/
-│   ├── deployment/
-│   └── standards/
-├── proposals/           # THE PLANS - What we want to build
-├── incidents/           # Postmortems
-└── research/            # Investigation notes
-```
-
-| Question             | Answer                           |
-| -------------------- | -------------------------------- |
-| Is it work to do?    | → BACKLOG.md                     |
-| Is it active now?    | → CURRENT.md                     |
-| Is it implemented?   | → `docs/reference/`              |
-| Is it a future plan? | → `docs/proposals/`              |
-| Is it done/obsolete? | → Extract learnings, then DELETE |
+For doc placement, naming, and lifecycle rules, see `.claude/rules/07-documentation.md`.
 
 ## References
 
 - Current session: `CURRENT.md`
 - All work items: `BACKLOG.md`
+- Documentation standards: `.claude/rules/07-documentation.md`
+- Documentation audit: `.claude/skills/tzurot-doc-audit/SKILL.md`

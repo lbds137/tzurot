@@ -11,7 +11,7 @@ Discord bot with AI personas. TypeScript monorepo on Railway.
 ```bash
 pnpm dev              # Start all services
 pnpm test             # Run tests
-pnpm quality          # lint + cpd + typecheck:spec
+pnpm quality          # lint + cpd + depcruise + typecheck + typecheck:spec
 pnpm ops db:migrate --env dev  # Run migrations
 ```
 
@@ -36,6 +36,8 @@ All rules load automatically from `.claude/rules/`:
 - **03-database.md** - Prisma, pgvector, caching
 - **04-discord.md** - 3-second deferral, slash commands, BullMQ
 - **05-tooling.md** - CLI reference, git workflow
+- **06-backlog.md** - Backlog structure and session workflow
+- **07-documentation.md** - Doc placement, naming, lifecycle
 
 ## Git Workflow
 
