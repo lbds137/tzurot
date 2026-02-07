@@ -192,26 +192,6 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
 
-### 🏗️ Fix Circular Dependencies (54 Violations)
-
-**Context**: dependency-cruiser baseline captured 54 circular dependency violations across the monorepo. Fixing these improves build times, import ordering, and code reasoning.
-
-**Approach**: Triage with `pnpm depcruise`, fix in batches, run `pnpm depcruise:baseline` after each batch to shrink baseline.
-
-- [ ] Triage: identify highest-impact cycles (cross-package vs intra-module)
-- [ ] Fix batch 1: common-types internal cycles
-- [ ] Fix batch 2: service-level cycles
-- [ ] Update baseline after each batch
-
-### 🧹 Triage knip Unused Code Report
-
-**Context**: knip found 244 unused exports and 393 unused types. Review for safe removal candidates.
-
-- [ ] Run `pnpm knip` and categorize findings
-- [ ] Remove clearly dead exports
-- [ ] Add false positives to `knip.json` ignore
-- [ ] Update baseline count
-
 ### 🧹 Redis Failure Injection Tests
 
 SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
@@ -264,33 +244,83 @@ Pattern: Shared Zod schemas in common-types, scope-aware service layer.
 
 ---
 
-## 📅 Next Epic: Bot-Client Package Split
+## 📅 Next Epic: Architecture Health — Oversized Files, Dead Code, Circular Deps
 
-_Ready to start after Zod hardening. Analysis complete._
+_Focus: Bring the codebase under ESLint limits and eliminate structural debt._
 
-**Context**: Gemini architectural review flagged bot-client as too heavy (~4.1MB, 424 files). Analysis identified extraction candidates.
+**Audit date**: 2026-02-07 (full report via `/tzurot-arch-audit`)
 
-**Best Extraction Candidates (in priority order):**
+**Current state**: 29 files >500 lines (ESLint error), 54 circular deps, 689 knip findings, 70 lint suppressions. bot-client alone is 45.7K lines with 767 exports. common-types has 607 exports (12x the 50-export threshold).
 
-| Package                           | Files | Size    | Confidence                             |
-| --------------------------------- | ----- | ------- | -------------------------------------- |
-| `@tzurot/discord-dashboard`       | 30    | 336K    | ✅ High - self-contained UI framework  |
-| `@tzurot/discord-command-context` | 6     | 56K     | ✅ Medium-High - typed context pattern |
-| `@tzurot/message-references`      | 12    | ~4K LOC | ✅ Medium - BFS reference crawling     |
+### Phase 1: Cleanup Sprint (1 session)
 
-**Phase 1 (Quick Wins):**
+Mechanical fixes, low risk, high signal-to-noise improvement for knip/depcruise.
 
-- [ ] Extract `@tzurot/discord-dashboard` from `utils/dashboard/` - completely self-contained
-- [ ] Extract `@tzurot/message-references` from `handlers/references/` - well-tested, strategy pattern
+- [ ] Remove 13 unused dependencies from package.json files
+- [ ] Remove 13 unused devDependencies from root package.json
+- [ ] Delete 11 unused files flagged by knip
+- [ ] Fix 2 unlisted dependencies (add to package.json)
+- [ ] Remove 5 unused enum members
+- [ ] Deduplicate 4 duplicate exports
+- [ ] Extract shared Redis client setup (64 lines duplicated between ai-worker and bot-client)
 
-**Phase 2:**
+### Phase 2: Dead Code Purge (1-2 sessions)
 
-- [ ] Extract `@tzurot/discord-command-context` from `utils/commandContext/`
-- [ ] Consolidate `GatewayClient` into `common-types` (currently duplicated)
+Requires review — knip can have false positives for runtime-only usage.
 
-**Not recommended for extraction:** services/, processors/, handlers/MessageHandler.ts - too tightly coupled to message pipeline.
+- [ ] Run `pnpm knip:fix` for 244 unused exports, review diff carefully
+- [ ] Review 393 unused exported types — remove genuinely dead, add false positives to `knip.json`
+- [ ] Rerun knip, verify findings reduced to near-zero (ignores only)
 
-**References**: PR #558, `docs/reference/STATIC_ANALYSIS.md`
+### Phase 3: Oversized File Splits (5-8 sessions, the bulk of the work)
+
+29 files >= 500 lines, 30 more in the 400-499 warning band. Split into sub-phases by severity.
+
+**Phase 3a — Critical files (>= 600 lines, 10 files):**
+
+| File                          | Lines | Package      | Split strategy                                      |
+| ----------------------------- | ----- | ------------ | --------------------------------------------------- |
+| `ModelFactory.ts`             | 757   | ai-worker    | Extract provider-specific factory methods           |
+| `PromptBuilder.ts`            | 657   | ai-worker    | Extract section builders (memory, personality, env) |
+| `character/dashboard.ts`      | 637   | bot-client   | Extract section handlers                            |
+| `MessageContextBuilder.ts`    | 636   | bot-client   | Extract resolver methods into contextBuilder/       |
+| `UserReferenceResolver.ts`    | 629   | ai-worker    | Extract resolution strategies                       |
+| `DiagnosticCollector.ts`      | 618   | ai-worker    | Extract formatters, separate collect vs report      |
+| `SettingsDashboardHandler.ts` | 603   | bot-client   | Extract per-setting handlers                        |
+| `ConversationalRAGService.ts` | 599   | ai-worker    | Extract query building, result formatting           |
+| `schemas.ts` (common-types)   | 597   | common-types | Split by domain (ai, channel, memory, etc.)         |
+| `character/chat.ts`           | 592   | bot-client   | Extract message pipeline stages                     |
+
+**Phase 3b — Moderate files (500-599 lines, 19 files):**
+
+Prioritize by package: bot-client (14 files), ai-worker (3), api-gateway (1), tooling (1).
+
+Key targets: `index.ts` entrypoints (584, 508), `GatewayClient.ts` (547), `SessionManager.ts` (524), `customIds.ts` (522), `DiscordChannelFetcher.ts` (543), `DatabaseSyncService.ts` (512).
+
+**Phase 3c — Warning band (400-499 lines, 30 files):**
+
+Track only — split opportunistically when touching these files for other reasons.
+
+### Phase 4: Circular Dependency Resolution (2-3 sessions)
+
+54 baseline violations. Fix in batches, update baseline after each.
+
+| Package      | Cycles | Strategy                                                           |
+| ------------ | ------ | ------------------------------------------------------------------ |
+| common-types | 26     | Reorganize index exports, break constants ↔ types ↔ schemas cycles |
+| ai-worker    | 19     | Extract shared interfaces, break service ↔ utility cycles          |
+| bot-client   | 8      | Break handler ↔ service cycles                                     |
+| api-gateway  | 1      | Likely trivial                                                     |
+
+### Phase 5: Package Extraction (future, if needed)
+
+Only pursue after Phases 1-4 reduce the noise. Subsumes the former "Bot-Client Package Split" next epic.
+
+- [ ] Reassess common-types export count after dead code purge — if still >50, extract domain packages
+- [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
+- [ ] Reference: PR #558 analysis
+
+**Verification**: Run `/tzurot-arch-audit` quick scan after each phase to confirm metrics improved.
 
 ---
 
@@ -541,20 +571,9 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 ### Code Quality (Quarterly Review)
 
-#### 🧹 Periodic Complexity/Filesize Audit
-
-Files and functions creep toward ESLint limits. Proactive audit prevents emergency extractions.
-
-- [ ] `pnpm ops lint:complexity-report` - Generate report of files/functions near limits
-- [ ] Review files >400 lines, functions >80 statements or complexity >12
-
 #### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention.
-
-#### 🏗️ Audit and Reduce Re-exports
-
-Re-exports create spaghetti code and obscure module dependencies.
 
 ### Tooling Polish
 
@@ -593,6 +612,10 @@ _Decided not to do yet._
 | Redis pipelining                  | Fast enough at current traffic                                                      |
 | BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                          |
 | ~~Dependency Cruiser~~            | ✅ DONE — integrated in PR #591 with baseline approach                              |
+| ~~Periodic Complexity Audit~~     | ✅ Absorbed into Architecture Health epic (Phase 3)                                 |
+| ~~Audit and Reduce Re-exports~~   | ✅ Absorbed into Architecture Health epic (Phase 2)                                 |
+| ~~Fix Circular Dependencies~~     | ✅ Absorbed into Architecture Health epic (Phase 4)                                 |
+| ~~Triage knip Unused Code~~       | ✅ Absorbed into Architecture Health epic (Phases 1-2)                              |
 | Handler factory generator         | Add when creating many new routes                                                   |
 | Scaling preparation (timers)      | Single-instance sufficient for now                                                  |
 | Vision failure JIT repair         | Negative cache prevents re-hammering; manual clear or TTL expiry sufficient for now |
