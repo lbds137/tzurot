@@ -18,7 +18,7 @@ const logger = createLogger('PersonalityFieldsFormatter');
  * JSON structure for protocol content stored in database.
  * JSON is preferred over XML in database to prevent prompt injection via XML tag breaking.
  */
-export interface ProtocolContent {
+interface ProtocolContent {
   permissions: string[];
   characterDirectives: string[];
   formattingRules: string[];

@@ -32,30 +32,3 @@ export function createMockPersonality(overrides?: Partial<LoadedPersonality>): L
     ...overrides,
   } as LoadedPersonality;
 }
-
-/**
- * Create a personality with a large context window (for testing token budgets)
- */
-export function createLargeContextPersonality(
-  overrides?: Partial<LoadedPersonality>
-): LoadedPersonality {
-  return createMockPersonality({
-    contextWindowTokens: 131072, // 128k tokens
-    ...overrides,
-  });
-}
-
-/**
- * Create a personality with minimal settings (for edge case testing)
- */
-export function createMinimalPersonality(
-  overrides?: Partial<LoadedPersonality>
-): LoadedPersonality {
-  return createMockPersonality({
-    systemPrompt: '',
-    characterInfo: '',
-    personalityTraits: '',
-    contextWindowTokens: 4096,
-    ...overrides,
-  });
-}

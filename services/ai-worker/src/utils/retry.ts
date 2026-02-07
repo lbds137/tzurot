@@ -17,7 +17,7 @@ import { RETRY_CONFIG } from '@tzurot/common-types';
 /**
  * Configuration options for retry behavior
  */
-export interface RetryOptions {
+interface RetryOptions {
   /** Maximum number of retry attempts (default: 3) */
   maxAttempts?: number;
   /** Initial delay in milliseconds before first retry */
@@ -43,7 +43,7 @@ export interface RetryOptions {
 /**
  * Result of a retry operation
  */
-export interface RetryResult<T> {
+interface RetryResult<T> {
   /** The successful result */
   value: T;
   /** Number of attempts made */
@@ -327,7 +327,7 @@ export async function withTimeout<T>(
 /**
  * Options for parallel retry operations
  */
-export interface ParallelRetryOptions extends RetryOptions {
+interface ParallelRetryOptions extends RetryOptions {
   /** Number of items to process in parallel (default: items.length) */
   concurrency?: number;
 }
@@ -335,7 +335,7 @@ export interface ParallelRetryOptions extends RetryOptions {
 /**
  * Result of a single item in parallel retry
  */
-export interface ParallelItemResult<T> {
+interface ParallelItemResult<T> {
   /** Index of the item in the original array */
   index: number;
   /** Status of the operation */

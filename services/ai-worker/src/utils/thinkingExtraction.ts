@@ -27,7 +27,7 @@ import { createLogger } from '@tzurot/common-types';
 
 const logger = createLogger('ThinkingExtraction');
 
-export interface ThinkingExtraction {
+interface ThinkingExtraction {
   /** Content extracted from thinking tags, or null if no thinking blocks found */
   thinkingContent: string | null;
   /** The response content with thinking blocks removed */

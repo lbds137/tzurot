@@ -21,15 +21,8 @@ import {
 } from '@tzurot/common-types';
 
 // Re-export from extracted modules for backward compatibility
-export { Participant, extractParticipants, isRoleMatch } from './participantUtils.js';
+export { extractParticipants } from './participantUtils.js';
 export { convertConversationHistory } from './langchainConverter.js';
-export {
-  formatQuotedSection,
-  formatImageSection,
-  formatEmbedsSection,
-  formatVoiceSection,
-  formatReactionsSection,
-} from './xmlMetadataFormatters.js';
 export { getFormattedMessageCharLength } from './conversationLengthEstimator.js';
 export { RawHistoryEntry, InlineImageDescription } from './conversationTypes.js';
 
@@ -184,7 +177,7 @@ export function formatSingleHistoryEntryAsXml(
 /**
  * Options for formatting conversation history as XML
  */
-export interface FormatConversationHistoryOptions {
+interface FormatConversationHistoryOptions {
   /** Configuration for time gap markers. If provided, gaps between messages will be marked. */
   timeGapConfig?: TimeGapConfig;
 }

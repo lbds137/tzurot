@@ -27,7 +27,7 @@ export function isRoleMatch(actual: string | MessageRole, expected: MessageRole)
 /**
  * Participant information extracted from conversation history
  */
-export interface Participant {
+interface Participant {
   personaId: string;
   personaName: string;
   isActive: boolean;

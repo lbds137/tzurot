@@ -23,7 +23,7 @@ import { vi } from 'vitest';
 /**
  * Type definition for the MemoryRetriever mock instance
  */
-export interface MockMemoryRetrieverInstance {
+interface MockMemoryRetrieverInstance {
   retrieveRelevantMemories: ReturnType<typeof vi.fn>;
   getAllParticipantPersonas: ReturnType<typeof vi.fn>;
   resolvePersonaForMemory: ReturnType<typeof vi.fn>;

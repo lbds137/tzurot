@@ -48,7 +48,7 @@ function isAuthorAssistant(
  * @param allPersonalityNames - Optional set of all AI personality names in the conversation
  * @returns Formatted XML string
  */
-export function formatStoredReferencedMessage(
+function formatStoredReferencedMessage(
   ref: StoredReferencedMessage,
   personalityName: string,
   allPersonalityNames?: Set<string>

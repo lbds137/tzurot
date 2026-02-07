@@ -22,7 +22,7 @@ import { vi } from 'vitest';
 /**
  * Type definition for the LLMInvoker mock instance
  */
-export interface MockLLMInvokerInstance {
+interface MockLLMInvokerInstance {
   getModel: ReturnType<typeof vi.fn>;
   invokeWithRetry: ReturnType<typeof vi.fn>;
 }

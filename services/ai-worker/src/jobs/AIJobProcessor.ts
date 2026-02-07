@@ -15,10 +15,6 @@ import { LlmConfigResolver } from '@tzurot/common-types';
 import { PersonaResolver } from '../services/resolvers/index.js';
 import {
   createLogger,
-  type LoadedPersonality,
-  type ReferencedMessage,
-  JobType,
-  MessageRole,
   type AnyJobData,
   type AnyJobResult,
   type AudioTranscriptionJobData,
@@ -38,113 +34,8 @@ import { LLMGenerationHandler } from './handlers/LLMGenerationHandler.js';
 
 const logger = createLogger('AIJobProcessor');
 
-/**
- * Structure of data passed in the BullMQ job
- */
-export interface AIJobData {
-  // Request identification
-  requestId: string;
-  jobType: JobType;
-
-  // Personality
-  personality: LoadedPersonality;
-
-  // User message
-  message: string | object;
-
-  // Context
-  context: {
-    userId: string;
-    userName?: string;
-    channelId?: string;
-    serverId?: string;
-    sessionId?: string;
-    isProxyMessage?: boolean;
-    // Active speaker - the persona making the current request
-    activePersonaId?: string;
-    activePersonaName?: string;
-    conversationHistory?: {
-      id?: string;
-      role: MessageRole;
-      content: string;
-      tokenCount?: number; // Cached token count from database
-      createdAt?: string;
-      personaId?: string;
-      personaName?: string;
-    }[];
-    // Multimodal support
-    attachments?: {
-      url: string;
-      contentType: string;
-      name?: string;
-      size?: number;
-      isVoiceMessage?: boolean;
-      duration?: number;
-      waveform?: string;
-    }[];
-    // Discord environment context
-    environment?: {
-      type: 'dm' | 'guild';
-      guild?: {
-        id: string;
-        name: string;
-      };
-      category?: {
-        id: string;
-        name: string;
-      };
-      channel: {
-        id: string;
-        name: string;
-        type: string;
-      };
-      thread?: {
-        id: string;
-        name: string;
-        parentChannel: {
-          id: string;
-          name: string;
-          type: string;
-        };
-      };
-    };
-    // Referenced messages (from replies and message links)
-    referencedMessages?: ReferencedMessage[];
-  };
-
-  // User's API key (for BYOK)
-  userApiKey?: string;
-
-  // Response destination (where to send the result)
-  responseDestination: {
-    type: 'discord' | 'webhook' | 'api';
-    channelId?: string;
-    webhookUrl?: string;
-    callbackUrl?: string;
-  };
-}
-
-/**
- * Structure of the job result
- */
-export interface AIJobResult {
-  requestId: string;
-  success: boolean;
-  content?: string;
-  attachmentDescriptions?: string;
-  referencedMessagesDescriptions?: string;
-  error?: string;
-  metadata?: {
-    retrievedMemories?: number;
-    tokensIn?: number;
-    tokensOut?: number;
-    processingTimeMs?: number;
-    modelUsed?: string;
-  };
-}
-
 /** Options for constructing AIJobProcessor */
-export interface AIJobProcessorOptions {
+interface AIJobProcessorOptions {
   /** Required: Prisma client for database operations */
   prisma: PrismaClient;
   /** Optional: Memory manager for pgvector operations (for DI in tests) */
