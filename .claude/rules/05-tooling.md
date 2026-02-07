@@ -43,6 +43,22 @@ pnpm ops deploy:setup-vars --env dev --dry-run  # Preview env var setup
 pnpm ops run --env dev <command>     # Run any command with Railway creds
 ```
 
+### Codebase Analysis (Xray)
+
+```bash
+pnpm ops xray                        # Full analysis (terminal)
+pnpm ops xray --summary              # File-level overview (no declarations)
+pnpm ops xray bot-client             # Single package
+pnpm ops xray --format md            # Markdown (for LLM consumption)
+pnpm ops xray --format json          # JSON (for tooling)
+pnpm ops xray --summary --output f   # Write summary to file
+pnpm ops xray --include-private      # Include non-exported declarations
+pnpm ops xray --include-tests        # Include test files
+pnpm ops xray --imports              # Include import analysis (auto for md/json)
+```
+
+**Use `--summary` for architectural overview.** Full mode lists every declaration.
+
 ### Test Audits
 
 ```bash
