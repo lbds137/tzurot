@@ -139,6 +139,45 @@ describe('analyzeMonorepo', () => {
     expect(report.summary.totalSuppressions).toBe(0);
   });
 
+  it('should skip unparseable files and continue analysis', () => {
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    // Set up two files: one good, one that throws on read
+    const goodContent = 'export const x = 1;\n';
+    vi.mocked(readdirSync).mockImplementation(((dir: unknown) => {
+      const d = String(dir);
+      if (d.endsWith('/services')) return ['test-svc'];
+      if (d.endsWith('/packages')) return [];
+      if (d.endsWith('/test-svc/src')) return ['good.ts', 'bad.ts'];
+      return [];
+    }) as typeof readdirSync);
+
+    vi.mocked(statSync).mockImplementation(((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith('/src')) return { isDirectory: () => true } as ReturnType<typeof statSync>;
+      return { isDirectory: () => false } as ReturnType<typeof statSync>;
+    }) as typeof statSync);
+
+    vi.mocked(readFileSync).mockImplementation(((path: unknown) => {
+      const p = String(path);
+      if (p.endsWith('bad.ts')) throw new Error('EACCES: permission denied');
+      if (p.endsWith('good.ts')) return goodContent;
+      return '';
+    }) as typeof readFileSync);
+
+    const report = analyzeMonorepo('/root');
+
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('Skipped'));
+    expect(consoleWarnSpy).toHaveBeenCalledWith(expect.stringContaining('bad.ts'));
+    // Only the good file should be in the report
+    expect(report.packages[0].files).toHaveLength(1);
+    expect(report.packages[0].files[0].path).toContain('good.ts');
+    // Summary should reflect 1 file, not 2
+    expect(report.summary.totalFiles).toBe(1);
+
+    consoleWarnSpy.mockRestore();
+  });
+
   it('should include suppressions in file data', () => {
     setupMockPackage('test-pkg', 'packages', {
       'index.ts': `// @ts-expect-error -- test\nexport const x = 1;\n// eslint-disable-next-line no-unused-vars\nconst y = 2;\n`,

@@ -222,7 +222,9 @@ Each package has `tsconfig.spec.json` that extends the main `tsconfig.json` but:
 
 1. `pnpm lint` - ESLint with sonarjs rules
 2. `pnpm cpd` - Copy-paste detection
-3. `pnpm typecheck:spec` - Test file type checking
+3. `pnpm depcruise` - Architecture boundary validation
+4. `pnpm typecheck` - Type-check source files
+5. `pnpm typecheck:spec` - Type-check test files
 
 Run this before submitting PRs to catch issues early.
 
