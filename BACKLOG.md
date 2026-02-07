@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-05
-> **Version**: v3.0.0-beta.67
+> **Last Updated**: 2026-02-07
+> **Version**: v3.0.0-beta.68
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -191,6 +191,26 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Extract sticker URLs from message stickers
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
+
+### 🏗️ Fix Circular Dependencies (54 Violations)
+
+**Context**: dependency-cruiser baseline captured 54 circular dependency violations across the monorepo. Fixing these improves build times, import ordering, and code reasoning.
+
+**Approach**: Triage with `pnpm depcruise`, fix in batches, run `pnpm depcruise:baseline` after each batch to shrink baseline.
+
+- [ ] Triage: identify highest-impact cycles (cross-package vs intra-module)
+- [ ] Fix batch 1: common-types internal cycles
+- [ ] Fix batch 2: service-level cycles
+- [ ] Update baseline after each batch
+
+### 🧹 Triage knip Unused Code Report
+
+**Context**: knip found 244 unused exports and 393 unused types. Review for safe removal candidates.
+
+- [ ] Run `pnpm knip` and categorize findings
+- [ ] Remove clearly dead exports
+- [ ] Add false positives to `knip.json` ignore
+- [ ] Update baseline count
 
 ### 🧹 Redis Failure Injection Tests
 
@@ -572,7 +592,7 @@ _Decided not to do yet._
 | Contract tests for HTTP API       | Single consumer, integration tests sufficient                                       |
 | Redis pipelining                  | Fast enough at current traffic                                                      |
 | BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                          |
-| Dependency Cruiser                | ESLint catches most issues                                                          |
+| ~~Dependency Cruiser~~            | ✅ DONE — integrated in PR #591 with baseline approach                              |
 | Handler factory generator         | Add when creating many new routes                                                   |
 | Scaling preparation (timers)      | Single-instance sufficient for now                                                  |
 | Vision failure JIT repair         | Negative cache prevents re-hammering; manual clear or TTL expiry sufficient for now |

@@ -1,45 +1,48 @@
 # Current
 
-> **Session**: 2026-02-06
-> **Version**: v3.0.0-beta.67
+> **Session**: 2026-02-07
+> **Version**: v3.0.0-beta.68
 > **Branch**: `develop`
 
 ---
 
 ## Recently Completed
 
+### Architectural Tooling Integration (PR #591)
+
+- **dependency-cruiser**: 4 architectural rules encoding boundaries from `01-architecture.md`. 54 existing circular dep violations captured in baseline for incremental fixing.
+- **knip**: Dead code detection configured for pnpm workspaces. Found 11 unused files, 244 unused exports, 393 unused types — all advisory.
+- **doc-audit skill**: New `/tzurot-doc-audit` with repeatable 7-section checklist for documentation freshness.
+- **xray resilience**: try-catch so single file failures don't crash analysis.
+- CI integration (non-blocking), pre-push hook (depcruise warning), comprehensive docs.
+
+### Xray TypeScript AST Analysis (PRs #589, #590)
+
+- `pnpm ops xray` — full codebase structural analysis with lint suppression tracking
+- `--summary` flag for file-level overview (64% smaller output)
+- Terminal, Markdown, and JSON output formats
+- Generated code exclusion, health scoring with warnings
+
 ### Error Handling, Content Recovery & Diagnostics (PR #587)
 
-- **DeepSeek R1 crash fix**: Clone response before consuming body — prevents crash when reasoning interception fails
-- **400 content recovery**: Extract valid content from error responses (free-tier models returning content alongside 400)
-- **ApiErrorInfo → Zod unification**: Deleted manual interface, derived type from Zod schema (`technicalMessage` field added)
-- **Technical message in Discord spoilers**: Error spoilers now show category + technical details + ref ID
+- DeepSeek R1 crash fix, 400 content recovery, ApiErrorInfo → Zod unification
 
-### Negative Caching for Vision Failures (PR #586)
+---
 
-Two-tier negative cache prevents re-hammering failed vision API calls:
+## Next Session
 
-- Transient failures → L1 Redis cooldown (10 min)
-- Permanent failures → L1 Redis (1h) + L2 PostgreSQL
-- User-friendly fallback labels (`[Image unavailable: API key issue]`)
-- New `failureCategory` column on `ImageDescriptionCache`
+**Architecture cleanup** using the new tooling:
 
-### Incremental Refactoring (PRs #580–#584)
-
-- Phase 0: Claude Code config → rules files
-- Phase 1: LlmConfigService consolidation
-- Phase 1.5: Personality service consolidation
-- Phase 3: Reasoning modernization (fetch wrapper retained — LangChain upstream limitation)
-
-**Remaining**: Schema cleanup (remove legacy `extendedContext*` columns) — moved to BACKLOG Quick Wins, pending production verification.
+- Triage dependency-cruiser's 54 circular dependency violations
+- Review knip's unused exports/types for safe removal candidates
+- Start fixing the most impactful circular deps
 
 ---
 
 ## Session Notes
 
-**2026-02-06**: Error handling PR #587 merged. Preparing release to production.
-**2026-02-06**: Negative caching merged. Plan files cleaned up — remaining schema cleanup moved to BACKLOG.
-**2026-02-05**: Backlog reorganization complete. See `.claude/rules/06-backlog.md` for structure documentation.
+**2026-02-07**: Architectural tooling PR #591 merged. dependency-cruiser (4 rules + 54-violation baseline), knip, doc-audit skill, xray try-catch. Ready to dig into architecture cleanup next session.
+**2026-02-06**: Xray PRs merged. Error handling PR #587 merged.
 
 ---
 
