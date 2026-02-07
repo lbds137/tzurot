@@ -6,9 +6,13 @@
 # Development
 pnpm dev              # Start all services
 pnpm test             # Run tests
-pnpm quality          # lint + cpd + typecheck:spec
+pnpm quality          # lint + cpd + depcruise + typecheck:spec
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
+
+# Static Analysis
+pnpm depcruise        # Check architecture boundaries
+pnpm knip             # Find unused code/exports/deps
 
 # Focused (changed packages only)
 pnpm focus:lint       # Lint changed packages
@@ -146,5 +150,6 @@ tzurot/
 
 - Full tooling guide: `packages/tooling/README.md`
 - Ops CLI reference: `docs/reference/tooling/OPS_CLI_REFERENCE.md`
+- Static analysis: `docs/reference/STATIC_ANALYSIS.md`
 - Railway CLI: `docs/reference/RAILWAY_CLI_REFERENCE.md`
 - GitHub CLI: `docs/reference/GITHUB_CLI_REFERENCE.md`
