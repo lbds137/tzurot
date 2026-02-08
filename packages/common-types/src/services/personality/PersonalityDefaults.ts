@@ -3,7 +3,7 @@
  * Default value merging and placeholder replacement logic for personalities
  */
 
-import type { LoadedPersonality } from '../../types/schemas.js';
+import type { LoadedPersonality } from '../../types/schemas/index.js';
 import {
   MODEL_DEFAULTS,
   AI_DEFAULTS,

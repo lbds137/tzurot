@@ -167,7 +167,7 @@ export const TRANSIENT_ERROR_CATEGORIES: ReadonlySet<ApiErrorCategory> = new Set
  * Structured error info for consistent error handling.
  * Derived from errorInfoSchema (Zod) in schemas.ts — single source of truth.
  */
-export type { ErrorInfo as ApiErrorInfo } from '../types/schemas.js';
+export type { ErrorInfo as ApiErrorInfo } from '../types/schemas/index.js';
 
 /**
  * Generate a unique error reference ID

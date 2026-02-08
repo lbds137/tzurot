@@ -12,7 +12,7 @@
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { TIMEOUTS } from '../../constants/index.js';
-import type { LoadedPersonality } from '../../types/schemas.js';
+import type { LoadedPersonality } from '../../types/schemas/index.js';
 import { TTLCache } from '../../utils/TTLCache.js';
 import { PersonalityLoader } from './PersonalityLoader.js';
 import { mapToPersonality } from './PersonalityDefaults.js';

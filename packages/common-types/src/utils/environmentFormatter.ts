@@ -7,7 +7,7 @@
  * This is the single source of truth for location context formatting.
  */
 
-import type { DiscordEnvironment } from '../types/schemas.js';
+import type { DiscordEnvironment } from '../types/schemas/index.js';
 import { escapeXml } from './xmlBuilder.js';
 
 /**

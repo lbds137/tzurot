@@ -7,7 +7,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { formatLocationAsXml } from './environmentFormatter.js';
-import type { DiscordEnvironment } from '../types/schemas.js';
+import type { DiscordEnvironment } from '../types/schemas/index.js';
 
 describe('formatLocationAsXml', () => {
   describe('DM formatting', () => {

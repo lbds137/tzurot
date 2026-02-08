@@ -12,7 +12,7 @@ import {
   loadedPersonalitySchema,
   generateRequestSchema,
   apiConversationMessageSchema,
-} from './schemas.js';
+} from './schemas/index.js';
 import { MessageRole } from '../constants/index.js';
 
 describe('loadedPersonalitySchema', () => {
