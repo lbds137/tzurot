@@ -10,6 +10,24 @@ import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
 const logger = createLogger('RedisUtils');
 
+/**
+ * Shared reconnection strategy for all Redis clients.
+ * Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s.
+ * Gives up after REDIS_MAX_RETRIES attempts.
+ */
+function createReconnectStrategy(retries: number): number | Error {
+  if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
+    logger.error({}, '[RedisUtils] Max reconnection attempts reached');
+    return new Error('Max reconnection attempts reached');
+  }
+  const delay = Math.min(
+    retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER,
+    RETRY_CONFIG.REDIS_MAX_DELAY
+  );
+  logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
+  return delay;
+}
+
 interface RedisConnectionConfig {
   host: string;
   port: number;
@@ -106,20 +124,7 @@ export function createRedisSocketConfig(config: RedisConnectionConfig): RedisSoc
       commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
       keepAlive: true, // Enable TCP keepalive
       keepAliveInitialDelay: REDIS_CONNECTION.KEEPALIVE,
-      reconnectStrategy: (retries: number) => {
-        if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
-          // After max retries (30+ seconds), give up
-          logger.error({}, '[RedisUtils] Max reconnection attempts reached');
-          return new Error('Max reconnection attempts reached');
-        }
-        // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
-        const delay = Math.min(
-          retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER,
-          RETRY_CONFIG.REDIS_MAX_DELAY
-        );
-        logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
-        return delay;
-      },
+      reconnectStrategy: createReconnectStrategy,
     },
     password: config.password,
     username: config.username,
@@ -154,20 +159,7 @@ export function createBullMQRedisConfig(config: RedisConnectionConfig): BullMQRe
     connectTimeout: REDIS_CONNECTION.CONNECT_TIMEOUT,
     commandTimeout: REDIS_CONNECTION.COMMAND_TIMEOUT,
     keepAlive: REDIS_CONNECTION.KEEPALIVE,
-    reconnectStrategy: (retries: number) => {
-      if (retries > RETRY_CONFIG.REDIS_MAX_RETRIES) {
-        // After max retries (30+ seconds), give up
-        logger.error({}, '[RedisUtils] Max reconnection attempts reached');
-        return new Error('Max reconnection attempts reached');
-      }
-      // Exponential backoff: 100ms, 200ms, 400ms, ..., max 3s
-      const delay = Math.min(
-        retries * RETRY_CONFIG.REDIS_RETRY_MULTIPLIER,
-        RETRY_CONFIG.REDIS_MAX_DELAY
-      );
-      logger.warn({ retries, delay }, '[RedisUtils] Reconnecting to Redis');
-      return delay;
-    },
+    reconnectStrategy: createReconnectStrategy,
     maxRetriesPerRequest: null, // BullMQ requires null - it manages its own retries
     lazyConnect: false, // Connect immediately to fail fast
     enableReadyCheck: true, // Verify Redis is ready

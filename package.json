@@ -103,8 +103,7 @@
   "pnpm": {
     "publicHoistPattern": [
       "*debug*",
-      "*eslint*",
-      "@prisma/client-runtime-utils"
+      "*eslint*"
     ]
   }
 }
