@@ -18,7 +18,7 @@ import type {
   DiscordEnvironment,
   LLMGenerationResult,
   GuildMemberInfo,
-} from './schemas.js';
+} from './schemas/index.js';
 import {
   loadedPersonalitySchema,
   mentionedPersonaSchema,
@@ -28,7 +28,7 @@ import {
   referencedMessageSchema,
   discordEnvironmentSchema,
   guildMemberInfoSchema,
-} from './schemas.js';
+} from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
 

@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { LlmConfigResolver } from './LlmConfigResolver.js';
-import type { LoadedPersonality } from '../types/schemas.js';
+import type { LoadedPersonality } from '../types/schemas/index.js';
 import type { PrismaClient } from './prisma.js';
 
 // Mock logger
