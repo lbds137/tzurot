@@ -4,7 +4,7 @@
 
 | Rule                     | Limit | Level | Fix Strategy           |
 | ------------------------ | ----- | ----- | ---------------------- |
-| `max-lines`              | 500   | Error | Split into modules     |
+| `max-lines`              | 400   | Error | Split into modules     |
 | `max-lines-per-function` | 100   | Warn  | Extract helpers        |
 | `complexity`             | 20    | Warn  | Data-driven approach   |
 | `max-depth`              | 4     | Warn  | Early returns, extract |

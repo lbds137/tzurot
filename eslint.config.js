@@ -168,11 +168,11 @@ export default tseslint.config(
       // Previously in .eslintrc.module-size.js but never integrated!
       // ============================================================================
 
-      // Enforce maximum file length - error at 500, to force splitting large files
+      // Enforce maximum file length - error at 400, to force splitting large files
       'max-lines': [
         'error',
         {
-          max: 500,
+          max: 400,
           skipBlankLines: true,
           skipComments: true,
         },
@@ -234,6 +234,19 @@ export default tseslint.config(
       'sonarjs/no-collapsible-if': 'warn',
       'sonarjs/no-redundant-jump': 'warn',
       'sonarjs/prefer-immediate-return': 'warn',
+    },
+  },
+
+  // Well-factored single-responsibility files that are large but don't benefit from splitting
+  // Override criteria: single-class design, entrypoints/composition roots, clean API wrappers
+  {
+    files: [
+      '**/index.ts', // Entrypoints/composition roots
+      '**/SessionManager.ts', // Exemplary single-class design
+      '**/GatewayClient.ts', // Clean API wrapper, all methods share context
+    ],
+    rules: {
+      'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
     },
   },
 
