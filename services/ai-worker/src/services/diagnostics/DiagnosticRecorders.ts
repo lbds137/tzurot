@@ -50,7 +50,7 @@ export function parseResponseMetadata(response: unknown): ParsedResponseMetadata
 }
 
 /** Options for recording LLM config diagnostics */
-export interface LlmConfigDiagnosticOptions {
+interface LlmConfigDiagnosticOptions {
   collector: DiagnosticCollector;
   modelName: string;
   personality: LoadedPersonality;

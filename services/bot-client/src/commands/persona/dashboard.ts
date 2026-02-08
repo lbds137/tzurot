@@ -41,9 +41,6 @@ import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './
 import { PersonaCustomIds, type PersonaBrowseSortType } from '../../utils/customIds.js';
 import { buildBrowseResponse } from './browse.js';
 
-// Re-export for backward compatibility
-export { buildPersonaDashboardOptions } from './config.js';
-
 const logger = createLogger('persona-dashboard');
 const BROWSE_COMMAND = '/persona browse';
 

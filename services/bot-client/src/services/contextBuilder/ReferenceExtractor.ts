@@ -35,7 +35,7 @@ export interface ReferencesAndMentionsResult {
 }
 
 /** Options for reference extraction */
-export interface ExtractReferencesOptions {
+interface ExtractReferencesOptions {
   prisma: PrismaClient;
   mentionResolver: MentionResolver;
   message: Message;

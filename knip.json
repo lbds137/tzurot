@@ -25,7 +25,8 @@
       "ignoreMembers": ["ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "ECONNREFUSED"]
     },
     "packages/tooling": {
-      "entry": ["src/**/*.test.ts"]
+      "entry": ["src/**/*.test.ts"],
+      "ignoreDependencies": ["eslint"]
     },
     "packages/embeddings": {
       "entry": ["src/**/*.test.ts"],
@@ -41,6 +42,7 @@
     "**/generated/**",
     "prisma/**",
     "tzurot-legacy/**",
+    "scripts/data/**",
     "**/vitest.config.ts",
     "**/vitest.int.config.ts",
     "**/test/setup.ts",
