@@ -7,6 +7,7 @@
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LlmResponseData } from './DiagnosticTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
 export interface ParsedResponseMetadata {
@@ -112,7 +113,7 @@ function resolveStopSequence(meta: ParsedResponseMetadata['responseMetadata']): 
 function buildReasoningDebug(
   rawContent: string,
   metadata: ParsedResponseMetadata
-): Record<string, unknown> {
+): NonNullable<LlmResponseData['reasoningDebug']> {
   const { additionalKwargs, responseMetadata } = metadata;
   return {
     additionalKwargsKeys: additionalKwargs !== undefined ? Object.keys(additionalKwargs) : [],
