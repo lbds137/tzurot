@@ -14,316 +14,27 @@
 
 import type { PrismaClient, LoadedPersonality } from '@tzurot/common-types';
 import { createLogger } from '@tzurot/common-types';
+import {
+  RESOLVABLE_PERSONALITY_FIELDS,
+  setPersonalityField,
+  USER_REFERENCE_PATTERNS,
+  type ResolvedPersona,
+  type UserReferenceResolutionResult,
+  type PersonalityResolutionResult,
+  type MatchContext,
+  type MatchResult,
+  type ProcessMatchOptions,
+} from './reference/UserReferencePatterns.js';
+import {
+  batchResolveByShapesUserIds,
+  batchResolveByDiscordIds,
+  batchResolveByUsernames,
+} from './reference/BatchResolvers.js';
 
 const logger = createLogger('UserReferenceResolver');
 
-/**
- * Personality text fields that may contain user references and should be resolved.
- * These are the character definition fields that could have shapes.inc format mentions.
- */
-const RESOLVABLE_PERSONALITY_FIELDS: (keyof LoadedPersonality)[] = [
-  'systemPrompt',
-  'characterInfo',
-  'personalityTraits',
-  'personalityTone',
-  'personalityAge',
-  'personalityAppearance',
-  'personalityLikes',
-  'personalityDislikes',
-  'conversationalGoals',
-  'conversationalExamples',
-];
-
-/**
- * Type-safe helper to set a personality field value.
- * Isolates the type assertion needed for dynamic key access.
- */
-function setPersonalityField(
-  personality: LoadedPersonality,
-  key: keyof LoadedPersonality,
-  value: string
-): void {
-  // Cast to Record for dynamic key assignment - safe since key is keyof LoadedPersonality
-  (personality as Record<string, unknown>)[key] = value;
-}
-
-/**
- * Resolved persona info for a user reference
- */
-interface ResolvedPersona {
-  /** Persona UUID */
-  personaId: string;
-  /** Display name (preferredName or name) */
-  personaName: string;
-  /** User's preferred name (may be null if not set) */
-  preferredName: string | null;
-  /** User's pronouns (may be null if not set) */
-  pronouns: string | null;
-  /** Persona content/description for participants section */
-  content: string;
-}
-
-/**
- * Result of resolving user references in text
- */
-interface UserReferenceResolutionResult {
-  /** Text with all user references replaced with persona names */
-  processedText: string;
-  /** Personas that were resolved (for adding to participants) */
-  resolvedPersonas: ResolvedPersona[];
-}
-
-/**
- * Result of resolving user references across all personality fields
- */
-interface PersonalityResolutionResult {
-  /** Personality with all text fields resolved */
-  resolvedPersonality: LoadedPersonality;
-  /** Deduplicated personas found across all fields (for adding to participants) */
-  resolvedPersonas: ResolvedPersona[];
-}
-
-/**
- * Discord snowflake ID length constraints.
- * Snowflakes are Twitter-style 64-bit IDs introduced in 2015.
- * - MIN_LENGTH: 17 digits covers IDs from Discord's 2015 launch
- * - MAX_LENGTH: 20 digits is the max for 64-bit unsigned integers
- */
-const DISCORD_SNOWFLAKE_LENGTH = { MIN: 17, MAX: 20 } as const;
-
-/**
- * Regex patterns for user reference formats
- */
-const USER_REFERENCE_PATTERNS = {
-  // @[username](user:uuid) - Shapes.inc markdown format
-  // Captures: [1] = username, [2] = shapes_user_id (UUID)
-  SHAPES_MARKDOWN: /@\[([^\]]+)\]\(user:([a-f0-9-]{36})\)/gi,
-
-  // <@discord_id> - Discord mention format
-  // Captures: [1] = discord_id (snowflake)
-  DISCORD_MENTION: new RegExp(
-    `<@!?(\\d{${DISCORD_SNOWFLAKE_LENGTH.MIN},${DISCORD_SNOWFLAKE_LENGTH.MAX}})>`,
-    'g'
-  ),
-
-  // @username - Simple username mention (word boundary to avoid false positives)
-  // Must not be followed by [ (which would make it shapes format)
-  // Must not be preceded by < (which would make it discord format)
-  // Captures: [1] = username
-  SIMPLE_USERNAME: /(?<!<)@(\w+)(?!\[)/g,
-};
-
-/** Context for processing a single match */
-interface MatchContext {
-  currentText: string;
-  seenPersonaIds: Set<string>;
-  resolvedPersonas: ResolvedPersona[];
-  activePersonaId: string | undefined;
-}
-
-/** Result of processing a single match */
-interface MatchResult {
-  updatedText: string;
-  /** Persona to add to results (null if already seen, self-reference, or not found) */
-  persona: ResolvedPersona | null;
-  /** Persona ID to mark as seen (null if already seen or not found) */
-  markAsSeen: string | null;
-}
-
-/** Options for processing a match */
-interface ProcessMatchOptions {
-  ctx: MatchContext;
-  fullMatch: string;
-  persona: ResolvedPersona | null;
-  logContext: Record<string, unknown>;
-  refType: string;
-  fallbackName?: string;
-}
-
 export class UserReferenceResolver {
   constructor(private prisma: PrismaClient) {}
-
-  // ============================================================================
-  // BATCH RESOLUTION METHODS
-  // These resolve multiple IDs in a single database query to avoid N+1 patterns
-  // ============================================================================
-
-  /**
-   * Batch resolve personas by shapes.inc user IDs
-   *
-   * Looks up multiple shapes user IDs in a single query and returns a map.
-   */
-  private async batchResolveByShapesUserIds(
-    shapesUserIds: string[]
-  ): Promise<Map<string, ResolvedPersona>> {
-    const result = new Map<string, ResolvedPersona>();
-    if (shapesUserIds.length === 0) {
-      return result;
-    }
-
-    try {
-      const mappings = await this.prisma.shapesPersonaMapping.findMany({
-        where: { shapesUserId: { in: shapesUserIds } },
-        include: {
-          persona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-        take: shapesUserIds.length, // Bounded by input size
-      });
-
-      for (const mapping of mappings) {
-        if (mapping.persona !== null) {
-          result.set(mapping.shapesUserId, {
-            personaId: mapping.persona.id,
-            personaName: mapping.persona.preferredName ?? mapping.persona.name,
-            preferredName: mapping.persona.preferredName,
-            pronouns: mapping.persona.pronouns,
-            content: mapping.persona.content ?? '',
-          });
-        }
-      }
-    } catch (error) {
-      logger.error(
-        { err: error, count: shapesUserIds.length },
-        '[UserReferenceResolver] Error batch resolving shapes user IDs'
-      );
-    }
-
-    return result;
-  }
-
-  /**
-   * Batch resolve personas by Discord user IDs
-   *
-   * Looks up multiple Discord user IDs in a single query and returns a map.
-   */
-  private async batchResolveByDiscordIds(
-    discordIds: string[]
-  ): Promise<Map<string, ResolvedPersona>> {
-    const result = new Map<string, ResolvedPersona>();
-    if (discordIds.length === 0) {
-      return result;
-    }
-
-    try {
-      const users = await this.prisma.user.findMany({
-        where: { discordId: { in: discordIds } },
-        include: {
-          defaultPersona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-        take: discordIds.length, // Bounded by input size
-      });
-
-      for (const user of users) {
-        if (user.defaultPersona !== null) {
-          result.set(user.discordId, {
-            personaId: user.defaultPersona.id,
-            personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
-            preferredName: user.defaultPersona.preferredName,
-            pronouns: user.defaultPersona.pronouns,
-            content: user.defaultPersona.content ?? '',
-          });
-        }
-      }
-    } catch (error) {
-      logger.error(
-        { err: error, count: discordIds.length },
-        '[UserReferenceResolver] Error batch resolving Discord IDs'
-      );
-    }
-
-    return result;
-  }
-
-  /**
-   * Batch resolve personas by usernames
-   *
-   * Looks up multiple usernames in a single query and returns a map.
-   * Uses case-insensitive matching. For duplicate case-insensitive matches,
-   * keeps the first (oldest) user for consistency.
-   */
-  private async batchResolveByUsernames(
-    usernames: string[]
-  ): Promise<Map<string, ResolvedPersona>> {
-    const result = new Map<string, ResolvedPersona>();
-    if (usernames.length === 0) {
-      return result;
-    }
-
-    try {
-      // For case-insensitive batch lookup, use OR conditions for each username
-      const users = await this.prisma.user.findMany({
-        where: {
-          OR: usernames.map(username => ({
-            username: { equals: username, mode: 'insensitive' as const },
-          })),
-        },
-        include: {
-          defaultPersona: {
-            select: {
-              id: true,
-              name: true,
-              preferredName: true,
-              pronouns: true,
-              content: true,
-            },
-          },
-        },
-        orderBy: { createdAt: 'asc' },
-        take: Math.min(usernames.length * 2, 1000), // Allow buffer for case variants, capped for safety
-      });
-
-      // Group by lowercase username to handle case-insensitive matches
-      // Keep only the first (oldest) user per case-insensitive username
-      const seenUsernames = new Set<string>();
-
-      for (const user of users) {
-        const lowerUsername = user.username.toLowerCase();
-
-        // Skip if we already have a match for this case-insensitive username
-        if (seenUsernames.has(lowerUsername)) {
-          continue;
-        }
-
-        if (user.defaultPersona !== null) {
-          // Find the original case username from input that matches
-          const matchingInput = usernames.find(u => u.toLowerCase() === lowerUsername);
-          if (matchingInput !== undefined) {
-            seenUsernames.add(lowerUsername);
-            result.set(matchingInput, {
-              personaId: user.defaultPersona.id,
-              personaName: user.defaultPersona.preferredName ?? user.defaultPersona.name,
-              preferredName: user.defaultPersona.preferredName,
-              pronouns: user.defaultPersona.pronouns,
-              content: user.defaultPersona.content ?? '',
-            });
-          }
-        }
-      }
-    } catch (error) {
-      logger.error(
-        { err: error, count: usernames.length },
-        '[UserReferenceResolver] Error batch resolving usernames'
-      );
-    }
-
-    return result;
-  }
 
   /**
    * Process a single match (pure function - no mutations)
@@ -439,9 +150,9 @@ export class UserReferenceResolver {
     const uniqueUsernames = [...new Set(usernameMatches.map(m => m.username))];
 
     const [shapesMap, discordMap, usernameMap] = await Promise.all([
-      this.batchResolveByShapesUserIds(uniqueShapesIds),
-      this.batchResolveByDiscordIds(uniqueDiscordIds),
-      this.batchResolveByUsernames(uniqueUsernames),
+      batchResolveByShapesUserIds(this.prisma, uniqueShapesIds),
+      batchResolveByDiscordIds(this.prisma, uniqueDiscordIds),
+      batchResolveByUsernames(this.prisma, uniqueUsernames),
     ]);
 
     // ========================================================================
