@@ -47,8 +47,13 @@ jobs:
         continue-on-error: true
 
       - name: Check dependency boundaries
-        run: pnpm depcruise
-        continue-on-error: true
+        run: |
+          pnpm depcruise 2>&1 || true
+          # Report known violation count for trend tracking
+          if [ -f .dependency-cruiser-baseline.json ]; then
+            COUNT=$(node -e "console.log(JSON.parse(require('fs').readFileSync('.dependency-cruiser-baseline.json','utf8')).length)")
+            echo "📊 Architecture health: ${COUNT} known violations in baseline"
+          fi
 
       - name: Check for unused code (knip)
         run: pnpm knip
@@ -87,6 +92,20 @@ jobs:
             exit 1
           fi
           echo "✓ pglite-schema.sql is in sync with Prisma schema"
+
+      - name: Check for unjustified lint suppressions
+        run: |
+          OUTPUT=$(NO_COLOR=1 pnpm ops xray --suppressions 2>&1)
+          if echo "$OUTPUT" | grep -q "No justification"; then
+            echo "❌ Unjustified lint suppressions found!"
+            echo "$OUTPUT" | grep -A1 "No justification"
+            echo ""
+            echo "Every eslint-disable and ts-expect-error must have a -- justification comment."
+            echo "See .claude/rules/02-code-standards.md for examples."
+            exit 1
+          fi
+          # Report suppression count for trend tracking
+          echo "$OUTPUT" | head -5
 
       - name: Audit contract test coverage
         run: pnpm ops test:audit --category=contracts
