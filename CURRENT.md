@@ -2,7 +2,7 @@
 
 > **Session**: 2026-02-08
 > **Version**: v3.0.0-beta.68
-> **Branch**: `develop` (PR #598 merged)
+> **Branch**: `develop` (PRs #598, #599, #600 merged)
 
 ---
 
@@ -16,14 +16,23 @@
 - **structure.test.ts audit**: Narrowed exclusion patterns, added tests for `memoryList.ts` and `interactionHandlers.ts` coverage gaps
 - **Tooling**: dependency-cruiser (4 rules + baseline), knip, xray AST analysis
 
-### Suppression Audit Cleanup (PR #598)
+### Suppression Audit Cleanup (PRs #598, #600)
 
 - Replaced all 33 "pre-existing" suppression justifications with meaningful descriptions
 - Added justifications to ~25 unjustified suppressions
 - Fixed 4 code issues to remove suppressions entirely
 - Split `audit-unified.ts` and refactored `test-summary.ts` for lint compliance
 - Locked depcruise baseline at 25 violations, added suppression standards to rules
-- Future improvements tracked in BACKLOG.md Inbox
+- Extracted `expressRouterUtils.ts` shared test utility, removed 14 identical suppressions
+- CI enforcement: unjustified suppressions now fail the lint job
+- Depcruise trend tracking in CI output
+
+### Code Quality Audit (PR #599)
+
+- Dead code: 9 unused exports removed, knip clean
+- CPD: 4 shared helpers extracted (guest mode validation, global preset handler, BullMQ connection, personality edit access)
+- Oversized files: Split PromptBuilder.ts (534→350+180) and DatabaseSyncService.ts (512→300+210)
+- Contract tests: Closed all 40 gaps (40→0), locked baseline
 
 ### Error Handling, Content Recovery & Diagnostics (PR #587)
 
@@ -31,7 +40,7 @@
 
 ---
 
-## Next Session
+## Active Work
 
 **Zod Schema Hardening** — active epic, Phase 1 in Current Focus:
 

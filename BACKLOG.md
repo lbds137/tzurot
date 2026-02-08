@@ -484,6 +484,10 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 ### Code Quality (Quarterly Review)
 
+#### 🧹 CPD Clone Investigation (153 clones, ~2%)
+
+Well under 5% CI threshold. High-value extractions done (PR #599). Remaining clones are likely structural similarity (similar schemas/routes), small fragments, and test patterns. Zod schema hardening may naturally reduce some. Revisit quarterly.
+
 #### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention.
