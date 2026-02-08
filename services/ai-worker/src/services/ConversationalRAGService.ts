@@ -39,6 +39,11 @@ import { redisService } from '../redis.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
+import {
+  parseResponseMetadata,
+  recordLlmConfigDiagnostic,
+  recordLlmResponseDiagnostic,
+} from './diagnostics/DiagnosticRecorders.js';
 import type {
   ConversationContext,
   PersonaLoadResult,
@@ -149,7 +154,7 @@ export class ConversationalRAGService {
   }
 
   /** Invoke the model and clean up the response */
-  // eslint-disable-next-line max-lines-per-function, complexity -- Core orchestration method with diagnostic logging
+  // eslint-disable-next-line max-lines-per-function -- Core orchestration method with diagnostic logging
   private async invokeModelAndClean(opts: ModelInvocationOptions): Promise<ModelInvocationResult> {
     const {
       personality,
@@ -233,33 +238,12 @@ export class ConversationalRAGService {
         this.promptBuilder.countTokens(currentMessage.content as string);
 
       diagnosticCollector.recordAssembledPrompt(messages, totalTokenEstimate);
-      diagnosticCollector.recordLlmConfig({
-        model: modelName,
-        provider: modelName.split('/')[0] || 'unknown',
-        // Basic sampling
-        temperature: effectiveTemperature,
-        topP: personality.topP,
-        topK: personality.topK,
-        maxTokens: personality.maxTokens,
-        frequencyPenalty: effectiveFrequencyPenalty,
-        presencePenalty: personality.presencePenalty,
-        repetitionPenalty: personality.repetitionPenalty,
-        // Advanced sampling
-        minP: personality.minP,
-        topA: personality.topA,
-        seed: personality.seed,
-        // Output control
-        stop: personality.stop,
-        logitBias: personality.logitBias,
-        responseFormat: personality.responseFormat,
-        showThinking: personality.showThinking,
-        // Reasoning (for thinking models)
-        reasoning: personality.reasoning,
-        // OpenRouter-specific
-        transforms: personality.transforms,
-        route: personality.route,
-        verbosity: personality.verbosity,
-        // Stop sequences (generated at runtime)
+      recordLlmConfigDiagnostic({
+        collector: diagnosticCollector,
+        modelName,
+        personality,
+        effectiveTemperature,
+        effectiveFrequencyPenalty,
         stopSequences,
       });
       diagnosticCollector.markLlmInvocationStart();
@@ -277,66 +261,13 @@ export class ConversationalRAGService {
 
     const rawContent = response.content as string;
 
-    // Extract token usage, finish reason, and reasoning details for diagnostics
-    const responseData = response as unknown as {
-      usage_metadata?: {
-        input_tokens?: number;
-        output_tokens?: number;
-        total_tokens?: number;
-      };
-      response_metadata?: {
-        finish_reason?: string;
-        stop_reason?: string;
-        finishReason?: string;
-        stop?: string;
-        stop_sequence?: string;
-        // OpenRouter API-level reasoning (some providers use this format)
-        reasoning_details?: unknown[];
-      };
-      // LangChain puts unknown fields from the API response here
-      // OpenRouter puts DeepSeek R1's reasoning content in additional_kwargs.reasoning
-      additional_kwargs?: {
-        reasoning?: string;
-      };
-    };
-    const usageMetadata = responseData.usage_metadata;
-    const responseMetadata = responseData.response_metadata;
-    const additionalKwargs = responseData.additional_kwargs;
+    // Extract token usage, finish reason, and reasoning details
+    const metadata = parseResponseMetadata(response);
+    const { usageMetadata, additionalKwargs, responseMetadata } = metadata;
 
     // Record LLM response for diagnostics
     if (diagnosticCollector) {
-      const finishReason =
-        responseMetadata?.finish_reason ??
-        responseMetadata?.stop_reason ??
-        responseMetadata?.finishReason ??
-        'unknown';
-      const rawStop = responseMetadata?.stop;
-      const rawStopSeq = responseMetadata?.stop_sequence;
-      const stopSequenceTriggered =
-        (typeof rawStop === 'string' ? rawStop : null) ??
-        (typeof rawStopSeq === 'string' ? rawStopSeq : null);
-
-      diagnosticCollector.recordLlmResponse({
-        rawContent,
-        finishReason: String(finishReason),
-        stopSequenceTriggered,
-        promptTokens: usageMetadata?.input_tokens ?? 0,
-        completionTokens: usageMetadata?.output_tokens ?? 0,
-        modelUsed: modelName,
-        // Debug info for troubleshooting reasoning extraction
-        reasoningDebug: {
-          additionalKwargsKeys: additionalKwargs !== undefined ? Object.keys(additionalKwargs) : [],
-          hasReasoningInKwargs:
-            additionalKwargs?.reasoning !== undefined &&
-            typeof additionalKwargs.reasoning === 'string',
-          reasoningKwargsLength:
-            typeof additionalKwargs?.reasoning === 'string' ? additionalKwargs.reasoning.length : 0,
-          responseMetadataKeys: responseMetadata !== undefined ? Object.keys(responseMetadata) : [],
-          hasReasoningDetails: Array.isArray(responseMetadata?.reasoning_details),
-          hasReasoningTagsInContent: rawContent.includes('<reasoning>'),
-          rawContentPreview: rawContent.substring(0, 200),
-        },
-      });
+      recordLlmResponseDiagnostic(diagnosticCollector, rawContent, modelName, metadata);
     }
 
     // Process response: deduplicate, extract reasoning, strip artifacts, replace placeholders
