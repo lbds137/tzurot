@@ -1,48 +1,52 @@
 # Current
 
-> **Session**: 2026-02-07
+> **Session**: 2026-02-08
 > **Version**: v3.0.0-beta.68
-> **Branch**: `develop`
+> **Branch**: `develop` (PR #598 merged)
 
 ---
 
 ## Recently Completed
 
-### Architectural Tooling Integration (PR #591)
+### Architecture Health Epic (PRs #593, #594, #596, #597)
 
-- **dependency-cruiser**: 4 architectural rules encoding boundaries from `01-architecture.md`. 54 existing circular dep violations captured in baseline for incremental fixing.
-- **knip**: Dead code detection configured for pnpm workspaces. Found 11 unused files, 244 unused exports, 393 unused types — all advisory.
-- **doc-audit skill**: New `/tzurot-doc-audit` with repeatable 7-section checklist for documentation freshness.
-- **xray resilience**: try-catch so single file failures don't crash analysis.
-- CI integration (non-blocking), pre-push hook (depcruise warning), comprehensive docs.
+- **Dead code purge**: Removed unused files, exports, dependencies via knip
+- **Oversized file splits**: Lowered `max-lines` from 500 → 400 (`skipBlankLines + skipComments`), split all violating files
+- **Circular dependency resolution**: 54 → 25 violations (all 25 remaining are generated Prisma code)
+- **structure.test.ts audit**: Narrowed exclusion patterns, added tests for `memoryList.ts` and `interactionHandlers.ts` coverage gaps
+- **Tooling**: dependency-cruiser (4 rules + baseline), knip, xray AST analysis
 
-### Xray TypeScript AST Analysis (PRs #589, #590)
+### Suppression Audit Cleanup (PR #598)
 
-- `pnpm ops xray` — full codebase structural analysis with lint suppression tracking
-- `--summary` flag for file-level overview (64% smaller output)
-- Terminal, Markdown, and JSON output formats
-- Generated code exclusion, health scoring with warnings
+- Replaced all 33 "pre-existing" suppression justifications with meaningful descriptions
+- Added justifications to ~25 unjustified suppressions
+- Fixed 4 code issues to remove suppressions entirely
+- Split `audit-unified.ts` and refactored `test-summary.ts` for lint compliance
+- Locked depcruise baseline at 25 violations, added suppression standards to rules
+- Future improvements tracked in BACKLOG.md Inbox
 
 ### Error Handling, Content Recovery & Diagnostics (PR #587)
 
-- DeepSeek R1 crash fix, 400 content recovery, ApiErrorInfo → Zod unification
+- DeepSeek R1 crash fix, 400 content recovery, ApiErrorInfo Zod unification
 
 ---
 
 ## Next Session
 
-**Architecture cleanup** using the new tooling:
+**Zod Schema Hardening** — active epic, Phase 1 in Current Focus:
 
-- Triage dependency-cruiser's 54 circular dependency violations
-- Review knip's unused exports/types for safe removal candidates
-- Start fixing the most impactful circular deps
+- Consolidate Persona endpoint schemas (admin + user)
+- Consolidate Model override endpoint schemas
+- Pattern: Shared Zod schemas in common-types, scope-aware service layer
 
 ---
 
 ## Session Notes
 
-**2026-02-07**: Architectural tooling PR #591 merged. dependency-cruiser (4 rules + 54-violation baseline), knip, doc-audit skill, xray try-catch. Ready to dig into architecture cleanup next session.
-**2026-02-06**: Xray PRs merged. Error handling PR #587 merged.
+**2026-02-08 (pm)**: Code quality audit on `fix/code-quality-audit-2025-02`: dead code removal (knip), 4 shared helpers extracted (CPD reduction), split PromptBuilder.ts + DatabaseSyncService.ts (oversized files), closed all 40 contract test gaps (40→0), colocated tests for all extracted modules. Updated BACKLOG.md — collapsed completed Architecture Health phases, added suppression audit follow-ups to inbox.
+**2026-02-08**: Suppression audit cleanup (PR #598) — replaced all pre-existing/unjustified suppressions, fixed 4 code issues, split audit-unified.ts, locked depcruise baseline. Architecture Health epic fully complete (Phases 1-4). Pushed follow-up test coverage for `memoryList.ts` (13 tests) and `interactionHandlers.ts` (2 coverage gap tests). Cleaned up BACKLOG.md — removed completed phases, made package extraction a standalone next epic.
+**2026-02-07**: Phase 4 circular deps PR #597 created and merged. Phase 3b PR #596 merged. Phase 3a PR #594 merged.
+**2026-02-06**: Phase 2 + Phase 1 PR #593 merged. Xray PRs merged. Error handling PR #587 merged.
 
 ---
 

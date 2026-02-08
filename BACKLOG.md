@@ -92,6 +92,17 @@ _New items go here. Triage to appropriate section weekly._
 
 **Priority**: Medium — prevents confusion for anyone configuring reasoning models.
 
+### 🏗️ Suppression Audit Follow-ups (PR #598 Review)
+
+**Context**: Code review of suppression audit cleanup identified 4 future improvements.
+
+1. **CI Enforcement** 🧹 — Add `pnpm ops xray --suppressions` check (grep for unjustified) to pre-commit or CI pipeline. Prevents regression.
+2. **Express Router Type Wrapper** 🏗️ — Centralize `router.stack as any[]` pattern into a typed utility in common-types. ~9 test files use this pattern with identical `@ts-expect-error` suppressions.
+3. **Audit Reporting Complexity Reduction** 🧹 — Extract each section formatter in `audit-reporting.ts` (printServiceSection, printContractSection) into smaller per-section functions to eliminate cognitive-complexity suppressions.
+4. **Depcruise Baseline Trend Tracking** 🧹 — Track violation count over time (e.g., log in CI output or add to xray summary) to monitor architectural health trends.
+
+**Priority**: Low — all are polish items. Express wrapper has the most value (removes ~9 suppressions).
+
 ### 🧹 Add maxAge=0 Edge Case Test
 
 **Context**: PR #584 review noted missing test coverage for `maxAge = 0` validation.
@@ -106,27 +117,6 @@ it('should reject maxAge = 0 (use null for no limit)', () => {
 ```
 
 **File**: `packages/common-types/src/types/llm-config.schema.test.ts`
-
-### 🧹 Review structure.test.ts Exclusions
-
-**Context**: Added meta-test to enforce test file coverage (`packages/common-types/src/structure.test.ts`). To get the test passing with existing codebase, added many exclusion patterns. Need to review whether these exclusions are appropriate or just masking untested code.
-
-**Exclusions to audit**:
-
-- `/factories/` - Should factory files be tested?
-- `/schemas/` - Zod schemas benefit from type-level testing
-- `/routes/` - Are integration tests sufficient?
-- `/jobs/utils/` - Contains formatters that SHOULD have unit tests
-- `Service.ts$`, `Cache.ts$` - Infrastructure singletons
-- `Context.ts$` - Builder patterns
-- `Base*.ts` - Base classes
-- `/channelFetcher/` - Includes ReactionProcessor, SyncValidator
-
-**Action**: Review each category and either:
-
-1. Add dedicated unit tests for files that should have them
-2. Document why the exclusion is appropriate (e.g., "tested via integration")
-3. Remove exclusions for critical logic that needs direct coverage
 
 ---
 
@@ -244,60 +234,17 @@ Pattern: Shared Zod schemas in common-types, scope-aware service layer.
 
 ---
 
-## 📅 Next Epic: Architecture Health — Oversized Files, Dead Code, Circular Deps
+## 📅 Next Epic: Package Extraction
 
-_Focus: Bring the codebase under ESLint limits and eliminate structural debt._
+_Focus: Reduce common-types bloat and improve module boundaries._
 
-**Audit date**: 2026-02-07 (full report via `/tzurot-arch-audit`)
+common-types has 607 exports (12x the 50-export threshold). bot-client is 45.7K lines with 767 exports.
 
-**Current state**: 0 max-lines violations at 400-line limit, 54 circular deps (baselined), 70 lint suppressions. bot-client alone is 45.7K lines with 767 exports. common-types has 607 exports (12x the 50-export threshold).
-
-### Phase 1: Cleanup Sprint — ✅ DONE (PR #593)
-
-- [x] Remove unused dependencies from package.json files
-- [x] Delete unused files flagged by knip
-- [x] Remove unused enum members
-- [x] Deduplicate exports
-- [x] Extract shared reconnectStrategy in redis.ts
-
-### Phase 2: Dead Code Purge — ✅ DONE (PR #593)
-
-- [x] Run `pnpm knip:fix` for unused exports, review diff
-- [x] Review unused exported types — remove genuinely dead, add false positives to `knip.json`
-- [x] Rerun knip, verify findings reduced to near-zero
-
-### Phase 3: Oversized File Splits — ✅ DONE (PRs #594, #596)
-
-**Phase 3a** (PR #594): Split 4 files at 500-line limit (ModelFactory, UserReferenceResolver, DiagnosticCollector, PromptBuilder).
-
-**Phase 3b** (PR #596): Lowered `max-lines` from 500 → **400** with `skipBlankLines + skipComments`. Only 3 files actually violated at the new limit — most files have enough blanks/comments to stay well under. All 3 split:
-
-- `ModelFactory.ts` → extracted `modelFactory/OpenRouterFetch.ts`, `modelFactory/CacheKeyBuilder.ts`
-- `ConversationalRAGService.ts` → extracted `diagnostics/DiagnosticRecorders.ts`
-- `GenerationStep.ts` → extracted `duplicateDetectionDiagnostics.ts`
-
-Added 600-line override for well-factored single-responsibility files (`index.ts`, `SessionManager.ts`, `GatewayClient.ts`).
-
-### Phase 4: Circular Dependency Resolution (2-3 sessions)
-
-54 baseline violations. Fix in batches, update baseline after each.
-
-| Package      | Cycles | Strategy                                                           |
-| ------------ | ------ | ------------------------------------------------------------------ |
-| common-types | 26     | Reorganize index exports, break constants ↔ types ↔ schemas cycles |
-| ai-worker    | 19     | Extract shared interfaces, break service ↔ utility cycles          |
-| bot-client   | 8      | Break handler ↔ service cycles                                     |
-| api-gateway  | 1      | Likely trivial                                                     |
-
-### Phase 5: Package Extraction (future, if needed)
-
-Only pursue after Phases 1-4 reduce the noise. Subsumes the former "Bot-Client Package Split" next epic.
-
-- [ ] Reassess common-types export count after dead code purge — if still >50, extract domain packages
+- [ ] Reassess common-types export count — if still >50, extract domain packages
 - [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
 - [ ] Reference: PR #558 analysis
 
-**Verification**: Run `/tzurot-arch-audit` quick scan after each phase to confirm metrics improved.
+**Previous work**: Architecture Health epic (PRs #593, #594, #596, #597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
 
 ---
 
@@ -588,11 +535,6 @@ _Decided not to do yet._
 | Contract tests for HTTP API       | Single consumer, integration tests sufficient                                       |
 | Redis pipelining                  | Fast enough at current traffic                                                      |
 | BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                          |
-| ~~Dependency Cruiser~~            | ✅ DONE — integrated in PR #591 with baseline approach                              |
-| ~~Periodic Complexity Audit~~     | ✅ Absorbed into Architecture Health epic (Phase 3)                                 |
-| ~~Audit and Reduce Re-exports~~   | ✅ Absorbed into Architecture Health epic (Phase 2)                                 |
-| ~~Fix Circular Dependencies~~     | ✅ Absorbed into Architecture Health epic (Phase 4)                                 |
-| ~~Triage knip Unused Code~~       | ✅ Absorbed into Architecture Health epic (Phases 1-2)                              |
 | Handler factory generator         | Add when creating many new routes                                                   |
 | Scaling preparation (timers)      | Single-instance sufficient for now                                                  |
 | Vision failure JIT repair         | Negative cache prevents re-hammering; manual clear or TTL expiry sufficient for now |
