@@ -257,7 +257,7 @@ export async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): P
  * @param currentTimestamp - The timestamp of the version to keep
  * @returns Number of old versions deleted, or null if validation failed/skipped
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Concurrent cleanup with lock guard, directory listing, timestamp parsing, and per-file deletion with error recovery
 export async function cleanupOldAvatarVersions(
   slug: string,
   currentTimestamp: number

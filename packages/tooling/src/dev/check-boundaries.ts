@@ -172,7 +172,7 @@ function checkFile(filePath: string, rules: (typeof BOUNDARY_RULES)[number]): Vi
  * Display header for boundary check
  */
 function displayHeader(): void {
-  // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
+  // eslint-disable-next-line sonarjs/no-duplicate-string -- CLI decorative separator shared across display functions
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
   console.log(chalk.cyan.bold('           ARCHITECTURE BOUNDARY CHECK                  '));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));

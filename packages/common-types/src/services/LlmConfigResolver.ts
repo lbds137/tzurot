@@ -246,7 +246,7 @@ export class LlmConfigResolver {
     for (const key of LLM_CONFIG_OVERRIDE_KEYS) {
       const value = personality[key];
       if (value !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
         (result as any)[key] = value;
       }
     }
@@ -272,7 +272,7 @@ export class LlmConfigResolver {
       const personalityValue = personality[key];
       const value = overrideValue ?? personalityValue;
       if (value !== undefined) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access -- Dynamic key assignment from LLM_CONFIG_OVERRIDE_KEYS requires runtime indexing
         (result as any)[key] = value;
       }
     }

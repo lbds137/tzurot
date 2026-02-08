@@ -105,7 +105,7 @@ function extractStatusCode(error: unknown): number | undefined {
   }
 
   // Response object with status
-  // eslint-disable-next-line sonarjs/no-collapsible-if -- pre-existing
+  // eslint-disable-next-line sonarjs/no-collapsible-if -- Null guard before property access; collapsing reduces readability
   if (isErrorObject(error.response)) {
     if (typeof error.response.status === 'number') {
       return error.response.status;
@@ -113,7 +113,7 @@ function extractStatusCode(error: unknown): number | undefined {
   }
 
   // Status in cause
-  // eslint-disable-next-line sonarjs/no-collapsible-if -- pre-existing
+  // eslint-disable-next-line sonarjs/no-collapsible-if -- Null guard before property access; collapsing reduces readability
   if (isErrorObject(error.cause)) {
     if (typeof error.cause.status === 'number') {
       return error.cause.status;

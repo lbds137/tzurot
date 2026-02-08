@@ -156,7 +156,7 @@ async function handleEnable(
         session: existingSession,
         timeRemaining: manager.getTimeRemaining(existingSession),
         wasAlreadyActive: true,
-        // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
+        // eslint-disable-next-line sonarjs/no-duplicate-string -- Status message template shared between already-active and newly-enabled responses
         message: `Incognito mode is already active for ${personalityName ?? 'this personality'}. Disable it first to change duration.`,
       },
       StatusCodes.OK

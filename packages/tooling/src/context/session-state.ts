@@ -68,7 +68,7 @@ export async function saveSession(options: { notes?: string } = {}): Promise<voi
   const cwd = process.cwd();
   const sessionFile = join(cwd, SESSION_FILE);
 
-  // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
+  // eslint-disable-next-line sonarjs/no-duplicate-string -- CLI decorative separator shared across display functions
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
   console.log(chalk.cyan.bold('              SAVING SESSION STATE                      '));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));

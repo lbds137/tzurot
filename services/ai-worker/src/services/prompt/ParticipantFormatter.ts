@@ -42,7 +42,7 @@ import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
  * @param activePersonaName - Name of the currently active speaker (for group conversation note)
  * @returns Formatted participants context string in XML, or empty string if no participants
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Builds XML for each participant with conditional persona description, system prompt, and group conversation notes
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
   activePersonaName?: string

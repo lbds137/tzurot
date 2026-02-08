@@ -194,7 +194,7 @@ export async function findPersonalityMention(
  * @param trailingPunctuationRegex - Regex to remove trailing punctuation
  * @returns Array of unique potential mentions with their word counts
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Extracts multi-word and single-word mentions with deduplication, escape handling, and punctuation stripping
 function extractPotentialMentions(
   content: string,
   escapedChar: string,

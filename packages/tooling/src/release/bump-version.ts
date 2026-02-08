@@ -54,7 +54,7 @@ function findPackageJsonFiles(dir: string): string[] {
 /**
  * Bump version in all package.json files
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- CLI orchestrator: validation → file discovery → JSON parsing → version replacement → confirmation → write
 export async function bumpVersion(
   newVersion: string,
   options: BumpVersionOptions = {}

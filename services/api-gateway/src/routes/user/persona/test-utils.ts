@@ -140,7 +140,7 @@ export function createMockReqRes(
  * Get handler from router by method and path.
  * This is test utility code that accesses Express router internals.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/array-type, @typescript-eslint/no-unsafe-function-type */
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/array-type, @typescript-eslint/no-unsafe-function-type -- Express router internals are untyped */
 export function getHandler(
   router: Router,
   method: 'get' | 'post' | 'put' | 'patch' | 'delete',

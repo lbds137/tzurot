@@ -96,7 +96,7 @@ async function lookupByMessageId(messageId: string): Promise<LookupResult> {
         success: false,
         errorMessage:
           '❌ No diagnostic logs found for this message.\n' +
-          // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing: shared error bullet points
+          // eslint-disable-next-line sonarjs/no-duplicate-string -- Error bullet points shared between 404 and non-OK responses
           '• The log may have expired (24h retention)\n' +
           '• The message may not have triggered or been an AI response\n' +
           '• The message ID may be incorrect',

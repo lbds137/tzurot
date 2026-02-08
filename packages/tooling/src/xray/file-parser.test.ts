@@ -282,7 +282,7 @@ export const x = 1;
 describe('extractSuppressions', () => {
   it('should extract eslint-disable-next-line with rule and justification', () => {
     const content = `const x = 1;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- pre-existing
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test fixture for suppression parsing
 const y: any = 2;
 `;
     const result = extractSuppressions(content);
@@ -292,7 +292,7 @@ const y: any = 2;
       kind: 'eslint-disable-next-line',
       line: 2,
       rule: '@typescript-eslint/no-explicit-any',
-      justification: 'pre-existing',
+      justification: 'Test fixture for suppression parsing',
     });
   });
 

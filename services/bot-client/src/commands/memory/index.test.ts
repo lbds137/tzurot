@@ -142,7 +142,7 @@ describe('Memory Command', () => {
       const focusGroup = json.options?.find((opt: { name: string }) => opt.name === 'focus');
       expect(focusGroup).toBeDefined();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Discord.js command builder JSON lacks typed subcommand groups
       const focusOptions = (focusGroup as any)?.options ?? [];
       const subcommandNames = focusOptions.map((s: { name: string }) => s.name);
       expect(subcommandNames).toContain('enable');
@@ -157,7 +157,7 @@ describe('Memory Command', () => {
       );
       expect(incognitoGroup).toBeDefined();
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Discord.js command builder JSON lacks typed subcommand groups
       const incognitoOptions = (incognitoGroup as any)?.options ?? [];
       const subcommandNames = incognitoOptions.map((s: { name: string }) => s.name);
       expect(subcommandNames).toContain('enable');

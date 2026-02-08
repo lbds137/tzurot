@@ -208,7 +208,7 @@ export class MemoryRetriever {
    * @param context - Conversation context with participants
    * @param personalityId - Personality ID for resolving per-personality persona overrides
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Resolves participant personas via per-personality overrides → user defaults → display name fallback for each participant
   async getAllParticipantPersonas(
     context: ConversationContext,
     personalityId: string

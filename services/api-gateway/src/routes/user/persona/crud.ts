@@ -140,7 +140,7 @@ function createGetHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
 
-    // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
+    // eslint-disable-next-line sonarjs/no-duplicate-string -- 'persona ID' validation message shared across CRUD handlers
     const idValidation = validateUuid(id, 'persona ID');
     if (!idValidation.valid) {
       return sendError(res, idValidation.error);

@@ -34,8 +34,7 @@
  * See TESTING_LESSONS_LEARNED.md for the roadmap.
  */
 
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access */
-// Above disabled for this mock factory file - any types are intentional for test flexibility
+/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-member-access -- Mock factory uses any types intentionally for flexible Discord.js test doubles */
 
 import { vi } from 'vitest';
 import { ChannelType, Collection } from 'discord.js';
@@ -92,7 +91,7 @@ function createMockMessageMentions(
  * TypeScript's mapped type inference can be overly strict when combining
  * properties with different sources (e.g., author: createMockUser(...)).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Mock factory accepts arbitrary overrides for any Discord.js type
 type MockInput<_T> = Record<string, any>;
 
 // Empty default for factory functions

@@ -112,7 +112,7 @@ export function createWarningEmbed(title: string, description: string): EmbedBui
  * Create a danger embed for destructive action confirmations
  * Uses ERROR color (red) to clearly indicate high-risk operations
  */
-// eslint-disable-next-line sonarjs/no-identical-functions -- pre-existing
+// eslint-disable-next-line sonarjs/no-identical-functions -- createErrorEmbed and createDangerEmbed share implementation but differ in semantic intent (warning vs destructive action)
 export function createDangerEmbed(title: string, description: string): EmbedBuilder {
   return new EmbedBuilder()
     .setTitle(title)
