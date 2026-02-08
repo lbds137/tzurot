@@ -4,7 +4,7 @@
 
 | Rule                     | Limit | Level | Fix Strategy           |
 | ------------------------ | ----- | ----- | ---------------------- |
-| `max-lines`              | 400   | Error | Split into modules     |
+| `max-lines`              | 400   | Error | Split + move tests     |
 | `max-lines-per-function` | 100   | Warn  | Extract helpers        |
 | `complexity`             | 20    | Warn  | Data-driven approach   |
 | `max-depth`              | 4     | Warn  | Early returns, extract |
@@ -79,8 +79,9 @@ logger.error(error, 'Failed to process');
 
 1. Test behavior, not implementation
 2. Colocated tests - `MyService.test.ts` next to `MyService.ts`
-3. Mock all external dependencies - Discord, Redis, Prisma, AI
-4. Use fake timers - No real delays in tests
+3. **When extracting code to a new file, extract/create the `.test.ts` file too** - Do NOT add `structure.test.ts` exclusions for modules with logic
+4. Mock all external dependencies - Discord, Redis, Prisma, AI
+5. Use fake timers - No real delays in tests
 
 ### Fake Timers (ALWAYS Use)
 

@@ -241,9 +241,9 @@ export default tseslint.config(
   // Override criteria: single-class design, entrypoints/composition roots, clean API wrappers
   {
     files: [
-      '**/index.ts', // Entrypoints/composition roots
-      '**/SessionManager.ts', // Exemplary single-class design
-      '**/GatewayClient.ts', // Clean API wrapper, all methods share context
+      'services/bot-client/src/index.ts', // Entrypoint/composition root
+      'services/bot-client/src/utils/dashboard/SessionManager.ts', // Exemplary single-class design
+      'services/bot-client/src/utils/GatewayClient.ts', // Clean API wrapper, all methods share context
     ],
     rules: {
       'max-lines': ['error', { max: 600, skipBlankLines: true, skipComments: true }],
