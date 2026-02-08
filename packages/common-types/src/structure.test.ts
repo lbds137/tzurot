@@ -105,20 +105,8 @@ const EXCLUDE_PATTERNS = [
   /\/jobs\/utils\//,
   // Browse helpers (UI helpers tested via command tests)
   /browseHelpers\.ts$/,
-  // Model factory internals (tested via ModelFactory.test.ts)
-  /\/modelFactory\//,
-  // Diagnostic helpers (tested via ConversationalRAGService.test.ts)
-  /\/diagnostics\//,
-  // Settings session storage (tested via SettingsDashboardHandler.test.ts)
-  /SettingsSessionStorage\.ts$/,
-  // Extracted command helpers (tested via parent command handlers)
-  /chatResponseSender\.ts$/,
-  /dashboardDeleteHandlers\.ts$/,
-  /searchDetailActions\.ts$/,
-  // Context builder helpers (tested via MessageContextBuilder.test.ts)
-  /\/contextBuilder\//,
-  // Sync executor (tested via DiscordChannelFetcher.test.ts)
-  /SyncExecutor\.ts$/,
+  // Pure type/interface definitions (no logic to test)
+  /DiagnosticTypes\.ts$/,
 ];
 
 function shouldExclude(filePath: string): boolean {
