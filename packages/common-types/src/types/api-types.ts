@@ -6,7 +6,7 @@
  */
 
 import { JobStatus } from '../constants/index.js';
-import type { LLMGenerationResult } from './schemas.js';
+import type { LLMGenerationResult } from './schemas/index.js';
 
 // Re-export schema-derived types
 export type {
@@ -30,7 +30,7 @@ export type {
   HistoryStatsResponse,
   HistoryHardDeleteRequest,
   HistoryHardDeleteResponse,
-} from './schemas.js';
+} from './schemas/index.js';
 
 // Re-export schemas for runtime validation
 export {
@@ -49,7 +49,7 @@ export {
   historyStatsResponseSchema,
   historyHardDeleteRequestSchema,
   historyHardDeleteResponseSchema,
-} from './schemas.js';
+} from './schemas/index.js';
 
 /**
  * Response from /ai/generate endpoint

@@ -12,7 +12,7 @@ import type { PrismaClient } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
 import { countTextTokens } from '../utils/tokenCounter.js';
-import type { MessageMetadata } from '../types/schemas.js';
+import type { MessageMetadata } from '../types/schemas/index.js';
 import {
   conversationHistorySelect,
   mapToConversationMessage,

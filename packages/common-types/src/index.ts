@@ -16,7 +16,7 @@ export * from './types/api-types.js';
 export * from './types/discord.js';
 export * from './types/discord-types.js';
 export * from './types/jobs.js';
-export * from './types/schemas.js';
+export * from './types/schemas/index.js';
 
 // Export utilities
 export { splitMessage, truncateText, stripBotFooters, stripDmPrefix } from './utils/discord.js';

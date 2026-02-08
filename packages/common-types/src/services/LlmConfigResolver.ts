@@ -21,7 +21,7 @@ import {
   type MappedLlmConfigWithName,
 } from './LlmConfigMapper.js';
 import type { PrismaClient } from './prisma.js';
-import type { LoadedPersonality } from '../types/schemas.js';
+import type { LoadedPersonality } from '../types/schemas/index.js';
 
 const logger = createLogger('LlmConfigResolver');
 

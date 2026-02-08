@@ -9,7 +9,7 @@
 import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
-import { messageMetadataSchema, type MessageMetadata } from '../types/schemas.js';
+import { messageMetadataSchema, type MessageMetadata } from '../types/schemas/index.js';
 import type { ConversationMessage } from './ConversationHistoryService.js';
 
 const logger = createLogger('ConversationMessageMapper');
