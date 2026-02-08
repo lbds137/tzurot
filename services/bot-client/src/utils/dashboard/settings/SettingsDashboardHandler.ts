@@ -34,7 +34,8 @@ import {
   getSettingById,
 } from './SettingsDashboardBuilder.js';
 import { buildSettingEditModal, parseDurationInput } from './SettingsModalFactory.js';
-import { getSessionManager } from '../SessionManager.js';
+import { storeSession, getSession, deleteSession } from './SettingsSessionStorage.js';
+export { getUpdateHandler } from './SettingsSessionStorage.js';
 
 const logger = createLogger('SettingsDashboardHandler');
 
@@ -527,71 +528,4 @@ function parseDurationInputValue(input: string): { value?: number | null; error?
     case 'error':
       return { error: result.message };
   }
-}
-
-// Session storage helpers using existing SessionManager
-// We store the update handler separately since it can't be serialized
-
-interface SessionMetadata {
-  updateHandler: SettingUpdateHandler;
-}
-
-const sessionMetadata = new Map<string, SessionMetadata>();
-
-function getSessionKey(userId: string, entityType: string, entityId: string): string {
-  return `${userId}:${entityType}:${entityId}`;
-}
-
-async function storeSession(
-  session: SettingsDashboardSession,
-  entityType: string,
-  updateHandler: SettingUpdateHandler
-): Promise<void> {
-  const manager = getSessionManager();
-  await manager.set({
-    userId: session.userId,
-    entityType,
-    entityId: session.entityId,
-    data: session,
-    messageId: session.messageId,
-    channelId: session.channelId,
-  });
-
-  // Store handler separately
-  const key = getSessionKey(session.userId, entityType, session.entityId);
-  sessionMetadata.set(key, { updateHandler });
-}
-
-async function getSession(
-  userId: string,
-  entityType: string,
-  entityId: string
-): Promise<SettingsDashboardSession | null> {
-  const manager = getSessionManager();
-  const dashboardSession = await manager.get<SettingsDashboardSession>(
-    userId,
-    entityType,
-    entityId
-  );
-  return dashboardSession?.data ?? null;
-}
-
-async function deleteSession(userId: string, entityType: string, entityId: string): Promise<void> {
-  const manager = getSessionManager();
-  await manager.delete(userId, entityType, entityId);
-
-  const key = getSessionKey(userId, entityType, entityId);
-  sessionMetadata.delete(key);
-}
-
-/**
- * Get the update handler for a session
- */
-export function getUpdateHandler(
-  userId: string,
-  entityType: string,
-  entityId: string
-): SettingUpdateHandler | undefined {
-  const key = getSessionKey(userId, entityType, entityId);
-  return sessionMetadata.get(key)?.updateHandler;
 }
