@@ -92,17 +92,6 @@ _New items go here. Triage to appropriate section weekly._
 
 **Priority**: Medium — prevents confusion for anyone configuring reasoning models.
 
-### 🏗️ Suppression Audit Follow-ups (PR #598 Review)
-
-**Context**: Code review of suppression audit cleanup identified 4 future improvements.
-
-1. **CI Enforcement** 🧹 — Add `pnpm ops xray --suppressions` check (grep for unjustified) to pre-commit or CI pipeline. Prevents regression.
-2. **Express Router Type Wrapper** 🏗️ — Centralize `router.stack as any[]` pattern into a typed utility in common-types. ~9 test files use this pattern with identical `@ts-expect-error` suppressions.
-3. **Audit Reporting Complexity Reduction** 🧹 — Extract each section formatter in `audit-reporting.ts` (printServiceSection, printContractSection) into smaller per-section functions to eliminate cognitive-complexity suppressions.
-4. **Depcruise Baseline Trend Tracking** 🧹 — Track violation count over time (e.g., log in CI output or add to xray summary) to monitor architectural health trends.
-
-**Priority**: Low — all are polish items. Express wrapper has the most value (removes ~9 suppressions).
-
 ### 🧹 Add maxAge=0 Edge Case Test
 
 **Context**: PR #584 review noted missing test coverage for `maxAge = 0` validation.
