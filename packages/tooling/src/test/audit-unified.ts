@@ -191,45 +191,36 @@ function findApiSchemas(projectRoot: string): string[] {
 /**
  * Find schemas that have corresponding contract tests
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Scans contract tests, inline tests, and e2e tests across multiple directories with regex extraction
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Scans colocated tests, inline tests, and e2e tests across multiple directories with regex extraction
 function findTestedSchemas(projectRoot: string): string[] {
   const tested: string[] = [];
-  const contractTestsDir = join(projectRoot, 'packages/common-types/src/types');
 
-  if (!existsSync(contractTestsDir)) {
-    return tested;
-  }
+  // Scan colocated tests in schemas/api/ (e.g., persona.test.ts next to persona.ts)
+  const schemasApiDir = join(projectRoot, 'packages/common-types/src/schemas/api');
+  if (existsSync(schemasApiDir)) {
+    const colocatedTestFiles = readdirSync(schemasApiDir).filter(f => f.endsWith('.test.ts'));
 
-  const contractTestFiles = readdirSync(contractTestsDir).filter(f =>
-    f.endsWith('.schema.test.ts')
-  );
+    for (const file of colocatedTestFiles) {
+      const content = readFile(join(schemasApiDir, file));
 
-  for (const file of contractTestFiles) {
-    const content = readFile(join(contractTestsDir, file));
+      // Find schema imports (now relative: from './persona.js')
+      const importMatches = content.matchAll(/from ['"]\.\/([\w-]+)(?:\.js)?['"]/g);
+      for (const match of importMatches) {
+        const schemaFile = match[1];
 
-    // Find schema imports from schemas/api
-    const importMatches = content.matchAll(/from ['"].*schemas\/api\/(\w+)['"]/g);
-    for (const match of importMatches) {
-      const schemaFile = match[1];
-
-      // Find which schemas from this file are actually used
-      const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
-      for (const usageMatch of schemaUsageMatches) {
-        tested.push(`${schemaFile}:${usageMatch[1]}`);
+        // Find which schemas from this file are actually used
+        const schemaUsageMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
+        for (const usageMatch of schemaUsageMatches) {
+          tested.push(`${schemaFile}:${usageMatch[1]}`);
+        }
       }
-    }
 
-    // Also check for inline schema tests
-    const inlineMatches = content.matchAll(/(\w+Schema)\.safeParse/g);
-    for (const match of inlineMatches) {
-      if (
-        match[1].includes('Request') ||
-        match[1].includes('Response') ||
-        match[1].includes('Schema')
-      ) {
-        const possibleFiles = ['api-types', 'schemas'];
-        for (const f of possibleFiles) {
-          tested.push(`${f}:${match[1]}`);
+      // Also check for .parse() usage (some tests use .parse instead of .safeParse)
+      const parseMatches = content.matchAll(/(\w+Schema)\.parse\(/g);
+      for (const match of parseMatches) {
+        const importMatches2 = content.matchAll(/from ['"]\.\/([\w-]+)(?:\.js)?['"]/g);
+        for (const importMatch of importMatches2) {
+          tested.push(`${importMatch[1]}:${match[1]}`);
         }
       }
     }
