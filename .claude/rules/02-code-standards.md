@@ -12,6 +12,11 @@
 | `max-nested-callbacks`   | 3     | Warn  | Extract/flatten        |
 | `max-statements`         | 50    | Warn  | Extract helpers        |
 
+**Note**: Test files (`*.test.ts`, `*.spec.ts`) are fully excluded from ESLint
+via the `ignores` block in `eslint.config.js`. The limits above apply to
+production code only. Do NOT split test files to satisfy max-lines — keep all
+tests for a module in one colocated file for discoverability.
+
 ## Lint Suppression Standards
 
 When adding `eslint-disable` or `ts-expect-error`, every suppression MUST have a meaningful justification via `--` comment.
@@ -125,6 +130,15 @@ await assertion;
 | New API endpoint   | ✅   | ✅ Required | ✅ If DB/multi-service       |
 | New `*.service.ts` | ✅   | If shared   | ✅ For complex DB operations |
 | Bug fix            | ✅   | If schema   | If multi-component           |
+
+### Schema Test Colocation
+
+Schema tests follow the same colocation rule as all other tests:
+
+- `schemas/api/persona.ts` → `schemas/api/persona.test.ts`
+- `types/jobs.ts` → `types/jobs.test.ts`
+
+Do NOT place schema tests in a separate directory.
 
 ## Types & Constants
 
