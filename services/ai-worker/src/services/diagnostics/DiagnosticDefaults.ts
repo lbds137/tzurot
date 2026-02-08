@@ -16,11 +16,12 @@ import type {
   DiagnosticPostProcessing,
 } from '@tzurot/common-types';
 
-/* eslint-disable sonarjs/no-duplicate-string -- '[not recorded]' sentinel values for missing stages */
+/** Sentinel value for pipeline stages that didn't record their data. */
+const NOT_RECORDED = '[not recorded]' as const;
 
 export function getDefaultInputProcessing(): DiagnosticInputProcessing {
   return {
-    rawUserMessage: '[not recorded]',
+    rawUserMessage: NOT_RECORDED,
     attachmentDescriptions: [],
     voiceTranscript: null,
     referencedMessageIds: [],
@@ -56,8 +57,8 @@ export function getDefaultAssembledPrompt(): DiagnosticAssembledPrompt {
 
 export function getDefaultLlmConfig(): DiagnosticLlmConfig {
   return {
-    model: '[not recorded]',
-    provider: '[not recorded]',
+    model: NOT_RECORDED,
+    provider: NOT_RECORDED,
     stopSequences: [],
     allParams: {},
   };
@@ -65,12 +66,12 @@ export function getDefaultLlmConfig(): DiagnosticLlmConfig {
 
 export function getDefaultLlmResponse(): DiagnosticLlmResponse {
   return {
-    rawContent: '[not recorded]',
+    rawContent: NOT_RECORDED,
     finishReason: 'unknown',
     stopSequenceTriggered: null,
     promptTokens: 0,
     completionTokens: 0,
-    modelUsed: '[not recorded]',
+    modelUsed: NOT_RECORDED,
   };
 }
 
@@ -81,8 +82,6 @@ export function getDefaultPostProcessing(): DiagnosticPostProcessing {
     thinkingExtracted: false,
     thinkingContent: null,
     artifactsStripped: [],
-    finalContent: '[not recorded]',
+    finalContent: NOT_RECORDED,
   };
 }
-
-/* eslint-enable sonarjs/no-duplicate-string */
