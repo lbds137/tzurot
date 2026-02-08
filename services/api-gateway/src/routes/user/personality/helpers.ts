@@ -93,37 +93,20 @@ export async function canUserEditPersonality(
   return ownerEntry !== null;
 }
 
-/** Result of edit access validation */
-export type EditAccessResult =
-  | { ok: true; userId: string }
-  | { ok: false; error: 'user-not-found' | 'not-authorized' };
-
 /**
- * Validate that a user has edit access to a personality.
- * Performs user lookup by discordId and edit permission check.
+ * Look up the internal user ID for a Discord user.
+ * Returns the user ID or null if not found.
  *
- * @returns ok: true with userId, or ok: false with error reason
+ * Extracted from personality route handlers to reduce duplication.
  */
-export async function validatePersonalityEditAccess(
+export async function findInternalUser(
   prisma: PrismaClient,
-  discordUserId: string,
-  personalityId: string
-): Promise<EditAccessResult> {
-  const user = await prisma.user.findFirst({
+  discordUserId: string
+): Promise<{ id: string } | null> {
+  return prisma.user.findFirst({
     where: { discordId: discordUserId },
     select: { id: true },
   });
-
-  if (user === null) {
-    return { ok: false, error: 'user-not-found' };
-  }
-
-  const canEdit = await canUserEditPersonality(prisma, user.id, personalityId, discordUserId);
-  if (!canEdit) {
-    return { ok: false, error: 'not-authorized' };
-  }
-
-  return { ok: true, userId: user.id };
 }
 
 /**
