@@ -28,11 +28,10 @@ export function addSettingsRoutes(router: Router, prisma: PrismaClient): void {
 
       const parseResult = PersonaSettingsBodySchema.safeParse(req.body);
       if (!parseResult.success) {
-        sendError(
-          res,
-          ErrorResponses.validationError('shareLtmAcrossPersonalities must be a boolean')
-        );
-        return;
+        const firstIssue = parseResult.error.issues[0];
+        const fieldPath = firstIssue.path.join('.');
+        const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+        return sendError(res, ErrorResponses.validationError(message));
       }
 
       const { shareLtmAcrossPersonalities } = parseResult.data;
