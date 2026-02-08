@@ -27,9 +27,6 @@ import {
 import { fetchCharacter } from './api.js';
 import { buildBrowseResponse } from './browse.js';
 
-// Re-export for backward compatibility
-export { buildCharacterDashboardOptions } from './config.js';
-
 const logger = createLogger('character-dashboard-buttons');
 
 /**
