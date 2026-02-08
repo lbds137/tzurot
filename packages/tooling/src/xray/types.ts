@@ -107,5 +107,6 @@ export interface XrayOptions {
   includePrivate?: boolean;
   imports?: boolean;
   summary?: boolean;
+  suppressions?: boolean;
   output?: string;
 }
