@@ -18,6 +18,7 @@ Fast triage (~30 seconds). Run frequently — before PRs or at session start.
 
 ```bash
 pnpm ops xray --summary     # Package health warnings
+pnpm ops xray --suppressions # Suppression audit (tech debt)
 pnpm depcruise               # Boundary violations vs baseline
 pnpm ops test:audit          # Coverage ratchet status
 ```
@@ -28,7 +29,7 @@ pnpm ops test:audit          # Coverage ratchet status
 
 ## Deep Dive
 
-Work through each section that the quick scan flagged, or run all 6 periodically.
+Work through each section that the quick scan flagged, or run all 7 periodically.
 
 ### 1. Service Boundaries
 
@@ -85,7 +86,33 @@ pnpm ops xray <package-name>            # Full declarations for one package
 pnpm ops xray --include-private         # Include non-exported declarations
 ```
 
-### 3. Dead Code
+### 3. Suppression Audit
+
+**Tool:** `pnpm ops xray --suppressions`
+
+**What it catches:**
+
+- Lint/type suppressions without justification comments
+- Rules suppressed most frequently (potential systemic issues)
+- Packages with highest suppression density
+- "pre-existing" tech debt vs intentional suppressions
+
+**Interpreting results:**
+
+| Finding                       | Action                                                        |
+| ----------------------------- | ------------------------------------------------------------- |
+| No justification suppressions | **Fix now** — add `-- reason` or fix the underlying issue     |
+| High count for a single rule  | **Track** — may indicate a systemic issue needing refactoring |
+| "pre-existing" dominates      | **Track** — chip away during related changes                  |
+| Single file with many supprs  | **Track** — file may need refactoring instead of suppressing  |
+
+**Single package audit:**
+
+```bash
+pnpm ops xray bot-client --suppressions   # Audit one package
+```
+
+### 4. Dead Code
 
 **Tool:** `pnpm knip`
 
@@ -112,7 +139,7 @@ pnpm ops xray --include-private         # Include non-exported declarations
 pnpm knip:fix    # Removes unused exports
 ```
 
-### 4. Code Duplication
+### 5. Code Duplication
 
 **Tool:** `pnpm cpd`
 
@@ -143,7 +170,7 @@ pnpm cpd:report       # HTML report in reports/jscpd/
 /* jscpd:ignore-end */
 ```
 
-### 5. Test Coverage
+### 6. Test Coverage
 
 **Tool:** `pnpm ops test:audit`
 
@@ -170,7 +197,7 @@ pnpm ops test:audit --update     # Update baseline after closing gaps
 
 **Critical rule:** Never add new code to `knownGaps`. That baseline is for pre-existing tech debt only.
 
-### 6. Full Structure Review
+### 7. Full Structure Review
 
 **Tool:** `pnpm ops xray --format md`
 

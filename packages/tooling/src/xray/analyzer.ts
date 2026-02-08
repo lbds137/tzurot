@@ -144,18 +144,23 @@ export async function runXray(options: XrayOptions = {}): Promise<void> {
 
   let result: string;
 
-  switch (format) {
-    case 'json': {
-      result = formatJson(report);
-      break;
-    }
-    case 'md': {
-      result = formatMarkdown(report, rootDir, { summary });
-      break;
-    }
-    default: {
-      result = formatTerminal(report, rootDir, { summary });
-      break;
+  if (options.suppressions === true) {
+    const { formatSuppressions } = await import('./formatters/suppressions.js');
+    result = formatSuppressions(report, rootDir);
+  } else {
+    switch (format) {
+      case 'json': {
+        result = formatJson(report);
+        break;
+      }
+      case 'md': {
+        result = formatMarkdown(report, rootDir, { summary });
+        break;
+      }
+      default: {
+        result = formatTerminal(report, rootDir, { summary });
+        break;
+      }
     }
   }
 

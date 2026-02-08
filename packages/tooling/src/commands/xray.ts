@@ -14,6 +14,7 @@ export function registerXrayCommands(cli: CAC): void {
     .option('--include-private', 'Include non-exported declarations', { default: false })
     .option('--imports', 'Include import analysis')
     .option('--summary', 'File-level overview without individual declarations')
+    .option('--suppressions', 'Show detailed suppression audit report')
     .option('--output <file>', 'Write to file instead of stdout')
     .example('pnpm ops xray')
     .example('pnpm ops xray --summary')
@@ -29,6 +30,7 @@ export function registerXrayCommands(cli: CAC): void {
           includePrivate?: boolean;
           imports?: boolean;
           summary?: boolean;
+          suppressions?: boolean;
           output?: string;
         }
       ) => {
@@ -64,6 +66,7 @@ export function registerXrayCommands(cli: CAC): void {
           includePrivate: options.includePrivate,
           imports: options.imports,
           summary: options.summary,
+          suppressions: options.suppressions,
           output: options.output,
         });
       }

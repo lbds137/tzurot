@@ -239,6 +239,17 @@ describe('runXray', () => {
     expect(parsed).toHaveProperty('summary');
   });
 
+  it('should output suppression audit when suppressions flag is set', async () => {
+    setupMockPackage('test-pkg', 'packages', {
+      'index.ts': `// eslint-disable-next-line no-console\nconsole.log('hi');\nexport const x = 1;\n`,
+    });
+
+    await runXray({ suppressions: true });
+
+    const output = consoleLogSpy.mock.calls.flat().join(' ');
+    expect(output).toContain('SUPPRESSION AUDIT');
+  });
+
   it('should output markdown in md format', async () => {
     setupMockPackage('test-pkg', 'packages', {
       'index.ts': 'export function hello(): void {}\n',
