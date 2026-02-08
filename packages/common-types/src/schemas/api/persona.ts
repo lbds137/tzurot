@@ -11,6 +11,9 @@
 
 import { z } from 'zod';
 
+import { DISCORD_LIMITS } from '../../constants/discord.js';
+import { nullableString, optionalString } from './shared.js';
+
 // ============================================================================
 // Shared Sub-schemas (reusable across endpoints)
 // ============================================================================
@@ -163,3 +166,80 @@ export const CreateOverrideResponseSchema = z.object({
   }),
 });
 export type CreateOverrideResponse = z.infer<typeof CreateOverrideResponseSchema>;
+
+// ============================================================================
+// Input Schemas (request body validation)
+// ============================================================================
+
+/**
+ * Schema for creating a new persona.
+ * - name: Required, non-empty string
+ * - content: Required, non-empty string with max length
+ * - preferredName, description, pronouns: Optional nullable strings
+ */
+export const PersonaCreateSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(255),
+  content: z
+    .string()
+    .min(1, 'Content is required')
+    .max(
+      DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
+      `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
+    ),
+  preferredName: nullableString(255),
+  description: nullableString(500),
+  pronouns: nullableString(100),
+});
+export type PersonaCreateInput = z.infer<typeof PersonaCreateSchema>;
+
+/**
+ * Schema for updating a persona.
+ * Uses empty-to-undefined/null transforms so clients can send "" to preserve or clear fields.
+ * - name, content: Empty string → undefined (preserve existing value)
+ * - preferredName, description, pronouns: Empty string → null (clear the value)
+ */
+export const PersonaUpdateSchema = z.object({
+  name: optionalString(255),
+  content: optionalString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  preferredName: nullableString(255),
+  description: nullableString(500),
+  pronouns: nullableString(100),
+});
+export type PersonaUpdateInput = z.infer<typeof PersonaUpdateSchema>;
+
+/** UUID format regex — accepts any hex UUID, not just RFC 4122 */
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Schema for setting a persona override on a personality.
+ * Uses regex-based UUID validation (matches the gateway's validateUuid behavior).
+ */
+export const SetPersonaOverrideBodySchema = z.object({
+  personaId: z.string().regex(UUID_PATTERN, 'Invalid persona ID format'),
+});
+export type SetPersonaOverrideBody = z.infer<typeof SetPersonaOverrideBodySchema>;
+
+/**
+ * Schema for persona settings update (share-ltm toggle).
+ */
+export const PersonaSettingsBodySchema = z.object({
+  shareLtmAcrossPersonalities: z.boolean(),
+});
+export type PersonaSettingsBody = z.infer<typeof PersonaSettingsBodySchema>;
+
+// ============================================================================
+// Database Constants
+// ============================================================================
+
+/** Standard Prisma SELECT for persona queries */
+export const PERSONA_SELECT = {
+  id: true,
+  name: true,
+  preferredName: true,
+  description: true,
+  content: true,
+  pronouns: true,
+  shareLtmAcrossPersonalities: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;

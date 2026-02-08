@@ -543,8 +543,6 @@ describe('BullMQ Job Contract Tests', () => {
 
   describe('JobContext Guild Info Fields', () => {
     it('should include participantGuildInfo for extended context participants', () => {
-      // This test ensures participantGuildInfo is not lost in the job context
-      // Bug: participantGuildInfo was missing from JobContext, causing guild roles to be lost
       const validJob: LLMGenerationJobData = {
         requestId: 'req-guild-info-test',
         jobType: JobType.LLMGeneration,
@@ -567,14 +565,11 @@ describe('BullMQ Job Contract Tests', () => {
           userId: 'user-123',
           activePersonaId: 'persona-123',
           activePersonaName: 'ActiveUser',
-          // Guild info for the active speaker (from triggering message)
           activePersonaGuildInfo: {
             roles: ['Admin', 'Developer'],
             displayColor: '#FF5733',
             joinedAt: '2023-05-15T10:30:00.000Z',
           },
-          // Guild info for OTHER participants (from extended context)
-          // This was previously missing from JobContext schema!
           participantGuildInfo: {
             'discord:user-456': {
               roles: ['Member', 'Verified'],
@@ -592,7 +587,6 @@ describe('BullMQ Job Contract Tests', () => {
       const result = llmGenerationJobDataSchema.safeParse(validJob);
       expect(result.success).toBe(true);
       if (result.success) {
-        // Verify participantGuildInfo is preserved
         expect(result.data.context.participantGuildInfo).toBeDefined();
         expect(result.data.context.participantGuildInfo?.['discord:user-456']).toEqual({
           roles: ['Member', 'Verified'],
@@ -627,7 +621,6 @@ describe('BullMQ Job Contract Tests', () => {
         message: 'Hello!',
         context: {
           userId: 'user-123',
-          // No activePersonaGuildInfo or participantGuildInfo
         },
       };
 

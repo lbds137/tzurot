@@ -9,14 +9,15 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { z } from 'zod';
 import {
   createLogger,
   type PrismaClient,
-  DISCORD_LIMITS,
   generatePersonaUuid,
-  optionalString,
-  nullableString,
+  PersonaCreateSchema,
+  PersonaUpdateSchema,
+  PERSONA_SELECT,
+  type PersonaSummary,
+  type PersonaDetails,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -25,66 +26,9 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import type { PersonaSummary, PersonaDetails } from './types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-crud');
-
-// ===========================================
-// ZOD SCHEMAS
-// ===========================================
-
-/**
- * Schema for creating a new persona.
- * - name: Required, non-empty string
- * - content: Required, non-empty string with max length
- * - preferredName, description, pronouns: Optional nullable strings
- */
-const CreatePersonaBodySchema = z.object({
-  name: z.string().min(1, 'Name is required').max(255),
-  content: z
-    .string()
-    .min(1, 'Content is required')
-    .max(
-      DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH,
-      `Content must be ${DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH} characters or less`
-    ),
-  preferredName: nullableString(255),
-  description: nullableString(500),
-  pronouns: nullableString(100),
-});
-
-/**
- * Schema for updating a persona.
- * Uses empty-to-undefined/null transforms so clients can send "" to preserve or clear fields.
- * - name, content: Empty string → undefined (preserve existing value)
- * - preferredName, description, pronouns: Empty string → null (clear the value)
- */
-const UpdatePersonaBodySchema = z.object({
-  // Required DB fields: empty string → undefined (preserve existing value)
-  name: optionalString(255),
-  content: optionalString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
-  // Nullable DB fields: empty string → null (clear the value)
-  preferredName: nullableString(255),
-  description: nullableString(500),
-  pronouns: nullableString(100),
-});
-
-// ===========================================
-// DATABASE CONSTANTS
-// ===========================================
-
-const PERSONA_SELECT = {
-  id: true,
-  name: true,
-  preferredName: true,
-  description: true,
-  content: true,
-  pronouns: true,
-  shareLtmAcrossPersonalities: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
 
 interface PersonaFromDb {
   id: string;
@@ -168,7 +112,7 @@ function createCreateHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
 
     // Validate request body with Zod
-    const parseResult = CreatePersonaBodySchema.safeParse(req.body);
+    const parseResult = PersonaCreateSchema.safeParse(req.body);
     if (!parseResult.success) {
       const firstIssue = parseResult.error.issues[0];
       const fieldPath = firstIssue.path.join('.');
@@ -226,7 +170,7 @@ function createUpdateHandler(prisma: PrismaClient) {
     }
 
     // Validate request body with Zod
-    const parseResult = UpdatePersonaBodySchema.safeParse(req.body);
+    const parseResult = PersonaUpdateSchema.safeParse(req.body);
     if (!parseResult.success) {
       const firstIssue = parseResult.error.issues[0];
       const fieldPath = firstIssue.path.join('.');

@@ -5,10 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  AdminSettingsSchema,
-  ResolvedExtendedContextSettingsSchema,
-} from '../schemas/api/index.js';
+import { AdminSettingsSchema, ResolvedExtendedContextSettingsSchema } from './adminSettings.js';
 
 describe('Admin Settings API Contract Tests', () => {
   describe('AdminSettingsSchema', () => {

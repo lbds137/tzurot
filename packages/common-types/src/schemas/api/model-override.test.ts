@@ -12,7 +12,9 @@ import {
   SetDefaultConfigResponseSchema,
   ClearDefaultConfigResponseSchema,
   DeleteModelOverrideResponseSchema,
-} from '../schemas/api/index.js';
+  SetModelOverrideBodySchema,
+  SetDefaultConfigBodySchema,
+} from './model-override.js';
 
 /** Helper to create a valid model override summary */
 function createValidOverrideSummary(overrides = {}) {
@@ -159,6 +161,61 @@ describe('Model Override API Contract Tests', () => {
 
     it('should reject missing deleted field', () => {
       const result = DeleteModelOverrideResponseSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // ================================================================
+  // Input Schema Tests
+  // ================================================================
+
+  describe('SetModelOverrideBodySchema', () => {
+    it('should accept valid body', () => {
+      const data = { personalityId: 'some-personality-id', configId: 'some-config-id' };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing personalityId', () => {
+      const data = { configId: 'some-config-id' };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty personalityId', () => {
+      const data = { personalityId: '', configId: 'some-config-id' };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing configId', () => {
+      const data = { personalityId: 'some-personality-id' };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty configId', () => {
+      const data = { personalityId: 'some-personality-id', configId: '' };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('SetDefaultConfigBodySchema', () => {
+    it('should accept valid body', () => {
+      const data = { configId: 'some-config-id' };
+      const result = SetDefaultConfigBodySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing configId', () => {
+      const result = SetDefaultConfigBodySchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty configId', () => {
+      const data = { configId: '' };
+      const result = SetDefaultConfigBodySchema.safeParse(data);
       expect(result.success).toBe(false);
     });
   });
