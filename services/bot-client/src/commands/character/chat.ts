@@ -19,15 +19,10 @@ import type { TextChannel, ThreadChannel, Message } from 'discord.js';
 import { ChannelType } from 'discord.js';
 import {
   createLogger,
-  splitMessage,
-  DISCORD_LIMITS,
   INTERVALS,
   TIMEOUTS,
-  GUEST_MODE,
-  AI_ENDPOINTS,
   MESSAGE_LIMITS,
   characterChatOptions,
-  buildModelFooterText,
 } from '@tzurot/common-types';
 import type { EnvConfig, LoadedPersonality } from '@tzurot/common-types';
 import { buildErrorContent } from '../../utils/buildErrorContent.js';
@@ -35,13 +30,12 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import {
   getGatewayClient,
   getPersonalityService,
-  getWebhookManager,
   getMessageContextBuilder,
   getConversationPersistence,
   getPersonaResolver,
 } from '../../services/serviceRegistry.js';
 import type { MessageContext } from '../../types.js';
-import { redisService } from '../../redis.js';
+import { sendCharacterResponse } from './chatResponseSender.js';
 
 const logger = createLogger('character-chat');
 
@@ -402,7 +396,7 @@ async function buildChatContext(
  * - Guild member info (roles, color, join date)
  * - User timezone for date/time formatting
  */
- 
+
 export async function handleChat(
   context: DeferredCommandContext,
   _config: EnvConfig
@@ -537,55 +531,4 @@ async function handleChatError(context: DeferredCommandContext): Promise<void> {
       await ch.send('Sorry, something went wrong. Please try again.');
     }
   }
-}
-
-/**
- * Send character response via webhook
- * Returns the message IDs of all sent chunks
- */
-async function sendCharacterResponse(
-  channel: TextChannel | ThreadChannel,
-  personality: LoadedPersonality,
-  content: string,
-  modelUsed?: string,
-  isGuestMode?: boolean
-): Promise<string[]> {
-  const webhookManager = getWebhookManager();
-  const messageIds: string[] = [];
-
-  // Build footer (using centralized constants from BOT_FOOTER_TEXT)
-  let footer = '';
-  if (modelUsed !== undefined && modelUsed !== null && modelUsed !== '') {
-    const modelUrl = `${AI_ENDPOINTS.OPENROUTER_MODEL_CARD_URL}/${modelUsed}`;
-    footer = `\n-# ${buildModelFooterText(modelUsed, modelUrl)}`;
-  }
-  if (isGuestMode === true) {
-    footer += `\n-# ${GUEST_MODE.FOOTER_MESSAGE}`;
-  }
-
-  // Split into chunks if needed
-  const chunks = splitMessage(content);
-
-  // Append footer to last chunk
-  if (chunks.length > 0 && footer.length > 0) {
-    const lastIndex = chunks.length - 1;
-    if (chunks[lastIndex].length + footer.length <= DISCORD_LIMITS.MESSAGE_LENGTH) {
-      chunks[lastIndex] += footer;
-    } else {
-      chunks.push(footer.trimStart());
-    }
-  }
-
-  // Send each chunk via webhook
-  for (const chunk of chunks) {
-    const sentMessage = await webhookManager.sendAsPersonality(channel, personality, chunk);
-    if (sentMessage !== undefined && sentMessage !== null) {
-      // Store in Redis for reply routing
-      await redisService.storeWebhookMessage(sentMessage.id, personality.id);
-      // Collect message ID for diagnostic tracking
-      messageIds.push(sentMessage.id);
-    }
-  }
-
-  return messageIds;
 }
