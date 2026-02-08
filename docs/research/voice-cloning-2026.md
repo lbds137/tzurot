@@ -103,7 +103,7 @@ numpy
 
 ## Actionable Items
 
-See ROADMAP.md "Voice Synthesis (Open Source)" in Later section:
+See BACKLOG.md "Voice Synthesis (Open Source)" in Future Themes section:
 
 - [ ] Python microservice: `services/voice-engine/`
 - [ ] TTS: Kyutai Pocket TTS

@@ -97,5 +97,5 @@ OpenRouter's `:free` suffix routes to volunteer/promotional providers with rate 
 
 ## Actionable Items
 
-- See ROADMAP.md "Free-Tier Model Strategy" section
+- See BACKLOG.md "Free-Tier Model Strategy" section
 - Consider implementing rate-limit tracking with automatic model switching

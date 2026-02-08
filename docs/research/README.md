@@ -29,7 +29,7 @@ Each research note follows this structure:
 
 ## Actionable Items
 
-[Link to ROADMAP.md items where applicable]
+[Link to BACKLOG.md items where applicable]
 ```
 
 ## Why Not Keep Raw Transcripts?
