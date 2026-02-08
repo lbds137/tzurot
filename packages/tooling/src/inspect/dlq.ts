@@ -5,14 +5,15 @@
  * Failed jobs are jobs that have exceeded their retry attempts.
  */
 
-import { Queue } from 'bullmq';
-import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
+import type { Queue } from 'bullmq';
 import chalk from 'chalk';
 
 import type { Environment } from '../utils/env-runner.js';
-
-/** Default queue name used by Tzurot */
-const DEFAULT_QUEUE_NAME = 'ai-requests';
+import {
+  DEFAULT_QUEUE_NAME,
+  getRailwayRedisUrl,
+  createInspectorQueue,
+} from './bullmqConnection.js';
 
 interface DlqViewOptions {
   env?: Environment;
@@ -30,33 +31,6 @@ interface FailedJobDetails {
   stacktrace: string[] | undefined;
   data: unknown;
   timestamp: string | null;
-}
-
-/**
- * Get Redis URL for environment
- */
-async function getRedisUrl(env: Environment): Promise<string | null> {
-  if (env === 'local') {
-    return process.env.REDIS_URL ?? 'redis://localhost:6379';
-  }
-
-  const { execFileSync } = await import('node:child_process');
-  const railwayEnv = env === 'prod' ? 'production' : 'development';
-
-  try {
-    const result = execFileSync(
-      'railway',
-      ['variables', '--json', '--service', 'redis', '--environment', railwayEnv],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-
-    const vars = JSON.parse(result) as Record<string, string>;
-    return vars.REDIS_URL ?? null;
-  } catch {
-    console.error(chalk.red(`Failed to get Redis URL from Railway (${env})`));
-    console.error(chalk.dim('Make sure you are logged in: railway login'));
-    return null;
-  }
 }
 
 /**
@@ -122,7 +96,7 @@ export async function viewDlq(options: DlqViewOptions = {}): Promise<void> {
     console.log(chalk.cyan(`Viewing failed jobs in "${queueName}" on ${env}...`));
   }
 
-  const redisUrl = await getRedisUrl(env);
+  const redisUrl = await getRailwayRedisUrl(env);
   if (!redisUrl) {
     process.exitCode = 1;
     return;
@@ -131,13 +105,7 @@ export async function viewDlq(options: DlqViewOptions = {}): Promise<void> {
   let queue: Queue | null = null;
 
   try {
-    const parsedUrl = parseRedisUrl(redisUrl);
-    const redisConfig = createBullMQRedisConfig({
-      ...parsedUrl,
-      family: env === 'local' ? 4 : 6,
-    });
-
-    queue = new Queue(queueName, { connection: redisConfig });
+    queue = createInspectorQueue(redisUrl, queueName, env);
 
     const failedJobs = await queue.getFailed(0, limit - 1);
 
