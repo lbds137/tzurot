@@ -28,7 +28,7 @@ const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 /**
  * Filter options for querying models
  */
-export interface ModelFilterOptions {
+interface ModelFilterOptions {
   /** Filter to models that accept this input modality */
   inputModality?: ModelModality;
   /** Filter to models that produce this output modality */

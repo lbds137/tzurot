@@ -156,6 +156,7 @@ async function handleEnable(
         session: existingSession,
         timeRemaining: manager.getTimeRemaining(existingSession),
         wasAlreadyActive: true,
+        // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
         message: `Incognito mode is already active for ${personalityName ?? 'this personality'}. Disable it first to change duration.`,
       },
       StatusCodes.OK
@@ -379,4 +380,3 @@ export function createIncognitoRoutes(prisma: PrismaClient, redis: Redis): Route
 }
 
 // Export manager for use by other services (e.g., ai-worker checking status)
-export { IncognitoSessionManager };

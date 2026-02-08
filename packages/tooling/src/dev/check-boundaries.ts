@@ -11,7 +11,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import chalk from 'chalk';
 
-export interface BoundaryOptions {
+interface BoundaryOptions {
   fix?: boolean;
   verbose?: boolean;
 }
@@ -172,6 +172,7 @@ function checkFile(filePath: string, rules: (typeof BOUNDARY_RULES)[number]): Vi
  * Display header for boundary check
  */
 function displayHeader(): void {
+  // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
   console.log(chalk.cyan.bold('           ARCHITECTURE BOUNDARY CHECK                  '));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));

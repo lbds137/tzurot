@@ -7,12 +7,4 @@
  * - CI environment detection
  */
 
-export {
-  isCI,
-  loadPGliteSchema,
-  initializePGliteSchema,
-  setupTestEnvironment,
-  type TestEnvironment,
-} from './setup-pglite.js';
-
-export { createRedisClientMock, RedisClientMock } from './RedisClientMock.js';
+export { loadPGliteSchema, setupTestEnvironment, type TestEnvironment } from './setup-pglite.js';

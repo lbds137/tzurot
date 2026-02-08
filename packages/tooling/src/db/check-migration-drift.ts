@@ -21,7 +21,7 @@ interface MigrationRecord {
   checksum: string;
 }
 
-export interface CheckDriftOptions {
+interface CheckDriftOptions {
   env?: Environment;
   migrationsPath?: string;
 }

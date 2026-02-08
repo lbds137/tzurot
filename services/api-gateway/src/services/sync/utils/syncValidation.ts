@@ -51,7 +51,7 @@ export async function checkSchemaVersions(
   return devVersion;
 }
 
-export interface ValidationResult {
+interface ValidationResult {
   warnings: string[];
   info: string[];
 }
@@ -60,6 +60,7 @@ export interface ValidationResult {
  * Validate that SYNC_CONFIG matches actual database schema
  * @returns Object with warnings (problems) and info (expected exclusions)
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export async function validateSyncConfig(
   devClient: PrismaClient,
   syncConfig: Record<SyncTableName, TableSyncConfig>
@@ -174,51 +175,6 @@ export function assertValidTableName(tableName: string): asserts tableName is Sy
         `Only tables in SYNC_CONFIG are allowed: ${Array.from(ALLOWED_TABLES).join(', ')}`
     );
   }
-}
-
-/**
- * Build a set of allowed column names for a specific table.
- * Combines all column types from the table's sync config.
- *
- * @param tableName - Table name (must be valid)
- * @returns Set of allowed column names for the table
- */
-export function getAllowedColumnsForTable(tableName: SyncTableName): Set<string> {
-  const config = SYNC_CONFIG[tableName];
-  const columns = new Set<string>();
-
-  // Add primary key columns
-  const pkFields = typeof config.pk === 'string' ? [config.pk] : config.pk;
-  for (const pk of pkFields) {
-    columns.add(pk);
-  }
-
-  // Add UUID columns
-  for (const col of config.uuidColumns) {
-    columns.add(col);
-  }
-
-  // Add timestamp columns
-  for (const col of config.timestampColumns) {
-    columns.add(col);
-  }
-
-  // Add deferred FK columns
-  if (config.deferredFkColumns) {
-    for (const col of config.deferredFkColumns) {
-      columns.add(col);
-    }
-  }
-
-  // Add createdAt and updatedAt if defined
-  if (config.createdAt !== undefined) {
-    columns.add(config.createdAt);
-  }
-  if (config.updatedAt !== undefined) {
-    columns.add(config.updatedAt);
-  }
-
-  return columns;
 }
 
 /**

@@ -11,6 +11,8 @@ import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import { checkRailwayCli, getRailwayEnvName, type Environment } from '../utils/env-runner.js';
 
+/* eslint-disable sonarjs/cognitive-complexity -- pre-existing */
+
 interface VariableConfig {
   key: string;
   targetKey?: string; // Key to set in Railway (if different from .env key)
@@ -26,7 +28,7 @@ interface ServiceConfig {
   service: string | null;
 }
 
-export interface SetupOptions {
+interface SetupOptions {
   env: Exclude<Environment, 'local'>;
   dryRun: boolean;
   yes: boolean;

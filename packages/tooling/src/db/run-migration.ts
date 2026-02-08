@@ -17,7 +17,7 @@ import {
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 
-export interface RunMigrationOptions {
+interface RunMigrationOptions {
   env?: Environment;
   force?: boolean;
   dryRun?: boolean;

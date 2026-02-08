@@ -3,7 +3,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'node:fs';
-import { join, relative, dirname, basename } from 'node:path';
+import { join, relative, dirname } from 'node:path';
 
 // ============================================================================
 // Types
@@ -95,7 +95,7 @@ export function getRelativePath(projectRoot: string, filePath: string): string {
 /**
  * Get directory and basename helpers
  */
-export { dirname, basename, join };
+export { dirname };
 
 // ============================================================================
 // Service Detection Helpers

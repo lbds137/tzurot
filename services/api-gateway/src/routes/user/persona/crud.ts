@@ -70,10 +70,6 @@ const UpdatePersonaBodySchema = z.object({
   pronouns: nullableString(100),
 });
 
-// Type exports for tests
-export type CreatePersonaBody = z.infer<typeof CreatePersonaBodySchema>;
-export type UpdatePersonaBody = z.infer<typeof UpdatePersonaBodySchema>;
-
 // ===========================================
 // DATABASE CONSTANTS
 // ===========================================
@@ -144,6 +140,7 @@ function createGetHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
 
+    // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
     const idValidation = validateUuid(id, 'persona ID');
     if (!idValidation.valid) {
       return sendError(res, idValidation.error);

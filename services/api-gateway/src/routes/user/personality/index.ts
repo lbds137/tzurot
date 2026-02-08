@@ -53,4 +53,3 @@ export function createPersonalityRoutes(
 }
 
 // Re-export helpers for use by other modules if needed
-export { getOrCreateInternalUser, canUserEditPersonality } from './helpers.js';
