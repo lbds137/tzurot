@@ -58,8 +58,6 @@ const EXCLUDE_PATTERNS = [
   /\/utils\/.*Helpers\.ts$/,
   /\/utils\/.*Config\.ts$/,
   /\/utils\/.*Formatter\.ts$/,
-  // Zod schemas (pure validation, tested via type system)
-  /\/schemas\//,
   // Factory files (test data creation helpers)
   /\/factories\//,
   // Service singletons and caches (thin wrappers around Prisma/Redis/external APIs)
