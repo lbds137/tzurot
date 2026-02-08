@@ -4,12 +4,9 @@
  * Sets a global config as the system default (owner only)
  */
 
-import { EmbedBuilder } from 'discord.js';
-import { createLogger, DISCORD_COLORS, presetGlobalDefaultOptions } from '@tzurot/common-types';
+import { presetGlobalDefaultOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import { adminPutJson } from '../../../utils/adminApiClient.js';
-
-const logger = createLogger('preset-global-set-default');
+import { handleGlobalPresetUpdate } from './globalPresetHelpers.js';
 
 /**
  * Handle /preset global set-default
@@ -18,34 +15,13 @@ export async function handleGlobalSetDefault(context: DeferredCommandContext): P
   const options = presetGlobalDefaultOptions(context.interaction);
   const configId = options.config();
 
-  try {
-    const response = await adminPutJson(`/admin/llm-config/${configId}/set-default`, {});
-
-    if (!response.ok) {
-      const errorData = (await response.json()) as { error?: string };
-      await context.editReply({ content: `❌ ${errorData.error ?? `HTTP ${response.status}`}` });
-      return;
-    }
-
-    const data = (await response.json()) as { configName: string };
-
-    const embed = new EmbedBuilder()
-      .setTitle('System Default Preset Updated')
-      .setColor(DISCORD_COLORS.SUCCESS)
-      .setDescription(
-        `**${data.configName}** is now the system default preset.\n\n` +
-          'Personalities without a specific config will use this default.'
-      )
-      .setTimestamp();
-
-    await context.editReply({ embeds: [embed] });
-
-    logger.info(
-      { configId, configName: data.configName },
-      '[Preset/Global] Set system default preset'
-    );
-  } catch (error) {
-    logger.error({ err: error, userId: context.user.id }, '[Preset/Global] Error setting default');
-    await context.editReply({ content: '❌ An error occurred. Please try again later.' });
-  }
+  await handleGlobalPresetUpdate(context, configId, {
+    apiPath: `/admin/llm-config/${configId}/set-default`,
+    embedTitle: 'System Default Preset Updated',
+    embedDescription: (configName: string) =>
+      `**${configName}** is now the system default preset.\n\n` +
+      'Personalities without a specific config will use this default.',
+    logMessage: '[Preset/Global] Set system default preset',
+    errorLogMessage: '[Preset/Global] Error setting default',
+  });
 }

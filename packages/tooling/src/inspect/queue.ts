@@ -4,14 +4,15 @@
  * Inspect BullMQ queue state for debugging async operations.
  */
 
-import { Queue } from 'bullmq';
-import { parseRedisUrl, createBullMQRedisConfig } from '@tzurot/common-types';
+import type { Queue } from 'bullmq';
 import chalk from 'chalk';
 
 import type { Environment } from '../utils/env-runner.js';
-
-/** Default queue name used by Tzurot */
-const DEFAULT_QUEUE_NAME = 'ai-requests';
+import {
+  DEFAULT_QUEUE_NAME,
+  getRailwayRedisUrl,
+  createInspectorQueue,
+} from './bullmqConnection.js';
 
 interface InspectQueueOptions {
   env?: Environment;
@@ -27,37 +28,6 @@ interface QueueStats {
   failed: number;
   delayed: number;
   paused: number;
-}
-
-/**
- * Get Redis URL for environment
- */
-async function getRedisUrl(env: Environment): Promise<string | null> {
-  if (env === 'local') {
-    // Try local .env
-    return process.env.REDIS_URL ?? 'redis://localhost:6379';
-  }
-
-  // For dev/prod, use Railway CLI
-  const { execFileSync } = await import('node:child_process');
-
-  const railwayEnv = env === 'prod' ? 'production' : 'development';
-
-  try {
-    // Get Redis URL from Railway using execFileSync (no shell injection)
-    const result = execFileSync(
-      'railway',
-      ['variables', '--json', '--service', 'redis', '--environment', railwayEnv],
-      { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] }
-    );
-
-    const vars = JSON.parse(result) as Record<string, string>;
-    return vars.REDIS_URL ?? null;
-  } catch {
-    console.error(chalk.red(`Failed to get Redis URL from Railway (${env})`));
-    console.error(chalk.dim('Make sure you are logged in: railway login'));
-    return null;
-  }
 }
 
 /**
@@ -210,7 +180,7 @@ export async function inspectQueue(options: InspectQueueOptions = {}): Promise<v
   console.log(chalk.cyan(`Inspecting queue "${queueName}" on ${env}...`));
   console.log('');
 
-  const redisUrl = await getRedisUrl(env);
+  const redisUrl = await getRailwayRedisUrl(env);
   if (!redisUrl) {
     process.exitCode = 1;
     return;
@@ -219,13 +189,7 @@ export async function inspectQueue(options: InspectQueueOptions = {}): Promise<v
   let queue: Queue | null = null;
 
   try {
-    const parsedUrl = parseRedisUrl(redisUrl);
-    const redisConfig = createBullMQRedisConfig({
-      ...parsedUrl,
-      family: env === 'local' ? 4 : 6,
-    });
-
-    queue = new Queue(queueName, { connection: redisConfig });
+    queue = createInspectorQueue(redisUrl, queueName, env);
     const stats = await fetchQueueStats(queue);
 
     displayQueueStats(stats);
