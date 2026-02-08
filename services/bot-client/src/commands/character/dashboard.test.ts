@@ -30,10 +30,9 @@ vi.mock('./api.js', () => ({
   toggleVisibility: vi.fn(),
 }));
 
-// Mock userGatewayClient for delete functionality
-const mockCallGatewayApi = vi.fn();
+// Mock userGatewayClient (transitive dep via dashboardDeleteHandlers)
 vi.mock('../../utils/userGatewayClient.js', () => ({
-  callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
+  callGatewayApi: vi.fn(),
 }));
 
 vi.mock('./create.js', () => ({
@@ -549,124 +548,6 @@ describe('Character Dashboard', () => {
       vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue(null);
 
       expect(isCharacterDashboardInteraction('character::invalid')).toBe(false);
-    });
-  });
-
-  describe('delete confirmation buttons', () => {
-    const createMockButtonInteraction = (customId: string) =>
-      ({
-        customId,
-        user: { id: 'user-123' },
-        message: { id: 'msg-123' },
-        channelId: 'channel-123',
-        update: vi.fn(),
-        deferUpdate: vi.fn(),
-        editReply: vi.fn(),
-      }) as unknown as ButtonInteraction;
-
-    beforeEach(() => {
-      mockCallGatewayApi.mockReset();
-    });
-
-    it('should handle delete_confirm and delete character', async () => {
-      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
-        command: 'character',
-        action: 'delete_confirm',
-        characterId: 'test-char',
-      });
-
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: {
-          deletedCounts: {
-            conversationHistory: 5,
-            memories: 3,
-            pendingMemories: 0,
-            channelSettings: 1,
-            aliases: 0,
-          },
-          deletedName: 'Test Character',
-          deletedSlug: 'test-char',
-        },
-      });
-
-      const mockInteraction = createMockButtonInteraction('character:delete_confirm:test-char');
-
-      await handleButton(mockInteraction);
-
-      expect(mockInteraction.update).toHaveBeenCalledWith({
-        content: expect.stringContaining('Deleting character'),
-        embeds: [],
-        components: [],
-      });
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/test-char', {
-        method: 'DELETE',
-        userId: 'user-123',
-      });
-      // The success message (schema validation may show simplified or detailed message)
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('deleted'),
-        embeds: [],
-        components: [],
-      });
-    });
-
-    it('should handle delete_cancel and restore dashboard', async () => {
-      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
-        command: 'character',
-        action: 'delete_cancel',
-        characterId: 'test-char',
-      });
-
-      const mockInteraction = createMockButtonInteraction('character:delete_cancel:test-char');
-
-      await handleButton(mockInteraction);
-
-      expect(mockInteraction.update).toHaveBeenCalledWith({
-        content: expect.stringContaining('Deletion cancelled'),
-        embeds: [],
-        components: [],
-      });
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
-    });
-
-    it('should handle delete API failure', async () => {
-      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
-        command: 'character',
-        action: 'delete_confirm',
-        characterId: 'test-char',
-      });
-
-      mockCallGatewayApi.mockResolvedValue({
-        ok: false,
-        error: 'Character not found',
-      });
-
-      const mockInteraction = createMockButtonInteraction('character:delete_confirm:test-char');
-
-      await handleButton(mockInteraction);
-
-      expect(mockInteraction.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to delete'),
-        embeds: [],
-        components: [],
-      });
-    });
-
-    it('should return early for delete actions with missing characterId', async () => {
-      vi.mocked(customIds.CharacterCustomIds.parse).mockReturnValue({
-        command: 'character',
-        action: 'delete_confirm',
-        characterId: undefined,
-      });
-
-      const mockInteraction = createMockButtonInteraction('character:delete_confirm');
-
-      await handleButton(mockInteraction);
-
-      // Should return early without calling API
-      expect(mockCallGatewayApi).not.toHaveBeenCalled();
-      expect(mockInteraction.update).not.toHaveBeenCalled();
     });
   });
 });
