@@ -250,27 +250,21 @@ _Focus: Bring the codebase under ESLint limits and eliminate structural debt._
 
 **Audit date**: 2026-02-07 (full report via `/tzurot-arch-audit`)
 
-**Current state**: 29 files >500 lines (ESLint error), 54 circular deps, 689 knip findings, 70 lint suppressions. bot-client alone is 45.7K lines with 767 exports. common-types has 607 exports (12x the 50-export threshold).
+**Current state**: 29 files >500 lines (ESLint error), 54 circular deps, 70 lint suppressions. bot-client alone is 45.7K lines with 767 exports. common-types has 607 exports (12x the 50-export threshold).
 
-### Phase 1: Cleanup Sprint (1 session)
+### Phase 1: Cleanup Sprint — ✅ DONE (PR #593)
 
-Mechanical fixes, low risk, high signal-to-noise improvement for knip/depcruise.
+- [x] Remove unused dependencies from package.json files
+- [x] Delete unused files flagged by knip
+- [x] Remove unused enum members
+- [x] Deduplicate exports
+- [x] Extract shared reconnectStrategy in redis.ts
 
-- [ ] Remove 13 unused dependencies from package.json files
-- [ ] Remove 13 unused devDependencies from root package.json
-- [ ] Delete 11 unused files flagged by knip
-- [ ] Fix 2 unlisted dependencies (add to package.json)
-- [ ] Remove 5 unused enum members
-- [ ] Deduplicate 4 duplicate exports
-- [ ] Extract shared Redis client setup (64 lines duplicated between ai-worker and bot-client)
+### Phase 2: Dead Code Purge — ✅ DONE (PR #593)
 
-### Phase 2: Dead Code Purge (1-2 sessions)
-
-Requires review — knip can have false positives for runtime-only usage.
-
-- [ ] Run `pnpm knip:fix` for 244 unused exports, review diff carefully
-- [ ] Review 393 unused exported types — remove genuinely dead, add false positives to `knip.json`
-- [ ] Rerun knip, verify findings reduced to near-zero (ignores only)
+- [x] Run `pnpm knip:fix` for unused exports, review diff
+- [x] Review unused exported types — remove genuinely dead, add false positives to `knip.json`
+- [x] Rerun knip, verify findings reduced to near-zero
 
 ### Phase 3: Oversized File Splits (5-8 sessions, the bulk of the work)
 

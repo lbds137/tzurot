@@ -122,9 +122,6 @@ importers:
       '@prisma/client':
         specifier: ^7.3.0
         version: 7.3.0(prisma@7.3.0(@types/react@19.2.7)(magicast@0.3.5)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)(typescript@5.9.3))(typescript@5.9.3)
-      '@prisma/client-runtime-utils':
-        specifier: ^7.3.0
-        version: 7.3.0
       discord-api-types:
         specifier: ^0.38.37
         version: 0.38.37
@@ -190,9 +187,6 @@ importers:
 
   packages/test-utils:
     dependencies:
-      '@electric-sql/pglite':
-        specifier: ^0.3.3
-        version: 0.3.15
       ioredis:
         specifier: ^5.9.2
         version: 5.9.2
