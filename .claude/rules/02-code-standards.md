@@ -12,6 +12,24 @@
 | `max-nested-callbacks`   | 3     | Warn  | Extract/flatten        |
 | `max-statements`         | 50    | Warn  | Extract helpers        |
 
+## Lint Suppression Standards
+
+When adding `eslint-disable` or `ts-expect-error`, every suppression MUST have a meaningful justification via `--` comment.
+
+| ❌ Banned justifications | ✅ Good justifications                                                 |
+| ------------------------ | ---------------------------------------------------------------------- |
+| `-- pre-existing`        | `-- Multi-strategy lookup: UUID → name → slug → alias`                 |
+| `-- legacy`              | `-- BFS traversal with inherent nested loops`                          |
+| `-- tech debt`           | `-- Express router internals are untyped`                              |
+| `-- TODO fix later`      | `-- Null guard before property access; collapsing reduces readability` |
+
+Rules:
+
+1. **Describe WHY the code needs the suppression**, not that it's old
+2. **If the reason is "this code is messy"** — refactor it instead of suppressing
+3. **"pre-existing" is not a justification** — it just means nobody bothered to explain
+4. Run `pnpm ops xray --suppressions` to audit; target 0 unjustified items
+
 ## TypeScript Strict Rules
 
 - TypeScript `strict: true`, no `any` types

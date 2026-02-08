@@ -124,7 +124,7 @@ export function createMockPersonality(
     isPublic: false,
     voiceEnabled: false,
     imageEnabled: false,
-    // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
+    // eslint-disable-next-line sonarjs/no-duplicate-string -- Test fixture UUID shared across mock factory functions
     ownerId: 'user-uuid-123',
     avatarData: null,
     createdAt: createMockCreatedAt(),
@@ -161,7 +161,7 @@ export function getHandler(
   path: string
 ): RouteHandler {
   // Express router internals require unsafe access
-  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions */
+  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions -- Express router internals are untyped */
   const layer = (router.stack as any[]).find(
     (l: any) => l.route?.path === path && l.route?.methods?.[method]
   );

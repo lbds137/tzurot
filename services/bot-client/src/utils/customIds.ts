@@ -444,7 +444,7 @@ export const PersonaCustomIds = {
   browseInfo: () => 'persona::browse::info' as const,
 
   /** Parse persona customId */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Parser for 5+ custom ID formats with early-return pattern matching per action type
   parse: (customId: string): PersonaParseResult | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
     if (parts[0] !== 'persona' || parts.length < 2) {

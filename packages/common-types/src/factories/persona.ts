@@ -1,4 +1,4 @@
-/* eslint-disable sonarjs/no-duplicate-string -- pre-existing: test factory data with repeated literals */
+/* eslint-disable sonarjs/no-duplicate-string -- Test factory with intentional field repetition (UUIDs, names) for readable mock data */
 /**
  * Validated Mock Factories for Persona API Responses
  *

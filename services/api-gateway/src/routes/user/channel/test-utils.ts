@@ -180,7 +180,7 @@ export function getHandler(
   path: string
 ): RouteHandler {
   // Express router internals require unsafe access
-  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions */
+  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions -- Express router internals are untyped */
   const layer = (router.stack as any[]).find(
     (l: any) => l.route?.path === path && l.route?.methods?.[method]
   );

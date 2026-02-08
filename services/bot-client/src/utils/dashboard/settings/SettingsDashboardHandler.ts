@@ -1,4 +1,4 @@
-/* eslint-disable sonarjs/no-duplicate-string -- pre-existing */
+/* eslint-disable sonarjs/no-duplicate-string -- Dashboard action prefixes and setting key strings repeated across handler branches */
 /**
  * Settings Dashboard Handler
  *

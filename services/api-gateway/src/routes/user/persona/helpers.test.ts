@@ -46,7 +46,7 @@ describe('getOrCreateInternalUser', () => {
       isSuperuser: false,
     });
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-123');
 
     // Result includes id and defaultPersonaId from follow-up query
@@ -62,7 +62,7 @@ describe('getOrCreateInternalUser', () => {
       .mockResolvedValueOnce(null) // First call for UserService lookup
       .mockResolvedValueOnce({ id: 'test-user-uuid', defaultPersonaId: 'test-persona-uuid' }); // Second call for result
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-456');
 
     // UserService creates user with deterministic UUID via $transaction

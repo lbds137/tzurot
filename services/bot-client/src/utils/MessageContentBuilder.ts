@@ -80,7 +80,7 @@ interface VoiceProcessingOptions {
  * @param options - Voice processing options
  * @returns Voice processing result with transcripts and categorized attachments
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Classifies attachments into voice/non-voice, resolves transcripts via cache or API, handles snapshot vs regular voice messages
 async function processVoiceAttachments(
   options: VoiceProcessingOptions
 ): Promise<VoiceProcessingResult> {
@@ -207,7 +207,7 @@ interface BuildContentResult {
  * @param options - Build options
  * @returns Comprehensive content and metadata
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Assembles content from text, embeds, attachments, forwarded messages, and voice transcripts with conditional metadata fields
 export async function buildMessageContent(
   message: Message,
   options: BuildContentOptions = {}

@@ -286,7 +286,6 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     // Build and show section modal
     const modal = buildSectionModal(PRESET_DASHBOARD_CONFIG, section, entityId, presetData);
     await interaction.showModal(modal);
-    return; // eslint-disable-line sonarjs/no-redundant-jump -- pre-existing
   }
 }
 

@@ -63,7 +63,7 @@ export class ReferenceCrawler {
    * @param rootMessage - Starting message
    * @returns Crawl result with fetched messages and metadata
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- BFS traversal with reply chain following, link extraction, depth tracking, and deduplication across sources
   async crawl(rootMessage: Message): Promise<CrawlResult> {
     const extractedMessageIds = new Set<string>();
     const messages = new Map<string, { message: Message; metadata: ReferenceMetadata }>();
@@ -80,8 +80,10 @@ export class ReferenceCrawler {
 
     // BFS traversal
     while (queue.length > 0 && messages.size < this.maxReferences) {
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      const current = queue.shift()!;
+      const current = queue.shift();
+      if (current === undefined) {
+        continue;
+      }
       const { message: currentMessage, depth } = current;
 
       maxDepth = Math.max(maxDepth, depth);

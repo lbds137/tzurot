@@ -55,10 +55,10 @@ function getModalComponents(modal: ReturnType<typeof buildSectionModal>) {
   return json.components ?? [];
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- Discord.js modal component structure is untyped in test context
 function getTextInput(modal: ReturnType<typeof buildSectionModal>, index: number): any {
   const components = getModalComponents(modal);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Discord.js modal component structure is untyped in test context
   return (components[index] as any)?.components?.[0];
 }
 

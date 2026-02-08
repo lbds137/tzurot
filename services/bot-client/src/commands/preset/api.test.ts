@@ -93,9 +93,9 @@ describe('fetchGlobalPreset', () => {
   it('should fetch global preset successfully', async () => {
     // Admin endpoint returns config without isOwned/permissions
     const adminResponseConfig = { ...mockPresetData };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Simulating admin response that lacks user-scoped fields
     delete (adminResponseConfig as any).isOwned;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Simulating admin response that lacks user-scoped fields
     delete (adminResponseConfig as any).permissions;
 
     mockAdminFetch.mockResolvedValue({

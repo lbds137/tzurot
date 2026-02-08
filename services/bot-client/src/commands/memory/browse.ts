@@ -203,7 +203,7 @@ async function handleBrowseButton(
 /**
  * Handle detail action buttons within the collector
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Switch over memory action types (view, delete, confirm, cancel) with per-action API calls and UI updates
 async function handleDetailAction(
   buttonInteraction: ButtonInteraction,
   _context: BrowseCollectorContext,

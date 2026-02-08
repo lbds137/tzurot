@@ -4,7 +4,7 @@
     "from": "packages/common-types/src/generated/prisma/commonInputTypes.ts",
     "to": "packages/common-types/src/generated/prisma/internal/prismaNamespace.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -27,7 +27,7 @@
     "from": "packages/common-types/src/generated/prisma/internal/class.ts",
     "to": "packages/common-types/src/generated/prisma/internal/prismaNamespace.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -46,7 +46,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/AdminSettings.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -69,7 +69,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/ChannelSettings.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -92,7 +92,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/ConversationHistory.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -115,7 +115,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/ConversationHistoryTombstone.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -138,7 +138,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/ImageDescriptionCache.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -161,7 +161,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/JobResult.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -184,7 +184,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/LlmConfig.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -207,7 +207,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/LlmDiagnosticLog.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -230,7 +230,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/Memory.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -253,7 +253,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/PendingMemory.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -276,7 +276,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/Persona.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -299,7 +299,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/Personality.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -322,7 +322,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/PersonalityAlias.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -345,7 +345,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/PersonalityDefaultConfig.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -368,7 +368,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/PersonalityOwner.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -391,7 +391,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/ShapesPersonaMapping.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -414,7 +414,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/SystemPrompt.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -437,7 +437,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/UsageLog.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -460,7 +460,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/User.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -483,7 +483,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/UserApiKey.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -506,7 +506,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/UserPersonaHistoryConfig.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -529,7 +529,7 @@
     "from": "packages/common-types/src/generated/prisma/models.ts",
     "to": "packages/common-types/src/generated/prisma/models/UserPersonalityConfig.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [
@@ -552,7 +552,7 @@
     "from": "services/ai-worker/src/services/ModelFactory.ts",
     "to": "services/ai-worker/src/services/modelFactory/CacheKeyBuilder.ts",
     "rule": {
-      "severity": "ignore",
+      "severity": "error",
       "name": "no-circular-dependencies"
     },
     "cycle": [

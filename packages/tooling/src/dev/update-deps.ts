@@ -12,7 +12,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
-/* eslint-disable sonarjs/cognitive-complexity -- pre-existing */
+/* eslint-disable sonarjs/cognitive-complexity -- CLI orchestrator: outdated check → compatibility filtering → install → build verification → rollback on failure */
 
 interface UpdateDepsOptions {
   skipBuild?: boolean;

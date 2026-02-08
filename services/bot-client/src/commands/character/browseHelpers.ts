@@ -93,7 +93,7 @@ export function filterCharacters(
  * Groups are sorted by owner name, characters within groups by sort type.
  * This ensures owner groups stay together across page boundaries.
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Groups characters by owner, sorts within groups by name/date/creator, then merges own + others with section headers
 export function createListItems(
   ownCharacters: CharacterData[],
   othersPublic: CharacterData[],

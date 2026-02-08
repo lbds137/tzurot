@@ -24,7 +24,7 @@ interface FormatOptions {
   summary?: boolean;
 }
 
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Multi-section terminal formatter: package summary → file details → declaration lists → import analysis with color coding
 export function formatTerminal(
   report: XrayReport,
   rootDir: string,

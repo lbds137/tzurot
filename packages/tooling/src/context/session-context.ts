@@ -10,7 +10,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
-/* eslint-disable sonarjs/cognitive-complexity, sonarjs/no-duplicate-string -- pre-existing */
+/* eslint-disable sonarjs/cognitive-complexity, sonarjs/no-duplicate-string -- CLI orchestrator: git state collection → migration status → service health with decorative output separators */
 
 interface ContextOptions {
   verbose?: boolean;

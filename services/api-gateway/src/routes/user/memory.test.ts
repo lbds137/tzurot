@@ -100,7 +100,7 @@ function getHandler(
   method: 'get' | 'post' | 'delete',
   path: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
   const layer = (router.stack as any[]).find(
     l => l.route?.path === path && l.route?.methods?.[method]
   );

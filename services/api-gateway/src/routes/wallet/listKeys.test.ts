@@ -64,7 +64,7 @@ async function callHandler(
   res: Response
 ): Promise<void> {
   const router = createListKeysRoute(prisma as PrismaClient);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
   const layer = (router.stack as any[]).find(l => l.route?.methods?.get);
   const handler = (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
     (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
