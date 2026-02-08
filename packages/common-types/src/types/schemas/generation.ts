@@ -25,7 +25,7 @@ export const generateRequestSchema = z.object({
  * Structured error information for LLM generation failures.
  * Includes classification for retry logic and user-friendly messages.
  */
-export const errorInfoSchema = z.object({
+const errorInfoSchema = z.object({
   /** Error type for retry logic (transient, permanent, unknown) */
   type: z.nativeEnum(ApiErrorType),
   /** Specific error category for user messaging */
@@ -125,7 +125,6 @@ export const llmGenerationResultSchema = generationPayloadSchema.extend({
 
 // Infer TypeScript types from schemas
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
-export type ErrorInfo = z.infer<typeof errorInfoSchema>;
-/** Alias for ErrorInfo used by error classification consumers */
-export type { ErrorInfo as ApiErrorInfo };
+/** Structured error info type for error classification consumers */
+export type ApiErrorInfo = z.infer<typeof errorInfoSchema>;
 export type LLMGenerationResult = z.infer<typeof llmGenerationResultSchema>;

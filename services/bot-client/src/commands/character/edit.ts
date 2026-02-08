@@ -23,9 +23,6 @@ import {
 } from './config.js';
 import { fetchCharacter } from './api.js';
 
-// Re-export for backward compatibility
-export type { CharacterSessionData } from './config.js';
-
 const logger = createLogger('character-edit');
 
 /**

@@ -62,9 +62,6 @@ const logger = createLogger('character-browse');
 /** Characters per page for pagination */
 const CHARACTERS_PER_PAGE = 15;
 
-// Re-export types for backward compatibility
-export type { CharacterBrowseFilter, CharacterBrowseSortType } from './config.js';
-
 /** Default sort type */
 const DEFAULT_SORT: CharacterBrowseSortType = 'date';
 
