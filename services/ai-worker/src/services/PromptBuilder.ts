@@ -6,9 +6,6 @@ import { HumanMessage, SystemMessage } from '@langchain/core/messages';
 import {
   createLogger,
   formatFullDateTime,
-  formatMemoryTimestamp,
-  TEXT_LIMITS,
-  getConfig,
   type LoadedPersonality,
   type MessageContent,
   escapeXmlContent,
@@ -37,9 +34,10 @@ import {
   type ComplexMessage,
 } from './prompt/MessageFormatters.js';
 import * as tokenCounters from './prompt/TokenCounters.js';
+import { buildSearchQuery } from './prompt/SearchQueryBuilder.js';
+import { logDetailedPromptAssembly, detectNameCollision } from './prompt/PromptLogger.js';
 
 const logger = createLogger('PromptBuilder');
-const config = getConfig();
 
 /** Options for building a full system prompt */
 interface BuildFullSystemPromptOptions {
@@ -70,50 +68,12 @@ export class PromptBuilder {
     referencedMessagesText?: string,
     recentHistoryWindow?: string
   ): string {
-    const parts: string[] = [];
-
-    // Add recent conversation history FIRST (provides context for ambiguous queries)
-    // This helps resolve pronouns like "that", "it", "he" by embedding the recent topic
-    if (recentHistoryWindow !== undefined && recentHistoryWindow.length > 0) {
-      parts.push(recentHistoryWindow);
-      logger.info(
-        `[PromptBuilder] Including ${recentHistoryWindow.length} chars of recent history in memory search`
-      );
-    }
-
-    // Add user message (if not just the "Hello" fallback)
-    if (userMessage.trim().length > 0 && userMessage.trim() !== 'Hello') {
-      parts.push(userMessage);
-    }
-
-    // Add attachment descriptions (voice transcriptions, image descriptions)
-    if (processedAttachments.length > 0) {
-      const descriptions = extractContentDescriptions(processedAttachments);
-
-      if (descriptions.length > 0) {
-        parts.push(descriptions);
-
-        // Log when using voice transcription instead of "Hello"
-        if (userMessage.trim() === 'Hello') {
-          logger.info(
-            '[PromptBuilder] Using voice transcription for memory search instead of "Hello" fallback'
-          );
-        }
-      }
-    }
-
-    // Add referenced message content for semantic search
-    if (referencedMessagesText !== undefined && referencedMessagesText.length > 0) {
-      parts.push(referencedMessagesText);
-      logger.info('[PromptBuilder] Including referenced message content in memory search query');
-    }
-
-    // If we have nothing, fall back to "Hello"
-    if (parts.length === 0) {
-      return userMessage.trim().length > 0 ? userMessage : 'Hello';
-    }
-
-    return parts.join('\n\n');
+    return buildSearchQuery(
+      userMessage,
+      processedAttachments,
+      referencedMessagesText,
+      recentHistoryWindow
+    );
   }
 
   /**
@@ -213,9 +173,6 @@ export class PromptBuilder {
    * 5. <contextual_references> - Referenced messages from replies/links
    * 6. <chat_log> - Serialized conversation history with XML tags per message
    * 7. <protocol> - Behavior rules (END for recency bias)
-   *
-   * The key change is conversation history is now INSIDE the system prompt as XML,
-   * not as separate LangChain messages. This prevents identity bleeding.
    */
   buildFullSystemPrompt(options: BuildFullSystemPromptOptions): SystemMessage {
     const {
@@ -239,8 +196,7 @@ export class PromptBuilder {
       `[PromptBuilder] Persona length: ${persona.length} chars, Protocol length: ${protocol.length} chars`
     );
 
-    // Build <system_identity> section (simplified - just role and character)
-    // Constraints are now separate sections using the Sandwich Method
+    // Build <system_identity> section
     const identitySection = `<system_identity>
 <role>You are ${personality.name}.</role>
 <character>
@@ -249,8 +205,7 @@ ${escapeXmlContent(persona)}
 </system_identity>`;
 
     // Identity constraints - prevent identity bleeding
-    // Uses imported buildIdentityConstraints from HardcodedConstraints
-    const collisionInfo = this.detectNameCollision(
+    const collisionInfo = detectNameCollision(
       context.activePersonaName,
       context.discordUsername,
       personality.name,
@@ -261,14 +216,12 @@ ${escapeXmlContent(persona)}
     // Current date/time and environment context wrapped in <context>
     const datetime = formatFullDateTime(new Date(), context.userTimezone);
 
-    // Format location as XML - formatEnvironmentContext returns a <location> element
     const locationXml =
       context.environment !== undefined && context.environment !== null
         ? formatEnvironmentContext(context.environment)
         : '<location type="dm">Direct Message (private one-on-one chat)</location>';
 
-    // Unique request ID to break API-level prompt caching (OpenRouter/free models)
-    // This ensures each request is treated as unique even if context is similar
+    // Unique request ID to break API-level prompt caching
     const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
 
     const contextSection = `\n\n<context>
@@ -277,21 +230,16 @@ ${locationXml}
 <request_id>${requestId}</request_id>
 </context>`;
 
-    // Conversation participants - ALL people involved (excluding self)
-    // Already wrapped in <participants> by formatParticipantsContext
+    // Conversation participants
     const participantsContext = formatParticipantsContext(
       participantPersonas,
       context.activePersonaName
     );
 
     // Relevant memories from past interactions
-    // Already wrapped in <memory_archive> with instruction by formatMemoriesContext
-    // Use user's preferred timezone for memory timestamps
     const memoryContext = formatMemoriesContext(relevantMemories, context.userTimezone);
 
     // Referenced messages (from replies and message links)
-    // Already wrapped in <contextual_references> by ReferencedMessageFormatter
-    // Use pre-formatted text to avoid duplicate vision/transcription API calls
     const referencesContext =
       referencedMessagesFormatted !== undefined && referencedMessagesFormatted.length > 0
         ? `\n\n${referencedMessagesFormatted}`
@@ -303,12 +251,7 @@ ${locationXml}
       );
     }
 
-    // Note: Extended context image descriptions are now embedded inline within
-    // serializedHistory entries (via <image_descriptions> tags) for better colocation.
-    // This improves AI context awareness when users reference recent images.
-
-    // Conversation history as XML - THIS IS THE KEY CHANGE
-    // History is now serialized inside the system prompt, not as separate messages
+    // Conversation history as XML
     const chatLogSection =
       serializedHistory !== undefined && serializedHistory.length > 0
         ? `\n\n<chat_log>
@@ -316,37 +259,24 @@ ${serializedHistory}
 </chat_log>`
         : '';
 
-    // Wrap protocol in XML tags (near END of prompt - recency bias for highest impact)
-    // Protocol content is already escaped during JSON->XML conversion in PersonalityFieldsFormatter
-    // For legacy XML format, we still escape to prevent prompt injection
+    // Protocol (near END of prompt - recency bias for highest impact)
     const protocolSection =
       protocol.length > 0 ? `\n\n<protocol>\n${escapeXmlContent(protocol)}\n</protocol>` : '';
 
-    // Output constraints go at the VERY END (recency bias for format compliance)
-    // These are hardcoded in code, not user-configurable
+    // Output constraints at the VERY END (recency bias for format compliance)
     const outputConstraintsSection = `\n\n${OUTPUT_CONSTRAINTS}`;
 
-    // Assemble in correct order using Sandwich Method:
-    // 1. System identity (who you are)
-    // 2. Identity constraints (prevent identity bleeding)
-    // 3. Platform constraints (legal/safety limits)
-    // 4. Context (when and where)
-    // 5. Participants (who else is involved)
-    // 6. Memory archive (middle = less attention = good for archives)
-    // 7. Referenced messages (contextual links)
-    // 8. Chat log (conversation history)
-    // 9. Protocol (user-configurable behavior rules)
-    // 10. Output constraints (recency bias for format compliance)
+    // Assemble in correct order using Sandwich Method
     const fullSystemPrompt = `${identitySection}\n\n${identityConstraintsSection}\n\n${PLATFORM_CONSTRAINTS}${contextSection}${participantsContext}${memoryContext}${referencesContext}${chatLogSection}${protocolSection}${outputConstraintsSection}`;
 
-    // Basic prompt composition logging (always)
+    // Basic prompt composition logging
     const historyLength = serializedHistory?.length ?? 0;
     logger.info(
       `[PromptBuilder] Prompt composition: identity=${identitySection.length} identityConstraints=${identityConstraintsSection.length} platformConstraints=${PLATFORM_CONSTRAINTS.length} context=${contextSection.length} participants=${participantsContext.length} memories=${memoryContext.length} references=${referencesContext.length} history=${historyLength} protocol=${protocolSection.length} outputConstraints=${outputConstraintsSection.length} total=${fullSystemPrompt.length} chars`
     );
 
     // Detailed prompt assembly logging (development only)
-    this.logDetailedPromptAssembly({
+    logDetailedPromptAssembly({
       personality,
       persona,
       protocol,
@@ -360,125 +290,6 @@ ${serializedHistory}
     });
 
     return new SystemMessage(fullSystemPrompt);
-  }
-
-  /**
-   * Detect name collision between user's persona and personality name.
-   *
-   * A collision occurs when a user's display name matches the AI character's name,
-   * which can cause confusion in conversations. When detected with a valid
-   * discordUsername, we return collision info for disambiguation instructions.
-   *
-   * @param activePersonaName - User's display name in the conversation
-   * @param discordUsername - User's Discord username for disambiguation
-   * @param personalityName - The AI character's name
-   * @param personalityId - For logging purposes
-   * @returns Collision info if disambiguation is possible, undefined otherwise
-   */
-  private detectNameCollision(
-    activePersonaName: string | undefined,
-    discordUsername: string | undefined,
-    personalityName: string,
-    personalityId: string
-  ): { userName: string; discordUsername: string } | undefined {
-    const name = activePersonaName ?? '';
-    const username = discordUsername ?? '';
-
-    const namesMatch = name.length > 0 && name.toLowerCase() === personalityName.toLowerCase();
-
-    if (!namesMatch) {
-      return undefined;
-    }
-
-    // Collision detected but can't disambiguate without discordUsername
-    if (username.length === 0) {
-      logger.error(
-        { personalityId, activePersonaName },
-        '[PromptBuilder] Name collision detected but cannot add disambiguation instruction (discordUsername missing from context - check bot-client MessageContextBuilder)'
-      );
-      return undefined;
-    }
-
-    return { userName: name, discordUsername: username };
-  }
-
-  /**
-   * Log detailed prompt assembly info in development mode.
-   * Extracted to reduce buildFullSystemPrompt complexity.
-   */
-  private logDetailedPromptAssembly(opts: {
-    personality: { id: string; name: string };
-    persona: string;
-    protocol: string;
-    participantPersonas: Map<string, ParticipantInfo>;
-    participantsContext: string;
-    context: ConversationContext;
-    relevantMemories: MemoryDocument[];
-    memoryContext: string;
-    historyLength: number;
-    fullSystemPrompt: string;
-  }): void {
-    const {
-      personality,
-      persona,
-      protocol,
-      participantPersonas,
-      participantsContext,
-      context,
-      relevantMemories,
-      memoryContext,
-      historyLength,
-      fullSystemPrompt,
-    } = opts;
-    if (config.NODE_ENV !== 'development') {
-      return;
-    }
-
-    logger.debug(
-      {
-        personalityId: personality.id,
-        personalityName: personality.name,
-        personaLength: persona.length,
-        protocolLength: protocol.length,
-        participantCount: participantPersonas.size,
-        participantsContextLength: participantsContext.length,
-        activePersonaName: context.activePersonaName,
-        memoryCount: relevantMemories.length,
-        memoryIds: relevantMemories.map(m =>
-          m.metadata?.id !== undefined && typeof m.metadata.id === 'string'
-            ? m.metadata.id
-            : 'unknown'
-        ),
-        memoryTimestamps: relevantMemories.map(m =>
-          m.metadata?.createdAt !== undefined && m.metadata.createdAt !== null
-            ? formatMemoryTimestamp(m.metadata.createdAt)
-            : 'unknown'
-        ),
-        totalMemoryChars: memoryContext.length,
-        historyLength,
-        totalSystemPromptLength: fullSystemPrompt.length,
-        stmCount: context.conversationHistory?.length ?? 0,
-        stmOldestTimestamp:
-          context.oldestHistoryTimestamp !== undefined &&
-          context.oldestHistoryTimestamp !== null &&
-          context.oldestHistoryTimestamp > 0
-            ? formatMemoryTimestamp(context.oldestHistoryTimestamp)
-            : null,
-      },
-      '[PromptBuilder] Detailed prompt assembly:'
-    );
-
-    // Show full prompt in debug mode (truncated to avoid massive logs)
-    const maxPreviewLength = TEXT_LIMITS.LOG_FULL_PROMPT;
-    if (fullSystemPrompt.length <= maxPreviewLength) {
-      logger.debug('[PromptBuilder] Full system prompt:\n' + fullSystemPrompt);
-    } else {
-      logger.debug(
-        `[PromptBuilder] Full system prompt (showing first ${maxPreviewLength} chars):\n` +
-          fullSystemPrompt.substring(0, maxPreviewLength) +
-          `\n\n... [truncated ${fullSystemPrompt.length - maxPreviewLength} more chars]`
-      );
-    }
   }
 
   /**
