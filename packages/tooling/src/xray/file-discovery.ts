@@ -17,7 +17,7 @@ interface DiscoveredPackage {
   srcDir: string;
 }
 
-export interface DiscoveryResult {
+interface DiscoveryResult {
   name: string;
   srcDir: string;
   files: string[];

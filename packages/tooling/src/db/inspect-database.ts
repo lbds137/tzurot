@@ -234,7 +234,7 @@ async function inspectMigrations(prisma: PrismaClient): Promise<void> {
   }
 }
 
-export interface InspectOptions {
+interface InspectOptions {
   env?: Environment;
   table?: string;
   indexes?: boolean;

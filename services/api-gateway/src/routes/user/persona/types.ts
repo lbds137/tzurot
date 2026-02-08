@@ -26,21 +26,11 @@ export interface PersonaDetails extends PersonaSummary {
   pronouns: string | null;
 }
 
-// Note: CreatePersonaBody and UpdatePersonaBody are now Zod-inferred types
-// exported from crud.ts for consistency with the validation schemas
-
 /**
  * Request body for settings update
  */
 export interface SettingsBody {
   shareLtmAcrossPersonalities: boolean;
-}
-
-/**
- * Request body for persona override
- */
-export interface OverrideBody {
-  personaId: string;
 }
 
 /**

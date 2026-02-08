@@ -27,7 +27,7 @@ interface MigrationRecord {
   applied_steps_count: number;
 }
 
-export interface MigrationStatusOptions {
+interface MigrationStatusOptions {
   env?: Environment;
   migrationsPath?: string;
 }

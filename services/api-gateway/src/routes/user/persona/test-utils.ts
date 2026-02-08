@@ -18,22 +18,6 @@ export const mockUser = {
   defaultPersonaId: MOCK_PERSONA_ID,
 };
 
-// Mock date factories for consistent testing (factory functions avoid mutable module state)
-export const createMockCreatedAt = (): Date => new Date('2025-01-01T00:00:00.000Z');
-export const createMockUpdatedAt = (): Date => new Date('2025-01-02T00:00:00.000Z');
-
-/** Factory function for creating mock persona (avoids mutable module state) */
-export function createMockPersona(
-  overrides: Partial<typeof defaultMockPersona> = {}
-): typeof defaultMockPersona {
-  return {
-    ...defaultMockPersona,
-    createdAt: createMockCreatedAt(),
-    updatedAt: createMockUpdatedAt(),
-    ...overrides,
-  };
-}
-
 const defaultMockPersona = {
   id: MOCK_PERSONA_ID,
   name: 'Test Persona',
@@ -50,7 +34,7 @@ const defaultMockPersona = {
 export const mockPersona = defaultMockPersona;
 
 /** Mock Prisma client type for testing - includes UserService dependencies */
-export interface MockPrismaClient {
+interface MockPrismaClient {
   user: {
     findFirst: ReturnType<typeof vi.fn>;
     findUnique: ReturnType<typeof vi.fn>;
@@ -128,7 +112,7 @@ export function createMockPrisma(): MockPrismaClient {
 }
 
 /** Mock request/response type for testing */
-export interface MockReqRes {
+interface MockReqRes {
   req: Request & { userId: string };
   res: Response;
 }

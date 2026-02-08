@@ -57,7 +57,7 @@ interface ReportOptions {
 /**
  * JSON output structure for CI integration
  */
-export interface ComplexityReportJSON {
+interface ComplexityReportJSON {
   thresholds: {
     thresholdPercent: number;
     rules: Record<RuleId, { threshold: number; limit: number }>;

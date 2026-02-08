@@ -42,7 +42,7 @@ export type LlmConfigScope =
 /**
  * Result of checking if a config exists with a given name.
  */
-export interface NameCheckResult {
+interface NameCheckResult {
   exists: boolean;
   conflictId?: string;
 }
@@ -80,7 +80,7 @@ interface RawConfigDetail extends RawConfigList {
 /**
  * Formatted config for API responses.
  */
-export interface FormattedConfigDetail {
+interface FormattedConfigDetail {
   id: string;
   name: string;
   description: string | null;

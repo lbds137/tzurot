@@ -7,7 +7,7 @@
 
 import { execFileSync, spawnSync } from 'node:child_process';
 
-export interface FocusRunnerOptions {
+interface FocusRunnerOptions {
   /** Turbo task to run (lint, test, build, typecheck) */
   task: string;
   /** Additional arguments to pass to the underlying command */

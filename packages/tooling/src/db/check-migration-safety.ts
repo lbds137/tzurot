@@ -79,7 +79,7 @@ function checkMigrationFile(filePath: string): CheckResult {
   return { file: filePath, violations };
 }
 
-export interface CheckMigrationSafetyOptions {
+interface CheckMigrationSafetyOptions {
   migrationsPath?: string;
   verbose?: boolean;
 }

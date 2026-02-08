@@ -17,16 +17,12 @@ export const mockIsBotOwner: ((...args: unknown[]) => boolean) & {
 
 // Mock date factories for consistent testing (factory functions avoid mutable module state)
 export const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
-export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
 
 // Valid UUIDs for testing
 export const MOCK_USER_UUID = '550e8400-e29b-41d4-a716-446655440000';
-export const MOCK_PERSONALITY_UUID = '550e8400-e29b-41d4-a716-446655440001';
+const MOCK_PERSONALITY_UUID = '550e8400-e29b-41d4-a716-446655440001';
 export const MOCK_ACTIVATION_UUID = '550e8400-e29b-41d4-a716-446655440002';
 export const MOCK_DISCORD_USER_ID = '123456789012345678';
-
-// Type for mock Prisma client
-export type MockPrisma = ReturnType<typeof createMockPrisma>;
 
 // Mock Prisma client with tables needed for channel settings tests + UserService dependencies
 export function createMockPrisma(): {

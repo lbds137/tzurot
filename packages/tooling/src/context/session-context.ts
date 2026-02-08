@@ -10,7 +10,9 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
-export interface ContextOptions {
+/* eslint-disable sonarjs/cognitive-complexity, sonarjs/no-duplicate-string -- pre-existing */
+
+interface ContextOptions {
   verbose?: boolean;
   skipMigrations?: boolean;
 }

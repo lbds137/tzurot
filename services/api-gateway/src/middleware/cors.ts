@@ -7,7 +7,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { StatusCodes } from 'http-status-codes';
 
-export interface CorsConfig {
+interface CorsConfig {
   origins: string[];
 }
 

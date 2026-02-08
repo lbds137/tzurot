@@ -206,7 +206,7 @@ async function tryDeleteAvatarFile(filePath: string, logContext: string): Promis
 }
 
 /** Maximum number of files to return from glob (prevents unbounded memory usage) */
-export const GLOB_RESULT_LIMIT = 1000;
+const GLOB_RESULT_LIMIT = 1000;
 
 /** Maximum deletions per cleanup call (prevents blocking event loop on slugs with many versions) */
 const MAX_DELETIONS_PER_CLEANUP = 50;
@@ -257,6 +257,7 @@ export async function globToArray(pattern: string, limit = GLOB_RESULT_LIMIT): P
  * @param currentTimestamp - The timestamp of the version to keep
  * @returns Number of old versions deleted, or null if validation failed/skipped
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export async function cleanupOldAvatarVersions(
   slug: string,
   currentTimestamp: number

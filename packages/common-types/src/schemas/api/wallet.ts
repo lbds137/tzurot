@@ -40,17 +40,6 @@ export const ListWalletKeysResponseSchema = z.object({
 export type ListWalletKeysResponse = z.infer<typeof ListWalletKeysResponseSchema>;
 
 // ============================================================================
-// POST /wallet/set
-// Stores an encrypted API key for a provider
-// ============================================================================
-
-export const SetWalletKeyResponseSchema = z.object({
-  success: z.literal(true),
-  provider: AIProviderSchema,
-  credits: z.number().optional(), // Available credits if provider supports it
-  timestamp: z.string(), // ISO date string
-});
-// ============================================================================
 // DELETE /wallet/:provider
 // Removes an API key for a provider
 // ============================================================================

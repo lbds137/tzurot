@@ -19,7 +19,7 @@ import {
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 
-export interface RunWithEnvOptions {
+interface RunWithEnvOptions {
   env: Environment;
   force?: boolean;
 }

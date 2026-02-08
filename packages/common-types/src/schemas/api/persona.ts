@@ -93,16 +93,6 @@ export const CreatePersonaResponseSchema = z.object({
 export type CreatePersonaResponse = z.infer<typeof CreatePersonaResponseSchema>;
 
 // ============================================================================
-// PUT /user/persona/:id
-// Updates an existing persona
-// ============================================================================
-
-export const UpdatePersonaResponseSchema = z.object({
-  success: z.literal(true),
-  persona: PersonaDetailsSchema,
-});
-
-// ============================================================================
 // PATCH /user/persona/:id/default
 // Sets a persona as the user's default
 // ============================================================================

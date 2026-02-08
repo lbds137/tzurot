@@ -25,8 +25,6 @@ import {
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-  type LlmConfigCreateInput,
-  type LlmConfigUpdateInput,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -44,10 +42,6 @@ const CONFIG_NOT_FOUND = 'Config not found';
 // ============================================================================
 // Schemas - imported from @tzurot/common-types (single source of truth)
 // ============================================================================
-
-// Re-export types for backward compatibility with tests
-export type CreateConfigBody = LlmConfigCreateInput;
-export type UpdateConfigBody = LlmConfigUpdateInput;
 
 // --- Handler Factories ---
 

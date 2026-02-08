@@ -7,7 +7,7 @@ import { createLogger, type PrismaClient, PersonaResolver } from '@tzurot/common
 
 const logger = createLogger('history-context');
 
-export interface HistoryContext {
+interface HistoryContext {
   userId: string;
   personalityId: string;
   personaId: string;

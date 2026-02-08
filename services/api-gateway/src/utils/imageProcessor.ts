@@ -13,7 +13,7 @@ const logger = createLogger('image-processor');
 /**
  * Avatar optimization configuration
  */
-export interface AvatarOptimizationOptions {
+interface AvatarOptimizationOptions {
   /** Target width in pixels (default: 256) */
   targetWidth?: number;
   /** Target height in pixels (default: 256) */
@@ -31,7 +31,7 @@ export interface AvatarOptimizationOptions {
 /**
  * Result of avatar optimization
  */
-export interface AvatarOptimizationResult {
+interface AvatarOptimizationResult {
   /** Processed image buffer */
   buffer: Buffer;
   /** Original size in KB */

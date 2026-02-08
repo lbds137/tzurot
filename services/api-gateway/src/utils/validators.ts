@@ -9,7 +9,7 @@ import { ErrorResponses, type ErrorResponse } from './errorResponses.js';
 /**
  * Validation result structure (discriminated union)
  */
-export type ValidationResult = { valid: true } | { valid: false; error: ErrorResponse };
+type ValidationResult = { valid: true } | { valid: false; error: ErrorResponse };
 
 /**
  * UUID regex pattern (validates format, not version)

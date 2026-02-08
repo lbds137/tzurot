@@ -12,7 +12,9 @@ import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
-export interface UpdateDepsOptions {
+/* eslint-disable sonarjs/cognitive-complexity -- pre-existing */
+
+interface UpdateDepsOptions {
   skipBuild?: boolean;
   dryRun?: boolean;
 }
@@ -23,10 +25,13 @@ interface PackageJson {
   devDependencies?: Record<string, string>;
 }
 
-type LockfilePackages = Record<string, {
+type LockfilePackages = Record<
+  string,
+  {
     dependencies?: Record<string, { specifier: string; version: string }>;
     devDependencies?: Record<string, { specifier: string; version: string }>;
-  }>;
+  }
+>;
 
 /**
  * Execute a command safely with array arguments (no shell injection)
@@ -91,7 +96,7 @@ function parseLockfile(rootDir: string): LockfilePackages {
     const line = lines[i];
 
     // Match importer path
-    if ((/^ {2}'[^']+':$/.exec(line)) || (/^ {2}\.:$/.exec(line))) {
+    if (/^ {2}'[^']+':$/.exec(line) || /^ {2}\.:$/.exec(line)) {
       currentImporter = line.trim().replace(/:$/, '').replace(/'/g, '');
       importers[currentImporter] = {};
       currentSection = null;
@@ -101,7 +106,7 @@ function parseLockfile(rootDir: string): LockfilePackages {
     } else if (currentImporter && line === '    devDependencies:') {
       currentSection = 'devDependencies';
       importers[currentImporter].devDependencies = {};
-    } else if (currentImporter && currentSection && (/^ {6}'[^']+':$/.exec(line))) {
+    } else if (currentImporter && currentSection && /^ {6}'[^']+':$/.exec(line)) {
       // Package entry
       const pkgName = line.trim().replace(/:$/, '').replace(/'/g, '');
       const nextLine = lines[i + 1];

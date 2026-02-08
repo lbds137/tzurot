@@ -569,7 +569,6 @@ export const historyHardDeleteResponseSchema = z.object({
 export type DiscordEnvironment = z.infer<typeof discordEnvironmentSchema>;
 export type ErrorInfo = z.infer<typeof errorInfoSchema>;
 export type AttachmentMetadata = z.infer<typeof attachmentMetadataSchema>;
-export type ApiConversationMessage = z.infer<typeof apiConversationMessageSchema>;
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
 export type ReactionReactor = z.infer<typeof reactionReactorSchema>;

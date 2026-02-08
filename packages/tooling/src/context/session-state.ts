@@ -10,7 +10,7 @@ import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import chalk from 'chalk';
 
-export interface SessionState {
+interface SessionState {
   timestamp: string;
   branch: string;
   uncommittedChanges: string[];
@@ -68,6 +68,7 @@ export async function saveSession(options: { notes?: string } = {}): Promise<voi
   const cwd = process.cwd();
   const sessionFile = join(cwd, SESSION_FILE);
 
+  // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
   console.log(chalk.cyan.bold('              SAVING SESSION STATE                      '));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));

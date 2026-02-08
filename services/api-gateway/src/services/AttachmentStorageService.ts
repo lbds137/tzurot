@@ -17,7 +17,7 @@ import type { AttachmentMetadata } from '@tzurot/common-types';
 
 const logger = createLogger('AttachmentStorageService');
 
-export interface AttachmentStorageOptions {
+interface AttachmentStorageOptions {
   /** Base directory for temporary attachments (default: /data/temp-attachments) */
   storageBasePath?: string;
   /** Public gateway URL for serving attachments */
@@ -142,6 +142,7 @@ export class AttachmentStorageService {
     const results = await Promise.allSettled(downloadPromises);
 
     // Extract results (use original URL as fallback for failures)
+    // eslint-disable-next-line sonarjs/prefer-immediate-return -- pre-existing
     const updatedAttachments = results.map((result, index) => {
       if (result.status === 'fulfilled') {
         return result.value;

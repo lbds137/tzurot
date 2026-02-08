@@ -6,12 +6,3 @@
  */
 
 export { createPersonaRoutes } from './persona/index.js';
-export type {
-  PersonaSummary,
-  PersonaDetails,
-  CreatePersonaBody,
-  UpdatePersonaBody,
-  SettingsBody,
-  OverrideBody,
-  PersonaOverrideSummary,
-} from './persona/index.js';
