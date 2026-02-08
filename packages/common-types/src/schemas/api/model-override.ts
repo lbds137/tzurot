@@ -83,3 +83,26 @@ export const DeleteModelOverrideResponseSchema = z.object({
   deleted: z.literal(true),
 });
 export type DeleteModelOverrideResponse = z.infer<typeof DeleteModelOverrideResponseSchema>;
+
+// ============================================================================
+// Input Schemas (request body validation)
+// ============================================================================
+
+/**
+ * Schema for setting a model override for a personality.
+ * Uses .trim() to match the original trim-then-check-empty behavior.
+ */
+export const SetModelOverrideBodySchema = z.object({
+  personalityId: z.string().trim().min(1, 'personalityId is required'),
+  configId: z.string().trim().min(1, 'configId is required'),
+});
+export type SetModelOverrideBody = z.infer<typeof SetModelOverrideBodySchema>;
+
+/**
+ * Schema for setting user's global default LLM config.
+ * Uses .trim() to match the original trim-then-check-empty behavior.
+ */
+export const SetDefaultConfigBodySchema = z.object({
+  configId: z.string().trim().min(1, 'configId is required'),
+});
+export type SetDefaultConfigBody = z.infer<typeof SetDefaultConfigBodySchema>;

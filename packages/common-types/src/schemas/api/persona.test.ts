@@ -2,9 +2,11 @@
  * Persona API Contract Tests
  *
  * Validates schemas for /user/persona endpoints.
+ * Tests both response schemas and input schemas (create/update/override/settings).
  */
 
 import { describe, it, expect } from 'vitest';
+import { DISCORD_LIMITS } from '../../constants/discord.js';
 import {
   PersonaDetailsSchema,
   PersonaSummarySchema,
@@ -17,7 +19,11 @@ import {
   SetOverrideResponseSchema,
   ClearOverrideResponseSchema,
   CreateOverrideResponseSchema,
-} from '../schemas/api/index.js';
+  PersonaCreateSchema,
+  PersonaUpdateSchema,
+  SetPersonaOverrideBodySchema,
+  PersonaSettingsBodySchema,
+} from './persona.js';
 
 /** Helper to create valid persona details */
 function createValidPersonaDetails(overrides = {}) {
@@ -341,6 +347,203 @@ describe('Persona API Contract Tests', () => {
         personality: { name: 'Lilith', displayName: null },
       };
       const result = CreateOverrideResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // ================================================================
+  // Input Schema Tests
+  // ================================================================
+
+  describe('PersonaCreateSchema', () => {
+    it('should accept valid full input', () => {
+      const data = {
+        name: 'My Persona',
+        content: 'Some persona content',
+        preferredName: 'Alex',
+        description: 'A description',
+        pronouns: 'they/them',
+      };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept minimal input (name + content only)', () => {
+      const data = { name: 'Minimal', content: 'Content here' };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept nullable fields as null', () => {
+      const data = {
+        name: 'Test',
+        content: 'Content',
+        preferredName: null,
+        description: null,
+        pronouns: null,
+      };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should transform empty string nullable fields to null', () => {
+      const data = {
+        name: 'Test',
+        content: 'Content',
+        preferredName: '',
+        description: '   ',
+        pronouns: '',
+      };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.preferredName).toBeNull();
+        expect(result.data.description).toBeNull();
+        expect(result.data.pronouns).toBeNull();
+      }
+    });
+
+    it('should reject missing name', () => {
+      const data = { content: 'Content' };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty name', () => {
+      const data = { name: '', content: 'Content' };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject name over 255 characters', () => {
+      const data = { name: 'a'.repeat(256), content: 'Content' };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing content', () => {
+      const data = { name: 'Test' };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty content', () => {
+      const data = { name: 'Test', content: '' };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject content over MODAL_INPUT_MAX_LENGTH', () => {
+      const data = {
+        name: 'Test',
+        content: 'a'.repeat(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH + 1),
+      };
+      const result = PersonaCreateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('PersonaUpdateSchema', () => {
+    it('should accept empty object (no fields to update)', () => {
+      const result = PersonaUpdateSchema.safeParse({});
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept partial update with name only', () => {
+      const data = { name: 'New Name' };
+      const result = PersonaUpdateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.name).toBe('New Name');
+      }
+    });
+
+    it('should transform empty required fields to undefined (preserve existing)', () => {
+      const data = { name: '', content: '   ' };
+      const result = PersonaUpdateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.name).toBeUndefined();
+        expect(result.data.content).toBeUndefined();
+      }
+    });
+
+    it('should transform empty nullable fields to null (clear value)', () => {
+      const data = { preferredName: '', description: '  ', pronouns: '' };
+      const result = PersonaUpdateSchema.safeParse(data);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.preferredName).toBeNull();
+        expect(result.data.description).toBeNull();
+        expect(result.data.pronouns).toBeNull();
+      }
+    });
+
+    it('should reject name over 255 characters', () => {
+      const data = { name: 'a'.repeat(256) };
+      const result = PersonaUpdateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject content over MODAL_INPUT_MAX_LENGTH', () => {
+      const data = { content: 'a'.repeat(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH + 1) };
+      const result = PersonaUpdateSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('SetPersonaOverrideBodySchema', () => {
+    it('should accept valid UUID', () => {
+      const data = { personaId: '550e8400-e29b-41d4-a716-446655440000' };
+      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept non-RFC4122 UUID format (any hex UUID)', () => {
+      const data = { personaId: 'f6a7b8c9-d0e1-2345-f012-456789012345' };
+      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject non-UUID string', () => {
+      const data = { personaId: 'not-a-uuid' };
+      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty string', () => {
+      const data = { personaId: '' };
+      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing personaId', () => {
+      const result = SetPersonaOverrideBodySchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('PersonaSettingsBodySchema', () => {
+    it('should accept true', () => {
+      const data = { shareLtmAcrossPersonalities: true };
+      const result = PersonaSettingsBodySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept false', () => {
+      const data = { shareLtmAcrossPersonalities: false };
+      const result = PersonaSettingsBodySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject non-boolean value', () => {
+      const data = { shareLtmAcrossPersonalities: 'true' };
+      const result = PersonaSettingsBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing field', () => {
+      const result = PersonaSettingsBodySchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });

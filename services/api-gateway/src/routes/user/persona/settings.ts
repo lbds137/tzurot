@@ -4,13 +4,12 @@
  */
 
 import { Router, type Response } from 'express';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, PersonaSettingsBodySchema } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import type { SettingsBody } from './types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-settings');
@@ -26,16 +25,17 @@ export function addSettingsRoutes(router: Router, prisma: PrismaClient): void {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const body = req.body as Partial<SettingsBody>;
-      const { shareLtmAcrossPersonalities } = body;
 
-      if (typeof shareLtmAcrossPersonalities !== 'boolean') {
+      const parseResult = PersonaSettingsBodySchema.safeParse(req.body);
+      if (!parseResult.success) {
         sendError(
           res,
           ErrorResponses.validationError('shareLtmAcrossPersonalities must be a boolean')
         );
         return;
       }
+
+      const { shareLtmAcrossPersonalities } = parseResult.data;
 
       const user = await getOrCreateInternalUser(prisma, discordUserId);
 

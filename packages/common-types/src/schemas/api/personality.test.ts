@@ -17,7 +17,7 @@ import {
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
   AdminPersonalityResponseSchema,
-} from '../schemas/api/index.js';
+} from './personality.js';
 
 describe('Personality API Contract Tests', () => {
   describe('EntityPermissionsSchema', () => {

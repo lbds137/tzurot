@@ -14,7 +14,7 @@ import {
   ContextSettingsSchema,
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-} from '../schemas/api/index.js';
+} from './llm-config.js';
 
 describe('LLM Config API Contract Tests', () => {
   describe('LlmConfigSummarySchema', () => {

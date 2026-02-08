@@ -20,6 +20,9 @@ import {
   type PrismaClient,
   type ModelOverrideSummary,
   type LlmConfigCacheInvalidationService,
+  type UserDefaultConfig,
+  SetModelOverrideBodySchema,
+  SetDefaultConfigBodySchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -29,29 +32,6 @@ import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-model-override');
-
-/**
- * Request body for setting override
- */
-interface SetOverrideBody {
-  personalityId: string;
-  configId: string;
-}
-
-/**
- * Request body for setting user's global default config
- */
-interface SetDefaultBody {
-  configId: string;
-}
-
-/**
- * Response for user default config
- */
-interface UserDefaultConfigResponse {
-  configId: string | null;
-  configName: string | null;
-}
 
 // eslint-disable-next-line max-lines-per-function -- Route factory with multiple endpoints
 export function createModelOverrideRoutes(
@@ -118,15 +98,17 @@ export function createModelOverrideRoutes(
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const body = req.body as SetOverrideBody;
 
-      // Validate required fields
-      if (!body.personalityId || body.personalityId.trim().length === 0) {
-        return sendError(res, ErrorResponses.validationError('personalityId is required'));
+      // Validate request body with Zod
+      const parseResult = SetModelOverrideBodySchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const firstIssue = parseResult.error.issues[0];
+        const fieldPath = firstIssue.path.join('.');
+        const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+        return sendError(res, ErrorResponses.validationError(message));
       }
-      if (!body.configId || body.configId.trim().length === 0) {
-        return sendError(res, ErrorResponses.validationError('configId is required'));
-      }
+
+      const { personalityId, configId } = parseResult.data;
 
       // Get or create user via centralized UserService
       const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
@@ -137,7 +119,7 @@ export function createModelOverrideRoutes(
 
       // Verify personality exists
       const personality = await prisma.personality.findFirst({
-        where: { id: body.personalityId },
+        where: { id: personalityId },
         select: { id: true, name: true },
       });
 
@@ -148,7 +130,7 @@ export function createModelOverrideRoutes(
       // Verify config exists and user can access it
       const llmConfig = await prisma.llmConfig.findFirst({
         where: {
-          id: body.configId,
+          id: configId,
           OR: [{ isGlobal: true }, { ownerId: userId }],
         },
         select: { id: true, name: true },
@@ -163,17 +145,17 @@ export function createModelOverrideRoutes(
         where: {
           userId_personalityId: {
             userId,
-            personalityId: body.personalityId,
+            personalityId,
           },
         },
         create: {
-          id: generateUserPersonalityConfigUuid(userId, body.personalityId),
+          id: generateUserPersonalityConfigUuid(userId, personalityId),
           userId,
-          personalityId: body.personalityId,
-          llmConfigId: body.configId,
+          personalityId,
+          llmConfigId: configId,
         },
         update: {
-          llmConfigId: body.configId,
+          llmConfigId: configId,
         },
         select: {
           personalityId: true,
@@ -193,9 +175,9 @@ export function createModelOverrideRoutes(
       logger.info(
         {
           discordUserId,
-          personalityId: body.personalityId,
+          personalityId,
           personalityName: personality.name,
-          configId: body.configId,
+          configId,
           configName: llmConfig.name,
         },
         '[ModelOverride] Set override'
@@ -229,7 +211,7 @@ export function createModelOverrideRoutes(
         },
       });
 
-      const result: UserDefaultConfigResponse = {
+      const result: UserDefaultConfig = {
         configId: user?.defaultLlmConfigId ?? null,
         configName: user?.defaultLlmConfig?.name ?? null,
       };
@@ -252,12 +234,17 @@ export function createModelOverrideRoutes(
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const body = req.body as SetDefaultBody;
 
-      // Validate required fields
-      if (!body.configId || body.configId.trim().length === 0) {
-        return sendError(res, ErrorResponses.validationError('configId is required'));
+      // Validate request body with Zod
+      const parseResult = SetDefaultConfigBodySchema.safeParse(req.body);
+      if (!parseResult.success) {
+        const firstIssue = parseResult.error.issues[0];
+        const fieldPath = firstIssue.path.join('.');
+        const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
+        return sendError(res, ErrorResponses.validationError(message));
       }
+
+      const { configId } = parseResult.data;
 
       // Get or create user via centralized UserService
       const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
@@ -269,7 +256,7 @@ export function createModelOverrideRoutes(
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await prisma.llmConfig.findFirst({
         where: {
-          id: body.configId,
+          id: configId,
           OR: [{ isGlobal: true }, { ownerId: userId }],
         },
         select: { id: true, name: true },
@@ -282,16 +269,16 @@ export function createModelOverrideRoutes(
       // Update user's default config
       await prisma.user.update({
         where: { id: userId },
-        data: { defaultLlmConfigId: body.configId },
+        data: { defaultLlmConfigId: configId },
       });
 
-      const result: UserDefaultConfigResponse = {
+      const result: UserDefaultConfig = {
         configId: llmConfig.id,
         configName: llmConfig.name,
       };
 
       logger.info(
-        { discordUserId, configId: body.configId, configName: llmConfig.name },
+        { discordUserId, configId, configName: llmConfig.name },
         '[ModelDefault] Set default config'
       );
 
