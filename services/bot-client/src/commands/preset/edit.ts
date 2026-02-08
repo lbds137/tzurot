@@ -14,9 +14,12 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { PRESET_DASHBOARD_CONFIG, flattenPresetData } from './config.js';
+import {
+  PRESET_DASHBOARD_CONFIG,
+  flattenPresetData,
+  buildPresetDashboardOptions,
+} from './config.js';
 import { fetchPreset } from './api.js';
-import { buildPresetDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('preset-edit');
 

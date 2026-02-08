@@ -242,6 +242,14 @@ export interface BudgetAllocationOptions {
   historyReductionPercent?: number;
 }
 
+/**
+ * Opaque diagnostic collector interface.
+ * Avoids circular dependency with DiagnosticCollector module.
+ * Consumers pass the concrete DiagnosticCollector class which satisfies this.
+ */
+// eslint-disable-next-line @typescript-eslint/no-empty-object-type -- Opaque marker interface to break circular dep
+export interface DiagnosticCollectorRef {}
+
 /** Options for model invocation */
 export interface ModelInvocationOptions {
   personality: LoadedPersonality;
@@ -255,7 +263,7 @@ export interface ModelInvocationOptions {
   /** Retry configuration for escalating duplicate detection retries */
   retryConfig?: DuplicateRetryConfig;
   /** Diagnostic collector for the "flight recorder" system */
-  diagnosticCollector?: import('./DiagnosticCollector.js').DiagnosticCollector;
+  diagnosticCollector?: DiagnosticCollectorRef;
 }
 
 /**
@@ -305,5 +313,5 @@ export interface GenerateResponseOptions {
    * Diagnostic collector for the "flight recorder" system.
    * If provided, pipeline stages will record their data for debugging.
    */
-  diagnosticCollector?: import('./DiagnosticCollector.js').DiagnosticCollector;
+  diagnosticCollector?: DiagnosticCollectorRef;
 }

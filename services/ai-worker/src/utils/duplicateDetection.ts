@@ -29,13 +29,6 @@ const logger = createLogger('DuplicateDetection');
 // Re-export types from dedicated types file
 export type { EmbeddingServiceInterface } from './duplicateDetectionTypes.js';
 
-// Re-export cross-turn detection functions
-export {
-  isCrossTurnDuplicate,
-  isRecentDuplicate,
-  isRecentDuplicateAsync,
-} from './crossTurnDetection.js';
-
 // ============================================================================
 // Configuration Constants
 // ============================================================================

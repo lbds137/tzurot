@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { cloneContextForRetry } from './contextCloner.js';
-import type { ConversationContext } from '../../../../services/ConversationalRAGService.js';
+import type { ConversationContext } from '../../../../services/ConversationalRAGTypes.js';
 
 function createMockContext(overrides: Partial<ConversationContext> = {}): ConversationContext {
   return {

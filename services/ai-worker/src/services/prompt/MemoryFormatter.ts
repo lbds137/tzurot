@@ -12,7 +12,7 @@
  */
 
 import { formatPromptTimestamp, escapeXml, escapeXmlContent } from '@tzurot/common-types';
-import type { MemoryDocument } from '../ConversationalRAGService.js';
+import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 /**
  * Instruction text explaining that memories are historical archives.

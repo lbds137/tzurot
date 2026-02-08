@@ -19,7 +19,7 @@ import { loadPGliteSchema } from '@tzurot/test-utils';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type { ConversationContext } from './ConversationalRAGService.js';
+import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 // We need to use the same PrismaClient type that the service uses
 import { PrismaClient } from '@tzurot/common-types';

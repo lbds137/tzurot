@@ -20,7 +20,7 @@ import type {
   MemoryDocument,
   ConversationContext,
   ParticipantInfo,
-} from './ConversationalRAGService.js';
+} from './ConversationalRAGTypes.js';
 import { PersonaResolver, type PersonaPromptData } from './resolvers/index.js';
 
 const logger = createLogger('MemoryRetriever');

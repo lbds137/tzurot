@@ -5,29 +5,11 @@
  * Eliminates duplicate error response code and provides type-safe error handling.
  */
 
-import type { ErrorResponse } from '../types.js';
+import { ErrorCode, type ErrorResponse } from '../types.js';
 
-// Re-export ErrorResponse for use in other utilities
+// Re-export for consumers that import from this module
 export type { ErrorResponse };
-
-/**
- * Standard error codes used across the API
- */
-export enum ErrorCode {
-  VALIDATION_ERROR = 'VALIDATION_ERROR',
-  UNAUTHORIZED = 'UNAUTHORIZED',
-  PAYMENT_REQUIRED = 'PAYMENT_REQUIRED',
-  NOT_FOUND = 'NOT_FOUND',
-  CONFLICT = 'CONFLICT',
-  INTERNAL_ERROR = 'INTERNAL_ERROR',
-  CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
-  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
-  JOB_FAILED = 'JOB_FAILED',
-  JOB_NOT_FOUND = 'JOB_NOT_FOUND',
-  PROCESSING_ERROR = 'PROCESSING_ERROR',
-  SYNC_ERROR = 'SYNC_ERROR',
-  METRICS_ERROR = 'METRICS_ERROR',
-}
+export { ErrorCode };
 
 /**
  * HTTP status codes for each error type

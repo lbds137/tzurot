@@ -56,6 +56,12 @@ vi.mock('./config.js', () => ({
     entityType: 'character',
     sections: [],
   }),
+  buildCharacterDashboardOptions: vi.fn().mockReturnValue({
+    showClose: true,
+    showBack: false,
+    showRefresh: true,
+    showDelete: false,
+  }),
 }));
 
 describe('handleBrowse', () => {

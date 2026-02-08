@@ -23,16 +23,19 @@ import {
   checkOwnership,
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
-  type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
   flattenPresetData,
   unflattenPresetData,
+  buildPresetDashboardOptions,
 } from './config.js';
 import { fetchPreset, updatePreset, fetchGlobalPreset, createPreset } from './api.js';
 import { buildBrowseResponse, type PresetBrowseFilter } from './browse.js';
+
+// Re-export for backward compatibility
+export { buildPresetDashboardOptions } from './config.js';
 
 const logger = createLogger('preset-dashboard-buttons');
 
@@ -83,25 +86,6 @@ export function generateClonedName(originalName: string): string {
   }
 
   return `${baseName} (Copy ${maxNum + 1})`;
-}
-
-/**
- * Build dashboard button options including toggle-global and delete for owned presets.
- * Shows back button when opened from browse, close button when opened directly.
- */
-export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
-  const hasBrowseContext = data.browseContext !== undefined;
-  return {
-    showBack: hasBrowseContext,
-    showClose: !hasBrowseContext,
-    showRefresh: true,
-    showClone: true,
-    showDelete: data.isOwned,
-    toggleGlobal: {
-      isGlobal: data.isGlobal,
-      isOwned: data.isOwned,
-    },
-  };
 }
 
 /**

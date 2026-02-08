@@ -30,8 +30,13 @@ import {
   fetchUsernames,
   fetchCharacter,
 } from './api.js';
-import { getCharacterDashboardConfig, type CharacterData } from './config.js';
-import { buildCharacterDashboardOptions } from './dashboardButtons.js';
+import {
+  getCharacterDashboardConfig,
+  buildCharacterDashboardOptions,
+  type CharacterData,
+  type CharacterBrowseFilter,
+  type CharacterBrowseSortType,
+} from './config.js';
 import {
   buildDashboardEmbed,
   buildDashboardComponents,
@@ -57,11 +62,8 @@ const logger = createLogger('character-browse');
 /** Characters per page for pagination */
 const CHARACTERS_PER_PAGE = 15;
 
-/** Browse filter options */
-export type CharacterBrowseFilter = 'all' | 'mine' | 'public';
-
-/** Sort options */
-export type CharacterBrowseSortType = 'date' | 'name';
+// Re-export types for backward compatibility
+export type { CharacterBrowseFilter, CharacterBrowseSortType } from './config.js';
 
 /** Default sort type */
 const DEFAULT_SORT: CharacterBrowseSortType = 'date';

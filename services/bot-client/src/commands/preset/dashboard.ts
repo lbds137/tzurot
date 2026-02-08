@@ -31,6 +31,7 @@ import {
   type FlattenedPresetData,
   flattenPresetData,
   unflattenPresetData,
+  buildPresetDashboardOptions,
 } from './config.js';
 import { fetchPreset, updatePreset, updateGlobalPreset } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
@@ -40,7 +41,6 @@ import { buildValidationEmbed, canProceed } from '../../utils/configValidation.j
 
 // Import button handlers from extracted module
 import {
-  buildPresetDashboardOptions,
   handleCloseButton,
   handleRefreshButton,
   handleToggleGlobalButton,
@@ -286,7 +286,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     // Build and show section modal
     const modal = buildSectionModal(PRESET_DASHBOARD_CONFIG, section, entityId, presetData);
     await interaction.showModal(modal);
-    return;
+    return; // eslint-disable-line sonarjs/no-redundant-jump -- pre-existing
   }
 }
 

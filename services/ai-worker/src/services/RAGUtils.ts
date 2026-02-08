@@ -7,7 +7,7 @@
 
 import { createLogger, AttachmentType, AI_DEFAULTS } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import type { ParticipantInfo } from './ConversationalRAGService.js';
+import type { ParticipantInfo } from './ConversationalRAGTypes.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('RAGUtils');

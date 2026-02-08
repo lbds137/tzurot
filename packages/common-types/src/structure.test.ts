@@ -62,14 +62,9 @@ const EXCLUDE_PATTERNS = [
   /\/schemas\//,
   // Factory files (test data creation helpers)
   /\/factories\//,
-  // Route handlers (tested via integration tests)
-  /\/routes\//,
-  // Service singletons and caches
+  // Service singletons and caches (thin wrappers around Prisma/Redis/external APIs)
   /Service\.ts$/,
   /Cache\.ts$/,
-  // Workers (background processes, tested via integration)
-  /Worker\.ts$/,
-  /worker\.ts$/,
   // Command utilities (Discord infrastructure)
   /\/commands\/.*\/utils\.ts$/,
   /deployCommands\.ts$/,
@@ -78,7 +73,7 @@ const EXCLUDE_PATTERNS = [
   /mixedModeSubcommandRouter\.ts$/,
   // Browse utilities (UI helpers)
   /\/browse\//,
-  // API clients (thin wrappers around fetch)
+  // API clients (thin wrappers around fetch, infrastructure-heavy)
   /apiClient\.ts$/,
   /Client\.ts$/,
   // Prisma singleton
@@ -91,12 +86,15 @@ const EXCLUDE_PATTERNS = [
   /syncValidation\.ts$/,
   // Langchain converter (tested via integration)
   /langchainConverter\.ts$/,
-  // Channel fetcher utilities (tested via MessageContextBuilder)
-  /\/channelFetcher\//,
+  // Channel fetcher utilities (thin wrappers tested via MessageContextBuilder)
+  /\/channelFetcher\/(?:ReactionProcessor|SyncValidator)\.ts$/,
   // Participant utils (tested via integration)
   /participantUtils\.ts$/,
   // Async handler (simple express wrapper)
   /asyncHandler\.ts$/,
+  // Route files without colocated tests yet (TODO: add tests)
+  /\/routes\/user\/memoryList\.ts$/,
+  /\/routes\/user\/persona\.ts$/,
   // Temp storage (infrastructure, tested via integration)
   /tempAttachmentStorage\.ts$/,
   // Base classes (tested via concrete implementations)

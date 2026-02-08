@@ -12,7 +12,7 @@ import {
   type RawHistoryEntry,
 } from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import type { ParticipantInfo } from './ConversationalRAGService.js';
+import type { ParticipantInfo } from './ConversationalRAGTypes.js';
 
 // Factory for ProcessedAttachment with required metadata fields
 function createAttachment(

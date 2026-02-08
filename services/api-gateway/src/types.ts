@@ -6,14 +6,29 @@
  */
 
 import type { Request } from 'express';
-import type { ErrorCode } from './utils/errorResponses.js';
 import type { HealthStatus } from '@tzurot/common-types';
 
 // Re-export shared API types from common-types
 export type { GenerateRequest, GenerateResponse } from '@tzurot/common-types';
 
-// Re-export ErrorCode for convenience
-export type { ErrorCode } from './utils/errorResponses.js';
+/**
+ * Standard error codes used across the API
+ */
+export enum ErrorCode {
+  VALIDATION_ERROR = 'VALIDATION_ERROR',
+  UNAUTHORIZED = 'UNAUTHORIZED',
+  PAYMENT_REQUIRED = 'PAYMENT_REQUIRED',
+  NOT_FOUND = 'NOT_FOUND',
+  CONFLICT = 'CONFLICT',
+  INTERNAL_ERROR = 'INTERNAL_ERROR',
+  CONFIGURATION_ERROR = 'CONFIGURATION_ERROR',
+  SERVICE_UNAVAILABLE = 'SERVICE_UNAVAILABLE',
+  JOB_FAILED = 'JOB_FAILED',
+  JOB_NOT_FOUND = 'JOB_NOT_FOUND',
+  PROCESSING_ERROR = 'PROCESSING_ERROR',
+  SYNC_ERROR = 'SYNC_ERROR',
+  METRICS_ERROR = 'METRICS_ERROR',
+}
 
 /**
  * Express Request with authenticated user ID

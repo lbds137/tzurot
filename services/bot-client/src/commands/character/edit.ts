@@ -16,27 +16,17 @@ import {
   buildDashboardComponents,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { getCharacterDashboardConfig, type CharacterData } from './config.js';
+import {
+  getCharacterDashboardConfig,
+  buildCharacterDashboardOptions,
+  type CharacterSessionData,
+} from './config.js';
 import { fetchCharacter } from './api.js';
-import { buildCharacterDashboardOptions } from './dashboardButtons.js';
+
+// Re-export for backward compatibility
+export type { CharacterSessionData } from './config.js';
 
 const logger = createLogger('character-edit');
-
-/**
- * Extended character data with admin flag for session storage.
- *
- * Note: The underscore prefix (`_isAdmin`) indicates session-only metadata
- * that is NOT persisted to the database. This flag is stored for debugging
- * and audit purposes, but is NEVER trusted for authorization decisions.
- * All sensitive operations must re-verify admin status via `isBotOwner()`.
- */
-export interface CharacterSessionData extends CharacterData {
-  /**
-   * Whether the session was opened by a bot admin.
-   * Stored for audit/debugging only - always re-verify with isBotOwner() for authorization.
-   */
-  _isAdmin?: boolean;
-}
 
 /**
  * Handle the edit subcommand - show dashboard for selected character

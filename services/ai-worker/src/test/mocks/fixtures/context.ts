@@ -5,7 +5,7 @@
  * These are pure data factories - no vi.fn() or mocking involved.
  */
 
-import type { ConversationContext } from '../../../services/ConversationalRAGService.js';
+import type { ConversationContext } from '../../../services/ConversationalRAGTypes.js';
 
 /**
  * Create a mock ConversationContext with sensible defaults

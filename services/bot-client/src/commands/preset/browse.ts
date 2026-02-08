@@ -38,9 +38,13 @@ import {
   buildBrowseButtons as buildSharedBrowseButtons,
   createBrowseCustomIdHelpers,
 } from '../../utils/browse/index.js';
-import { PRESET_DASHBOARD_CONFIG, flattenPresetData, type FlattenedPresetData } from './config.js';
+import {
+  PRESET_DASHBOARD_CONFIG,
+  flattenPresetData,
+  buildPresetDashboardOptions,
+  type FlattenedPresetData,
+} from './config.js';
 import { fetchPreset } from './api.js';
-import { buildPresetDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('preset-browse');
 
@@ -341,8 +345,14 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     // Fetch presets and wallet status in parallel
     // Use longer timeout since this is a deferred operation
     const [presetResult, walletResult] = await Promise.all([
-      callGatewayApi<ListResponse>('/user/llm-config', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
-      callGatewayApi<WalletListResponse>('/wallet/list', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
+      callGatewayApi<ListResponse>('/user/llm-config', {
+        userId,
+        timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      }),
+      callGatewayApi<WalletListResponse>('/wallet/list', {
+        userId,
+        timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      }),
     ]);
 
     if (!presetResult.ok) {
@@ -355,7 +365,10 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
     // Only show guest mode warning when we successfully verified no active keys
     // If wallet API failed, assume user might have keys (don't restrict them)
     if (!walletResult.ok) {
-      logger.warn({ userId, error: walletResult.error }, '[Preset] Wallet check failed, assuming not guest mode');
+      logger.warn(
+        { userId, error: walletResult.error },
+        '[Preset] Wallet check failed, assuming not guest mode'
+      );
     }
     const isGuestMode = walletResult.ok && !walletResult.data.keys.some(k => k.isActive === true);
 
@@ -395,8 +408,14 @@ export async function buildBrowseResponse(
 
   // Re-fetch data (use longer timeout since this is a deferred operation)
   const [presetResult, walletResult] = await Promise.all([
-    callGatewayApi<ListResponse>('/user/llm-config', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
-    callGatewayApi<WalletListResponse>('/wallet/list', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }),
+    callGatewayApi<ListResponse>('/user/llm-config', {
+      userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    }),
+    callGatewayApi<WalletListResponse>('/wallet/list', {
+      userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    }),
   ]);
 
   if (!presetResult.ok) {

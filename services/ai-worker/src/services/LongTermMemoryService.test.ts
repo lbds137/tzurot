@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { LongTermMemoryService } from './LongTermMemoryService.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type { ConversationContext } from './ConversationalRAGService.js';
+import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 // Mock Prisma client
 const mockPendingMemoryCreate = vi.fn();

@@ -7,8 +7,7 @@
 
 import { escapeMarkdown } from 'discord.js';
 import { createListComparator } from '../../utils/listSorting.js';
-import type { CharacterData } from './config.js';
-import type { CharacterBrowseFilter, CharacterBrowseSortType } from './browse.js';
+import type { CharacterData, CharacterBrowseFilter, CharacterBrowseSortType } from './config.js';
 
 /**
  * List item with group markers for rendering.

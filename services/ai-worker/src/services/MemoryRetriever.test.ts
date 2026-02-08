@@ -9,7 +9,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
 import type { LoadedPersonality } from '@tzurot/common-types';
-import type { ConversationContext } from './ConversationalRAGService.js';
+import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PersonaResolver } from './resolvers/index.js';
 
 // Mock PersonaResolver

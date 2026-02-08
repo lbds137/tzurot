@@ -20,17 +20,12 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { truncateForSelect, MAX_SELECT_LABEL_LENGTH } from '../../utils/browse/index.js';
 
-// Re-export API functions for backward compatibility
 import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
-
-// Re-export modal functions for backward compatibility
-export {
-  handleEditButton,
-  handleEditTruncatedButton,
-  handleCancelEditButton,
-  handleEditModalSubmit,
-} from './detailModals.js';
+import type { MemoryItem, ListContext } from './detailApi.js';
 import { formatDateShort, formatDateTime, EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
+
+// Re-export types from detailApi for backward compatibility
+export type { MemoryItem, ListContext } from './detailApi.js';
 
 const logger = createLogger('memory-detail');
 
@@ -39,35 +34,6 @@ export const MEMORY_DETAIL_PREFIX = 'memory-detail';
 
 /** Overhead for select label (number prefix "1. " to "99. " + optional lock icon "🔒 ") */
 const SELECT_LABEL_OVERHEAD = 10;
-
-/**
- * Memory item structure from API
- */
-export interface MemoryItem {
-  id: string;
-  content: string;
-  createdAt: string;
-  updatedAt: string;
-  personalityId: string;
-  personalityName: string;
-  isLocked: boolean;
-}
-
-/**
- * Context needed to return to list view
- */
-export interface ListContext {
-  /** 'list' or 'search' */
-  source: 'list' | 'search';
-  /** Current page (0-indexed) */
-  page: number;
-  /** Personality filter if any */
-  personalityId?: string;
-  /** Search query (for search source) */
-  query?: string;
-  /** Search type hint (for search source) */
-  preferTextSearch?: boolean;
-}
 
 /**
  * Build custom ID for memory actions
