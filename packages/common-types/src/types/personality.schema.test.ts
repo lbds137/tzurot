@@ -9,7 +9,11 @@ import { describe, it, expect } from 'vitest';
 import {
   EntityPermissionsSchema,
   PersonalitySummarySchema,
+  PersonalityFullSchema,
   ListPersonalitiesResponseSchema,
+  CreatePersonalityResponseSchema,
+  GetPersonalityResponseSchema,
+  DeletePersonalityResponseSchema,
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
   AdminPersonalityResponseSchema,
@@ -451,6 +455,240 @@ describe('Personality API Contract Tests', () => {
         personality: { id: validResponse.personality.id },
       };
       const result = AdminPersonalityResponseSchema.safeParse(response);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('PersonalityFullSchema', () => {
+    const validFull = {
+      id: '33333333-3333-5333-8333-333333333333',
+      name: 'Test Character',
+      slug: 'test-character',
+      displayName: 'Test Display',
+      characterInfo: 'A test character',
+      personalityTraits: 'Friendly',
+      personalityTone: 'Warm',
+      personalityAge: '25',
+      personalityAppearance: 'Tall',
+      personalityLikes: 'Coding',
+      personalityDislikes: 'Spam',
+      conversationalGoals: 'Help users',
+      conversationalExamples: 'User: Hi\nBot: Hello!',
+      errorMessage: 'Something went wrong',
+      birthMonth: 6,
+      birthDay: 15,
+      birthYear: 1999,
+      isPublic: false,
+      voiceEnabled: true,
+      imageEnabled: false,
+      ownerId: '44444444-4444-5444-8444-444444444444',
+      hasAvatar: true,
+      createdAt: '2025-01-15T12:00:00.000Z',
+      updatedAt: '2025-01-20T15:30:00.000Z',
+    };
+
+    it('should validate complete personality data', () => {
+      const result = PersonalityFullSchema.safeParse(validFull);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate with all nullable fields as null', () => {
+      const data = {
+        ...validFull,
+        displayName: null,
+        characterInfo: null,
+        personalityTraits: null,
+        personalityTone: null,
+        personalityAge: null,
+        personalityAppearance: null,
+        personalityLikes: null,
+        personalityDislikes: null,
+        conversationalGoals: null,
+        conversationalExamples: null,
+        errorMessage: null,
+        birthMonth: null,
+        birthDay: null,
+        birthYear: null,
+      };
+      const result = PersonalityFullSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid UUID for id', () => {
+      const data = { ...validFull, id: 'not-a-uuid' };
+      const result = PersonalityFullSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject invalid datetime for createdAt', () => {
+      const data = { ...validFull, createdAt: 'not-a-date' };
+      const result = PersonalityFullSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing required fields', () => {
+      const result = PersonalityFullSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('CreatePersonalityResponseSchema', () => {
+    const validFull = {
+      id: '33333333-3333-5333-8333-333333333333',
+      name: 'New Character',
+      slug: 'new-character',
+      displayName: null,
+      characterInfo: 'A new character',
+      personalityTraits: 'Helpful',
+      personalityTone: null,
+      personalityAge: null,
+      personalityAppearance: null,
+      personalityLikes: null,
+      personalityDislikes: null,
+      conversationalGoals: null,
+      conversationalExamples: null,
+      errorMessage: null,
+      birthMonth: null,
+      birthDay: null,
+      birthYear: null,
+      isPublic: false,
+      voiceEnabled: false,
+      imageEnabled: false,
+      ownerId: '44444444-4444-5444-8444-444444444444',
+      hasAvatar: false,
+      createdAt: '2025-01-15T12:00:00.000Z',
+      updatedAt: '2025-01-15T12:00:00.000Z',
+    };
+
+    it('should validate create response', () => {
+      const data = { success: true as const, personality: validFull };
+      const result = CreatePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject success=false', () => {
+      const data = { success: false, personality: validFull };
+      const result = CreatePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('GetPersonalityResponseSchema', () => {
+    const validFull = {
+      id: '33333333-3333-5333-8333-333333333333',
+      name: 'Test Character',
+      slug: 'test-character',
+      displayName: 'Test',
+      characterInfo: 'Info',
+      personalityTraits: 'Traits',
+      personalityTone: null,
+      personalityAge: null,
+      personalityAppearance: null,
+      personalityLikes: null,
+      personalityDislikes: null,
+      conversationalGoals: null,
+      conversationalExamples: null,
+      errorMessage: null,
+      birthMonth: null,
+      birthDay: null,
+      birthYear: null,
+      isPublic: true,
+      voiceEnabled: false,
+      imageEnabled: false,
+      ownerId: '44444444-4444-5444-8444-444444444444',
+      hasAvatar: false,
+      createdAt: '2025-01-15T12:00:00.000Z',
+      updatedAt: '2025-01-15T12:00:00.000Z',
+    };
+
+    it('should validate get response', () => {
+      const data = { personality: validFull };
+      const result = GetPersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing personality', () => {
+      const result = GetPersonalityResponseSchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('DeletePersonalityResponseSchema', () => {
+    it('should validate delete response with counts', () => {
+      const data = {
+        success: true as const,
+        deletedSlug: 'test-character',
+        deletedName: 'Test Character',
+        deletedCounts: {
+          conversationHistory: 42,
+          memories: 10,
+          pendingMemories: 2,
+          channelSettings: 3,
+          aliases: 1,
+        },
+      };
+      const result = DeletePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate delete response with zero counts', () => {
+      const data = {
+        success: true as const,
+        deletedSlug: 'empty-char',
+        deletedName: 'Empty Character',
+        deletedCounts: {
+          conversationHistory: 0,
+          memories: 0,
+          pendingMemories: 0,
+          channelSettings: 0,
+          aliases: 0,
+        },
+      };
+      const result = DeletePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject negative counts', () => {
+      const data = {
+        success: true as const,
+        deletedSlug: 'test',
+        deletedName: 'Test',
+        deletedCounts: {
+          conversationHistory: -1,
+          memories: 0,
+          pendingMemories: 0,
+          channelSettings: 0,
+          aliases: 0,
+        },
+      };
+      const result = DeletePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject success=false', () => {
+      const data = {
+        success: false,
+        deletedSlug: 'test',
+        deletedName: 'Test',
+        deletedCounts: {
+          conversationHistory: 0,
+          memories: 0,
+          pendingMemories: 0,
+          channelSettings: 0,
+          aliases: 0,
+        },
+      };
+      const result = DeletePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing deletedCounts', () => {
+      const data = {
+        success: true as const,
+        deletedSlug: 'test',
+        deletedName: 'Test',
+      };
+      const result = DeletePersonalityResponseSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
   });
