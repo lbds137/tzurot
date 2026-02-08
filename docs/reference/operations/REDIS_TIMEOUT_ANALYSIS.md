@@ -339,6 +339,6 @@ If Railway's Redis continues having issues, consider:
 
 ## Notes
 
-- The security issue (leaked database password in CURRENT_WORK.md) has been fixed ✅
+- The security issue (leaked database password in CURRENT.md) has been fixed ✅
 - Railway CLI couldn't be installed in sandbox due to network restrictions
 - User should rotate dev database password after this session

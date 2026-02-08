@@ -52,7 +52,7 @@ Distilled insights from AI consultations (TL;DR format).
 
 - Lives in `docs/research/`
 - 2-5KB each (not raw transcripts)
-- Links to actionable ROADMAP items
+- Links to actionable BACKLOG items
 
 ## What We Delete
 

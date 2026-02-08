@@ -1,7 +1,7 @@
 ---
 name: tzurot-doc-audit
 description: 'Documentation freshness audit. Invoke with /tzurot-doc-audit to review docs for staleness, missing tools, and inconsistencies.'
-lastUpdated: '2026-02-07'
+lastUpdated: '2026-02-08'
 ---
 
 # Documentation Audit Procedure
@@ -140,7 +140,23 @@ ls .claude/skills/*/SKILL.md
 - [ ] Post-mortem table includes recent incidents
 - [ ] Project structure is accurate
 
-### 12. Cross-Reference Checks
+### 12. Broken Internal References
+
+Verify docs don't reference files that have been renamed or removed:
+
+```bash
+# Check for references to deprecated root tracking files
+grep -r 'CURRENT_WORK\|ROADMAP' docs/ .claude/ --include='*.md' -l
+
+# Canonical names: CURRENT.md, BACKLOG.md
+# Any hits for CURRENT_WORK.md or ROADMAP.md are stale and must be updated
+```
+
+- [ ] No references to `CURRENT_WORK.md` (renamed to `CURRENT.md`)
+- [ ] No references to `ROADMAP.md` (renamed to `BACKLOG.md`)
+- [ ] Spot-check that linked `.md` files in docs actually exist
+
+### 13. Cross-Reference Checks
 
 These catch drift between docs and code:
 
