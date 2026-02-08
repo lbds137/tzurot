@@ -169,7 +169,7 @@ if (useThinking && Number.isInteger(budgetTokens)) {
 
 ## Actionable Items
 
-See ROADMAP.md Icebox section for:
+See BACKLOG.md Icebox section for:
 
 - Character Card Import (V2/V3 PNG metadata)
 - Lorebooks / Sticky Context
