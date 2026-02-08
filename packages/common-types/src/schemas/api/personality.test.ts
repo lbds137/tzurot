@@ -6,8 +6,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { EntityPermissionsSchema } from './shared.js';
 import {
-  EntityPermissionsSchema,
   PersonalitySummarySchema,
   PersonalityFullSchema,
   ListPersonalitiesResponseSchema,
