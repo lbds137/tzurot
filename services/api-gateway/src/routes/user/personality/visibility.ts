@@ -12,7 +12,7 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { canUserEditPersonality } from './helpers.js';
+import { validatePersonalityEditAccess } from './helpers.js';
 
 const logger = createLogger('user-personality-visibility');
 
@@ -30,17 +30,6 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
       return sendError(res, ErrorResponses.validationError('isPublic field is required'));
     }
 
-    // Get user
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.unauthorized('User not found'));
-    }
-
-    // Find personality
     const personality = await prisma.personality.findUnique({
       where: { slug },
       select: { id: true, ownerId: true, isPublic: true },
@@ -50,13 +39,13 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
       return sendError(res, ErrorResponses.notFound('Personality not found'));
     }
 
-    // Check ownership (bot owner can change any personality's visibility)
-    const canEdit = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
-    if (!canEdit) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You do not have permission to change visibility')
-      );
+    const access = await validatePersonalityEditAccess(prisma, discordUserId, personality.id);
+    if (!access.ok) {
+      const msg =
+        access.error === 'user-not-found'
+          ? 'User not found'
+          : 'You do not have permission to change visibility';
+      return sendError(res, ErrorResponses.unauthorized(msg));
     }
 
     // Update visibility

@@ -21,7 +21,7 @@ import { optimizeAvatar } from '../../../utils/imageProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { canUserEditPersonality } from './helpers.js';
+import { validatePersonalityEditAccess } from './helpers.js';
 
 const logger = createLogger('user-personality-update');
 
@@ -251,15 +251,6 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       return sendError(res, ErrorResponses.validationError('slug is required'));
     }
 
-    const user = await prisma.user.findFirst({
-      where: { discordId: discordUserId },
-      select: { id: true },
-    });
-
-    if (user === null) {
-      return sendError(res, ErrorResponses.unauthorized('User not found'));
-    }
-
     const personality = await prisma.personality.findUnique({
       where: { slug },
       select: { id: true, ownerId: true, name: true },
@@ -269,12 +260,13 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       return sendError(res, ErrorResponses.notFound('Personality not found'));
     }
 
-    const canEdit = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
-    if (!canEdit) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You do not have permission to edit this personality')
-      );
+    const access = await validatePersonalityEditAccess(prisma, discordUserId, personality.id);
+    if (!access.ok) {
+      const msg =
+        access.error === 'user-not-found'
+          ? 'User not found'
+          : 'You do not have permission to edit this personality';
+      return sendError(res, ErrorResponses.unauthorized(msg));
     }
 
     const body = req.body as UpdatePersonalityBody;
