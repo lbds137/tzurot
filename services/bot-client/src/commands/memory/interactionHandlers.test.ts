@@ -119,6 +119,30 @@ describe('Memory Interaction Handlers', () => {
       expect(mockHandleEditButton).toHaveBeenCalledWith(interaction, 'memory-123');
     });
 
+    it('should route edit-truncated action to handleEditTruncatedButton', async () => {
+      const { handleEditTruncatedButton } = await import('./detailModals.js');
+      const interaction = createMockButtonInteraction(
+        'mem-detail:edit-truncated:memory-trunc',
+        'no-collector'
+      );
+
+      await handleButton(interaction);
+
+      expect(handleEditTruncatedButton).toHaveBeenCalledWith(interaction, 'memory-trunc');
+    });
+
+    it('should route cancel-edit action to handleCancelEditButton', async () => {
+      const { handleCancelEditButton } = await import('./detailModals.js');
+      const interaction = createMockButtonInteraction(
+        'mem-detail:cancel-edit:memory-cancel',
+        'no-collector'
+      );
+
+      await handleButton(interaction);
+
+      expect(handleCancelEditButton).toHaveBeenCalledWith(interaction);
+    });
+
     it('should route lock action to handleLockButton', async () => {
       const interaction = createMockButtonInteraction('mem-detail:lock:memory-456');
 

@@ -92,8 +92,7 @@ const EXCLUDE_PATTERNS = [
   /participantUtils\.ts$/,
   // Async handler (simple express wrapper)
   /asyncHandler\.ts$/,
-  // Route files without colocated tests yet (TODO: add tests)
-  /\/routes\/user\/memoryList\.ts$/,
+  // Pure re-export barrel (no logic)
   /\/routes\/user\/persona\.ts$/,
   // Temp storage (infrastructure, tested via integration)
   /tempAttachmentStorage\.ts$/,
