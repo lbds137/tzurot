@@ -16,7 +16,7 @@ import {
   showEnvironmentBanner,
 } from '../utils/env-runner.js';
 
-export interface FixDriftOptions {
+interface FixDriftOptions {
   env?: Environment;
   migrationsPath?: string;
 }

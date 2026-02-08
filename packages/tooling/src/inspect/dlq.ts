@@ -14,7 +14,7 @@ import type { Environment } from '../utils/env-runner.js';
 /** Default queue name used by Tzurot */
 const DEFAULT_QUEUE_NAME = 'ai-requests';
 
-export interface DlqViewOptions {
+interface DlqViewOptions {
   env?: Environment;
   queue?: string;
   limit?: number;

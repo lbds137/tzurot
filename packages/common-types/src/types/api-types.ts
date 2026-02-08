@@ -11,7 +11,6 @@ import type { LLMGenerationResult } from './schemas.js';
 // Re-export schema-derived types
 export type {
   AttachmentMetadata,
-  ApiConversationMessage,
   GenerateRequest,
   DiscordEnvironment,
   LoadedPersonality,

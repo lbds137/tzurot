@@ -139,16 +139,6 @@ export const RETRY_CONFIG = {
 } as const;
 
 /**
- * Circuit breaker configuration
- */
-export const CIRCUIT_BREAKER = {
-  /** Time window for counting failures (30 seconds) */
-  FAILURE_WINDOW: 30000,
-  /** Time to wait before attempting recovery (60 seconds) */
-  RECOVERY_TIMEOUT: 60000,
-} as const;
-
-/**
  * HTTP Cache-Control header values
  */
 export const CACHE_CONTROL = {

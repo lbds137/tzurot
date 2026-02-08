@@ -10,12 +10,7 @@ import type { ErrorCode } from './utils/errorResponses.js';
 import type { HealthStatus } from '@tzurot/common-types';
 
 // Re-export shared API types from common-types
-export type {
-  GenerateRequest,
-  GenerateResponse,
-  ApiConversationMessage,
-  AttachmentMetadata,
-} from '@tzurot/common-types';
+export type { GenerateRequest, GenerateResponse } from '@tzurot/common-types';
 
 // Re-export ErrorCode for convenience
 export type { ErrorCode } from './utils/errorResponses.js';

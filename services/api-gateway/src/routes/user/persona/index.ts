@@ -24,15 +24,6 @@ import { addSettingsRoutes } from './settings.js';
 import { addOverrideRoutes } from './override.js';
 
 // Re-export types for external consumers
-export type {
-  PersonaSummary,
-  PersonaDetails,
-  SettingsBody,
-  OverrideBody,
-  PersonaOverrideSummary,
-} from './types.js';
-export type { CreatePersonaBody, UpdatePersonaBody } from './crud.js';
-
 export function createPersonaRoutes(prisma: PrismaClient): Router {
   const router = Router();
 

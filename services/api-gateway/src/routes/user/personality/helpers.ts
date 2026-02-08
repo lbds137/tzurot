@@ -8,7 +8,7 @@ import { UserService, type PrismaClient, isBotOwner } from '@tzurot/common-types
 /**
  * Options for checking if user can view a personality
  */
-export interface CanUserViewPersonalityOptions {
+interface CanUserViewPersonalityOptions {
   /** Prisma client instance */
   prisma: PrismaClient;
   /** Internal database user ID (null if not found) */

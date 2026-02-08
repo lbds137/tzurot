@@ -15,11 +15,11 @@ const SEMVER_REGEX = /^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?$/;
 /** Directories to exclude from search */
 const EXCLUDED_DIRS = new Set(['node_modules', '.pnpm-store', 'tzurot-legacy', '.git', 'dist']);
 
-export interface BumpVersionOptions {
+interface BumpVersionOptions {
   dryRun?: boolean;
 }
 
-export interface BumpResult {
+interface BumpResult {
   file: string;
   oldVersion: string;
   newVersion: string;
@@ -54,6 +54,7 @@ function findPackageJsonFiles(dir: string): string[] {
 /**
  * Bump version in all package.json files
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export async function bumpVersion(
   newVersion: string,
   options: BumpVersionOptions = {}

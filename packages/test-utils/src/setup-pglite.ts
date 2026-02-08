@@ -12,7 +12,6 @@
  * - This ensures PGLite always matches the current Prisma schema
  */
 
-import { PGlite } from '@electric-sql/pglite';
 import { Redis as IORedis } from 'ioredis';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -35,7 +34,7 @@ export interface TestEnvironment {
  * Detect if we're running in CI (GitHub Actions)
  * NOTE: Pre-push hook sets CI=true, but we only want real Redis/Postgres in actual CI
  */
-export function isCI(): boolean {
+function isCI(): boolean {
   return process.env.GITHUB_ACTIONS === 'true';
 }
 
@@ -57,25 +56,6 @@ export function loadPGliteSchema(): string {
       `Failed to load PGLite schema from ${schemaPath}. ` +
         `Run ./scripts/testing/regenerate-pglite-schema.sh to generate it.`
     );
-  }
-}
-
-/**
- * Initialize PGlite with the schema from Prisma.
- * Uses pre-generated SQL to ensure schema is always in sync with prisma/schema.prisma.
- */
-export async function initializePGliteSchema(pglite: PGlite): Promise<void> {
-  const schemaSql = loadPGliteSchema();
-
-  // Execute the entire SQL as one block - pglite.exec() handles multi-statement SQL
-  // Do NOT split by semicolons as that breaks statements with embedded semicolons
-  // Note: CREATE EXTENSION is included in the SQL and works with PGLite when the
-  // extension is loaded via JS constructor (extensions: { vector })
-  try {
-    await pglite.exec(schemaSql);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to initialize PGLite schema: ${message}`);
   }
 }
 

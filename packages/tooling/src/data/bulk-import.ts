@@ -9,7 +9,7 @@
 
 import chalk from 'chalk';
 
-export interface BulkImportOptions {
+interface BulkImportOptions {
   dryRun?: boolean;
   skipMemories?: boolean;
 }

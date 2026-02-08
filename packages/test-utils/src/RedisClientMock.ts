@@ -7,7 +7,7 @@
 
 import type { Redis } from 'ioredis';
 
-export class RedisClientMock {
+class RedisClientMock {
   private store = new Map<string, { value: string; expiresAt?: number }>();
   private timers = new Map<string, NodeJS.Timeout>();
 

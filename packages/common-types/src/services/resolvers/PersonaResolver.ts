@@ -28,6 +28,7 @@ const SOURCE_USER_DEFAULT = 'user-default' as const;
 
 /**
  * Resolved persona data
+ * @public used in PersonaResolver public method signatures
  */
 export interface ResolvedPersona {
   /** Persona UUID */
@@ -46,6 +47,7 @@ export interface ResolvedPersona {
 
 /**
  * Lightweight persona info (just ID and LTM flag) for memory queries
+ * @public used in PersonaResolver public method signatures
  */
 export interface PersonaMemoryInfo {
   personaId: string;

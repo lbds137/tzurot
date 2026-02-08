@@ -14,7 +14,7 @@ import { createLogger, REDIS_KEY_PREFIXES } from '@tzurot/common-types';
 
 const logger = createLogger('RedisRateLimiter');
 
-export interface RedisRateLimiterOptions {
+interface RedisRateLimiterOptions {
   /** Time window in milliseconds (default: 15 minutes) */
   windowMs?: number;
   /** Maximum requests per window (default: 10) */

@@ -23,10 +23,10 @@ import {
   readFile,
 } from './audit-utils.js';
 
-// Re-export types for consumers
-export type { UnifiedBaseline, ServiceAuditResult, ContractAuditResult };
+/* eslint-disable sonarjs/cognitive-complexity -- pre-existing */
 
-export interface UnifiedAuditResult {
+// Re-export types for consumers
+interface UnifiedAuditResult {
   services: ServiceAuditResult;
   contracts: ContractAuditResult;
   baseline: UnifiedBaseline;
@@ -34,7 +34,7 @@ export interface UnifiedAuditResult {
   contractsPass: boolean;
 }
 
-export interface AuditUnifiedOptions {
+interface AuditUnifiedOptions {
   update?: boolean;
   strict?: boolean;
   category?: 'services' | 'contracts';

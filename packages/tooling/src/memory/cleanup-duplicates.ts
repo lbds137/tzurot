@@ -25,7 +25,7 @@ import {
 } from '../utils/env-runner.js';
 import { type PrismaClient } from '@tzurot/common-types';
 
-export interface CleanupOptions {
+interface CleanupOptions {
   env: Environment;
   dryRun?: boolean;
   force?: boolean;

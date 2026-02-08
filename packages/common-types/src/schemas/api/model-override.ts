@@ -55,14 +55,6 @@ export const SetModelOverrideResponseSchema = z.object({
 export type SetModelOverrideResponse = z.infer<typeof SetModelOverrideResponseSchema>;
 
 // ============================================================================
-// GET /user/model-override/default
-// Returns user's global default LLM config
-// ============================================================================
-
-export const GetDefaultConfigResponseSchema = z.object({
-  default: UserDefaultConfigSchema,
-});
-// ============================================================================
 // PUT /user/model-override/default
 // Sets user's global default LLM config
 // ============================================================================

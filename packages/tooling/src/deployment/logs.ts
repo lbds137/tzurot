@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process';
 import chalk from 'chalk';
 import { checkRailwayCli, getRailwayEnvName } from '../utils/env-runner.js';
 
-export interface LogsOptions {
+interface LogsOptions {
   env: 'dev' | 'prod';
   service?: string;
   lines?: number;
@@ -98,6 +98,7 @@ function displayHeader(
   lines: number,
   filter?: string
 ): void {
+  // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
   console.log(chalk.cyan.bold(`           RAILWAY LOGS - ${railwayEnv.toUpperCase()}`));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));

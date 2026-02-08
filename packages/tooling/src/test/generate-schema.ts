@@ -19,7 +19,7 @@ import chalk from 'chalk';
  */
 const DUMMY_DATABASE_URL = 'postgres://x:x@x/x';
 
-export interface GenerateSchemaOptions {
+interface GenerateSchemaOptions {
   output?: string;
 }
 

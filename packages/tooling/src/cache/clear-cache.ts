@@ -8,7 +8,7 @@ import chalk from 'chalk';
 import fs from 'node:fs';
 import path from 'node:path';
 
-export interface ClearCacheOptions {
+interface ClearCacheOptions {
   dryRun?: boolean;
 }
 

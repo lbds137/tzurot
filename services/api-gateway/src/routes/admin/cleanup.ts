@@ -16,7 +16,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('admin-cleanup');
 
-export interface CleanupResult {
+interface CleanupResult {
   historyDeleted: number;
   tombstonesDeleted: number;
   daysKept: number;

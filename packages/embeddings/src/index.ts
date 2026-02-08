@@ -20,22 +20,13 @@
  */
 
 // Types
-export type {
-  IEmbeddingService,
-  WorkerMessage,
-  WorkerResponse,
-  PendingRequest,
-  CachedEmbedding,
-} from './types.js';
+export type { IEmbeddingService } from './types.js';
 
 // Constants
 export {
   LOCAL_EMBEDDING_DIMENSIONS,
   SEMANTIC_SIMILARITY_THRESHOLD,
   EMBEDDING_SLIDING_WINDOW_SIZE,
-  WORKER_TIMEOUT_MS,
-  WORKER_INIT_TIMEOUT_MS,
-  EMBEDDING_MODEL_NAME,
 } from './constants.js';
 
 // Service

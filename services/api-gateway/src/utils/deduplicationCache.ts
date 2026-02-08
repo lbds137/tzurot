@@ -62,5 +62,3 @@ export function disposeDeduplicationCache(): void {
 }
 
 // Export the cache class for type usage
-export { RedisDeduplicationCache } from './RedisDeduplicationCache.js';
-export type { RedisDeduplicationOptions } from './RedisDeduplicationCache.js';

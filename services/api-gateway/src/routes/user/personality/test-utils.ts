@@ -17,11 +17,8 @@ export const mockIsBotOwner: ((...args: unknown[]) => boolean) & {
 };
 
 // Mock date factories for consistent testing (factory functions avoid mutable module state)
-export const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
-export const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
-
-// Type for mock Prisma client
-export type MockPrisma = ReturnType<typeof createMockPrisma>;
+const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
+const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
 
 // Mock Prisma client with UserService dependencies
 export function createMockPrisma(): {
@@ -127,6 +124,7 @@ export function createMockPersonality(
     isPublic: false,
     voiceEnabled: false,
     imageEnabled: false,
+    // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
     ownerId: 'user-uuid-123',
     avatarData: null,
     createdAt: createMockCreatedAt(),

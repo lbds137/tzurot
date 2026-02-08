@@ -35,7 +35,7 @@ interface DriftIgnoreConfig {
   ignorePatterns: IgnorePattern[];
 }
 
-export interface CreateSafeMigrationOptions {
+interface CreateSafeMigrationOptions {
   env?: Environment;
   name?: string;
   migrationsPath?: string;
