@@ -250,7 +250,7 @@ _Focus: Bring the codebase under ESLint limits and eliminate structural debt._
 
 **Audit date**: 2026-02-07 (full report via `/tzurot-arch-audit`)
 
-**Current state**: 29 files >500 lines (ESLint error), 54 circular deps, 70 lint suppressions. bot-client alone is 45.7K lines with 767 exports. common-types has 607 exports (12x the 50-export threshold).
+**Current state**: 0 max-lines violations at 400-line limit, 54 circular deps (baselined), 70 lint suppressions. bot-client alone is 45.7K lines with 767 exports. common-types has 607 exports (12x the 50-export threshold).
 
 ### Phase 1: Cleanup Sprint — ✅ DONE (PR #593)
 
@@ -266,34 +266,17 @@ _Focus: Bring the codebase under ESLint limits and eliminate structural debt._
 - [x] Review unused exported types — remove genuinely dead, add false positives to `knip.json`
 - [x] Rerun knip, verify findings reduced to near-zero
 
-### Phase 3: Oversized File Splits (5-8 sessions, the bulk of the work)
+### Phase 3: Oversized File Splits — ✅ DONE (PRs #594, #596)
 
-29 files >= 500 lines, 30 more in the 400-499 warning band. Split into sub-phases by severity.
+**Phase 3a** (PR #594): Split 4 files at 500-line limit (ModelFactory, UserReferenceResolver, DiagnosticCollector, PromptBuilder).
 
-**Phase 3a — Critical files (>= 600 lines, 10 files):**
+**Phase 3b** (PR #596): Lowered `max-lines` from 500 → **400** with `skipBlankLines + skipComments`. Only 3 files actually violated at the new limit — most files have enough blanks/comments to stay well under. All 3 split:
 
-| File                          | Lines | Package      | Split strategy                                      |
-| ----------------------------- | ----- | ------------ | --------------------------------------------------- |
-| `ModelFactory.ts`             | 757   | ai-worker    | Extract provider-specific factory methods           |
-| `PromptBuilder.ts`            | 657   | ai-worker    | Extract section builders (memory, personality, env) |
-| `character/dashboard.ts`      | 637   | bot-client   | Extract section handlers                            |
-| `MessageContextBuilder.ts`    | 636   | bot-client   | Extract resolver methods into contextBuilder/       |
-| `UserReferenceResolver.ts`    | 629   | ai-worker    | Extract resolution strategies                       |
-| `DiagnosticCollector.ts`      | 618   | ai-worker    | Extract formatters, separate collect vs report      |
-| `SettingsDashboardHandler.ts` | 603   | bot-client   | Extract per-setting handlers                        |
-| `ConversationalRAGService.ts` | 599   | ai-worker    | Extract query building, result formatting           |
-| `schemas.ts` (common-types)   | 597   | common-types | Split by domain (ai, channel, memory, etc.)         |
-| `character/chat.ts`           | 592   | bot-client   | Extract message pipeline stages                     |
+- `ModelFactory.ts` → extracted `modelFactory/OpenRouterFetch.ts`, `modelFactory/CacheKeyBuilder.ts`
+- `ConversationalRAGService.ts` → extracted `diagnostics/DiagnosticRecorders.ts`
+- `GenerationStep.ts` → extracted `duplicateDetectionDiagnostics.ts`
 
-**Phase 3b — Moderate files (500-599 lines, 19 files):**
-
-Prioritize by package: bot-client (14 files), ai-worker (3), api-gateway (1), tooling (1).
-
-Key targets: `index.ts` entrypoints (584, 508), `GatewayClient.ts` (547), `SessionManager.ts` (524), `customIds.ts` (522), `DiscordChannelFetcher.ts` (543), `DatabaseSyncService.ts` (512).
-
-**Phase 3c — Warning band (400-499 lines, 30 files):**
-
-Track only — split opportunistically when touching these files for other reasons.
+Added 600-line override for well-factored single-responsibility files (`index.ts`, `SessionManager.ts`, `GatewayClient.ts`).
 
 ### Phase 4: Circular Dependency Resolution (2-3 sessions)
 
