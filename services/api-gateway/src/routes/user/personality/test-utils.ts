@@ -5,6 +5,7 @@
 import { vi } from 'vitest';
 import type { Request, Response } from 'express';
 import type { Router } from 'express';
+import { getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
 // Using explicit callable type to avoid TS2742 (inferred type) and TS2348 (not callable) errors
@@ -160,13 +161,7 @@ export function getHandler(
   method: 'get' | 'post' | 'put' | 'patch' | 'delete',
   path: string
 ): RouteHandler {
-  // Express router internals require unsafe access
-  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions -- Express router internals are untyped */
-  const layer = (router.stack as any[]).find(
-    (l: any) => l.route?.path === path && l.route?.methods?.[method]
-  );
-  return layer.route.stack[layer.route.stack.length - 1].handle as RouteHandler;
-  /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/strict-boolean-expressions */
+  return getRouteHandler(router, method, path) as RouteHandler;
 }
 
 // Standard beforeEach setup for tests that need user/personality state

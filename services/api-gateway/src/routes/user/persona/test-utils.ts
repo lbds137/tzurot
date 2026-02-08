@@ -5,6 +5,7 @@
 import { vi } from 'vitest';
 import type { Request, Response } from 'express';
 import type { Router } from 'express';
+import { getRouteHandler } from '../../../test/expressRouterUtils.js';
 
 // Valid UUIDs for testing (required by route validation)
 export const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
@@ -138,22 +139,12 @@ export function createMockReqRes(
 
 /**
  * Get handler from router by method and path.
- * This is test utility code that accesses Express router internals.
+ * Delegates to shared Express router test utility.
  */
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/array-type, @typescript-eslint/no-unsafe-function-type -- Express router internals are untyped */
 export function getHandler(
   router: Router,
   method: 'get' | 'post' | 'put' | 'patch' | 'delete',
   path: string
-): Function {
-  const layer = (router.stack as any[]).find(
-    (l: any) => l.route?.path === path && l.route?.methods?.[method]
-  );
-  if (layer === undefined || layer === null) {
-    throw new Error(`Route not found: ${method.toUpperCase()} ${path}`);
-  }
-  return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+): (...args: unknown[]) => unknown {
+  return getRouteHandler(router, method, path);
 }
-/* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/strict-boolean-expressions, @typescript-eslint/array-type, @typescript-eslint/no-unsafe-function-type */
