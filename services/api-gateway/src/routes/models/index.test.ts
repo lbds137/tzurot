@@ -29,6 +29,7 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 import { createModelsRouter } from './index.js';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import type { ModelAutocompleteOption } from '@tzurot/common-types';
+import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 
 // Sample autocomplete options for testing
 const sampleTextModels: ModelAutocompleteOption[] = [
@@ -119,13 +120,7 @@ function getHandler(
   method: 'get' | 'post',
   path: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(
-    l => l.route?.path === path && l.route?.methods?.[method]
-  );
-  return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  return getRouteHandler(router, method, path);
 }
 
 describe('/models routes', () => {
@@ -147,20 +142,12 @@ describe('/models routes', () => {
     it('should have all routes registered', () => {
       const router = createModelsRouter(mockCache);
 
-      const routes = router.stack as unknown as Array<{
-        route?: { path?: string; methods?: Record<string, boolean> };
-      }>;
-
       // Check all expected routes exist
-      expect(routes.find(l => l.route?.path === '/' && l.route?.methods?.get)).toBeDefined();
-      expect(routes.find(l => l.route?.path === '/text' && l.route?.methods?.get)).toBeDefined();
-      expect(routes.find(l => l.route?.path === '/vision' && l.route?.methods?.get)).toBeDefined();
-      expect(
-        routes.find(l => l.route?.path === '/image-generation' && l.route?.methods?.get)
-      ).toBeDefined();
-      expect(
-        routes.find(l => l.route?.path === '/refresh' && l.route?.methods?.post)
-      ).toBeDefined();
+      expect(findRoute(router, 'get', '/')).toBeDefined();
+      expect(findRoute(router, 'get', '/text')).toBeDefined();
+      expect(findRoute(router, 'get', '/vision')).toBeDefined();
+      expect(findRoute(router, 'get', '/image-generation')).toBeDefined();
+      expect(findRoute(router, 'post', '/refresh')).toBeDefined();
     });
   });
 

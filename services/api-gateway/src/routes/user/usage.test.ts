@@ -42,6 +42,7 @@ const mockPrisma = {
 
 import { createUsageRoutes } from './usage.js';
 import type { PrismaClient } from '@tzurot/common-types';
+import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(query: Record<string, string> = {}) {
@@ -65,11 +66,7 @@ async function callHandler(
   res: Response
 ): Promise<void> {
   const router = createUsageRoutes(prisma as PrismaClient);
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(l => l.route?.methods?.get);
-  const handler = (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  const handler = getRouteHandler(router, 'get');
   await handler(req, res);
 }
 
@@ -94,10 +91,7 @@ describe('/user/usage routes', () => {
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
 
-      const getRoute = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/' && layer.route?.methods?.get);
-      expect(getRoute).toBeDefined();
+      expect(findRoute(router, 'get', '/')).toBeDefined();
     });
   });
 

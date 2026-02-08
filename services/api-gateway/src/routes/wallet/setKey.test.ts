@@ -88,6 +88,7 @@ const mockPrisma = {
 
 import { createSetKeyRoute } from './setKey.js';
 import type { PrismaClient } from '@tzurot/common-types';
+import { findRoute, getRouteHandler } from '../../test/expressRouterUtils.js';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}) {
@@ -111,12 +112,7 @@ async function callHandler(
   res: Response
 ): Promise<void> {
   const router = createSetKeyRoute(prisma as PrismaClient);
-  // Get the handler from the router stack
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(l => l.route?.methods?.post);
-  const handler = (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  const handler = getRouteHandler(router, 'post');
   await handler(req, res);
 }
 
@@ -142,11 +138,7 @@ describe('POST /wallet/set', () => {
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
 
-      // Find the POST route - use type assertion for Express internals
-      const postRoute = (
-        router.stack as unknown as Array<{ route?: { methods?: { post?: boolean } } }>
-      ).find(layer => layer.route?.methods?.post);
-      expect(postRoute).toBeDefined();
+      expect(findRoute(router, 'post')).toBeDefined();
     });
   });
 

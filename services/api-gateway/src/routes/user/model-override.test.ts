@@ -69,6 +69,7 @@ const mockPrisma = {
 };
 
 import { createModelOverrideRoutes } from './model-override.js';
+import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Helper to create mock request/response
@@ -93,13 +94,7 @@ function getHandler(
   method: 'get' | 'put' | 'delete',
   path: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(
-    l => l.route?.path === path && l.route?.methods?.[method]
-  );
-  return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  return getRouteHandler(router, method, path);
 }
 
 describe('/user/model-override routes', () => {
@@ -130,30 +125,19 @@ describe('/user/model-override routes', () => {
       expect(router.stack).toBeDefined();
       expect(router.stack.length).toBeGreaterThan(0);
 
-      const getRoute = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/' && layer.route?.methods?.get);
-      expect(getRoute).toBeDefined();
+      expect(findRoute(router, 'get', '/')).toBeDefined();
     });
 
     it('should have PUT route registered', () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
 
-      const putRoute = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { put?: boolean } } }>
-      ).find(layer => layer.route?.path === '/' && layer.route?.methods?.put);
-      expect(putRoute).toBeDefined();
+      expect(findRoute(router, 'put', '/')).toBeDefined();
     });
 
     it('should have DELETE route registered', () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
 
-      const deleteRoute = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { delete?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/:personalityId' && layer.route?.methods?.delete);
-      expect(deleteRoute).toBeDefined();
+      expect(findRoute(router, 'delete', '/:personalityId')).toBeDefined();
     });
   });
 

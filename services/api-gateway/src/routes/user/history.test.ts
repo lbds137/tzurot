@@ -82,6 +82,7 @@ const mockPrisma = {
 };
 
 import { createHistoryRoutes } from './history.js';
+import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Test constants
@@ -114,13 +115,7 @@ function getHandler(
   method: 'get' | 'post' | 'delete',
   path: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(
-    l => l.route?.path === path && l.route?.methods?.[method]
-  );
-  return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  return getRouteHandler(router, method, path);
 }
 
 describe('/user/history routes', () => {
@@ -182,32 +177,19 @@ describe('/user/history routes', () => {
     it('should have POST /clear route registered', () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { post?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/clear' && layer.route?.methods?.post);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'post', '/clear')).toBeDefined();
     });
 
     it('should have POST /undo route registered', () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { post?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/undo' && layer.route?.methods?.post);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'post', '/undo')).toBeDefined();
     });
 
     it('should have GET /stats route registered', () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/stats' && layer.route?.methods?.get);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'get', '/stats')).toBeDefined();
     });
   });
 
@@ -698,12 +680,7 @@ describe('/user/history routes', () => {
     it('should have DELETE /hard-delete route registered', () => {
       const router = createHistoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { delete?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/hard-delete' && layer.route?.methods?.delete);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'delete', '/hard-delete')).toBeDefined();
     });
 
     it('should reject missing personalitySlug', async () => {
