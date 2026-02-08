@@ -37,7 +37,7 @@ module.exports = {
     },
   ],
   options: {
-    // Baseline of known violations (54 circular deps as of 2026-02-07).
+    // Baseline of known violations (25 circular deps as of 2026-02-08, all in generated Prisma code).
     // Run `pnpm depcruise:baseline` to regenerate after fixing violations.
     // DO NOT manually edit the baseline file.
     knownViolations: require('./.dependency-cruiser-baseline.json'),
