@@ -50,13 +50,19 @@ vi.mock('./detail.js', async importOriginal => {
   return {
     ...actual,
     handleMemorySelect: (...args: unknown[]) => mockHandleMemorySelect(...args),
-    handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
     handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
     handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
     handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
     handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
   };
 });
+
+// Mock detailModals.js - edit handlers moved here from detail.js
+vi.mock('./detailModals.js', () => ({
+  handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
+  handleEditTruncatedButton: vi.fn().mockResolvedValue(undefined),
+  handleCancelEditButton: vi.fn().mockResolvedValue(undefined),
+}));
 
 describe('handleBrowse', () => {
   const mockEditReply = vi.fn();

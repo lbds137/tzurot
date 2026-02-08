@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shouldRetryEmptyResponse, logDuplicateDetection } from './RetryDecisionHelper.js';
-import type { RAGResponse } from '../../../../services/ConversationalRAGService.js';
+import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {

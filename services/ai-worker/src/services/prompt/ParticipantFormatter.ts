@@ -15,7 +15,7 @@
  */
 
 import { escapeXml } from '@tzurot/common-types';
-import type { ParticipantInfo } from '../ConversationalRAGService.js';
+import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
 /**
  * Format conversation participants with their personas
@@ -42,6 +42,7 @@ import type { ParticipantInfo } from '../ConversationalRAGService.js';
  * @param activePersonaName - Name of the currently active speaker (for group conversation note)
  * @returns Formatted participants context string in XML, or empty string if no participants
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 export function formatParticipantsContext(
   participantPersonas: Map<string, ParticipantInfo>,
   activePersonaName?: string

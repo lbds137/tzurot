@@ -9,7 +9,7 @@ import {
   getMemoryWrapperOverheadText,
   MEMORY_ARCHIVE_INSTRUCTION,
 } from './MemoryFormatter.js';
-import type { MemoryDocument } from '../ConversationalRAGService.js';
+import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 // Mock formatPromptTimestamp
 vi.mock('@tzurot/common-types', async () => {

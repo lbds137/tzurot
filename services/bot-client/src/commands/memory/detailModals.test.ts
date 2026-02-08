@@ -9,7 +9,7 @@ import {
   handleEditModalSubmit,
   MAX_MODAL_CONTENT_LENGTH,
 } from './detailModals.js';
-import type { MemoryItem } from './detail.js';
+import type { MemoryItem } from './detailApi.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 
 // Mock common-types

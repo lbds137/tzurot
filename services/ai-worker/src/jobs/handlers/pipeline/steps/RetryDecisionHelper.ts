@@ -6,7 +6,7 @@
  */
 
 import { createLogger } from '@tzurot/common-types';
-import type { RAGResponse } from '../../../../services/ConversationalRAGService.js';
+import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 
 const logger = createLogger('RetryDecisionHelper');
 

@@ -5,7 +5,35 @@
 
 import { createLogger } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import type { MemoryItem } from './detail.js';
+
+/**
+ * Memory item structure from API
+ */
+export interface MemoryItem {
+  id: string;
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+  personalityId: string;
+  personalityName: string;
+  isLocked: boolean;
+}
+
+/**
+ * Context needed to return to list view
+ */
+export interface ListContext {
+  /** 'list' or 'search' */
+  source: 'list' | 'search';
+  /** Current page (0-indexed) */
+  page: number;
+  /** Personality filter if any */
+  personalityId?: string;
+  /** Search query (for search source) */
+  query?: string;
+  /** Search type hint (for search source) */
+  preferTextSearch?: boolean;
+}
 
 const logger = createLogger('memory-detail-api');
 

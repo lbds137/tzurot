@@ -17,7 +17,7 @@ import type {
   MemoryDocument,
   DiscordEnvironment,
   ConversationContext,
-} from './ConversationalRAGService.js';
+} from './ConversationalRAGTypes.js';
 
 // Factory function for ProcessedAttachment
 function createProcessedAttachment(

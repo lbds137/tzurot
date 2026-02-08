@@ -13,7 +13,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ConversationalRAGService } from './ConversationalRAGService.js';
-import type { MemoryDocument } from './ConversationalRAGService.js';
+import type { MemoryDocument } from './ConversationalRAGTypes.js';
 import type { AttachmentMetadata, ReferencedMessage } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { CONTENT_TYPES, AttachmentType } from '@tzurot/common-types';

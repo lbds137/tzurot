@@ -10,9 +10,25 @@ import { Prisma } from './prisma.js';
 import { createLogger } from '../utils/logger.js';
 import { MessageRole } from '../constants/index.js';
 import { messageMetadataSchema, type MessageMetadata } from '../types/schemas/index.js';
-import type { ConversationMessage } from './ConversationHistoryService.js';
 
 const logger = createLogger('ConversationMessageMapper');
+
+export interface ConversationMessage {
+  id: string;
+  role: MessageRole;
+  content: string;
+  tokenCount?: number; // Cached token count (computed once, reused on every request)
+  createdAt: Date;
+  personaId: string;
+  personaName?: string; // The user's persona name for display in context
+  discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
+  discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
+  isForwarded?: boolean; // Whether this message was forwarded from another channel
+  messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
+  // AI personality info (for multi-AI channel attribution)
+  personalityId?: string; // The AI personality this message belongs to
+  personalityName?: string; // The AI personality's display name (for assistant messages)
+}
 
 /**
  * Prisma select object for conversation history queries

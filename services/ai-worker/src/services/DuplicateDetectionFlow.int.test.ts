@@ -28,7 +28,7 @@ import {
   generatePersonaUuid,
   generateUserUuid,
 } from '@tzurot/common-types';
-import { isRecentDuplicate } from '../utils/duplicateDetection.js';
+import { isRecentDuplicate } from '../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../utils/conversationHistoryUtils.js';
 import { loadPGliteSchema } from '@tzurot/test-utils';
 

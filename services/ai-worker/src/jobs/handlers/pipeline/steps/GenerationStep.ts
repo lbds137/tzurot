@@ -13,11 +13,11 @@ import {
   generateErrorReferenceId,
   USER_ERROR_MESSAGES,
 } from '@tzurot/common-types';
+import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
-  ConversationalRAGService,
   RAGResponse,
   ConversationContext,
-} from '../../../../services/ConversationalRAGService.js';
+} from '../../../../services/ConversationalRAGTypes.js';
 import type {
   IPipelineStep,
   GenerationContext,
@@ -27,10 +27,10 @@ import type {
 import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
-  isRecentDuplicateAsync,
   buildRetryConfig,
   type EmbeddingServiceInterface,
 } from '../../../../utils/duplicateDetection.js';
+import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
 import type { LLMGenerationJobData } from '@tzurot/common-types';

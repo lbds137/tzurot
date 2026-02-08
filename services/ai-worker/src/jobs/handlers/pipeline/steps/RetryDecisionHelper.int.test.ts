@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { shouldRetryEmptyResponse, logDuplicateDetection } from './RetryDecisionHelper.js';
-import type { RAGResponse } from '../../../../services/ConversationalRAGService.js';
+import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 
 // NOTE: No vi.mock - we use the REAL pino logger to test binding
 

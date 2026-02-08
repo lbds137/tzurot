@@ -29,34 +29,23 @@ import {
   isDashboardInteraction,
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
-  type ActionButtonOptions,
 } from '../../utils/dashboard/index.js';
 import {
   PERSONA_DASHBOARD_CONFIG,
   type FlattenedPersonaData,
   flattenPersonaData,
   unflattenPersonaData,
+  buildPersonaDashboardOptions,
 } from './config.js';
 import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './api.js';
 import { PersonaCustomIds, type PersonaBrowseSortType } from '../../utils/customIds.js';
 import { buildBrowseResponse } from './browse.js';
 
-const logger = createLogger('persona-dashboard');
+// Re-export for backward compatibility
+export { buildPersonaDashboardOptions } from './config.js';
 
-/**
- * Build dashboard button options for personas.
- * Delete button only shown for non-default personas.
- * Back button shown when opened from browse (preserves navigation context).
- */
-export function buildPersonaDashboardOptions(data: FlattenedPersonaData): ActionButtonOptions {
-  const hasBackContext = data.browseContext !== undefined;
-  return {
-    showClose: !hasBackContext, // Only show close if not from browse
-    showBack: hasBackContext, // Show back if opened from browse
-    showRefresh: true,
-    showDelete: !data.isDefault, // Can't delete default persona
-  };
-}
+const logger = createLogger('persona-dashboard');
+const BROWSE_COMMAND = '/persona browse';
 
 /**
  * Refresh the dashboard UI with updated data.
@@ -252,7 +241,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       personaData
     );
     await interaction.showModal(modal);
-    return;
+    return; // eslint-disable-line sonarjs/no-redundant-jump -- pre-existing
   }
 }
 
@@ -364,7 +353,7 @@ async function handleCancelDeleteButton(
     interaction,
     'persona',
     entityId,
-    '/persona browse'
+    BROWSE_COMMAND
   );
   if (session === null) {
     return;
@@ -441,7 +430,7 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
     interaction,
     'persona',
     entityId,
-    '/persona browse'
+    BROWSE_COMMAND
   );
   if (session === null) {
     return;
@@ -451,7 +440,7 @@ async function handleBackButton(interaction: ButtonInteraction, entityId: string
   if (!browseContext) {
     // Session exists but no browse context - shouldn't happen, show expired
     await interaction.editReply({
-      content: formatSessionExpiredMessage('/persona browse'),
+      content: formatSessionExpiredMessage(BROWSE_COMMAND),
       embeds: [],
       components: [],
     });

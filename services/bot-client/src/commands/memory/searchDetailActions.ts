@@ -8,14 +8,16 @@
 import type { ButtonInteraction } from 'discord.js';
 import {
   parseMemoryActionId,
-  handleEditButton,
-  handleEditTruncatedButton,
-  handleCancelEditButton,
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
   handleViewFullButton,
 } from './detail.js';
+import {
+  handleEditButton,
+  handleEditTruncatedButton,
+  handleCancelEditButton,
+} from './detailModals.js';
 
 /**
  * Handle detail action buttons within the search collector.

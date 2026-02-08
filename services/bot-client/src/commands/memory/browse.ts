@@ -19,16 +19,17 @@ import {
   buildMemorySelectMenu,
   handleMemorySelect,
   parseMemoryActionId,
-  handleEditButton,
-  handleEditTruncatedButton,
-  handleCancelEditButton,
   handleLockButton,
   handleDeleteButton,
   handleDeleteConfirm,
   handleViewFullButton,
-  type MemoryItem,
-  type ListContext,
 } from './detail.js';
+import {
+  handleEditButton,
+  handleEditTruncatedButton,
+  handleCancelEditButton,
+} from './detailModals.js';
+import type { MemoryItem, ListContext } from './detailApi.js';
 import { formatDateShort, truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
 import {
   registerActiveCollector,
@@ -202,6 +203,7 @@ async function handleBrowseButton(
 /**
  * Handle detail action buttons within the collector
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
 async function handleDetailAction(
   buttonInteraction: ButtonInteraction,
   _context: BrowseCollectorContext,

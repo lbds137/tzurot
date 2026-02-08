@@ -44,6 +44,7 @@ import {
   recordLlmConfigDiagnostic,
   recordLlmResponseDiagnostic,
 } from './diagnostics/DiagnosticRecorders.js';
+import type { DiagnosticCollector } from './DiagnosticCollector.js';
 import type {
   ConversationContext,
   PersonaLoadResult,
@@ -52,15 +53,6 @@ import type {
   RAGResponse,
   GenerateResponseOptions,
   DeferredMemoryData,
-} from './ConversationalRAGTypes.js';
-
-// Re-export public types for external consumers
-export type {
-  MemoryDocument,
-  DiscordEnvironment,
-  ConversationContext,
-  RAGResponse,
-  ParticipantInfo,
 } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('ConversationalRAGService');
@@ -166,8 +158,10 @@ export class ConversationalRAGService {
       referencedMessagesDescriptions,
       userApiKey,
       retryConfig,
-      diagnosticCollector,
+      diagnosticCollector: diagnosticCollectorRef,
     } = opts;
+    // Cast from opaque DiagnosticCollectorRef to concrete type (safe — callers always pass DiagnosticCollector)
+    const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
     // Build current message
     const { message: currentMessage } = this.promptBuilder.buildHumanMessage(
       userMessage,
@@ -343,7 +337,13 @@ export class ConversationalRAGService {
     context: ConversationContext,
     options: GenerateResponseOptions = {}
   ): Promise<RAGResponse> {
-    const { userApiKey, isGuestMode = false, retryConfig, diagnosticCollector } = options;
+    const {
+      userApiKey,
+      isGuestMode = false,
+      retryConfig,
+      diagnosticCollector: diagnosticCollectorRef,
+    } = options;
+    const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
 
     try {
       // Step 1: Process inputs (attachments, messages, search query)

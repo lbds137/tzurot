@@ -13,10 +13,8 @@ import {
 } from '@tzurot/common-types';
 import { GenerationStep } from './GenerationStep.js';
 import type { GenerationContext, ResolvedConfig, ResolvedAuth, PreparedContext } from '../types.js';
-import type {
-  ConversationalRAGService,
-  RAGResponse,
-} from '../../../../services/ConversationalRAGService.js';
+import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
+import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 import { RetryError } from '../../../../utils/retry.js';
 
 // Mock common-types logger
