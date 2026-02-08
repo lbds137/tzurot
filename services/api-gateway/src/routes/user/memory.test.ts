@@ -70,6 +70,7 @@ const mockPrisma = {
 };
 
 import { createMemoryRoutes } from './memory.js';
+import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 // Test constants
@@ -100,13 +101,7 @@ function getHandler(
   method: 'get' | 'post' | 'delete',
   path: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(
-    l => l.route?.path === path && l.route?.methods?.[method]
-  );
-  return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  return getRouteHandler(router, method, path);
 }
 
 describe('/user/memory routes', () => {
@@ -148,30 +143,19 @@ describe('/user/memory routes', () => {
     it('should have GET /stats route registered', () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/stats' && layer.route?.methods?.get);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'get', '/stats')).toBeDefined();
     });
 
     it('should have GET /focus route registered', () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/focus' && layer.route?.methods?.get);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'get', '/focus')).toBeDefined();
     });
 
     it('should have POST /focus route registered', () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { post?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/focus' && layer.route?.methods?.post);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'post', '/focus')).toBeDefined();
     });
   });
 
@@ -516,12 +500,7 @@ describe('/user/memory routes', () => {
     it('should have POST /search route registered', () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { post?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/search' && layer.route?.methods?.post);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'post', '/search')).toBeDefined();
     });
 
     it('should return 503 when embedding service is not available', async () => {
@@ -838,10 +817,7 @@ describe('/user/memory routes', () => {
     it('should have GET /list route registered', () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
 
-      const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/list' && layer.route?.methods?.get);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'get', '/list')).toBeDefined();
     });
 
     it('should return 404 when user not found', async () => {

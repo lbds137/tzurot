@@ -58,6 +58,7 @@ const mockRedis = {
 };
 
 import { createIncognitoRoutes } from './memoryIncognito.js';
+import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
 import type { Redis } from 'ioredis';
 
@@ -90,13 +91,7 @@ function getHandler(
   method: 'get' | 'post' | 'delete',
   path: string
 ) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Express router internals are untyped
-  const layer = (router.stack as any[]).find(
-    l => l.route?.path === path && l.route?.methods?.[method]
-  );
-  return (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack[
-    (layer as { route: { stack: Array<{ handle: Function }> } }).route.stack.length - 1
-  ].handle;
+  return getRouteHandler(router, method, path);
 }
 
 describe('/user/memory/incognito routes', () => {
@@ -138,10 +133,7 @@ describe('/user/memory/incognito routes', () => {
         mockRedis as unknown as Redis
       );
 
-      const route = (
-        router.stack as unknown as Array<{ route?: { path?: string; methods?: { get?: boolean } } }>
-      ).find(layer => layer.route?.path === '/' && layer.route?.methods?.get);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'get', '/')).toBeDefined();
     });
 
     it('should have POST / route registered', () => {
@@ -150,12 +142,7 @@ describe('/user/memory/incognito routes', () => {
         mockRedis as unknown as Redis
       );
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { post?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/' && layer.route?.methods?.post);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'post', '/')).toBeDefined();
     });
 
     it('should have DELETE / route registered', () => {
@@ -164,12 +151,7 @@ describe('/user/memory/incognito routes', () => {
         mockRedis as unknown as Redis
       );
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { delete?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/' && layer.route?.methods?.delete);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'delete', '/')).toBeDefined();
     });
 
     it('should have POST /forget route registered', () => {
@@ -178,12 +160,7 @@ describe('/user/memory/incognito routes', () => {
         mockRedis as unknown as Redis
       );
 
-      const route = (
-        router.stack as unknown as Array<{
-          route?: { path?: string; methods?: { post?: boolean } };
-        }>
-      ).find(layer => layer.route?.path === '/forget' && layer.route?.methods?.post);
-      expect(route).toBeDefined();
+      expect(findRoute(router, 'post', '/forget')).toBeDefined();
     });
   });
 
