@@ -7,33 +7,23 @@
  */
 
 import { Router, type Response } from 'express';
-import { z } from 'zod';
 import {
   createLogger,
   generateUserPersonalityConfigUuid,
   type PrismaClient,
+  SetPersonaOverrideBodySchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
-import { validateSlug, validateUuid } from '../../../utils/validators.js';
+import { validateSlug } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-override');
-
-/**
- * Schema for setting a persona override.
- * Uses validateUuid for consistent UUID format validation across the codebase.
- */
-const SetOverrideBodySchema = z.object({
-  personaId: z
-    .string()
-    .refine(val => validateUuid(val, 'persona ID').valid, { message: 'Invalid persona ID format' }),
-});
 
 // --- Handler Factories ---
 
@@ -111,7 +101,7 @@ function createSetHandler(prisma: PrismaClient) {
     }
 
     // Validate request body with Zod
-    const parseResult = SetOverrideBodySchema.safeParse(req.body);
+    const parseResult = SetPersonaOverrideBodySchema.safeParse(req.body);
     if (!parseResult.success) {
       const firstIssue = parseResult.error.issues[0];
       return sendError(res, ErrorResponses.validationError(firstIssue.message));
@@ -225,21 +215,11 @@ function createClearHandler(prisma: PrismaClient) {
 
 // --- Main Route Setup ---
 
+const OVERRIDE_BY_SLUG = '/override/:personalitySlug';
+
 export function addOverrideRoutes(router: Router, prisma: PrismaClient): void {
   router.get('/override', requireUserAuth(), asyncHandler(createListHandler(prisma)));
-  router.get(
-    '/override/:personalitySlug',
-    requireUserAuth(),
-    asyncHandler(createGetHandler(prisma))
-  );
-  router.put(
-    '/override/:personalitySlug',
-    requireUserAuth(),
-    asyncHandler(createSetHandler(prisma))
-  );
-  router.delete(
-    '/override/:personalitySlug',
-    requireUserAuth(),
-    asyncHandler(createClearHandler(prisma))
-  );
+  router.get(OVERRIDE_BY_SLUG, requireUserAuth(), asyncHandler(createGetHandler(prisma)));
+  router.put(OVERRIDE_BY_SLUG, requireUserAuth(), asyncHandler(createSetHandler(prisma)));
+  router.delete(OVERRIDE_BY_SLUG, requireUserAuth(), asyncHandler(createClearHandler(prisma)));
 }

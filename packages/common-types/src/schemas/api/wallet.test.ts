@@ -10,7 +10,7 @@ import {
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
   TestWalletKeyResponseSchema,
-} from '../schemas/api/index.js';
+} from './wallet.js';
 
 /** Helper to create valid wallet key data */
 function createValidWalletKey(overrides = {}) {

@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GetTimezoneResponseSchema, SetTimezoneResponseSchema } from '../schemas/api/index.js';
+import { GetTimezoneResponseSchema, SetTimezoneResponseSchema } from './timezone.js';
 
 describe('Timezone API Contract Tests', () => {
   describe('GetTimezoneResponseSchema', () => {

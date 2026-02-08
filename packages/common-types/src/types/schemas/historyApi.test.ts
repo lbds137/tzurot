@@ -34,7 +34,7 @@ import {
   type HistoryStatsResponse,
   type HistoryHardDeleteRequest,
   type HistoryHardDeleteResponse,
-} from './api-types.js';
+} from './historyApi.js';
 
 describe('History API Endpoint Contract Tests', () => {
   describe('POST /user/history/clear - Request Schema', () => {
