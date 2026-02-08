@@ -98,7 +98,7 @@ function displayHeader(
   lines: number,
   filter?: string
 ): void {
-  // eslint-disable-next-line sonarjs/no-duplicate-string -- pre-existing
+  // eslint-disable-next-line sonarjs/no-duplicate-string -- CLI decorative separator shared across display functions
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));
   console.log(chalk.cyan.bold(`           RAILWAY LOGS - ${railwayEnv.toUpperCase()}`));
   console.log(chalk.cyan.bold('═══════════════════════════════════════════════════════'));

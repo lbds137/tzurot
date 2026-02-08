@@ -1,4 +1,4 @@
-/* eslint-disable sonarjs/no-duplicate-string -- pre-existing: option type string literals */
+/* eslint-disable sonarjs/no-duplicate-string -- Option type literals ('STRING', 'INTEGER', etc.) repeated across type unions and runtime accessor functions */
 /**
  * Type-Safe Command Option Accessors
  *

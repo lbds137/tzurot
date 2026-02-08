@@ -37,7 +37,7 @@ const logger = createLogger('memory-command');
  * - If a collector is active for this message, ignore the interaction (collector handles it)
  * - If no collector active, this is an expired interaction - show message
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Routes button interactions through collector registry, handles expired interactions, and delegates to memory action handlers
 export async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const messageId = interaction.message?.id;
 

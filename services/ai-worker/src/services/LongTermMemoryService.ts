@@ -79,8 +79,8 @@ export class LongTermMemoryService {
           personaId,
           personalityId: personality.id,
           text: interactionText,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment
-          metadata: memoryMetadata as any, // Cast to any for Prisma Json type
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment -- Prisma Json field requires any cast
+          metadata: memoryMetadata as any,
           attempts: 0,
         },
       });

@@ -23,7 +23,7 @@ import {
  * Handle detail action buttons within the search collector.
  * Returns true if the button was handled, false if not recognized.
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing; flat switch over action types
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Switch over 8 memory action types (view, delete, confirm, cancel, etc.) with per-action validation
 export async function handleSearchDetailAction(
   buttonInteraction: ButtonInteraction,
   refreshSearch: () => Promise<void>

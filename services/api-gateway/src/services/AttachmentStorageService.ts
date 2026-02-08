@@ -142,8 +142,7 @@ export class AttachmentStorageService {
     const results = await Promise.allSettled(downloadPromises);
 
     // Extract results (use original URL as fallback for failures)
-    // eslint-disable-next-line sonarjs/prefer-immediate-return -- pre-existing
-    const updatedAttachments = results.map((result, index) => {
+    return results.map((result, index) => {
       if (result.status === 'fulfilled') {
         return result.value;
       } else {
@@ -155,8 +154,6 @@ export class AttachmentStorageService {
         return attachments[index];
       }
     });
-
-    return updatedAttachments;
   }
 
   /**

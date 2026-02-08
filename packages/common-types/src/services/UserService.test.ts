@@ -58,7 +58,7 @@ describe('UserService', () => {
       },
       $transaction: vi.fn(),
     };
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     userService = new UserService(mockPrisma as any);
   });
 

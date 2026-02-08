@@ -11,7 +11,7 @@ import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import { checkRailwayCli, getRailwayEnvName, type Environment } from '../utils/env-runner.js';
 
-/* eslint-disable sonarjs/cognitive-complexity -- pre-existing */
+/* eslint-disable sonarjs/cognitive-complexity -- CLI orchestrator: env file parsing → variable validation → confirmation prompt → Railway API calls with diff output */
 
 interface VariableConfig {
   key: string;

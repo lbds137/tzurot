@@ -155,7 +155,7 @@ export function isCrossTurnDuplicate(
  * @param threshold Similarity threshold (default 0.85)
  * @returns Object with isDuplicate flag and matchIndex
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Swiss cheese detection: hash, Jaccard, bigram, and semantic similarity layers with early exits
 export function isRecentDuplicate(
   newResponse: string,
   recentMessages: string[],

@@ -232,7 +232,7 @@ export function isReasoningModel(modelName: string): boolean {
  * @param modelConfig - Reasoning model configuration
  * @returns Transformed messages array
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing: message transformation has inherent branching
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Transforms system→user messages for models without system message support, with content merging and role deduplication
 export function transformMessagesForReasoningModel(
   messages: BaseMessage[],
   modelConfig: ReasoningModelConfig

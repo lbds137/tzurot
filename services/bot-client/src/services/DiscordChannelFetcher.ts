@@ -325,7 +325,7 @@ export class DiscordChannelFetcher {
   /**
    * Convert a Discord message to ConversationMessage format
    */
-  // eslint-disable-next-line complexity -- pre-existing; convertMessage has inherent branching for message types
+  // eslint-disable-next-line complexity -- Message type conversion branches for role detection, content building, attachment handling, reference resolution, and forwarded message extraction
   private async convertMessage(
     msg: Message,
     options: FetchOptions,

@@ -40,7 +40,7 @@ export class ReferenceFormatter {
    * @param maxReferences - Maximum number of references to include
    * @returns Formatted references and updated content
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Sorts by depth then chronologically, assigns reference numbers, formats XML with content truncation and attachment metadata
   async format(
     originalContent: string,
     crawledMessages: Map<string, { message: Message; metadata: ReferenceMetadata }>,

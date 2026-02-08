@@ -261,7 +261,7 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
  * Build pagination and expand buttons for character view
  * Returns array of action rows (pagination + expand buttons if needed)
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Builds pagination buttons, expand/collapse toggles per truncated field, and conditional page info display
 function buildViewComponents(
   slug: string,
   currentPage: number,

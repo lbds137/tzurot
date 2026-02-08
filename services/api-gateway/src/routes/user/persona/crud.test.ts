@@ -101,7 +101,7 @@ describe('persona CRUD routes', () => {
       const { req, res } = createMockReqRes();
       await handler(req, res);
 
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- Accessing vitest mock internals for response extraction
       const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as unknown;
 
       // Validate response against the shared Zod schema - this is the contract test
@@ -160,7 +160,7 @@ describe('persona CRUD routes', () => {
       });
 
       // Also validate against schema to ensure null values pass contract
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access -- Accessing vitest mock internals for response extraction
       const response = (res.json as ReturnType<typeof vi.fn>).mock.calls[0][0] as unknown;
       const parseResult = ListPersonasResponseSchema.safeParse(response);
       expect(parseResult.success).toBe(true);

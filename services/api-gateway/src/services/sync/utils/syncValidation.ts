@@ -60,7 +60,7 @@ interface ValidationResult {
  * Validate that SYNC_CONFIG matches actual database schema
  * @returns Object with warnings (problems) and info (expected exclusions)
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Validates sync config against live DB schema: UUID columns, foreign keys, and exclusion lists with per-table reporting
 export async function validateSyncConfig(
   devClient: PrismaClient,
   syncConfig: Record<SyncTableName, TableSyncConfig>

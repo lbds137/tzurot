@@ -32,7 +32,7 @@ export class LinkExtractor {
    * @param startNumber - Starting reference number
    * @returns Array of referenced messages and map of link URLs to reference numbers
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Link parsing with cross-guild fetch, deduplication, timestamp proximity checks, and error recovery per link
   async extractLinkReferences(
     message: Message,
     extractedMessageIds: Set<string>,

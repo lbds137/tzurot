@@ -1,4 +1,4 @@
-/* eslint-disable sonarjs/no-duplicate-string -- pre-existing: test fixture data */
+/* eslint-disable sonarjs/no-duplicate-string -- Shared test fixtures with intentional literal repetition for readable contract test data */
 /**
  * Shared Test Fixtures for Contract Tests
  *

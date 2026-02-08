@@ -243,7 +243,7 @@ function formatResponse(updated: PersonalityFromDb): PersonalityResponse {
 // --- Handler Factory ---
 
 function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInvalidationService) {
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing, update handler with many fields
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Personality update handler with ~15 optional fields, ownership verification, slug uniqueness check, and cache invalidation
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);

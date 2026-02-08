@@ -146,7 +146,7 @@ export class PersonalityLoader {
    * @param userId - Discord user ID for access control (optional - omit for internal operations)
    * @returns DatabasePersonality or null if not found or access denied
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- pre-existing, multi-strategy lookup
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Multi-strategy lookup: UUID → name → slug → alias with access control filtering
   async loadFromDatabase(nameOrId: string, userId?: string): Promise<DatabasePersonality | null> {
     // Resolve Discord user ID to database UUID for ownership checks
     const ownerUuid = await this.resolveOwnerUuid(userId);

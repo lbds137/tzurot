@@ -241,7 +241,6 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       personaData
     );
     await interaction.showModal(modal);
-    return; // eslint-disable-line sonarjs/no-redundant-jump -- pre-existing
   }
 }
 
