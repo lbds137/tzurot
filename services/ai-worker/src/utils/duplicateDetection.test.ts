@@ -9,8 +9,6 @@ import { describe, it, expect } from 'vitest';
 import {
   stringSimilarity,
   removeDuplicateResponse,
-  isCrossTurnDuplicate,
-  isRecentDuplicate,
   contentHash,
   normalizeForComparison,
   wordJaccardSimilarity,
@@ -24,6 +22,7 @@ import {
   RETRY_ATTEMPT_2_FREQUENCY_PENALTY,
   RETRY_ATTEMPT_3_HISTORY_REDUCTION,
 } from './duplicateDetection.js';
+import { isCrossTurnDuplicate, isRecentDuplicate } from './crossTurnDetection.js';
 import { getRecentAssistantMessages } from './conversationHistoryUtils.js';
 
 describe('removeDuplicateResponse', () => {

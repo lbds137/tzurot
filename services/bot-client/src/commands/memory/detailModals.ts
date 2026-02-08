@@ -15,10 +15,9 @@ import {
 } from 'discord.js';
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
-import { buildMemoryActionId } from './detail.js';
+import { buildMemoryActionId, buildDetailEmbed, buildDetailButtons } from './detail.js';
 import { fetchMemory, updateMemory } from './detailApi.js';
-import { buildDetailEmbed, buildDetailButtons } from './detail.js';
-import type { MemoryItem } from './detail.js';
+import type { MemoryItem } from './detailApi.js';
 
 const logger = createLogger('memory-detail-modals');
 

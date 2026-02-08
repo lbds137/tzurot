@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { fetchMemory, updateMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
-import type { MemoryItem } from './detail.js';
+import type { MemoryItem } from './detailApi.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {

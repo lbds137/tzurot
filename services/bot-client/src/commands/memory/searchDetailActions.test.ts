@@ -20,13 +20,17 @@ const mockHandleViewFullButton = vi.fn();
 
 vi.mock('./detail.js', () => ({
   parseMemoryActionId: (...args: unknown[]) => mockParseMemoryActionId(...args),
-  handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
-  handleEditTruncatedButton: (...args: unknown[]) => mockHandleEditTruncatedButton(...args),
-  handleCancelEditButton: (...args: unknown[]) => mockHandleCancelEditButton(...args),
   handleLockButton: (...args: unknown[]) => mockHandleLockButton(...args),
   handleDeleteButton: (...args: unknown[]) => mockHandleDeleteButton(...args),
   handleDeleteConfirm: (...args: unknown[]) => mockHandleDeleteConfirm(...args),
   handleViewFullButton: (...args: unknown[]) => mockHandleViewFullButton(...args),
+}));
+
+// Mock detailModals.js - edit handlers moved here from detail.js
+vi.mock('./detailModals.js', () => ({
+  handleEditButton: (...args: unknown[]) => mockHandleEditButton(...args),
+  handleEditTruncatedButton: (...args: unknown[]) => mockHandleEditTruncatedButton(...args),
+  handleCancelEditButton: (...args: unknown[]) => mockHandleCancelEditButton(...args),
 }));
 
 import { handleSearchDetailAction } from './searchDetailActions.js';

@@ -17,10 +17,8 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import { AIJobProcessor } from './AIJobProcessor.js';
-import type {
-  ConversationalRAGService,
-  RAGResponse,
-} from '../services/ConversationalRAGService.js';
+import type { ConversationalRAGService } from '../services/ConversationalRAGService.js';
+import type { RAGResponse } from '../services/ConversationalRAGTypes.js';
 import {
   JobType,
   MessageRole,

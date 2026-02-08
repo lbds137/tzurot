@@ -6,6 +6,7 @@
  */
 
 import type { DashboardConfig } from '../../utils/dashboard/types.js';
+import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { PresetData, FlattenedPresetData } from './types.js';
 
 // Re-export types for backward compatibility
@@ -282,6 +283,25 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
   getFooter: () => 'Select a section to edit • Changes save automatically',
   color: 0x5865f2, // Discord blurple
 };
+
+/**
+ * Build dashboard button options including toggle-global and delete for owned presets.
+ * Shows back button when opened from browse, close button when opened directly.
+ */
+export function buildPresetDashboardOptions(data: FlattenedPresetData): ActionButtonOptions {
+  const hasBrowseContext = data.browseContext !== undefined;
+  return {
+    showBack: hasBrowseContext,
+    showClose: !hasBrowseContext,
+    showRefresh: true,
+    showClone: true,
+    showDelete: data.isOwned,
+    toggleGlobal: {
+      isGlobal: data.isGlobal,
+      isOwned: data.isOwned,
+    },
+  };
+}
 
 /**
  * Seed modal field definitions for creating a new preset

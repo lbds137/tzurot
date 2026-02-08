@@ -12,8 +12,27 @@ import {
   type SectionDefinition,
   type DashboardContext,
   type BrowseContext,
+  type ActionButtonOptions,
   SectionStatus,
 } from '../../utils/dashboard/index.js';
+
+/** Browse filter options */
+export type CharacterBrowseFilter = 'all' | 'mine' | 'public';
+
+/** Sort options */
+export type CharacterBrowseSortType = 'date' | 'name';
+
+/**
+ * Session data stored during character dashboard editing.
+ * Extends CharacterData with admin flag for audit/debugging only.
+ */
+export interface CharacterSessionData extends CharacterData {
+  /**
+   * Whether the session was opened by a bot admin.
+   * Stored for audit/debugging only - always re-verify with isBotOwner() for authorization.
+   */
+  _isAdmin?: boolean;
+}
 
 /**
  * Character data structure (from API)
@@ -341,6 +360,22 @@ const adminSection: SectionDefinition<CharacterData> = {
   getStatus: () => SectionStatus.DEFAULT,
   getPreview: (data: CharacterData) => `\`${data.slug}\``,
 };
+
+/**
+ * Build dashboard action button options based on character data.
+ *
+ * @param data - Character data with optional browseContext
+ * @returns ActionButtonOptions for buildDashboardComponents
+ */
+export function buildCharacterDashboardOptions(data: CharacterData): ActionButtonOptions {
+  const hasBackContext = data.browseContext !== undefined;
+  return {
+    showClose: !hasBackContext, // Only show close if not from browse
+    showBack: hasBackContext, // Show back if opened from browse
+    showRefresh: true,
+    showDelete: data.canEdit, // Only show delete for owned characters
+  };
+}
 
 /**
  * Character Dashboard Configuration

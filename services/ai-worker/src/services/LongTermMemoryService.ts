@@ -15,7 +15,7 @@ import {
   type LoadedPersonality,
   generatePendingMemoryUuid,
 } from '@tzurot/common-types';
-import type { ConversationContext } from './ConversationalRAGService.js';
+import type { ConversationContext } from './ConversationalRAGTypes.js';
 
 const logger = createLogger('LongTermMemoryService');
 

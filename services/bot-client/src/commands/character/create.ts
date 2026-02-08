@@ -26,9 +26,12 @@ import {
   getSessionManager,
 } from '../../utils/dashboard/index.js';
 import { normalizeSlugForUser } from '../../utils/slugUtils.js';
-import { characterDashboardConfig, characterSeedFields } from './config.js';
+import {
+  characterDashboardConfig,
+  characterSeedFields,
+  buildCharacterDashboardOptions,
+} from './config.js';
 import { createCharacter } from './api.js';
-import { buildCharacterDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('character-create');
 

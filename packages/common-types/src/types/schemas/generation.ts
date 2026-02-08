@@ -126,4 +126,6 @@ export const llmGenerationResultSchema = generationPayloadSchema.extend({
 // Infer TypeScript types from schemas
 export type GenerateRequest = z.infer<typeof generateRequestSchema>;
 export type ErrorInfo = z.infer<typeof errorInfoSchema>;
+/** Alias for ErrorInfo used by error classification consumers */
+export type { ErrorInfo as ApiErrorInfo };
 export type LLMGenerationResult = z.infer<typeof llmGenerationResultSchema>;

@@ -6,7 +6,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryBudgetManager } from './MemoryBudgetManager.js';
-import type { MemoryDocument } from '../ConversationalRAGService.js';
+import type { MemoryDocument } from '../ConversationalRAGTypes.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', () => ({

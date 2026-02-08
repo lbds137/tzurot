@@ -25,9 +25,13 @@ import {
   extractModalValues,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { PRESET_DASHBOARD_CONFIG, flattenPresetData, presetSeedFields } from './config.js';
+import {
+  PRESET_DASHBOARD_CONFIG,
+  flattenPresetData,
+  presetSeedFields,
+  buildPresetDashboardOptions,
+} from './config.js';
 import { createPreset } from './api.js';
-import { buildPresetDashboardOptions } from './dashboardButtons.js';
 
 const logger = createLogger('preset-create');
 

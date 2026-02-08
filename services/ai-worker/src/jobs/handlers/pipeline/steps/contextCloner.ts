@@ -5,7 +5,7 @@
  * Extracted from GenerationStep to maintain file size limits.
  */
 
-import type { ConversationContext } from '../../../../services/ConversationalRAGService.js';
+import type { ConversationContext } from '../../../../services/ConversationalRAGTypes.js';
 
 /**
  * Clone the conversation context for retry isolation.

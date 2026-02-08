@@ -17,7 +17,7 @@ import type {
   MemoryDocument,
   ConversationContext,
   ParticipantInfo,
-} from './ConversationalRAGService.js';
+} from './ConversationalRAGTypes.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import { formatParticipantsContext } from './prompt/ParticipantFormatter.js';
 import { formatMemoriesContext } from './prompt/MemoryFormatter.js';

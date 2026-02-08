@@ -35,10 +35,10 @@ const PERSONA_LIST_ENDPOINT = '/user/persona';
 import {
   PERSONA_DASHBOARD_CONFIG,
   flattenPersonaData,
+  buildPersonaDashboardOptions,
   type FlattenedPersonaData,
 } from './config.js';
 import { fetchPersona } from './api.js';
-import { buildPersonaDashboardOptions } from './dashboard.js';
 import type { PersonaSummary } from './types.js';
 
 const logger = createLogger('persona-browse');

@@ -20,10 +20,10 @@ import {
 import {
   PERSONA_DASHBOARD_CONFIG,
   flattenPersonaData,
+  buildPersonaDashboardOptions,
   type FlattenedPersonaData,
 } from './config.js';
 import { fetchPersona, fetchDefaultPersona } from './api.js';
-import { buildPersonaDashboardOptions } from './dashboard.js';
 
 const logger = createLogger('persona-edit');
 

@@ -17,27 +17,14 @@ import {
   conversationHistorySelect,
   mapToConversationMessage,
   mapToConversationMessages,
+  type ConversationMessage,
 } from './ConversationMessageMapper.js';
 import { generateConversationHistoryUuid } from '../utils/deterministicUuid.js';
 
-const logger = createLogger('ConversationHistoryService');
+// Re-export ConversationMessage for consumers that import from this module
+export type { ConversationMessage } from './ConversationMessageMapper.js';
 
-export interface ConversationMessage {
-  id: string;
-  role: MessageRole;
-  content: string;
-  tokenCount?: number; // Cached token count (computed once, reused on every request)
-  createdAt: Date;
-  personaId: string;
-  personaName?: string; // The user's persona name for display in context
-  discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
-  discordMessageId: string[]; // Discord snowflake IDs for chunked messages (deduplication)
-  isForwarded?: boolean; // Whether this message was forwarded from another channel
-  messageMetadata?: MessageMetadata; // Structured metadata (referenced messages, attachments)
-  // AI personality info (for multi-AI channel attribution)
-  personalityId?: string; // The AI personality this message belongs to
-  personalityName?: string; // The AI personality's display name (for assistant messages)
-}
+const logger = createLogger('ConversationHistoryService');
 
 /**
  * Options for adding a message to conversation history

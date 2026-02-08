@@ -14,6 +14,7 @@ import {
   type SectionDefinition,
   type DashboardConfig,
 } from '../../utils/dashboard/types.js';
+import type { ActionButtonOptions } from '../../utils/dashboard/index.js';
 import type { FlattenedPersonaData, PersonaDetails } from './types.js';
 
 // Re-export types for convenience
@@ -177,6 +178,21 @@ export const PERSONA_DASHBOARD_CONFIG: DashboardConfig<FlattenedPersonaData> = {
  * Seed modal field definitions for creating a new persona
  * Minimal fields required to create a persona - user can configure more via dashboard
  */
+/**
+ * Build dashboard button options for personas.
+ * Delete button only shown for non-default personas.
+ * Back button shown when opened from browse (preserves navigation context).
+ */
+export function buildPersonaDashboardOptions(data: FlattenedPersonaData): ActionButtonOptions {
+  const hasBackContext = data.browseContext !== undefined;
+  return {
+    showClose: !hasBackContext, // Only show close if not from browse
+    showBack: hasBackContext, // Show back if opened from browse
+    showRefresh: true,
+    showDelete: !data.isDefault, // Can't delete default persona
+  };
+}
+
 export const personaSeedFields = [
   {
     id: 'name',

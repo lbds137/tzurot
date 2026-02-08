@@ -11,7 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { formatParticipantsContext } from './ParticipantFormatter.js';
-import type { ParticipantInfo } from '../ConversationalRAGService.js';
+import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
 describe('ParticipantFormatter', () => {
   describe('formatParticipantsContext', () => {

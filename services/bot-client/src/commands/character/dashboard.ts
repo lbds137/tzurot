@@ -27,19 +27,18 @@ import {
 } from '../../utils/dashboard/index.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
-import { getCharacterDashboardConfig, type CharacterData } from './config.js';
-import type { CharacterSessionData } from './edit.js';
+import {
+  getCharacterDashboardConfig,
+  buildCharacterDashboardOptions,
+  type CharacterData,
+  type CharacterSessionData,
+} from './config.js';
 import { fetchCharacter, updateCharacter, toggleVisibility } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
 import { handleDeleteAction, handleDeleteButton } from './dashboardDeleteHandlers.js';
 // Note: Browse pagination is handled in index.ts via handleBrowsePagination
 import { handleViewPagination, handleExpandField } from './view.js';
-import {
-  handleBackButton,
-  handleRefreshButton,
-  handleCloseButton,
-  buildCharacterDashboardOptions,
-} from './dashboardButtons.js';
+import { handleBackButton, handleRefreshButton, handleCloseButton } from './dashboardButtons.js';
 
 const logger = createLogger('character-dashboard');
 
