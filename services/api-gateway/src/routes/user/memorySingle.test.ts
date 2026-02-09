@@ -285,7 +285,8 @@ describe('memorySingle handlers', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('Content'),
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('content'),
         })
       );
     });

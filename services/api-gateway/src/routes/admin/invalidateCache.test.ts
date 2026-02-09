@@ -40,14 +40,15 @@ describe('POST /admin/invalidate-cache', () => {
   });
 
   it('should invalidate specific personality cache', async () => {
+    const personalityId = '00000000-0000-4000-8000-000000000123';
     const response = await request(app).post('/admin/invalidate-cache').send({
-      personalityId: 'personality-123',
+      personalityId,
     });
 
     expect(response.status).toBe(200);
     expect(response.body.success).toBe(true);
-    expect(response.body.invalidated).toBe('personality-123');
-    expect(cacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith('personality-123');
+    expect(response.body.invalidated).toBe(personalityId);
+    expect(cacheInvalidationService.invalidatePersonality).toHaveBeenCalledWith(personalityId);
     expect(cacheInvalidationService.invalidateAll).not.toHaveBeenCalled();
   });
 

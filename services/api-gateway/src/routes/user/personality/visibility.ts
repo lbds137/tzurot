@@ -5,11 +5,12 @@
 
 import { type Response, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, SetVisibilitySchema } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { findInternalUser, canUserEditPersonality } from './helpers.js';
@@ -24,11 +25,13 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
-    const { isPublic } = req.body as { isPublic?: boolean };
 
-    if (isPublic === undefined) {
-      return sendError(res, ErrorResponses.validationError('isPublic field is required'));
+    const parseResult = SetVisibilitySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
+
+    const { isPublic } = parseResult.data;
 
     const user = await findInternalUser(prisma, discordUserId);
     if (user === null) {

@@ -198,7 +198,7 @@ describe('/user/timezone routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'VALIDATION_ERROR',
-          message: expect.stringContaining('timezone is required'),
+          message: expect.stringContaining('timezone'),
         })
       );
     });

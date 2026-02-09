@@ -12,18 +12,16 @@ import {
   type PrismaClient,
   isValidTimezone,
   getTimezoneInfo,
+  SetTimezoneInputSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-timezone');
-
-interface SetTimezoneRequest {
-  timezone: string;
-}
 
 export function createTimezoneRoutes(prisma: PrismaClient): Router {
   const router = Router();
@@ -76,12 +74,13 @@ export function createTimezoneRoutes(prisma: PrismaClient): Router {
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
-      const { timezone } = req.body as SetTimezoneRequest;
 
-      // Validate required field
-      if (timezone === undefined || timezone === null || timezone.length === 0) {
-        return sendError(res, ErrorResponses.validationError('timezone is required'));
+      const parseResult = SetTimezoneInputSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
       }
+
+      const { timezone } = parseResult.data;
 
       // Validate timezone
       if (!isValidTimezone(timezone)) {

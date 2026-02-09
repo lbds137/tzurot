@@ -18,33 +18,22 @@ import {
   ConversationHistoryService,
   ConversationRetentionService,
   generateUserPersonaHistoryConfigUuid,
+  ClearHistorySchema,
+  UndoHistorySchema,
+  HardDeleteHistorySchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { resolveHistoryContext } from '../../utils/historyContextResolver.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-history');
 
-interface ClearHistoryRequest {
-  personalitySlug: string;
-  /** Optional persona ID - if not provided, uses resolved persona */
-  personaId?: string;
-}
-
-interface UndoHistoryRequest {
-  personalitySlug: string;
-  /** Optional persona ID - if not provided, uses resolved persona */
-  personaId?: string;
-}
-
-interface HardDeleteRequest {
-  personalitySlug: string;
-  channelId: string;
-  personaId?: string; // Optional - if not provided, uses resolved persona
-}
+const CONTEXT_NOT_FOUND =
+  'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.';
 
 interface StatsRequest {
   personalitySlug?: string;
@@ -70,11 +59,13 @@ function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
 
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { personalitySlug, personaId: explicitPersonaId } = req.body as ClearHistoryRequest;
 
-    if (!personalitySlug || personalitySlug.length === 0) {
-      return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
+    const parseResult = ClearHistorySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
+
+    const { personalitySlug, personaId: explicitPersonaId } = parseResult.data;
 
     const context = await resolveHistoryContext(
       prisma,
@@ -83,12 +74,7 @@ function createClearHandler(deps: HistoryHandlerDeps): RouteHandler {
       explicitPersonaId
     );
     if (!context) {
-      return sendError(
-        res,
-        ErrorResponses.notFound(
-          'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
-        )
-      );
+      return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
     }
 
     const { userId, personalityId, personaId } = context;
@@ -153,11 +139,13 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
 
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { personalitySlug, personaId: explicitPersonaId } = req.body as UndoHistoryRequest;
 
-    if (!personalitySlug || personalitySlug.length === 0) {
-      return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
+    const parseResult = UndoHistorySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
+
+    const { personalitySlug, personaId: explicitPersonaId } = parseResult.data;
 
     const context = await resolveHistoryContext(
       prisma,
@@ -166,12 +154,7 @@ function createUndoHandler(deps: HistoryHandlerDeps): RouteHandler {
       explicitPersonaId
     );
     if (!context) {
-      return sendError(
-        res,
-        ErrorResponses.notFound(
-          'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
-        )
-      );
+      return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
     }
 
     const { userId, personalityId, personaId } = context;
@@ -262,12 +245,7 @@ function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
       explicitPersonaId
     );
     if (!context) {
-      return sendError(
-        res,
-        ErrorResponses.notFound(
-          'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
-        )
-      );
+      return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
     }
 
     const { userId, personalityId, personaId, personaName } = context;
@@ -329,18 +307,13 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
 
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const {
-      personalitySlug,
-      channelId,
-      personaId: explicitPersonaId,
-    } = req.body as HardDeleteRequest;
 
-    if (!personalitySlug || personalitySlug.length === 0) {
-      return sendError(res, ErrorResponses.validationError('personalitySlug is required'));
+    const parseResult = HardDeleteHistorySchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
-    if (!channelId || channelId.length === 0) {
-      return sendError(res, ErrorResponses.validationError('channelId is required'));
-    }
+
+    const { personalitySlug, channelId, personaId: explicitPersonaId } = parseResult.data;
 
     const context = await resolveHistoryContext(
       prisma,
@@ -349,12 +322,7 @@ function createHardDeleteHandler(deps: HistoryHandlerDeps): RouteHandler {
       explicitPersonaId
     );
     if (!context) {
-      return sendError(
-        res,
-        ErrorResponses.notFound(
-          'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.'
-        )
-      );
+      return sendError(res, ErrorResponses.notFound(CONTEXT_NOT_FOUND));
     }
 
     const { userId, personalityId, personaId } = context;

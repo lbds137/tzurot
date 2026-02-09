@@ -223,7 +223,7 @@ export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
 // ============================================================================
 
 export const SetVisibilitySchema = z.object({
-  isPublic: z.boolean({ required_error: 'isPublic field is required' }),
+  isPublic: z.boolean({ error: 'isPublic field is required' }),
 });
 export type SetVisibilityInput = z.infer<typeof SetVisibilitySchema>;
 

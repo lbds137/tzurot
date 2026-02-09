@@ -15,11 +15,17 @@
 
 import { Router, type Response, type Request, type RequestHandler } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient, type DiagnosticPayload } from '@tzurot/common-types';
+import {
+  createLogger,
+  type PrismaClient,
+  type DiagnosticPayload,
+  DiagnosticUpdateSchema,
+} from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getParam } from '../../utils/requestParams.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('admin-diagnostic');
 
@@ -243,38 +249,18 @@ function handleGetByResponse(prisma: PrismaClient): RequestHandler {
 function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const requestId = getParam(req.params.requestId);
-    const { responseMessageIds } = req.body as { responseMessageIds?: string[] };
 
     if (requestId === null || requestId === '') {
       sendError(res, ErrorResponses.validationError('Request ID is required'));
       return;
     }
 
-    if (!Array.isArray(responseMessageIds)) {
-      sendError(res, ErrorResponses.validationError('responseMessageIds must be an array'));
-      return;
+    const parseResult = DiagnosticUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
 
-    // Validate array length (prevent abuse)
-    const MAX_RESPONSE_MESSAGE_IDS = 100;
-    if (responseMessageIds.length > MAX_RESPONSE_MESSAGE_IDS) {
-      sendError(
-        res,
-        ErrorResponses.validationError(
-          `responseMessageIds exceeds maximum length of ${MAX_RESPONSE_MESSAGE_IDS}`
-        )
-      );
-      return;
-    }
-
-    // Validate all IDs are strings
-    if (!responseMessageIds.every(id => typeof id === 'string' && id.length > 0)) {
-      sendError(
-        res,
-        ErrorResponses.validationError('All response message IDs must be non-empty strings')
-      );
-      return;
-    }
+    const { responseMessageIds } = parseResult.data;
 
     try {
       await prisma.llmDiagnosticLog.update({

@@ -539,7 +539,7 @@ describe('/user/memory routes', () => {
     it('should reject empty query', async () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/search');
-      const { req, res } = createMockReqRes({ query: '   ' }, {});
+      const { req, res } = createMockReqRes({ query: '' }, {});
 
       await handler(req, res);
 
@@ -707,15 +707,21 @@ describe('/user/memory routes', () => {
       );
     });
 
-    it('should clamp limit to max 50', async () => {
+    it('should reject limit exceeding max 50', async () => {
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/search');
       const { req, res } = createMockReqRes({ query: 'test search', limit: 100 }, {});
 
       await handler(req, res);
 
-      // Should still succeed (limit is clamped internally)
-      expect(res.status).toHaveBeenCalledWith(200);
+      // MemorySearchSchema validates limit with .max(50), so 100 is rejected
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('limit'),
+        })
+      );
     });
 
     it('should handle embedding generation error', async () => {
