@@ -687,10 +687,11 @@ describe('PUT /user/personality/:slug (update)', () => {
 
       await handler(req, res);
 
+      // Zod catches the invalid format before the business rule validator
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('Invalid slug format'),
+          message: expect.stringContaining('slug'),
         })
       );
       expect(mockPrisma.personality.update).not.toHaveBeenCalled();
