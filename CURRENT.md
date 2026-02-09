@@ -42,16 +42,20 @@
 
 ## Active Work
 
-**Zod Schema Hardening** — active epic, Phase 1 in Current Focus:
+**Zod Schema Hardening** — active epic, Phase 2 in progress:
 
-- Consolidate Persona endpoint schemas (admin + user)
-- Consolidate Model override endpoint schemas
-- Pattern: Shared Zod schemas in common-types, scope-aware service layer
+- Phase 1 complete (PR #601): Consolidated persona + model-override schemas
+- Phase 2: Schema-first types + consistency (current branch)
+  - Eliminated `types/byok.ts` — Zod schemas are now single source of truth for API types
+  - Standardized UUID validation (`.uuid()` instead of regex/`.trim().min(1)`)
+  - Shared `sendZodError` helper replaces repeated firstIssue pattern in 10 route files
+  - Fixed `PersonalitySummary.ownerId` nullability mismatch (was `string`, should be `string | null`)
 
 ---
 
 ## Session Notes
 
+**2026-02-08 (eve)**: Zod Schema Hardening Phase 2 — schema-first type migration (deleted `types/byok.ts`, exported `z.infer` types from schemas, created `usage.ts` schemas), standardized UUID validation (regex → `.uuid()`), shared `sendZodError` helper (10 route files), updated CURRENT.md + BACKLOG.md. Fixed `PersonalitySummary.ownerId` nullability bug (manual interface said `string`, Zod schema correctly had `string | null`).
 **2026-02-08 (pm)**: Code quality audit on `fix/code-quality-audit-2025-02`: dead code removal (knip), 4 shared helpers extracted (CPD reduction), split PromptBuilder.ts + DatabaseSyncService.ts (oversized files), closed all 40 contract test gaps (40→0), colocated tests for all extracted modules. Updated BACKLOG.md — collapsed completed Architecture Health phases, added suppression audit follow-ups to inbox.
 **2026-02-08**: Suppression audit cleanup (PR #598) — replaced all pre-existing/unjustified suppressions, fixed 4 code issues, split audit-unified.ts, locked depcruise baseline. Architecture Health epic fully complete (Phases 1-4). Pushed follow-up test coverage for `memoryList.ts` (13 tests) and `interactionHandlers.ts` (2 coverage gap tests). Cleaned up BACKLOG.md — removed completed phases, made package extraction a standalone next epic.
 **2026-02-07**: Phase 4 circular deps PR #597 created and merged. Phase 3b PR #596 merged. Phase 3a PR #594 merged.

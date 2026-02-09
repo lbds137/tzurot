@@ -28,6 +28,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
@@ -102,10 +103,7 @@ export function createModelOverrideRoutes(
       // Validate request body with Zod
       const parseResult = SetModelOverrideBodySchema.safeParse(req.body);
       if (!parseResult.success) {
-        const firstIssue = parseResult.error.issues[0];
-        const fieldPath = firstIssue.path.join('.');
-        const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
-        return sendError(res, ErrorResponses.validationError(message));
+        return sendZodError(res, parseResult.error);
       }
 
       const { personalityId, configId } = parseResult.data;
@@ -238,10 +236,7 @@ export function createModelOverrideRoutes(
       // Validate request body with Zod
       const parseResult = SetDefaultConfigBodySchema.safeParse(req.body);
       if (!parseResult.success) {
-        const firstIssue = parseResult.error.issues[0];
-        const fieldPath = firstIssue.path.join('.');
-        const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
-        return sendError(res, ErrorResponses.validationError(message));
+        return sendZodError(res, parseResult.error);
       }
 
       const { configId } = parseResult.data;

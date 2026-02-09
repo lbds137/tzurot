@@ -31,3 +31,6 @@ export * from './channel.js';
 
 // Admin settings endpoints (singleton pattern)
 export * from './adminSettings.js';
+
+// Usage endpoints
+export * from './usage.js';
