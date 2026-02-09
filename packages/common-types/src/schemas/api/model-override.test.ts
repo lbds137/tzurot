@@ -13,8 +13,8 @@ import {
   SetDefaultConfigResponseSchema,
   ClearDefaultConfigResponseSchema,
   DeleteModelOverrideResponseSchema,
-  SetModelOverrideBodySchema,
-  SetDefaultConfigBodySchema,
+  SetModelOverrideSchema,
+  SetDefaultConfigSchema,
 } from './model-override.js';
 
 /** Helper to create a valid model override summary */
@@ -196,74 +196,74 @@ describe('Model Override API Contract Tests', () => {
   // Input Schema Tests
   // ================================================================
 
-  describe('SetModelOverrideBodySchema', () => {
+  describe('SetModelOverrideSchema', () => {
     const validPersonalityId = '550e8400-e29b-41d4-a716-446655440000';
     const validConfigId = '550e8400-e29b-41d4-a716-446655440001';
 
     it('should accept valid UUIDs', () => {
       const data = { personalityId: validPersonalityId, configId: validConfigId };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject missing personalityId', () => {
       const data = { configId: validConfigId };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject non-UUID personalityId', () => {
       const data = { personalityId: 'not-a-uuid', configId: validConfigId };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject empty personalityId', () => {
       const data = { personalityId: '', configId: validConfigId };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject missing configId', () => {
       const data = { personalityId: validPersonalityId };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject non-UUID configId', () => {
       const data = { personalityId: validPersonalityId, configId: 'not-a-uuid' };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject empty configId', () => {
       const data = { personalityId: validPersonalityId, configId: '' };
-      const result = SetModelOverrideBodySchema.safeParse(data);
+      const result = SetModelOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
   });
 
-  describe('SetDefaultConfigBodySchema', () => {
+  describe('SetDefaultConfigSchema', () => {
     it('should accept valid UUID', () => {
       const data = { configId: '550e8400-e29b-41d4-a716-446655440001' };
-      const result = SetDefaultConfigBodySchema.safeParse(data);
+      const result = SetDefaultConfigSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject missing configId', () => {
-      const result = SetDefaultConfigBodySchema.safeParse({});
+      const result = SetDefaultConfigSchema.safeParse({});
       expect(result.success).toBe(false);
     });
 
     it('should reject non-UUID configId', () => {
       const data = { configId: 'not-a-uuid' };
-      const result = SetDefaultConfigBodySchema.safeParse(data);
+      const result = SetDefaultConfigSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject empty configId', () => {
       const data = { configId: '' };
-      const result = SetDefaultConfigBodySchema.safeParse(data);
+      const result = SetDefaultConfigSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
   });

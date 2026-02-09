@@ -90,16 +90,16 @@ export type DeleteModelOverrideResponse = z.infer<typeof DeleteModelOverrideResp
 /**
  * Schema for setting a model override for a personality.
  */
-export const SetModelOverrideBodySchema = z.object({
+export const SetModelOverrideSchema = z.object({
   personalityId: z.string().uuid('Invalid personalityId format'),
   configId: z.string().uuid('Invalid configId format'),
 });
-export type SetModelOverrideBody = z.infer<typeof SetModelOverrideBodySchema>;
+export type SetModelOverrideInput = z.infer<typeof SetModelOverrideSchema>;
 
 /**
  * Schema for setting user's global default LLM config.
  */
-export const SetDefaultConfigBodySchema = z.object({
+export const SetDefaultConfigSchema = z.object({
   configId: z.string().uuid('Invalid configId format'),
 });
-export type SetDefaultConfigBody = z.infer<typeof SetDefaultConfigBodySchema>;
+export type SetDefaultConfigInput = z.infer<typeof SetDefaultConfigSchema>;

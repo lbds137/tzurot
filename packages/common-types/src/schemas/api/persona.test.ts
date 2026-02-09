@@ -21,8 +21,8 @@ import {
   CreateOverrideResponseSchema,
   PersonaCreateSchema,
   PersonaUpdateSchema,
-  SetPersonaOverrideBodySchema,
-  PersonaSettingsBodySchema,
+  SetPersonaOverrideSchema,
+  PersonaSettingsSchema,
 } from './persona.js';
 
 /** Helper to create valid persona details */
@@ -492,58 +492,58 @@ describe('Persona API Contract Tests', () => {
     });
   });
 
-  describe('SetPersonaOverrideBodySchema', () => {
+  describe('SetPersonaOverrideSchema', () => {
     it('should accept valid UUID', () => {
       const data = { personaId: '550e8400-e29b-41d4-a716-446655440000' };
-      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      const result = SetPersonaOverrideSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject non-RFC4122 UUID format', () => {
       const data = { personaId: 'f6a7b8c9-d0e1-2345-f012-456789012345' };
-      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      const result = SetPersonaOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject non-UUID string', () => {
       const data = { personaId: 'not-a-uuid' };
-      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      const result = SetPersonaOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject empty string', () => {
       const data = { personaId: '' };
-      const result = SetPersonaOverrideBodySchema.safeParse(data);
+      const result = SetPersonaOverrideSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject missing personaId', () => {
-      const result = SetPersonaOverrideBodySchema.safeParse({});
+      const result = SetPersonaOverrideSchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });
 
-  describe('PersonaSettingsBodySchema', () => {
+  describe('PersonaSettingsSchema', () => {
     it('should accept true', () => {
       const data = { shareLtmAcrossPersonalities: true };
-      const result = PersonaSettingsBodySchema.safeParse(data);
+      const result = PersonaSettingsSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should accept false', () => {
       const data = { shareLtmAcrossPersonalities: false };
-      const result = PersonaSettingsBodySchema.safeParse(data);
+      const result = PersonaSettingsSchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject non-boolean value', () => {
       const data = { shareLtmAcrossPersonalities: 'true' };
-      const result = PersonaSettingsBodySchema.safeParse(data);
+      const result = PersonaSettingsSchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject missing field', () => {
-      const result = PersonaSettingsBodySchema.safeParse({});
+      const result = PersonaSettingsSchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });

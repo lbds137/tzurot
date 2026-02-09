@@ -210,18 +210,18 @@ export type PersonaUpdateInput = z.infer<typeof PersonaUpdateSchema>;
 /**
  * Schema for setting a persona override on a personality.
  */
-export const SetPersonaOverrideBodySchema = z.object({
+export const SetPersonaOverrideSchema = z.object({
   personaId: z.string().uuid('Invalid persona ID format'),
 });
-export type SetPersonaOverrideBody = z.infer<typeof SetPersonaOverrideBodySchema>;
+export type SetPersonaOverrideInput = z.infer<typeof SetPersonaOverrideSchema>;
 
 /**
  * Schema for persona settings update (share-ltm toggle).
  */
-export const PersonaSettingsBodySchema = z.object({
+export const PersonaSettingsSchema = z.object({
   shareLtmAcrossPersonalities: z.boolean(),
 });
-export type PersonaSettingsBody = z.infer<typeof PersonaSettingsBodySchema>;
+export type PersonaSettingsInput = z.infer<typeof PersonaSettingsSchema>;
 
 // ============================================================================
 // Database Constants
