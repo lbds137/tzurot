@@ -113,13 +113,9 @@ it('should reject maxAge = 0 (use null for no limit)', () => {
 
 _This week's active work. Max 3 items._
 
-### 🏗️ Zod Schema Hardening - Phases 3+4: Naming + Route Audit
+### 🏗️ Zod Schema Hardening — COMPLETE
 
-- [x] Phase 1 (PR #601): Consolidated persona + model-override endpoint schemas
-- [x] Phase 2 (PR #602): Schema-first types, UUID validation, `sendZodError` helper
-- [x] Phase 3: Standardized 4 input schema names (removed "Body" suffix)
-- [x] Phase 4: Created schemas + converted 12 routes from `req.body as` to `safeParse`
-- [ ] Phase 5 (follow-up PR): Complex routes (create/update personality, transcribe, generate)
+All 5 phases done. See Active Epic section for details.
 
 ---
 
@@ -178,52 +174,23 @@ Notify users of new releases.
 
 ---
 
-## 🏗 Active Epic: Zod Schema Hardening
+## 🏗 Active Epic: Zod Schema Hardening — COMPLETE
 
 _Focus: Prevent silent data loss from schema/interface mismatch._
 
-**Problem areas** (consolidated from multiple backlog items):
+All 5 phases complete across PRs #601, #602, #603, and the Phase 5 PR.
 
-1. **Schema/Interface Mismatch** - Zod strips fields not in schema. When we add fields to TS interfaces but forget Zod, data silently disappears.
-2. **Inconsistent Validation** - Mix of manual type checks, Zod schemas, and `as Type` casting across routes.
-3. **Response Inconsistency** - Same resource returns different fields from GET vs POST vs PUT.
-4. **Admin/User Duplication** - Persona and Model override endpoints still have duplicate schemas (LlmConfig and Personality already consolidated in PRs #582, #583).
+- **Phase 1** (PR #601): Consolidated persona + model-override endpoint schemas
+- **Phase 2** (PR #602): Schema-first types, UUID validation, `sendZodError` helper
+- **Phase 3** (PR #603): Standardized 4 input schema names (removed "Body" suffix)
+- **Phase 4** (PR #603): Created Zod schemas for admin/memory/wallet/history/timezone, converted 12 routes
+- **Phase 5**: Converted personality create/update, transcribe, generate routes; standardized `sendZodError` in 4 channel routes; new `TranscribeRequestSchema` + `HistoryStatsQuerySchema`
 
-### Phase 1: Consolidate Remaining Endpoints (DONE — PR #601)
-
-Shared Zod schemas in common-types for persona + model-override endpoints.
-
-### Phase 2: Schema-First Types + Consistency (IN CURRENT FOCUS)
-
-- [x] Schema-first type migration: delete `types/byok.ts`, export `z.infer` types from schemas
-- [x] Create `UsageBreakdown`, `UsagePeriod`, `UsageStats` schemas
-- [x] Standardize UUID validation (`.uuid()` everywhere)
-- [x] Shared `sendZodError` helper (replaces 10 inline firstIssue patterns)
-- [x] Fixed `PersonalitySummary.ownerId` nullability mismatch bug
-
-ZodShape utility (Phase 2 in old plan) skipped — schema-first approach supersedes it.
-
-### Phase 3: Schema Naming Standardization (DONE)
-
-- [x] Removed "Body" suffix from 4 input schemas (`SetPersonaOverrideSchema`, `PersonaSettingsSchema`, `SetModelOverrideSchema`, `SetDefaultConfigSchema`)
-- [x] Renamed derived types to `*Input` convention
-
-### Phase 4: Route Validation Audit (DONE)
-
-- [x] Created Zod schemas for admin, memory, wallet, history, timezone inputs
-- [x] Converted 12 routes from inline `req.body as Type` to Zod `safeParse` + `sendZodError`
-- [x] Eliminated ~84 lines of hand-written validation code
-
-### Phase 5: Complex Routes (remaining)
-
-- [ ] `user/personality/create.ts` — complex multipart form data
-- [ ] `user/personality/update.ts` — same
-- [ ] `ai/transcribe.ts` — inline validation, low risk
-- [ ] `ai/generate.ts` — remove `as Type` logging cast (already uses safeParse)
+**Result**: Zero `req.body as Type` casts remain in api-gateway routes. All request validation uses Zod `safeParse` + shared `sendZodError` helper.
 
 ---
 
-## 📅 Next Epic: Package Extraction
+## 📅 Next Epic: Package Extraction (promote when ready)
 
 _Focus: Reduce common-types bloat and improve module boundaries._
 
