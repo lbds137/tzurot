@@ -65,3 +65,24 @@ export const TestWalletKeyResponseSchema = z.object({
   timestamp: z.string(), // ISO date string
 });
 export type TestWalletKeyResponse = z.infer<typeof TestWalletKeyResponseSchema>;
+
+// ============================================================================
+// Input Schemas (request body validation)
+// ============================================================================
+
+/**
+ * Schema for storing a new API key.
+ */
+export const SetWalletKeySchema = z.object({
+  provider: AIProviderSchema,
+  apiKey: z.string().min(1, 'apiKey is required'),
+});
+export type SetWalletKeyInput = z.infer<typeof SetWalletKeySchema>;
+
+/**
+ * Schema for testing a stored API key.
+ */
+export const TestWalletKeySchema = z.object({
+  provider: AIProviderSchema,
+});
+export type TestWalletKeyInput = z.infer<typeof TestWalletKeySchema>;

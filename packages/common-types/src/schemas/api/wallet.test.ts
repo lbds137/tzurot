@@ -10,6 +10,8 @@ import {
   ListWalletKeysResponseSchema,
   RemoveWalletKeyResponseSchema,
   TestWalletKeyResponseSchema,
+  SetWalletKeySchema,
+  TestWalletKeySchema,
 } from './wallet.js';
 
 /** Helper to create valid wallet key data */
@@ -181,6 +183,63 @@ describe('Wallet API Contract Tests', () => {
         timestamp: '2025-01-20T15:30:00.000Z',
       };
       const result = TestWalletKeyResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  // ================================================================
+  // Input Schema Tests
+  // ================================================================
+
+  describe('SetWalletKeySchema', () => {
+    it('should accept valid input', () => {
+      const result = SetWalletKeySchema.safeParse({
+        provider: 'openrouter',
+        apiKey: 'sk-test-12345',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid provider', () => {
+      const result = SetWalletKeySchema.safeParse({
+        provider: 'invalid-provider',
+        apiKey: 'sk-test-12345',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty apiKey', () => {
+      const result = SetWalletKeySchema.safeParse({
+        provider: 'openrouter',
+        apiKey: '',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing provider', () => {
+      const result = SetWalletKeySchema.safeParse({ apiKey: 'sk-test' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing apiKey', () => {
+      const result = SetWalletKeySchema.safeParse({ provider: 'openrouter' });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('TestWalletKeySchema', () => {
+    it('should accept valid provider', () => {
+      const result = TestWalletKeySchema.safeParse({ provider: 'openrouter' });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject invalid provider', () => {
+      const result = TestWalletKeySchema.safeParse({ provider: 'invalid' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing provider', () => {
+      const result = TestWalletKeySchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });
