@@ -123,17 +123,9 @@ All 5 phases done. See Active Epic section for details.
 
 _Small tasks that can be done between major features. Good for momentum._
 
-### 🏗️ Schema Cleanup: Remove Legacy `extendedContext*` Columns
+### 🏗️ ~~Schema Cleanup: Remove Legacy `extendedContext*` Columns~~ — DONE
 
-**Context**: `extendedContext` toggle was removed — always enabled now. New context columns (`maxMessages`, `maxAge`, `maxImages`) replaced it. Legacy columns still exist in DB.
-
-**Prerequisite**: Verify new context columns working in production first.
-
-- [ ] Migration: Remove `extendedContext*` columns from AdminSettings
-- [ ] Migration: Remove `extendedContext*` columns from ChannelSettings
-- [ ] Migration: Remove `extendedContext*` columns from Personality
-- [ ] Delete `getRecentHistory()` method (if still present)
-- [ ] Clean up Prisma schema definitions
+Completed in `refactor/drop-extended-context-columns` branch. All 12 fields removed from AdminSettings, Personality, and ChannelSettings. `getRecentHistory()` was already deleted in a prior refactor.
 
 ### ✨ Bot Health Status
 
