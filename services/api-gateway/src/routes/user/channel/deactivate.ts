@@ -16,8 +16,8 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
-import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendCustomSuccess } from '../../../utils/responseHelpers.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('channel-deactivate');
@@ -33,8 +33,7 @@ export function createDeactivateHandler(prisma: PrismaClient): RequestHandler[] 
     // Validate request body
     const parseResult = DeactivateChannelRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const errorMessage = parseResult.error.issues.map(e => e.message).join(', ');
-      sendError(res, ErrorResponses.validationError(errorMessage));
+      sendZodError(res, parseResult.error);
       return;
     }
 
