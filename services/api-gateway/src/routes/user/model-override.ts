@@ -21,8 +21,8 @@ import {
   type ModelOverrideSummary,
   type LlmConfigCacheInvalidationService,
   type UserDefaultConfig,
-  SetModelOverrideBodySchema,
-  SetDefaultConfigBodySchema,
+  SetModelOverrideSchema,
+  SetDefaultConfigSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -101,7 +101,7 @@ export function createModelOverrideRoutes(
       const discordUserId = req.userId;
 
       // Validate request body with Zod
-      const parseResult = SetModelOverrideBodySchema.safeParse(req.body);
+      const parseResult = SetModelOverrideSchema.safeParse(req.body);
       if (!parseResult.success) {
         return sendZodError(res, parseResult.error);
       }
@@ -234,7 +234,7 @@ export function createModelOverrideRoutes(
       const discordUserId = req.userId;
 
       // Validate request body with Zod
-      const parseResult = SetDefaultConfigBodySchema.safeParse(req.body);
+      const parseResult = SetDefaultConfigSchema.safeParse(req.body);
       if (!parseResult.success) {
         return sendZodError(res, parseResult.error);
       }
