@@ -5,7 +5,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { ClearHistorySchema, UndoHistorySchema, HardDeleteHistorySchema } from './history.js';
+import {
+  ClearHistorySchema,
+  UndoHistorySchema,
+  HardDeleteHistorySchema,
+  HistoryStatsQuerySchema,
+} from './history.js';
 
 describe('History API Input Schema Tests', () => {
   describe('ClearHistorySchema', () => {
@@ -102,6 +107,58 @@ describe('History API Input Schema Tests', () => {
     it('should reject missing channelId', () => {
       const result = HardDeleteHistorySchema.safeParse({
         personalitySlug: 'lilith',
+      });
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('HistoryStatsQuerySchema', () => {
+    it('should accept valid query params', () => {
+      const result = HistoryStatsQuerySchema.safeParse({
+        personalitySlug: 'lilith',
+        channelId: '123456789012345678',
+      });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept with optional personaId', () => {
+      const result = HistoryStatsQuerySchema.safeParse({
+        personalitySlug: 'lilith',
+        channelId: '123456789012345678',
+        personaId: 'persona-123',
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.personaId).toBe('persona-123');
+      }
+    });
+
+    it('should reject missing personalitySlug', () => {
+      const result = HistoryStatsQuerySchema.safeParse({
+        channelId: '123456789012345678',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty personalitySlug', () => {
+      const result = HistoryStatsQuerySchema.safeParse({
+        personalitySlug: '',
+        channelId: '123456789012345678',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing channelId', () => {
+      const result = HistoryStatsQuerySchema.safeParse({
+        personalitySlug: 'lilith',
+      });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject empty channelId', () => {
+      const result = HistoryStatsQuerySchema.safeParse({
+        personalitySlug: 'lilith',
+        channelId: '',
       });
       expect(result.success).toBe(false);
     });

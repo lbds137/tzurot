@@ -77,6 +77,7 @@ function formatLogResponse(log: {
     provider: log.provider,
     durationMs: log.durationMs,
     createdAt: log.createdAt,
+    // DiagnosticPayload is written by our own ai-worker pipeline as JSONB — trusted internal data
     data: log.data as DiagnosticPayload,
   };
 }
@@ -177,7 +178,7 @@ function handleGetByRequestId(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const requestId = getParam(req.params.requestId);
 
-    if (requestId === null || requestId === '') {
+    if (requestId === undefined || requestId === '') {
       sendError(res, ErrorResponses.validationError('Request ID is required'));
       return;
     }
@@ -250,7 +251,7 @@ function handleUpdateResponseIds(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
     const requestId = getParam(req.params.requestId);
 
-    if (requestId === null || requestId === '') {
+    if (requestId === undefined || requestId === '') {
       sendError(res, ErrorResponses.validationError('Request ID is required'));
       return;
     }
