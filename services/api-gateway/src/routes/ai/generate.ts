@@ -51,15 +51,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
       // Validate request body
       const validationResult = generateRequestSchema.safeParse(req.body);
       if (!validationResult.success) {
-        const body = req.body as { context?: { userId?: string }; personality?: { name?: string } };
-        logger.warn(
-          {
-            errors: validationResult.error.issues,
-            userId: body?.context?.userId,
-            personalityName: body?.personality?.name,
-          },
-          '[AI] Validation error'
-        );
+        logger.warn({ errors: validationResult.error.issues }, '[AI] Validation error');
         return sendZodError(res, validationResult.error);
       }
 
