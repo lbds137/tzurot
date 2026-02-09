@@ -1,10 +1,11 @@
-import { describe, it, expect } from 'vitest';
-import { sanitizeMigrationSql } from './create-safe-migration.js';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { sanitizeMigrationSql, generateMigrationTimestamp } from './create-safe-migration.js';
 
 /**
  * Tests for create-safe-migration
  *
  * The core sanitization logic is tested directly via the exported `sanitizeMigrationSql`.
+ * The timestamp generation is tested for format correctness.
  * The full command flow (createSafeMigration) requires:
  * - Real filesystem operations
  * - Real prisma command execution
@@ -207,5 +208,47 @@ ALTER TABLE "users" ADD COLUMN "new_col" TEXT;
 
       expect(removed).toHaveLength(1);
     });
+  });
+});
+
+describe('generateMigrationTimestamp', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('should produce a 14-digit YYYYMMDDHHMMSS string', () => {
+    const ts = generateMigrationTimestamp();
+    expect(ts).toMatch(/^\d{14}$/);
+  });
+
+  it('should match the current local date/time', () => {
+    vi.useFakeTimers();
+    const fakeDate = new Date('2026-03-15T09:05:07.000Z');
+    vi.setSystemTime(fakeDate);
+
+    const ts = generateMigrationTimestamp();
+
+    // Build expected from local time (same as the function does)
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const expected =
+      String(fakeDate.getFullYear()) +
+      pad(fakeDate.getMonth() + 1) +
+      pad(fakeDate.getDate()) +
+      pad(fakeDate.getHours()) +
+      pad(fakeDate.getMinutes()) +
+      pad(fakeDate.getSeconds());
+
+    expect(ts).toBe(expected);
+  });
+
+  it('should produce exactly 14 characters for any date', () => {
+    vi.useFakeTimers();
+    // Use a date with single-digit month/day/hour/minute/second in UTC
+    vi.setSystemTime(new Date('2026-01-02T03:04:05.000Z'));
+
+    const ts = generateMigrationTimestamp();
+    expect(ts).toHaveLength(14);
+    // Every component should be zero-padded (no single digits in output)
+    expect(ts).toMatch(/^\d{14}$/);
   });
 });

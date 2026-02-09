@@ -62,11 +62,12 @@ describe('runMigration', () => {
   });
 
   describe('local environment', () => {
-    it('should run prisma migrate dev for local', async () => {
+    it('should run prisma migrate deploy + generate for local', async () => {
       const { runMigration } = await import('./run-migration.js');
       await runMigration({ env: 'local' });
 
-      expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('local', 'migrate', ['dev']);
+      expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('local', 'migrate', ['deploy']);
+      expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('local', 'generate', []);
     });
 
     it('should run prisma migrate status for dry run', async () => {
@@ -76,12 +77,23 @@ describe('runMigration', () => {
       expect(envRunnerMock.runPrismaCommand).toHaveBeenCalledWith('local', 'migrate', ['status']);
     });
 
-    it('should exit with code 1 on migration failure', async () => {
+    it('should exit with code 1 on deploy failure', async () => {
       envRunnerMock.runPrismaCommand.mockResolvedValue({
         stdout: '',
         stderr: 'Migration failed',
         exitCode: 1,
       });
+
+      const { runMigration } = await import('./run-migration.js');
+      await runMigration({ env: 'local' });
+
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should exit with code 1 on generate failure after successful deploy', async () => {
+      envRunnerMock.runPrismaCommand
+        .mockResolvedValueOnce({ stdout: 'Deploy success', stderr: '', exitCode: 0 })
+        .mockResolvedValueOnce({ stdout: '', stderr: 'Generate failed', exitCode: 1 });
 
       const { runMigration } = await import('./run-migration.js');
       await runMigration({ env: 'local' });

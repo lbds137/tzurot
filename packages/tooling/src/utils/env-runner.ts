@@ -13,6 +13,32 @@ import chalk from 'chalk';
 export type Environment = 'local' | 'dev' | 'prod';
 
 /**
+ * npm_config_* vars that npx needs to function correctly.
+ * All others (injected by pnpm) are stripped to suppress
+ * "Unknown env config" warnings from npm/npx.
+ */
+const NPM_CONFIG_KEEP = new Set(['npm_config_user_agent']);
+
+/**
+ * Build a clean environment for spawned child processes.
+ * Strips pnpm-injected npm_config_* / pnpm_config_* vars that cause
+ * noisy "Unknown env config" warnings from npm/npx.
+ */
+export function cleanEnvForNpx(extraVars?: Record<string, string>): NodeJS.ProcessEnv {
+  const env: Record<string, string | undefined> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    const lower = key.toLowerCase();
+    if (lower.startsWith('pnpm_config_')) continue;
+    if (lower.startsWith('npm_config_') && !NPM_CONFIG_KEEP.has(lower)) continue;
+    env[key] = value;
+  }
+  if (extraVars) {
+    Object.assign(env, extraVars);
+  }
+  return env;
+}
+
+/**
  * Check if Railway CLI is installed and authenticated
  */
 export function checkRailwayCli(): boolean {
@@ -98,10 +124,7 @@ export async function runWithRailway(
     const proc = spawn(command, args, {
       stdio: ['inherit', 'pipe', 'pipe'],
       shell: false,
-      env: {
-        ...process.env,
-        DATABASE_URL: databaseUrl,
-      },
+      env: cleanEnvForNpx({ DATABASE_URL: databaseUrl }),
     });
 
     let stdout = '';
@@ -172,7 +195,7 @@ export async function runPrismaCommand(
       const proc = spawn('npx', prismaArgs, {
         stdio: ['inherit', 'pipe', 'pipe'],
         shell: false,
-        env: { ...process.env },
+        env: cleanEnvForNpx(),
       });
 
       let stdout = '';
