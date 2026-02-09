@@ -250,6 +250,19 @@ async function createMigrationViaDiff(
   console.log(chalk.yellow('⚡ Using non-interactive fallback (prisma migrate diff)'));
   console.log(chalk.dim('   Shadow DB validation will occur when the migration is applied.\n'));
 
+  // Verify no pending migrations before diffing against the live database.
+  // --from-config-datasource reads current DB state, so unapplied migrations
+  // would cause their changes to be included in the generated diff.
+  const statusResult = await runPrismaCommand('local', 'migrate', ['status']);
+  if (statusResult.stdout.includes('have not yet been applied')) {
+    console.error(chalk.red('❌ Pending migrations detected'));
+    console.error(chalk.dim('   Apply them first: pnpm ops db:migrate'));
+    console.error(
+      chalk.dim('   The migrate diff fallback requires all migrations to be applied first.')
+    );
+    process.exit(1);
+  }
+
   // Use --from-config-datasource to read the live database state directly.
   // This avoids the shadow database requirement of --from-migrations.
   // Safe because db:safe-migrate runs locally after all migrations are applied.
