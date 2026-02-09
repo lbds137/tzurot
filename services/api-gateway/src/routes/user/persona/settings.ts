@@ -9,6 +9,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
@@ -28,10 +29,7 @@ export function addSettingsRoutes(router: Router, prisma: PrismaClient): void {
 
       const parseResult = PersonaSettingsBodySchema.safeParse(req.body);
       if (!parseResult.success) {
-        const firstIssue = parseResult.error.issues[0];
-        const fieldPath = firstIssue.path.join('.');
-        const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
-        return sendError(res, ErrorResponses.validationError(message));
+        return sendZodError(res, parseResult.error);
       }
 
       const { shareLtmAcrossPersonalities } = parseResult.data;

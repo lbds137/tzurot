@@ -10,9 +10,9 @@ import { getRouteHandler } from '../../../test/expressRouterUtils.js';
 // Valid UUIDs for testing (required by route validation)
 export const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 export const MOCK_PERSONA_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
-export const MOCK_PERSONA_ID_2 = 'f6a7b8c9-d0e1-2345-f012-456789012345';
+export const MOCK_PERSONA_ID_2 = 'f6a7b8c9-d0e1-4345-a012-456789012345';
 export const MOCK_PERSONALITY_ID = 'c3d4e5f6-a7b8-9012-cdef-123456789012';
-export const NONEXISTENT_UUID = 'd4e5f6a7-b8c9-0123-def0-234567890123';
+export const NONEXISTENT_UUID = 'd4e5f6a7-b8c9-4123-9ef0-234567890123';
 
 export const mockUser = {
   id: MOCK_USER_ID,

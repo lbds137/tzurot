@@ -113,20 +113,14 @@ it('should reject maxAge = 0 (use null for no limit)', () => {
 
 _This week's active work. Max 3 items._
 
-### 🏗️ Zod Schema Hardening - Phase 1 (CAUSES PRODUCTION BUGS)
+### 🏗️ Zod Schema Hardening - Phase 2: Schema-First Types + Consistency
 
-**Recent bug**: `isForwarded` field missing from `apiConversationMessageSchema` caused forwarded messages to lose their `forwarded="true"` attribute in prompts. Data silently disappeared.
-
-**Immediate fixes (DONE)**:
-
-- [x] Regression test for `isForwarded` in `schemas.test.ts`
-- [x] Field preservation test for `apiConversationMessageSchema`
-
-**This week - Consolidate remaining endpoint schemas**:
-
-- [ ] Consolidate Persona endpoint schemas (admin + user)
-- [ ] Consolidate Model override endpoint schemas
-- [ ] Pattern: Shared Zod schemas in common-types, scope-aware service layer
+- [x] Phase 1 (PR #601): Consolidated persona + model-override endpoint schemas
+- Phase 2 (in progress):
+  - [x] Schema-first type migration: eliminated `types/byok.ts`, Zod schemas are single source of truth
+  - [x] Standardized UUID validation (`.uuid()` replaces regex + `.trim().min(1)`)
+  - [x] Shared `sendZodError` helper replaces repeated firstIssue pattern in 10 route files
+  - [ ] Update docs and run full verification
 
 ---
 
@@ -196,30 +190,32 @@ _Focus: Prevent silent data loss from schema/interface mismatch._
 3. **Response Inconsistency** - Same resource returns different fields from GET vs POST vs PUT.
 4. **Admin/User Duplication** - Persona and Model override endpoints still have duplicate schemas (LlmConfig and Personality already consolidated in PRs #582, #583).
 
-### Phase 1: Consolidate Remaining Endpoints (IN CURRENT FOCUS)
+### Phase 1: Consolidate Remaining Endpoints (DONE — PR #601)
 
-Pattern: Shared Zod schemas in common-types, scope-aware service layer.
+Shared Zod schemas in common-types for persona + model-override endpoints.
 
-### Phase 2: Compile-Time Enforcement (Option B - Pragmatic)
+### Phase 2: Schema-First Types + Consistency (IN CURRENT FOCUS)
 
-- [ ] Create `ZodShape<T>` utility type that maps interface keys to Zod types
-- [ ] Use `satisfies ZodShape<ApiInterface>` on schemas to get compile errors for missing fields
-- [ ] Challenge: Internal types (Date) differ from API types (string), need separate API interfaces
+- [x] Schema-first type migration: delete `types/byok.ts`, export `z.infer` types from schemas
+- [x] Create `UsageBreakdown`, `UsagePeriod`, `UsageStats` schemas
+- [x] Standardize UUID validation (`.uuid()` everywhere)
+- [x] Shared `sendZodError` helper (replaces 10 inline firstIssue patterns)
+- [x] Fixed `PersonalitySummary.ownerId` nullability mismatch bug
 
-### Phase 3: Schema-First Architecture (Option A - Ideal, Longer-Term)
+ZodShape utility (Phase 2 in old plan) skipped — schema-first approach supersedes it.
 
-- [ ] Make Zod schemas the single source of truth for API types
-- [ ] Derive TypeScript types using `z.infer<typeof schema>`
-- [ ] Internal types with Date remain separate, conversion at boundaries
-- [ ] New types should be schema-first from the start
+### Phase 3: Schema Naming Standardization
 
-### Phase 4: Standardize Validation (Cleanup)
+- [ ] Standardize "Body" suffix convention (`{Resource}CreateSchema` vs `{Resource}CreateBodySchema`)
+- [ ] Standardize response schema naming (`{Resource}{Endpoint}ResponseSchema`)
+- [ ] Align `PersonaDetailsSchema` vs `PersonalityFullSchema` (pick one convention)
+- Deferred: Cosmetic, causes import churn across 29+ files. Better as a focused rename-only PR.
 
-- [ ] Audit: `routes/user/*.ts`, `routes/admin/*.ts`, `routes/internal/*.ts`
-- [ ] Use `safeParse` consistently everywhere
-- [ ] Shared response builder functions per resource type
+### Phase 4: Route Validation Audit
 
-**Reference**: MCP council recommendation (2026-02-04) - Option A is ideal, Option B is pragmatic
+- [ ] Convert 19 routes still using inline `req.body as Type` to Zod safeParse
+- [ ] Key targets: memory routes, history routes, timezone, admin diagnostic/cache/dbSync
+- [ ] Use the `sendZodError` helper from Phase 2
 
 ---
 

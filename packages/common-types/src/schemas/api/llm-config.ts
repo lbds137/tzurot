@@ -203,7 +203,6 @@ export const LLM_CONFIG_DEFAULTS = {
 
 /**
  * Summary of an LLM configuration
- * Matches LlmConfigSummary type from types/byok.ts
  */
 export const LlmConfigSummarySchema = z.object({
   id: z.string(),
@@ -217,6 +216,7 @@ export const LlmConfigSummarySchema = z.object({
   isOwned: z.boolean(),
   permissions: EntityPermissionsSchema,
 });
+export type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
 
 // ============================================================================
 // GET /user/llm-config

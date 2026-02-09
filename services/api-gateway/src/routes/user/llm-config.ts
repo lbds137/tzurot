@@ -30,6 +30,7 @@ import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService, type LlmConfigScope } from '../../services/LlmConfigService.js';
@@ -128,10 +129,7 @@ function createCreateHandler(service: LlmConfigService, userService: UserService
     // Validate request body with shared Zod schema from common-types
     const parseResult = LlmConfigCreateSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const firstIssue = parseResult.error.issues[0];
-      // Include field path for clearer error messages
-      const path = firstIssue.path.length > 0 ? `${firstIssue.path.join('.')}: ` : '';
-      return sendError(res, ErrorResponses.validationError(`${path}${firstIssue.message}`));
+      return sendZodError(res, parseResult.error);
     }
     const body = parseResult.data;
 
@@ -192,10 +190,7 @@ function createUpdateHandler(service: LlmConfigService, prisma: PrismaClient) {
     // Validate request body with shared Zod schema from common-types
     const parseResult = LlmConfigUpdateSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const firstIssue = parseResult.error.issues[0];
-      const fieldPath = firstIssue.path.join('.');
-      const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
-      return sendError(res, ErrorResponses.validationError(message));
+      return sendZodError(res, parseResult.error);
     }
     const body = parseResult.data;
 

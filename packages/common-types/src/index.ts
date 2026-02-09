@@ -6,7 +6,6 @@ export * from './constants/index.js';
 
 // Export types
 export * from './types/ai.js';
-export * from './types/byok.js';
 export * from './types/diagnostic.js';
 export * from './types/incognito.js';
 

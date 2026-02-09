@@ -17,6 +17,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
@@ -103,8 +104,7 @@ function createSetHandler(prisma: PrismaClient) {
     // Validate request body with Zod
     const parseResult = SetPersonaOverrideBodySchema.safeParse(req.body);
     if (!parseResult.success) {
-      const firstIssue = parseResult.error.issues[0];
-      return sendError(res, ErrorResponses.validationError(firstIssue.message));
+      return sendZodError(res, parseResult.error);
     }
 
     const { personaId: personaIdValue } = parseResult.data;
