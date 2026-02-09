@@ -2,7 +2,7 @@
 
 > **Session**: 2026-02-08
 > **Version**: v3.0.0-beta.68
-> **Branch**: `develop` (PRs #598, #599, #600 merged)
+> **Branch**: `refactor/zod-schema-hardening-phase-3-4` (off develop)
 
 ---
 
@@ -42,19 +42,21 @@
 
 ## Active Work
 
-**Zod Schema Hardening** — active epic, Phase 2 in progress:
+**Zod Schema Hardening** — active epic, Phases 3+4 complete:
 
 - Phase 1 complete (PR #601): Consolidated persona + model-override schemas
-- Phase 2: Schema-first types + consistency (current branch)
-  - Eliminated `types/byok.ts` — Zod schemas are now single source of truth for API types
-  - Standardized UUID validation (`.uuid()` instead of regex/`.trim().min(1)`)
-  - Shared `sendZodError` helper replaces repeated firstIssue pattern in 10 route files
-  - Fixed `PersonalitySummary.ownerId` nullability mismatch (was `string`, should be `string | null`)
+- Phase 2 complete (PR #602): Schema-first types, UUID validation, `sendZodError` helper
+- Phases 3+4 (current branch `refactor/zod-schema-hardening-phase-3-4`):
+  - Phase 3: Standardized 4 input schema names (removed "Body" suffix)
+  - Phase 4: Created Zod schemas for admin/memory/wallet/history/timezone, converted 12 routes from `req.body as Type` to Zod `safeParse` + `sendZodError`, -84 lines
+  - Ready for PR to develop
+- Phase 5 (follow-up PR): Complex routes (create/update personality, transcribe, generate)
 
 ---
 
 ## Session Notes
 
+**2026-02-08 (night)**: Zod Schema Hardening Phases 3+4 on `refactor/zod-schema-hardening-phase-3-4`: Phase 3 renamed 4 schemas (removed "Body" suffix). Phase 4 created new Zod schemas (admin, memory, wallet, history, timezone — 78 tests), converted 12 route files from `req.body as Type` to `safeParse` + `sendZodError` (-84 lines). Fixed Zod v4 `required_error` → `error`. Fixed pre-existing lint warnings (duplicate strings, cognitive complexity). Ready for PR.
 **2026-02-08 (eve)**: Zod Schema Hardening Phase 2 — schema-first type migration (deleted `types/byok.ts`, exported `z.infer` types from schemas, created `usage.ts` schemas), standardized UUID validation (regex → `.uuid()`), shared `sendZodError` helper (10 route files), updated CURRENT.md + BACKLOG.md. Fixed `PersonalitySummary.ownerId` nullability bug (manual interface said `string`, Zod schema correctly had `string | null`).
 **2026-02-08 (pm)**: Code quality audit on `fix/code-quality-audit-2025-02`: dead code removal (knip), 4 shared helpers extracted (CPD reduction), split PromptBuilder.ts + DatabaseSyncService.ts (oversized files), closed all 40 contract test gaps (40→0), colocated tests for all extracted modules. Updated BACKLOG.md — collapsed completed Architecture Health phases, added suppression audit follow-ups to inbox.
 **2026-02-08**: Suppression audit cleanup (PR #598) — replaced all pre-existing/unjustified suppressions, fixed 4 code issues, split audit-unified.ts, locked depcruise baseline. Architecture Health epic fully complete (Phases 1-4). Pushed follow-up test coverage for `memoryList.ts` (13 tests) and `interactionHandlers.ts` (2 coverage gap tests). Cleaned up BACKLOG.md — removed completed phases, made package extraction a standalone next epic.
