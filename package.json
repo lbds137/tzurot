@@ -71,7 +71,7 @@
     "@typescript-eslint/parser": "^8.54.0",
     "@vitest/coverage-v8": "^4.0.18",
     "dependency-cruiser": "^17.3.7",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.2.4",
     "eslint": "^9.39.2",
     "eslint-formatter-pretty": "^7.0.0",
     "eslint-plugin-sonarjs": "^3.0.6",
@@ -97,7 +97,7 @@
   },
   "packageManager": "pnpm@10.22.0",
   "dependencies": {
-    "openai": "^6.17.0",
+    "openai": "^6.18.0",
     "uuid": "^13.0.0"
   },
   "pnpm": {
