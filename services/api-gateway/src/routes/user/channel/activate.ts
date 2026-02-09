@@ -19,6 +19,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser, canUserViewPersonality } from '../personality/helpers.js';
 
@@ -87,8 +88,7 @@ export function createActivateHandler(prisma: PrismaClient): RequestHandler[] {
     // Validate request body
     const parseResult = ActivateChannelRequestSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const errorMessage = parseResult.error.issues.map(e => e.message).join(', ');
-      sendError(res, ErrorResponses.validationError(errorMessage));
+      sendZodError(res, parseResult.error);
       return;
     }
 
