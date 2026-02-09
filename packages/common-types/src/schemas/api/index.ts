@@ -34,3 +34,12 @@ export * from './adminSettings.js';
 
 // Usage endpoints
 export * from './usage.js';
+
+// Admin input schemas
+export * from './admin.js';
+
+// Memory input schemas
+export * from './memory.js';
+
+// History input schemas
+export * from './history.js';

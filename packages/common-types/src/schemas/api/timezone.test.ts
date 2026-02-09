@@ -5,7 +5,11 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { GetTimezoneResponseSchema, SetTimezoneResponseSchema } from './timezone.js';
+import {
+  GetTimezoneResponseSchema,
+  SetTimezoneResponseSchema,
+  SetTimezoneInputSchema,
+} from './timezone.js';
 
 describe('Timezone API Contract Tests', () => {
   describe('GetTimezoneResponseSchema', () => {
@@ -74,6 +78,23 @@ describe('Timezone API Contract Tests', () => {
         label: 'UTC',
       };
       const result = SetTimezoneResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('SetTimezoneInputSchema', () => {
+    it('should accept valid timezone string', () => {
+      const result = SetTimezoneInputSchema.safeParse({ timezone: 'America/New_York' });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject empty timezone', () => {
+      const result = SetTimezoneInputSchema.safeParse({ timezone: '' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing timezone', () => {
+      const result = SetTimezoneInputSchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });

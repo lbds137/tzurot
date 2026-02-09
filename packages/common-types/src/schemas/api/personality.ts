@@ -219,6 +219,15 @@ export const PersonalityUpdateSchema = z.object({
 export type PersonalityUpdateInput = z.infer<typeof PersonalityUpdateSchema>;
 
 // ============================================================================
+// PATCH /user/personality/:slug/visibility
+// ============================================================================
+
+export const SetVisibilitySchema = z.object({
+  isPublic: z.boolean({ required_error: 'isPublic field is required' }),
+});
+export type SetVisibilityInput = z.infer<typeof SetVisibilitySchema>;
+
+// ============================================================================
 // Admin Response Schemas (different format from user routes)
 // ============================================================================
 
