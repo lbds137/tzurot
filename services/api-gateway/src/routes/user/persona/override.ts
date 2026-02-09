@@ -11,7 +11,7 @@ import {
   createLogger,
   generateUserPersonalityConfigUuid,
   type PrismaClient,
-  SetPersonaOverrideBodySchema,
+  SetPersonaOverrideSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -102,7 +102,7 @@ function createSetHandler(prisma: PrismaClient) {
     }
 
     // Validate request body with Zod
-    const parseResult = SetPersonaOverrideBodySchema.safeParse(req.body);
+    const parseResult = SetPersonaOverrideSchema.safeParse(req.body);
     if (!parseResult.success) {
       return sendZodError(res, parseResult.error);
     }

@@ -4,7 +4,7 @@
  */
 
 import { Router, type Response } from 'express';
-import { createLogger, type PrismaClient, PersonaSettingsBodySchema } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, PersonaSettingsSchema } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
@@ -27,7 +27,7 @@ export function addSettingsRoutes(router: Router, prisma: PrismaClient): void {
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const discordUserId = req.userId;
 
-      const parseResult = PersonaSettingsBodySchema.safeParse(req.body);
+      const parseResult = PersonaSettingsSchema.safeParse(req.body);
       if (!parseResult.success) {
         return sendZodError(res, parseResult.error);
       }
