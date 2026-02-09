@@ -54,6 +54,15 @@ if [ -n "$STAGED_MIGRATION_FILES" ]; then
             echo "   Either remove the DROP INDEX or add a CREATE INDEX statement."
             exit 1
         fi
+
+        # Check partial index: DROP without a CREATE...WHERE means the partial clause is lost
+        if grep -v '^-- REMOVED:' "$file" | grep -q 'DROP INDEX.*memories_chunk_group_id_idx' && ! grep -v '^-- REMOVED:' "$file" | grep -q 'CREATE INDEX.*memories_chunk_group_id_idx.*WHERE'; then
+            echo "DANGER: Migration drops partial index WITHOUT recreating it with WHERE clause!"
+            echo "   File: $file"
+            echo "   The memories_chunk_group_id_idx partial index is required."
+            echo "   Either remove the DROP INDEX or add a CREATE INDEX with the WHERE clause."
+            exit 1
+        fi
     done
     echo "Migrations safe"
 fi
