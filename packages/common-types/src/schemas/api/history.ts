@@ -38,3 +38,14 @@ export const HardDeleteHistorySchema = z.object({
   personaId: z.string().optional(),
 });
 export type HardDeleteHistoryInput = z.infer<typeof HardDeleteHistorySchema>;
+
+// ============================================================================
+// GET /user/history/stats (query params)
+// ============================================================================
+
+export const HistoryStatsQuerySchema = z.object({
+  personalitySlug: z.string().min(1, 'personalitySlug query parameter is required'),
+  channelId: z.string().min(1, 'channelId query parameter is required'),
+  personaId: z.string().optional(),
+});
+export type HistoryStatsQueryInput = z.infer<typeof HistoryStatsQuerySchema>;

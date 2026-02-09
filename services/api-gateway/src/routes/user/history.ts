@@ -21,6 +21,7 @@ import {
   ClearHistorySchema,
   UndoHistorySchema,
   HardDeleteHistorySchema,
+  HistoryStatsQuerySchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -34,12 +35,6 @@ const logger = createLogger('user-history');
 
 const CONTEXT_NOT_FOUND =
   'User, personality, or persona not found. Check the personality slug is correct and you have a persona configured.';
-
-interface StatsRequest {
-  personalitySlug?: string;
-  channelId?: string;
-  personaId?: string;
-}
 
 /** Dependencies for history handlers */
 interface HistoryHandlerDeps {
@@ -223,20 +218,13 @@ function createStatsHandler(deps: HistoryHandlerDeps): RouteHandler {
 
   return asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { personalitySlug, channelId, personaId: explicitPersonaId } = req.query as StatsRequest;
 
-    if (personalitySlug === undefined || personalitySlug.length === 0) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('personalitySlug query parameter is required')
-      );
+    const parseResult = HistoryStatsQuerySchema.safeParse(req.query);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
-    if (channelId === undefined || channelId.length === 0) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('channelId query parameter is required')
-      );
-    }
+
+    const { personalitySlug, channelId, personaId: explicitPersonaId } = parseResult.data;
 
     const context = await resolveHistoryContext(
       prisma,
