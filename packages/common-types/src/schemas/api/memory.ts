@@ -14,7 +14,7 @@ const PERSONALITY_ID_REQUIRED = 'personalityId is required';
 
 export const FocusModeSchema = z.object({
   personalityId: z.string().min(1, PERSONALITY_ID_REQUIRED),
-  enabled: z.boolean({ required_error: 'enabled must be a boolean' }),
+  enabled: z.boolean({ error: 'enabled must be a boolean' }),
 });
 export type FocusModeInput = z.infer<typeof FocusModeSchema>;
 

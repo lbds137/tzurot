@@ -14,23 +14,17 @@ import {
   Prisma,
   Duration,
   DurationParseError,
+  BatchDeleteSchema,
+  PurgeMemoriesSchema,
 } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('memory-batch');
 
-interface BatchDeleteRequest {
-  personalityId: string;
-  personaId?: string;
-  timeframe?: string; // e.g., "7d", "30d", "1y"
-}
-
-interface PurgeRequest {
-  personalityId: string;
-  confirmationPhrase?: string;
-}
+const PERSONALITY_NOT_FOUND = 'Personality not found';
 
 type GetUserByDiscordId = (discordUserId: string, res: Response) => Promise<{ id: string } | null>;
 
@@ -40,7 +34,7 @@ type GetDefaultPersonaId = (prisma: PrismaClient, userId: string) => Promise<str
  * Handler for POST /user/memory/delete
  * Batch delete memories with filters (skips locked memories)
  */
-// eslint-disable-next-line max-lines-per-function -- Procedural handler with sequential validation steps
+// eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity -- Procedural handler with sequential validation steps and timeframe parsing
 export async function handleBatchDelete(
   prisma: PrismaClient,
   getUserByDiscordId: GetUserByDiscordId,
@@ -49,17 +43,14 @@ export async function handleBatchDelete(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const {
-    personalityId,
-    personaId: requestedPersonaId,
-    timeframe,
-  } = req.body as BatchDeleteRequest;
 
-  // Validate required fields
-  if (!personalityId) {
-    sendError(res, ErrorResponses.validationError('personalityId is required'));
+  const parseResult = BatchDeleteSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
     return;
   }
+
+  const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
 
   // Get user
   const user = await getUserByDiscordId(discordUserId, res);
@@ -74,7 +65,7 @@ export async function handleBatchDelete(
   });
 
   if (!personality) {
-    sendError(res, ErrorResponses.notFound('Personality not found'));
+    sendError(res, ErrorResponses.notFound(PERSONALITY_NOT_FOUND));
     return;
   }
 
@@ -208,13 +199,14 @@ export async function handlePurge(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const { personalityId, confirmationPhrase } = req.body as PurgeRequest;
 
-  // Validate required fields
-  if (!personalityId) {
-    sendError(res, ErrorResponses.validationError('personalityId is required'));
+  const parseResult = PurgeMemoriesSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
     return;
   }
+
+  const { personalityId, confirmationPhrase } = parseResult.data;
 
   // Get user
   const user = await getUserByDiscordId(discordUserId, res);
@@ -229,7 +221,7 @@ export async function handlePurge(
   });
 
   if (!personality) {
-    sendError(res, ErrorResponses.notFound('Personality not found'));
+    sendError(res, ErrorResponses.notFound(PERSONALITY_NOT_FOUND));
     return;
   }
 
@@ -317,6 +309,7 @@ export async function handlePurge(
  * Handler for GET /user/memory/delete/preview
  * Preview what would be deleted without actually deleting
  */
+// eslint-disable-next-line sonarjs/cognitive-complexity -- Procedural handler with sequential validation and timeframe parsing
 export async function handleBatchDeletePreview(
   prisma: PrismaClient,
   getUserByDiscordId: GetUserByDiscordId,
@@ -354,7 +347,7 @@ export async function handleBatchDeletePreview(
   });
 
   if (!personality) {
-    sendError(res, ErrorResponses.notFound('Personality not found'));
+    sendError(res, ErrorResponses.notFound(PERSONALITY_NOT_FOUND));
     return;
   }
 

@@ -136,7 +136,8 @@ describe('POST /wallet/test', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('Invalid or missing provider'),
+          error: 'VALIDATION_ERROR',
+          message: expect.stringContaining('provider'),
         })
       );
     });

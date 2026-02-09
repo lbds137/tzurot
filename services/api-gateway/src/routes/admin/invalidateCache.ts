@@ -4,11 +4,15 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { createLogger, type CacheInvalidationService } from '@tzurot/common-types';
+import {
+  createLogger,
+  type CacheInvalidationService,
+  InvalidateCacheSchema,
+} from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('admin-invalidate-cache');
 
@@ -21,10 +25,12 @@ export function createInvalidateCacheRoute(
     '/',
     requireOwnerAuth(),
     asyncHandler(async (req: Request, res: Response) => {
-      const { personalityId, all = false } = req.body as {
-        personalityId?: string;
-        all?: boolean;
-      };
+      const parseResult = InvalidateCacheSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
+      }
+
+      const { personalityId, all } = parseResult.data;
 
       if (all) {
         // Invalidate all personality caches
@@ -37,8 +43,7 @@ export function createInvalidateCacheRoute(
           message: 'All personality caches invalidated across all services',
           timestamp: new Date().toISOString(),
         });
-      } else if (personalityId !== undefined && personalityId.length > 0) {
-        // Invalidate specific personality cache
+      } else if (personalityId !== undefined) {
         await cacheInvalidationService.invalidatePersonality(personalityId);
         logger.info(`[Admin] Invalidated cache for personality: ${personalityId}`);
 
@@ -48,11 +53,6 @@ export function createInvalidateCacheRoute(
           message: `Cache invalidated for personality ${personalityId} across all services`,
           timestamp: new Date().toISOString(),
         });
-      } else {
-        return sendError(
-          res,
-          ErrorResponses.validationError('Must provide either "personalityId" or "all: true"')
-        );
       }
     })
   );

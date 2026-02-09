@@ -5,9 +5,10 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, Prisma, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, Prisma, type PrismaClient, MemorySearchSchema } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import {
   generateEmbedding,
   formatAsVector,
@@ -66,17 +67,6 @@ function validateDateFilters(
     dateFrom: hasValue(dateFrom) ? dateFrom : undefined,
     dateTo: hasValue(dateTo) ? dateTo : undefined,
   };
-}
-
-interface SearchRequest {
-  query: string;
-  personalityId?: string;
-  limit?: number;
-  offset?: number;
-  dateFrom?: string;
-  dateTo?: string;
-  /** Hint to skip semantic search attempt (e.g., when previous page fell back to text) */
-  preferTextSearch?: boolean;
 }
 
 interface SearchResultRow {
@@ -296,22 +286,15 @@ export async function handleSearch(
   }
 
   const discordUserId = req.userId;
-  const { query, personalityId, limit, offset, dateFrom, dateTo, preferTextSearch } =
-    req.body as SearchRequest;
 
-  if (query === undefined || query.trim().length === 0) {
-    sendError(res, ErrorResponses.validationError('query is required'));
+  const parseResult = MemorySearchSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
     return;
   }
-  if (query.length > SEARCH_DEFAULTS.maxQueryLength) {
-    sendError(
-      res,
-      ErrorResponses.validationError(
-        `query exceeds maximum length of ${SEARCH_DEFAULTS.maxQueryLength} characters`
-      )
-    );
-    return;
-  }
+
+  const { query, personalityId, limit, offset, dateFrom, dateTo, preferTextSearch } =
+    parseResult.data;
 
   const effectiveLimit = Math.min(
     Math.max(1, limit ?? SEARCH_DEFAULTS.limit),
