@@ -43,3 +43,6 @@ export * from './memory.js';
 
 // History input schemas
 export * from './history.js';
+
+// Transcribe input schemas
+export * from './transcribe.js';

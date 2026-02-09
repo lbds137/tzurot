@@ -13,11 +13,13 @@ import {
   JobType,
   JOB_PREFIXES,
   type AudioTranscriptionResult,
+  TranscribeRequestSchema,
 } from '@tzurot/common-types';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { addValidatedJob } from '../../utils/validatedQueue.js';
 
 const logger = createLogger('AIRouter');
@@ -45,34 +47,17 @@ export function createTranscribeRoute(
       const startTime = Date.now();
       const waitForCompletion = req.query.wait === 'true';
 
-      const body = req.body as {
-        attachments?: {
-          url: string;
-          contentType: string;
-          name?: string;
-          size?: number;
-        }[];
-      };
-
-      // Validate request has attachments
-      if (
-        body.attachments === undefined ||
-        !Array.isArray(body.attachments) ||
-        body.attachments.length === 0
-      ) {
-        return sendError(
-          res,
-          ErrorResponses.validationError('Missing or invalid attachments array')
-        );
+      // Validate request body with Zod schema
+      const parseResult = TranscribeRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
       }
 
+      const { attachments } = parseResult.data;
       const requestId = randomUUID();
 
       // Download attachments to local storage
-      const localAttachments = await attachmentStorage.downloadAndStore(
-        requestId,
-        body.attachments
-      );
+      const localAttachments = await attachmentStorage.downloadAndStore(requestId, attachments);
 
       // Use first audio attachment (transcribe endpoint expects single audio file)
       const audioAttachment = localAttachments[0];
