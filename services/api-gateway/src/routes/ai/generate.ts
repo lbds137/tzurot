@@ -14,10 +14,10 @@ import {
 import { getDeduplicationCache } from '../../utils/deduplicationCache.js';
 import { createJobChain } from '../../utils/jobChainOrchestrator.js';
 import type { GenerateResponse } from '../../types.js';
-import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AttachmentStorageService } from '../../services/AttachmentStorageService.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
-import { sendError, sendSuccess, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendSuccess, sendCustomSuccess } from '../../utils/responseHelpers.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('AIRouter');
 
@@ -60,7 +60,7 @@ export function createGenerateRoute(attachmentStorage: AttachmentStorageService)
           },
           '[AI] Validation error'
         );
-        return sendError(res, ErrorResponses.validationError('Invalid request body'));
+        return sendZodError(res, validationResult.error);
       }
 
       const request = validationResult.data;
