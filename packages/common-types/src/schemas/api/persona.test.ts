@@ -499,10 +499,10 @@ describe('Persona API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept non-RFC4122 UUID format (any hex UUID)', () => {
+    it('should reject non-RFC4122 UUID format', () => {
       const data = { personaId: 'f6a7b8c9-d0e1-2345-f012-456789012345' };
       const result = SetPersonaOverrideBodySchema.safeParse(data);
-      expect(result.success).toBe(true);
+      expect(result.success).toBe(false);
     });
 
     it('should reject non-UUID string', () => {

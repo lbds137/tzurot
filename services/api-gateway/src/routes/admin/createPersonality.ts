@@ -19,6 +19,7 @@ import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-create-personality');
@@ -177,11 +178,7 @@ export function createCreatePersonalityRoute(
       // Validate request body with Zod schema
       const parseResult = PersonalityCreateSchema.safeParse(req.body);
       if (!parseResult.success) {
-        const firstIssue = parseResult.error.issues[0];
-        return sendError(
-          res,
-          ErrorResponses.validationError(`${firstIssue.path.join('.')}: ${firstIssue.message}`)
-        );
+        return sendZodError(res, parseResult.error);
       }
       const validated = parseResult.data;
       const { slug } = validated;

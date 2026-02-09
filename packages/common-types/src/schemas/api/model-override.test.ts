@@ -7,6 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   UserDefaultConfigSchema,
+  ModelOverrideSummarySchema,
   ListModelOverridesResponseSchema,
   SetModelOverrideResponseSchema,
   SetDefaultConfigResponseSchema,
@@ -28,6 +29,32 @@ function createValidOverrideSummary(overrides = {}) {
 }
 
 describe('Model Override API Contract Tests', () => {
+  describe('ModelOverrideSummarySchema', () => {
+    it('should accept valid summary', () => {
+      const data = createValidOverrideSummary();
+      const result = ModelOverrideSummarySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept nullable configId and configName', () => {
+      const data = createValidOverrideSummary({ configId: null, configName: null });
+      const result = ModelOverrideSummarySchema.safeParse(data);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject missing personalityId', () => {
+      const { personalityId: _, ...data } = createValidOverrideSummary();
+      const result = ModelOverrideSummarySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing personalityName', () => {
+      const { personalityName: _, ...data } = createValidOverrideSummary();
+      const result = ModelOverrideSummarySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('UserDefaultConfigSchema', () => {
     it('should accept valid config with values', () => {
       const data = { configId: 'config-123', configName: 'Claude Sonnet' };
@@ -170,46 +197,67 @@ describe('Model Override API Contract Tests', () => {
   // ================================================================
 
   describe('SetModelOverrideBodySchema', () => {
-    it('should accept valid body', () => {
-      const data = { personalityId: 'some-personality-id', configId: 'some-config-id' };
+    const validPersonalityId = '550e8400-e29b-41d4-a716-446655440000';
+    const validConfigId = '550e8400-e29b-41d4-a716-446655440001';
+
+    it('should accept valid UUIDs', () => {
+      const data = { personalityId: validPersonalityId, configId: validConfigId };
       const result = SetModelOverrideBodySchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject missing personalityId', () => {
-      const data = { configId: 'some-config-id' };
+      const data = { configId: validConfigId };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-UUID personalityId', () => {
+      const data = { personalityId: 'not-a-uuid', configId: validConfigId };
       const result = SetModelOverrideBodySchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject empty personalityId', () => {
-      const data = { personalityId: '', configId: 'some-config-id' };
+      const data = { personalityId: '', configId: validConfigId };
       const result = SetModelOverrideBodySchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject missing configId', () => {
-      const data = { personalityId: 'some-personality-id' };
+      const data = { personalityId: validPersonalityId };
+      const result = SetModelOverrideBodySchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-UUID configId', () => {
+      const data = { personalityId: validPersonalityId, configId: 'not-a-uuid' };
       const result = SetModelOverrideBodySchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 
     it('should reject empty configId', () => {
-      const data = { personalityId: 'some-personality-id', configId: '' };
+      const data = { personalityId: validPersonalityId, configId: '' };
       const result = SetModelOverrideBodySchema.safeParse(data);
       expect(result.success).toBe(false);
     });
   });
 
   describe('SetDefaultConfigBodySchema', () => {
-    it('should accept valid body', () => {
-      const data = { configId: 'some-config-id' };
+    it('should accept valid UUID', () => {
+      const data = { configId: '550e8400-e29b-41d4-a716-446655440001' };
       const result = SetDefaultConfigBodySchema.safeParse(data);
       expect(result.success).toBe(true);
     });
 
     it('should reject missing configId', () => {
       const result = SetDefaultConfigBodySchema.safeParse({});
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject non-UUID configId', () => {
+      const data = { configId: 'not-a-uuid' };
+      const result = SetDefaultConfigBodySchema.safeParse(data);
       expect(result.success).toBe(false);
     });
 

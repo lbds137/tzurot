@@ -17,6 +17,7 @@ import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import { validateSlug } from '../../utils/validators.js';
 
@@ -168,11 +169,7 @@ export function createUpdatePersonalityRoute(
       // Validate request body with Zod schema
       const parseResult = PersonalityUpdateSchema.safeParse(req.body);
       if (!parseResult.success) {
-        const firstIssue = parseResult.error.issues[0];
-        const errorPath = firstIssue?.path?.join('.') ?? '';
-        const errorMessage = firstIssue?.message ?? 'Invalid request body';
-        const fullMessage = errorPath.length > 0 ? `${errorPath}: ${errorMessage}` : errorMessage;
-        return sendError(res, ErrorResponses.validationError(fullMessage));
+        return sendZodError(res, parseResult.error);
       }
       const validated = parseResult.data;
 

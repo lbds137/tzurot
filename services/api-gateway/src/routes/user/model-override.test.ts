@@ -162,9 +162,9 @@ describe('/user/model-override routes', () => {
     it('should return overrides with personality and config names', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
         {
-          personalityId: 'personality-1',
+          personalityId: '11111111-1111-4111-a111-111111111111',
           personality: { name: 'Lilith' },
-          llmConfigId: 'config-1',
+          llmConfigId: '22222222-2222-4222-a222-222222222222',
           llmConfig: { name: 'GPT-4 Config' },
         },
       ]);
@@ -179,9 +179,9 @@ describe('/user/model-override routes', () => {
         expect.objectContaining({
           overrides: [
             {
-              personalityId: 'personality-1',
+              personalityId: '11111111-1111-4111-a111-111111111111',
               personalityName: 'Lilith',
-              configId: 'config-1',
+              configId: '22222222-2222-4222-a222-222222222222',
               configName: 'GPT-4 Config',
             },
           ],
@@ -192,9 +192,9 @@ describe('/user/model-override routes', () => {
     it('should handle null config name', async () => {
       mockPrisma.userPersonalityConfig.findMany.mockResolvedValue([
         {
-          personalityId: 'personality-1',
+          personalityId: '11111111-1111-4111-a111-111111111111',
           personality: { name: 'Lilith' },
-          llmConfigId: 'config-1',
+          llmConfigId: '22222222-2222-4222-a222-222222222222',
           llmConfig: null,
         },
       ]);
@@ -221,7 +221,7 @@ describe('/user/model-override routes', () => {
     it('should reject missing personalityId', async () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 
@@ -236,7 +236,9 @@ describe('/user/model-override routes', () => {
     it('should reject missing configId', async () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
-      const { req, res } = createMockReqRes({ personalityId: 'personality-1' });
+      const { req, res } = createMockReqRes({
+        personalityId: '11111111-1111-4111-a111-111111111111',
+      });
 
       await handler(req, res);
 
@@ -254,8 +256,8 @@ describe('/user/model-override routes', () => {
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
-        personalityId: 'personality-1',
-        configId: 'config-1',
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        configId: '22222222-2222-4222-a222-222222222222',
       });
 
       await handler(req, res);
@@ -269,14 +271,17 @@ describe('/user/model-override routes', () => {
     });
 
     it('should return 404 when config not found or not accessible', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({ id: 'personality-1', name: 'Lilith' });
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
       mockPrisma.llmConfig.findFirst.mockResolvedValue(null);
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
-        personalityId: 'personality-1',
-        configId: 'config-1',
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        configId: '22222222-2222-4222-a222-222222222222',
       });
 
       await handler(req, res);
@@ -292,20 +297,26 @@ describe('/user/model-override routes', () => {
     it('should create user if not exists', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
-      mockPrisma.personality.findFirst.mockResolvedValue({ id: 'personality-1', name: 'Lilith' });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'GPT-4' });
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GPT-4',
+      });
       mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
-        personalityId: 'personality-1',
+        personalityId: '11111111-1111-4111-a111-111111111111',
         personality: { name: 'Lilith' },
-        llmConfigId: 'config-1',
+        llmConfigId: '22222222-2222-4222-a222-222222222222',
         llmConfig: { name: 'GPT-4' },
       });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
-        personalityId: 'personality-1',
-        configId: 'config-1',
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        configId: '22222222-2222-4222-a222-222222222222',
       });
 
       await handler(req, res);
@@ -316,20 +327,26 @@ describe('/user/model-override routes', () => {
     });
 
     it('should upsert override successfully', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValue({ id: 'personality-1', name: 'Lilith' });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'GPT-4' });
+      mockPrisma.personality.findFirst.mockResolvedValue({
+        id: '11111111-1111-4111-a111-111111111111',
+        name: 'Lilith',
+      });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'GPT-4',
+      });
       mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({
-        personalityId: 'personality-1',
+        personalityId: '11111111-1111-4111-a111-111111111111',
         personality: { name: 'Lilith' },
-        llmConfigId: 'config-1',
+        llmConfigId: '22222222-2222-4222-a222-222222222222',
         llmConfig: { name: 'GPT-4' },
       });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/');
       const { req, res } = createMockReqRes({
-        personalityId: 'personality-1',
-        configId: 'config-1',
+        personalityId: '11111111-1111-4111-a111-111111111111',
+        configId: '22222222-2222-4222-a222-222222222222',
       });
 
       await handler(req, res);
@@ -339,7 +356,7 @@ describe('/user/model-override routes', () => {
           where: {
             userId_personalityId: {
               userId: 'user-uuid-123',
-              personalityId: 'personality-1',
+              personalityId: '11111111-1111-4111-a111-111111111111',
             },
           },
           create: expect.objectContaining({
@@ -348,11 +365,11 @@ describe('/user/model-override routes', () => {
               /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
             ),
             userId: 'user-uuid-123',
-            personalityId: 'personality-1',
-            llmConfigId: 'config-1',
+            personalityId: '11111111-1111-4111-a111-111111111111',
+            llmConfigId: '22222222-2222-4222-a222-222222222222',
           }),
           update: expect.objectContaining({
-            llmConfigId: 'config-1',
+            llmConfigId: '22222222-2222-4222-a222-222222222222',
           }),
         })
       );
@@ -360,9 +377,9 @@ describe('/user/model-override routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           override: {
-            personalityId: 'personality-1',
+            personalityId: '11111111-1111-4111-a111-111111111111',
             personalityName: 'Lilith',
-            configId: 'config-1',
+            configId: '22222222-2222-4222-a222-222222222222',
             configName: 'GPT-4',
           },
         })
@@ -376,7 +393,10 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes({}, { personalityId: 'personality-1' });
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: '11111111-1111-4111-a111-111111111111' }
+      );
 
       await handler(req, res);
 
@@ -388,7 +408,10 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes({}, { personalityId: 'personality-1' });
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: '11111111-1111-4111-a111-111111111111' }
+      );
 
       await handler(req, res);
 
@@ -407,7 +430,10 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes({}, { personalityId: 'personality-1' });
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: '11111111-1111-4111-a111-111111111111' }
+      );
 
       await handler(req, res);
 
@@ -420,13 +446,16 @@ describe('/user/model-override routes', () => {
     it('should remove override by setting llmConfigId to null', async () => {
       mockPrisma.userPersonalityConfig.findFirst.mockResolvedValue({
         id: 'override-1',
-        llmConfigId: 'config-1',
+        llmConfigId: '22222222-2222-4222-a222-222222222222',
         personality: { name: 'Lilith' },
       });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'delete', '/:personalityId');
-      const { req, res } = createMockReqRes({}, { personalityId: 'personality-1' });
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: '11111111-1111-4111-a111-111111111111' }
+      );
 
       await handler(req, res);
 
@@ -519,7 +548,7 @@ describe('/user/model-override routes', () => {
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 
@@ -534,11 +563,14 @@ describe('/user/model-override routes', () => {
     it('should create user if not exists', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       mockPrisma.user.create.mockResolvedValue({ id: 'new-user' });
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Test Config',
+      });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 
@@ -548,23 +580,26 @@ describe('/user/model-override routes', () => {
     });
 
     it('should set default config successfully', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Test Config',
+      });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 
       expect(mockPrisma.user.update).toHaveBeenCalledWith({
         where: { id: 'user-uuid-123' },
-        data: { defaultLlmConfigId: 'config-1' },
+        data: { defaultLlmConfigId: '22222222-2222-4222-a222-222222222222' },
       });
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           default: {
-            configId: 'config-1',
+            configId: '22222222-2222-4222-a222-222222222222',
             configName: 'Test Config',
           },
         })
@@ -574,7 +609,10 @@ describe('/user/model-override routes', () => {
 
   describe('PUT /user/model-override/default cache invalidation', () => {
     it('should call invalidateUserLlmConfig on success', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Test Config',
+      });
       const mockInvalidation = {
         invalidateUserLlmConfig: vi.fn().mockResolvedValue(undefined),
       };
@@ -584,7 +622,7 @@ describe('/user/model-override routes', () => {
         mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService
       );
       const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 
@@ -593,7 +631,10 @@ describe('/user/model-override routes', () => {
     });
 
     it('should not fail if cache invalidation throws', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Test Config',
+      });
       const mockInvalidation = {
         invalidateUserLlmConfig: vi.fn().mockRejectedValue(new Error('Redis error')),
       };
@@ -603,7 +644,7 @@ describe('/user/model-override routes', () => {
         mockInvalidation as unknown as import('@tzurot/common-types').LlmConfigCacheInvalidationService
       );
       const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 
@@ -612,11 +653,14 @@ describe('/user/model-override routes', () => {
     });
 
     it('should work without cache invalidation service', async () => {
-      mockPrisma.llmConfig.findFirst.mockResolvedValue({ id: 'config-1', name: 'Test Config' });
+      mockPrisma.llmConfig.findFirst.mockResolvedValue({
+        id: '22222222-2222-4222-a222-222222222222',
+        name: 'Test Config',
+      });
 
       const router = createModelOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'put', '/default');
-      const { req, res } = createMockReqRes({ configId: 'config-1' });
+      const { req, res } = createMockReqRes({ configId: '22222222-2222-4222-a222-222222222222' });
 
       await handler(req, res);
 

@@ -19,7 +19,6 @@ import { EntityPermissionsSchema, nullableString } from './shared.js';
 
 /**
  * Summary of a personality for list endpoints
- * Matches PersonalitySummary type from types/byok.ts
  */
 export const PersonalitySummarySchema = z.object({
   id: z.string().uuid(),
@@ -37,6 +36,7 @@ export const PersonalitySummarySchema = z.object({
   /** Computed permissions for the requesting user */
   permissions: EntityPermissionsSchema,
 });
+export type PersonalitySummary = z.infer<typeof PersonalitySummarySchema>;
 
 /** Full personality data for dashboard/editing */
 export const PersonalityFullSchema = z.object({

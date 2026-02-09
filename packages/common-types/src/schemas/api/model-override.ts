@@ -17,15 +17,14 @@ import { z } from 'zod';
 
 /**
  * Summary of a model override (personality + config)
- * Note: ModelOverrideSummary type is exported from types/byok.ts
- * This schema validates the same shape.
  */
-const ModelOverrideSummarySchema = z.object({
+export const ModelOverrideSummarySchema = z.object({
   personalityId: z.string(),
   personalityName: z.string(),
   configId: z.string().nullable(),
   configName: z.string().nullable(),
 });
+export type ModelOverrideSummary = z.infer<typeof ModelOverrideSummarySchema>;
 
 /** User's default LLM config reference */
 export const UserDefaultConfigSchema = z.object({
@@ -90,19 +89,17 @@ export type DeleteModelOverrideResponse = z.infer<typeof DeleteModelOverrideResp
 
 /**
  * Schema for setting a model override for a personality.
- * Uses .trim() to match the original trim-then-check-empty behavior.
  */
 export const SetModelOverrideBodySchema = z.object({
-  personalityId: z.string().trim().min(1, 'personalityId is required'),
-  configId: z.string().trim().min(1, 'configId is required'),
+  personalityId: z.string().uuid('Invalid personalityId format'),
+  configId: z.string().uuid('Invalid configId format'),
 });
 export type SetModelOverrideBody = z.infer<typeof SetModelOverrideBodySchema>;
 
 /**
  * Schema for setting user's global default LLM config.
- * Uses .trim() to match the original trim-then-check-empty behavior.
  */
 export const SetDefaultConfigBodySchema = z.object({
-  configId: z.string().trim().min(1, 'configId is required'),
+  configId: z.string().uuid('Invalid configId format'),
 });
 export type SetDefaultConfigBody = z.infer<typeof SetDefaultConfigBodySchema>;

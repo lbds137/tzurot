@@ -207,15 +207,11 @@ export const PersonaUpdateSchema = z.object({
 });
 export type PersonaUpdateInput = z.infer<typeof PersonaUpdateSchema>;
 
-/** UUID format regex — accepts any hex UUID, not just RFC 4122 */
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 /**
  * Schema for setting a persona override on a personality.
- * Uses regex-based UUID validation (matches the gateway's validateUuid behavior).
  */
 export const SetPersonaOverrideBodySchema = z.object({
-  personaId: z.string().regex(UUID_PATTERN, 'Invalid persona ID format'),
+  personaId: z.string().uuid('Invalid persona ID format'),
 });
 export type SetPersonaOverrideBody = z.infer<typeof SetPersonaOverrideBodySchema>;
 

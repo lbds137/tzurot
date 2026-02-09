@@ -23,6 +23,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
@@ -114,10 +115,7 @@ function createCreateHandler(prisma: PrismaClient) {
     // Validate request body with Zod
     const parseResult = PersonaCreateSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const firstIssue = parseResult.error.issues[0];
-      const fieldPath = firstIssue.path.join('.');
-      const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
-      return sendError(res, ErrorResponses.validationError(message));
+      return sendZodError(res, parseResult.error);
     }
 
     const { name, content, preferredName, description, pronouns } = parseResult.data;
@@ -172,10 +170,7 @@ function createUpdateHandler(prisma: PrismaClient) {
     // Validate request body with Zod
     const parseResult = PersonaUpdateSchema.safeParse(req.body);
     if (!parseResult.success) {
-      const firstIssue = parseResult.error.issues[0];
-      const fieldPath = firstIssue.path.join('.');
-      const message = fieldPath ? `${fieldPath}: ${firstIssue.message}` : firstIssue.message;
-      return sendError(res, ErrorResponses.validationError(message));
+      return sendZodError(res, parseResult.error);
     }
 
     const user = await getOrCreateInternalUser(prisma, discordUserId);

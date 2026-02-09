@@ -13,8 +13,8 @@
  *   });
  */
 
-import type { ModelOverrideSummary } from '../types/byok.js';
 import {
+  type ModelOverrideSummary,
   ListModelOverridesResponseSchema,
   SetModelOverrideResponseSchema,
   SetDefaultConfigResponseSchema,
