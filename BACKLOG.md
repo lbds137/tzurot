@@ -113,14 +113,13 @@ it('should reject maxAge = 0 (use null for no limit)', () => {
 
 _This week's active work. Max 3 items._
 
-### 🏗️ Zod Schema Hardening - Phase 2: Schema-First Types + Consistency
+### 🏗️ Zod Schema Hardening - Phases 3+4: Naming + Route Audit
 
 - [x] Phase 1 (PR #601): Consolidated persona + model-override endpoint schemas
-- Phase 2 (in progress):
-  - [x] Schema-first type migration: eliminated `types/byok.ts`, Zod schemas are single source of truth
-  - [x] Standardized UUID validation (`.uuid()` replaces regex + `.trim().min(1)`)
-  - [x] Shared `sendZodError` helper replaces repeated firstIssue pattern in 10 route files
-  - [ ] Update docs and run full verification
+- [x] Phase 2 (PR #602): Schema-first types, UUID validation, `sendZodError` helper
+- [x] Phase 3: Standardized 4 input schema names (removed "Body" suffix)
+- [x] Phase 4: Created schemas + converted 12 routes from `req.body as` to `safeParse`
+- [ ] Phase 5 (follow-up PR): Complex routes (create/update personality, transcribe, generate)
 
 ---
 
@@ -204,18 +203,23 @@ Shared Zod schemas in common-types for persona + model-override endpoints.
 
 ZodShape utility (Phase 2 in old plan) skipped — schema-first approach supersedes it.
 
-### Phase 3: Schema Naming Standardization
+### Phase 3: Schema Naming Standardization (DONE)
 
-- [ ] Standardize "Body" suffix convention (`{Resource}CreateSchema` vs `{Resource}CreateBodySchema`)
-- [ ] Standardize response schema naming (`{Resource}{Endpoint}ResponseSchema`)
-- [ ] Align `PersonaDetailsSchema` vs `PersonalityFullSchema` (pick one convention)
-- Deferred: Cosmetic, causes import churn across 29+ files. Better as a focused rename-only PR.
+- [x] Removed "Body" suffix from 4 input schemas (`SetPersonaOverrideSchema`, `PersonaSettingsSchema`, `SetModelOverrideSchema`, `SetDefaultConfigSchema`)
+- [x] Renamed derived types to `*Input` convention
 
-### Phase 4: Route Validation Audit
+### Phase 4: Route Validation Audit (DONE)
 
-- [ ] Convert 19 routes still using inline `req.body as Type` to Zod safeParse
-- [ ] Key targets: memory routes, history routes, timezone, admin diagnostic/cache/dbSync
-- [ ] Use the `sendZodError` helper from Phase 2
+- [x] Created Zod schemas for admin, memory, wallet, history, timezone inputs
+- [x] Converted 12 routes from inline `req.body as Type` to Zod `safeParse` + `sendZodError`
+- [x] Eliminated ~84 lines of hand-written validation code
+
+### Phase 5: Complex Routes (remaining)
+
+- [ ] `user/personality/create.ts` — complex multipart form data
+- [ ] `user/personality/update.ts` — same
+- [ ] `ai/transcribe.ts` — inline validation, low risk
+- [ ] `ai/generate.ts` — remove `as Type` logging cast (already uses safeParse)
 
 ---
 
