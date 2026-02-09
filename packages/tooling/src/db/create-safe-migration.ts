@@ -288,6 +288,8 @@ async function createMigrationViaDiff(
       });
 
       proc.on('error', err => {
+        console.error(chalk.red('❌ Failed to spawn npx prisma migrate diff'));
+        console.error(chalk.dim(`   ${err.message}`));
         reject(err);
       });
     }
@@ -316,7 +318,7 @@ async function createMigrationViaDiff(
   return { migrationDir, migrationSql: sql + '\n' };
 }
 
-/** Sentinel substring Prisma emits when stdin is not a TTY */
+/** Sentinel substring Prisma emits when stdin is not a TTY (tested with Prisma 6.x) */
 const NON_INTERACTIVE_ERROR = 'the environment is non-interactive';
 
 /**
