@@ -5,16 +5,17 @@
 
 import type { Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { createLogger, type PrismaClient } from '@tzurot/common-types';
+import { createLogger, type PrismaClient, MemoryUpdateSchema } from '@tzurot/common-types';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-memory-single');
 
-/** Maximum content length for memory updates */
-const MAX_CONTENT_LENGTH = 2000;
+const MEMORY_NOT_FOUND = 'Memory not found';
+const MEMORY_ID_REQUIRED = 'Memory ID is required';
 
 /** Include clause for personality in memory queries */
 const PERSONALITY_INCLUDE = {
@@ -48,7 +49,7 @@ async function verifyMemoryOwnership(
 
   const personaId = await getDefaultPersonaId(prisma, user.id);
   if (personaId === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
+    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
     return null;
   }
 
@@ -61,7 +62,7 @@ async function verifyMemoryOwnership(
   });
 
   if (memory === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
+    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
     return null;
   }
 
@@ -116,7 +117,7 @@ export async function handleGetMemory(
   const memoryId = getParam(req.params.id);
 
   if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError('Memory ID is required'));
+    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
     return;
   }
 
@@ -127,7 +128,7 @@ export async function handleGetMemory(
 
   const personaId = await getDefaultPersonaId(prisma, user.id);
   if (personaId === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
+    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
     return;
   }
 
@@ -141,7 +142,7 @@ export async function handleGetMemory(
   });
 
   if (memory === null) {
-    sendError(res, ErrorResponses.notFound('Memory not found'));
+    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
     return;
   }
 
@@ -162,25 +163,19 @@ export async function handleUpdateMemory(
 ): Promise<void> {
   const discordUserId = req.userId;
   const memoryId = getParam(req.params.id);
-  const { content } = req.body as { content?: string };
 
   if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError('Memory ID is required'));
+    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
     return;
   }
 
-  if (content === undefined || content.trim().length === 0) {
-    sendError(res, ErrorResponses.validationError('Content is required'));
+  const parseResult = MemoryUpdateSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
     return;
   }
 
-  if (content.length > MAX_CONTENT_LENGTH) {
-    sendError(
-      res,
-      ErrorResponses.validationError(`Content exceeds maximum length of ${MAX_CONTENT_LENGTH}`)
-    );
-    return;
-  }
+  const { content } = parseResult.data;
 
   const existing = await verifyMemoryOwnership({
     prisma,
@@ -228,7 +223,7 @@ export async function handleToggleLock(
   const memoryId = getParam(req.params.id);
 
   if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError('Memory ID is required'));
+    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
     return;
   }
 
@@ -273,7 +268,7 @@ export async function handleDeleteMemory(
   const memoryId = getParam(req.params.id);
 
   if (memoryId === undefined || memoryId.length === 0) {
-    sendError(res, ErrorResponses.validationError('Memory ID is required'));
+    sendError(res, ErrorResponses.validationError(MEMORY_ID_REQUIRED));
     return;
   }
 

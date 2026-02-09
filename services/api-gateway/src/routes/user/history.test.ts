@@ -205,7 +205,7 @@ describe('/user/history routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'VALIDATION_ERROR',
-          message: expect.stringContaining('personalitySlug is required'),
+          message: expect.stringContaining('personalitySlug'),
         })
       );
     });
@@ -694,7 +694,7 @@ describe('/user/history routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'VALIDATION_ERROR',
-          message: expect.stringContaining('personalitySlug is required'),
+          message: expect.stringContaining('personalitySlug'),
         })
       );
     });
@@ -710,7 +710,7 @@ describe('/user/history routes', () => {
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
           error: 'VALIDATION_ERROR',
-          message: expect.stringContaining('channelId is required'),
+          message: expect.stringContaining('channelId'),
         })
       );
     });

@@ -12,44 +12,23 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  AIProvider,
   encryptApiKey,
   WALLET_ERROR_MESSAGES,
   UserService,
   type PrismaClient,
   type ApiKeyCacheInvalidationService,
   generateUserApiKeyUuid,
+  SetWalletKeySchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import { validateApiKey, type ApiKeyValidationResult } from '../../utils/apiKeyValidation.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('wallet-set-key');
-
-interface SetKeyRequest {
-  provider: AIProvider;
-  apiKey: string;
-}
-
-/**
- * Validate set key request input
- */
-function validateSetKeyInput(body: SetKeyRequest): ErrorResponse | null {
-  const { provider, apiKey } = body;
-
-  if (provider === undefined || provider === null || !apiKey || apiKey.length === 0) {
-    return ErrorResponses.validationError(WALLET_ERROR_MESSAGES.MISSING_FIELDS);
-  }
-
-  if (!Object.values(AIProvider).includes(provider)) {
-    return ErrorResponses.validationError(WALLET_ERROR_MESSAGES.INVALID_PROVIDER(provider));
-  }
-
-  return null;
-}
 
 /**
  * Map API key validation error to HTTP error response
@@ -80,14 +59,13 @@ export function createSetKeyRoute(
     '/',
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
-      const { provider, apiKey } = req.body as SetKeyRequest;
-      const discordUserId = req.userId;
-
-      // Validate input
-      const inputError = validateSetKeyInput({ provider, apiKey });
-      if (inputError !== null) {
-        return sendError(res, inputError);
+      const parseResult = SetWalletKeySchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
       }
+
+      const { provider, apiKey } = parseResult.data;
+      const discordUserId = req.userId;
 
       logger.info({ provider, discordUserId }, '[Wallet] Validating API key');
 

@@ -4,7 +4,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
-import { createLogger, getConfig } from '@tzurot/common-types';
+import { createLogger, getConfig, DbSyncSchema } from '@tzurot/common-types';
 import { PrismaClient } from '@tzurot/common-types';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { DatabaseSyncService } from '../../services/DatabaseSyncService.js';
@@ -12,6 +12,7 @@ import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 
 const logger = createLogger('admin-db-sync');
 
@@ -22,7 +23,12 @@ export function createDbSyncRoute(): Router {
     '/',
     requireOwnerAuth(),
     asyncHandler(async (req: Request, res: Response) => {
-      const { dryRun = false } = req.body as { dryRun?: boolean };
+      const parseResult = DbSyncSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        return sendZodError(res, parseResult.error);
+      }
+
+      const { dryRun } = parseResult.data;
       const config = getConfig();
 
       // Verify database URLs are configured

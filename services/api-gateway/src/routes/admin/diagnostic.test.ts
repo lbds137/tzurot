@@ -602,14 +602,14 @@ describe('Admin Diagnostic Routes', () => {
         .send({ responseMessageIds: 'not-an-array' });
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain('must be an array');
+      expect(response.body.message).toEqual(expect.stringContaining('responseMessageIds'));
     });
 
     it('should return 400 if responseMessageIds is missing', async () => {
       const response = await request(app).patch('/admin/diagnostic/test-req/response-ids').send({});
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain('must be an array');
+      expect(response.body.message).toEqual(expect.stringContaining('responseMessageIds'));
     });
 
     it('should return 400 if array contains non-strings', async () => {
@@ -618,7 +618,7 @@ describe('Admin Diagnostic Routes', () => {
         .send({ responseMessageIds: ['valid', 123, 'also-valid'] });
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain('non-empty strings');
+      expect(response.body.message).toEqual(expect.stringContaining('responseMessageIds'));
     });
 
     it('should return 400 if array contains empty strings', async () => {
@@ -627,7 +627,7 @@ describe('Admin Diagnostic Routes', () => {
         .send({ responseMessageIds: ['valid', '', 'also-valid'] });
 
       expect(response.status).toBe(400);
-      expect(response.body.message).toContain('non-empty strings');
+      expect(response.body.message).toEqual(expect.stringContaining('responseMessageIds'));
     });
 
     it('should return 404 when diagnostic log not found', async () => {

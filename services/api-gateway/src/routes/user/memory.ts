@@ -29,11 +29,13 @@ import {
   createLogger,
   type PrismaClient,
   generateUserPersonalityConfigUuid,
+  FocusModeSchema,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { handleSearch } from './memorySearch.js';
 import { handleList } from './memoryList.js';
@@ -47,11 +49,6 @@ import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memo
 import { createIncognitoRoutes } from './memoryIncognito.js';
 
 const logger = createLogger('user-memory');
-
-interface FocusModeRequest {
-  personalityId: string;
-  enabled: boolean;
-}
 
 /**
  * Get user's default persona ID
@@ -240,16 +237,14 @@ async function handleSetFocus(
   res: Response
 ): Promise<void> {
   const discordUserId = req.userId;
-  const { personalityId, enabled } = req.body as FocusModeRequest;
 
-  if (personalityId === undefined || personalityId === '') {
-    sendError(res, ErrorResponses.validationError('personalityId is required'));
+  const parseResult = FocusModeSchema.safeParse(req.body);
+  if (!parseResult.success) {
+    sendZodError(res, parseResult.error);
     return;
   }
-  if (typeof enabled !== 'boolean') {
-    sendError(res, ErrorResponses.validationError('enabled must be a boolean'));
-    return;
-  }
+
+  const { personalityId, enabled } = parseResult.data;
 
   const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
