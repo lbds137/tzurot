@@ -1,7 +1,7 @@
 ---
 name: tzurot-db-vector
 description: 'Database migration procedures. Invoke with /tzurot-db-vector for Prisma migrations, drift fixes, and pgvector operations.'
-lastUpdated: '2026-02-04'
+lastUpdated: '2026-02-09'
 ---
 
 # Database & Vector Procedures
@@ -12,38 +12,50 @@ lastUpdated: '2026-02-04'
 
 ## Migration Procedure
 
-### 1. Create Migration (Preferred)
+### 1. Create Migration
 
 ```bash
-# Automatically sanitizes drift patterns
+# Interactive (prompts for name)
 pnpm ops db:safe-migrate
+
+# Non-interactive (AI assistants, CI)
+pnpm ops db:safe-migrate --name <migration_name>
 ```
 
-This script:
+This command:
 
-1. Runs `prisma migrate dev --create-only`
-2. Removes known drift patterns from `prisma/drift-ignore.json`
-3. Reports what was sanitized
-4. Shows the clean migration for review
+1. Tries `prisma migrate dev --create-only` (interactive path)
+2. Falls back to `prisma migrate diff` if stdin is not a TTY (non-interactive)
+3. Removes known drift patterns from `prisma/drift-ignore.json`
+4. Reports what was sanitized
+5. Shows the clean migration for review
+
+**All `pnpm ops db:*` commands work in non-interactive environments.**
 
 ### 2. Review SQL (CRITICAL)
 
-Delete any lines matching:
+The safe-migrate command auto-sanitizes these, but always verify:
 
-- `DROP INDEX "idx_memories_embedding"`
-- `DROP INDEX "memories_chunk_group_id_idx"`
-- `CREATE INDEX "memories_chunk_group_id_idx"` (without WHERE)
+- `DROP INDEX "idx_memories_embedding"` — removed (IVFFlat vector index)
+- `DROP INDEX "memories_chunk_group_id_idx"` — removed (partial index)
+- `CREATE INDEX "memories_chunk_group_id_idx"` without WHERE — removed (non-partial)
 
 ### 3. Apply Migration
 
 ```bash
-# Local
-npx prisma migrate deploy
+# Apply locally + regenerate Prisma client
+pnpm ops db:migrate
 
-# Railway
+# Regenerate PGLite test schema
+pnpm ops test:generate-schema
+
+# Apply to Railway
 pnpm ops db:migrate --env dev
 pnpm ops db:migrate --env prod --force  # Prod requires --force
 ```
+
+`db:migrate` uses `prisma migrate deploy` (not `migrate dev`) for all environments.
+This avoids interactive prompts and drift-detection loops from sanitized indexes.
 
 ## Drift Detection & Fix
 
@@ -119,10 +131,10 @@ WHERE "chunk_group_id" IS NOT NULL;
 
 ## PGLite Schema Regeneration
 
-After Prisma schema changes:
+After any migration:
 
 ```bash
-./scripts/testing/regenerate-pglite-schema.sh
+pnpm ops test:generate-schema
 # Output: packages/test-utils/schema/pglite-schema.sql
 ```
 

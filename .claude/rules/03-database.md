@@ -54,15 +54,21 @@ const results = await prisma.$queryRaw<SimilarMemory[]>`
 ### The One True Workflow
 
 ```bash
-# 1. PREFERRED - Automatically sanitizes drift patterns
-pnpm ops db:safe-migrate
+# 1. Create migration (sanitizes drift patterns automatically)
+pnpm ops db:safe-migrate --name <migration_name>
 
-# 2. Check status
+# 2. Apply locally
+pnpm ops db:migrate
+
+# 3. Regenerate PGLite test schema
+pnpm ops test:generate-schema
+
+# 4. Check status / deploy to Railway
 pnpm ops db:status --env dev
-
-# 3. Apply to Railway
 pnpm ops db:migrate --env dev
 ```
+
+All commands work in non-interactive environments (AI assistants, CI).
 
 **NEVER** use `prisma migrate reset` (destroys all data) or raw `prisma migrate` commands.
 

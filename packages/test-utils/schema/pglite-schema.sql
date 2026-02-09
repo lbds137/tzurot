@@ -41,10 +41,6 @@ CREATE TABLE "admin_settings" (
     "updated_by" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
-    "extended_context_default" BOOLEAN NOT NULL DEFAULT true,
-    "extended_context_max_messages" INTEGER NOT NULL DEFAULT 20,
-    "extended_context_max_age" INTEGER,
-    "extended_context_max_images" INTEGER NOT NULL DEFAULT 0,
 
     CONSTRAINT "admin_settings_pkey" PRIMARY KEY ("id")
 );
@@ -157,10 +153,6 @@ CREATE TABLE "personalities" (
     "image_enabled" BOOLEAN NOT NULL DEFAULT false,
     "image_settings" JSONB,
     "avatar_data" BYTEA,
-    "extended_context" BOOLEAN,
-    "extended_context_max_messages" INTEGER,
-    "extended_context_max_age" INTEGER,
-    "extended_context_max_images" INTEGER,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -270,10 +262,6 @@ CREATE TABLE "channel_settings" (
     "guild_id" VARCHAR(20),
     "activated_personality_id" UUID,
     "auto_respond" BOOLEAN NOT NULL DEFAULT true,
-    "extended_context" BOOLEAN,
-    "extended_context_max_messages" INTEGER,
-    "extended_context_max_age" INTEGER,
-    "extended_context_max_images" INTEGER,
     "created_by" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

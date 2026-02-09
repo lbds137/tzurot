@@ -14,9 +14,6 @@ import { z } from 'zod';
 /**
  * AdminSettings singleton record.
  * Contains all bot-wide configuration with proper types.
- *
- * Note: extendedContext* columns still exist in DB but are no longer exposed
- * via the API. They will be dropped in a follow-up Prisma migration.
  */
 export const AdminSettingsSchema = z.object({
   id: z.string().uuid(),

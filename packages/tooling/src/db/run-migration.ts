@@ -1,9 +1,14 @@
 /**
  * Run Migration Command
  *
- * Safely runs database migrations with environment awareness:
- * - Local: Uses `prisma migrate dev` (interactive)
- * - Dev/Prod: Uses `prisma migrate deploy` (non-interactive)
+ * Applies pending migrations using `prisma migrate deploy` + `prisma generate`.
+ *
+ * Uses `migrate deploy` (not `migrate dev`) for ALL environments because:
+ * 1. Migration creation is handled separately by `db:safe-migrate`
+ * 2. `migrate dev` detects schema drift from sanitized indexes and prompts
+ *    for a new migration name, which blocks non-interactive environments
+ * 3. `migrate deploy` just applies pending migrations — no drift detection,
+ *    no interactive prompts, no TTY requirement
  *
  * Production operations require explicit --force flag or confirmation.
  */
@@ -24,7 +29,10 @@ interface RunMigrationOptions {
 }
 
 /**
- * Run migrations for local environment
+ * Run migrations for local environment.
+ *
+ * Uses `prisma migrate deploy` + `prisma generate` to apply pending migrations
+ * without interactive prompts or drift detection.
  */
 async function runLocalMigration(dryRun: boolean): Promise<void> {
   if (dryRun) {
@@ -36,13 +44,20 @@ async function runLocalMigration(dryRun: boolean): Promise<void> {
     return;
   }
 
-  console.log(chalk.dim('\nRunning: npx prisma migrate dev\n'));
-  console.log(chalk.yellow('This will apply pending migrations and generate Prisma client.\n'));
+  console.log(chalk.dim('\nRunning: npx prisma migrate deploy\n'));
+  console.log(chalk.yellow('This will apply pending migrations.\n'));
 
-  const result = await runPrismaCommand('local', 'migrate', ['dev']);
-
-  if (result.exitCode !== 0) {
+  const deployResult = await runPrismaCommand('local', 'migrate', ['deploy']);
+  if (deployResult.exitCode !== 0) {
     console.error(chalk.red('\n❌ Migration failed'));
+    process.exit(1);
+  }
+
+  // migrate deploy doesn't regenerate client, so run generate separately
+  console.log(chalk.dim('\nGenerating Prisma client...\n'));
+  const generateResult = await runPrismaCommand('local', 'generate', []);
+  if (generateResult.exitCode !== 0) {
+    console.error(chalk.red('\n❌ Prisma generate failed'));
     process.exit(1);
   }
 

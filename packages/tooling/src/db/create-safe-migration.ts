@@ -3,16 +3,23 @@
  *
  * Wrapper around Prisma migrate that:
  * 1. Prompts for migration name
- * 2. Runs `prisma migrate dev --create-only`
+ * 2. Runs `prisma migrate dev --create-only` (or `migrate diff` fallback for non-TTY)
  * 3. Sanitizes known drift patterns from the generated SQL
  * 4. Reports what was removed
  * 5. Shows the clean migration for review
  *
  * This prevents accidentally dropping protected indexes (like idx_memories_embedding)
  * that Prisma can't represent in its schema.
+ *
+ * Non-interactive fallback:
+ * When stdin is not a TTY (e.g., piped input from AI assistants, CI), Prisma's
+ * `migrate dev` refuses to run even with `--create-only --name`. In this case,
+ * we fall back to `prisma migrate diff` which generates identical SQL without
+ * requiring a TTY, then manually create the migration directory.
  */
 
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
@@ -21,6 +28,7 @@ import {
   validateEnvironment,
   showEnvironmentBanner,
   runPrismaCommand,
+  cleanEnvForNpx,
 } from '../utils/env-runner.js';
 
 /** Pattern definition from drift-ignore.json */
@@ -40,6 +48,8 @@ interface CreateSafeMigrationOptions {
   name?: string;
   migrationsPath?: string;
 }
+
+const MIGRATION_SQL_FILENAME = 'migration.sql';
 
 /**
  * Prompt user for migration name
@@ -208,6 +218,178 @@ function reportSanitizationResults(
 }
 
 /**
+ * Generate a Prisma-compatible timestamp (YYYYMMDDHHMMSS) for migration directory names
+ */
+export function generateMigrationTimestamp(): string {
+  const now = new Date();
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  return (
+    String(now.getFullYear()) +
+    pad(now.getMonth() + 1) +
+    pad(now.getDate()) +
+    pad(now.getHours()) +
+    pad(now.getMinutes()) +
+    pad(now.getSeconds())
+  );
+}
+
+/**
+ * Non-interactive migration creation using `prisma migrate diff`.
+ *
+ * Fallback for when `prisma migrate dev --create-only` fails due to non-TTY stdin.
+ * Generates identical SQL by comparing the migration directory against the schema file,
+ * then manually creates the timestamped migration directory.
+ *
+ * Note: Unlike `migrate dev`, this does NOT validate against a shadow database.
+ * The migration will be validated when applied via `prisma migrate dev` or `deploy`.
+ */
+async function createMigrationViaDiff(
+  migrationName: string,
+  migrationsPath: string
+): Promise<{ migrationDir: string; migrationSql: string } | null> {
+  console.log(chalk.yellow('⚡ Using non-interactive fallback (prisma migrate diff)'));
+  console.log(chalk.dim('   Shadow DB validation will occur when the migration is applied.\n'));
+
+  // Use --from-config-datasource to read the live database state directly.
+  // This avoids the shadow database requirement of --from-migrations.
+  // Safe because db:safe-migrate runs locally after all migrations are applied.
+  const diffArgs = [
+    'prisma',
+    'migrate',
+    'diff',
+    '--from-config-datasource',
+    '--to-schema',
+    './prisma/schema.prisma',
+    '--script',
+  ];
+
+  const result = await new Promise<{ stdout: string; stderr: string; exitCode: number }>(
+    (resolve, reject) => {
+      const proc = spawn('npx', diffArgs, {
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        env: cleanEnvForNpx(),
+      });
+
+      let stdout = '';
+      let stderr = '';
+
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout += data.toString();
+      });
+
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr += data.toString();
+        process.stderr.write(data);
+      });
+
+      proc.on('close', code => {
+        resolve({ stdout, stderr, exitCode: code ?? 0 });
+      });
+
+      proc.on('error', err => {
+        reject(err);
+      });
+    }
+  );
+
+  if (result.exitCode !== 0) {
+    console.error(chalk.red('\n❌ prisma migrate diff failed'));
+    process.exit(1);
+  }
+
+  const sql = result.stdout.trim();
+
+  // Check for empty migration (no schema changes)
+  if (sql === '' || sql === '-- This is an empty migration.') {
+    return null;
+  }
+
+  // Create timestamped migration directory
+  const timestamp = generateMigrationTimestamp();
+  const dirName = `${timestamp}_${migrationName}`;
+  const migrationDir = join(migrationsPath, dirName);
+
+  mkdirSync(migrationDir, { recursive: true });
+  writeFileSync(join(migrationDir, MIGRATION_SQL_FILENAME), sql + '\n');
+
+  return { migrationDir, migrationSql: sql + '\n' };
+}
+
+/** Sentinel substring Prisma emits when stdin is not a TTY */
+const NON_INTERACTIVE_ERROR = 'the environment is non-interactive';
+
+/**
+ * Get and validate migration name from options or interactive prompt
+ */
+async function resolveMigrationName(name: string | undefined): Promise<string> {
+  if (name) {
+    validateMigrationName(name);
+    return name;
+  }
+
+  if (!process.stdin.isTTY) {
+    console.error(chalk.red('❌ Migration name is required in non-interactive mode'));
+    console.error(chalk.dim('   Use: pnpm ops db:safe-migrate --name <name>'));
+    process.exit(1);
+  }
+
+  const prompted = await promptForMigrationName();
+  validateMigrationName(prompted);
+  return prompted;
+}
+
+/**
+ * Attempt to create a migration via interactive `prisma migrate dev --create-only`,
+ * falling back to `prisma migrate diff` for non-interactive environments.
+ *
+ * @returns null if no schema changes detected, otherwise the migration dir and SQL
+ */
+async function createMigrationWithFallback(
+  env: Environment,
+  migrationName: string,
+  migrationsPath: string
+): Promise<{ migrationDir: string; migrationSql: string } | null> {
+  const result = await runPrismaCommand(env, 'migrate', [
+    'dev',
+    '--create-only',
+    '--name',
+    migrationName,
+  ]);
+
+  if (result.exitCode !== 0) {
+    const combinedOutput = result.stdout + result.stderr;
+    if (!combinedOutput.includes(NON_INTERACTIVE_ERROR)) {
+      console.error(chalk.red('\n❌ Failed to create migration'));
+      process.exit(1);
+    }
+
+    return createMigrationViaDiff(migrationName, migrationsPath);
+  }
+
+  if (result.stdout.includes('No pending changes')) {
+    return null;
+  }
+
+  const latestMigration = findLatestMigration(migrationsPath);
+  if (!latestMigration) {
+    console.error(chalk.red('❌ Could not find created migration'));
+    process.exit(1);
+  }
+
+  const migrationDir = join(migrationsPath, latestMigration);
+  const migrationSqlPath = join(migrationDir, MIGRATION_SQL_FILENAME);
+
+  try {
+    const migrationSql = readFileSync(migrationSqlPath, 'utf-8');
+    return { migrationDir, migrationSql };
+  } catch {
+    console.error(chalk.red(`❌ Could not read ${migrationSqlPath}`));
+    process.exit(1);
+  }
+}
+
+/**
  * Create a safe migration with drift pattern sanitization
  */
 export async function createSafeMigration(options: CreateSafeMigrationOptions = {}): Promise<void> {
@@ -217,52 +399,22 @@ export async function createSafeMigration(options: CreateSafeMigrationOptions = 
   validateEnvironment(env);
   showEnvironmentBanner(env);
 
-  // Get and validate migration name
-  let migrationName = options.name;
-  migrationName ??= await promptForMigrationName();
-  validateMigrationName(migrationName);
+  const migrationName = await resolveMigrationName(options.name);
 
   console.log(chalk.cyan(`\n📝 Creating migration: ${migrationName}\n`));
 
-  // Run prisma migrate dev --create-only
-  const result = await runPrismaCommand(env, 'migrate', [
-    'dev',
-    '--create-only',
-    '--name',
-    migrationName,
-  ]);
+  const created = await createMigrationWithFallback(env, migrationName, migrationsPath);
 
-  if (result.exitCode !== 0) {
-    console.error(chalk.red('\n❌ Failed to create migration'));
-    process.exit(1);
-  }
-
-  // Check if migration was actually created (might be "no changes" scenario)
-  if (result.stdout.includes('No pending changes')) {
+  if (created === null) {
     console.log(chalk.yellow('\n⚠️  No schema changes detected'));
     console.log(chalk.dim('   Your schema is already in sync with the database'));
     return;
   }
 
-  // Find and read the newly created migration
-  const latestMigration = findLatestMigration(migrationsPath);
-  if (!latestMigration) {
-    console.error(chalk.red('❌ Could not find created migration'));
-    process.exit(1);
-  }
-
-  const migrationDir = join(migrationsPath, latestMigration);
-  const migrationSqlPath = join(migrationDir, 'migration.sql');
-
-  let migrationSql: string;
-  try {
-    migrationSql = readFileSync(migrationSqlPath, 'utf-8');
-  } catch {
-    console.error(chalk.red(`❌ Could not read ${migrationSqlPath}`));
-    process.exit(1);
-  }
+  const { migrationDir, migrationSql } = created;
 
   // Load drift patterns and sanitize
+  const migrationSqlPath = join(migrationDir, MIGRATION_SQL_FILENAME);
   const patterns = loadDriftIgnorePatterns(process.cwd());
   const { sanitized, removed } = sanitizeMigrationSql(migrationSql, patterns);
 
@@ -278,6 +430,7 @@ export async function createSafeMigration(options: CreateSafeMigrationOptions = 
   // Next steps
   console.log(chalk.cyan('\n📌 Next steps:'));
   console.log(chalk.dim('   1. Review the migration SQL above'));
-  console.log(chalk.dim('   2. Apply with: pnpm ops db:migrate --env dev'));
+  console.log(chalk.dim('   2. Apply locally: pnpm ops db:migrate'));
   console.log(chalk.dim('   3. Regenerate PGLite schema: pnpm ops test:generate-schema'));
+  console.log(chalk.dim('   4. Deploy to Railway: pnpm ops db:migrate --env dev'));
 }

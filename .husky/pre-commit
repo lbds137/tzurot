@@ -45,8 +45,9 @@ STAGED_MIGRATION_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep 
 if [ -n "$STAGED_MIGRATION_FILES" ]; then
     echo "Checking Prisma migrations for dangerous operations..."
     for file in $STAGED_MIGRATION_FILES; do
-        # Only flag if DROP INDEX exists WITHOUT a corresponding CREATE INDEX
-        if grep -q 'DROP INDEX.*idx_memories_embedding' "$file" && ! grep -q 'CREATE INDEX.*idx_memories_embedding' "$file"; then
+        # Only flag if a live (non-comment) DROP INDEX exists WITHOUT a corresponding CREATE INDEX
+        # Lines prefixed with "-- REMOVED:" are sanitized by db:safe-migrate and won't execute
+        if grep -v '^-- REMOVED:' "$file" | grep -q 'DROP INDEX.*idx_memories_embedding' && ! grep -v '^-- REMOVED:' "$file" | grep -q 'CREATE INDEX.*idx_memories_embedding'; then
             echo "DANGER: Migration drops vector index WITHOUT recreating it!"
             echo "   File: $file"
             echo "   The idx_memories_embedding index is essential for pgvector performance."
