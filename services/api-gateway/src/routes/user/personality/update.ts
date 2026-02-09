@@ -10,12 +10,15 @@ import {
   isBotOwner,
   type PrismaClient,
   type CacheInvalidationService,
+  PersonalityUpdateSchema,
+  type PersonalityUpdateInput,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { optimizeAvatar } from '../../../utils/imageProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
@@ -24,23 +27,6 @@ import { getParam } from '../../../utils/requestParams.js';
 import { findInternalUser, canUserEditPersonality } from './helpers.js';
 
 const logger = createLogger('user-personality-update');
-
-interface UpdatePersonalityBody {
-  name?: string;
-  displayName?: string | null;
-  slug?: string;
-  characterInfo?: string;
-  personalityTraits?: string;
-  personalityTone?: string | null;
-  personalityAge?: string | null;
-  personalityAppearance?: string | null;
-  personalityLikes?: string | null;
-  personalityDislikes?: string | null;
-  conversationalGoals?: string | null;
-  conversationalExamples?: string | null;
-  errorMessage?: string | null;
-  avatarData?: string;
-}
 
 const PERSONALITY_SELECT = {
   id: true,
@@ -76,12 +62,12 @@ const PERSONALITY_SELECT = {
 // --- Helper Functions ---
 
 function buildUpdateData(
-  body: UpdatePersonalityBody,
+  body: PersonalityUpdateInput,
   existingName: string
 ): Prisma.PersonalityUpdateInput {
   const updateData: Prisma.PersonalityUpdateInput = {};
 
-  const simpleFields: (keyof UpdatePersonalityBody)[] = [
+  const simpleFields: (keyof PersonalityUpdateInput)[] = [
     'slug',
     'characterInfo',
     'personalityTraits',
@@ -273,7 +259,12 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       );
     }
 
-    const body = req.body as UpdatePersonalityBody;
+    // Validate request body with Zod schema
+    const parseResult = PersonalityUpdateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
+    }
+    const body = parseResult.data;
 
     // Field-level permission check: slug updates require bot owner
     if (body.slug !== undefined && body.slug !== slug) {
