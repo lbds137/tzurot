@@ -9,98 +9,21 @@ import {
   createLogger,
   type PrismaClient,
   AVATAR_LIMITS,
-  assertDefined,
   generatePersonalityUuid,
+  PersonalityCreateSchema,
+  type PersonalityCreateInput,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses, type ErrorResponse } from '../../../utils/errorResponses.js';
-import { validateSlug, validateRequired } from '../../../utils/validators.js';
+import { sendZodError } from '../../../utils/zodHelpers.js';
+import { validateSlug } from '../../../utils/validators.js';
 import { optimizeAvatar } from '../../../utils/imageProcessor.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-personality-create');
-
-interface CreatePersonalityBody {
-  name?: string;
-  slug?: string;
-  characterInfo?: string;
-  personalityTraits?: string;
-  displayName?: string | null;
-  personalityTone?: string | null;
-  personalityAge?: string | null;
-  personalityAppearance?: string | null;
-  personalityLikes?: string | null;
-  personalityDislikes?: string | null;
-  conversationalGoals?: string | null;
-  conversationalExamples?: string | null;
-  errorMessage?: string | null;
-  isPublic?: boolean;
-  avatarData?: string;
-}
-
-/** Validated required fields from request body */
-interface ValidatedPersonalityFields {
-  name: string;
-  slug: string;
-  characterInfo: string;
-  personalityTraits: string;
-}
-
-/**
- * Validate required fields for personality creation
- * Returns validated fields or an error response
- */
-function validateRequiredFields(body: CreatePersonalityBody):
-  | {
-      ok: true;
-      data: ValidatedPersonalityFields;
-    }
-  | { ok: false; error: ErrorResponse } {
-  const nameValidation = validateRequired(body.name, 'name');
-  if (!nameValidation.valid) {
-    return { ok: false, error: nameValidation.error };
-  }
-
-  const slugValidation = validateRequired(body.slug, 'slug');
-  if (!slugValidation.valid) {
-    return { ok: false, error: slugValidation.error };
-  }
-
-  const characterInfoValidation = validateRequired(body.characterInfo, 'characterInfo');
-  if (!characterInfoValidation.valid) {
-    return { ok: false, error: characterInfoValidation.error };
-  }
-
-  const traitsValidation = validateRequired(body.personalityTraits, 'personalityTraits');
-  if (!traitsValidation.valid) {
-    return { ok: false, error: traitsValidation.error };
-  }
-
-  // Use assertDefined for type narrowing
-  assertDefined(body.name, 'name');
-  assertDefined(body.slug, 'slug');
-  assertDefined(body.characterInfo, 'characterInfo');
-  assertDefined(body.personalityTraits, 'personalityTraits');
-
-  // Validate slug format
-  const slugFormatValidation = validateSlug(body.slug);
-  if (!slugFormatValidation.valid) {
-    return { ok: false, error: slugFormatValidation.error };
-  }
-
-  return {
-    ok: true,
-    data: {
-      name: body.name,
-      slug: body.slug,
-      characterInfo: body.characterInfo,
-      personalityTraits: body.personalityTraits,
-    },
-  };
-}
 
 /**
  * Process avatar data if provided
@@ -168,14 +91,20 @@ async function setupDefaultLlmConfig(prisma: PrismaClient, personalityId: string
 export function createCreateHandler(prisma: PrismaClient): RequestHandler[] {
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const body = req.body as CreatePersonalityBody;
 
-    // Validate required fields
-    const validation = validateRequiredFields(body);
-    if (!validation.ok) {
-      return sendError(res, validation.error);
+    // Validate request body with Zod schema
+    const parseResult = PersonalityCreateSchema.safeParse(req.body);
+    if (!parseResult.success) {
+      return sendZodError(res, parseResult.error);
     }
-    const { name, slug, characterInfo, personalityTraits } = validation.data;
+    const body: PersonalityCreateInput = parseResult.data;
+    const { name, slug, characterInfo, personalityTraits } = body;
+
+    // Validate business rules that Zod doesn't cover (reserved slugs, consecutive hyphens, trailing hyphens)
+    const slugValidation = validateSlug(slug);
+    if (!slugValidation.valid) {
+      return sendError(res, slugValidation.error);
+    }
 
     // Check if personality already exists
     const existing = await prisma.personality.findUnique({ where: { slug } });
