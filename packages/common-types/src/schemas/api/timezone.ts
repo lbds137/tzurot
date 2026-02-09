@@ -34,3 +34,16 @@ export const SetTimezoneResponseSchema = z.object({
   offset: z.string(),
 });
 export type SetTimezoneResponse = z.infer<typeof SetTimezoneResponseSchema>;
+
+// ============================================================================
+// Input Schemas (request body validation)
+// ============================================================================
+
+/**
+ * Schema for setting user's timezone.
+ * Timezone validity (IANA) is checked by the route handler after parsing.
+ */
+export const SetTimezoneInputSchema = z.object({
+  timezone: z.string().min(1, 'timezone is required'),
+});
+export type SetTimezoneInput = z.infer<typeof SetTimezoneInputSchema>;

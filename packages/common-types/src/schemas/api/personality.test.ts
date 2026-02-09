@@ -17,6 +17,7 @@ import {
   PersonalityCreateSchema,
   PersonalityUpdateSchema,
   AdminPersonalityResponseSchema,
+  SetVisibilitySchema,
 } from './personality.js';
 
 describe('Personality API Contract Tests', () => {
@@ -689,6 +690,28 @@ describe('Personality API Contract Tests', () => {
         deletedName: 'Test',
       };
       const result = DeletePersonalityResponseSchema.safeParse(data);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('SetVisibilitySchema', () => {
+    it('should accept isPublic: true', () => {
+      const result = SetVisibilitySchema.safeParse({ isPublic: true });
+      expect(result.success).toBe(true);
+    });
+
+    it('should accept isPublic: false', () => {
+      const result = SetVisibilitySchema.safeParse({ isPublic: false });
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject non-boolean value', () => {
+      const result = SetVisibilitySchema.safeParse({ isPublic: 'true' });
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject missing isPublic', () => {
+      const result = SetVisibilitySchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });
