@@ -166,4 +166,74 @@ describe('env-runner', () => {
       expect(output).toContain('RAILWAY PROD');
     });
   });
+
+  describe('cleanEnvForNpx', () => {
+    const originalEnv = { ...process.env };
+
+    afterEach(() => {
+      // Restore original env
+      for (const key of Object.keys(process.env)) {
+        if (!(key in originalEnv)) {
+          delete process.env[key];
+        }
+      }
+      Object.assign(process.env, originalEnv);
+    });
+
+    it('should strip pnpm_config_* vars', async () => {
+      process.env.pnpm_config_verify_deps_before_run = 'false';
+      process.env.pnpm_config_some_other = 'value';
+
+      vi.resetModules();
+      const { cleanEnvForNpx } = await import('./env-runner.js');
+      const cleaned = cleanEnvForNpx();
+
+      expect(cleaned.pnpm_config_verify_deps_before_run).toBeUndefined();
+      expect(cleaned.pnpm_config_some_other).toBeUndefined();
+    });
+
+    it('should strip npm_config_* vars except user_agent', async () => {
+      process.env.npm_config_globalconfig = '/some/path';
+      process.env.npm_config_verify_deps_before_run = 'false';
+      process.env.npm_config_user_agent = 'pnpm/10.22.0';
+
+      vi.resetModules();
+      const { cleanEnvForNpx } = await import('./env-runner.js');
+      const cleaned = cleanEnvForNpx();
+
+      expect(cleaned.npm_config_globalconfig).toBeUndefined();
+      expect(cleaned.npm_config_verify_deps_before_run).toBeUndefined();
+      expect(cleaned.npm_config_user_agent).toBe('pnpm/10.22.0');
+    });
+
+    it('should preserve non-npm env vars', async () => {
+      process.env.DATABASE_URL = 'postgresql://localhost/test';
+      process.env.NODE_ENV = 'test';
+
+      vi.resetModules();
+      const { cleanEnvForNpx } = await import('./env-runner.js');
+      const cleaned = cleanEnvForNpx();
+
+      expect(cleaned.DATABASE_URL).toBe('postgresql://localhost/test');
+      expect(cleaned.NODE_ENV).toBe('test');
+    });
+
+    it('should merge extra vars into the result', async () => {
+      vi.resetModules();
+      const { cleanEnvForNpx } = await import('./env-runner.js');
+      const cleaned = cleanEnvForNpx({ DATABASE_URL: 'postgresql://railway/db' });
+
+      expect(cleaned.DATABASE_URL).toBe('postgresql://railway/db');
+    });
+
+    it('should allow extra vars to override process.env', async () => {
+      process.env.DATABASE_URL = 'postgresql://localhost/test';
+
+      vi.resetModules();
+      const { cleanEnvForNpx } = await import('./env-runner.js');
+      const cleaned = cleanEnvForNpx({ DATABASE_URL: 'postgresql://railway/db' });
+
+      expect(cleaned.DATABASE_URL).toBe('postgresql://railway/db');
+    });
+  });
 });

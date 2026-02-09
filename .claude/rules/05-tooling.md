@@ -25,11 +25,15 @@ pnpm focus:test       # Test changed packages
 
 ```bash
 pnpm ops db:status --env dev          # Check migration status
-pnpm ops db:migrate --env dev         # Run migrations
-pnpm ops db:safe-migrate              # Create migration with drift sanitization
+pnpm ops db:migrate --env dev         # Apply pending migrations
+pnpm ops db:safe-migrate --name <n>   # Create migration with drift sanitization
 pnpm ops db:inspect                   # Inspect tables/indexes (local)
 pnpm ops db:check-drift               # Check for migration drift
 ```
+
+**Non-interactive note**: `db:safe-migrate` and `db:migrate` work in non-TTY
+environments (AI assistants, CI). `--name` is required for `db:safe-migrate`
+when stdin is not a TTY.
 
 ### GitHub (Use instead of broken `gh pr edit`)
 

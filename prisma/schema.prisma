@@ -77,14 +77,6 @@ model AdminSettings {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  // TODO: Drop these columns in follow-up migration (PR 2 of legacy-cleanup).
-  // Extended context is now always enabled; limits come from LlmConfig.
-  // See: https://github.com/lbds137/tzurot/pull/585
-  extendedContextDefault     Boolean @default(true) @map("extended_context_default")
-  extendedContextMaxMessages Int     @default(20) @map("extended_context_max_messages")
-  extendedContextMaxAge      Int?    @map("extended_context_max_age")
-  extendedContextMaxImages   Int     @default(0) @map("extended_context_max_images")
-
   updatedByUser User? @relation(fields: [updatedBy], references: [id])
 
   @@map("admin_settings")
@@ -227,12 +219,6 @@ model Personality {
   imageEnabled               Boolean  @default(false) @map("image_enabled")
   imageSettings              Json?    @map("image_settings")
   avatarData                 Bytes?   @map("avatar_data")
-  // TODO: Drop these columns in follow-up migration (PR 2 of legacy-cleanup).
-  // Extended context is now always enabled; limits come from LlmConfig.
-  extendedContext            Boolean? @map("extended_context")
-  extendedContextMaxMessages Int?     @map("extended_context_max_messages")
-  extendedContextMaxAge      Int?     @map("extended_context_max_age")
-  extendedContextMaxImages   Int?     @map("extended_context_max_images")
 
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
@@ -412,13 +398,6 @@ model ChannelSettings {
   // Activation settings (migrated from ActivatedChannel)
   activatedPersonalityId String? @map("activated_personality_id") @db.Uuid
   autoRespond            Boolean @default(true) @map("auto_respond")
-
-  // TODO: Drop these columns in follow-up migration (PR 2 of legacy-cleanup).
-  // Extended context is now always enabled; limits come from LlmConfig.
-  extendedContext            Boolean? @map("extended_context")
-  extendedContextMaxMessages Int?     @map("extended_context_max_messages")
-  extendedContextMaxAge      Int?     @map("extended_context_max_age")
-  extendedContextMaxImages   Int?     @map("extended_context_max_images")
 
   createdBy String?  @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
