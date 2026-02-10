@@ -183,7 +183,7 @@ export function buildMemoryInspectorView(
     for (let i = 0; i < memories.length; i++) {
       const m = memories[i];
       const status = m.includedInPrompt ? 'Included' : 'Dropped (budget)';
-      const preview = m.preview.replace(/\|/g, '\\|').replace(/\n/g, ' ');
+      const preview = m.preview.replace(/\\/g, '\\\\').replace(/\|/g, '\\|').replace(/\n/g, ' ');
       lines.push(`| ${i + 1} | ${m.score.toFixed(2)} | ${status} | ${preview} |`);
     }
 

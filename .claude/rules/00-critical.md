@@ -99,7 +99,8 @@ CI passing != merge approval. User must explicitly request merge.
 
 - **NEVER modify tests to make them pass** - fix the implementation
 - **Coverage required**: 80% minimum, Codecov blocks PRs below threshold
-- Run tests before pushing - no exceptions
+- Run `pnpm test` before pushing - no exceptions
+- Run `pnpm test:int` when changes affect: slash command options/structure, command file discovery, or service integration points. The `CommandHandler.int.test.ts` has **snapshot tests** that break on any command option change.
 
 ### Test Coverage Baseline
 
