@@ -13,6 +13,9 @@ import type { LookupResult, DiagnosticLogResponse, DiagnosticLogsResponse } from
 
 const logger = createLogger('admin-debug');
 
+/** Shared hint appended to 404 messages about log retention */
+const RETENTION_HINT = '\u2022 The log may have expired (24h retention)';
+
 /** Discord message link regex - captures channel and message IDs */
 const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(?:@me|\d+)\/(\d+)\/(\d+)/;
 
@@ -72,9 +75,8 @@ export async function lookupByMessageId(messageId: string): Promise<LookupResult
         success: false,
         errorMessage:
           'No diagnostic logs found for this message.\n' +
-          // eslint-disable-next-line sonarjs/no-duplicate-string -- Error bullet points shared between 404 and non-OK responses
-          '\u2022 The log may have expired (24h retention)\n' +
-          '\u2022 The message may not have triggered or been an AI response\n' +
+          RETENTION_HINT +
+          '\n\u2022 The message may not have triggered or been an AI response\n' +
           '\u2022 The message ID may be incorrect',
       };
     }
@@ -97,8 +99,8 @@ export async function lookupByMessageId(messageId: string): Promise<LookupResult
       success: false,
       errorMessage:
         'No diagnostic logs found for this message.\n' +
-        '\u2022 The log may have expired (24h retention)\n' +
-        '\u2022 The message may not have triggered an AI response',
+        RETENTION_HINT +
+        '\n\u2022 The message may not have triggered an AI response',
     };
   }
 
@@ -124,8 +126,8 @@ export async function lookupByRequestId(requestId: string): Promise<LookupResult
         success: false,
         errorMessage:
           'Diagnostic log not found.\n' +
-          '\u2022 The log may have expired (24h retention)\n' +
-          '\u2022 The request ID may be incorrect\n' +
+          RETENTION_HINT +
+          '\n\u2022 The request ID may be incorrect\n' +
           '\u2022 The request may not have completed successfully',
       };
     }

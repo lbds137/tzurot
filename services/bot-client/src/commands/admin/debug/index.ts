@@ -1,8 +1,9 @@
 /**
  * Admin Debug Command — Interactive diagnostic log inspector
  *
- * Entry point for `/admin debug <identifier>`.
- * Shows a summary embed with buttons + select menu for drilling into specific views.
+ * Entry point for `/admin debug [identifier]`.
+ * Without identifier: shows a paginated browse list of recent logs.
+ * With identifier: shows a summary embed with buttons + select menu.
  *
  * Exported handlers:
  * - handleDebug() — slash command entry (DeferredCommandContext)
@@ -18,6 +19,7 @@ import { DebugCustomIds } from './customIds.js';
 import { resolveDiagnosticLog, lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
 import { buildDebugComponents } from './components.js';
+import { handleRecentBrowse } from './browse.js';
 import { DebugViewType } from './types.js';
 import {
   buildFullJsonView,
@@ -41,17 +43,14 @@ const VIEW_BUILDERS = {
 } as const;
 
 /**
- * Handle `/admin debug <identifier>` — show summary embed with interactive components
+ * Handle `/admin debug [identifier]` — browse recent logs or show specific log
  */
 export async function handleDebug(context: DeferredCommandContext): Promise<void> {
   const options = adminDebugOptions(context.interaction);
   const identifier = options.identifier();
 
-  if (identifier === '') {
-    await context.editReply({
-      content:
-        '\u274c Identifier is required. Provide a message ID, message link, or request UUID.',
-    });
+  if (identifier === null || identifier === '') {
+    await handleRecentBrowse(context);
     return;
   }
 
