@@ -40,7 +40,12 @@ import {
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
-import { handleDebug, DebugFormat } from './debug.js';
+import {
+  handleDebug,
+  handleDebugButton,
+  handleDebugSelectMenu,
+  isDebugInteraction,
+} from './debug/index.js';
 import {
   handleSettings,
   handleAdminSettingsSelectMenu,
@@ -149,6 +154,12 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     return;
   }
 
+  // Debug interactive views
+  if (isDebugInteraction(interaction.customId)) {
+    await handleDebugSelectMenu(interaction);
+    return;
+  }
+
   // Settings dashboard interactions
   if (isAdminSettingsInteraction(interaction.customId)) {
     // Note: Owner check is done via session ownership (dashboard is only created for owner)
@@ -171,6 +182,12 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   // Servers back button
   if (parseBackCustomId(customId) !== null) {
     await handleServersBack(interaction);
+    return;
+  }
+
+  // Debug interactive views
+  if (isDebugInteraction(customId)) {
+    await handleDebugButton(interaction);
     return;
   }
 
@@ -282,18 +299,6 @@ export default defineCommand({
             .setDescription('Message ID, message link, or request UUID')
             .setRequired(true)
         )
-        .addStringOption(option =>
-          option
-            .setName('format')
-            .setDescription('Output format (default: JSON)')
-            .setRequired(false)
-            .addChoices(
-              { name: 'Full JSON', value: DebugFormat.Json },
-              { name: 'JSON (Brief - no prompt)', value: DebugFormat.Brief },
-              { name: 'XML Prompt Only', value: DebugFormat.Xml },
-              { name: 'Both', value: DebugFormat.Both }
-            )
-        )
     ),
   deferralMode: 'ephemeral',
   execute,
@@ -301,5 +306,5 @@ export default defineCommand({
   handleSelectMenu,
   handleButton,
   handleModal,
-  componentPrefixes: ['admin-settings', 'admin-servers'],
+  componentPrefixes: ['admin-settings', 'admin-servers', 'admin-debug'],
 });
