@@ -232,11 +232,11 @@ Here is my updated implementation based on your feedback
 
 A flowchart showing the message processing pipeline
 
-&lt;contextual_references&gt;
+<contextual_references>
 <referenced_message type="reply" author="PreviousUser">
 I tried implementing this but got stuck on the async handling
 </referenced_message>
-&lt;/contextual_references&gt;"
+</contextual_references>"
 `;
 
 exports[`PromptBuilder > Prompt Snapshots > buildHumanMessage snapshots > should match snapshot with complex combination (attachments + references + persona) 2`] = `

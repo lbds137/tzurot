@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-07
-> **Version**: v3.0.0-beta.68
+> **Last Updated**: 2026-02-10
+> **Version**: v3.0.0-beta.70
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -12,6 +12,18 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 ## 🚨 Production Issues
 
 _Active bugs observed in production. Fix before new features._
+
+### 🐛 Forwarded Message Handling Broken in Extended Context — IN PROGRESS
+
+**Observed**: Ongoing — causes visible broken output for users.
+
+Three related bugs cause forwarded messages to break in extended context and prompt assembly:
+
+1. **Double-escaping**: `PromptBuilder.buildHumanMessage()` applies `escapeXmlContent()` AFTER appending `<contextual_references>` — the XML wrapper tags get escaped to `&lt;contextual_references&gt;`
+2. **Embed data loss**: `ConversationPersistence.saveUserMessage()` never stores `embedsXml`. Forwarded image-only messages work via message link (live processing) but show empty in chat history (DB has no embed data)
+3. **Inconsistent quote format**: `ReferencedMessageFormatter` (message links) and `conversationUtils.ts` (chat history) produce different XML for forwarded messages — DRY violation
+
+**Plan**: `~/.claude/plans/elegant-bubbling-crane.md` (5 fixes, ~10 files)
 
 ### 🐛 Free Model Error Handling (GLM/Z-AI) — PARTIALLY FIXED
 
@@ -92,29 +104,30 @@ _New items go here. Triage to appropriate section weekly._
 
 **Priority**: Medium — prevents confusion for anyone configuring reasoning models.
 
-### ~~🧹 Add maxAge=0 Edge Case Test~~ — ALREADY COVERED
-
-Test already exists in `ContextSettingsSchema` describe block: `'should reject maxAge below minimum (1 second)'` with `maxAge: 0`. That's the canonical location since it's where the validation is defined.
-
 ---
 
 ## 🎯 Current Focus
 
 _This week's active work. Max 3 items._
 
-### 🏗️ Zod Schema Hardening — COMPLETE
+### 🐛 Fix Forwarded Message Handling in Extended Context — DONE (PR pending)
 
-All 5 phases done. See Active Epic section for details.
+All 5 fixes implemented. PR `fix/forwarded-message-handling`.
+
+### 🏗️ Vision Pipeline Robustness Audit
+
+Vision (image description) uses a completely different code path from regular LLM text generation. Investigate architectural differences and unify where possible. Both are LLM calls under the hood.
+
+- [ ] Compare vision pipeline (`MultimodalProcessor.describeImage`) vs regular text pipeline (`ModelFactory`)
+- [ ] Audit: retry logic, error handling, model selection, caching
+- [ ] Identify why vision feels "flaky" compared to text generation
+- [ ] Propose fixes: unified error handling, better retries, or pipeline consolidation
 
 ---
 
 ## ⚡️ Quick Wins
 
 _Small tasks that can be done between major features. Good for momentum._
-
-### 🏗️ ~~Schema Cleanup: Remove Legacy `extendedContext*` Columns~~ — DONE
-
-Completed in `refactor/drop-extended-context-columns` branch. All 12 fields removed from AdminSettings, Personality, and ChannelSettings. `getRecentHistory()` was already deleted in a prior refactor.
 
 ### ✨ Bot Health Status
 
@@ -155,23 +168,13 @@ Notify users of new releases.
 
 ---
 
-## 🏗 Active Epic: Zod Schema Hardening — COMPLETE
+## 🏗 Active Epic: _None — selecting next_
 
-_Focus: Prevent silent data loss from schema/interface mismatch._
-
-All 5 phases complete across PRs #601, #602, #603, and the Phase 5 PR.
-
-- **Phase 1** (PR #601): Consolidated persona + model-override endpoint schemas
-- **Phase 2** (PR #602): Schema-first types, UUID validation, `sendZodError` helper
-- **Phase 3** (PR #603): Standardized 4 input schema names (removed "Body" suffix)
-- **Phase 4** (PR #603): Created Zod schemas for admin/memory/wallet/history/timezone, converted 12 routes
-- **Phase 5**: Converted personality create/update, transcribe, generate routes; standardized `sendZodError` in 4 channel routes; new `TranscribeRequestSchema` + `HistoryStatsQuerySchema`
-
-**Result**: Zero `req.body as Type` casts remain in api-gateway routes. All request validation uses Zod `safeParse` + shared `sendZodError` helper.
+Previous epic (Zod Schema Hardening) completed 2026-02-08. All 5 phases across PRs #601–#603+. Zero `req.body as Type` casts remain.
 
 ---
 
-## 📅 Next Epic: Package Extraction (promote when ready)
+## 📅 Next Epic: Package Extraction
 
 _Focus: Reduce common-types bloat and improve module boundaries._
 
@@ -181,7 +184,7 @@ common-types has 607 exports (12x the 50-export threshold). bot-client is 45.7K 
 - [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
 - [ ] Reference: PR #558 analysis
 
-**Previous work**: Architecture Health epic (PRs #593, #594, #596, #597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
+**Previous work**: Architecture Health epic (PRs #593–#597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
 
 ---
 

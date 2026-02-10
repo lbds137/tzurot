@@ -21,6 +21,7 @@ import type {
 } from '@tzurot/common-types';
 import { generateAttachmentPlaceholders } from '../utils/attachmentPlaceholders.js';
 import { isForwardedMessage } from '../utils/forwardedMessageUtils.js';
+import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 
 const logger = createLogger('ConversationPersistence');
 
@@ -133,6 +134,8 @@ interface SaveUserMessageFromFieldsOptions {
   referencedMessages?: ReferencedMessage[];
   /** Whether this message was forwarded from another channel */
   isForwarded?: boolean;
+  /** Embed XML strings for forwarded messages (persisted to survive DB round-trip) */
+  embedsXml?: string[];
   /** Explicit timestamp (optional, for ensuring user < assistant ordering) */
   timestamp?: Date;
 }
@@ -186,6 +189,20 @@ export class ConversationPersistence {
     const { message, personality, personaId, messageContent, attachments, referencedMessages } =
       options;
 
+    const isForwarded = isForwardedMessage(message);
+
+    // Extract embed XML for forwarded messages so it survives DB round-trip.
+    // Without this, forwarded image-only messages lose embed data when they
+    // age out of the Discord API fetch window.
+    let embedsXml: string[] | undefined;
+    if (isForwarded) {
+      const buildResult = await buildMessageContent(message, {
+        includeEmbeds: true,
+        includeAttachments: false,
+      });
+      embedsXml = buildResult.embedsXml;
+    }
+
     // Delegate to field-based implementation with Message fields extracted
     await this.saveUserMessageFromFields({
       channelId: message.channel.id,
@@ -196,7 +213,8 @@ export class ConversationPersistence {
       messageContent,
       attachments,
       referencedMessages,
-      isForwarded: isForwardedMessage(message) || undefined,
+      isForwarded: isForwarded || undefined,
+      embedsXml,
     });
   }
 
@@ -284,6 +302,7 @@ export class ConversationPersistence {
       attachments,
       referencedMessages,
       isForwarded,
+      embedsXml,
       timestamp,
     } = options;
 
@@ -308,6 +327,13 @@ export class ConversationPersistence {
     if (isForwarded === true) {
       metadata = metadata ?? {};
       metadata.isForwarded = true;
+    }
+
+    // Persist embed XML for forwarded messages (prevents data loss when messages
+    // age out of the Discord API fetch window)
+    if (embedsXml !== undefined && embedsXml.length > 0) {
+      metadata = metadata ?? {};
+      metadata.embedsXml = embedsXml;
     }
 
     // Save atomically with placeholder descriptions and structured metadata

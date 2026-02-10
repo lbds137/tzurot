@@ -34,6 +34,16 @@ vi.mock('../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn(() => false),
 }));
 
+vi.mock('../utils/MessageContentBuilder.js', () => ({
+  buildMessageContent: vi.fn().mockResolvedValue({
+    content: '',
+    attachments: [],
+    hasVoiceMessage: false,
+    isForwarded: true,
+    embedsXml: undefined,
+  }),
+}));
+
 describe('ConversationPersistence', () => {
   let persistence: ConversationPersistence;
   let mockConversationHistory: {
@@ -230,6 +240,62 @@ describe('ConversationPersistence', () => {
         discordMessageId: 'discord-msg-fwd',
         messageMetadata: { isForwarded: true },
       });
+    });
+
+    it('should persist embedsXml in messageMetadata for forwarded messages with embeds', async () => {
+      const { isForwardedMessage } = await import('../utils/forwardedMessageUtils.js');
+      vi.mocked(isForwardedMessage).mockReturnValueOnce(true);
+
+      const { buildMessageContent } = await import('../utils/MessageContentBuilder.js');
+      vi.mocked(buildMessageContent).mockResolvedValueOnce({
+        content: '',
+        attachments: [],
+        hasVoiceMessage: false,
+        isForwarded: true,
+        embedsXml: ['<embed title="Link Preview">Some content</embed>'],
+      });
+
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-fwd-embeds',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Forwarded with embeds',
+      });
+
+      expect(mockConversationHistory.addMessage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          messageMetadata: {
+            isForwarded: true,
+            embedsXml: ['<embed title="Link Preview">Some content</embed>'],
+          },
+        })
+      );
+    });
+
+    it('should not call buildMessageContent for non-forwarded messages', async () => {
+      const { buildMessageContent } = await import('../utils/MessageContentBuilder.js');
+      vi.mocked(buildMessageContent).mockClear();
+
+      const mockMessage = createMockMessage({
+        id: 'discord-msg-normal',
+        channelId: 'channel-123',
+        guildId: 'guild-123',
+      });
+
+      await persistence.saveUserMessage({
+        message: mockMessage,
+        personality: mockPersonality,
+        personaId: 'persona-uuid-123',
+        messageContent: 'Normal message',
+      });
+
+      expect(buildMessageContent).not.toHaveBeenCalled();
     });
 
     it('should store both attachments in content and references in metadata', async () => {
