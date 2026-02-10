@@ -450,6 +450,42 @@ describe('MultimodalProcessor', () => {
     });
   });
 
+  describe('skipNegativeCache passthrough', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should skip negative cache during processAttachments retries', async () => {
+      // Set up a transient failure in the negative cache
+      mockVisionCacheGetFailure.mockResolvedValue({
+        category: 'rate_limit',
+        permanent: false,
+      });
+
+      const attachments: AttachmentMetadata[] = [
+        {
+          url: 'https://example.com/image.png',
+          name: 'image.png',
+          contentType: CONTENT_TYPES.IMAGE_PNG,
+          size: 1024,
+        },
+      ];
+
+      const promise = processAttachments(attachments, mockPersonality);
+      await vi.runAllTimersAsync();
+      const results = await promise;
+
+      // With skipNegativeCache: true, the negative cache should NOT prevent the API call
+      expect(results).toHaveLength(1);
+      expect(results[0].description).toBe('Mocked image description');
+      expect(mockModelInvoke).toHaveBeenCalled();
+    });
+  });
+
   describe('BYOK API key integration', () => {
     beforeEach(() => {
       vi.useFakeTimers();

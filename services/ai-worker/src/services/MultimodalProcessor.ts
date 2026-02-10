@@ -53,7 +53,9 @@ async function processSingleAttachment(
   userApiKey?: string
 ): Promise<ProcessedAttachment | null> {
   if (attachment.contentType.startsWith(CONTENT_TYPES.IMAGE_PREFIX)) {
-    const description = await describeImage(attachment, personality, isGuestMode, userApiKey);
+    const description = await describeImage(attachment, personality, isGuestMode, userApiKey, {
+      skipNegativeCache: true,
+    });
     logger.info({ name: attachment.name }, 'Processed image attachment');
     return {
       type: AttachmentType.Image,

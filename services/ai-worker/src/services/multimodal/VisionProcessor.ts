@@ -16,6 +16,7 @@ import {
   AI_DEFAULTS,
   TIMEOUTS,
   MODEL_DEFAULTS,
+  ERROR_MESSAGES,
   type AttachmentMetadata,
   type LoadedPersonality,
 } from '@tzurot/common-types';
@@ -40,6 +41,17 @@ const FAILURE_LABELS: Record<string, string> = {
   empty_response: 'empty response',
   censored: 'content filtered',
 };
+
+/** Minimum length for a vision description to be considered valid for caching */
+const VISION_MIN_DESCRIPTION_LENGTH = 10;
+
+/**
+ * Options for describeImage behavior
+ */
+export interface DescribeImageOptions {
+  /** Skip negative cache check — set to true when called within a retry loop */
+  skipNegativeCache?: boolean;
+}
 
 /**
  * Check if a model has vision support using OpenRouter's cached model data.
@@ -103,9 +115,28 @@ async function invokeVisionModel(
 
   try {
     const response = await model.invoke(messages, { timeout: TIMEOUTS.VISION_MODEL });
-    return typeof response.content === 'string'
-      ? response.content
-      : JSON.stringify(response.content);
+    const content =
+      typeof response.content === 'string' ? response.content : JSON.stringify(response.content);
+
+    // Guard: empty response (matches LLMInvoker pattern)
+    if (content.trim().length === 0) {
+      throw new Error(ERROR_MESSAGES.EMPTY_RESPONSE);
+    }
+
+    // Guard: censored response — Gemini "ext" bug (matches LLMInvoker pattern)
+    if (content.trim() === ERROR_MESSAGES.CENSORED_RESPONSE_TEXT) {
+      throw new Error(ERROR_MESSAGES.CENSORED_RESPONSE);
+    }
+
+    // Warn on suspiciously short descriptions (don't throw — some images may be simple)
+    if (content.trim().length < VISION_MIN_DESCRIPTION_LENGTH) {
+      logger.warn(
+        { modelName, contentLength: content.trim().length, content: content.trim() },
+        'Vision model returned suspiciously short description'
+      );
+    }
+
+    return content;
   } catch (error) {
     const errorInfo = parseApiError(error);
     logger.error(
@@ -134,6 +165,74 @@ async function invokeVisionModel(
 }
 
 /**
+ * Check negative cache for a previous failure.
+ * Returns a fallback string if a failure is cached, or null to proceed with the API call.
+ */
+async function checkNegativeCache(
+  cacheKeyOptions: { attachmentId?: string; url: string },
+  attachmentId: string | undefined
+): Promise<string | null> {
+  const failureEntry = await visionDescriptionCache.getFailure(cacheKeyOptions);
+  if (failureEntry === null) {
+    return null;
+  }
+  if (failureEntry.permanent) {
+    logger.info(
+      { attachmentId, category: failureEntry.category },
+      'Skipping vision API call - permanent failure cached'
+    );
+    const label = FAILURE_LABELS[failureEntry.category] ?? failureEntry.category;
+    return `[Image unavailable: ${label}]`;
+  }
+  logger.info(
+    { attachmentId, category: failureEntry.category },
+    'Skipping vision API call - transient failure cooldown active'
+  );
+  return '[Image temporarily unavailable]';
+}
+
+/**
+ * Select the vision model to use based on personality config and model capabilities.
+ * Priority: personality.visionModel > main model with vision > fallback model.
+ */
+async function selectVisionModel(
+  personality: LoadedPersonality,
+  isGuestMode: boolean
+): Promise<string> {
+  // Priority 1: Use personality's configured vision model if specified
+  if (
+    personality.visionModel !== undefined &&
+    personality.visionModel !== null &&
+    personality.visionModel.length > 0
+  ) {
+    logger.info(
+      { visionModel: personality.visionModel },
+      'Using configured vision model (personality override)'
+    );
+    return personality.visionModel;
+  }
+
+  // Priority 2: Use personality's main model if it has native vision support
+  const mainModelHasVision = await hasVisionSupport(personality.model);
+  if (mainModelHasVision) {
+    logger.info(
+      { model: personality.model },
+      'Using main LLM for vision (native vision support detected)'
+    );
+    return personality.model;
+  }
+
+  // Priority 3: Use fallback vision model
+  // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
+  const fallback = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
+  logger.info(
+    { mainModel: personality.model, fallbackModel: fallback, isGuestMode },
+    'Using fallback vision model - main LLM lacks vision support'
+  );
+  return fallback;
+}
+
+/**
  * Describe an image using vision model
  * Uses personality's model if it has vision, otherwise uses uncensored fallback
  * Throws errors to allow retry logic to handle them
@@ -149,7 +248,8 @@ export async function describeImage(
   attachment: AttachmentMetadata,
   personality: LoadedPersonality,
   isGuestMode = false,
-  userApiKey?: string
+  userApiKey?: string,
+  options?: DescribeImageOptions
 ): Promise<string> {
   logger.info(
     {
@@ -173,70 +273,31 @@ export async function describeImage(
   }
 
   // Check negative cache to avoid re-hammering failed images
-  const failureEntry = await visionDescriptionCache.getFailure(cacheKeyOptions);
-  if (failureEntry !== null) {
-    if (failureEntry.permanent) {
-      logger.info(
-        { attachmentId: attachment.id, category: failureEntry.category },
-        'Skipping vision API call - permanent failure cached'
-      );
-      const label = FAILURE_LABELS[failureEntry.category] ?? failureEntry.category;
-      return `[Image unavailable: ${label}]`;
+  // Skip when called within a retry loop — the negative cache would defeat retries
+  if (options?.skipNegativeCache !== true) {
+    const failureFallback = await checkNegativeCache(cacheKeyOptions, attachment.id);
+    if (failureFallback !== null) {
+      return failureFallback;
     }
-    logger.info(
-      { attachmentId: attachment.id, category: failureEntry.category },
-      'Skipping vision API call - transient failure cooldown active'
-    );
-    return '[Image temporarily unavailable]';
   }
 
-  let description: string;
-  let usedModel: string;
   const systemPrompt =
     personality.systemPrompt !== undefined && personality.systemPrompt.length > 0
       ? personality.systemPrompt
       : undefined;
 
-  // Priority 1: Use personality's configured vision model if specified
-  if (
-    personality.visionModel !== undefined &&
-    personality.visionModel !== null &&
-    personality.visionModel.length > 0
-  ) {
-    logger.info(
-      { visionModel: personality.visionModel },
-      'Using configured vision model (personality override)'
-    );
-    usedModel = personality.visionModel;
-    description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
-  } else {
-    // Priority 2: Use personality's main model if it has native vision support
-    const mainModelHasVision = await hasVisionSupport(personality.model);
-    if (mainModelHasVision) {
-      logger.info(
-        { model: personality.model },
-        'Using main LLM for vision (native vision support detected)'
-      );
-      usedModel = personality.model;
-      description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
-    } else {
-      // Priority 3: Use fallback vision model
-      // Guest users (no BYOK API key) use Gemma 3 27b (free), BYOK users use Qwen3-VL (paid)
-      usedModel = isGuestMode ? MODEL_DEFAULTS.VISION_FALLBACK_FREE : config.VISION_FALLBACK_MODEL;
-
-      logger.info(
-        { mainModel: personality.model, fallbackModel: usedModel, isGuestMode },
-        'Using fallback vision model - main LLM lacks vision support'
-      );
-      description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
-    }
-  }
+  const usedModel = await selectVisionModel(personality, isGuestMode);
+  const description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
 
   // Cache the description for future use (both L1 Redis and L2 PostgreSQL)
-  await visionDescriptionCache.store(
-    { attachmentId: attachment.id, url: attachment.url, model: usedModel },
-    description
-  );
+  // Validate before caching — don't persist empty strings or failure placeholders
+  const isValidDescription = description.trim().length > 0 && !description.startsWith('[Image');
+  if (isValidDescription) {
+    await visionDescriptionCache.store(
+      { attachmentId: attachment.id, url: attachment.url, model: usedModel },
+      description
+    );
+  }
 
   return description;
 }

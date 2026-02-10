@@ -397,7 +397,10 @@ export class ReferencedMessageFormatter {
         '[ReferencedMessageFormatter] Processing image (inline fallback)'
       );
       const result = await withRetry(
-        () => describeImage(attachment, personality, isGuestMode, userApiKey),
+        () =>
+          describeImage(attachment, personality, isGuestMode, userApiKey, {
+            skipNegativeCache: true,
+          }),
         {
           maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
           logger,
