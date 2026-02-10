@@ -49,6 +49,8 @@ export interface ForwardedMessageContent {
  */
 export function formatForwardedQuote(content: ForwardedMessageContent): string {
   const parts: string[] = [];
+  // Discord forwarded messages don't preserve the original author in the message data,
+  // so we use "Unknown" as a placeholder. The forwarded content itself is what matters.
   parts.push('<quote type="forward" author="Unknown">');
 
   if (content.timestamp) {

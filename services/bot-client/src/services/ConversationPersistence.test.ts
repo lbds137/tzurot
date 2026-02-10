@@ -34,12 +34,13 @@ vi.mock('../utils/forwardedMessageUtils.js', () => ({
   isForwardedMessage: vi.fn(() => false),
 }));
 
+// Default mock returns no embeds. Tests that need forwarded embed behavior
+// override with mockResolvedValueOnce().
 vi.mock('../utils/MessageContentBuilder.js', () => ({
   buildMessageContent: vi.fn().mockResolvedValue({
     content: '',
     attachments: [],
     hasVoiceMessage: false,
-    isForwarded: true,
     embedsXml: undefined,
   }),
 }));
