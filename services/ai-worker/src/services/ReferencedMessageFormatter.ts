@@ -86,8 +86,9 @@ export class ReferencedMessageFormatter {
    * @returns Plain text content suitable for LTM search query
    */
   extractTextForSearch(formattedReferences: string): string {
-    // Strip all XML tags, keeping text content between them
-    const withoutTags = formattedReferences.replace(/<[^>]+>/g, '');
+    // Strip all XML tags, keeping text content between them, and remove any
+    // remaining angle brackets to prevent partial-tag remnants (CodeQL)
+    const withoutTags = formattedReferences.replace(/<[^>]+>/g, '').replace(/[<>]/g, '');
 
     // Filter out metadata lines and empty lines
     return withoutTags
