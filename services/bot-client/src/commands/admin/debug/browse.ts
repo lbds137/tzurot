@@ -139,7 +139,8 @@ function buildBrowseEmbed(
     const num = startIdx + i + 1;
     const name = log.personalityName ?? 'Unknown';
     const unix = Math.floor(new Date(log.createdAt).getTime() / 1000);
-    return `**${num}.** ${name} \u00b7 \`${log.model}\` \u00b7 <t:${unix}:R> \u00b7 ${log.durationMs.toLocaleString()}ms`;
+    const timestamp = Number.isNaN(unix) ? 'unknown' : `<t:${unix}:R>`;
+    return `**${num}.** ${name} \u00b7 \`${log.model}\` \u00b7 ${timestamp} \u00b7 ${log.durationMs.toLocaleString()}ms`;
   });
 
   return new EmbedBuilder()
@@ -227,7 +228,12 @@ function buildBackToListRow(page: number): ActionRowBuilder<MessageActionRowComp
 // Page orchestrator
 // ---------------------------------------------------------------------------
 
-/** Build a complete browse page (embed + components) */
+/**
+ * Build a complete browse page (embed + components).
+ * Uses client-side pagination: the gateway returns all logs (capped at 100) and we
+ * slice per page. This is intentional — the dataset is small, admin-only, and ephemeral
+ * (24h retention), so server-side pagination would add complexity for no real gain.
+ */
 export function buildBrowsePage(
   logs: DiagnosticLogSummary[],
   page: number
