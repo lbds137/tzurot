@@ -92,20 +92,9 @@ _New items go here. Triage to appropriate section weekly._
 
 **Priority**: Medium — prevents confusion for anyone configuring reasoning models.
 
-### 🧹 Add maxAge=0 Edge Case Test
+### ~~🧹 Add maxAge=0 Edge Case Test~~ — ALREADY COVERED
 
-**Context**: PR #584 review noted missing test coverage for `maxAge = 0` validation.
-
-**Current behavior is correct** (rejects 0, requires null for no limit), just needs explicit test:
-
-```typescript
-it('should reject maxAge = 0 (use null for no limit)', () => {
-  const input = { name: 'Test', model: 'test-model', maxAge: 0 };
-  expect(LlmConfigCreateSchema.safeParse(input).success).toBe(false);
-});
-```
-
-**File**: `packages/common-types/src/types/llm-config.schema.test.ts`
+Test already exists in `ContextSettingsSchema` describe block: `'should reject maxAge below minimum (1 second)'` with `maxAge: 0`. That's the canonical location since it's where the validation is defined.
 
 ---
 
@@ -372,7 +361,12 @@ Production observability with metrics collection.
 
 #### ✨ Admin Debug Filtering
 
-Add `/admin debug recent` with personality/user/channel filters.
+Browse recent diagnostic logs when no identifier provided. Gateway is already ready.
+
+- **Gateway endpoint exists**: `GET /admin/diagnostic/recent?personalityId=&userId=&channelId=` returns last 100 logs (metadata only)
+- **Infrastructure from debug overhaul**: `debug/` module structure, custom ID scheme (`admin-debug::` prefix), component routing in admin/index.ts
+- **UX**: Make `identifier` optional on `/admin debug`. When omitted, show paginated select menu of recent logs (personality name, model, timestamp, status). Selecting one loads the full interactive embed + buttons
+- **Scope**: ~200 lines new code (browse list builder, pagination, select handler) plus gateway call wiring
 
 #### 🏗️ Database-Configurable Model Capabilities
 
