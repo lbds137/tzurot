@@ -5,7 +5,8 @@
 ```bash
 # Development
 pnpm dev              # Start all services
-pnpm test             # Run tests
+pnpm test             # Run unit tests
+pnpm test:int         # Run integration tests (snapshots, cross-service)
 pnpm quality          # lint + cpd + depcruise + typecheck + typecheck:spec
 pnpm lint             # Lint all packages
 pnpm lint:errors      # Show only errors
