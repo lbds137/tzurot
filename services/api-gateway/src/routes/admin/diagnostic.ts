@@ -17,6 +17,7 @@ import { Router, type Response, type Request, type RequestHandler } from 'expres
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  Prisma,
   type PrismaClient,
   type DiagnosticPayload,
   DiagnosticUpdateSchema,
@@ -82,9 +83,56 @@ function formatLogResponse(log: {
   };
 }
 
+/** Raw query row shape for recent logs (snake_case from PostgreSQL) */
+interface RecentLogRow {
+  id: string;
+  request_id: string;
+  personality_id: string | null;
+  user_id: string | null;
+  guild_id: string | null;
+  channel_id: string | null;
+  model: string;
+  provider: string;
+  duration_ms: number;
+  created_at: Date;
+  personality_name: string | null;
+}
+
+/** API response format for a recent diagnostic log summary */
+interface RecentLogResponse {
+  id: string;
+  requestId: string;
+  personalityId: string | null;
+  userId: string | null;
+  guildId: string | null;
+  channelId: string | null;
+  model: string;
+  provider: string;
+  durationMs: number;
+  createdAt: Date;
+  personalityName: string | null;
+}
+
+/** Map a raw query row to the camelCase API response format */
+function formatRecentLogResponse(row: RecentLogRow): RecentLogResponse {
+  return {
+    id: row.id,
+    requestId: row.request_id,
+    personalityId: row.personality_id,
+    userId: row.user_id,
+    guildId: row.guild_id,
+    channelId: row.channel_id,
+    model: row.model,
+    provider: row.provider,
+    durationMs: row.duration_ms,
+    createdAt: row.created_at,
+    personalityName: row.personality_name,
+  };
+}
+
 /**
  * Handler: GET /admin/diagnostic/recent
- * List recent diagnostic logs (last 100)
+ * List recent diagnostic logs (last 100) with personality name extracted from JSONB
  */
 function handleGetRecent(prisma: PrismaClient): RequestHandler {
   return asyncHandler(async (req: Request, res: Response) => {
@@ -92,34 +140,32 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
     const userId = getParam(req.query.userId as string | undefined);
     const channelId = getParam(req.query.channelId as string | undefined);
 
-    const where: Record<string, string> = {};
+    const conditions: Prisma.Sql[] = [];
     if (personalityId !== undefined && personalityId !== '') {
-      where.personalityId = personalityId;
+      conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
     }
     if (userId !== undefined && userId !== '') {
-      where.userId = userId;
+      conditions.push(Prisma.sql`user_id = ${userId}`);
     }
     if (channelId !== undefined && channelId !== '') {
-      where.channelId = channelId;
+      conditions.push(Prisma.sql`channel_id = ${channelId}`);
     }
 
-    const logs = await prisma.llmDiagnosticLog.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: MAX_RECENT_LOGS,
-      select: {
-        id: true,
-        requestId: true,
-        personalityId: true,
-        userId: true,
-        guildId: true,
-        channelId: true,
-        model: true,
-        provider: true,
-        durationMs: true,
-        createdAt: true,
-      },
-    });
+    const whereClause =
+      conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : Prisma.empty;
+
+    const rows = await prisma.$queryRaw<RecentLogRow[]>`
+      SELECT
+        id, request_id, personality_id, user_id, guild_id, channel_id,
+        model, provider, duration_ms, created_at,
+        data #>> '{meta,personalityName}' AS personality_name
+      FROM llm_diagnostic_logs
+      ${whereClause}
+      ORDER BY created_at DESC
+      LIMIT ${MAX_RECENT_LOGS}
+    `;
+
+    const logs = rows.map(formatRecentLogResponse);
 
     logger.info(
       { count: logs.length, filters: { personalityId, userId, channelId } },

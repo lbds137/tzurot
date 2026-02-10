@@ -47,6 +47,12 @@ import {
   isDebugInteraction,
 } from './debug/index.js';
 import {
+  handleBrowsePagination as handleDebugBrowsePagination,
+  handleBrowseLogSelection as handleDebugBrowseLogSelection,
+  isDebugBrowseInteraction,
+  isDebugBrowseSelectInteraction,
+} from './debug/browse.js';
+import {
   handleSettings,
   handleAdminSettingsSelectMenu,
   handleAdminSettingsButton,
@@ -154,6 +160,12 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     return;
   }
 
+  // Debug browse select (must check before general debug interaction)
+  if (isDebugBrowseSelectInteraction(interaction.customId)) {
+    await handleDebugBrowseLogSelection(interaction);
+    return;
+  }
+
   // Debug interactive views
   if (isDebugInteraction(interaction.customId)) {
     await handleDebugSelectMenu(interaction);
@@ -182,6 +194,12 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   // Servers back button
   if (parseBackCustomId(customId) !== null) {
     await handleServersBack(interaction);
+    return;
+  }
+
+  // Debug browse pagination (must check before general debug interaction)
+  if (isDebugBrowseInteraction(customId)) {
+    await handleDebugBrowsePagination(interaction);
     return;
   }
 
@@ -296,8 +314,8 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('identifier')
-            .setDescription('Message ID, message link, or request UUID')
-            .setRequired(true)
+            .setDescription('Message ID, message link, or request UUID (omit to browse recent)')
+            .setRequired(false)
         )
     ),
   deferralMode: 'ephemeral',

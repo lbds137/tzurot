@@ -165,9 +165,32 @@ function createSuccessResponse(requestId: string, payload: DiagnosticPayload) {
   );
 }
 
+// Mock browse module
+vi.mock('./browse.js', () => ({
+  handleRecentBrowse: vi.fn().mockResolvedValue(undefined),
+}));
+
 describe('handleDebug', () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => vi.restoreAllMocks());
+
+  it('should dispatch to browse when identifier is null', async () => {
+    const { handleRecentBrowse } = await import('./browse.js');
+    const context = createMockContext(null);
+    await handleDebug(context);
+
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('should dispatch to browse when identifier is empty string', async () => {
+    const { handleRecentBrowse } = await import('./browse.js');
+    const context = createMockContext('');
+    await handleDebug(context);
+
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context);
+    expect(fetch).not.toHaveBeenCalled();
+  });
 
   it('should return embed with components on success', async () => {
     const mockPayload = createMockDiagnosticPayload();
@@ -193,16 +216,6 @@ describe('handleDebug', () => {
 
     const args = vi.mocked(context.editReply).mock.calls[0][0] as { files?: unknown[] };
     expect(args.files).toBeUndefined();
-  });
-
-  it('should handle empty identifier', async () => {
-    const context = createMockContext('');
-    await handleDebug(context);
-
-    expect(fetch).not.toHaveBeenCalled();
-    expect(context.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Identifier is required'),
-    });
   });
 
   it('should handle 404 errors', async () => {
