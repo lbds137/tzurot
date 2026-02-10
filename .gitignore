@@ -19,7 +19,7 @@ packages/**/*.js
 .env.*.local
 
 # Logs
-debug/
+/debug/
 logs/
 *.log
 npm-debug.log*
