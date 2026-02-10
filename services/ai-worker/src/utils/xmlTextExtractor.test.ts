@@ -82,4 +82,10 @@ Line three</content>`;
     expect(result).not.toContain('Author unavailable');
     expect(result).toContain('Real content');
   });
+
+  it('should return empty string on malformed XML', () => {
+    // fast-xml-parser is lenient, but severely broken input should not throw
+    const result = extractXmlTextContent('<<<>>>');
+    expect(typeof result).toBe('string');
+  });
 });

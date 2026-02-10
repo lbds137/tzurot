@@ -20,7 +20,7 @@ export interface ForwardedMessageContent {
   textContent?: string;
   /** Image descriptions from vision processing */
   imageDescriptions?: { filename: string; description: string }[];
-  /** Pre-formatted embed XML strings */
+  /** Pre-formatted embed XML strings (callers must provide well-formed XML) */
   embedsXml?: string[];
   /** Voice message transcripts */
   voiceTranscripts?: string[];
