@@ -17,6 +17,7 @@ import { Router, type Response, type Request, type RequestHandler } from 'expres
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
+  isValidUUID,
   Prisma,
   type PrismaClient,
   type DiagnosticPayload,
@@ -140,6 +141,15 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
     const userId = getParam(req.query.userId as string | undefined);
     const channelId = getParam(req.query.channelId as string | undefined);
 
+    // Validate UUID format before casting — returns 400 instead of a PostgreSQL cast error (500)
+    if (personalityId !== undefined && personalityId !== '' && !isValidUUID(personalityId)) {
+      sendError(
+        res,
+        ErrorResponses.validationError('Invalid personalityId format (expected UUID)')
+      );
+      return;
+    }
+
     const conditions: Prisma.Sql[] = [];
     if (personalityId !== undefined && personalityId !== '') {
       conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
@@ -154,6 +164,8 @@ function handleGetRecent(prisma: PrismaClient): RequestHandler {
     const whereClause =
       conditions.length > 0 ? Prisma.sql`WHERE ${Prisma.join(conditions, ' AND ')}` : Prisma.empty;
 
+    // Raw query needed to extract personalityName from JSONB (data #>> '{meta,personalityName}')
+    // which isn't possible through the Prisma ORM's findMany API.
     const rows = await prisma.$queryRaw<RecentLogRow[]>`
       SELECT
         id, request_id, personality_id, user_id, guild_id, channel_id,

@@ -172,7 +172,7 @@ describe('Admin Diagnostic Routes', () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
       const response = await request(app).get(
-        '/admin/diagnostic/recent?personalityId=test-personality'
+        '/admin/diagnostic/recent?personalityId=00000000-0000-0000-0000-000000000001'
       );
 
       expect(response.status).toBe(200);
@@ -205,7 +205,7 @@ describe('Admin Diagnostic Routes', () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
       const response = await request(app).get(
-        '/admin/diagnostic/recent?personalityId=p1&userId=u1&channelId=c1'
+        '/admin/diagnostic/recent?personalityId=00000000-0000-0000-0000-000000000002&userId=u1&channelId=c1'
       );
 
       expect(response.status).toBe(200);
@@ -231,6 +231,26 @@ describe('Admin Diagnostic Routes', () => {
 
       const response = await request(app).get(
         '/admin/diagnostic/recent?personalityId=&userId=user-1'
+      );
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('should reject invalid UUID for personalityId', async () => {
+      const response = await request(app).get('/admin/diagnostic/recent?personalityId=not-a-uuid');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('Invalid personalityId format');
+      expect(mockPrisma.$queryRaw).not.toHaveBeenCalled();
+    });
+
+    it('should safely handle SQL injection attempts in filters', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([]);
+
+      // SQL injection in userId — Prisma parameterizes this, so it's safe
+      const response = await request(app).get(
+        "/admin/diagnostic/recent?userId='; DROP TABLE users; --"
       );
 
       expect(response.status).toBe(200);
