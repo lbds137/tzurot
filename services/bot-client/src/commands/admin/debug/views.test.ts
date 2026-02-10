@@ -255,6 +255,17 @@ describe('buildMemoryInspectorView', () => {
     expect(content).toContain('No memories retrieved');
   });
 
+  it('should escape pipes and backslashes in memory previews', () => {
+    const payload = createMockPayload();
+    payload.memoryRetrieval.memoriesFound = [
+      { id: 'mem-1', score: 0.9, preview: 'has | pipe and \\ backslash', includedInPrompt: true },
+    ];
+    const result = buildMemoryInspectorView(payload, 'req-123');
+
+    const content = result.files![0].attachment.toString();
+    expect(content).toContain('has \\| pipe and \\\\ backslash');
+  });
+
   it('should show "none" for null search query', () => {
     const payload = createMockPayload();
     payload.inputProcessing.searchQuery = null;
