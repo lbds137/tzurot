@@ -168,6 +168,10 @@ describe('formatTimeAgo', () => {
     vi.setSystemTime(new Date('2026-02-12T12:00:00Z'));
     expect(formatTimeAgo('2026-02-09T12:00:00Z')).toBe('3d ago');
   });
+
+  it('should handle invalid date strings', () => {
+    expect(formatTimeAgo('not-a-date')).toBe('unknown');
+  });
 });
 
 describe('fetchRecentLogs', () => {

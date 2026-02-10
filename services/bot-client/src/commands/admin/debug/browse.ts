@@ -22,6 +22,7 @@ import {
   type StringSelectMenuInteraction,
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
+import { z } from 'zod';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import {
   ITEMS_PER_PAGE,
@@ -36,9 +37,29 @@ import { lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
 import { buildDebugComponents } from './components.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import type { DiagnosticLogSummary, RecentLogsResponse } from './types.js';
+import type { DiagnosticLogSummary } from './types.js';
 
 const logger = createLogger('admin-debug-browse');
+
+/** Runtime schema for diagnostic log summaries from the gateway */
+const DiagnosticLogSummarySchema = z.object({
+  id: z.string(),
+  requestId: z.string(),
+  personalityId: z.string().nullable(),
+  personalityName: z.string().nullable(),
+  userId: z.string().nullable(),
+  guildId: z.string().nullable(),
+  channelId: z.string().nullable(),
+  model: z.string(),
+  provider: z.string(),
+  durationMs: z.number(),
+  createdAt: z.string(),
+});
+
+const RecentLogsResponseSchema = z.object({
+  logs: z.array(DiagnosticLogSummarySchema),
+  count: z.number(),
+});
 
 // ---------------------------------------------------------------------------
 // Browse custom ID helpers (standard pattern, no sort)
@@ -58,12 +79,13 @@ const browseHelpers = createBrowseCustomIdHelpers<DebugBrowseFilter>({
 // ---------------------------------------------------------------------------
 
 /** Fetch recent diagnostic logs from the gateway */
-export async function fetchRecentLogs(): Promise<RecentLogsResponse> {
+export async function fetchRecentLogs(): Promise<{ logs: DiagnosticLogSummary[]; count: number }> {
   const response = await adminFetch('/admin/diagnostic/recent');
   if (!response.ok) {
     throw new Error(`Failed to fetch recent logs: HTTP ${response.status}`);
   }
-  return (await response.json()) as RecentLogsResponse;
+  const data: unknown = await response.json();
+  return RecentLogsResponseSchema.parse(data);
 }
 
 // ---------------------------------------------------------------------------
@@ -74,6 +96,11 @@ export async function fetchRecentLogs(): Promise<RecentLogsResponse> {
 export function formatTimeAgo(dateStr: string): string {
   const now = Date.now();
   const then = new Date(dateStr).getTime();
+
+  if (Number.isNaN(then)) {
+    return 'unknown';
+  }
+
   const diffMs = now - then;
 
   const seconds = Math.floor(diffMs / 1000);

@@ -171,36 +171,48 @@ describe('Admin Diagnostic Routes', () => {
     it('should filter by personalityId', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
-      await request(app).get('/admin/diagnostic/recent?personalityId=test-personality');
+      const response = await request(app).get(
+        '/admin/diagnostic/recent?personalityId=test-personality'
+      );
 
-      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      // Verify the tagged template static parts include base SQL structure
+      const templateStrings = mockPrisma.$queryRaw.mock.calls[0][0] as TemplateStringsArray;
+      expect(templateStrings.join('?')).toContain('llm_diagnostic_logs');
+      expect(templateStrings.join('?')).toContain('ORDER BY');
     });
 
     it('should filter by userId', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
-      await request(app).get('/admin/diagnostic/recent?userId=user-123');
+      const response = await request(app).get('/admin/diagnostic/recent?userId=user-123');
 
-      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
 
     it('should filter by channelId', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
-      await request(app).get('/admin/diagnostic/recent?channelId=channel-456');
+      const response = await request(app).get('/admin/diagnostic/recent?channelId=channel-456');
 
-      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
 
     it('should combine multiple filters', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
-      await request(app).get('/admin/diagnostic/recent?personalityId=p1&userId=u1&channelId=c1');
+      const response = await request(app).get(
+        '/admin/diagnostic/recent?personalityId=p1&userId=u1&channelId=c1'
+      );
 
-      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
 
-    it('should return empty array when no logs exist', async () => {
+    it('should return empty results without filters', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
       const response = await request(app).get('/admin/diagnostic/recent');
@@ -208,14 +220,21 @@ describe('Admin Diagnostic Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.logs).toEqual([]);
       expect(response.body.count).toBe(0);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+      // Verify the tagged template includes expected SQL structure
+      const templateStrings = mockPrisma.$queryRaw.mock.calls[0][0] as TemplateStringsArray;
+      expect(templateStrings.join('?')).toContain('personality_name');
     });
 
     it('should ignore empty string filters', async () => {
       mockPrisma.$queryRaw.mockResolvedValue([]);
 
-      await request(app).get('/admin/diagnostic/recent?personalityId=&userId=user-1');
+      const response = await request(app).get(
+        '/admin/diagnostic/recent?personalityId=&userId=user-1'
+      );
 
-      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
+      expect(response.status).toBe(200);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
   });
 
