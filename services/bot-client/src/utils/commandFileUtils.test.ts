@@ -17,7 +17,7 @@ import { readdirSync, statSync } from 'node:fs';
 
 describe('getCommandFiles', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
   });
 
   describe('Index-or-Root pattern', () => {
@@ -139,11 +139,11 @@ describe('getCommandFiles', () => {
       expect(files).toHaveLength(1);
     });
 
-    it('should handle nested subdirectories (only index at each level)', () => {
+    it('should not recurse into nested subdirectories (e.g., admin/debug/)', () => {
       vi.mocked(readdirSync)
         .mockReturnValueOnce(['preset'] as unknown as ReturnType<typeof readdirSync>)
-        .mockReturnValueOnce(['index.ts', 'global'] as unknown as ReturnType<typeof readdirSync>)
-        .mockReturnValueOnce(['edit.ts', 'delete.ts'] as unknown as ReturnType<typeof readdirSync>); // No index.ts here
+        .mockReturnValueOnce(['index.ts', 'global'] as unknown as ReturnType<typeof readdirSync>);
+      // No third mock — global/ is never scanned (only one level of recursion)
 
       vi.mocked(statSync).mockImplementation((path: unknown) => {
         const pathStr = String(path);
@@ -155,10 +155,8 @@ describe('getCommandFiles', () => {
       const files = getCommandFiles('/commands');
 
       // Only preset/index.ts should be included
-      // global/ has no index.ts so nothing from there
+      // global/ is a nested directory — not scanned at all
       expect(files).toContain('/commands/preset/index.ts');
-      expect(files).not.toContain('/commands/preset/global/edit.ts');
-      expect(files).not.toContain('/commands/preset/global/delete.ts');
       expect(files).toHaveLength(1);
     });
 
