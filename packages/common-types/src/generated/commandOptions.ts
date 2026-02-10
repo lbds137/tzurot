@@ -56,7 +56,7 @@ export const adminCleanupOptions = defineTypedOptions({
  * /admin debug <identifier>
  */
 export const adminDebugOptions = defineTypedOptions({
-  identifier: { type: 'string', required: true },
+  identifier: { type: 'string', required: false },
 });
 
 // =============================================================================

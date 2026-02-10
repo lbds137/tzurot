@@ -36,6 +36,27 @@ export type LookupResult =
   | { success: true; log: DiagnosticLog }
   | { success: false; errorMessage: string };
 
+/** Metadata-only log entry for browse lists (from /recent endpoint) */
+export interface DiagnosticLogSummary {
+  id: string;
+  requestId: string;
+  personalityId: string | null;
+  personalityName: string | null;
+  userId: string | null;
+  guildId: string | null;
+  channelId: string | null;
+  model: string;
+  provider: string;
+  durationMs: number;
+  createdAt: string;
+}
+
+/** API response for recent diagnostic logs */
+export interface RecentLogsResponse {
+  logs: DiagnosticLogSummary[];
+  count: number;
+}
+
 /** Available debug view types for interactive selection */
 export enum DebugViewType {
   FullJson = 'full-json',

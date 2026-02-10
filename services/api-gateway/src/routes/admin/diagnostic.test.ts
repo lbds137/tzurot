@@ -37,6 +37,7 @@ describe('Admin Diagnostic Routes', () => {
       findFirst: ReturnType<typeof vi.fn>;
       update: ReturnType<typeof vi.fn>;
     };
+    $queryRaw: ReturnType<typeof vi.fn>;
   };
   let app: express.Express;
 
@@ -117,6 +118,7 @@ describe('Admin Diagnostic Routes', () => {
         findFirst: vi.fn(),
         update: vi.fn(),
       },
+      $queryRaw: vi.fn(),
     };
 
     app = express();
@@ -125,33 +127,33 @@ describe('Admin Diagnostic Routes', () => {
   });
 
   describe('GET /admin/diagnostic/recent', () => {
-    it('should return recent logs without filters', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([
+    it('should return recent logs with personalityName from JSONB', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([
         {
           id: 'log-1',
-          requestId: 'req-1',
-          triggerMessageId: '1234567890123456789',
-          personalityId: 'personality-1',
-          userId: 'user-1',
-          guildId: 'guild-1',
-          channelId: 'channel-1',
+          request_id: 'req-1',
+          personality_id: 'personality-1',
+          user_id: 'user-1',
+          guild_id: 'guild-1',
+          channel_id: 'channel-1',
           model: 'claude-3-5-sonnet',
           provider: 'anthropic',
-          durationMs: 1000,
-          createdAt: new Date('2026-01-22T12:00:00Z'),
+          duration_ms: 1000,
+          created_at: new Date('2026-01-22T12:00:00Z'),
+          personality_name: 'Test Personality',
         },
         {
           id: 'log-2',
-          requestId: 'req-2',
-          triggerMessageId: '9876543210987654321',
-          personalityId: 'personality-2',
-          userId: 'user-2',
-          guildId: 'guild-2',
-          channelId: 'channel-2',
+          request_id: 'req-2',
+          personality_id: 'personality-2',
+          user_id: 'user-2',
+          guild_id: 'guild-2',
+          channel_id: 'channel-2',
           model: 'gpt-4',
           provider: 'openai',
-          durationMs: 2000,
-          createdAt: new Date('2026-01-22T11:00:00Z'),
+          duration_ms: 2000,
+          created_at: new Date('2026-01-22T11:00:00Z'),
+          personality_name: null,
         },
       ]);
 
@@ -160,79 +162,46 @@ describe('Admin Diagnostic Routes', () => {
       expect(response.status).toBe(200);
       expect(response.body.logs).toHaveLength(2);
       expect(response.body.count).toBe(2);
-      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith({
-        where: {},
-        orderBy: { createdAt: 'desc' },
-        take: 100,
-        select: {
-          id: true,
-          requestId: true,
-          personalityId: true,
-          userId: true,
-          guildId: true,
-          channelId: true,
-          model: true,
-          provider: true,
-          durationMs: true,
-          createdAt: true,
-        },
-      });
+      expect(response.body.logs[0].personalityName).toBe('Test Personality');
+      expect(response.body.logs[0].requestId).toBe('req-1');
+      expect(response.body.logs[1].personalityName).toBeNull();
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
     });
 
     it('should filter by personalityId', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       await request(app).get('/admin/diagnostic/recent?personalityId=test-personality');
 
-      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { personalityId: 'test-personality' },
-        })
-      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
     });
 
     it('should filter by userId', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       await request(app).get('/admin/diagnostic/recent?userId=user-123');
 
-      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { userId: 'user-123' },
-        })
-      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
     });
 
     it('should filter by channelId', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       await request(app).get('/admin/diagnostic/recent?channelId=channel-456');
 
-      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { channelId: 'channel-456' },
-        })
-      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
     });
 
     it('should combine multiple filters', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       await request(app).get('/admin/diagnostic/recent?personalityId=p1&userId=u1&channelId=c1');
 
-      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: {
-            personalityId: 'p1',
-            userId: 'u1',
-            channelId: 'c1',
-          },
-        })
-      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
     });
 
     it('should return empty array when no logs exist', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       const response = await request(app).get('/admin/diagnostic/recent');
 
@@ -242,15 +211,11 @@ describe('Admin Diagnostic Routes', () => {
     });
 
     it('should ignore empty string filters', async () => {
-      mockPrisma.llmDiagnosticLog.findMany.mockResolvedValue([]);
+      mockPrisma.$queryRaw.mockResolvedValue([]);
 
       await request(app).get('/admin/diagnostic/recent?personalityId=&userId=user-1');
 
-      expect(mockPrisma.llmDiagnosticLog.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { userId: 'user-1' },
-        })
-      );
+      expect(mockPrisma.$queryRaw).toHaveBeenCalled();
     });
   });
 

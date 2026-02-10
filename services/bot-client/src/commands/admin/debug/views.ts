@@ -115,6 +115,7 @@ export function buildSystemPromptView(
 // Reasoning
 // ---------------------------------------------------------------------------
 
+/** Discord message content limit; reasoning longer than this is sent as a .md file attachment */
 const REASONING_INLINE_LIMIT = 2000;
 
 /** Reasoning content as either inline markdown or a .md file */
