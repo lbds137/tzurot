@@ -19,6 +19,10 @@ import {
 } from '@tzurot/common-types';
 import { describeImage, transcribeAudio, type ProcessedAttachment } from './MultimodalProcessor.js';
 import { withRetry } from '../utils/retry.js';
+import {
+  formatForwardedQuote,
+  type ForwardedMessageContent,
+} from './prompt/ForwardedMessageFormatter.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
 
@@ -82,32 +86,20 @@ export class ReferencedMessageFormatter {
    * @returns Plain text content suitable for LTM search query
    */
   extractTextForSearch(formattedReferences: string): string {
-    const lines = formattedReferences.split('\n');
-    const contentLines: string[] = [];
+    // Strip all XML tags, keeping text content between them
+    const withoutTags = formattedReferences.replace(/<[^>]+>/g, '');
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      // Skip XML tags, markdown headers, reference labels, metadata, and introductory text
-      if (
-        trimmed.startsWith('<contextual_references') ||
-        trimmed.startsWith('</contextual_references') ||
-        trimmed.startsWith('##') ||
-        trimmed.startsWith('[Reference') ||
-        trimmed.startsWith('From:') ||
-        trimmed.startsWith('Location:') ||
-        trimmed.startsWith('Time:') ||
-        trimmed.startsWith('Message Text:') ||
-        trimmed.startsWith('Message Embeds') ||
-        trimmed.startsWith('Attachments:') ||
-        trimmed === 'The user is referencing the following messages:' ||
-        trimmed.length === 0
-      ) {
-        continue;
-      }
-      contentLines.push(trimmed);
-    }
-
-    return contentLines.join('\n');
+    // Filter out metadata lines and empty lines
+    return withoutTags
+      .split('\n')
+      .map(line => line.trim())
+      .filter(
+        line =>
+          line.length > 0 &&
+          !line.startsWith('Author unavailable') &&
+          line !== 'The user is referencing the following messages:'
+      )
+      .join('\n');
   }
 
   /**
@@ -134,66 +126,28 @@ export class ReferencedMessageFormatter {
 
     // Process each reference into XML
     for (const ref of references) {
-      const refLines: string[] = [];
-
-      // Build quote attributes
-      const forwardedAttr = ref.isForwarded === true ? ' forwarded="true"' : '';
-      refLines.push(`<quote number="${ref.referenceNumber}"${forwardedAttr}>`);
-
-      // Author info
+      // Forwarded messages use the shared ForwardedMessageFormatter for consistency
       if (ref.isForwarded === true) {
-        refLines.push(`<author unavailable="true">Author unavailable - forwarded message</author>`);
-      } else {
-        refLines.push(
-          `<author display_name="${escapeXml(ref.authorDisplayName)}" username="${escapeXml(ref.authorUsername)}"/>`
-        );
-      }
-
-      // Location (already formatted as XML by bot-client using shared formatLocationAsXml)
-      refLines.push(ref.locationContext);
-
-      // Timestamp with both absolute date and relative time
-      const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
-      if (absolute.length > 0 && relative.length > 0) {
-        refLines.push(
-          `<time absolute="${escapeXml(absolute)}" relative="${escapeXml(relative)}"/>`
-        );
-      } else {
-        refLines.push(`<time>${escapeXmlContent(ref.timestamp)}</time>`);
-      }
-
-      // Message content
-      if (ref.content) {
-        refLines.push(`<content>${escapeXmlContent(ref.content)}</content>`);
-      }
-
-      // Embeds (structured data from Discord)
-      if (ref.embeds) {
-        refLines.push(`<embeds>${escapeXmlContent(ref.embeds)}</embeds>`);
-      }
-
-      // Process attachments in parallel (or use preprocessed data if available)
-      if (ref.attachments && ref.attachments.length > 0) {
-        const preprocessedForRef = preprocessedAttachments?.[ref.referenceNumber];
-
-        const attachmentLines = await this.processAttachmentsParallel({
-          attachments: ref.attachments,
-          referenceNumber: ref.referenceNumber,
+        const forwardedElement = await this.formatForwardedReference(
+          ref,
           personality,
           isGuestMode,
-          preprocessedAttachments: preprocessedForRef,
-          userApiKey,
-        });
-
-        if (attachmentLines.length > 0) {
-          refLines.push('<attachments>');
-          refLines.push(...attachmentLines);
-          refLines.push('</attachments>');
-        }
+          preprocessedAttachments?.[ref.referenceNumber],
+          userApiKey
+        );
+        referenceElements.push(forwardedElement);
+        continue;
       }
 
-      refLines.push('</quote>');
-      referenceElements.push(refLines.join('\n'));
+      // Non-forwarded messages: standard quote format
+      const standardElement = await this.formatStandardReference(
+        ref,
+        personality,
+        isGuestMode,
+        preprocessedAttachments?.[ref.referenceNumber],
+        userApiKey
+      );
+      referenceElements.push(standardElement);
     }
 
     const formattedText = referenceElements.join('\n');
@@ -213,6 +167,99 @@ export class ReferencedMessageFormatter {
 
     // Wrap in outer XML tag
     return `<contextual_references>\n${formattedText}\n</contextual_references>`;
+  }
+
+  /**
+   * Format a standard (non-forwarded) reference as XML.
+   */
+  private async formatStandardReference(
+    ref: ReferencedMessage,
+    personality: LoadedPersonality,
+    isGuestMode: boolean,
+    preprocessedForRef?: ProcessedAttachment[],
+    userApiKey?: string
+  ): Promise<string> {
+    const refLines: string[] = [];
+    refLines.push(`<quote number="${ref.referenceNumber}">`);
+
+    refLines.push(
+      `<author display_name="${escapeXml(ref.authorDisplayName)}" username="${escapeXml(ref.authorUsername)}"/>`
+    );
+
+    refLines.push(ref.locationContext);
+
+    const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
+    if (absolute.length > 0 && relative.length > 0) {
+      refLines.push(`<time absolute="${escapeXml(absolute)}" relative="${escapeXml(relative)}"/>`);
+    } else {
+      refLines.push(`<time>${escapeXmlContent(ref.timestamp)}</time>`);
+    }
+
+    if (ref.content) {
+      refLines.push(`<content>${escapeXmlContent(ref.content)}</content>`);
+    }
+
+    if (ref.embeds) {
+      refLines.push(`<embeds>${escapeXmlContent(ref.embeds)}</embeds>`);
+    }
+
+    if (ref.attachments && ref.attachments.length > 0) {
+      const attachmentLines = await this.processAttachmentsParallel({
+        attachments: ref.attachments,
+        referenceNumber: ref.referenceNumber,
+        personality,
+        isGuestMode,
+        preprocessedAttachments: preprocessedForRef,
+        userApiKey,
+      });
+
+      if (attachmentLines.length > 0) {
+        refLines.push('<attachments>');
+        refLines.push(...attachmentLines);
+        refLines.push('</attachments>');
+      }
+    }
+
+    refLines.push('</quote>');
+    return refLines.join('\n');
+  }
+
+  /**
+   * Format a forwarded reference using the shared ForwardedMessageFormatter.
+   * Ensures consistent XML output between the message link path and chat history path.
+   */
+  private async formatForwardedReference(
+    ref: ReferencedMessage,
+    personality: LoadedPersonality,
+    isGuestMode: boolean,
+    preprocessedForRef?: ProcessedAttachment[],
+    userApiKey?: string
+  ): Promise<string> {
+    const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
+
+    const forwardedContent: ForwardedMessageContent = {
+      textContent: ref.content ?? undefined,
+      timestamp: absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
+      embedsXml: ref.embeds ? [ref.embeds] : undefined,
+    };
+
+    // Process attachments if present
+    if (ref.attachments && ref.attachments.length > 0) {
+      const attachmentLines = await this.processAttachmentsParallel({
+        attachments: ref.attachments,
+        referenceNumber: ref.referenceNumber,
+        personality,
+        isGuestMode,
+        preprocessedAttachments: preprocessedForRef,
+        userApiKey,
+      });
+
+      if (attachmentLines.length > 0) {
+        forwardedContent.attachmentLines = attachmentLines;
+      }
+    }
+
+    return formatForwardedQuote(forwardedContent);
   }
 
   /**
