@@ -6,7 +6,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import type { Job } from 'bullmq';
 import type { ImageDescriptionJobData, LoadedPersonality } from '@tzurot/common-types';
-import { JobType, CONTENT_TYPES, AIProvider } from '@tzurot/common-types';
+import { JobType, CONTENT_TYPES, AIProvider, TIMEOUTS, RETRY_CONFIG } from '@tzurot/common-types';
 import type { ApiKeyResolver } from '../services/ApiKeyResolver.js';
 
 // Mock describeImage, withRetry, and shouldRetryError
@@ -118,6 +118,7 @@ describe('ImageDescriptionJob', () => {
         expect.any(Function),
         expect.objectContaining({
           maxAttempts: 3,
+          globalTimeoutMs: TIMEOUTS.VISION_MODEL * RETRY_CONFIG.MAX_ATTEMPTS,
           operationName: 'Image description (image1.png)',
           shouldRetry: expect.any(Function),
         })
@@ -485,7 +486,8 @@ describe('ImageDescriptionJob', () => {
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
         true, // isGuestMode
-        undefined // userApiKey (guests don't have one)
+        undefined, // userApiKey (guests don't have one)
+        { skipNegativeCache: true }
       );
     });
 
@@ -541,7 +543,8 @@ describe('ImageDescriptionJob', () => {
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
         false, // isGuestMode
-        'sk-user-provided-key' // userApiKey (BYOK users get their key passed)
+        'sk-user-provided-key', // userApiKey (BYOK users get their key passed)
+        { skipNegativeCache: true }
       );
     });
 
@@ -587,7 +590,88 @@ describe('ImageDescriptionJob', () => {
         expect.objectContaining({ url: 'https://example.com/image1.png' }),
         mockPersonality,
         true, // isGuestMode defaults to true on error
-        undefined // userApiKey is undefined on error (no key resolved)
+        undefined, // userApiKey is undefined on error (no key resolved)
+        { skipNegativeCache: true }
+      );
+    });
+
+    it('should pass skipNegativeCache: true to describeImage within retry loop', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-skip-cache',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'image-test-req-skip-cache',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      await processImageDescriptionJob(job);
+
+      // Execute the retry function to verify describeImage receives skipNegativeCache
+      const retryFn = mockWithRetry.mock.calls[0][0];
+      await retryFn();
+      expect(mockDescribeImage).toHaveBeenCalledWith(
+        expect.objectContaining({ url: 'https://example.com/image1.png' }),
+        mockPersonality,
+        false,
+        undefined,
+        { skipNegativeCache: true }
+      );
+    });
+
+    it('should pass globalTimeoutMs to withRetry', async () => {
+      const jobData: ImageDescriptionJobData = {
+        requestId: 'test-req-timeout',
+        jobType: JobType.ImageDescription,
+        attachments: [
+          {
+            url: 'https://example.com/image1.png',
+            name: 'image1.png',
+            contentType: CONTENT_TYPES.IMAGE_PNG,
+            size: 1024,
+          },
+        ],
+        personality: mockPersonality,
+        context: {
+          userId: 'user-123',
+          channelId: 'channel-456',
+        },
+        responseDestination: {
+          type: 'discord',
+          channelId: 'channel-456',
+        },
+      };
+
+      const job = {
+        id: 'image-test-req-timeout',
+        data: jobData,
+      } as Job<ImageDescriptionJobData>;
+
+      await processImageDescriptionJob(job);
+
+      expect(mockWithRetry).toHaveBeenCalledWith(
+        expect.any(Function),
+        expect.objectContaining({
+          globalTimeoutMs: TIMEOUTS.VISION_MODEL * RETRY_CONFIG.MAX_ATTEMPTS,
+        })
       );
     });
   });
