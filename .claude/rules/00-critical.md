@@ -37,6 +37,19 @@ execSync('git status');
 - Never trust Discord input directly
 - Escape markdown in Discord embeds: `escapeMarkdown(userInput)`
 
+### HTML/XML Tag Stripping (CodeQL)
+
+**Never use regex to strip XML/HTML tags.** CodeQL flags `/<[^>]+>/g` as "Incomplete multi-character sanitization" — even with a second `.replace(/[<>]/g, '')` pass. Use `fast-xml-parser` (already installed in ai-worker) instead.
+
+```typescript
+// ❌ WRONG - CodeQL flags any multi-character tag regex
+const clean = input.replace(/<[^>]+>/g, '');
+
+// ✅ CORRECT - Use the XML text extractor utility
+import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
+const clean = extractXmlTextContent(xmlString);
+```
+
 ### Logging (No PII)
 
 ```typescript
