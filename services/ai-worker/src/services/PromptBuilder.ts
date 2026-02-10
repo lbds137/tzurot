@@ -129,20 +129,26 @@ export class PromptBuilder {
     // Capture content BEFORE adding referenced messages (for storage)
     const contentForStorage = messageContent;
 
+    // Escape user content BEFORE appending references — references are system-generated
+    // XML (<contextual_references>) and must NOT be escaped
+    const safeUserContent = escapeXmlContent(messageContent);
+
     // Append referenced messages (for LLM prompt only, not storage)
+    let safeContent: string;
     if (referencedMessagesDescriptions !== undefined && referencedMessagesDescriptions.length > 0) {
-      messageContent =
-        messageContent.length > 0
-          ? `${messageContent}\n\n${referencedMessagesDescriptions}`
+      safeContent =
+        safeUserContent.length > 0
+          ? `${safeUserContent}\n\n${referencedMessagesDescriptions}`
           : referencedMessagesDescriptions;
       logger.info(
         { referencesLength: referencedMessagesDescriptions.length },
         'Appended references'
       );
+    } else {
+      safeContent = safeUserContent;
     }
 
-    // Escape content and add speaker identification
-    const safeContent = escapeXmlContent(messageContent);
+    // Add speaker identification
     let finalContent = safeContent;
 
     if (activePersonaName !== undefined && activePersonaName.length > 0) {

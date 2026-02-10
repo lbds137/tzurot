@@ -700,13 +700,11 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      // Should have forwarded attribute
-      expect(result).toContain('<quote number="1" forwarded="true">');
-      expect(result).toContain(
-        '<author unavailable="true">Author unavailable - forwarded message</author>'
-      );
-      expect(result).toContain('This is a forwarded message');
-      expect(result).toContain('(forwarded message)');
+      // Forwarded messages use shared ForwardedMessageFormatter format
+      expect(result).toContain('<quote type="forward" author="Unknown">');
+      expect(result).not.toContain('forwarded="true"');
+      expect(result).not.toContain('<author unavailable="true">');
+      expect(result).toContain('<content>This is a forwarded message</content>');
     });
 
     it('should format regular (non-forwarded) messages without forwarded attribute', async () => {
@@ -769,11 +767,9 @@ describe('ReferencedMessageFormatter', () => {
       expect(result).toContain('<quote number="1">');
       expect(result).toContain('<author display_name="Test User" username="testuser"/>');
 
-      // Second reference - forwarded
-      expect(result).toContain('<quote number="2" forwarded="true">');
-      expect(result).toContain(
-        '<author unavailable="true">Author unavailable - forwarded message</author>'
-      );
+      // Second reference - forwarded (uses shared ForwardedMessageFormatter format)
+      expect(result).toContain('<quote type="forward" author="Unknown">');
+      expect(result).toContain('<content>Forwarded message</content>');
     });
   });
 
@@ -1143,21 +1139,19 @@ describe('ReferencedMessageFormatter', () => {
   });
 
   describe('extractTextForSearch', () => {
-    it('should extract plain text content from formatted references', () => {
-      const formatted = `## Referenced Messages
-
-The user is referencing the following messages:
-
-[Reference 1]
-From: Test User (@testuser)
-Location: Test Guild > #general
-Time: 2025-11-04 00:00:00 UTC
-
-Message Text:
-Hello world! This is the actual content.
-
-**Embeds**:
-Some embed content here.`;
+    it('should extract plain text content from XML formatted references', () => {
+      const formatted = `<contextual_references>
+<quote number="1">
+<author display_name="Test User" username="testuser"/>
+<location type="guild">
+<server name="Test Guild"/>
+<channel name="general" type="text"/>
+</location>
+<time absolute="Mon, Nov 4, 2025" relative="2 months ago"/>
+<content>Hello world! This is the actual content.</content>
+<embeds>Some embed content here.</embeds>
+</quote>
+</contextual_references>`;
 
       const result = formatter.extractTextForSearch(formatted);
 
@@ -1165,66 +1159,40 @@ Some embed content here.`;
       expect(result).toContain('Hello world! This is the actual content.');
       expect(result).toContain('Some embed content here.');
 
-      // Should NOT include headers and metadata
-      expect(result).not.toContain('## Referenced Messages');
-      expect(result).not.toContain('[Reference 1]');
-      expect(result).not.toContain('From:');
-      expect(result).not.toContain('Location:');
-      expect(result).not.toContain('Time:');
-      expect(result).not.toContain('Message Text:');
-    });
-
-    it('should strip XML wrapper tags from formatted references', () => {
-      const formatted = `<contextual_references>
-## Referenced Messages
-
-The user is referencing the following messages:
-
-[Reference 1]
-From: Test User (@testuser)
-Location: Test Guild > #general
-Time: 2025-11-04 00:00:00 UTC
-
-Message Text:
-This is the actual content to search.
-
-</contextual_references>`;
-
-      const result = formatter.extractTextForSearch(formatted);
-
-      // Should include actual content
-      expect(result).toContain('This is the actual content to search.');
-
       // Should NOT include XML tags
       expect(result).not.toContain('<contextual_references>');
-      expect(result).not.toContain('</contextual_references>');
+      expect(result).not.toContain('<quote');
+      expect(result).not.toContain('<author');
+      expect(result).not.toContain('<location');
+      expect(result).not.toContain('<time');
     });
 
-    it('should extract image descriptions', () => {
-      const formatted = `## Referenced Messages
-
-[Reference 1]
-From: User (@user)
-
-Attachments:
-- Image: A beautiful sunset over the ocean with vibrant orange and pink colors`;
+    it('should extract image descriptions from XML', () => {
+      const formatted = `<contextual_references>
+<quote number="1">
+<content>Check this image</content>
+<attachments>
+- Image (sunset.png): A beautiful sunset over the ocean with vibrant orange and pink colors
+</attachments>
+</quote>
+</contextual_references>`;
 
       const result = formatter.extractTextForSearch(formatted);
 
       expect(result).toContain(
         'A beautiful sunset over the ocean with vibrant orange and pink colors'
       );
-      expect(result).not.toContain('Attachments:');
+      expect(result).toContain('Check this image');
     });
 
-    it('should extract voice transcriptions', () => {
-      const formatted = `## Referenced Messages
-
-[Reference 1]
-From: User (@user)
-
-Attachments:
-- Voice message (00:15): "Hey, this is a test voice message transcription."`;
+    it('should extract voice transcriptions from XML', () => {
+      const formatted = `<contextual_references>
+<quote number="1">
+<attachments>
+- Voice Message (15s): "Hey, this is a test voice message transcription."
+</attachments>
+</quote>
+</contextual_references>`;
 
       const result = formatter.extractTextForSearch(formatted);
 
@@ -1232,19 +1200,14 @@ Attachments:
     });
 
     it('should handle multiple references', () => {
-      const formatted = `## Referenced Messages
-
-[Reference 1]
-From: Alice (@alice)
-
-Message Text:
-First message content
-
-[Reference 2]
-From: Bob (@bob)
-
-Message Text:
-Second message content`;
+      const formatted = `<contextual_references>
+<quote number="1">
+<content>First message content</content>
+</quote>
+<quote number="2">
+<content>Second message content</content>
+</quote>
+</contextual_references>`;
 
       const result = formatter.extractTextForSearch(formatted);
 
@@ -1257,32 +1220,32 @@ Second message content`;
       expect(result).toBe('');
     });
 
-    it('should handle formatted string with only headers', () => {
-      const formatted = `## Referenced Messages
-
-The user is referencing the following messages:
-
-[Reference 1]
-From: User (@user)
-Location: Guild > #channel
-Time: 2025-11-04 00:00:00 UTC`;
+    it('should handle formatted string with only structural XML', () => {
+      const formatted = `<contextual_references>
+<quote number="1">
+<author display_name="User" username="user"/>
+<location type="guild">
+<server name="Test Guild"/>
+<channel name="general" type="text"/>
+</location>
+<time absolute="Mon, Nov 4, 2025" relative="2 months ago"/>
+</quote>
+</contextual_references>`;
 
       const result = formatter.extractTextForSearch(formatted);
 
-      // Should be empty since there's no actual content
+      // Should be empty since there's no actual text content
       expect(result).toBe('');
     });
 
     it('should preserve multi-line content', () => {
-      const formatted = `## Referenced Messages
-
-[Reference 1]
-From: User (@user)
-
-Message Text:
-Line one
+      const formatted = `<contextual_references>
+<quote number="1">
+<content>Line one
 Line two
-Line three`;
+Line three</content>
+</quote>
+</contextual_references>`;
 
       const result = formatter.extractTextForSearch(formatted);
 

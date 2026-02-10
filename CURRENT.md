@@ -1,66 +1,40 @@
 # Current
 
-> **Session**: 2026-02-08
-> **Version**: v3.0.0-beta.68
-> **Branch**: `refactor/zod-schema-hardening-phase-5` (off develop)
+> **Session**: 2026-02-10
+> **Version**: v3.0.0-beta.70
 
 ---
 
-## Recently Completed
+## Session Goal
 
-### Architecture Health Epic (PRs #593, #594, #596, #597)
+_Fix forwarded message handling — double-escaping, embed data loss, inconsistent format._
 
-- **Dead code purge**: Removed unused files, exports, dependencies via knip
-- **Oversized file splits**: Lowered `max-lines` from 500 → 400 (`skipBlankLines + skipComments`), split all violating files
-- **Circular dependency resolution**: 54 → 25 violations (all 25 remaining are generated Prisma code)
-- **structure.test.ts audit**: Narrowed exclusion patterns, added tests for `memoryList.ts` and `interactionHandlers.ts` coverage gaps
-- **Tooling**: dependency-cruiser (4 rules + baseline), knip, xray AST analysis
+## Active Task
 
-### Suppression Audit Cleanup (PRs #598, #600)
+🐛 `[FIX]` **Fix Forwarded Message Handling in Extended Context**
 
-- Replaced all 33 "pre-existing" suppression justifications with meaningful descriptions
-- Added justifications to ~25 unjustified suppressions
-- Fixed 4 code issues to remove suppressions entirely
-- Split `audit-unified.ts` and refactored `test-summary.ts` for lint compliance
-- Locked depcruise baseline at 25 violations, added suppression standards to rules
-- Extracted `expressRouterUtils.ts` shared test utility, removed 14 identical suppressions
-- CI enforcement: unjustified suppressions now fail the lint job
-- Depcruise trend tracking in CI output
+Plan: `~/.claude/plans/elegant-bubbling-crane.md`
 
-### Code Quality Audit (PR #599)
-
-- Dead code: 9 unused exports removed, knip clean
-- CPD: 4 shared helpers extracted (guest mode validation, global preset handler, BullMQ connection, personality edit access)
-- Oversized files: Split PromptBuilder.ts (534→350+180) and DatabaseSyncService.ts (512→300+210)
-- Contract tests: Closed all 40 gaps (40→0), locked baseline
-
-### Error Handling, Content Recovery & Diagnostics (PR #587)
-
-- DeepSeek R1 crash fix, 400 content recovery, ApiErrorInfo Zod unification
+- [ ] Fix 1: Double-escaping — escape user content BEFORE appending `<contextual_references>`
+- [ ] Fix 2: Persist `embedsXml` — store forwarded embed data in `messageMetadata`
+- [ ] Fix 3: Align forwarded quote format — `type="forward" author="Unknown"` with child elements
+- [ ] Fix 4: Clean up `extractTextForSearch()` — regex-based tag stripping
+- [ ] Fix 5: Unified `ForwardedMessageFormatter` — shared formatter for both code paths
 
 ---
 
-## Active Work
+## Scratchpad
 
-**Zod Schema Hardening** — epic COMPLETE (all 5 phases):
-
-- Phase 1 (PR #601): Consolidated persona + model-override schemas
-- Phase 2 (PR #602): Schema-first types, UUID validation, `sendZodError` helper
-- Phases 3+4 (PR #603): Naming standardization + 12 route conversions
-- Phase 5 (current branch): PR #603 review fixes, personality create/update Zod conversion, transcribe schema + route, `sendZodError` standardization in 4 channel routes
-- **Result**: Zero `req.body as Type` casts remain. All routes use Zod `safeParse`.
+_Empty._
 
 ---
 
-## Session Notes
+## Recent Highlights
 
-**2026-02-08 (late)**: Zod Schema Hardening Phase 5 on `refactor/zod-schema-hardening-phase-5`: PR #603 review fixes (diagnostic.ts null checks, HistoryStatsQuerySchema). Standardized sendZodError in 4 channel/generate routes. Converted personality create/update to Zod safeParse (deleted ~80 lines of manual validation). New TranscribeRequestSchema + 10 tests. Epic complete — zero `req.body as` casts remain.
-**2026-02-08 (night)**: Zod Schema Hardening Phases 3+4 on `refactor/zod-schema-hardening-phase-3-4`: Phase 3 renamed 4 schemas (removed "Body" suffix). Phase 4 created new Zod schemas (admin, memory, wallet, history, timezone — 78 tests), converted 12 route files from `req.body as Type` to `safeParse` + `sendZodError` (-84 lines). Fixed Zod v4 `required_error` → `error`. Fixed pre-existing lint warnings (duplicate strings, cognitive complexity). Ready for PR.
-**2026-02-08 (eve)**: Zod Schema Hardening Phase 2 — schema-first type migration (deleted `types/byok.ts`, exported `z.infer` types from schemas, created `usage.ts` schemas), standardized UUID validation (regex → `.uuid()`), shared `sendZodError` helper (10 route files), updated CURRENT.md + BACKLOG.md. Fixed `PersonalitySummary.ownerId` nullability bug (manual interface said `string`, Zod schema correctly had `string | null`).
-**2026-02-08 (pm)**: Code quality audit on `fix/code-quality-audit-2025-02`: dead code removal (knip), 4 shared helpers extracted (CPD reduction), split PromptBuilder.ts + DatabaseSyncService.ts (oversized files), closed all 40 contract test gaps (40→0), colocated tests for all extracted modules. Updated BACKLOG.md — collapsed completed Architecture Health phases, added suppression audit follow-ups to inbox.
-**2026-02-08**: Suppression audit cleanup (PR #598) — replaced all pre-existing/unjustified suppressions, fixed 4 code issues, split audit-unified.ts, locked depcruise baseline. Architecture Health epic fully complete (Phases 1-4). Pushed follow-up test coverage for `memoryList.ts` (13 tests) and `interactionHandlers.ts` (2 coverage gap tests). Cleaned up BACKLOG.md — removed completed phases, made package extraction a standalone next epic.
-**2026-02-07**: Phase 4 circular deps PR #597 created and merged. Phase 3b PR #596 merged. Phase 3a PR #594 merged.
-**2026-02-06**: Phase 2 + Phase 1 PR #593 merged. Xray PRs merged. Error handling PR #587 merged.
+- **beta.70**: Dep updates, NaN guard on browse embed timestamps, UUID validation on personalityId filter
+- **beta.68**: Zod Schema Hardening epic complete (5 phases, PRs #601–#603+) — zero `req.body as Type` casts remain
+- **beta.67**: Architecture Health epic (PRs #593–#597), suppression audit (#598, #600), code quality audit (#599)
+- **beta.66**: Error handling, content recovery & diagnostics (PR #587)
 
 ---
 

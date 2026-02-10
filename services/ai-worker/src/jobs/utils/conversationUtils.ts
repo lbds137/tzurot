@@ -19,6 +19,7 @@ import {
   formatTimeGapMarker,
   type TimeGapConfig,
 } from '@tzurot/common-types';
+import { formatForwardedQuote } from '../../services/prompt/ForwardedMessageFormatter.js';
 
 // Re-export from extracted modules for backward compatibility
 export { extractParticipants } from './participantUtils.js';
@@ -154,15 +155,21 @@ export function formatSingleHistoryEntryAsXml(
   const voiceSection = formatVoiceSection(msg);
   const reactionsSection = formatReactionsSection(msg);
 
-  // For forwarded messages, wrap content AND attachments in quoted_messages
-  // The person who forwarded the message (from attribute) is NOT the original author
-  // Attachments belong to the forwarded snapshot, not to the forwarder
+  // For forwarded messages, use shared ForwardedMessageFormatter for consistency
+  // with the message link path (ReferencedMessageFormatter)
   let formattedContent: string;
   let messageLevelAttachments: string;
   const forwardedAttachments = `${imageSection}${embedsSection}${voiceSection}`;
   if (msg.isForwarded === true && (safeContent.length > 0 || forwardedAttachments.length > 0)) {
-    // Include attachments inside the quote (they belong to the forwarded content)
-    formattedContent = `<quoted_messages>\n<quote type="forward" author="Unknown">${safeContent}${forwardedAttachments}</quote>\n</quoted_messages>`;
+    // Build ForwardedMessageContent from raw metadata (not pre-formatted helpers)
+    // so the shared formatter produces consistent XML across both code paths
+    const forwardedQuote = formatForwardedQuote({
+      textContent: msg.content,
+      imageDescriptions: msg.messageMetadata?.imageDescriptions,
+      embedsXml: msg.messageMetadata?.embedsXml,
+      voiceTranscripts: msg.messageMetadata?.voiceTranscripts,
+    });
+    formattedContent = `<quoted_messages>\n${forwardedQuote}\n</quoted_messages>`;
     // Attachments already included in quote, don't duplicate at message level
     messageLevelAttachments = '';
   } else {

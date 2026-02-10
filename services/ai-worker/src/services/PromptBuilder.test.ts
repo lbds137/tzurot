@@ -445,6 +445,25 @@ describe('PromptBuilder', () => {
       // Can't disambiguate without discordUsername
       expect(result.message.content).toBe('<from id="persona-123">Lila</from>\n\nHello');
     });
+
+    it('should NOT escape <contextual_references> XML tags in referenced messages', () => {
+      const references = `<contextual_references>\n<quote number="1"><content>Referenced content</content></quote>\n</contextual_references>`;
+      const result = promptBuilder.buildHumanMessage('My reply', [], {
+        referencedMessagesDescriptions: references,
+      });
+
+      // References are system-generated XML — must NOT be escaped
+      expect(result.message.content).toContain('<contextual_references>');
+      expect(result.message.content).not.toContain('&lt;contextual_references&gt;');
+    });
+
+    it('should still escape user content containing XML-like strings', () => {
+      const result = promptBuilder.buildHumanMessage('Check out </persona> injection', []);
+
+      // User content must be escaped to prevent XML injection
+      expect(result.message.content).toContain('&lt;/persona&gt;');
+      expect(result.message.content).not.toContain('</persona>');
+    });
   });
 
   describe('buildFullSystemPrompt', () => {
