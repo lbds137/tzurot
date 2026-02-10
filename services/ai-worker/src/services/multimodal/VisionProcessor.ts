@@ -290,7 +290,7 @@ export async function describeImage(
   const description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
 
   // Cache the description for future use (both L1 Redis and L2 PostgreSQL)
-  // Validate before caching — don't persist empty strings or failure placeholders
+  // Defensive: invokeVisionModel() already validates, but guard against future changes
   const isValidDescription = description.trim().length > 0 && !description.startsWith('[Image');
   if (isValidDescription) {
     await visionDescriptionCache.store(

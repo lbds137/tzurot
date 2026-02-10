@@ -857,9 +857,8 @@ describe('VisionProcessor', () => {
     });
 
     describe('cache validation', () => {
-      it('should not cache empty descriptions', async () => {
+      it('should cache valid short descriptions', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
-        // Return a valid but very short description (won't be caught by empty guard)
         mockModelInvoke.mockResolvedValue({ content: 'Valid.' });
 
         const personality = createMockPersonality({
@@ -869,7 +868,6 @@ describe('VisionProcessor', () => {
 
         await describeImage(mockAttachment, personality);
 
-        // Should still cache valid descriptions
         expect(mockVisionCacheStore).toHaveBeenCalled();
       });
 
