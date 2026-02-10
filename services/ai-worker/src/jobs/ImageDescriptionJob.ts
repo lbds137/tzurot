@@ -11,6 +11,7 @@ import {
   createLogger,
   CONTENT_TYPES,
   RETRY_CONFIG,
+  TIMEOUTS,
   AIProvider,
   type ImageDescriptionJobData,
   type ImageDescriptionResult,
@@ -86,9 +87,13 @@ async function processSingleImage(
 ): Promise<ImageProcessResult> {
   try {
     const result = await withRetry(
-      () => describeImage(attachment, personality, isGuestMode, userApiKey),
+      () =>
+        describeImage(attachment, personality, isGuestMode, userApiKey, {
+          skipNegativeCache: true,
+        }),
       {
         maxAttempts: RETRY_CONFIG.MAX_ATTEMPTS,
+        globalTimeoutMs: TIMEOUTS.VISION_MODEL * RETRY_CONFIG.MAX_ATTEMPTS,
         logger,
         operationName: `Image description (${attachment.name})`,
         shouldRetry: shouldRetryError,
