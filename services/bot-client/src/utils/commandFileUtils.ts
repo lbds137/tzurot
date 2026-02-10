@@ -33,8 +33,11 @@ export function getCommandFiles(dir: string, isRoot = true): string[] {
     const stat = statSync(fullPath);
 
     if (stat.isDirectory()) {
-      // Recurse into subdirectories, marking them as non-root
-      files.push(...getCommandFiles(fullPath, false));
+      // Only recurse one level deep: commands/foo/ but NOT commands/foo/bar/
+      // Nested directories (e.g., admin/debug/) are sub-modules, not command entry points
+      if (isRoot) {
+        files.push(...getCommandFiles(fullPath, false));
+      }
     } else if ((item.endsWith('.ts') || item.endsWith('.js')) && !item.endsWith('.d.ts')) {
       // Only include files that are command entry points:
       // - Root level: any .ts/.js file (e.g., commands/ping.ts)

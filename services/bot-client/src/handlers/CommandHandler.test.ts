@@ -146,15 +146,15 @@ describe('CommandHandler', () => {
       expect(mockReaddir).toHaveBeenCalledTimes(2);
     });
 
-    it('should skip nested subdirectory files (e.g., global/edit.ts)', async () => {
-      // Simulate: commands/preset/global/edit.ts (should be skipped)
+    it('should not recurse into nested subdirectories (e.g., admin/debug/)', async () => {
+      // Simulate: commands/preset/global/ — nested directory should be ignored entirely
       const mockReaddir = vi.mocked(readdirSync);
       const mockStat = vi.mocked(statSync);
 
       mockReaddir
         .mockReturnValueOnce(['preset'] as any) // Root
-        .mockReturnValueOnce(['index.ts', 'global'] as any) // preset/
-        .mockReturnValueOnce(['edit.ts', 'create.ts'] as any); // preset/global/
+        .mockReturnValueOnce(['index.ts', 'global'] as any); // preset/
+      // No third mock — global/ is never scanned (only one level of recursion)
 
       mockStat.mockImplementation((path: any) => {
         const pathStr = String(path);
@@ -166,9 +166,8 @@ describe('CommandHandler', () => {
 
       await handler.loadCommands();
 
-      // Should traverse all directories
-      expect(mockReaddir).toHaveBeenCalledTimes(3);
-      // Files in global/ should be silently skipped (no index.ts there)
+      // Should only traverse root + one level deep (not nested directories)
+      expect(mockReaddir).toHaveBeenCalledTimes(2);
     });
 
     it('should skip .d.ts declaration files', async () => {
