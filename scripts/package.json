@@ -12,12 +12,12 @@
   "dependencies": {
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.2.4",
     "tsx": "^4.21.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/node": "^25.0.10",
+    "@types/node": "^25.2.2",
     "vitest": "^4.0.18"
   }
 }
