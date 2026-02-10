@@ -23,6 +23,7 @@ import {
   formatForwardedQuote,
   type ForwardedMessageContent,
 } from './prompt/ForwardedMessageFormatter.js';
+import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 
 const logger = createLogger('ReferencedMessageFormatter');
 
@@ -86,21 +87,7 @@ export class ReferencedMessageFormatter {
    * @returns Plain text content suitable for LTM search query
    */
   extractTextForSearch(formattedReferences: string): string {
-    // Strip all XML tags, keeping text content between them, and remove any
-    // remaining angle brackets to prevent partial-tag remnants (CodeQL)
-    const withoutTags = formattedReferences.replace(/<[^>]+>/g, '').replace(/[<>]/g, '');
-
-    // Filter out metadata lines and empty lines
-    return withoutTags
-      .split('\n')
-      .map(line => line.trim())
-      .filter(
-        line =>
-          line.length > 0 &&
-          !line.startsWith('Author unavailable') &&
-          line !== 'The user is referencing the following messages:'
-      )
-      .join('\n');
+    return extractXmlTextContent(formattedReferences);
   }
 
   /**

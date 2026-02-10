@@ -1234,7 +1234,7 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = formatter.extractTextForSearch(formatted);
 
-      // Should be empty since there's no actual text content
+      // Proper XML parser extracts no text content from structural-only XML
       expect(result).toBe('');
     });
 
