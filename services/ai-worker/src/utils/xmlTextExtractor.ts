@@ -6,6 +6,9 @@
  */
 
 import { XMLParser } from 'fast-xml-parser';
+import { createLogger } from '@tzurot/common-types';
+
+const logger = createLogger('xmlTextExtractor');
 
 const parser = new XMLParser({
   ignoreAttributes: true,
@@ -46,16 +49,21 @@ export function extractXmlTextContent(xml: string): string {
     return '';
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- fast-xml-parser returns untyped parsed XML
-  const parsed = parser.parse(xml);
-  const values = collectTextValues(parsed);
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment -- fast-xml-parser returns untyped parsed XML
+    const parsed = parser.parse(xml);
+    const values = collectTextValues(parsed);
 
-  return values
-    .filter(
-      line =>
-        line.length > 0 &&
-        !line.startsWith('Author unavailable') &&
-        line !== 'The user is referencing the following messages:'
-    )
-    .join('\n');
+    return values
+      .filter(
+        line =>
+          line.length > 0 &&
+          !line.startsWith('Author unavailable') &&
+          line !== 'The user is referencing the following messages:'
+      )
+      .join('\n');
+  } catch (error) {
+    logger.warn({ err: error, xmlLength: xml.length }, 'Failed to parse XML for text extraction');
+    return '';
+  }
 }

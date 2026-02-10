@@ -259,6 +259,7 @@ describe('ConversationPersistence', () => {
         id: 'discord-msg-fwd-embeds',
         channelId: 'channel-123',
         guildId: 'guild-123',
+        embeds: [{ data: { title: 'Link Preview' } }],
       });
 
       await persistence.saveUserMessage({
@@ -552,6 +553,7 @@ function createMockMessage(options: {
   id: string;
   channelId: string;
   guildId: string | null;
+  embeds?: unknown[];
 }): Message {
   return {
     id: options.id,
@@ -560,5 +562,6 @@ function createMockMessage(options: {
       isThread: () => false,
     },
     guild: options.guildId ? { id: options.guildId } : null,
+    embeds: options.embeds ?? [],
   } as unknown as Message;
 }

@@ -195,7 +195,7 @@ export class ConversationPersistence {
     // Without this, forwarded image-only messages lose embed data when they
     // age out of the Discord API fetch window.
     let embedsXml: string[] | undefined;
-    if (isForwarded) {
+    if (isForwarded && message.embeds.length > 0) {
       const buildResult = await buildMessageContent(message, {
         includeEmbeds: true,
         includeAttachments: false,
