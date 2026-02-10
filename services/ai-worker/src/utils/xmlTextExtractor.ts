@@ -11,7 +11,7 @@ import { createLogger } from '@tzurot/common-types';
 const logger = createLogger('xmlTextExtractor');
 
 const parser = new XMLParser({
-  ignoreAttributes: true,
+  ignoreAttributes: true, // We only need text content for search, not attribute values
   trimValues: true,
 });
 
@@ -54,16 +54,12 @@ export function extractXmlTextContent(xml: string): string {
     const parsed = parser.parse(xml);
     const values = collectTextValues(parsed);
 
-    return values
-      .filter(
-        line =>
-          line.length > 0 &&
-          !line.startsWith('Author unavailable') &&
-          line !== 'The user is referencing the following messages:'
-      )
-      .join('\n');
+    return values.filter(line => line.length > 0).join('\n');
   } catch (error) {
-    logger.warn({ err: error, xmlLength: xml.length }, 'Failed to parse XML for text extraction');
+    logger.warn(
+      { err: error, xmlLength: xml.length, xmlPreview: xml.substring(0, 200) },
+      'Failed to parse XML for text extraction'
+    );
     return '';
   }
 }

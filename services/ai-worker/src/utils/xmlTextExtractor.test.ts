@@ -76,13 +76,6 @@ Line three</content>`;
     expect(result).toContain('5 < 10 & 10 > 5');
   });
 
-  it('should filter out "Author unavailable" lines', () => {
-    const xml = '<root><content>Author unavailable</content><content>Real content</content></root>';
-    const result = extractXmlTextContent(xml);
-    expect(result).not.toContain('Author unavailable');
-    expect(result).toContain('Real content');
-  });
-
   it('should return empty string on malformed XML', () => {
     // fast-xml-parser is lenient, but severely broken input should not throw
     const result = extractXmlTextContent('<<<>>>');
