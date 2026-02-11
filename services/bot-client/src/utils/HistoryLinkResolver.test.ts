@@ -21,7 +21,14 @@ vi.mock('@tzurot/common-types', () => ({
 vi.mock('./MessageContentBuilder.js', () => ({
   buildMessageContent: vi.fn().mockResolvedValue({
     content: 'Mocked resolved content',
-    attachments: [],
+    attachments: [
+      {
+        id: 'att-1',
+        url: 'https://cdn.discord.com/img.png',
+        contentType: 'image/png',
+        name: 'photo.png',
+      },
+    ],
     hasVoiceMessage: false,
     isForwarded: false,
   }),
@@ -176,6 +183,10 @@ describe('HistoryLinkResolver', () => {
       expect(refs).toHaveLength(1);
       expect(refs![0].content).toBe('Mocked resolved content');
       expect(refs![0].authorDisplayName).toBe('TestUser');
+      // Should capture Discord user ID and attachments for downstream hydration
+      expect(refs![0].authorDiscordId).toBe(USER_ID);
+      expect(refs![0].attachments).toHaveLength(1);
+      expect(refs![0].attachments![0].contentType).toBe('image/png');
     });
 
     it('skips links to messages already in context', async () => {

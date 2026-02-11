@@ -44,12 +44,17 @@ export interface ConversationHistoryEntry {
       timestamp: string;
       locationContext: string;
       attachments?: {
+        id?: string;
         url: string;
         contentType: string;
         name?: string;
         size?: number;
       }[];
       isForwarded?: boolean;
+      authorDiscordId?: string;
+      resolvedPersonaId?: string;
+      resolvedPersonaName?: string;
+      resolvedImageDescriptions?: { filename: string; description: string }[];
     }[];
   };
 }

@@ -133,6 +133,18 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
 
+### 🏗️ Eliminate All ESLint Warnings + Harmonize Lint Strictness
+
+26 existing warnings across all packages (18 bot-client, 4 api-gateway, 3 common-types, 1 ai-worker). Mostly `sonarjs/cognitive-complexity` and `sonarjs/no-duplicate-string`.
+
+Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnings pass in CI but fail on commit. Need to harmonize around the stricter rule.
+
+- [ ] Fix all `sonarjs/cognitive-complexity` warnings (extract helpers to reduce nesting)
+- [ ] Fix all `sonarjs/no-duplicate-string` warnings (extract constants)
+- [ ] Fix remaining minor warnings (`no-collapsible-if`, `prefer-immediate-return`, `no-redundant-jump`)
+- [ ] Add `--max-warnings=0` to all package `lint` scripts in `package.json`
+- [ ] Verify CI passes with stricter rule
+
 ### 🧹 Redis Failure Injection Tests
 
 SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
@@ -354,6 +366,17 @@ Browse recent diagnostic logs when no identifier provided. Gateway is already re
 
 Move hardcoded model patterns to database for admin updates without deployment.
 
+#### 🏗️ Graduate Warnings to Errors (CI Strictness Ratchet)
+
+Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint has warnings for complexity/statements that don't block CI. As we hit targets, tighten the ratchet:
+
+- [ ] **depcruise**: 25 known violations are all generated Prisma code (expected, keep suppressed). Switch from warning to blocking in pre-push hook — it's already clean for our code
+- [ ] **CPD**: Currently non-blocking in pre-push. Once under target (<100 clones), add threshold check that blocks push
+- [ ] **ESLint warnings**: `max-statements`, `complexity`, `max-lines-per-function` are warn-level. Audit current violation count, set a baseline, block new violations
+- [ ] **Knip**: Dead code detection runs manually. Add to pre-push or CI as blocking check
+
+Goal: every quality check that currently warns should eventually block, with a clear baseline so new violations are caught immediately.
+
 #### 🧹 Ops CLI Command Migration
 
 Migrate stub commands to proper TypeScript implementations.
@@ -419,9 +442,15 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 ### Code Quality (Quarterly Review)
 
-#### 🧹 CPD Clone Investigation (153 clones, ~2%)
+#### 🧹 CPD Clone Reduction (149 clones, ~1.93%)
 
-Well under 5% CI threshold. High-value extractions done (PR #599). Remaining clones are likely structural similarity (similar schemas/routes), small fragments, and test patterns. Zod schema hardening may naturally reduce some. Revisit quarterly.
+Well under 5% CI threshold. High-value extractions done (PR #599). Remaining clones are mostly structural similarity (personality route CRUD, factory `deepMerge` helpers, dashboard session boilerplate). Categories to investigate:
+
+- Factory files: 5+ clones of `DeepPartial`/`deepMerge` — extract shared helper to common-types
+- Personality routes: duplicate Prisma select objects, permission checks — extract route helpers
+- Dashboard handlers: session/ownership boilerplate — may already have shared utils
+- `dateFormatting.ts`: 4 clones of similar date formatting logic — consolidate
+  Target: reduce to <100 clones or <1.5%. Revisit quarterly.
 
 #### 🧹 Audit Existing Tests for Type Violations
 
