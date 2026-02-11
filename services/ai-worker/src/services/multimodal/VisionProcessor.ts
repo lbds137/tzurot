@@ -46,11 +46,59 @@ const FAILURE_LABELS: Record<string, string> = {
 const VISION_MIN_DESCRIPTION_LENGTH = 10;
 
 /**
+ * Patterns that indicate a vision model returned an error message as text content
+ * rather than an actual image description. These bypass HTTP error handling and
+ * would otherwise be cached as "valid" descriptions, blocking retries permanently.
+ */
+const ERROR_DESCRIPTION_PATTERNS = [
+  'cannot access',
+  'unable to access',
+  'unable to view',
+  'unable to process',
+  'not accessible',
+  'cannot be accessed',
+  'cannot view',
+  'cannot process',
+  'cannot see the image',
+  'cannot see this image',
+  'failed to load',
+  'error loading',
+  'url has expired',
+  'url is expired',
+  'url is invalid',
+  'image is not available',
+  'image is unavailable',
+  'image url',
+  'provided url',
+];
+
+/** Check if a description looks like an error message from the vision model */
+function isLikelyErrorDescription(description: string): boolean {
+  const lower = description.toLowerCase();
+  return ERROR_DESCRIPTION_PATTERNS.some(pattern => lower.includes(pattern));
+}
+
+/**
+ * Validate that a vision description is a genuine image description, not an error message.
+ * Used both when storing new descriptions and when reading cached ones.
+ */
+function isValidVisionDescription(description: string): boolean {
+  const trimmed = description.trim();
+  return (
+    trimmed.length >= VISION_MIN_DESCRIPTION_LENGTH &&
+    !trimmed.startsWith('[Image') &&
+    !isLikelyErrorDescription(trimmed)
+  );
+}
+
+/**
  * Options for describeImage behavior
  */
 export interface DescribeImageOptions {
   /** Skip negative cache check — set to true when called within a retry loop */
   skipNegativeCache?: boolean;
+  /** Skip positive cache check — set to true to force re-processing */
+  skipCache?: boolean;
 }
 
 /**
@@ -263,13 +311,28 @@ export async function describeImage(
 
   // Check cache first to avoid duplicate vision API calls
   const cacheKeyOptions = { attachmentId: attachment.id, url: attachment.url };
-  const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
-  if (cachedDescription !== null) {
-    logger.info(
-      { attachmentName: attachment.name, attachmentId: attachment.id },
-      'Using cached vision description - avoiding duplicate API call'
-    );
-    return cachedDescription;
+  if (options?.skipCache !== true) {
+    const cachedDescription = await visionDescriptionCache.get(cacheKeyOptions);
+    if (cachedDescription !== null) {
+      // Validate cached description quality — some models cache error text
+      // (e.g., "I cannot access the image URL") that looks valid but isn't useful.
+      // Re-processing gives the vision model a chance to succeed with a fresh attempt.
+      if (isValidVisionDescription(cachedDescription)) {
+        logger.info(
+          { attachmentName: attachment.name, attachmentId: attachment.id },
+          'Using cached vision description - avoiding duplicate API call'
+        );
+        return cachedDescription;
+      }
+      logger.warn(
+        {
+          attachmentId: attachment.id,
+          cachedLength: cachedDescription.length,
+          preview: cachedDescription.substring(0, 80),
+        },
+        'Cached vision description appears invalid — re-processing image'
+      );
+    }
   }
 
   // Check negative cache to avoid re-hammering failed images
@@ -290,9 +353,8 @@ export async function describeImage(
   const description = await invokeVisionModel(attachment, usedModel, systemPrompt, userApiKey);
 
   // Cache the description for future use (both L1 Redis and L2 PostgreSQL)
-  // Defensive: invokeVisionModel() already validates, but guard against future changes
-  const isValidDescription = description.trim().length > 0 && !description.startsWith('[Image');
-  if (isValidDescription) {
+  // Uses shared validation to prevent error-like descriptions from polluting the cache
+  if (isValidVisionDescription(description)) {
     await visionDescriptionCache.store(
       { attachmentId: attachment.id, url: attachment.url, model: usedModel },
       description

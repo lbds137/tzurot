@@ -857,9 +857,9 @@ describe('VisionProcessor', () => {
     });
 
     describe('cache validation', () => {
-      it('should cache valid short descriptions', async () => {
+      it('should cache descriptions meeting minimum length', async () => {
         mockCheckModelVisionSupport.mockResolvedValue(true);
-        mockModelInvoke.mockResolvedValue({ content: 'Valid.' });
+        mockModelInvoke.mockResolvedValue({ content: 'A cat on a mat.' });
 
         const personality = createMockPersonality({
           model: 'gpt-4o',
@@ -869,6 +869,21 @@ describe('VisionProcessor', () => {
         await describeImage(mockAttachment, personality);
 
         expect(mockVisionCacheStore).toHaveBeenCalled();
+      });
+
+      it('should not cache descriptions below minimum length', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({ content: 'A cat.' });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+        expect(result).toBe('A cat.');
+        // Short description returned but NOT cached
+        expect(mockVisionCacheStore).not.toHaveBeenCalled();
       });
 
       it('should not cache descriptions starting with [Image', async () => {
@@ -891,6 +906,163 @@ describe('VisionProcessor', () => {
           expect.objectContaining({ attachmentId: mockAttachment.id }),
           'A detailed description of the image showing a landscape.'
         );
+      });
+
+      it('should not cache error-like descriptions from vision model', async () => {
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({
+          content: 'I cannot access the image at the provided URL.',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+        expect(result).toBe('I cannot access the image at the provided URL.');
+        // Error-like description returned but NOT cached
+        expect(mockVisionCacheStore).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('cached description quality validation', () => {
+      it('should reject cached error-like descriptions and re-process', async () => {
+        mockVisionCacheGet.mockResolvedValue(
+          'I cannot access the image at the provided URL because it has expired.'
+        );
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+        mockModelInvoke.mockResolvedValue({
+          content: 'A landscape photo showing mountains and a lake.',
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        // Should have ignored the cached error and called the vision API
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+        expect(result).toBe('A landscape photo showing mountains and a lake.');
+      });
+
+      it('should reject cached descriptions with URL error patterns', async () => {
+        mockVisionCacheGet.mockResolvedValue('The image URL is invalid or has expired.');
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        // Should have re-processed despite cache hit
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('should reject very short cached descriptions', async () => {
+        mockVisionCacheGet.mockResolvedValue('N/A');
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        await describeImage(mockAttachment, personality);
+
+        // Should have re-processed despite cache hit
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+      });
+
+      it('should accept valid cached descriptions', async () => {
+        mockVisionCacheGet.mockResolvedValue(
+          'A photograph of a sunset over the ocean with vibrant orange and pink clouds.'
+        );
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality);
+
+        expect(result).toBe(
+          'A photograph of a sunset over the ocean with vibrant orange and pink clouds.'
+        );
+        // Should NOT call the vision API
+        expect(mockModelInvoke).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('skipCache option', () => {
+      it('should bypass positive cache when skipCache is true', async () => {
+        mockVisionCacheGet.mockResolvedValue('Previously cached description that is long enough');
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality, false, undefined, {
+          skipCache: true,
+        });
+
+        // Should NOT check positive cache
+        expect(mockVisionCacheGet).not.toHaveBeenCalled();
+        // Should call vision API directly
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+        expect(result).toBe('Mocked image description');
+      });
+
+      it('should still check negative cache when only skipCache is true', async () => {
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'rate_limit',
+          permanent: false,
+        });
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality, false, undefined, {
+          skipCache: true,
+        });
+
+        // Should check negative cache (skipNegativeCache not set)
+        expect(mockVisionCacheGetFailure).toHaveBeenCalled();
+        expect(result).toBe('[Image temporarily unavailable]');
+      });
+
+      it('should bypass both caches when both skip options are true', async () => {
+        mockVisionCacheGet.mockResolvedValue('Previously cached valid description');
+        mockVisionCacheGetFailure.mockResolvedValue({
+          category: 'rate_limit',
+          permanent: false,
+        });
+        mockCheckModelVisionSupport.mockResolvedValue(true);
+
+        const personality = createMockPersonality({
+          model: 'gpt-4o',
+          visionModel: undefined,
+        });
+
+        const result = await describeImage(mockAttachment, personality, false, undefined, {
+          skipCache: true,
+          skipNegativeCache: true,
+        });
+
+        // Should bypass both caches
+        expect(mockVisionCacheGet).not.toHaveBeenCalled();
+        expect(mockVisionCacheGetFailure).not.toHaveBeenCalled();
+        // Should call vision API directly
+        expect(mockModelInvoke).toHaveBeenCalledTimes(1);
+        expect(result).toBe('Mocked image description');
       });
     });
   });
