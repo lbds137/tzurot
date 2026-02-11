@@ -237,7 +237,7 @@ export class DiscordChannelFetcher {
       if (!isUserContentMessage(msg)) {
         continue;
       }
-      if (!hasMessageContent(msg)) {
+      if (!hasMessageContent(msg) && resolvedReferences?.has(msg.id) !== true) {
         continue;
       }
       if (isBotTranscriptReply(msg, options.botUserId)) {
@@ -352,8 +352,14 @@ export class DiscordChannelFetcher {
     const hasAttachments = attachments.length > 0;
     const hasVoiceTranscripts = voiceTranscripts !== undefined && voiceTranscripts.length > 0;
     const hasEmbeds = embedsXml !== undefined && embedsXml.length > 0;
+    const hasLinkedRefs = resolvedReferences?.has(msg.id) === true;
     const hasProcessableContent =
-      hasTextContent || hasAttachments || hasVoiceTranscripts || hasEmbeds || isForwarded;
+      hasTextContent ||
+      hasAttachments ||
+      hasVoiceTranscripts ||
+      hasEmbeds ||
+      isForwarded ||
+      hasLinkedRefs;
 
     if (!hasProcessableContent) {
       return null;

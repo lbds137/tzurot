@@ -386,6 +386,12 @@ function injectResolvedLinks(
     // Clean up extra spaces from stripped URLs (preserve intentional newlines)
     newContent = newContent.replace(/ {2,}/g, ' ').trim();
 
+    // If content is now empty, the user shared only a link — use placeholder
+    // so the message isn't filtered out by hasMessageContent()
+    if (newContent.length === 0) {
+      newContent = '[shared a message]';
+    }
+
     // Update the message content
     if (newContent !== msg.content) {
       Object.defineProperty(msg, 'content', {
