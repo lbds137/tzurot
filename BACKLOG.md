@@ -1,7 +1,7 @@
 # Backlog
 
 > **Last Updated**: 2026-02-10
-> **Version**: v3.0.0-beta.70
+> **Version**: v3.0.0-beta.71
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -12,18 +12,6 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 ## 🚨 Production Issues
 
 _Active bugs observed in production. Fix before new features._
-
-### 🐛 Forwarded Message Handling Broken in Extended Context — IN PROGRESS
-
-**Observed**: Ongoing — causes visible broken output for users.
-
-Three related bugs cause forwarded messages to break in extended context and prompt assembly:
-
-1. **Double-escaping**: `PromptBuilder.buildHumanMessage()` applies `escapeXmlContent()` AFTER appending `<contextual_references>` — the XML wrapper tags get escaped to `&lt;contextual_references&gt;`
-2. **Embed data loss**: `ConversationPersistence.saveUserMessage()` never stores `embedsXml`. Forwarded image-only messages work via message link (live processing) but show empty in chat history (DB has no embed data)
-3. **Inconsistent quote format**: `ReferencedMessageFormatter` (message links) and `conversationUtils.ts` (chat history) produce different XML for forwarded messages — DRY violation
-
-**Plan**: `~/.claude/plans/elegant-bubbling-crane.md` (5 fixes, ~10 files)
 
 ### 🐛 Free Model Error Handling (GLM/Z-AI) — PARTIALLY FIXED
 
@@ -110,18 +98,9 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-### 🐛 Fix Forwarded Message Handling in Extended Context — DONE (PR pending)
+### 🏗️ Vision Pipeline Robustness Audit — DONE (PR #617)
 
-All 5 fixes implemented. PR `fix/forwarded-message-handling`.
-
-### 🏗️ Vision Pipeline Robustness Audit
-
-Vision (image description) uses a completely different code path from regular LLM text generation. Investigate architectural differences and unify where possible. Both are LLM calls under the hood.
-
-- [ ] Compare vision pipeline (`MultimodalProcessor.describeImage`) vs regular text pipeline (`ModelFactory`)
-- [ ] Audit: retry logic, error handling, model selection, caching
-- [ ] Identify why vision feels "flaky" compared to text generation
-- [ ] Propose fixes: unified error handling, better retries, or pipeline consolidation
+Fixed critical bug: negative cache defeating retries. Added response validation (empty/censored guards), cache validation, global timeout budget. Extracted `selectVisionModel()` and `checkNegativeCache()` helpers.
 
 ---
 
@@ -478,15 +457,15 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 _Decided not to do yet._
 
-| Item                              | Why                                                                                 |
-| --------------------------------- | ----------------------------------------------------------------------------------- |
-| Schema versioning for BullMQ jobs | No breaking changes yet                                                             |
-| Contract tests for HTTP API       | Single consumer, integration tests sufficient                                       |
-| Redis pipelining                  | Fast enough at current traffic                                                      |
-| BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                          |
-| Handler factory generator         | Add when creating many new routes                                                   |
-| Scaling preparation (timers)      | Single-instance sufficient for now                                                  |
-| Vision failure JIT repair         | Negative cache prevents re-hammering; manual clear or TTL expiry sufficient for now |
+| Item                              | Why                                                                                         |
+| --------------------------------- | ------------------------------------------------------------------------------------------- |
+| Schema versioning for BullMQ jobs | No breaking changes yet                                                                     |
+| Contract tests for HTTP API       | Single consumer, integration tests sufficient                                               |
+| Redis pipelining                  | Fast enough at current traffic                                                              |
+| BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                                  |
+| Handler factory generator         | Add when creating many new routes                                                           |
+| Scaling preparation (timers)      | Single-instance sufficient for now                                                          |
+| Vision failure JIT repair         | Negative cache now skipped during retries (PR #617); TTL expiry handles cross-request dedup |
 
 ---
 
