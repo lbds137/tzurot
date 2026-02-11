@@ -391,6 +391,37 @@ describe('HistoryLinkResolver', () => {
       expect(result.failedCount).toBe(1);
     });
 
+    it('replaces empty content with placeholder when message is only a link', async () => {
+      const linkedMessage = createMockMessage({
+        id: LINKED_MSG_ID,
+        content: 'Linked content',
+      });
+
+      const messages = [
+        createMockMessage({
+          id: 'msg-1',
+          // Message is ONLY a Discord link — no surrounding text
+          content: `https://discord.com/channels/${DEFAULT_GUILD_ID}/${DEFAULT_CHANNEL_ID}/${LINKED_MSG_ID}`,
+        }),
+      ];
+
+      const client = createMockClient({
+        messages: new Map([[LINKED_MSG_ID, linkedMessage]]),
+      });
+
+      const result = await resolveHistoryLinks(messages, {
+        client,
+        budget: 100,
+      });
+
+      expect(result.resolvedCount).toBe(1);
+      // Content should be the placeholder, not empty
+      expect(result.messages[0].content).toBe('[shared a message]');
+      // Structured reference should still be created
+      const refs = result.resolvedReferences.get('msg-1');
+      expect(refs).toHaveLength(1);
+    });
+
     it('handles PTB and Canary Discord URLs', async () => {
       const linkedMessage = createMockMessage({
         id: LINKED_MSG_ID,
