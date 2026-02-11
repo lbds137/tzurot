@@ -1,25 +1,17 @@
 # Current
 
 > **Session**: 2026-02-10
-> **Version**: v3.0.0-beta.70
+> **Version**: v3.0.0-beta.71
 
 ---
 
 ## Session Goal
 
-_Fix forwarded message handling — double-escaping, embed data loss, inconsistent format._
+_Vision pipeline robustness fixes + release prep._
 
 ## Active Task
 
-🐛 `[FIX]` **Fix Forwarded Message Handling in Extended Context**
-
-Plan: `~/.claude/plans/elegant-bubbling-crane.md`
-
-- [ ] Fix 1: Double-escaping — escape user content BEFORE appending `<contextual_references>`
-- [ ] Fix 2: Persist `embedsXml` — store forwarded embed data in `messageMetadata`
-- [ ] Fix 3: Align forwarded quote format — `type="forward" author="Unknown"` with child elements
-- [ ] Fix 4: Clean up `extractTextForSearch()` — regex-based tag stripping
-- [ ] Fix 5: Unified `ForwardedMessageFormatter` — shared formatter for both code paths
+Ready for release — 7 commits on develop ahead of main.
 
 ---
 
@@ -29,12 +21,17 @@ _Empty._
 
 ---
 
+## Completed This Session
+
+- [x] 🐛 **Vision pipeline robustness** (PR #617) — fixed negative cache defeating retry logic, added response validation (empty/censored guards), cache validation, global timeout budget
+- [x] Addressed PR review feedback — renamed misleading test, added defensive comment
+
 ## Recent Highlights
 
+- **beta.71 (pending)**: Vision pipeline robustness fix (PR #617), forwarded message handling fix (PR #616)
 - **beta.70**: Dep updates, NaN guard on browse embed timestamps, UUID validation on personalityId filter
 - **beta.68**: Zod Schema Hardening epic complete (5 phases, PRs #601–#603+) — zero `req.body as Type` casts remain
 - **beta.67**: Architecture Health epic (PRs #593–#597), suppression audit (#598, #600), code quality audit (#599)
-- **beta.66**: Error handling, content recovery & diagnostics (PR #587)
 
 ---
 
