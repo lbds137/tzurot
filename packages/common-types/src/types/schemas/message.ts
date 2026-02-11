@@ -72,6 +72,14 @@ export const storedReferencedMessageSchema = z.object({
   locationContext: z.string(),
   attachments: z.array(attachmentMetadataSchema).optional(),
   isForwarded: z.boolean().optional(),
+  // Persistent — set by bot-client when resolving links
+  authorDiscordId: z.string().optional(),
+  // Ephemeral — set by hydration in ai-worker before prompt formatting
+  resolvedPersonaId: z.string().optional(),
+  resolvedPersonaName: z.string().optional(),
+  resolvedImageDescriptions: z
+    .array(z.object({ filename: z.string(), description: z.string() }))
+    .optional(),
 });
 
 /**

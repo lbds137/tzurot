@@ -24,6 +24,8 @@ export interface QuoteElementOptions {
   type?: 'forward';
   /** Author display name */
   from?: string;
+  /** Author persona ID (UUID) */
+  fromId?: string;
   /** Author username */
   username?: string;
   /** Speaker role */
@@ -68,6 +70,7 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     ['number', opts.number],
     ['type', opts.type],
     ['from', opts.from],
+    ['from_id', opts.fromId],
     ['username', opts.username],
     ['role', opts.role],
     ['t', opts.timeFormatted],

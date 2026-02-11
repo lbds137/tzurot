@@ -32,10 +32,9 @@ import { ContentBudgetManager } from './ContentBudgetManager.js';
 import {
   buildAttachmentDescriptions,
   generateStopSequences,
-  buildImageDescriptionMap,
-  injectImageDescriptions,
+  enrichConversationHistory,
 } from './RAGUtils.js';
-import { redisService } from '../redis.js';
+import { redisService, visionDescriptionCache } from '../redis.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
@@ -369,12 +368,13 @@ export class ConversationalRAGService {
         });
       }
 
-      // Step 1.5: Inject image descriptions into history for inline display
-      // This replaces the separate <recent_channel_images> section with inline descriptions
-      const imageDescriptionMap = buildImageDescriptionMap(
-        context.preprocessedExtendedContextAttachments
+      // Step 1.5: Enrich history with inline image descriptions + hydrated stored references
+      await enrichConversationHistory(
+        context.rawConversationHistory,
+        context.preprocessedExtendedContextAttachments,
+        getPrismaClient(),
+        visionDescriptionCache
       );
-      injectImageDescriptions(context.rawConversationHistory, imageDescriptionMap);
 
       // Step 2: Load personas and resolve user references
       const { participantPersonas, processedPersonality } =
@@ -393,8 +393,8 @@ export class ConversationalRAGService {
         );
 
       // Step 4: Allocate token budgets and select content
-      // Note: Image descriptions are now injected inline into history entries
-      // (via injectImageDescriptions above) rather than passed separately
+      // Note: Image descriptions and stored reference hydration are handled by
+      // enrichConversationHistory (Step 1.5) — history is already enriched here
       const budgetResult = this.contentBudgetManager.allocate({
         personality,
         processedPersonality,

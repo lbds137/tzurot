@@ -68,6 +68,12 @@ vi.mock('../redis.js', () => ({
   redisService: {
     isIncognitoActive: vi.fn().mockResolvedValue(false),
   },
+  visionDescriptionCache: {
+    get: vi.fn().mockResolvedValue(null),
+  },
+}));
+vi.mock('./storedReferenceHydrator.js', () => ({
+  hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
 }));
 
 // Import mock accessors and fixtures (after vi.mock declarations)

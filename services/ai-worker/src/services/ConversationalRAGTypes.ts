@@ -86,8 +86,12 @@ export interface ConversationContext {
         embeds?: string;
         timestamp: string;
         locationContext: string;
-        attachments?: { url: string; contentType: string; name?: string }[];
+        attachments?: { id?: string; url: string; contentType: string; name?: string }[];
         isForwarded?: boolean;
+        authorDiscordId?: string;
+        resolvedPersonaId?: string;
+        resolvedPersonaName?: string;
+        resolvedImageDescriptions?: { filename: string; description: string }[];
       }[];
       imageDescriptions?: { filename: string; description: string }[];
       /** Embed XML strings for extended context messages */
