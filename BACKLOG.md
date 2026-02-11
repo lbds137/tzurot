@@ -98,7 +98,9 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-_(Empty — pull from Quick Wins or select next epic.)_
+1. 🏗️ **Eliminate All ESLint Warnings + Harmonize Lint Strictness** — see Quick Wins below
+2. 🧹 **Redis Failure Injection Tests** — see Quick Wins below
+3. 🏗️ **Package Extraction** — promote from Next Epic once 1+2 are done
 
 ---
 
