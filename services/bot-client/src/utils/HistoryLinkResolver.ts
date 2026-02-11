@@ -19,7 +19,7 @@
 
 import type { Message, Client } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
-import type { StoredReferencedMessage } from '@tzurot/common-types';
+import type { StoredReferencedMessage, AttachmentMetadata } from '@tzurot/common-types';
 import { MessageLinkParser, type ParsedMessageLink } from './MessageLinkParser.js';
 import { buildMessageContent } from './MessageContentBuilder.js';
 
@@ -75,6 +75,10 @@ interface ResolvedLink {
   authorUsername: string;
   /** ISO 8601 timestamp of the resolved message */
   timestamp: string;
+  /** Discord user ID of the resolved message author (for persona resolution) */
+  authorDiscordId: string;
+  /** Attachments from the resolved message (for vision cache lookup) */
+  attachments: AttachmentMetadata[];
 }
 
 /**
@@ -242,6 +246,8 @@ async function resolveLinksWithConcurrency(
               messageId: resolved.messageId,
               authorUsername: resolved.authorUsername,
               timestamp: resolved.timestamp,
+              authorDiscordId: resolved.authorDiscordId,
+              attachments: resolved.attachments,
             };
           }
         } catch (error) {
@@ -277,6 +283,8 @@ async function fetchAndFormatMessage(
   messageId: string;
   authorUsername: string;
   timestamp: string;
+  authorDiscordId: string;
+  attachments: AttachmentMetadata[];
 } | null> {
   try {
     // Try to get guild from cache first
@@ -307,9 +315,11 @@ async function fetchAndFormatMessage(
     const message = await Promise.race([fetchPromise, timeoutPromise]);
 
     // Build content using shared utility
-    const { content } = await buildMessageContent(message, {
+    // includeAttachments: false — attachments are stored separately in structured metadata
+    // for downstream vision cache lookup instead of being inlined as [Attachments: ...] text
+    const { content, attachments } = await buildMessageContent(message, {
       includeEmbeds: true,
-      includeAttachments: true,
+      includeAttachments: false,
     });
 
     const author =
@@ -324,6 +334,8 @@ async function fetchAndFormatMessage(
       messageId: message.id,
       authorUsername: message.author.username ?? 'unknown',
       timestamp: message.createdAt.toISOString(),
+      authorDiscordId: message.author.id,
+      attachments,
     };
   } catch (error) {
     logger.debug(
@@ -332,6 +344,22 @@ async function fetchAndFormatMessage(
     );
     return null;
   }
+}
+
+/** Build a StoredReferencedMessage from a resolved link */
+function buildStoredReference(resolved: ResolvedLink): StoredReferencedMessage {
+  const truncatedContent =
+    resolved.content.length <= 500 ? resolved.content : resolved.content.substring(0, 497) + '...';
+  return {
+    discordMessageId: resolved.messageId,
+    authorUsername: resolved.authorUsername,
+    authorDisplayName: resolved.author,
+    content: truncatedContent,
+    timestamp: resolved.timestamp,
+    locationContext: '',
+    authorDiscordId: resolved.authorDiscordId,
+    attachments: resolved.attachments.length > 0 ? resolved.attachments : undefined,
+  };
 }
 
 /**
@@ -344,13 +372,11 @@ function injectResolvedLinks(
 ): { messages: Message[]; resolvedReferences: Map<string, StoredReferencedMessage[]> } {
   const resolvedReferences = new Map<string, StoredReferencedMessage[]>();
 
-  // Build map of URL -> resolved content
   const urlToResolved = new Map<string, ResolvedLink>();
   for (const resolved of resolvedLinks) {
     urlToResolved.set(resolved.url, resolved);
   }
 
-  // Process each message
   for (const msg of messages) {
     const links = MessageLinkParser.parseMessageLinks(msg.content);
     if (links.length === 0) {
@@ -362,37 +388,23 @@ function injectResolvedLinks(
     for (const link of links) {
       const resolved = urlToResolved.get(link.fullUrl);
       if (resolved !== undefined) {
-        // Strip the URL from content (replace with single space to avoid joining words)
         newContent = newContent.replace(link.fullUrl, ' ');
-
-        // Build structured reference
-        const truncatedContent = truncateContent(resolved.content, 500);
-        const ref: StoredReferencedMessage = {
-          discordMessageId: resolved.messageId,
-          authorUsername: resolved.authorUsername,
-          authorDisplayName: resolved.author,
-          content: truncatedContent,
-          timestamp: resolved.timestamp,
-          locationContext: '',
-        };
-
-        // Group by source message ID
+        const ref = buildStoredReference(resolved);
         const existing = resolvedReferences.get(msg.id) ?? [];
         existing.push(ref);
         resolvedReferences.set(msg.id, existing);
       }
     }
 
-    // Clean up extra spaces from stripped URLs (preserve intentional newlines)
+    // Clean up extra spaces from stripped URLs
     newContent = newContent.replace(/ {2,}/g, ' ').trim();
 
-    // If content is now empty, the user shared only a link — use placeholder
-    // so the message isn't filtered out by hasMessageContent()
+    // Empty content means the user shared only a link — use placeholder
     if (newContent.length === 0) {
       newContent = '[shared a message]';
     }
 
-    // Update the message content
+    // Mutate in-place — safe because these are fetched snapshots, not cached
     if (newContent !== msg.content) {
       Object.defineProperty(msg, 'content', {
         value: newContent,
@@ -403,14 +415,4 @@ function injectResolvedLinks(
   }
 
   return { messages, resolvedReferences };
-}
-
-/**
- * Truncate content to a maximum length
- */
-function truncateContent(content: string, maxLength: number): string {
-  if (content.length <= maxLength) {
-    return content;
-  }
-  return content.substring(0, maxLength - 3) + '...';
 }

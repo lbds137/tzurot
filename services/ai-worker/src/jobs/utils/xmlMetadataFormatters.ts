@@ -54,7 +54,8 @@ function formatStoredReferencedMessage(
   personalityName: string,
   allPersonalityNames?: Set<string>
 ): string {
-  const authorName = ref.authorDisplayName || ref.authorUsername;
+  // Use hydrated persona name if available, fall back to original Discord display name
+  const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
   const role = isAuthorAssistant(authorName, personalityName, allPersonalityNames)
     ? 'assistant'
     : 'user';
@@ -72,9 +73,17 @@ function formatStoredReferencedMessage(
     locationContext = ref.locationContext;
   }
 
+  // If hydrated image descriptions exist, only show non-image attachments in attachmentLines
+  const imageDescs = ref.resolvedImageDescriptions;
+  const hasImageDescs = imageDescs !== undefined && imageDescs.length > 0;
+  const attachmentsForLines = hasImageDescs
+    ? ref.attachments?.filter(att => !att.contentType.startsWith('image/'))
+    : ref.attachments;
+
   return formatQuoteElement({
     type: ref.isForwarded === true ? 'forward' : undefined,
     from: authorName,
+    fromId: ref.resolvedPersonaId,
     role,
     timeFormatted:
       ref.timestamp !== undefined && ref.timestamp.length > 0
@@ -83,9 +92,10 @@ function formatStoredReferencedMessage(
     content: ref.content,
     locationContext,
     embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
+    imageDescriptions: imageDescs,
     attachmentLines:
-      ref.attachments !== undefined && ref.attachments.length > 0
-        ? ref.attachments.map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
+      attachmentsForLines !== undefined && attachmentsForLines.length > 0
+        ? attachmentsForLines.map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
         : undefined,
   });
 }

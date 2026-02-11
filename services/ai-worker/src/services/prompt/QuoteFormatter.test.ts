@@ -40,6 +40,32 @@ describe('QuoteFormatter', () => {
       expect(result).toContain('role="assistant"');
     });
 
+    it('should include from_id attribute', () => {
+      const result = formatQuoteElement({
+        from: 'Lila',
+        fromId: 'persona-uuid-123',
+        content: 'Hello',
+      });
+
+      expect(result).toContain('from="Lila"');
+      expect(result).toContain('from_id="persona-uuid-123"');
+    });
+
+    it('should order from_id between from and username', () => {
+      const result = formatQuoteElement({
+        from: 'Lila',
+        fromId: 'p-uuid',
+        username: 'lila123',
+        content: 'Test',
+      });
+
+      const fromPos = result.indexOf('from="Lila"');
+      const fromIdPos = result.indexOf('from_id="p-uuid"');
+      const usernamePos = result.indexOf('username="lila123"');
+      expect(fromIdPos).toBeGreaterThan(fromPos);
+      expect(usernamePos).toBeGreaterThan(fromIdPos);
+    });
+
     it('should include t attribute for pre-formatted time', () => {
       const result = formatQuoteElement({
         from: 'User',

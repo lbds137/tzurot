@@ -6,9 +6,11 @@
  */
 
 import { createLogger, AttachmentType, AI_DEFAULTS } from '@tzurot/common-types';
+import type { PrismaClient, VisionDescriptionCache } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGTypes.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
+import { hydrateStoredReferences } from './storedReferenceHydrator.js';
 
 const logger = createLogger('RAGUtils');
 
@@ -362,4 +364,27 @@ export function extractRecentHistoryWindow(
   );
 
   return formatted;
+}
+
+/**
+ * Enrich conversation history with inline image descriptions and hydrated stored references.
+ *
+ * Combines two mutation passes on rawConversationHistory:
+ * 1. Inject image descriptions from extended context vision processing
+ * 2. Hydrate stored references with resolved persona names and vision cache lookups
+ *
+ * @param rawHistory Raw conversation history (mutated in-place)
+ * @param extendedContextAttachments Preprocessed extended context image attachments
+ * @param prisma Prisma client for persona batch resolution
+ * @param visionCache Vision description cache for image lookups
+ */
+export async function enrichConversationHistory(
+  rawHistory: RawHistoryEntry[] | undefined,
+  extendedContextAttachments: ProcessedAttachment[] | undefined,
+  prisma: PrismaClient,
+  visionCache: VisionDescriptionCache
+): Promise<void> {
+  const imageDescriptionMap = buildImageDescriptionMap(extendedContextAttachments);
+  injectImageDescriptions(rawHistory, imageDescriptionMap);
+  await hydrateStoredReferences(rawHistory, prisma, visionCache);
 }
