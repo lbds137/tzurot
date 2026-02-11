@@ -33,11 +33,13 @@ import {
   buildAttachmentDescriptions,
   generateStopSequences,
   enrichConversationHistory,
+  countMediaAttachments,
 } from './RAGUtils.js';
 import { redisService, visionDescriptionCache } from '../redis.js';
 import { ResponsePostProcessor } from './ResponsePostProcessor.js';
 import { ConversationInputProcessor } from './ConversationInputProcessor.js';
 import { MemoryPersistenceService } from './MemoryPersistenceService.js';
+import { processAttachments } from './MultimodalProcessor.js';
 import {
   parseResponseMetadata,
   recordLlmConfigDiagnostic,
@@ -110,11 +112,7 @@ export class ConversationalRAGService {
       logger.debug(`[RAG] No participant personas found in conversation history`);
     }
 
-    // Resolve user references across all personality text fields
-    // This handles shapes.inc format mentions in systemPrompt, characterInfo,
-    // conversationalExamples, and other character definition fields
-    // Note: Don't pass activePersonaId here - personality.id is a personality UUID, not a persona UUID.
-    // Personalities are templates not tied to a specific persona, so self-reference detection doesn't apply.
+    // Resolve user references across all personality text fields (shapes.inc format mentions)
     const { resolvedPersonality: processedPersonality, resolvedPersonas } =
       await this.userReferenceResolver.resolvePersonalityReferences(personality);
 
@@ -177,20 +175,14 @@ export class ConversationalRAGService {
     // Build messages array
     const messages: BaseMessage[] = [systemPrompt, currentMessage];
 
-    // Get model with all LLM sampling parameters
-    // Apply retry config overrides if present (for duplicate detection retries)
-    const effectiveTemperature = retryConfig?.temperatureOverride ?? personality.temperature;
-    const effectiveFrequencyPenalty =
-      retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty;
-
+    // Get model with all LLM sampling parameters (retry config overrides for duplicate detection)
     const { model, modelName } = this.llmInvoker.getModel({
       modelName: personality.model,
       apiKey: userApiKey,
-      // Basic sampling
-      temperature: effectiveTemperature,
+      temperature: retryConfig?.temperatureOverride ?? personality.temperature,
       topP: personality.topP,
       topK: personality.topK,
-      frequencyPenalty: effectiveFrequencyPenalty,
+      frequencyPenalty: retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
       presencePenalty: personality.presencePenalty,
       repetitionPenalty: personality.repetitionPenalty,
       maxTokens: personality.maxTokens,
@@ -212,14 +204,7 @@ export class ConversationalRAGService {
     });
 
     // Calculate attachment counts for timeout
-    const imageCount =
-      context.attachments?.filter(
-        att => att.contentType.startsWith('image/') && att.isVoiceMessage !== true
-      ).length ?? 0;
-    const audioCount =
-      context.attachments?.filter(
-        att => att.contentType.startsWith('audio/') || att.isVoiceMessage === true
-      ).length ?? 0;
+    const { imageCount, audioCount } = countMediaAttachments(context.attachments);
 
     // Generate stop sequences
     const stopSequences = generateStopSequences(personality.name, participantPersonas);
@@ -235,8 +220,9 @@ export class ConversationalRAGService {
         collector: diagnosticCollector,
         modelName,
         personality,
-        effectiveTemperature,
-        effectiveFrequencyPenalty,
+        effectiveTemperature: retryConfig?.temperatureOverride ?? personality.temperature,
+        effectiveFrequencyPenalty:
+          retryConfig?.frequencyPenaltyOverride ?? personality.frequencyPenalty,
         stopSequences,
       });
       diagnosticCollector.markLlmInvocationStart();
@@ -346,7 +332,6 @@ export class ConversationalRAGService {
 
     try {
       // Step 1: Process inputs (attachments, messages, search query)
-      // Pass userApiKey for BYOK support in fallback vision processing
       const inputs = await this.inputProcessor.processInputs(
         personality,
         message,
@@ -373,7 +358,8 @@ export class ConversationalRAGService {
         context.rawConversationHistory,
         context.preprocessedExtendedContextAttachments,
         getPrismaClient(),
-        visionDescriptionCache
+        visionDescriptionCache,
+        atts => processAttachments(atts, personality, isGuestMode, userApiKey)
       );
 
       // Step 2: Load personas and resolve user references
