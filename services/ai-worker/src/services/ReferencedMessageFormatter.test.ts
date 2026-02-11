@@ -202,9 +202,8 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
       expect(result).toContain('</quote>');
-      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
       // Location is now pre-formatted XML from bot-client (DRY with current message context)
       expect(result).toContain('<location type="guild">');
       expect(result).toContain('<server name="Test Guild"/>');
@@ -233,7 +232,9 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       expect(result).toContain('<content>Check this out</content>');
-      expect(result).toContain('<embeds>Title: Cool Embed\nDescription: Embed content</embeds>');
+      expect(result).toContain('<embeds>');
+      expect(result).toContain('Title: Cool Embed');
+      expect(result).toContain('Embed content');
     });
 
     it('should handle message with no content', async () => {
@@ -254,8 +255,7 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1">');
-      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
+      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
       // Empty content should not generate <content> tag
       expect(result).not.toContain('<content>');
     });
@@ -289,12 +289,10 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1">');
-      expect(result).toContain('<author display_name="User One" username="user1"/>');
+      expect(result).toContain('<quote number="1" from="User One" username="user1">');
       expect(result).toContain('First message');
 
-      expect(result).toContain('<quote number="2">');
-      expect(result).toContain('<author display_name="User Two" username="user2"/>');
+      expect(result).toContain('<quote number="2" from="User Two" username="user2">');
       expect(result).toContain('Second message');
     });
   });
@@ -654,7 +652,7 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
       expect(result).toContain('Just text');
       expect(result).not.toContain('<attachments>');
     });
@@ -677,7 +675,7 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
       expect(result).toContain('Just text');
       expect(result).not.toContain('<attachments>');
     });
@@ -700,10 +698,9 @@ describe('ReferencedMessageFormatter', () => {
 
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
-      // Forwarded messages use shared ForwardedMessageFormatter format
-      expect(result).toContain('<quote type="forward" author="Unknown">');
+      // Forwarded messages use shared QuoteFormatter format
+      expect(result).toContain('<quote type="forward" from="Unknown">');
       expect(result).not.toContain('forwarded="true"');
-      expect(result).not.toContain('<author unavailable="true">');
       expect(result).toContain('<content>This is a forwarded message</content>');
     });
 
@@ -727,10 +724,9 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       // Should NOT have forwarded attribute
-      expect(result).toContain('<quote number="1">');
+      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
       expect(result).not.toContain('forwarded="true"');
-      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
-      expect(result).not.toContain('unavailable="true"');
+      expect(result).not.toContain('type="forward"');
     });
 
     it('should handle mixed forwarded and regular references', async () => {
@@ -764,11 +760,10 @@ describe('ReferencedMessageFormatter', () => {
       const result = await formatter.formatReferencedMessages(references, mockPersonality);
 
       // First reference - regular
-      expect(result).toContain('<quote number="1">');
-      expect(result).toContain('<author display_name="Test User" username="testuser"/>');
+      expect(result).toContain('<quote number="1" from="Test User" username="testuser">');
 
-      // Second reference - forwarded (uses shared ForwardedMessageFormatter format)
-      expect(result).toContain('<quote type="forward" author="Unknown">');
+      // Second reference - forwarded (uses shared QuoteFormatter format)
+      expect(result).toContain('<quote type="forward" from="Unknown">');
       expect(result).toContain('<content>Forwarded message</content>');
     });
   });

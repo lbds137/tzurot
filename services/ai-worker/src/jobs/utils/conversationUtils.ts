@@ -19,7 +19,7 @@ import {
   formatTimeGapMarker,
   type TimeGapConfig,
 } from '@tzurot/common-types';
-import { formatForwardedQuote } from '../../services/prompt/ForwardedMessageFormatter.js';
+import { formatForwardedQuote } from '../../services/prompt/QuoteFormatter.js';
 
 // Re-export from extracted modules for backward compatibility
 export { extractParticipants } from './participantUtils.js';
@@ -155,7 +155,7 @@ export function formatSingleHistoryEntryAsXml(
   const voiceSection = formatVoiceSection(msg);
   const reactionsSection = formatReactionsSection(msg);
 
-  // For forwarded messages, use shared ForwardedMessageFormatter for consistency
+  // For forwarded messages, use shared QuoteFormatter for consistency
   // with the message link path (ReferencedMessageFormatter)
   let formattedContent: string;
   let messageLevelAttachments: string;
