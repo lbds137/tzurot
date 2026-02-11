@@ -996,6 +996,32 @@ describe('VisionProcessor', () => {
         // Should NOT call the vision API
         expect(mockModelInvoke).not.toHaveBeenCalled();
       });
+
+      it('should accept legitimate descriptions containing words from error patterns', async () => {
+        // These descriptions contain words like "access", "view", "process", "load"
+        // that appear in error patterns, but in legitimate descriptive context
+        const legitimateDescriptions = [
+          'A secure facility with restricted access, showing a guard checkpoint and metal gates.',
+          'A scenic mountain view from the summit, with clouds below the treeline.',
+          'A food processing plant with conveyor belts and workers in white uniforms.',
+          'A webpage loading screen showing a progress bar at 75 percent completion.',
+        ];
+
+        for (const description of legitimateDescriptions) {
+          mockVisionCacheGet.mockResolvedValue(description);
+          mockModelInvoke.mockClear();
+
+          const personality = createMockPersonality({
+            model: 'gpt-4o',
+            visionModel: undefined,
+          });
+
+          const result = await describeImage(mockAttachment, personality);
+
+          expect(result).toBe(description);
+          expect(mockModelInvoke).not.toHaveBeenCalled();
+        }
+      });
     });
 
     describe('skipCache option', () => {
