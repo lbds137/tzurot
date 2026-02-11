@@ -2,17 +2,24 @@
  * Tests for RAG Utility Functions
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AttachmentType } from '@tzurot/common-types';
+import type { AttachmentMetadata, StoredReferencedMessage } from '@tzurot/common-types';
 import {
   buildAttachmentDescriptions,
   extractContentDescriptions,
   generateStopSequences,
   injectImageDescriptions,
+  countMediaAttachments,
+  enrichConversationHistory,
   type RawHistoryEntry,
 } from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGTypes.js';
+
+vi.mock('./storedReferenceHydrator.js', () => ({
+  hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
+}));
 
 // Factory for ProcessedAttachment with required metadata fields
 function createAttachment(
@@ -553,6 +560,271 @@ describe('RAGUtils', () => {
       injectImageDescriptions(history, imageMap);
 
       expect(history[0].messageMetadata).toBeUndefined();
+    });
+  });
+
+  describe('countMediaAttachments', () => {
+    it('should return zero counts for undefined attachments', () => {
+      const { imageCount, audioCount } = countMediaAttachments(undefined);
+      expect(imageCount).toBe(0);
+      expect(audioCount).toBe(0);
+    });
+
+    it('should return zero counts for empty array', () => {
+      const { imageCount, audioCount } = countMediaAttachments([]);
+      expect(imageCount).toBe(0);
+      expect(audioCount).toBe(0);
+    });
+
+    it('should count image attachments', () => {
+      const attachments: AttachmentMetadata[] = [
+        { url: 'u1', contentType: 'image/jpeg' },
+        { url: 'u2', contentType: 'image/png' },
+        { url: 'u3', contentType: 'text/plain' },
+      ];
+      const { imageCount, audioCount } = countMediaAttachments(attachments);
+      expect(imageCount).toBe(2);
+      expect(audioCount).toBe(0);
+    });
+
+    it('should count audio attachments', () => {
+      const attachments: AttachmentMetadata[] = [
+        { url: 'u1', contentType: 'audio/mpeg' },
+        { url: 'u2', contentType: 'audio/ogg' },
+      ];
+      const { imageCount, audioCount } = countMediaAttachments(attachments);
+      expect(imageCount).toBe(0);
+      expect(audioCount).toBe(2);
+    });
+
+    it('should exclude voice messages from image count', () => {
+      const attachments: AttachmentMetadata[] = [
+        { url: 'u1', contentType: 'image/jpeg', isVoiceMessage: true },
+        { url: 'u2', contentType: 'image/png', isVoiceMessage: false },
+        { url: 'u3', contentType: 'image/gif' }, // undefined isVoiceMessage = counted as image
+      ];
+      const { imageCount, audioCount } = countMediaAttachments(attachments);
+      expect(imageCount).toBe(2);
+      expect(audioCount).toBe(1); // voice message counted as audio
+    });
+
+    it('should count voice messages as audio', () => {
+      const attachments: AttachmentMetadata[] = [
+        { url: 'u1', contentType: 'audio/ogg', isVoiceMessage: true },
+        { url: 'u2', contentType: 'image/jpeg', isVoiceMessage: true },
+      ];
+      const { imageCount, audioCount } = countMediaAttachments(attachments);
+      expect(imageCount).toBe(0);
+      expect(audioCount).toBe(2);
+    });
+  });
+
+  describe('enrichConversationHistory', () => {
+    const mockPrisma = {} as Parameters<typeof enrichConversationHistory>[2];
+    const mockVisionCache = {} as Parameters<typeof enrichConversationHistory>[3];
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('should call processImagesFn with linked-message image attachments', async () => {
+      const processImagesFn = vi.fn().mockResolvedValue(undefined);
+      const ref: StoredReferencedMessage = {
+        discordMessageId: 'ref-1',
+        authorUsername: 'user1',
+        authorDisplayName: 'User One',
+        content: 'hello',
+        timestamp: '2026-01-01T00:00:00Z',
+        locationContext: '',
+        attachments: [
+          { id: 'img-1', url: 'https://cdn.example.com/img1.jpg', contentType: 'image/jpeg' },
+        ],
+      };
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'test',
+          messageMetadata: { referencedMessages: [ref] },
+        },
+      ];
+
+      await enrichConversationHistory(
+        history,
+        undefined,
+        mockPrisma,
+        mockVisionCache,
+        processImagesFn
+      );
+
+      expect(processImagesFn).toHaveBeenCalledOnce();
+      expect(processImagesFn).toHaveBeenCalledWith([
+        { id: 'img-1', url: 'https://cdn.example.com/img1.jpg', contentType: 'image/jpeg' },
+      ]);
+    });
+
+    it('should not call processImagesFn when no linked images exist', async () => {
+      const processImagesFn = vi.fn().mockResolvedValue(undefined);
+      const history: RawHistoryEntry[] = [{ role: 'user', content: 'test' }];
+
+      await enrichConversationHistory(
+        history,
+        undefined,
+        mockPrisma,
+        mockVisionCache,
+        processImagesFn
+      );
+
+      expect(processImagesFn).not.toHaveBeenCalled();
+    });
+
+    it('should skip non-image attachments in linked messages', async () => {
+      const processImagesFn = vi.fn().mockResolvedValue(undefined);
+      const ref: StoredReferencedMessage = {
+        discordMessageId: 'ref-1',
+        authorUsername: 'user1',
+        authorDisplayName: 'User One',
+        content: 'hello',
+        timestamp: '2026-01-01T00:00:00Z',
+        locationContext: '',
+        attachments: [
+          { id: 'img-1', url: 'url1', contentType: 'image/jpeg' },
+          { id: 'aud-1', url: 'url2', contentType: 'audio/mpeg' },
+          { id: 'txt-1', url: 'url3', contentType: 'text/plain' },
+        ],
+      };
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'test',
+          messageMetadata: { referencedMessages: [ref] },
+        },
+      ];
+
+      await enrichConversationHistory(
+        history,
+        undefined,
+        mockPrisma,
+        mockVisionCache,
+        processImagesFn
+      );
+
+      expect(processImagesFn).toHaveBeenCalledWith([
+        { id: 'img-1', url: 'url1', contentType: 'image/jpeg' },
+      ]);
+    });
+
+    it('should deduplicate linked images by ID', async () => {
+      const processImagesFn = vi.fn().mockResolvedValue(undefined);
+      const sameImage = { id: 'img-1', url: 'url1', contentType: 'image/jpeg' };
+      const ref1: StoredReferencedMessage = {
+        discordMessageId: 'ref-1',
+        authorUsername: 'user1',
+        authorDisplayName: 'User One',
+        content: 'msg1',
+        timestamp: '2026-01-01T00:00:00Z',
+        locationContext: '',
+        attachments: [sameImage],
+      };
+      const ref2: StoredReferencedMessage = {
+        discordMessageId: 'ref-2',
+        authorUsername: 'user2',
+        authorDisplayName: 'User Two',
+        content: 'msg2',
+        timestamp: '2026-01-01T00:01:00Z',
+        locationContext: '',
+        attachments: [sameImage],
+      };
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'test1',
+          messageMetadata: { referencedMessages: [ref1] },
+        },
+        {
+          role: 'user',
+          content: 'test2',
+          messageMetadata: { referencedMessages: [ref2] },
+        },
+      ];
+
+      await enrichConversationHistory(
+        history,
+        undefined,
+        mockPrisma,
+        mockVisionCache,
+        processImagesFn
+      );
+
+      expect(processImagesFn).toHaveBeenCalledWith([sameImage]);
+    });
+
+    it('should deduplicate by URL when ID is missing', async () => {
+      const processImagesFn = vi.fn().mockResolvedValue(undefined);
+      const ref: StoredReferencedMessage = {
+        discordMessageId: 'ref-1',
+        authorUsername: 'user1',
+        authorDisplayName: 'User One',
+        content: 'msg',
+        timestamp: '2026-01-01T00:00:00Z',
+        locationContext: '',
+        attachments: [
+          { url: 'https://cdn.example.com/img.jpg', contentType: 'image/png' },
+          { url: 'https://cdn.example.com/img.jpg', contentType: 'image/png' },
+        ],
+      };
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'test',
+          messageMetadata: { referencedMessages: [ref] },
+        },
+      ];
+
+      await enrichConversationHistory(
+        history,
+        undefined,
+        mockPrisma,
+        mockVisionCache,
+        processImagesFn
+      );
+
+      expect(processImagesFn).toHaveBeenCalledWith([
+        { url: 'https://cdn.example.com/img.jpg', contentType: 'image/png' },
+      ]);
+    });
+
+    it('should gracefully handle processImagesFn failure', async () => {
+      const processImagesFn = vi.fn().mockRejectedValue(new Error('Vision API down'));
+      const ref: StoredReferencedMessage = {
+        discordMessageId: 'ref-1',
+        authorUsername: 'user1',
+        authorDisplayName: 'User One',
+        content: 'msg',
+        timestamp: '2026-01-01T00:00:00Z',
+        locationContext: '',
+        attachments: [{ id: 'img-1', url: 'url1', contentType: 'image/jpeg' }],
+      };
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: 'test',
+          messageMetadata: { referencedMessages: [ref] },
+        },
+      ];
+
+      // Should not throw — graceful degradation
+      await expect(
+        enrichConversationHistory(history, undefined, mockPrisma, mockVisionCache, processImagesFn)
+      ).resolves.toBeUndefined();
+    });
+
+    it('should work without processImagesFn (backward compatibility)', async () => {
+      const history: RawHistoryEntry[] = [{ role: 'user', content: 'test' }];
+
+      // Should not throw when processImagesFn is omitted
+      await expect(
+        enrichConversationHistory(history, undefined, mockPrisma, mockVisionCache)
+      ).resolves.toBeUndefined();
     });
   });
 });

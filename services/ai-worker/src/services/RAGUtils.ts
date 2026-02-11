@@ -6,7 +6,12 @@
  */
 
 import { createLogger, AttachmentType, AI_DEFAULTS } from '@tzurot/common-types';
-import type { PrismaClient, VisionDescriptionCache } from '@tzurot/common-types';
+import type {
+  PrismaClient,
+  VisionDescriptionCache,
+  AttachmentMetadata,
+  StoredReferencedMessage,
+} from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import type { ParticipantInfo } from './ConversationalRAGTypes.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
@@ -244,6 +249,7 @@ export interface RawHistoryEntry {
   content: string;
   tokenCount?: number;
   messageMetadata?: {
+    referencedMessages?: StoredReferencedMessage[];
     imageDescriptions?: InlineImageDescription[];
     [key: string]: unknown;
   };
@@ -366,25 +372,105 @@ export function extractRecentHistoryWindow(
   return formatted;
 }
 
+/** Count image and audio attachments for timeout calculation */
+export function countMediaAttachments(attachments?: AttachmentMetadata[]): {
+  imageCount: number;
+  audioCount: number;
+} {
+  return {
+    imageCount:
+      attachments?.filter(a => a.contentType.startsWith('image/') && a.isVoiceMessage !== true)
+        .length ?? 0,
+    audioCount:
+      attachments?.filter(a => a.contentType.startsWith('audio/') || a.isVoiceMessage === true)
+        .length ?? 0,
+  };
+}
+
+/**
+ * Collect deduplicated image attachments from stored references in conversation history.
+ * Used to warm the vision cache before hydration runs.
+ */
+function collectLinkedImageAttachments(
+  rawHistory: RawHistoryEntry[] | undefined
+): AttachmentMetadata[] {
+  if (rawHistory === undefined) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+  return rawHistory.flatMap(entry => {
+    const refs = entry.messageMetadata?.referencedMessages ?? [];
+    return refs.flatMap(ref => collectImageAttachmentsFromRef(ref, seen));
+  });
+}
+
+/** Extract image attachments from a single stored reference, deduplicating by ID/URL */
+function collectImageAttachmentsFromRef(
+  ref: StoredReferencedMessage,
+  seen: Set<string>
+): AttachmentMetadata[] {
+  if (ref.attachments === undefined || ref.attachments.length === 0) {
+    return [];
+  }
+
+  const result: AttachmentMetadata[] = [];
+  for (const att of ref.attachments) {
+    if (!att.contentType.startsWith('image/')) {
+      continue;
+    }
+    const key = att.id ?? att.url;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    result.push(att);
+  }
+  return result;
+}
+
 /**
  * Enrich conversation history with inline image descriptions and hydrated stored references.
  *
- * Combines two mutation passes on rawConversationHistory:
+ * Pipeline:
  * 1. Inject image descriptions from extended context vision processing
- * 2. Hydrate stored references with resolved persona names and vision cache lookups
+ * 2. Warm vision cache for linked-message images (so hydrator finds them)
+ * 3. Hydrate stored references with resolved persona names and vision cache lookups
  *
  * @param rawHistory Raw conversation history (mutated in-place)
  * @param extendedContextAttachments Preprocessed extended context image attachments
  * @param prisma Prisma client for persona batch resolution
  * @param visionCache Vision description cache for image lookups
+ * @param processImagesFn Optional callback to process images through the vision pipeline
  */
 export async function enrichConversationHistory(
   rawHistory: RawHistoryEntry[] | undefined,
   extendedContextAttachments: ProcessedAttachment[] | undefined,
   prisma: PrismaClient,
-  visionCache: VisionDescriptionCache
+  visionCache: VisionDescriptionCache,
+  processImagesFn?: (attachments: AttachmentMetadata[]) => Promise<unknown>
 ): Promise<void> {
   const imageDescriptionMap = buildImageDescriptionMap(extendedContextAttachments);
   injectImageDescriptions(rawHistory, imageDescriptionMap);
+
+  // Warm vision cache for linked-message images before hydration
+  if (processImagesFn !== undefined) {
+    const linkedImages = collectLinkedImageAttachments(rawHistory);
+    if (linkedImages.length > 0) {
+      try {
+        await processImagesFn(linkedImages);
+        logger.info(
+          { imageCount: linkedImages.length },
+          '[RAG] Warmed vision cache for linked-message images'
+        );
+      } catch (error) {
+        logger.warn(
+          { err: error, imageCount: linkedImages.length },
+          '[RAG] Failed to warm vision cache for linked-message images — hydrator will use cache lookups only'
+        );
+      }
+    }
+  }
+
   await hydrateStoredReferences(rawHistory, prisma, visionCache);
 }
