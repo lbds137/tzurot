@@ -90,7 +90,9 @@ export function formatQuoteElement(opts: QuoteElementOptions): string {
     }
   }
 
-  // Simple child sections
+  // Simple child sections — content is escaped; locationContext, embedsXml, and
+  // attachmentLines are pre-formatted XML from trusted internal sources (bot-client
+  // formatters, ReferencedMessageFormatter). Do NOT pass raw user input to those fields.
   addNonEmpty(parts, opts.content, c => `<content>${escapeXmlContent(c)}</content>`);
   addNonEmpty(parts, opts.locationContext, loc => loc);
   addArraySection(parts, opts.imageDescriptions, 'image_descriptions', imgs =>

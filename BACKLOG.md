@@ -98,9 +98,7 @@ _New items go here. Triage to appropriate section weekly._
 
 _This week's active work. Max 3 items._
 
-### 🏗️ Vision Pipeline Robustness Audit — DONE (PR #617)
-
-Fixed critical bug: negative cache defeating retries. Added response validation (empty/censored guards), cache validation, global timeout budget. Extracted `selectVisionModel()` and `checkNegativeCache()` helpers.
+_(Empty — pull from Quick Wins or select next epic.)_
 
 ---
 
@@ -135,7 +133,7 @@ Support custom Discord emoji and stickers in vision context.
 
 ### 🏗️ Eliminate All ESLint Warnings + Harmonize Lint Strictness
 
-26 existing warnings across all packages (18 bot-client, 4 api-gateway, 3 common-types, 1 ai-worker). Mostly `sonarjs/cognitive-complexity` and `sonarjs/no-duplicate-string`.
+25 existing warnings across all packages (18 bot-client, 4 api-gateway, 3 common-types, 0 ai-worker). Mostly `sonarjs/cognitive-complexity` and `sonarjs/no-duplicate-string`. One ai-worker warning fixed in PR #621 (`invokeModelAndClean` complexity).
 
 Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnings pass in CI but fail on commit. Need to harmonize around the stricter rule.
 
