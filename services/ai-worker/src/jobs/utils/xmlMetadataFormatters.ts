@@ -12,6 +12,7 @@ import {
   formatPromptTimestamp,
   type StoredReferencedMessage,
 } from '@tzurot/common-types';
+import { formatQuoteElement } from '../../services/prompt/QuoteFormatter.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
 /**
@@ -38,10 +39,10 @@ function isAuthorAssistant(
 }
 
 /**
- * Format a single stored reference as XML
+ * Format a single stored reference as a <quote> element.
  *
- * Uses the same <message> structure as regular messages for consistency.
- * Adds quoted="true" attribute to distinguish from regular messages.
+ * Uses the shared formatQuoteElement() for consistent XML structure across
+ * all quote formatting paths (real-time refs, history refs, forwarded messages).
  *
  * @param ref - The stored referenced message
  * @param personalityName - Name of the active AI personality (to infer role)
@@ -54,49 +55,39 @@ function formatStoredReferencedMessage(
   allPersonalityNames?: Set<string>
 ): string {
   const authorName = ref.authorDisplayName || ref.authorUsername;
-  const safeAuthor = escapeXml(authorName);
-  const safeContent = escapeXmlContent(ref.content);
   const role = isAuthorAssistant(authorName, personalityName, allPersonalityNames)
     ? 'assistant'
     : 'user';
 
-  // Format timestamp with unified format
-  const timeAttr =
-    ref.timestamp !== undefined && ref.timestamp.length > 0
-      ? ` t="${escapeXml(formatPromptTimestamp(ref.timestamp))}"`
-      : '';
-
-  // Forwarded messages have limited author info
-  const forwardedAttr = ref.isForwarded === true ? ' forwarded="true"' : '';
-
-  // Format embeds if present
-  let embedsSection = '';
-  if (ref.embeds !== undefined && ref.embeds.length > 0) {
-    embedsSection = `\n<embeds>${escapeXmlContent(ref.embeds)}</embeds>`;
-  }
-
-  // Format attachments if present (just metadata - descriptions were processed at the time)
-  let attachmentsSection = '';
-  if (ref.attachments !== undefined && ref.attachments.length > 0) {
-    const attachmentItems = ref.attachments
-      .map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
-      .join(', ');
-    attachmentsSection = `\n<attachments>${escapeXmlContent(attachmentItems)}</attachments>`;
-  }
-
   // Format location if present (should be XML formatted by bot-client using shared formatLocationAsXml)
   // Skip legacy Markdown format (from old stored data) - detectable by "**Server**" or
   // "This conversation is taking place" patterns that predate XML formatting
-  const locationSection =
+  let locationContext: string | undefined;
+  if (
     ref.locationContext !== undefined &&
     ref.locationContext.length > 0 &&
     !ref.locationContext.includes('**Server**') &&
     !ref.locationContext.includes('This conversation is taking place')
-      ? `\n${ref.locationContext}`
-      : '';
+  ) {
+    locationContext = ref.locationContext;
+  }
 
-  // Use same <message> structure as regular messages, with quoted="true" attribute
-  return `<message from="${safeAuthor}" role="${role}"${timeAttr}${forwardedAttr} quoted="true">${safeContent}${embedsSection}${attachmentsSection}${locationSection}</message>`;
+  return formatQuoteElement({
+    type: ref.isForwarded === true ? 'forward' : undefined,
+    from: authorName,
+    role,
+    timeFormatted:
+      ref.timestamp !== undefined && ref.timestamp.length > 0
+        ? formatPromptTimestamp(ref.timestamp)
+        : undefined,
+    content: ref.content,
+    locationContext,
+    embedsXml: ref.embeds !== undefined && ref.embeds.length > 0 ? [ref.embeds] : undefined,
+    attachmentLines:
+      ref.attachments !== undefined && ref.attachments.length > 0
+        ? ref.attachments.map(att => `[${att.contentType}: ${att.name ?? 'attachment'}]`)
+        : undefined,
+  });
 }
 
 /** Format quoted messages section for XML output */
