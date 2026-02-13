@@ -8,11 +8,14 @@
 import {
   createLogger,
   LLM_CONFIG_OVERRIDE_KEYS,
+  HARDCODED_CONFIG_DEFAULTS,
   type LoadedPersonality,
+  type ConfigOverrideSource,
 } from '@tzurot/common-types';
 import type {
   LlmConfigResolver,
   ResolvedLlmConfig,
+  ResolvedConfigOverrides,
   ConfigCascadeResolver,
 } from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
@@ -40,6 +43,18 @@ function mergeConfigWithPersonality(
   }
 
   return result;
+}
+
+/** Build a ResolvedConfigOverrides with all hardcoded defaults */
+function buildDefaultOverrides(): ResolvedConfigOverrides {
+  const fields = Object.keys(
+    HARDCODED_CONFIG_DEFAULTS
+  ) as (keyof typeof HARDCODED_CONFIG_DEFAULTS)[];
+  const sources = {} as Record<keyof typeof HARDCODED_CONFIG_DEFAULTS, ConfigOverrideSource>;
+  for (const field of fields) {
+    sources[field] = 'hardcoded';
+  }
+  return { ...HARDCODED_CONFIG_DEFAULTS, sources };
 }
 
 export class ConfigStep implements IPipelineStep {
@@ -91,7 +106,9 @@ export class ConfigStep implements IPipelineStep {
     }
 
     // Resolve config cascade overrides (if resolver available)
-    let configOverrides = context.configOverrides;
+    // Default to hardcoded values so downstream code always has a valid object
+    let configOverrides: ResolvedConfigOverrides =
+      context.configOverrides ?? buildDefaultOverrides();
     if (this.cascadeResolver) {
       try {
         configOverrides = await this.cascadeResolver.resolveOverrides(
@@ -101,7 +118,7 @@ export class ConfigStep implements IPipelineStep {
       } catch (error) {
         logger.warn(
           { err: error, userId: jobContext.userId },
-          '[ConfigStep] Failed to resolve config cascade, continuing without overrides'
+          '[ConfigStep] Failed to resolve config cascade, using hardcoded defaults'
         );
       }
     }

@@ -187,6 +187,19 @@ describe('ConfigCascadeResolver', () => {
       expect(result.sources.maxMessages).toBe('hardcoded');
     });
 
+    it('should reject entire JSONB when valid fields mixed with unknown fields (strict mode)', async () => {
+      // .strict() rejects the whole object, not just the unknown fields
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75, unknownField: 'bad' },
+      });
+
+      const result = await resolver.resolveOverrides('user-123', 'personality-456');
+
+      // Entire admin tier rejected — falls back to hardcoded
+      expect(result.maxMessages).toBe(HARDCODED_CONFIG_DEFAULTS.maxMessages);
+      expect(result.sources.maxMessages).toBe('hardcoded');
+    });
+
     it('should handle anonymous user (no userId)', async () => {
       mockPrisma.adminSettings.findUnique.mockResolvedValue({
         configDefaults: { maxMessages: 75 },
