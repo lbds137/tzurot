@@ -55,6 +55,7 @@ import type {
   LlmConfigCacheInvalidationService,
   CacheInvalidationService,
 } from '@tzurot/common-types';
+import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createTimezoneRoutes } from './timezone.js';
 import { createUsageRoutes } from './usage.js';
 import { createPersonalityRoutes } from './personality/index.js';
@@ -73,12 +74,14 @@ import { createConversationLookupRoutes } from './conversationLookup.js';
  * @param llmConfigCacheInvalidation - Optional cache invalidation service for LLM configs
  * @param cacheInvalidationService - Optional cache invalidation service for personality changes
  * @param redis - Optional Redis client for incognito mode session management
+ * @param modelCache - Optional model cache for validating model IDs on preset create/update
  */
 export function createUserRouter(
   prisma: PrismaClient,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
   cacheInvalidationService?: CacheInvalidationService,
-  redis?: Redis
+  redis?: Redis,
+  modelCache?: OpenRouterModelCache
 ): Router {
   const router = Router();
 
@@ -92,7 +95,7 @@ export function createUserRouter(
   router.use('/personality', createPersonalityRoutes(prisma, cacheInvalidationService));
 
   // LLM config routes (with cache invalidation for user config changes)
-  router.use('/llm-config', createLlmConfigRoutes(prisma, llmConfigCacheInvalidation));
+  router.use('/llm-config', createLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache));
 
   // Model override routes (with cache invalidation for default config changes)
   router.use('/model-override', createModelOverrideRoutes(prisma, llmConfigCacheInvalidation));

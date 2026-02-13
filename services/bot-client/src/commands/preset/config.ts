@@ -27,7 +27,6 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     isGlobal: data.isGlobal,
     isOwned: data.isOwned,
     canEdit: data.permissions.canEdit,
-    maxReferencedMessages: String(data.maxReferencedMessages),
     // Sampling params
     temperature: data.params.temperature?.toString() ?? '',
     top_p: data.params.top_p?.toString() ?? '',
@@ -56,6 +55,9 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     memoryScoreThreshold:
       data.memoryScoreThreshold !== null ? String(data.memoryScoreThreshold) : '',
     memoryLimit: data.memoryLimit !== null ? String(data.memoryLimit) : '',
+    // Model context info (display-only, not editable)
+    modelContextLength: data.modelContextLength,
+    contextWindowCap: data.contextWindowCap,
   };
 }
 
@@ -221,11 +223,6 @@ export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<
   addStringField(result, 'provider', flat.provider);
   addStringField(result, 'model', flat.model);
   addStringField(result, 'visionModel', flat.visionModel, true);
-
-  const maxReferencedMessages = parseOptionalInt(flat.maxReferencedMessages);
-  if (maxReferencedMessages !== undefined) {
-    result.maxReferencedMessages = maxReferencedMessages;
-  }
 
   // Context settings
   parseContextSettings(flat, result);

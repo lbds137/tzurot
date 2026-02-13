@@ -53,8 +53,6 @@ export const AI_DEFAULTS = {
   MEMORY_SCORE_THRESHOLD: 0.5,
   /** Default number of memories to retrieve */
   MEMORY_LIMIT: 20,
-  /** Default number of recent messages to include as context */
-  MAX_REFERENCED_MESSAGES: 100,
   /**
    * Maximum fraction of context window to allocate for memories
    *

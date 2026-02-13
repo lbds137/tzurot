@@ -364,6 +364,45 @@ describe('OpenRouterModelCache', () => {
     });
   });
 
+  describe('getModelById', () => {
+    beforeEach(() => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockResolvedValue(JSON.stringify(sampleModels));
+    });
+
+    it('should return autocomplete option for existing model', async () => {
+      const result = await cache.getModelById('anthropic/claude-sonnet-4');
+
+      expect(result).not.toBeNull();
+      expect(result?.id).toBe('anthropic/claude-sonnet-4');
+      expect(result?.contextLength).toBe(200000);
+      expect(result?.name).toBe('Anthropic: Claude Sonnet 4');
+    });
+
+    it('should return null for non-existent model', async () => {
+      const result = await cache.getModelById('nonexistent/model');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return null when cache is unavailable', async () => {
+      (mockRedis.get as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('Redis down'));
+      // Also need fetch to fail since getModels falls through to API
+      (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('API error'));
+
+      const result = await cache.getModelById('anthropic/claude-sonnet-4');
+
+      expect(result).toBeNull();
+    });
+
+    it('should return vision model data with correct flags', async () => {
+      const result = await cache.getModelById('openai/gpt-4o');
+
+      expect(result).not.toBeNull();
+      expect(result?.supportsVision).toBe(true);
+      expect(result?.contextLength).toBe(128000);
+    });
+  });
+
   describe('refreshCache', () => {
     it('should clear Redis cache and refetch', async () => {
       (mockRedis.get as ReturnType<typeof vi.fn>)

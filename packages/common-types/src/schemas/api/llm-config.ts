@@ -90,7 +90,6 @@ export const LlmConfigCreateSchema = z.object({
   visionModel: z.string().max(200).optional().nullable(),
 
   // AI behavior settings
-  maxReferencedMessages: z.number().int().positive().optional(),
   advancedParameters: AdvancedParamsSchema.optional(),
 
   // Memory settings (previously missing from admin endpoints)
@@ -123,7 +122,6 @@ export const LlmConfigUpdateSchema = z.object({
   visionModel: nullableString(200),
 
   // AI behavior settings
-  maxReferencedMessages: z.number().int().positive().optional(),
   advancedParameters: AdvancedParamsSchema.optional(),
 
   // Memory settings
@@ -168,7 +166,6 @@ export const LLM_CONFIG_LIST_SELECT = {
 export const LLM_CONFIG_DETAIL_SELECT = {
   ...LLM_CONFIG_LIST_SELECT,
   advancedParameters: true,
-  maxReferencedMessages: true,
   // Memory settings
   memoryScoreThreshold: true,
   memoryLimit: true,
@@ -189,7 +186,6 @@ export const LLM_CONFIG_DETAIL_SELECT = {
  */
 export const LLM_CONFIG_DEFAULTS = {
   provider: 'openrouter',
-  maxReferencedMessages: AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
   memoryScoreThreshold: AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
   memoryLimit: AI_DEFAULTS.MEMORY_LIMIT,
   contextWindowTokens: AI_DEFAULTS.CONTEXT_WINDOW_TOKENS,
