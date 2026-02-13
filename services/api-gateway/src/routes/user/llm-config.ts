@@ -17,6 +17,7 @@ import {
   createLogger,
   UserService,
   LlmConfigResolver,
+  ConfigCascadeResolver,
   isBotOwner,
   type PrismaClient,
   type LlmConfigSummary,
@@ -377,8 +378,9 @@ const resolveConfigBodySchema = z.object({
  * before building conversation context.
  */
 function createResolveHandler(prisma: PrismaClient) {
-  // Create resolver with cleanup disabled (short-lived request handler)
+  // Create resolvers with cleanup disabled (short-lived request handler)
   const resolver = new LlmConfigResolver(prisma, { enableCleanup: false });
+  const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -391,14 +393,17 @@ function createResolveHandler(prisma: PrismaClient) {
     const { personalityId, personalityConfig } = parseResult.data as ResolveConfigBody;
 
     try {
-      const result = await resolver.resolveConfig(discordUserId, personalityId, personalityConfig);
+      const [result, overrides] = await Promise.all([
+        resolver.resolveConfig(discordUserId, personalityId, personalityConfig),
+        cascadeResolver.resolveOverrides(discordUserId, personalityId),
+      ]);
 
       logger.debug(
         { discordUserId, personalityId, source: result.source },
         '[LlmConfig] Config resolved'
       );
 
-      sendCustomSuccess(res, result, StatusCodes.OK);
+      sendCustomSuccess(res, { ...result, overrides }, StatusCodes.OK);
     } catch (error) {
       logger.error(
         { err: error, discordUserId, personalityId },

@@ -7,6 +7,31 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { Request, Response } from 'express';
 
+// Hoisted mocks for resolvers so they're available before module loading
+const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
+  mockResolveOverrides: vi.fn().mockResolvedValue({
+    maxMessages: 50,
+    maxAge: null,
+    maxImages: 10,
+    memoryScoreThreshold: 0.5,
+    memoryLimit: 20,
+    focusModeEnabled: false,
+    sources: {
+      maxMessages: 'hardcoded' as const,
+      maxAge: 'hardcoded' as const,
+      maxImages: 'hardcoded' as const,
+      memoryScoreThreshold: 'hardcoded' as const,
+      memoryLimit: 'hardcoded' as const,
+      focusModeEnabled: 'hardcoded' as const,
+    },
+  }),
+  mockResolveConfig: vi.fn().mockResolvedValue({
+    config: { id: 'config-1', model: 'gpt-4', name: 'Default' },
+    source: 'personality-default',
+    resolvedModel: 'gpt-4',
+  }),
+}));
+
 // Mock dependencies before imports
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
@@ -18,6 +43,17 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
+    // Explicit mock for resolvers used in resolve handler
+    LlmConfigResolver: class {
+      resolveConfig = mockResolveConfig;
+      stopCleanup = vi.fn();
+      clearCache = vi.fn();
+    },
+    ConfigCascadeResolver: class {
+      resolveOverrides = mockResolveOverrides;
+      stopCleanup = vi.fn();
+      clearCache = vi.fn();
+    },
   };
 });
 
@@ -39,6 +75,12 @@ const mockPrisma = {
   },
   persona: {
     create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
+  },
+  adminSettings: {
+    findUnique: vi.fn().mockResolvedValue(null),
+  },
+  personality: {
+    findUnique: vi.fn().mockResolvedValue(null),
   },
   llmConfig: {
     findMany: vi.fn(),
@@ -1064,6 +1106,47 @@ describe('/user/llm-config routes', () => {
       await handler(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should resolve config and include overrides in response', async () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityId: 'personality-123',
+        personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      const responseBody = vi.mocked(res.json).mock.calls[0]?.[0] as Record<string, unknown>;
+      expect(responseBody).toHaveProperty('overrides');
+      expect(responseBody.overrides).toEqual(
+        expect.objectContaining({
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 10,
+          focusModeEnabled: false,
+          sources: expect.objectContaining({
+            maxMessages: 'hardcoded',
+            maxAge: 'hardcoded',
+          }),
+        })
+      );
+    });
+
+    it('should return 500 when resolver throws', async () => {
+      mockResolveConfig.mockRejectedValueOnce(new Error('DB error'));
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityId: 'personality-123',
+        personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(500);
     });
   });
 });

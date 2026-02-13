@@ -15,6 +15,7 @@ CREATE TABLE "users" (
     "nsfw_verified_at" TIMESTAMP(3),
     "default_llm_config_id" UUID,
     "default_persona_id" UUID,
+    "config_defaults" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -39,6 +40,7 @@ CREATE TABLE "usage_logs" (
 CREATE TABLE "admin_settings" (
     "id" UUID NOT NULL,
     "updated_by" UUID,
+    "config_defaults" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -152,6 +154,7 @@ CREATE TABLE "personalities" (
     "image_enabled" BOOLEAN NOT NULL DEFAULT false,
     "image_settings" JSONB,
     "avatar_data" BYTEA,
+    "config_defaults" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -188,6 +191,7 @@ CREATE TABLE "user_personality_configs" (
     "persona_id" UUID,
     "llm_config_id" UUID,
     "focus_mode_enabled" BOOLEAN NOT NULL DEFAULT false,
+    "config_overrides" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 

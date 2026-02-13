@@ -11,7 +11,7 @@ import { ConversationalRAGService } from '../services/ConversationalRAGService.j
 import { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { EmbeddingServiceInterface } from '../utils/duplicateDetection.js';
 import { ApiKeyResolver } from '../services/ApiKeyResolver.js';
-import { LlmConfigResolver } from '@tzurot/common-types';
+import { LlmConfigResolver, type ConfigCascadeResolver } from '@tzurot/common-types';
 import { PersonaResolver } from '../services/resolvers/index.js';
 import {
   createLogger,
@@ -50,6 +50,8 @@ interface AIJobProcessorOptions {
   personaResolver?: PersonaResolver;
   /** Optional: Local embedding service for semantic duplicate detection */
   embeddingService?: EmbeddingServiceInterface;
+  /** Optional: Config cascade resolver for per-field config overrides */
+  cascadeResolver?: ConfigCascadeResolver;
 }
 
 export class AIJobProcessor {
@@ -68,6 +70,7 @@ export class AIJobProcessor {
       configResolver,
       personaResolver,
       embeddingService,
+      cascadeResolver,
     } = options;
 
     this.prisma = prisma;
@@ -88,7 +91,8 @@ export class AIJobProcessor {
       this.ragService,
       this.apiKeyResolver,
       this.configResolver,
-      embeddingService
+      embeddingService,
+      cascadeResolver
     );
   }
 

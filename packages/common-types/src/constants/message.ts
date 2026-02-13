@@ -30,11 +30,6 @@ export const PLACEHOLDERS = {
  */
 export const MESSAGE_LIMITS = {
   /**
-   * Maximum number of referenced messages to include in AI context
-   * Referenced messages come from replies, message links, and embeds
-   */
-  MAX_REFERENCED_MESSAGES: 20,
-  /**
    * Default value for maxMessages in LlmConfig
    * Controls how many messages to include in context for personality
    */

@@ -7,7 +7,7 @@ import type { Job } from 'bullmq';
 import { JobType, type LLMGenerationJobData, type LoadedPersonality } from '@tzurot/common-types';
 import { ConfigStep } from './ConfigStep.js';
 import type { GenerationContext } from '../types.js';
-import type { LlmConfigResolver } from '@tzurot/common-types';
+import type { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/common-types';
 
 // Mock common-types logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -344,6 +344,83 @@ describe('ConfigStep', () => {
       expect(result.config?.effectivePersonality.stop).toEqual(['###', '---']);
       expect(result.config?.effectivePersonality.logitBias).toEqual({ '123': -100 });
       expect(result.config?.effectivePersonality.responseFormat).toEqual({ type: 'json_object' });
+    });
+
+    describe('cascadeResolver', () => {
+      function createMockCascadeResolver(): ConfigCascadeResolver {
+        return {
+          resolveOverrides: vi.fn(),
+          invalidateUserCache: vi.fn(),
+          invalidatePersonalityCache: vi.fn(),
+          clearCache: vi.fn(),
+          stopCleanup: vi.fn(),
+        } as unknown as ConfigCascadeResolver;
+      }
+
+      it('should set configOverrides when cascadeResolver is present', async () => {
+        const mockCascade = createMockCascadeResolver();
+        const mockOverrides = {
+          maxMessages: 50,
+          maxAge: null,
+          maxImages: 10,
+          memoryScoreThreshold: 0.5,
+          memoryLimit: 20,
+          focusModeEnabled: false,
+          sources: {
+            maxMessages: 'hardcoded' as const,
+            maxAge: 'hardcoded' as const,
+            maxImages: 'hardcoded' as const,
+            memoryScoreThreshold: 'hardcoded' as const,
+            memoryLimit: 'hardcoded' as const,
+            focusModeEnabled: 'hardcoded' as const,
+          },
+        };
+        vi.mocked(mockCascade.resolveOverrides).mockResolvedValue(mockOverrides);
+
+        step = new ConfigStep(undefined, mockCascade);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+        };
+
+        const result = await step.process(context);
+
+        expect(result.configOverrides).toEqual(mockOverrides);
+        expect(mockCascade.resolveOverrides).toHaveBeenCalledWith('user-456', 'personality-123');
+      });
+
+      it('should not set configOverrides when cascadeResolver is absent', async () => {
+        step = new ConfigStep();
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+        };
+
+        const result = await step.process(context);
+
+        expect(result.configOverrides).toBeUndefined();
+      });
+
+      it('should handle cascadeResolver error gracefully', async () => {
+        const mockCascade = createMockCascadeResolver();
+        vi.mocked(mockCascade.resolveOverrides).mockRejectedValue(new Error('DB error'));
+
+        step = new ConfigStep(undefined, mockCascade);
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+        };
+
+        const result = await step.process(context);
+
+        // Should continue without configOverrides
+        expect(result.configOverrides).toBeUndefined();
+        // Config should still be set
+        expect(result.config).toBeDefined();
+      });
     });
   });
 });

@@ -10,7 +10,11 @@ import {
   LLM_CONFIG_OVERRIDE_KEYS,
   type LoadedPersonality,
 } from '@tzurot/common-types';
-import type { LlmConfigResolver, ResolvedLlmConfig } from '@tzurot/common-types';
+import type {
+  LlmConfigResolver,
+  ResolvedLlmConfig,
+  ConfigCascadeResolver,
+} from '@tzurot/common-types';
 import type { IPipelineStep, GenerationContext, ResolvedConfig } from '../types.js';
 
 const logger = createLogger('ConfigStep');
@@ -41,7 +45,10 @@ function mergeConfigWithPersonality(
 export class ConfigStep implements IPipelineStep {
   readonly name = 'ConfigResolution';
 
-  constructor(private readonly configResolver?: LlmConfigResolver) {}
+  constructor(
+    private readonly configResolver?: LlmConfigResolver,
+    private readonly cascadeResolver?: ConfigCascadeResolver
+  ) {}
 
   async process(context: GenerationContext): Promise<GenerationContext> {
     const { job } = context;
@@ -83,12 +90,29 @@ export class ConfigStep implements IPipelineStep {
       }
     }
 
+    // Resolve config cascade overrides (if resolver available)
+    let configOverrides = context.configOverrides;
+    if (this.cascadeResolver) {
+      try {
+        configOverrides = await this.cascadeResolver.resolveOverrides(
+          jobContext.userId,
+          personality.id
+        );
+      } catch (error) {
+        logger.warn(
+          { err: error, userId: jobContext.userId },
+          '[ConfigStep] Failed to resolve config cascade, continuing without overrides'
+        );
+      }
+    }
+
     return {
       ...context,
       config: {
         effectivePersonality,
         configSource,
       },
+      configOverrides,
     };
   }
 }
