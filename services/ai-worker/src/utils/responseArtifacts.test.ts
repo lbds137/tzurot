@@ -115,6 +115,42 @@ describe('stripResponseArtifacts', () => {
     });
   });
 
+  describe('Reactions block stripping', () => {
+    it('should strip trailing <reactions> block', () => {
+      const content =
+        'Interesting point!\n<reactions>\n<reaction from="Lila" from_id="abc-123">🤔</reaction>\n</reactions>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Interesting point!');
+    });
+
+    it('should strip <reactions> block with multiple reactions', () => {
+      const content =
+        'Great idea!\n<reactions>\n<reaction from="Lila" from_id="abc">👍</reaction>\n<reaction from="Gabriel" from_id="def">❤️</reaction>\n</reactions>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Great idea!');
+    });
+
+    it('should strip <reactions> block with custom emoji attribute', () => {
+      const content =
+        'Hello!\n<reactions>\n<reaction from="Lila" from_id="abc" custom="true">:thinking:</reaction>\n</reactions>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Hello!');
+    });
+
+    it('should be case-insensitive for reactions tags', () => {
+      const content = 'Hello!\n<REACTIONS>\n<REACTION from="Lila">🤔</REACTION>\n</REACTIONS>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Hello!');
+    });
+
+    it('should NOT strip <reactions> in middle of content', () => {
+      const content = 'The <reactions> tag is used for tracking emoji responses in conversation.';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    });
+
+    it('should strip reactions combined with other trailing tags', () => {
+      const content =
+        'Hey there!\n<reactions>\n<reaction from="Lila" from_id="abc">👍</reaction>\n</reactions>\n</message>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Hey there!');
+    });
+  });
+
   describe('Combined XML artifacts', () => {
     it('should strip both leading and trailing XML tags', () => {
       expect(stripResponseArtifacts('<message speaker="Emily">Hello!</message>', 'Emily')).toBe(
@@ -236,6 +272,15 @@ describe('stripResponseArtifacts', () => {
       // LLM may have learned XML closing patterns from training data
       const content = '*waves enthusiastically* Hey there!</current_turn>';
       expect(stripResponseArtifacts(content, 'Emily')).toBe('*waves enthusiastically* Hey there!');
+    });
+
+    it('should strip hallucinated reactions from roleplay response', () => {
+      // Real case: GLM 4.5 Air appended reactions XML to its response
+      const content =
+        'Vectors have magnitude and direction. Double-edged geometry.\n<reactions>\n<reaction from="Lila" from_id="57240faf-0a7d-511c-b5ae-a52b26c3b5d8">🤔</reaction>\n</reactions>';
+      expect(stripResponseArtifacts(content, 'Bambi')).toBe(
+        'Vectors have magnitude and direction. Double-edged geometry.'
+      );
     });
 
     it('should clean mixed artifacts from training data', () => {

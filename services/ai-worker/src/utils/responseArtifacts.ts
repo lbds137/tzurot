@@ -8,6 +8,7 @@
  * - Append </message> tags (learning from chat_log structure)
  * - Append </current_turn> or </incoming_message> tags (from training data)
  * - Add <message speaker="Name"> prefixes
+ * - Append <reactions>...</reactions> blocks (mimicking conversation history metadata)
  * - Still occasionally add "Name:" prefixes
  */
 
@@ -22,6 +23,9 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
   const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   return [
+    // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
+    // Must be checked before simpler trailing tags since it's multiline
+    /\s*<reactions>[\s\S]*?<\/reactions>\s*$/i,
     // Trailing </message> tag: "Hello!</message>" → "Hello!"
     /<\/message>\s*$/i,
     // Trailing </current_turn> tag: "Hello!</current_turn>" → "Hello!"
