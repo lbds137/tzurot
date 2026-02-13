@@ -18,6 +18,8 @@ import {
   TIMEOUTS,
   calculateJobTimeout,
   ERROR_MESSAGES,
+  FINISH_REASONS,
+  isNaturalStop,
 } from '@tzurot/common-types';
 import {
   createChatModel,
@@ -323,8 +325,8 @@ export class LLMInvoker {
     // OpenAI/OpenRouter: finish_reason
     // Anthropic: stop_reason
     // Google: finishReason (camelCase)
-    const finishReason =
-      metadata.finish_reason ?? metadata.stop_reason ?? metadata.finishReason ?? 'unknown';
+    const rawReason = metadata.finish_reason ?? metadata.stop_reason ?? metadata.finishReason;
+    const finishReason = typeof rawReason === 'string' ? rawReason : FINISH_REASONS.UNKNOWN;
 
     // Extract which stop sequence triggered (if any)
     // OpenAI/OpenRouter: stop (the actual sequence that triggered)
@@ -358,14 +360,14 @@ export class LLMInvoker {
 
     // Log at different levels based on finish_reason
     // "length" is a warning sign - model may have been cut off
-    if (finishReason === 'length') {
+    if (finishReason === FINISH_REASONS.LENGTH) {
       // Use info level with clear WARNING prefix since we don't have an actual error object
       // This is a diagnostic observation, not an exception
       logger.info(
         logContext,
         '[LLMInvoker] WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
       );
-    } else if (finishReason === 'stop' || finishReason === 'end_turn' || finishReason === 'STOP') {
+    } else if (isNaturalStop(finishReason)) {
       // Natural completion - ideal case
       logger.debug(logContext, '[LLMInvoker] Model completed naturally');
     } else if (stoppedAt !== null) {
@@ -394,8 +396,9 @@ export class LLMInvoker {
       .response_metadata;
     const additionalKwargs = (response as { additional_kwargs?: Record<string, unknown> })
       .additional_kwargs;
-    const finishReason =
-      metadata?.finish_reason ?? metadata?.stop_reason ?? metadata?.finishReason ?? 'unknown';
+    const rawDiagReason =
+      metadata?.finish_reason ?? metadata?.stop_reason ?? metadata?.finishReason;
+    const finishReason = typeof rawDiagReason === 'string' ? rawDiagReason : FINISH_REASONS.UNKNOWN;
     const usage = metadata?.usage as
       | { prompt_tokens?: number; completion_tokens?: number }
       | undefined;

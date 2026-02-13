@@ -3,7 +3,7 @@
  */
 
 import { EmbedBuilder } from 'discord.js';
-import { DISCORD_COLORS, type DiagnosticPayload } from '@tzurot/common-types';
+import { DISCORD_COLORS, FINISH_REASONS, type DiagnosticPayload } from '@tzurot/common-types';
 
 /**
  * Determine embed color based on diagnostic state
@@ -12,7 +12,7 @@ export function getEmbedColor(payload: DiagnosticPayload): number {
   if (payload.error) {
     return DISCORD_COLORS.ERROR;
   }
-  if (payload.llmResponse.finishReason === 'length') {
+  if (payload.llmResponse.finishReason === FINISH_REASONS.LENGTH) {
     return DISCORD_COLORS.WARNING;
   }
   return DISCORD_COLORS.SUCCESS;
