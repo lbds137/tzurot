@@ -49,6 +49,8 @@ export interface RawHistoryEntry {
     embedsXml?: string[];
     /** Voice transcripts for extended context messages */
     voiceTranscripts?: string[];
+    /** Forwarded image attachment descriptors (fallback when vision isn't available) */
+    forwardedAttachmentLines?: string[];
     /** Reactions on this message (emoji + who reacted) */
     reactions?: MessageReaction[];
   };

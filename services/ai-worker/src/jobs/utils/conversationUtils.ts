@@ -160,7 +160,16 @@ export function formatSingleHistoryEntryAsXml(
   let formattedContent: string;
   let messageLevelAttachments: string;
   const forwardedAttachments = `${imageSection}${embedsSection}${voiceSection}`;
-  if (msg.isForwarded === true && (safeContent.length > 0 || forwardedAttachments.length > 0)) {
+  // Use forwardedAttachmentLines as fallback only when no vision descriptions exist
+  const forwardedAttachmentLines = msg.messageMetadata?.forwardedAttachmentLines;
+  const hasAttachmentFallback =
+    forwardedAttachmentLines !== undefined &&
+    forwardedAttachmentLines.length > 0 &&
+    imageSection.length === 0;
+  if (
+    msg.isForwarded === true &&
+    (safeContent.length > 0 || forwardedAttachments.length > 0 || hasAttachmentFallback)
+  ) {
     // Build ForwardedMessageContent from raw metadata (not pre-formatted helpers)
     // so the shared formatter produces consistent XML across both code paths
     const forwardedQuote = formatForwardedQuote({
@@ -168,6 +177,7 @@ export function formatSingleHistoryEntryAsXml(
       imageDescriptions: msg.messageMetadata?.imageDescriptions,
       embedsXml: msg.messageMetadata?.embedsXml,
       voiceTranscripts: msg.messageMetadata?.voiceTranscripts,
+      attachmentLines: hasAttachmentFallback ? forwardedAttachmentLines : undefined,
     });
     formattedContent = `<quoted_messages>\n${forwardedQuote}\n</quoted_messages>`;
     // Attachments already included in quote, don't duplicate at message level

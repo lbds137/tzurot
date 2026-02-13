@@ -131,6 +131,8 @@ export const messageMetadataSchema = z.object({
   embedsXml: z.array(z.string()).optional(),
   /** Voice transcripts for extended context messages */
   voiceTranscripts: z.array(z.string()).optional(),
+  /** Forwarded image attachment descriptors (fallback when vision isn't available) */
+  forwardedAttachmentLines: z.array(z.string()).optional(),
   /** Reactions on this message (for extended context messages) */
   reactions: z.array(messageReactionSchema).optional(),
   /** Whether this message was forwarded from another channel (persisted to survive DB round-trip) */

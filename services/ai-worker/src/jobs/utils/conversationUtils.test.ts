@@ -702,6 +702,67 @@ describe('Conversation Utilities', () => {
       expect(result).not.toMatch(/<\/quoted_messages>\s*<voice_transcripts>/);
     });
 
+    it('should use forwardedAttachmentLines as fallback when no vision descriptions', () => {
+      // When vision processing doesn't run (budget exceeded, failure), forwarded image-only
+      // messages would appear completely blank. forwardedAttachmentLines provides a fallback.
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            forwardedAttachmentLines: ['[image/png: photo.png]', '[image/jpeg: screenshot.jpg]'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Should render with attachment fallback inside forwarded quote
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('<quote type="forward" from="Unknown">');
+      expect(result).toContain('<attachments>');
+      expect(result).toContain('[image/png: photo.png]');
+      expect(result).toContain('[image/jpeg: screenshot.jpg]');
+      expect(result).toContain('</quote>');
+      // Should NOT be empty
+      expect(result).not.toMatch(/<message[^>]*><\/message>/);
+    });
+
+    it('should NOT use forwardedAttachmentLines when vision descriptions exist', () => {
+      // When vision descriptions are available, they're more descriptive than the
+      // plain attachment lines, so we don't need the fallback
+      const history: RawHistoryEntry[] = [
+        {
+          role: 'user',
+          content: '',
+          isForwarded: true,
+          personaName: 'Lila',
+          personaId: 'uuid-lila',
+          messageMetadata: {
+            imageDescriptions: [
+              {
+                filename: 'photo.png',
+                description: 'A beautiful sunset over the ocean',
+              },
+            ],
+            forwardedAttachmentLines: ['[image/png: photo.png]'],
+          },
+        },
+      ];
+
+      const result = formatConversationHistoryAsXml(history, 'TestBot');
+
+      // Should use vision descriptions, not attachment fallback
+      expect(result).toContain('<image_descriptions>');
+      expect(result).toContain('A beautiful sunset over the ocean');
+      // Should NOT include the fallback attachment lines
+      expect(result).not.toContain('<attachments>');
+      expect(result).not.toContain('[image/png: photo.png]');
+    });
+
     it('should include embeds in quoted messages', () => {
       const referencedMessage: StoredReferencedMessage = {
         discordMessageId: '123456',
