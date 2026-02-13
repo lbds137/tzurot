@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { FINISH_REASONS, isNaturalStop, type FinishReason } from './finishReasons.js';
+import {
+  FINISH_REASONS,
+  isNaturalStop,
+  resolveFinishReason,
+  type FinishReason,
+} from './finishReasons.js';
 
 describe('FINISH_REASONS', () => {
   it('should have expected values', () => {
@@ -54,5 +59,40 @@ describe('isNaturalStop', () => {
   it('should return false for arbitrary values', () => {
     expect(isNaturalStop('some_random_value')).toBe(false);
     expect(isNaturalStop('')).toBe(false);
+  });
+});
+
+describe('resolveFinishReason', () => {
+  it('should extract OpenAI/OpenRouter finish_reason', () => {
+    expect(resolveFinishReason({ finish_reason: 'stop' })).toBe('stop');
+  });
+
+  it('should extract Anthropic stop_reason', () => {
+    expect(resolveFinishReason({ stop_reason: 'end_turn' })).toBe('end_turn');
+  });
+
+  it('should extract Google finishReason (camelCase)', () => {
+    expect(resolveFinishReason({ finishReason: 'STOP' })).toBe('STOP');
+  });
+
+  it('should prefer finish_reason over stop_reason', () => {
+    expect(resolveFinishReason({ finish_reason: 'stop', stop_reason: 'end_turn' })).toBe('stop');
+  });
+
+  it('should return UNKNOWN for null metadata', () => {
+    expect(resolveFinishReason(null)).toBe('unknown');
+  });
+
+  it('should return UNKNOWN for undefined metadata', () => {
+    expect(resolveFinishReason(undefined)).toBe('unknown');
+  });
+
+  it('should return UNKNOWN for empty metadata', () => {
+    expect(resolveFinishReason({})).toBe('unknown');
+  });
+
+  it('should return UNKNOWN for non-string finish reason', () => {
+    expect(resolveFinishReason({ finish_reason: 42 })).toBe('unknown');
+    expect(resolveFinishReason({ finish_reason: { nested: true } })).toBe('unknown');
   });
 });

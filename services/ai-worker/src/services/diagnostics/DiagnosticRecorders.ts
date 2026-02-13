@@ -6,7 +6,7 @@
  */
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
-import { FINISH_REASONS, type LoadedPersonality } from '@tzurot/common-types';
+import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
 import type { LlmResponseData } from './DiagnosticTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
@@ -94,13 +94,6 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
   });
 }
 
-/** Extract the finish reason from response metadata (multiple possible field names) */
-function resolveFinishReason(meta: ParsedResponseMetadata['responseMetadata']): string {
-  return String(
-    meta?.finish_reason ?? meta?.stop_reason ?? meta?.finishReason ?? FINISH_REASONS.UNKNOWN
-  );
-}
-
 /** Extract stop sequence from response metadata */
 function resolveStopSequence(meta: ParsedResponseMetadata['responseMetadata']): string | null {
   const rawStop = meta?.stop;
@@ -139,7 +132,9 @@ export function recordLlmResponseDiagnostic(
 ): void {
   collector.recordLlmResponse({
     rawContent,
-    finishReason: resolveFinishReason(metadata.responseMetadata),
+    finishReason: resolveFinishReason(
+      metadata.responseMetadata as Record<string, unknown> | undefined
+    ),
     stopSequenceTriggered: resolveStopSequence(metadata.responseMetadata),
     promptTokens: metadata.usageMetadata?.input_tokens ?? 0,
     completionTokens: metadata.usageMetadata?.output_tokens ?? 0,

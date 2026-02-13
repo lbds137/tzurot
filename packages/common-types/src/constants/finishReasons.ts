@@ -45,3 +45,21 @@ export function isNaturalStop(finishReason: string): boolean {
     finishReason === FINISH_REASONS.STOP_GOOGLE
   );
 }
+
+/**
+ * Extract finish reason from LLM provider response metadata.
+ * Handles the different field names used by each provider:
+ * - OpenAI/OpenRouter: finish_reason
+ * - Anthropic: stop_reason
+ * - Google: finishReason (camelCase)
+ *
+ * @param metadata - Raw response metadata (Record<string, unknown> from LangChain)
+ * @returns The finish reason string, or FINISH_REASONS.UNKNOWN if not found
+ */
+export function resolveFinishReason(metadata: Record<string, unknown> | null | undefined): string {
+  if (metadata === null || metadata === undefined) {
+    return FINISH_REASONS.UNKNOWN;
+  }
+  const raw = metadata.finish_reason ?? metadata.stop_reason ?? metadata.finishReason;
+  return typeof raw === 'string' ? raw : FINISH_REASONS.UNKNOWN;
+}
