@@ -61,6 +61,77 @@ export class CommandHandler {
   }
 
   /**
+   * Load and register a single command file.
+   * @throws Error if command exports unknown properties (typo detection)
+   */
+  private async loadSingleCommand(filePath: string, commandsPath: string): Promise<void> {
+    const fileUrl = pathToFileURL(filePath).href;
+    const importedModule = (await import(fileUrl)) as Record<string, unknown>;
+
+    // Support both default export (new pattern) and named exports (legacy)
+    const cmdDef = (importedModule.default ?? importedModule) as Partial<Command>;
+
+    // Validate command structure
+    if (
+      cmdDef.data === undefined ||
+      cmdDef.data === null ||
+      cmdDef.execute === undefined ||
+      cmdDef.execute === null
+    ) {
+      logger.warn({}, `[CommandHandler] Invalid command file: ${filePath}`);
+      return;
+    }
+
+    // Runtime validation: fail fast on unknown properties (catches typos like handleModalSubmit)
+    for (const key of Object.keys(cmdDef)) {
+      if (!VALID_COMMAND_KEYS.includes(key as keyof CommandDefinition)) {
+        throw new Error(
+          `Command "${cmdDef.data.name}" exports unknown property "${key}". ` +
+            `Valid properties: ${VALID_COMMAND_KEYS.join(', ')}. ` +
+            `Did you typo a handler name?`
+        );
+      }
+    }
+
+    // Determine category based on directory structure (DRY - no manual declaration needed)
+    const relativePath = filePath.replace(commandsPath, '');
+    const pathParts = relativePath.split('/').filter(Boolean);
+    const category =
+      pathParts.length > 1
+        ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
+        : undefined;
+
+    // Create command object with category (don't mutate the imported module)
+    const commandWithCategory: Command = {
+      data: cmdDef.data,
+      deferralMode: cmdDef.deferralMode,
+      subcommandDeferralModes: cmdDef.subcommandDeferralModes,
+      execute: cmdDef.execute,
+      autocomplete: cmdDef.autocomplete,
+      handleSelectMenu: cmdDef.handleSelectMenu,
+      handleButton: cmdDef.handleButton,
+      handleModal: cmdDef.handleModal,
+      componentPrefixes: cmdDef.componentPrefixes,
+      category,
+    };
+
+    const commandName = cmdDef.data.name;
+    this.commands.set(commandName, commandWithCategory);
+
+    // Register command name as a prefix for component routing
+    this.registerPrefix(commandName, commandWithCategory);
+
+    // Register any additional prefixes declared by the command
+    if (commandWithCategory.componentPrefixes !== undefined) {
+      for (const prefix of commandWithCategory.componentPrefixes) {
+        this.registerPrefix(prefix, commandWithCategory);
+      }
+    }
+
+    logger.info(`[CommandHandler] Loaded command: ${commandName}`);
+  }
+
+  /**
    * Load all commands from the commands directory
    */
   async loadCommands(): Promise<void> {
@@ -71,72 +142,7 @@ export class CommandHandler {
 
     for (const filePath of commandFiles) {
       try {
-        // Convert file path to file URL for ESM imports
-        const fileUrl = pathToFileURL(filePath).href;
-        const importedModule = (await import(fileUrl)) as Record<string, unknown>;
-
-        // Support both default export (new pattern) and named exports (legacy)
-        // Default export is preferred - it enables TypeScript excess property checking
-        const cmdDef = (importedModule.default ?? importedModule) as Partial<Command>;
-
-        // Validate command structure
-        if (
-          cmdDef.data === undefined ||
-          cmdDef.data === null ||
-          cmdDef.execute === undefined ||
-          cmdDef.execute === null
-        ) {
-          logger.warn({}, `[CommandHandler] Invalid command file: ${filePath}`);
-          continue;
-        }
-
-        // Runtime validation: fail fast on unknown properties (catches typos like handleModalSubmit)
-        for (const key of Object.keys(cmdDef)) {
-          if (!VALID_COMMAND_KEYS.includes(key as keyof CommandDefinition)) {
-            throw new Error(
-              `Command "${cmdDef.data.name}" exports unknown property "${key}". ` +
-                `Valid properties: ${VALID_COMMAND_KEYS.join(', ')}. ` +
-                `Did you typo a handler name?`
-            );
-          }
-        }
-
-        // Determine category based on directory structure (DRY - no manual declaration needed)
-        const relativePath = filePath.replace(commandsPath, '');
-        const pathParts = relativePath.split('/').filter(Boolean);
-        const category =
-          pathParts.length > 1
-            ? pathParts[0].charAt(0).toUpperCase() + pathParts[0].slice(1)
-            : undefined;
-
-        // Create command object with category (don't mutate the imported module)
-        const commandWithCategory: Command = {
-          data: cmdDef.data,
-          deferralMode: cmdDef.deferralMode, // New: compile-time safe deferral
-          subcommandDeferralModes: cmdDef.subcommandDeferralModes, // Per-subcommand overrides
-          execute: cmdDef.execute,
-          autocomplete: cmdDef.autocomplete,
-          handleSelectMenu: cmdDef.handleSelectMenu,
-          handleButton: cmdDef.handleButton,
-          handleModal: cmdDef.handleModal,
-          componentPrefixes: cmdDef.componentPrefixes,
-          category,
-        };
-
-        const commandName = cmdDef.data.name;
-        this.commands.set(commandName, commandWithCategory);
-
-        // Register command name as a prefix for component routing
-        this.registerPrefix(commandName, commandWithCategory);
-
-        // Register any additional prefixes declared by the command
-        if (commandWithCategory.componentPrefixes !== undefined) {
-          for (const prefix of commandWithCategory.componentPrefixes) {
-            this.registerPrefix(prefix, commandWithCategory);
-          }
-        }
-
-        logger.info(`[CommandHandler] Loaded command: ${commandName}`);
+        await this.loadSingleCommand(filePath, commandsPath);
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         logger.error(

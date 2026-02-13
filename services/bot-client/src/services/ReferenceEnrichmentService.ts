@@ -81,9 +81,44 @@ export class ReferenceEnrichmentService {
   }
 
   /**
+   * Detect if a referenced message is from a webhook (bot personality, PluralKit, etc.)
+   * Uses dual detection: Redis cache (fast) + Discord webhookId (fallback)
+   */
+  private async isWebhookMessage(reference: ReferencedMessage): Promise<boolean> {
+    let webhookPersonality = null;
+    try {
+      webhookPersonality = await redisService.getWebhookPersonality(reference.discordMessageId);
+    } catch (error) {
+      logger.warn(
+        { err: error, discordMessageId: reference.discordMessageId },
+        '[ReferenceEnrichmentService] Redis lookup failed for webhook detection, falling back to webhookId'
+      );
+    }
+
+    const isWebhook =
+      (webhookPersonality !== undefined && webhookPersonality !== null) ||
+      (reference.webhookId !== undefined &&
+        reference.webhookId !== null &&
+        reference.webhookId.length > 0);
+
+    if (isWebhook) {
+      logger.debug(
+        {
+          referenceNumber: reference.referenceNumber,
+          webhookId: reference.webhookId,
+          cachedPersonality: webhookPersonality,
+          authorDisplayName: reference.authorDisplayName,
+        },
+        '[ReferenceEnrichmentService] Skipping persona enrichment - message is from webhook'
+      );
+    }
+
+    return isWebhook;
+  }
+
+  /**
    * Enrich a single reference with persona name
    */
-  // eslint-disable-next-line complexity -- Webhook detection requires dual Redis+Discord checks, persona resolution has multiple fallback paths (cache→DB), and each step needs null checks due to Discord API optionality. Logic is cohesive and extraction would scatter related null-safety checks.
   private async enrichSingleReference(
     reference: ReferencedMessage,
     personaNameMap: Map<string, string>,
@@ -93,36 +128,7 @@ export class ReferenceEnrichmentService {
     let personaId: string | undefined;
 
     try {
-      // Check if this is a webhook message using dual detection:
-      // 1. Redis cache: Stores bot's own webhooks with 7-day TTL (fast lookup for recent messages)
-      // 2. Discord webhookId: Catches PluralKit, expired cache, cross-channel refs, or other bot instances
-      // Skip persona creation for ALL webhooks (AI personalities, PluralKit, etc.)
-      let webhookPersonality = null;
-      try {
-        webhookPersonality = await redisService.getWebhookPersonality(reference.discordMessageId);
-      } catch (error) {
-        logger.warn(
-          { err: error, discordMessageId: reference.discordMessageId },
-          '[ReferenceEnrichmentService] Redis lookup failed for webhook detection, falling back to webhookId'
-        );
-      }
-
-      const isWebhook =
-        (webhookPersonality !== undefined && webhookPersonality !== null) ||
-        (reference.webhookId !== undefined &&
-          reference.webhookId !== null &&
-          reference.webhookId.length > 0);
-
-      if (isWebhook === true) {
-        logger.debug(
-          {
-            referenceNumber: reference.referenceNumber,
-            webhookId: reference.webhookId,
-            cachedPersonality: webhookPersonality,
-            authorDisplayName: reference.authorDisplayName,
-          },
-          '[ReferenceEnrichmentService] Skipping persona enrichment - message is from webhook'
-        );
+      if (await this.isWebhookMessage(reference)) {
         return; // Keep original display name
       }
 
