@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-02-10
+> **Last Updated**: 2026-02-12
 > **Version**: v3.0.0-beta.71
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -66,76 +66,7 @@ Errors show generic messages without enough context for debugging. Users (and ad
 
 _New items go here. Triage to appropriate section weekly._
 
-### 🐛 Error Serialization Audit
-
-**Context**: During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorObject: true, raw: "{}"}` despite being a real `Error`. This makes logs nearly useless for debugging provider issues.
-
-**Investigate**:
-
-- [ ] LangChain throwing non-Error objects that look like Errors
-- [ ] `normalizeErrorForLogging()` in `retry.ts` wrapping behavior
-- [ ] `determineErrorType()` in `logger.ts` checking `constructor.name`
-
-**Goal**: Every `{ err: ... }` log should show message + stack, never `raw: "{}"`.
-
-### ✨ Incognito `/character chat` With No Message
-
-**Observed**: 2026-02-07
-
-When `/character chat` is used with no attached message (weigh-in mode), it acts like a "poke" to get the character talking. This should be more anonymous:
-
-- [ ] Don't include the user's memories (user is trying to anonymously prod)
-- [ ] Don't mark the user as active in the persona list
-- [ ] Character shouldn't know which user prompted the nudge
-
-**Implementation notes**: In `bot-client/src/commands/character/chat.ts`, weigh-in mode is detected at line 408 (`isWeighInMode`). The persona resolver (`getPersonaResolver().resolve()`) is always called at line 434 even in weigh-in mode — need to verify if marking-as-active is a side effect. Content is set to `WEIGH_IN_MESSAGE` constant (line 483). Key code paths: lines 406-484.
-
-### ✨ Expand `/admin debug` Access to Message Authors
-
-**Observed**: 2026-02-10
-
-Currently `/admin debug` is admin-only, but users should be able to view debug output for their own messages. No privacy concern if the user authored the initial message.
-
-- [ ] Add check: allow access if the requesting user is the author of the trigger message
-- [ ] Keep admin access for all messages unchanged
-
-**Implementation notes**: Diagnostic log stores `triggerMessageId` (in `DiagnosticCollector.ts`). To verify authorship: fetch the trigger message from Discord using channel ID + message ID (both available in the diagnostic log metadata), compare `message.author.id` with the requesting user's ID. Must handle deleted messages gracefully (fallback to admin-only). Changes go in `bot-client/src/commands/admin/debug/index.ts` `handleDebug` function (lines 48-84), plus the gateway endpoint at `api-gateway/src/routes/admin/diagnostic.ts`.
-
-### ✨ Reply-to Context in Prompting
-
-**Observed**: 2026-02-12
-
-When a user replies to a specific message, the AI has no awareness of which message is being replied to. Include enough context so the AI knows what message the user is direct-replying to, without duplicating the full message content (which would pollute the context window).
-
-- [ ] Detect when the trigger message is a Discord reply
-- [ ] Include a reference to the replied-to message (e.g. brief indicator, author, timestamp)
-- [ ] Don't duplicate the full message content — it's already in the conversation history
-
-### ✨ Expose `max_tokens` in Preset Edit/Creation Flow
-
-**Context**: Top-level `max_tokens` (output token limit) is not exposed in the Discord preset dashboard. Users can only set it by manually editing `advanced_parameters` in the DB. This became apparent when GLM 4.5 Air configs had `reasoning.max_tokens` set but no top-level `max_tokens`, causing the model to use a scaled default instead of an explicit value.
-
-**What to add**:
-
-- [ ] Add `max_tokens` field to preset create/edit dashboard (numeric input)
-- [ ] Show current effective value (explicit, scaled from reasoning effort, or API default)
-- [ ] Sensible range validation (e.g., 256–131072) with model-specific guidance
-- [ ] Help text: "Maximum tokens in the response. Leave empty to auto-scale based on reasoning effort."
-
-**Priority**: Medium — power users need this, casual users are fine with auto-scaling.
-
-### ✨ Reasoning Param UX: Effort vs Max Tokens Mutual Exclusivity
-
-**Context**: OpenRouter only accepts ONE of `reasoning.effort` OR `reasoning.max_tokens`, not both. Our `buildReasoningParams()` silently drops `max_tokens` when `effort` is set, but the UI doesn't communicate this. Users set both and wonder why `max_tokens` has no effect.
-
-**What to add**:
-
-- [ ] When `reasoning.effort` is set, disable/hide `reasoning.max_tokens` field
-- [ ] Tooltip or inline help: "Effort level and token budget are mutually exclusive. Effort is recommended for most use cases."
-- [ ] If both exist in saved config, show a warning badge on the reasoning section
-- [ ] Consider: validation in `configValidation.ts` that warns about this conflict
-
-**Priority**: Medium — prevents confusion for anyone configuring reasoning models.
+_Empty — all items triaged._
 
 ---
 
@@ -143,9 +74,9 @@ When a user replies to a specific message, the AI has no awareness of which mess
 
 _This week's active work. Max 3 items._
 
-1. 🏗️ **Eliminate All ESLint Warnings + Harmonize Lint Strictness** — see Quick Wins below
-2. 🧹 **Redis Failure Injection Tests** — see Quick Wins below
-3. 🏗️ **Package Extraction** — promote from Next Epic once 1+2 are done
+1. ✨ **Preset Dashboard: `max_tokens` + Reasoning Param UX** — expose max_tokens in preset edit/create, enforce effort vs max_tokens mutual exclusivity
+2. ✨ **Expand `/admin debug` Access to Message Authors** — users can view debug output for their own messages
+3. ✨ **Incognito `/character chat` Poke** — no memories, no active marking when no message attached
 
 ---
 
@@ -178,17 +109,26 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
 
-### 🏗️ Eliminate All ESLint Warnings + Harmonize Lint Strictness
+### 🏗️ Eliminate Remaining ESLint Warnings (bot-client cognitive complexity only)
 
-25 existing warnings across all packages (18 bot-client, 4 api-gateway, 3 common-types, 0 ai-worker). Mostly `sonarjs/cognitive-complexity` and `sonarjs/no-duplicate-string`. One ai-worker warning fixed in PR #621 (`invokeModelAndClean` complexity).
+7 cognitive-complexity warnings remaining, all in bot-client. All other warning types fixed 2026-02-12. Bundle with bot-client package splitting effort.
 
 Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnings pass in CI but fail on commit. Need to harmonize around the stricter rule.
 
-- [ ] Fix all `sonarjs/cognitive-complexity` warnings (extract helpers to reduce nesting)
-- [ ] Fix all `sonarjs/no-duplicate-string` warnings (extract constants)
-- [ ] Fix remaining minor warnings (`no-collapsible-if`, `prefer-immediate-return`, `no-redundant-jump`)
+- [x] Fix non-bot-client warnings (common-types, api-gateway, ai-worker) — done 2026-02-12
+- [x] Fix bot-client `sonarjs/no-duplicate-string` warnings (extract constants) — done 2026-02-12
+- [x] Fix remaining minor warnings (`no-redundant-jump`, `prefer-immediate-return`) — done 2026-02-12
+- [ ] Fix bot-client `sonarjs/cognitive-complexity` warnings (extract helpers)
 - [ ] Add `--max-warnings=0` to all package `lint` scripts in `package.json`
 - [ ] Verify CI passes with stricter rule
+
+### ✨ Reply-to Context in Prompting
+
+When a user replies to a specific message, the AI has no awareness of which message is being replied to. Include enough context so the AI knows what the user is direct-replying to, without duplicating the full message content.
+
+- [ ] Detect when the trigger message is a Discord reply
+- [ ] Include a reference to the replied-to message (e.g. brief indicator, author, timestamp)
+- [ ] Don't duplicate the full message content — it's already in the conversation history
 
 ### 🧹 Redis Failure Injection Tests
 
@@ -376,6 +316,22 @@ _Beyond text: voice and images._
 
 - **Voice Synthesis** - Open-source TTS/STT for voice interactions
 - **Image Generation** - AI-generated images from personalities
+
+---
+
+### Theme: Error Observability Overhaul
+
+_Comprehensive audit and fix of error serialization across the stack._
+
+#### 🐛 Error Serialization Audit
+
+During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorObject: true, raw: "{}"}` despite being a real `Error`. Makes logs nearly useless for debugging provider issues.
+
+- [ ] Audit LangChain throwing non-Error objects that look like Errors
+- [ ] Review `normalizeErrorForLogging()` in `retry.ts` wrapping behavior
+- [ ] Review `determineErrorType()` in `logger.ts` checking `constructor.name`
+- [ ] Codebase-wide scan for `{ err: ... }` patterns that produce useless output
+- [ ] Goal: every `{ err: ... }` log shows message + stack, never `raw: "{}"`
 
 ---
 
