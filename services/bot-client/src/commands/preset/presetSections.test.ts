@@ -243,9 +243,15 @@ describe('contextSection', () => {
   });
 
   it('should have correct fields', () => {
-    expect(contextSection.fields).toHaveLength(3);
+    expect(contextSection.fields).toHaveLength(5);
     const keys = contextSection.fields.map(f => f.id);
-    expect(keys).toEqual(['maxMessages', 'maxAge', 'maxImages']);
+    expect(keys).toEqual([
+      'maxMessages',
+      'maxAge',
+      'maxImages',
+      'contextWindowTokens',
+      'memoryScoreThreshold',
+    ]);
   });
 
   it('should return DEFAULT status when using default values', () => {
@@ -301,5 +307,35 @@ describe('contextSection', () => {
   it('should show defaults message when no params customized', () => {
     const data = {} as FlattenedPresetData;
     expect(contextSection.getPreview(data)).toBe('_Using defaults (50 msgs, no limit, 10 imgs)_');
+  });
+
+  it('should show context window with model cap info when available', () => {
+    const data = {
+      contextWindowTokens: '100000',
+      modelContextLength: 200000,
+      contextWindowCap: 100000,
+    } as FlattenedPresetData;
+    const preview = contextSection.getPreview(data);
+    expect(preview).toContain('ctx=100K / 200K');
+  });
+
+  it('should show warning when context window exceeds cap', () => {
+    const data = {
+      contextWindowTokens: '131072',
+      modelContextLength: 128000,
+      contextWindowCap: 64000,
+    } as FlattenedPresetData;
+    const preview = contextSection.getPreview(data);
+    expect(preview).toContain('ctx=131K (max 64K ⚠️)');
+  });
+
+  it('should show plain context window when model info is unavailable', () => {
+    const data = {
+      contextWindowTokens: '131072',
+    } as FlattenedPresetData;
+    const preview = contextSection.getPreview(data);
+    expect(preview).toContain('ctx=131K');
+    expect(preview).not.toContain('/');
+    expect(preview).not.toContain('⚠️');
   });
 });

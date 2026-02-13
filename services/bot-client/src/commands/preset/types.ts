@@ -33,7 +33,6 @@ export interface PresetData {
   isOwned: boolean;
   /** Server-computed permissions for the requesting user */
   permissions: EntityPermissions;
-  maxReferencedMessages: number;
   /** Memory retrieval score threshold (0.0-1.0) */
   memoryScoreThreshold: number | null;
   /** Maximum number of memories to retrieve */
@@ -47,6 +46,10 @@ export interface PresetData {
   maxAge: number | null;
   /** Max images to process from extended context (0-20, 0 disables) */
   maxImages: number;
+  /** Model's full context window (from OpenRouter), undefined if unknown */
+  modelContextLength?: number;
+  /** 50% cap for contextWindowTokens, undefined if unknown */
+  contextWindowCap?: number;
   params: {
     temperature?: number;
     top_p?: number;
@@ -86,7 +89,6 @@ export interface FlattenedPresetData {
   isGlobal: boolean;
   isOwned: boolean;
   canEdit: boolean;
-  maxReferencedMessages: string;
   // Sampling params
   temperature: string;
   top_p: string;
@@ -114,6 +116,10 @@ export interface FlattenedPresetData {
   contextWindowTokens: string;
   memoryScoreThreshold: string;
   memoryLimit: string;
+  /** Model's full context window (display-only, not editable) */
+  modelContextLength?: number;
+  /** 50% cap for contextWindowTokens (display-only, not editable) */
+  contextWindowCap?: number;
   /** Browse context when opened from browse (for back navigation) */
   browseContext?: BrowseContext;
 }

@@ -13,6 +13,7 @@ import {
   type LlmConfigCacheInvalidationService,
   type ConversationRetentionService,
 } from '@tzurot/common-types';
+import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';
 import { createUpdatePersonalityRoute } from './updatePersonality.js';
@@ -34,7 +35,8 @@ export function createAdminRouter(
   prisma: PrismaClient,
   cacheInvalidationService: CacheInvalidationService,
   llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  retentionService?: ConversationRetentionService
+  retentionService?: ConversationRetentionService,
+  modelCache?: OpenRouterModelCache
 ): Router {
   const router = Router();
 
@@ -48,7 +50,10 @@ export function createAdminRouter(
   router.use('/personality', createUpdatePersonalityRoute(prisma, cacheInvalidationService));
 
   // LLM config management endpoints
-  router.use('/llm-config', createAdminLlmConfigRoutes(prisma, llmConfigCacheInvalidation));
+  router.use(
+    '/llm-config',
+    createAdminLlmConfigRoutes(prisma, llmConfigCacheInvalidation, modelCache)
+  );
 
   // Cache invalidation endpoint
   router.use('/invalidate-cache', createInvalidateCacheRoute(cacheInvalidationService));

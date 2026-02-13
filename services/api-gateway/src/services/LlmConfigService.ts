@@ -68,7 +68,6 @@ interface RawConfigList {
  */
 interface RawConfigDetail extends RawConfigList {
   advancedParameters: unknown;
-  maxReferencedMessages: number;
   memoryScoreThreshold: { toNumber: () => number } | null;
   memoryLimit: number | null;
   contextWindowTokens: number;
@@ -90,7 +89,6 @@ interface FormattedConfigDetail {
   isGlobal: boolean;
   isDefault: boolean;
   isFreeDefault: boolean;
-  maxReferencedMessages: number;
   memoryScoreThreshold: number | null;
   memoryLimit: number | null;
   contextWindowTokens: number;
@@ -201,8 +199,6 @@ export class LlmConfigService {
         provider: data.provider ?? LLM_CONFIG_DEFAULTS.provider,
         model: data.model.trim(),
         visionModel: data.visionModel ?? null,
-        maxReferencedMessages:
-          data.maxReferencedMessages ?? LLM_CONFIG_DEFAULTS.maxReferencedMessages,
         advancedParameters: data.advancedParameters ?? undefined,
         // Memory settings
         memoryScoreThreshold: data.memoryScoreThreshold ?? LLM_CONFIG_DEFAULTS.memoryScoreThreshold,
@@ -252,9 +248,6 @@ export class LlmConfigService {
     }
     if (data.visionModel !== undefined) {
       updateData.visionModel = data.visionModel;
-    }
-    if (data.maxReferencedMessages !== undefined) {
-      updateData.maxReferencedMessages = data.maxReferencedMessages;
     }
     if (data.advancedParameters !== undefined) {
       updateData.advancedParameters = data.advancedParameters;
@@ -452,7 +445,6 @@ export class LlmConfigService {
       isGlobal: raw.isGlobal,
       isDefault: raw.isDefault,
       isFreeDefault: raw.isFreeDefault,
-      maxReferencedMessages: raw.maxReferencedMessages,
       memoryScoreThreshold: raw.memoryScoreThreshold?.toNumber() ?? null,
       memoryLimit: raw.memoryLimit,
       contextWindowTokens: raw.contextWindowTokens,

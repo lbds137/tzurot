@@ -184,7 +184,6 @@ describe('Preset Import', () => {
           description: 'A description',
           provider: 'anthropic',
           visionModel: 'anthropic/claude-sonnet-4',
-          maxReferencedMessages: 20,
         }),
       });
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
@@ -202,7 +201,6 @@ describe('Preset Import', () => {
           body: expect.objectContaining({
             description: 'A description',
             visionModel: 'anthropic/claude-sonnet-4',
-            maxReferencedMessages: 20,
           }),
         })
       );

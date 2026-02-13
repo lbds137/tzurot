@@ -20,7 +20,6 @@ function createTestConfig(overrides: Partial<FlattenedPresetData> = {}): Flatten
     isGlobal: false,
     isOwned: true,
     canEdit: true,
-    maxReferencedMessages: '20',
     // Sampling params
     temperature: '',
     top_p: '',

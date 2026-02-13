@@ -400,11 +400,6 @@ export async function handleCloneButton(
           sourceData.visionModel !== undefined && sourceData.visionModel.length > 0
             ? sourceData.visionModel
             : undefined,
-        maxReferencedMessages:
-          sourceData.maxReferencedMessages !== undefined &&
-          sourceData.maxReferencedMessages.length > 0
-            ? parseInt(sourceData.maxReferencedMessages, 10)
-            : undefined,
       },
       interaction.user.id,
       config
@@ -419,7 +414,6 @@ export async function handleCloneButton(
     delete updatePayload.provider;
     delete updatePayload.description;
     delete updatePayload.visionModel;
-    delete updatePayload.maxReferencedMessages;
 
     // Copy visibility setting (isGlobal)
     if (sourceData.isGlobal === true) {

@@ -29,6 +29,11 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService } from '../../services/LlmConfigService.js';
+import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
+import {
+  validateModelAndContextWindow,
+  enrichWithModelContext,
+} from '../../utils/modelValidation.js';
 
 const logger = createLogger('admin-llm-config');
 
@@ -46,7 +51,7 @@ function createListHandler(service: LlmConfigService) {
   };
 }
 
-function createGetHandler(service: LlmConfigService) {
+function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterModelCache) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
@@ -55,14 +60,22 @@ function createGetHandler(service: LlmConfigService) {
       return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
     }
 
-    const response = service.formatConfigDetail(config);
+    const formatted = service.formatConfigDetail(config);
+    const response: Record<string, unknown> = { ...formatted };
+
+    // Enrich with model context window info for dashboard display
+    await enrichWithModelContext(response, config.model, modelCache);
 
     logger.debug({ configId }, '[AdminLlmConfig] Fetched config');
     sendCustomSuccess(res, { config: response }, StatusCodes.OK);
   };
 }
 
-function createCreateConfigHandler(service: LlmConfigService, prisma: PrismaClient) {
+function createCreateConfigHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -72,6 +85,16 @@ function createCreateConfigHandler(service: LlmConfigService, prisma: PrismaClie
       return sendZodError(res, parseResult.error);
     }
     const body = parseResult.data;
+
+    // Validate model ID and context window cap
+    const modelValidation = await validateModelAndContextWindow(
+      modelCache,
+      body.model,
+      body.contextWindowTokens
+    );
+    if (modelValidation.error !== undefined) {
+      return sendError(res, ErrorResponses.validationError(modelValidation.error));
+    }
 
     // Get admin user's internal ID for ownership
     const adminUser = await prisma.user.findUnique({
@@ -94,7 +117,11 @@ function createCreateConfigHandler(service: LlmConfigService, prisma: PrismaClie
     }
 
     const config = await service.create({ type: 'GLOBAL' }, body, adminUser.id);
-    const response = service.formatConfigDetail(config);
+    const formatted = service.formatConfigDetail(config);
+    const response: Record<string, unknown> = { ...formatted };
+
+    // Enrich with model context window info for dashboard display
+    await enrichWithModelContext(response, config.model, modelCache);
 
     logger.info(
       { configId: config.id, name: config.name },
@@ -104,7 +131,11 @@ function createCreateConfigHandler(service: LlmConfigService, prisma: PrismaClie
   };
 }
 
-function createEditConfigHandler(service: LlmConfigService, prisma: PrismaClient) {
+function createEditConfigHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: Request, res: Response) => {
     const configId = getParam(req.params.id);
 
@@ -114,6 +145,23 @@ function createEditConfigHandler(service: LlmConfigService, prisma: PrismaClient
       return sendZodError(res, parseResult.error);
     }
     const body = parseResult.data;
+
+    // Validate model ID and context window cap if either is being updated
+    if (body.model !== undefined || body.contextWindowTokens !== undefined) {
+      let effectiveModel = body.model;
+      if (effectiveModel === undefined) {
+        const current = await service.getById(configId ?? '');
+        effectiveModel = current?.model;
+      }
+      const modelValidation = await validateModelAndContextWindow(
+        modelCache,
+        effectiveModel,
+        body.contextWindowTokens
+      );
+      if (modelValidation.error !== undefined) {
+        return sendError(res, ErrorResponses.validationError(modelValidation.error));
+      }
+    }
 
     const existing = await prisma.llmConfig.findUnique({
       where: { id: configId },
@@ -143,7 +191,11 @@ function createEditConfigHandler(service: LlmConfigService, prisma: PrismaClient
     }
 
     const config = await service.update(configId ?? '', body);
-    const response = service.formatConfigDetail(config);
+    const formatted = service.formatConfigDetail(config);
+    const response: Record<string, unknown> = { ...formatted };
+
+    // Enrich with model context window info for dashboard display
+    await enrichWithModelContext(response, config.model, modelCache);
 
     logger.info(
       { configId, name: config.name, updates: Object.keys(body) },
@@ -252,7 +304,8 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
 
 export function createAdminLlmConfigRoutes(
   prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
+  modelCache?: OpenRouterModelCache
 ): Router {
   const router = Router();
 
@@ -260,9 +313,9 @@ export function createAdminLlmConfigRoutes(
   const service = new LlmConfigService(prisma, llmConfigCacheInvalidation);
 
   router.get('/', asyncHandler(createListHandler(service)));
-  router.get('/:id', asyncHandler(createGetHandler(service)));
-  router.post('/', asyncHandler(createCreateConfigHandler(service, prisma)));
-  router.put('/:id', asyncHandler(createEditConfigHandler(service, prisma)));
+  router.get('/:id', asyncHandler(createGetHandler(service, modelCache)));
+  router.post('/', asyncHandler(createCreateConfigHandler(service, prisma, modelCache)));
+  router.put('/:id', asyncHandler(createEditConfigHandler(service, prisma, modelCache)));
   router.put('/:id/set-default', asyncHandler(createSetDefaultHandler(service, prisma)));
   router.put('/:id/set-free-default', asyncHandler(createSetFreeDefaultHandler(service, prisma)));
   router.delete('/:id', asyncHandler(createDeleteConfigHandler(service, prisma)));

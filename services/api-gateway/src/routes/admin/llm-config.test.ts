@@ -124,7 +124,6 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: true,
         isDefault: true,
         isFreeDefault: false,
-        maxReferencedMessages: 10,
         advancedParameters: { temperature: 0.7 },
         maxMessages: 50,
         maxAge: null,
@@ -151,7 +150,6 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
-        maxReferencedMessages: 10,
         advancedParameters: null,
         // Context settings
         maxMessages: 30,
@@ -187,7 +185,6 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: false,
         isDefault: false,
         isFreeDefault: false,
-        maxReferencedMessages: 10,
         advancedParameters: null,
       });
 
@@ -210,7 +207,6 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
-        maxReferencedMessages: 15,
         advancedParameters: {
           temperature: 0.8,
           top_p: 0.95,
@@ -240,7 +236,6 @@ describe('Admin LLM Config Routes', () => {
         isGlobal: true,
         isDefault: false,
         isFreeDefault: false,
-        maxReferencedMessages: 10,
         advancedParameters: null,
       });
 

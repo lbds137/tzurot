@@ -35,6 +35,11 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { LlmConfigService, type LlmConfigScope } from '../../services/LlmConfigService.js';
+import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
+import {
+  validateModelAndContextWindow,
+  enrichWithModelContext,
+} from '../../utils/modelValidation.js';
 
 const logger = createLogger('user-llm-config');
 
@@ -82,7 +87,11 @@ function createListHandler(service: LlmConfigService, prisma: PrismaClient) {
   };
 }
 
-function createGetHandler(service: LlmConfigService, prisma: PrismaClient) {
+function createGetHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
@@ -111,18 +120,25 @@ function createGetHandler(service: LlmConfigService, prisma: PrismaClient) {
 
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(config);
-    const response = {
+    const response: Record<string, unknown> = {
       ...formatted,
       isOwned,
       permissions,
     };
+
+    // Enrich with model context window info for dashboard display
+    await enrichWithModelContext(response, config.model, modelCache);
 
     logger.debug({ discordUserId, configId }, '[LlmConfig] Fetched config');
     sendCustomSuccess(res, { config: response }, StatusCodes.OK);
   };
 }
 
-function createCreateHandler(service: LlmConfigService, userService: UserService) {
+function createCreateHandler(
+  service: LlmConfigService,
+  userService: UserService,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -132,6 +148,16 @@ function createCreateHandler(service: LlmConfigService, userService: UserService
       return sendZodError(res, parseResult.error);
     }
     const body = parseResult.data;
+
+    // Validate model ID and context window cap
+    const modelValidation = await validateModelAndContextWindow(
+      modelCache,
+      body.model,
+      body.contextWindowTokens
+    );
+    if (modelValidation.error !== undefined) {
+      return sendError(res, ErrorResponses.validationError(modelValidation.error));
+    }
 
     // Get or create user
     const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
@@ -168,11 +194,14 @@ function createCreateHandler(service: LlmConfigService, userService: UserService
 
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(config);
-    const response = {
+    const response: Record<string, unknown> = {
       ...formatted,
       isOwned: true,
       permissions,
     };
+
+    // Enrich with model context window info for dashboard display
+    await enrichWithModelContext(response, config.model, modelCache);
 
     logger.info(
       { discordUserId, configId: config.id, name: config.name },
@@ -182,7 +211,11 @@ function createCreateHandler(service: LlmConfigService, userService: UserService
   };
 }
 
-function createUpdateHandler(service: LlmConfigService, prisma: PrismaClient) {
+function createUpdateHandler(
+  service: LlmConfigService,
+  prisma: PrismaClient,
+  modelCache?: OpenRouterModelCache
+) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const configId = getParam(req.params.id);
@@ -193,6 +226,25 @@ function createUpdateHandler(service: LlmConfigService, prisma: PrismaClient) {
       return sendZodError(res, parseResult.error);
     }
     const body = parseResult.data;
+
+    // Validate model ID and context window cap if either is being updated
+    if (body.model !== undefined || body.contextWindowTokens !== undefined) {
+      // For context window validation, we need the effective model:
+      // use the new model if provided, otherwise look up the existing config's model
+      let effectiveModel = body.model;
+      if (effectiveModel === undefined) {
+        const existing = await service.getById(configId ?? '');
+        effectiveModel = existing?.model;
+      }
+      const modelValidation = await validateModelAndContextWindow(
+        modelCache,
+        effectiveModel,
+        body.contextWindowTokens
+      );
+      if (modelValidation.error !== undefined) {
+        return sendError(res, ErrorResponses.validationError(modelValidation.error));
+      }
+    }
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
@@ -245,11 +297,14 @@ function createUpdateHandler(service: LlmConfigService, prisma: PrismaClient) {
 
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(updated);
-    const response = {
+    const response: Record<string, unknown> = {
       ...formatted,
       isOwned: true,
       permissions,
     };
+
+    // Enrich with model context window info for dashboard display
+    await enrichWithModelContext(response, updated.model, modelCache);
 
     logger.info(
       { discordUserId, configId, name: updated.name, updates: Object.keys(body) },
@@ -371,7 +426,8 @@ function createResolveHandler(prisma: PrismaClient) {
 
 export function createLlmConfigRoutes(
   prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
+  modelCache?: OpenRouterModelCache
 ): Router {
   const router = Router();
 
@@ -380,10 +436,22 @@ export function createLlmConfigRoutes(
   const userService = new UserService(prisma);
 
   router.get('/', requireUserAuth(), asyncHandler(createListHandler(service, prisma)));
-  router.get('/:id', requireUserAuth(), asyncHandler(createGetHandler(service, prisma)));
-  router.post('/', requireUserAuth(), asyncHandler(createCreateHandler(service, userService)));
+  router.get(
+    '/:id',
+    requireUserAuth(),
+    asyncHandler(createGetHandler(service, prisma, modelCache))
+  );
+  router.post(
+    '/',
+    requireUserAuth(),
+    asyncHandler(createCreateHandler(service, userService, modelCache))
+  );
   router.post('/resolve', requireUserAuth(), asyncHandler(createResolveHandler(prisma)));
-  router.put('/:id', requireUserAuth(), asyncHandler(createUpdateHandler(service, prisma)));
+  router.put(
+    '/:id',
+    requireUserAuth(),
+    asyncHandler(createUpdateHandler(service, prisma, modelCache))
+  );
   router.delete('/:id', requireUserAuth(), asyncHandler(createDeleteHandler(service, prisma)));
 
   return router;
