@@ -269,6 +269,32 @@ function getEffectiveMaxTokens(
 }
 
 /**
+ * Build the OpenRouter client configuration (baseURL, headers, custom fetch).
+ */
+function buildOpenRouterClientConfig(
+  extraParams: OpenRouterExtraParams,
+  needsCustomFetch: boolean
+): { baseURL: string; defaultHeaders?: Record<string, string>; fetch?: typeof fetch } {
+  const clientConfig: {
+    baseURL: string;
+    defaultHeaders?: Record<string, string>;
+    fetch?: typeof fetch;
+  } = {
+    baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
+  };
+
+  if (config.OPENROUTER_APP_TITLE !== undefined) {
+    clientConfig.defaultHeaders = { 'X-Title': config.OPENROUTER_APP_TITLE };
+  }
+
+  if (needsCustomFetch) {
+    clientConfig.fetch = createOpenRouterFetch(extraParams);
+  }
+
+  return clientConfig;
+}
+
+/**
  * Create a chat model based on configured AI provider
  *
  * Currently only OpenRouter is supported. OpenRouter can route to any provider
@@ -343,10 +369,7 @@ export function createChatModel(modelConfig: ModelConfig = {}): ChatModelResult 
           presencePenalty,
           maxTokens,
           modelKwargs: hasModelKwargs ? modelKwargs : undefined,
-          configuration: {
-            baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
-            fetch: needsCustomFetch ? createOpenRouterFetch(extraParams) : undefined,
-          },
+          configuration: buildOpenRouterClientConfig(extraParams, needsCustomFetch),
         }),
         modelName,
       };

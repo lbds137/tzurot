@@ -65,6 +65,7 @@ export const envSchema = z.object({
   // AI Provider Configuration
   AI_PROVIDER: z.nativeEnum(AIProvider).default(AIProvider.OpenRouter),
   OPENROUTER_API_KEY: optionalNonEmptyString(),
+  OPENROUTER_APP_TITLE: optionalNonEmptyString(),
   OPENAI_API_KEY: optionalNonEmptyString(),
   DEFAULT_AI_MODEL: optionalNonEmptyString().transform(val => val ?? MODEL_DEFAULTS.DEFAULT_MODEL),
 
@@ -216,6 +217,7 @@ export function createTestConfig(overrides: Partial<EnvConfig> = {}): EnvConfig 
     // AI Provider
     AI_PROVIDER: AIProvider.OpenRouter,
     OPENROUTER_API_KEY: undefined,
+    OPENROUTER_APP_TITLE: undefined,
     OPENAI_API_KEY: undefined,
     DEFAULT_AI_MODEL: MODEL_DEFAULTS.DEFAULT_MODEL,
 
