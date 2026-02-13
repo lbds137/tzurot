@@ -871,6 +871,163 @@ describe('/user/llm-config routes', () => {
     });
   });
 
+  describe('model context enrichment', () => {
+    const mockModelCache = {
+      getModelById: vi.fn(),
+    } as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache;
+
+    beforeEach(() => {
+      vi.mocked(
+        (mockModelCache as unknown as { getModelById: ReturnType<typeof vi.fn> }).getModelById
+      ).mockResolvedValue({
+        id: 'anthropic/claude-sonnet-4',
+        name: 'Claude Sonnet 4',
+        contextLength: 200000,
+        supportsVision: true,
+        supportsImageGeneration: false,
+        supportsAudioInput: false,
+        supportsAudioOutput: false,
+        promptPricePerMillion: 3,
+        completionPricePerMillion: 15,
+      });
+    });
+
+    it('should enrich GET /:id response with model context info', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        name: 'My Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        advancedParameters: null,
+        contextWindowTokens: 65000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation,
+        mockModelCache
+      );
+      const handler = getHandler(router, 'get', '/:id');
+      const { req, res } = createMockReqRes({}, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            modelContextLength: 200000,
+            contextWindowCap: 100000,
+          }),
+        })
+      );
+    });
+
+    it('should enrich POST response with model context info', async () => {
+      mockPrisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config',
+        name: 'New Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        contextWindowTokens: 65000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation,
+        mockModelCache
+      );
+      const handler = getHandler(router, 'post', '/');
+      const { req, res } = createMockReqRes({
+        name: 'New Config',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(201);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            modelContextLength: 200000,
+            contextWindowCap: 100000,
+          }),
+        })
+      );
+    });
+
+    it('should enrich PUT response with model context info', async () => {
+      mockPrisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-123',
+        ownerId: 'user-uuid-123',
+        isGlobal: false,
+        name: 'My Config',
+        model: 'anthropic/claude-sonnet-4',
+      });
+      mockPrisma.llmConfig.update.mockResolvedValue({
+        id: 'config-123',
+        name: 'Updated Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: false,
+        isDefault: false,
+        isFreeDefault: false,
+        ownerId: 'user-uuid-123',
+        contextWindowTokens: 65000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        advancedParameters: null,
+      });
+
+      const router = createLlmConfigRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockCacheInvalidation,
+        mockModelCache
+      );
+      const handler = getHandler(router, 'put', '/:id');
+      const { req, res } = createMockReqRes({ name: 'Updated Config' }, { id: 'config-123' });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          config: expect.objectContaining({
+            modelContextLength: 200000,
+            contextWindowCap: 100000,
+          }),
+        })
+      );
+    });
+  });
+
   describe('POST /user/llm-config/resolve', () => {
     it('should reject missing personalityId', async () => {
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
