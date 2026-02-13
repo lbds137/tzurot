@@ -22,11 +22,6 @@ import {
   parseRedisUrl,
   createBullMQRedisConfig,
   getPrismaClient,
-  PersonalityService,
-  CacheInvalidationService,
-  ApiKeyCacheInvalidationService,
-  LlmConfigCacheInvalidationService,
-  PersonaCacheInvalidationService,
   CONTENT_TYPES,
   HealthStatus,
   QUEUE_CONFIG,
@@ -35,10 +30,8 @@ import {
   type AnyJobData,
   type AnyJobResult,
 } from '@tzurot/common-types';
-import { ApiKeyResolver } from './services/ApiKeyResolver.js';
-import { LlmConfigResolver } from '@tzurot/common-types';
-import { PersonaResolver } from './services/resolvers/index.js';
 import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
+import { setupCacheInvalidation } from './cacheInvalidation.js';
 
 // ============================================================================
 // CONSTANTS
@@ -53,22 +46,6 @@ const SCHEDULED_JOBS = {
 // ============================================================================
 // TYPES
 // ============================================================================
-
-/** Dependencies needed for cache invalidation setup */
-interface CacheInvalidationDeps {
-  cacheRedis: Redis;
-  prisma: PrismaClient;
-}
-
-/** Result of cache invalidation setup */
-interface CacheInvalidationResult {
-  personalityService: PersonalityService;
-  cacheInvalidationService: CacheInvalidationService;
-  apiKeyResolver: ApiKeyResolver;
-  llmConfigResolver: LlmConfigResolver;
-  personaResolver: PersonaResolver;
-  cleanupFns: (() => Promise<void>)[];
-}
 
 /** Result of scheduled jobs setup */
 interface ScheduledJobsResult {
@@ -105,86 +82,6 @@ const config = {
 // ============================================================================
 // HELPER FUNCTIONS
 // ============================================================================
-
-/**
- * Set up all cache invalidation services and subscriptions
- */
-async function setupCacheInvalidation(
-  deps: CacheInvalidationDeps
-): Promise<CacheInvalidationResult> {
-  const { cacheRedis, prisma } = deps;
-  const cleanupFns: (() => Promise<void>)[] = [];
-
-  // PersonalityService and CacheInvalidationService
-  const personalityService = new PersonalityService(prisma);
-  const cacheInvalidationService = new CacheInvalidationService(cacheRedis, personalityService);
-  await cacheInvalidationService.subscribe();
-  cleanupFns.push(() => cacheInvalidationService.unsubscribe());
-  logger.info('[AIWorker] Subscribed to personality cache invalidation events');
-
-  // ApiKeyResolver with cache invalidation
-  const apiKeyResolver = new ApiKeyResolver(prisma);
-  const apiKeyCacheInvalidation = new ApiKeyCacheInvalidationService(cacheRedis);
-  await apiKeyCacheInvalidation.subscribe(event => {
-    if (event.type === 'all') {
-      apiKeyResolver.clearCache();
-      logger.info('[AIWorker] Cleared all API key cache entries');
-    } else {
-      apiKeyResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated API key cache for user');
-    }
-  });
-  cleanupFns.push(() => apiKeyCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] ApiKeyResolver initialized with cache invalidation');
-
-  // LlmConfigResolver with cache invalidation
-  const llmConfigResolver = new LlmConfigResolver(prisma);
-  const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
-  await llmConfigCacheInvalidation.subscribe(event => {
-    if (event.type === 'all') {
-      llmConfigResolver.clearCache();
-      logger.info('[AIWorker] Cleared all LLM config cache entries');
-    } else if (event.type === 'user') {
-      llmConfigResolver.invalidateUserCache(event.discordId);
-      logger.info(
-        { discordId: event.discordId },
-        '[AIWorker] Invalidated LLM config cache for user'
-      );
-    } else {
-      llmConfigResolver.clearCache();
-      logger.info(
-        { configId: event.configId },
-        '[AIWorker] Cleared LLM config cache (config changed)'
-      );
-    }
-  });
-  cleanupFns.push(() => llmConfigCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] LlmConfigResolver initialized with cache invalidation');
-
-  // PersonaResolver with cache invalidation
-  const personaResolver = new PersonaResolver(prisma);
-  const personaCacheInvalidation = new PersonaCacheInvalidationService(cacheRedis);
-  await personaCacheInvalidation.subscribe(event => {
-    if (event.type === 'all') {
-      personaResolver.clearCache();
-      logger.info('[AIWorker] Cleared all persona cache entries');
-    } else {
-      personaResolver.invalidateUserCache(event.discordId);
-      logger.info({ discordId: event.discordId }, '[AIWorker] Invalidated persona cache for user');
-    }
-  });
-  cleanupFns.push(() => personaCacheInvalidation.unsubscribe());
-  logger.info('[AIWorker] PersonaResolver initialized with cache invalidation');
-
-  return {
-    personalityService,
-    cacheInvalidationService,
-    apiKeyResolver,
-    llmConfigResolver,
-    personaResolver,
-    cleanupFns,
-  };
-}
 
 /**
  * Initialize vector memory manager with health check
@@ -387,7 +284,8 @@ async function main(): Promise<void> {
 
   // Set up cache invalidation for all resolvers
   const cacheResult = await setupCacheInvalidation({ cacheRedis, prisma });
-  const { apiKeyResolver, llmConfigResolver, personaResolver, cleanupFns } = cacheResult;
+  const { apiKeyResolver, llmConfigResolver, personaResolver, cascadeResolver, cleanupFns } =
+    cacheResult;
 
   // Initialize local embedding service (required for both vector memory and duplicate detection)
   const localEmbeddingService = await initializeLocalEmbedding();
@@ -411,6 +309,7 @@ async function main(): Promise<void> {
     configResolver: llmConfigResolver,
     personaResolver,
     embeddingService: localEmbeddingService,
+    cascadeResolver,
   });
   const worker = createMainWorker(jobProcessor);
 

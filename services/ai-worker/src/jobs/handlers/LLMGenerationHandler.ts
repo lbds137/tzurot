@@ -25,7 +25,7 @@ import {
   type LLMGenerationResult,
 } from '@tzurot/common-types';
 import { ApiKeyResolver } from '../../services/ApiKeyResolver.js';
-import { LlmConfigResolver } from '@tzurot/common-types';
+import type { LlmConfigResolver, ConfigCascadeResolver } from '@tzurot/common-types';
 import type { EmbeddingServiceInterface } from '../../utils/duplicateDetection.js';
 import {
   type IPipelineStep,
@@ -83,7 +83,8 @@ export class LLMGenerationHandler {
     ragService: ConversationalRAGService,
     apiKeyResolver?: ApiKeyResolver,
     configResolver?: LlmConfigResolver,
-    embeddingService?: EmbeddingServiceInterface
+    embeddingService?: EmbeddingServiceInterface,
+    cascadeResolver?: ConfigCascadeResolver
   ) {
     // Build the pipeline with all steps
     // Order matters: each step may depend on results from previous steps
@@ -105,7 +106,7 @@ export class LLMGenerationHandler {
     this.pipeline = [
       new ValidationStep(),
       new NormalizationStep(),
-      new ConfigStep(configResolver),
+      new ConfigStep(configResolver, cascadeResolver),
       new AuthStep(apiKeyResolver, configResolver),
       new DependencyStep(),
       new ContextStep(),

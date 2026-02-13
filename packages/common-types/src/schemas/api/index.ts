@@ -32,6 +32,9 @@ export * from './channel.js';
 // Admin settings endpoints (singleton pattern)
 export * from './adminSettings.js';
 
+// Config cascade overrides (JSONB column schema)
+export * from './configOverrides.js';
+
 // Usage endpoints
 export * from './usage.js';
 

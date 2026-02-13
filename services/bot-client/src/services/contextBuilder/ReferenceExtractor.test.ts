@@ -43,7 +43,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     MessageRole: { Assistant: 'assistant', User: 'user' },
     CONTENT_TYPES: { AUDIO_PREFIX: 'audio/' },
     INTERVALS: { EMBED_PROCESSING_DELAY: 500 },
-    MESSAGE_LIMITS: { MAX_REFERENCED_MESSAGES: 5 },
+    MESSAGE_LIMITS: { DEFAULT_MAX_MESSAGES: 50 },
   };
 });
 
@@ -84,6 +84,7 @@ describe('extractReferencesAndMentions', () => {
       personality: mockPersonality,
       history: [],
       isWeighInMode: true,
+      maxReferences: 50,
     });
 
     expect(result.messageContent).toBe('Hello world');
@@ -112,6 +113,7 @@ describe('extractReferencesAndMentions', () => {
       content: 'Hello <link>',
       personality: mockPersonality,
       history: [],
+      maxReferences: 50,
     });
 
     expect(result.messageContent).toBe('Hello [1]');
@@ -132,6 +134,7 @@ describe('extractReferencesAndMentions', () => {
       content: 'Hello @alice',
       personality: mockPersonality,
       history: [],
+      maxReferences: 50,
     });
 
     expect(result.mentionedPersonas).toEqual([{ personaId: 'p-1', personaName: 'alice' }]);
@@ -153,6 +156,7 @@ describe('extractReferencesAndMentions', () => {
       content: 'Check #general',
       personality: mockPersonality,
       history: [],
+      maxReferences: 50,
     });
 
     expect(result.referencedChannels).toEqual([
@@ -173,6 +177,7 @@ describe('extractReferencesAndMentions', () => {
       content: 'Hello',
       personality: mockPersonality,
       history,
+      maxReferences: 50,
     });
 
     // The reference extractor should have been instantiated and called

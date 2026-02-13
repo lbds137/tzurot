@@ -87,6 +87,8 @@ export const REDIS_CHANNELS = {
   PERSONA_CACHE_INVALIDATION: 'cache:persona-invalidation',
   /** Channel for broadcasting channel activation cache invalidation events across bot-client instances */
   CHANNEL_ACTIVATION_CACHE_INVALIDATION: 'cache:channel-activation-invalidation',
+  /** Channel for broadcasting config cascade cache invalidation events across services */
+  CONFIG_CASCADE_CACHE_INVALIDATION: 'cache:config-cascade-invalidation',
 } as const;
 
 /**

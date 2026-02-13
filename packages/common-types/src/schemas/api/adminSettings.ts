@@ -42,13 +42,26 @@ export const ADMIN_SETTINGS_SINGLETON_ID = '550e8400-e29b-41d4-a716-446655440001
 
 /**
  * Source of a resolved setting value.
- * - personality: From personality's default LlmConfig
+ * - hardcoded: From HARDCODED_CONFIG_DEFAULTS (no tier provided an override)
+ * - admin: From AdminSettings.configDefaults
+ * - personality: From personality's default LlmConfig or Personality.configDefaults
  * - user-personality: From user's per-personality override
- * - user-default: From user's global default LlmConfig
+ * - user-default: From user's global default LlmConfig or User.configDefaults
  */
-export type SettingSource = 'personality' | 'user-personality' | 'user-default';
+export type SettingSource =
+  | 'hardcoded'
+  | 'admin'
+  | 'personality'
+  | 'user-personality'
+  | 'user-default';
 
-const settingSourceEnum = z.enum(['personality', 'user-personality', 'user-default']);
+const settingSourceEnum = z.enum([
+  'hardcoded',
+  'admin',
+  'personality',
+  'user-personality',
+  'user-default',
+]);
 
 /**
  * Resolved extended context settings with source tracking.

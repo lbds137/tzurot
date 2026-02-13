@@ -1,0 +1,325 @@
+/**
+ * Config Cascade Resolver
+ *
+ * Resolves the effective config overrides for a user+personality combination
+ * using a 4-tier cascade:
+ *
+ *   1. HARDCODED_CONFIG_DEFAULTS (always present, lowest priority)
+ *   2. AdminSettings.configDefaults (admin tier)
+ *   3. Personality.configDefaults (personality tier)
+ *   4. User.configDefaults (user-default tier)
+ *   5. UserPersonalityConfig.configOverrides (user+personality tier, highest priority)
+ *
+ * Higher tiers override lower tiers on a per-field basis.
+ * Each resolved field tracks which tier provided it.
+ *
+ * Follows the same caching pattern as LlmConfigResolver (in-memory TTL cache,
+ * cleanup interval, same constructor options).
+ */
+
+import { createLogger } from '../utils/logger.js';
+import { INTERVALS } from '../constants/timing.js';
+import {
+  ConfigOverridesSchema,
+  HARDCODED_CONFIG_DEFAULTS,
+  type ConfigOverrides,
+  type ConfigOverrideSource,
+  type ResolvedConfigOverrides,
+} from '../schemas/api/configOverrides.js';
+import { ADMIN_SETTINGS_SINGLETON_ID } from '../schemas/api/adminSettings.js';
+import type { PrismaClient } from './prisma.js';
+
+const logger = createLogger('ConfigCascadeResolver');
+
+/** Cache entry with TTL */
+interface CacheEntry {
+  result: ResolvedConfigOverrides;
+  expiresAt: number;
+}
+
+/** Tier data for merge: source label and parsed overrides */
+interface TierData {
+  source: ConfigOverrideSource;
+  overrides: ConfigOverrides;
+}
+
+/**
+ * Config Cascade Resolver - resolves per-field config overrides across 4 tiers
+ */
+export class ConfigCascadeResolver {
+  private prisma: PrismaClient;
+  private cache = new Map<string, CacheEntry>();
+  private readonly cacheTtlMs: number;
+  private cleanupInterval: ReturnType<typeof setInterval> | null = null;
+
+  constructor(prisma: PrismaClient, options?: { cacheTtlMs?: number; enableCleanup?: boolean }) {
+    this.prisma = prisma;
+    this.cacheTtlMs = options?.cacheTtlMs ?? INTERVALS.API_KEY_CACHE_TTL;
+
+    if (options?.enableCleanup !== false) {
+      this.startCleanupInterval();
+    }
+  }
+
+  /**
+   * Resolve the effective config overrides for a user+personality combination.
+   *
+   * @param userId - Discord user ID (or undefined for anonymous)
+   * @param personalityId - Personality UUID (or undefined for no personality context)
+   * @returns Fully resolved config with per-field source tracking
+   */
+  async resolveOverrides(
+    userId?: string,
+    personalityId?: string
+  ): Promise<ResolvedConfigOverrides> {
+    const cacheKey = `${userId ?? 'anon'}-${personalityId ?? 'none'}`;
+
+    // Check cache
+    const cached = this.cache.get(cacheKey);
+    if (cached !== undefined && cached.expiresAt > Date.now()) {
+      logger.debug(
+        { userId, personalityId, source: 'cache' },
+        'Config overrides resolved from cache'
+      );
+      return cached.result;
+    }
+
+    // Load tiers from DB
+    const tiers = await this.loadTiers(userId, personalityId);
+
+    // Deep-merge tiers (higher index = higher priority)
+    const result = this.mergeTiers(tiers);
+
+    // Cache result
+    this.cache.set(cacheKey, { result, expiresAt: Date.now() + this.cacheTtlMs });
+
+    logger.debug(
+      { userId, personalityId, tierCount: tiers.length },
+      'Config overrides resolved from database'
+    );
+
+    return result;
+  }
+
+  /**
+   * Load all applicable tiers from the database.
+   * Returns tiers in priority order (lowest first).
+   */
+  private async loadTiers(userId?: string, personalityId?: string): Promise<TierData[]> {
+    const tiers: TierData[] = [];
+
+    // Tier 1: Admin defaults (singleton)
+    await this.loadAdminTier(tiers);
+
+    // Tier 2: Personality defaults
+    if (personalityId !== undefined) {
+      await this.loadPersonalityTier(tiers, personalityId);
+    }
+
+    // Tier 3 & 4: User defaults + user-personality overrides
+    if (userId !== undefined) {
+      await this.loadUserTiers(tiers, userId, personalityId);
+    }
+
+    return tiers;
+  }
+
+  /** Load admin tier (singleton admin settings) */
+  private async loadAdminTier(tiers: TierData[]): Promise<void> {
+    try {
+      const admin = await this.prisma.adminSettings.findUnique({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        select: { configDefaults: true },
+      });
+      this.pushIfValid(tiers, admin?.configDefaults, 'admin');
+    } catch (error) {
+      logger.warn({ err: error }, 'Failed to load admin config defaults');
+    }
+  }
+
+  /** Load personality tier */
+  private async loadPersonalityTier(tiers: TierData[], personalityId: string): Promise<void> {
+    try {
+      const personality = await this.prisma.personality.findUnique({
+        where: { id: personalityId },
+        select: { configDefaults: true },
+      });
+      this.pushIfValid(tiers, personality?.configDefaults, 'personality');
+    } catch (error) {
+      logger.warn({ err: error, personalityId }, 'Failed to load personality config defaults');
+    }
+  }
+
+  /** Load user-default and user-personality tiers (single query) */
+  private async loadUserTiers(
+    tiers: TierData[],
+    userId: string,
+    personalityId?: string
+  ): Promise<void> {
+    try {
+      const user = await this.prisma.user.findFirst({
+        where: { discordId: userId },
+        select: {
+          id: true,
+          configDefaults: true,
+          personalityConfigs:
+            personalityId !== undefined
+              ? {
+                  where: { personalityId },
+                  select: { configOverrides: true, focusModeEnabled: true },
+                  take: 1,
+                }
+              : undefined,
+        },
+      });
+      if (user === null) {
+        return;
+      }
+
+      // Tier 3: User defaults
+      this.pushIfValid(tiers, user.configDefaults, 'user-default');
+
+      // Tier 4: User-personality overrides
+      this.extractUserPersonalityTier(tiers, user.personalityConfigs?.[0]);
+    } catch (error) {
+      logger.warn({ err: error, userId }, 'Failed to load user config defaults');
+    }
+  }
+
+  /** Extract user-personality tier from UPC record, including legacy focusModeEnabled */
+  private extractUserPersonalityTier(
+    tiers: TierData[],
+    upc?: { configOverrides: unknown; focusModeEnabled: boolean }
+  ): void {
+    if (upc === undefined) {
+      return;
+    }
+
+    this.pushIfValid(tiers, upc.configOverrides, 'user-personality');
+
+    // Legacy: if focusModeEnabled is set on the column but not in any JSONB,
+    // treat it as a user-personality override
+    const focusInJsonb = tiers.some(t => t.overrides.focusModeEnabled !== undefined);
+    if (upc.focusModeEnabled && !focusInJsonb) {
+      tiers.push({ source: 'user-personality', overrides: { focusModeEnabled: true } });
+    }
+  }
+
+  /** Validate JSONB and push to tiers if valid and non-null */
+  private pushIfValid(tiers: TierData[], value: unknown, source: ConfigOverrideSource): void {
+    if (value === null || value === undefined) {
+      return;
+    }
+    const parsed = this.validateJsonb(value, source);
+    if (parsed !== null) {
+      tiers.push({ source, overrides: parsed });
+    }
+  }
+
+  /**
+   * Validate a JSONB value against ConfigOverridesSchema.
+   * Returns parsed config or null if invalid.
+   */
+  private validateJsonb(value: unknown, tierName: string): ConfigOverrides | null {
+    const result = ConfigOverridesSchema.safeParse(value);
+    if (!result.success) {
+      logger.warn(
+        { tier: tierName, errors: result.error.issues },
+        'Invalid JSONB in config cascade tier, skipping'
+      );
+      return null;
+    }
+    return result.data;
+  }
+
+  /**
+   * Deep-merge tiers into a fully resolved config.
+   * Higher-index tiers override lower-index tiers per field.
+   */
+  private mergeTiers(tiers: TierData[]): ResolvedConfigOverrides {
+    // Start with hardcoded defaults
+    const values = { ...HARDCODED_CONFIG_DEFAULTS } as Record<keyof ConfigOverrides, unknown>;
+    const sources = {} as Record<keyof ConfigOverrides, ConfigOverrideSource>;
+
+    // Initialize all sources to 'hardcoded'
+    const fields = Object.keys(HARDCODED_CONFIG_DEFAULTS) as (keyof ConfigOverrides)[];
+    for (const field of fields) {
+      sources[field] = 'hardcoded';
+    }
+
+    // Apply each tier (higher priority overrides)
+    for (const tier of tiers) {
+      for (const field of fields) {
+        if (tier.overrides[field] !== undefined) {
+          values[field] = tier.overrides[field];
+          sources[field] = tier.source;
+        }
+      }
+    }
+
+    return {
+      maxMessages: values.maxMessages as number,
+      maxAge: values.maxAge as number | null,
+      maxImages: values.maxImages as number,
+      memoryScoreThreshold: values.memoryScoreThreshold as number,
+      memoryLimit: values.memoryLimit as number,
+      focusModeEnabled: values.focusModeEnabled as boolean,
+      sources,
+    };
+  }
+
+  /** Invalidate cache for a specific user */
+  invalidateUserCache(userId: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(`${userId}-`)) {
+        this.cache.delete(key);
+      }
+    }
+    logger.debug({ userId }, 'Invalidated config cascade cache for user');
+  }
+
+  /** Invalidate cache for a specific personality */
+  invalidatePersonalityCache(personalityId: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.endsWith(`-${personalityId}`)) {
+        this.cache.delete(key);
+      }
+    }
+    logger.debug({ personalityId }, 'Invalidated config cascade cache for personality');
+  }
+
+  /** Clear all cache entries */
+  clearCache(): void {
+    this.cache.clear();
+    logger.debug('Cleared config cascade cache');
+  }
+
+  /** Stop the cleanup interval (call on shutdown) */
+  stopCleanup(): void {
+    if (this.cleanupInterval !== null) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+    }
+  }
+
+  private startCleanupInterval(): void {
+    this.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      let removedCount = 0;
+      for (const [key, entry] of this.cache) {
+        if (entry.expiresAt <= now) {
+          this.cache.delete(key);
+          removedCount++;
+        }
+      }
+      if (removedCount > 0) {
+        logger.debug(
+          { removedCount, remaining: this.cache.size },
+          'Cleaned up expired cache entries'
+        );
+      }
+    }, INTERVALS.CACHE_CLEANUP);
+
+    this.cleanupInterval.unref();
+  }
+}

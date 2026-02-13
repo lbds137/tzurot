@@ -25,6 +25,8 @@ model User {
   nsfwVerifiedAt        DateTime?                  @map("nsfw_verified_at")
   defaultLlmConfigId    String?                    @map("default_llm_config_id") @db.Uuid
   defaultPersonaId      String?                    @map("default_persona_id") @db.Uuid
+  /// JSONB config cascade defaults (user tier). Validated against ConfigOverridesSchema at runtime.
+  configDefaults        Json?                      @map("config_defaults")
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
   apiKeys               UserApiKey[]
@@ -72,10 +74,12 @@ model UsageLog {
 /// Singleton row - only one row should exist (enforced by application code).
 /// Replaces the old key-value BotSettings model with proper typed columns.
 model AdminSettings {
-  id        String   @id @db.Uuid
-  updatedBy String?  @map("updated_by") @db.Uuid
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id             String   @id @db.Uuid
+  updatedBy      String?  @map("updated_by") @db.Uuid
+  /// JSONB config cascade defaults (admin tier). Validated against ConfigOverridesSchema at runtime.
+  configDefaults Json?    @map("config_defaults")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   updatedByUser User? @relation(fields: [updatedBy], references: [id])
 
@@ -218,6 +222,8 @@ model Personality {
   imageEnabled               Boolean  @default(false) @map("image_enabled")
   imageSettings              Json?    @map("image_settings")
   avatarData                 Bytes?   @map("avatar_data")
+  /// JSONB config cascade defaults (personality tier). Validated against ConfigOverridesSchema at runtime.
+  configDefaults             Json?    @map("config_defaults")
 
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
@@ -277,6 +283,8 @@ model UserPersonalityConfig {
   llmConfigId      String?  @map("llm_config_id") @db.Uuid
   /// Focus Mode: When true, LTM retrieval is disabled (memories still saved, just not retrieved)
   focusModeEnabled Boolean  @default(false) @map("focus_mode_enabled")
+  /// JSONB config cascade overrides (user+personality tier). Validated against ConfigOverridesSchema at runtime.
+  configOverrides  Json?    @map("config_overrides")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
