@@ -1,15 +1,17 @@
 /**
  * Browse UI for recent diagnostic logs
  *
- * Shows a paginated list of recent logs when `/admin debug` is invoked
+ * Shows a paginated list of recent logs when `/inspect` is invoked
  * without an identifier. Uses the standard browse pattern from utils/browse/.
+ *
+ * Non-admin users only see their own logs via userId filtering.
  *
  * Exported handlers:
  * - handleRecentBrowse()         — slash command entry (no identifier)
  * - handleBrowsePagination()     — pagination button handler
  * - handleBrowseLogSelection()   — select menu → drill into log
- * - isDebugBrowseInteraction()   — custom ID guard for browse buttons
- * - isDebugBrowseSelectInteraction() — custom ID guard for browse select
+ * - isInspectBrowseInteraction()   — custom ID guard for browse buttons
+ * - isInspectBrowseSelectInteraction() — custom ID guard for browse select
  */
 
 import {
@@ -31,15 +33,15 @@ import {
   createBrowseCustomIdHelpers,
   buildBrowseButtons,
   calculatePaginationState,
-} from '../../../utils/browse/index.js';
-import { adminFetch } from '../../../utils/adminApiClient.js';
+} from '../../utils/browse/index.js';
+import { adminFetch } from '../../utils/adminApiClient.js';
 import { lookupByRequestId } from './lookup.js';
 import { buildDiagnosticEmbed } from './embed.js';
-import { buildDebugComponents } from './components.js';
-import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import { buildInspectComponents } from './components.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { DiagnosticLogSummary } from './types.js';
 
-const logger = createLogger('admin-debug-browse');
+const logger = createLogger('inspect-browse');
 
 /** Runtime schema for diagnostic log summaries from the gateway */
 const DiagnosticLogSummarySchema = z.object({
@@ -65,11 +67,11 @@ const RecentLogsResponseSchema = z.object({
 // Browse custom ID helpers (standard pattern, no sort)
 // ---------------------------------------------------------------------------
 
-type DebugBrowseFilter = 'all';
+type InspectBrowseFilter = 'all';
 const VALID_FILTERS = ['all'] as const;
 
-const browseHelpers = createBrowseCustomIdHelpers<DebugBrowseFilter>({
-  prefix: 'admin-debug',
+const browseHelpers = createBrowseCustomIdHelpers<InspectBrowseFilter>({
+  prefix: 'inspect',
   validFilters: VALID_FILTERS,
   includeSort: false,
 });
@@ -78,9 +80,15 @@ const browseHelpers = createBrowseCustomIdHelpers<DebugBrowseFilter>({
 // Data fetching
 // ---------------------------------------------------------------------------
 
-/** Fetch recent diagnostic logs from the gateway */
-export async function fetchRecentLogs(): Promise<{ logs: DiagnosticLogSummary[]; count: number }> {
-  const response = await adminFetch('/admin/diagnostic/recent');
+/** Fetch recent diagnostic logs from the gateway, optionally filtered by userId */
+export async function fetchRecentLogs(
+  filterUserId?: string
+): Promise<{ logs: DiagnosticLogSummary[]; count: number }> {
+  const url =
+    filterUserId !== undefined
+      ? `/admin/diagnostic/recent?userId=${encodeURIComponent(filterUserId)}`
+      : '/admin/diagnostic/recent';
+  const response = await adminFetch(url);
   if (!response.ok) {
     throw new Error(`Failed to fetch recent logs: HTTP ${response.status}`);
   }
@@ -197,11 +205,11 @@ function buildBrowseSelectMenu(
 // ---------------------------------------------------------------------------
 
 /** Build pagination buttons (no sort toggle) */
-function buildDebugBrowseButtons(
+function buildInspectBrowseButtons(
   page: number,
   totalPages: number
 ): ActionRowBuilder<ButtonBuilder> {
-  return buildBrowseButtons<DebugBrowseFilter>({
+  return buildBrowseButtons<InspectBrowseFilter>({
     currentPage: page,
     totalPages,
     filter: 'all',
@@ -231,7 +239,7 @@ function buildBackToListRow(page: number): ActionRowBuilder<MessageActionRowComp
 /**
  * Build a complete browse page (embed + components).
  * Uses client-side pagination: the gateway returns all logs (capped at 100) and we
- * slice per page. This is intentional — the dataset is small, admin-only, and ephemeral
+ * slice per page. This is intentional — the dataset is small and ephemeral
  * (24h retention), so server-side pagination would add complexity for no real gain.
  */
 export function buildBrowsePage(
@@ -254,7 +262,7 @@ export function buildBrowsePage(
   const selectRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
     buildBrowseSelectMenu(pageItems, pagination.startIndex, pagination.safePage)
   );
-  const buttonRow = buildDebugBrowseButtons(pagination.safePage, pagination.totalPages);
+  const buttonRow = buildInspectBrowseButtons(pagination.safePage, pagination.totalPages);
 
   return {
     embeds: [embed],
@@ -267,15 +275,19 @@ export function buildBrowsePage(
 // ---------------------------------------------------------------------------
 
 /**
- * Slash command entry — show recent logs browse list
+ * Slash command entry — show recent logs browse list.
+ * filterUserId limits results to that user's logs (non-admin mode).
  */
-export async function handleRecentBrowse(context: DeferredCommandContext): Promise<void> {
+export async function handleRecentBrowse(
+  context: DeferredCommandContext,
+  filterUserId?: string
+): Promise<void> {
   try {
-    const data = await fetchRecentLogs();
+    const data = await fetchRecentLogs(filterUserId);
     const { embeds, components } = buildBrowsePage(data.logs, 0);
     await context.editReply({ embeds, components });
   } catch (error) {
-    logger.error({ err: error }, '[AdminDebugBrowse] Error fetching recent logs');
+    logger.error({ err: error }, '[InspectBrowse] Error fetching recent logs');
     await context.editReply({
       content: '\u274c Error fetching recent diagnostic logs. Please try again later.',
     });
@@ -283,9 +295,13 @@ export async function handleRecentBrowse(context: DeferredCommandContext): Promi
 }
 
 /**
- * Button handler — pagination through browse list
+ * Button handler — pagination through browse list.
+ * filterUserId limits results to that user's logs (non-admin mode).
  */
-export async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
+export async function handleBrowsePagination(
+  interaction: ButtonInteraction,
+  filterUserId?: string
+): Promise<void> {
   const parsed = browseHelpers.parse(interaction.customId);
   if (parsed === null) {
     return;
@@ -294,11 +310,11 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
   await interaction.deferUpdate();
 
   try {
-    const data = await fetchRecentLogs();
+    const data = await fetchRecentLogs(filterUserId);
     const { embeds, components } = buildBrowsePage(data.logs, parsed.page);
     await interaction.editReply({ embeds, components });
   } catch (error) {
-    logger.error({ err: error }, '[AdminDebugBrowse] Error during pagination');
+    logger.error({ err: error }, '[InspectBrowse] Error during pagination');
     await interaction.editReply({
       content: '\u274c Error loading diagnostic logs.',
       embeds: [],
@@ -308,10 +324,12 @@ export async function handleBrowsePagination(interaction: ButtonInteraction): Pr
 }
 
 /**
- * Select handler — drill into a specific log from the browse list
+ * Select handler — drill into a specific log from the browse list.
+ * filterUserId restricts access to only the user's own logs.
  */
 export async function handleBrowseLogSelection(
-  interaction: StringSelectMenuInteraction
+  interaction: StringSelectMenuInteraction,
+  filterUserId?: string
 ): Promise<void> {
   const parsed = browseHelpers.parseSelect(interaction.customId);
   if (parsed === null) {
@@ -322,7 +340,7 @@ export async function handleBrowseLogSelection(
 
   const requestId = interaction.values[0];
   try {
-    const result = await lookupByRequestId(requestId);
+    const result = await lookupByRequestId(requestId, filterUserId);
     if (!result.success) {
       await interaction.editReply({
         content: `\u274c ${result.errorMessage}`,
@@ -333,15 +351,15 @@ export async function handleBrowseLogSelection(
     }
 
     const embed = buildDiagnosticEmbed(result.log.data);
-    const debugComponents = buildDebugComponents(result.log.requestId);
+    const inspectComponents = buildInspectComponents(result.log.requestId);
     const backRow = buildBackToListRow(parsed.page);
 
     await interaction.editReply({
       embeds: [embed],
-      components: [...debugComponents, backRow],
+      components: [...inspectComponents, backRow],
     });
   } catch (error) {
-    logger.error({ err: error, requestId }, '[AdminDebugBrowse] Error loading selected log');
+    logger.error({ err: error, requestId }, '[InspectBrowse] Error loading selected log');
     await interaction.editReply({
       content: '\u274c Error loading diagnostic log.',
       embeds: [],
@@ -354,12 +372,12 @@ export async function handleBrowseLogSelection(
 // Custom ID guards
 // ---------------------------------------------------------------------------
 
-/** Check if a custom ID is a debug browse pagination button */
-export function isDebugBrowseInteraction(customId: string): boolean {
+/** Check if a custom ID is an inspect browse pagination button */
+export function isInspectBrowseInteraction(customId: string): boolean {
   return browseHelpers.isBrowse(customId);
 }
 
-/** Check if a custom ID is a debug browse select menu */
-export function isDebugBrowseSelectInteraction(customId: string): boolean {
+/** Check if a custom ID is an inspect browse select menu */
+export function isInspectBrowseSelectInteraction(customId: string): boolean {
   return browseHelpers.isBrowseSelect(customId);
 }

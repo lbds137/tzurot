@@ -130,6 +130,16 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
       return effort !== undefined && effort.length > 0 && reasoningEnabled === 'false';
     },
     'Reasoning effort is set but reasoning is disabled. Enable reasoning or remove effort setting.'
+  )
+
+  .addWarning(
+    'reasoning_effort / max_tokens',
+    c => {
+      const effort = c.reasoning_effort;
+      const maxTokens = parseNum(c.max_tokens);
+      return effort !== undefined && effort.length > 0 && maxTokens !== undefined;
+    },
+    'Reasoning effort and max_tokens are mutually exclusive for reasoning models. When effort is set, max_tokens is ignored.'
   );
 
 /**
