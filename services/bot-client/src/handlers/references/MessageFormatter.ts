@@ -21,11 +21,78 @@ import {
   extractForwardedContent,
 } from '../../utils/forwardedMessageUtils.js';
 
+/** Attachment array type (non-nullable return from extractAttachments) */
+type AttachmentList = NonNullable<ReturnType<typeof extractAttachments>>;
+
 /**
  * Service for formatting Discord messages into referenced messages
  */
 export class MessageFormatter {
   constructor(private readonly transcriptRetriever: TranscriptRetriever) {}
+
+  /**
+   * Resolve message content and attachments, handling forwarded vs regular messages
+   */
+  private resolveMessageContent(
+    message: Message,
+    isForwarded: boolean
+  ): { content: string; attachments: AttachmentList } {
+    if (isForwarded && hasForwardedSnapshots(message)) {
+      return {
+        content: extractForwardedContent(message),
+        attachments: extractForwardedAttachments(message),
+      };
+    }
+
+    const regularAttachments = extractAttachments(message.attachments);
+    const embedImages = extractEmbedImages(message.embeds);
+    return {
+      content: message.content,
+      attachments: [...(regularAttachments ?? []), ...(embedImages ?? [])],
+    };
+  }
+
+  /**
+   * Append voice transcripts to message content (from Redis cache or database)
+   */
+  private async appendVoiceTranscripts(
+    content: string,
+    attachments: AttachmentList,
+    messageId: string
+  ): Promise<string> {
+    if (attachments.length === 0) {
+      return content;
+    }
+
+    const transcripts: string[] = [];
+    for (const attachment of attachments) {
+      if (attachment.isVoiceMessage !== true) {
+        continue;
+      }
+
+      const transcript = await this.transcriptRetriever.retrieveTranscript(
+        messageId,
+        attachment.url
+      );
+      if (transcript !== undefined && transcript !== null && transcript.length > 0) {
+        transcripts.push(transcript);
+      } else {
+        logger.debug(
+          { messageId, attachmentUrl: attachment.url },
+          '[MessageFormatter] Voice transcript not found for attachment'
+        );
+      }
+    }
+
+    if (transcripts.length === 0) {
+      return content;
+    }
+
+    const transcriptText = transcripts.join('\n\n');
+    return content
+      ? `${content}\n\n[Voice transcript]: ${transcriptText}`
+      : `[Voice transcript]: ${transcriptText}`;
+  }
 
   /**
    * Format a Discord message as a referenced message
@@ -39,69 +106,16 @@ export class MessageFormatter {
     referenceNumber: number,
     isForwardedFlag?: boolean
   ): Promise<ReferencedMessage> {
-    // Extract full Discord environment context (server, category, channel, thread)
     const environment = extractDiscordEnvironment(message);
-
-    // Format location context as XML using the shared formatter (DRY with current message context)
     const locationContext = formatLocationAsXml(environment);
-
-    // Detect if this message is forwarded (either by flag or by checking reference type)
     const messageIsForwarded = isForwardedFlag ?? isForwardedMessage(message);
 
-    // Extract attachments - handle forwarded messages by extracting from snapshots
-    let allAttachments: ReturnType<typeof extractAttachments> extends infer T
-      ? NonNullable<T>
-      : never = [];
-    let messageContent = message.content;
-
-    if (messageIsForwarded && hasForwardedSnapshots(message)) {
-      // Forwarded message with snapshots - extract from snapshots
-      const forwardedAttachments = extractForwardedAttachments(message);
-      allAttachments = forwardedAttachments;
-
-      // Get content from snapshot (forwarded messages often have empty main content)
-      messageContent = extractForwardedContent(message);
-    } else {
-      // Regular message or forwarded without snapshots - extract normally
-      const regularAttachments = extractAttachments(message.attachments);
-      const embedImages = extractEmbedImages(message.embeds);
-      allAttachments = [...(regularAttachments ?? []), ...(embedImages ?? [])];
-    }
-
-    // Check if any attachments are voice messages with transcripts (Redis cache or database)
-    // For forwarded voice messages, use the FORWARDING message's ID for lookup
-    // because that's what VoiceTranscriptionService stored the transcript under
-    let contentWithTranscript = messageContent;
-    if (allAttachments.length > 0) {
-      const transcripts: string[] = [];
-
-      for (const attachment of allAttachments) {
-        if (attachment.isVoiceMessage === true) {
-          // Use forwarding message ID for lookup - transcript was stored under this ID
-          const transcript = await this.transcriptRetriever.retrieveTranscript(
-            message.id,
-            attachment.url
-          );
-          if (transcript !== undefined && transcript !== null && transcript.length > 0) {
-            transcripts.push(transcript);
-          } else {
-            // Log when transcript not found - helps debug voice message issues
-            logger.debug(
-              { messageId: message.id, attachmentUrl: attachment.url },
-              '[MessageFormatter] Voice transcript not found for attachment'
-            );
-          }
-        }
-      }
-
-      // Append transcripts to content if found
-      if (transcripts.length > 0) {
-        const transcriptText = transcripts.join('\n\n');
-        contentWithTranscript = messageContent
-          ? `${messageContent}\n\n[Voice transcript]: ${transcriptText}`
-          : `[Voice transcript]: ${transcriptText}`;
-      }
-    }
+    const { content, attachments } = this.resolveMessageContent(message, messageIsForwarded);
+    const contentWithTranscript = await this.appendVoiceTranscripts(
+      content,
+      attachments,
+      message.id
+    );
 
     return {
       referenceNumber,
@@ -114,7 +128,7 @@ export class MessageFormatter {
       embeds: EmbedParser.parseMessageEmbeds(message),
       timestamp: message.createdAt.toISOString(),
       locationContext,
-      attachments: allAttachments.length > 0 ? allAttachments : undefined,
+      attachments: attachments.length > 0 ? attachments : undefined,
       isForwarded: messageIsForwarded || undefined,
     };
   }

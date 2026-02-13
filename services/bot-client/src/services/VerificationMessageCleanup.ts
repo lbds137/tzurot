@@ -65,6 +65,64 @@ export class VerificationMessageCleanup {
   }
 
   /**
+   * Partition messages into expired and remaining based on age
+   */
+  private partitionByAge(
+    messages: PendingVerificationMessage[],
+    now: number
+  ): { expired: PendingVerificationMessage[]; remaining: PendingVerificationMessage[] } {
+    const expired: PendingVerificationMessage[] = [];
+    const remaining: PendingVerificationMessage[] = [];
+    for (const msg of messages) {
+      if (now - msg.timestamp >= MAX_MESSAGE_AGE_MS) {
+        expired.push(msg);
+      } else {
+        remaining.push(msg);
+      }
+    }
+    return { expired, remaining };
+  }
+
+  /**
+   * Delete multiple messages and return success/failure counts
+   */
+  private async deleteMessages(
+    messages: PendingVerificationMessage[]
+  ): Promise<{ deleted: number; failed: number }> {
+    let deleted = 0;
+    let failed = 0;
+    for (const msg of messages) {
+      if (await this.deleteMessage(msg)) {
+        deleted++;
+      } else {
+        failed++;
+      }
+    }
+    return { deleted, failed };
+  }
+
+  /**
+   * Update Redis to keep only remaining (non-expired) messages for a user
+   * Note: Not atomic — a new message could be added between clear and rpush.
+   * Acceptable since worst case is a message isn't auto-deleted (14-day TTL covers it).
+   */
+  private async updateRemainingMessages(
+    userId: string,
+    remaining: PendingVerificationMessage[]
+  ): Promise<void> {
+    await clearPendingVerificationMessages(this.redis, userId);
+    if (remaining.length > 0) {
+      const key = `${REDIS_KEY_PREFIX}${userId}`;
+      const pipeline = this.redis.pipeline();
+      for (const msg of remaining) {
+        pipeline.rpush(key, JSON.stringify(msg));
+      }
+      pipeline.expire(key, 14 * 24 * 60 * 60);
+      await pipeline.exec();
+    }
+  }
+
+  /**
    * Clean up messages that are approaching the 13-day limit
    * Called by scheduled job
    */
@@ -78,46 +136,18 @@ export class VerificationMessageCleanup {
 
     for (const userId of userIds) {
       const messages = await getPendingVerificationMessages(this.redis, userId);
-      const expiredMessages: PendingVerificationMessage[] = [];
-      const remainingMessages: PendingVerificationMessage[] = [];
+      const { expired, remaining } = this.partitionByAge(messages, now);
 
-      for (const msg of messages) {
-        const age = now - msg.timestamp;
-        if (age >= MAX_MESSAGE_AGE_MS) {
-          expiredMessages.push(msg);
-        } else {
-          remainingMessages.push(msg);
-        }
+      if (expired.length === 0) {
+        continue;
       }
 
-      // Delete expired messages
-      for (const msg of expiredMessages) {
-        processed++;
-        const success = await this.deleteMessage(msg);
-        if (success) {
-          deleted++;
-        } else {
-          failed++;
-        }
-      }
+      processed += expired.length;
+      const result = await this.deleteMessages(expired);
+      deleted += result.deleted;
+      failed += result.failed;
 
-      // Update Redis with only remaining messages
-      // Note: Uses pipeline for performance, but not atomic - a new message could
-      // be added between clear and rpush. This is acceptable since worst case is
-      // a verification message doesn't get auto-deleted (it expires via 14-day TTL anyway).
-      if (expiredMessages.length > 0) {
-        const key = `${REDIS_KEY_PREFIX}${userId}`;
-        await clearPendingVerificationMessages(this.redis, userId);
-
-        if (remainingMessages.length > 0) {
-          const pipeline = this.redis.pipeline();
-          for (const msg of remainingMessages) {
-            pipeline.rpush(key, JSON.stringify(msg));
-          }
-          pipeline.expire(key, 14 * 24 * 60 * 60);
-          await pipeline.exec();
-        }
-      }
+      await this.updateRemainingMessages(userId, remaining);
     }
 
     if (processed > 0) {
