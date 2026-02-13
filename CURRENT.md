@@ -1,35 +1,46 @@
 # Current
 
 > **Session**: 2026-02-12
-> **Version**: v3.0.0-beta.71
+> **Version**: v3.0.0-beta.71 (preparing beta.72 release)
 
 ---
 
 ## Session Goal
 
-_Move `/admin debug` to top-level `/inspect` command with user-scoped access + preset validation improvement._
+_Release prep: `/inspect` command shipped, backlog cleaned, smoke testing before version bump._
 
 ## Active Task
 
-Ready for commit — all changes implemented, unit tests (3534), quality checks, and integration tests passing.
+Smoke test on dev before bumping to beta.72.
 
 ---
 
-## Scratchpad
+## Smoke Test Checklist (beta.72)
 
-- Incognito weigh-in deferred to separate PR (5 files across 3 services, too complex for this change)
-- Redis ECONNREFUSED in `AIRoutes.int.test.ts` is pre-existing (IPv6 binding issue), not related to our changes
-- Added backlog item: extract finish reason string constants to common-types
+### Easy to verify
+
+- [ ] `/inspect` (no args) — browse list appears with recent logs
+- [ ] `/inspect` — select a log from browse, verify embed + buttons work
+- [ ] `/inspect <message-link>` — look up a specific message's diagnostic log
+- [ ] `/admin` — verify debug subcommand is gone (only settings, servers remain)
+- [ ] `/preset edit` — set both reasoning_effort and max_tokens, verify warning appears on save
+- [ ] `/preset browse` (as admin) — should show all presets, not just owned
+
+### Verified by tests / low risk (skip manual)
+
+- Vision cache validation, `<reactions>` XML stripping, empty response diagnostics — all covered by unit tests, triggered by specific model behaviors
+- `OPENROUTER_APP_TITLE` — env var only, visible in OpenRouter dashboard
+- Blank forwarded image fix — edge case in extended context formatting
+- ESLint warning reduction — code quality only, no runtime impact
 
 ---
 
 ## Completed This Session
 
-- [x] ✨ **Move `/admin debug` → `/inspect`** — new top-level command, non-admin users see only their own diagnostic logs, admin sees all. Moved 8 source files + 7 test files from `admin/debug/` to `inspect/`. Removed debug subcommand from admin command.
-- [x] ✨ **Preset validation: reasoning effort vs max_tokens warning** — added mutual exclusivity warning when both are set (effort takes precedence, max_tokens silently ignored)
-- [x] 🏗️ **DRY fix: embed colors** — replaced hardcoded hex values with `DISCORD_COLORS` constants in inspect embed
-- [x] 🏗️ **Renamed `adminDebugOptions` → `inspectOptions`** in common-types
-- [x] Updated integration test snapshots for command structure change (9 → 10 commands)
+- [x] ✨ **Move `/admin debug` → `/inspect`** (PR #623) — new top-level command, non-admin users see only their own diagnostic logs, admin sees all
+- [x] ✨ **Preset validation: reasoning effort vs max_tokens warning** — actionable message when both are set
+- [x] 🏗️ **Access denial audit logging** — inspect lookup logs userId on access control rejections
+- [x] 🏗️ **Backlog cleanup** — removed completed items, triaged inbox
 
 ## Recent Highlights
 
