@@ -156,7 +156,6 @@ model LlmConfig {
   /// JSONB field for provider-specific parameters (temperature, topP, topK, etc.)
   /// See AdvancedParamsSchema in common-types for validation
   advancedParameters          Json?                      @map("advanced_parameters")
-  maxReferencedMessages       Int                        @default(100) @map("max_referenced_messages")
   memoryScoreThreshold        Decimal?                   @map("memory_score_threshold") @db.Decimal(3, 2)
   memoryLimit                 Int?                       @map("memory_limit")
   contextWindowTokens         Int                        @default(131072) @map("context_window_tokens")

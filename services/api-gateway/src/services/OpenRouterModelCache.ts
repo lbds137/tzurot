@@ -165,6 +165,25 @@ export class OpenRouterModelCache {
   }
 
   /**
+   * Look up a single model by ID.
+   * Returns the autocomplete option if found, null if not found.
+   * Returns null (no error) if the cache is unavailable.
+   */
+  async getModelById(modelId: string): Promise<ModelAutocompleteOption | null> {
+    try {
+      const allModels = await this.getModels();
+      const model = allModels.find(m => m.id === modelId);
+      if (model === undefined) {
+        return null;
+      }
+      return this.toAutocompleteOption(model);
+    } catch (error) {
+      logger.warn({ err: error, modelId }, '[OpenRouterModelCache] Cache unavailable for lookup');
+      return null;
+    }
+  }
+
+  /**
    * Force refresh the cache (e.g., for admin purposes)
    */
   async refreshCache(): Promise<number> {

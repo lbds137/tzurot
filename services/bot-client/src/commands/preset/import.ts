@@ -22,7 +22,6 @@ interface ImportedPresetData {
   provider?: string;
   model?: string;
   visionModel?: string;
-  maxReferencedMessages?: number;
   memoryScoreThreshold?: number;
   memoryLimit?: number;
   contextWindowTokens?: number;
@@ -66,7 +65,6 @@ export const PRESET_JSON_TEMPLATE = `{
   "provider": "anthropic",
   "model": "anthropic/claude-sonnet-4",
   "visionModel": "anthropic/claude-sonnet-4 (optional)",
-  "maxReferencedMessages": 10,
   "memoryScoreThreshold": 0.5,
   "memoryLimit": 20,
   "contextWindowTokens": 131072,
@@ -94,7 +92,6 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'provider', label: 'Provider' },
   { key: 'model', label: 'Model' },
   { key: 'visionModel', label: 'Vision Model' },
-  { key: 'maxReferencedMessages', label: 'Max Referenced Messages' },
   { key: 'memoryScoreThreshold', label: 'Memory Score Threshold' },
   { key: 'memoryLimit', label: 'Memory Limit' },
   { key: 'contextWindowTokens', label: 'Context Window Tokens' },
@@ -167,9 +164,6 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
   if (data.visionModel !== undefined && data.visionModel !== '') {
     payload.visionModel = data.visionModel;
   }
-  if (data.maxReferencedMessages !== undefined) {
-    payload.maxReferencedMessages = data.maxReferencedMessages;
-  }
   if (data.memoryScoreThreshold !== undefined) {
     payload.memoryScoreThreshold = data.memoryScoreThreshold;
   }
@@ -216,7 +210,6 @@ async function createPresetFromImport(
       provider: payload.provider,
       description: payload.description,
       visionModel: payload.visionModel,
-      maxReferencedMessages: payload.maxReferencedMessages,
       memoryScoreThreshold: payload.memoryScoreThreshold,
       memoryLimit: payload.memoryLimit,
       contextWindowTokens: payload.contextWindowTokens,

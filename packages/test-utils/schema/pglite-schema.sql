@@ -103,7 +103,6 @@ CREATE TABLE "llm_configs" (
     "model" VARCHAR(255) NOT NULL,
     "vision_model" VARCHAR(255),
     "advanced_parameters" JSONB,
-    "max_referenced_messages" INTEGER NOT NULL DEFAULT 100,
     "memory_score_threshold" DECIMAL(3,2),
     "memory_limit" INTEGER,
     "context_window_tokens" INTEGER NOT NULL DEFAULT 131072,

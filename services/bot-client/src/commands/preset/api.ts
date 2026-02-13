@@ -117,7 +117,6 @@ export async function createPreset(
     provider?: string;
     description?: string;
     visionModel?: string;
-    maxReferencedMessages?: number;
   },
   userId: string,
   _config: EnvConfig

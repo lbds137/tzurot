@@ -27,7 +27,6 @@ export async function handleTemplate(context: DeferredCommandContext): Promise<v
     '**Optional sections:**\n' +
     '• `description` - What this preset is for\n' +
     '• `visionModel` - Model for image analysis\n' +
-    '• `maxReferencedMessages` - Context message limit\n' +
     '• `memoryScoreThreshold` - Memory retrieval threshold (0.0-1.0)\n' +
     '• `memoryLimit` - Max memories to retrieve\n' +
     '• `contextWindowTokens` - Token budget for context window\n' +

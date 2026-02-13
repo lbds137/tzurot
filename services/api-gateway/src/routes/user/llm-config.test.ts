@@ -79,7 +79,6 @@ const mockCacheInvalidation = {
 import { createLlmConfigRoutes } from './llm-config.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
 import type { PrismaClient } from '@tzurot/common-types';
-import { AI_DEFAULTS } from '@tzurot/common-types';
 
 // Helper to create mock request/response
 function createMockReqRes(body: Record<string, unknown> = {}, params: Record<string, string> = {}) {
@@ -262,7 +261,6 @@ describe('/user/llm-config routes', () => {
         isGlobal: false,
         isDefault: false,
         ownerId: 'user-uuid-123',
-        maxReferencedMessages: 20,
         advancedParameters: { temperature: 0.7 },
       });
 
@@ -296,7 +294,6 @@ describe('/user/llm-config routes', () => {
         isGlobal: true,
         isDefault: true,
         ownerId: 'other-user-uuid', // Different user owns this
-        maxReferencedMessages: 20,
         advancedParameters: null,
       });
 
@@ -411,7 +408,6 @@ describe('/user/llm-config routes', () => {
             model: 'gpt-4',
             provider: 'openrouter',
             isGlobal: false,
-            maxReferencedMessages: AI_DEFAULTS.MAX_REFERENCED_MESSAGES,
           }),
         })
       );
@@ -565,7 +561,6 @@ describe('/user/llm-config routes', () => {
         isGlobal: true,
         isDefault: false,
         ownerId: 'user-uuid-123',
-        maxReferencedMessages: 20,
         advancedParameters: {},
       });
 
@@ -676,7 +671,6 @@ describe('/user/llm-config routes', () => {
         isDefault: false,
         isFreeDefault: false,
         ownerId: 'user-uuid-123',
-        maxReferencedMessages: 20,
         advancedParameters: { temperature: 0.9 },
       });
 
@@ -731,7 +725,6 @@ describe('/user/llm-config routes', () => {
         isDefault: false,
         isFreeDefault: false,
         ownerId: 'user-uuid-123',
-        maxReferencedMessages: 20,
         advancedParameters: null,
       });
 

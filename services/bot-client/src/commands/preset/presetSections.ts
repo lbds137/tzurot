@@ -16,63 +16,75 @@ const DEFAULT_PREVIEW = '_Using defaults_';
 // Context section defaults
 const DEFAULT_MAX_MESSAGES = '50';
 const DEFAULT_MAX_IMAGES = '10';
+const DEFAULT_CONTEXT_WINDOW = '131072';
 
 // Time conversion constants
 const SECONDS_PER_DAY = 86400;
 const SECONDS_PER_HOUR = 3600;
 
+/** Format context window tokens with optional model cap info */
+function formatContextWindow(data: FlattenedPresetData): string | null {
+  if (!data.contextWindowTokens) {
+    return null;
+  }
+  const t = parseInt(data.contextWindowTokens, 10);
+  if (isNaN(t)) {
+    return null;
+  }
+  const ctxK = Math.round(t / 1000);
+  if (data.contextWindowCap === undefined) {
+    return `ctx=${ctxK}K`;
+  }
+  const capK = Math.round(data.contextWindowCap / 1000);
+  if (t > data.contextWindowCap) {
+    return `ctx=${ctxK}K (max ${capK}K ⚠️)`;
+  }
+  const modelK = Math.round((data.modelContextLength ?? 0) / 1000);
+  return `ctx=${ctxK}K / ${modelK}K`;
+}
+
+/** Format seconds as human-readable duration (e.g., "2d", "6h", "300s") */
+function formatAge(seconds: number): string {
+  if (seconds >= SECONDS_PER_DAY) {
+    return `${Math.floor(seconds / SECONDS_PER_DAY)}d`;
+  }
+  if (seconds >= SECONDS_PER_HOUR) {
+    return `${Math.floor(seconds / SECONDS_PER_HOUR)}h`;
+  }
+  return `${seconds}s`;
+}
+
+/** Shorthand for creating a modal field definition (most fields share required=false, style=short) */
+function f(
+  id: string,
+  label: string,
+  placeholder: string,
+  maxLength: number,
+  required = false
+): {
+  id: string;
+  label: string;
+  placeholder: string;
+  required: boolean;
+  style: 'short';
+  maxLength: number;
+} {
+  return { id, label, placeholder, required, style: 'short' as const, maxLength };
+}
+
 // --- Section Definitions ---
 
-/**
- * Identity section - combines name/description with model settings
- * (5 fields, maximum for a Discord modal)
- */
 export const identitySection: SectionDefinition<FlattenedPresetData> = {
   id: 'identity',
   label: '📝 Identity',
   description: 'Name, description, and model',
   fieldIds: ['name', 'description', 'provider', 'model', 'visionModel'],
   fields: [
-    {
-      id: 'name',
-      label: 'Preset Name',
-      placeholder: 'My Custom Preset',
-      required: true,
-      style: 'short',
-      maxLength: 100,
-    },
-    {
-      id: 'description',
-      label: 'Description',
-      placeholder: 'Optimized for creative writing tasks',
-      required: false,
-      style: 'short', // Changed to short to fit 5 fields better
-      maxLength: 200,
-    },
-    {
-      id: 'provider',
-      label: 'Provider',
-      placeholder: 'openrouter',
-      required: false,
-      style: 'short',
-      maxLength: 50,
-    },
-    {
-      id: 'model',
-      label: 'Model ID',
-      placeholder: 'anthropic/claude-sonnet-4',
-      required: true,
-      style: 'short',
-      maxLength: 200,
-    },
-    {
-      id: 'visionModel',
-      label: 'Vision Model (optional)',
-      placeholder: 'anthropic/claude-sonnet-4',
-      required: false,
-      style: 'short',
-      maxLength: 200,
-    },
+    f('name', 'Preset Name', 'My Custom Preset', 100, true),
+    f('description', 'Description', 'Optimized for creative writing tasks', 200),
+    f('provider', 'Provider', 'openrouter', 50),
+    f('model', 'Model ID', 'anthropic/claude-sonnet-4', 200, true),
+    f('visionModel', 'Vision Model (optional)', 'anthropic/claude-sonnet-4', 200),
   ],
   getStatus: data => {
     if (!data.name || !data.model) {
@@ -101,46 +113,11 @@ export const coreSamplingSection: SectionDefinition<FlattenedPresetData> = {
   description: 'Temperature, top_p, top_k, max_tokens, seed',
   fieldIds: ['temperature', 'top_p', 'top_k', 'max_tokens', 'seed'],
   fields: [
-    {
-      id: 'temperature',
-      label: 'Temperature (0.0 - 2.0)',
-      placeholder: '0.7',
-      required: false,
-      style: 'short',
-      maxLength: 10,
-    },
-    {
-      id: 'top_p',
-      label: 'Top P (0.0 - 1.0)',
-      placeholder: '0.9',
-      required: false,
-      style: 'short',
-      maxLength: 10,
-    },
-    {
-      id: 'top_k',
-      label: 'Top K (integer)',
-      placeholder: '40',
-      required: false,
-      style: 'short',
-      maxLength: 10,
-    },
-    {
-      id: 'max_tokens',
-      label: 'Max Tokens',
-      placeholder: '4096',
-      required: false,
-      style: 'short',
-      maxLength: 10,
-    },
-    {
-      id: 'seed',
-      label: 'Seed (for reproducibility)',
-      placeholder: '42',
-      required: false,
-      style: 'short',
-      maxLength: 15,
-    },
+    f('temperature', 'Temperature (0.0 - 2.0)', '0.7', 10),
+    f('top_p', 'Top P (0.0 - 1.0)', '0.9', 10),
+    f('top_k', 'Top K (integer)', '40', 10),
+    f('max_tokens', 'Max Tokens', '4096', 10),
+    f('seed', 'Seed (for reproducibility)', '42', 15),
   ],
   getStatus: data => {
     const hasAny = data.temperature || data.top_p || data.top_k || data.max_tokens || data.seed;
@@ -247,8 +224,8 @@ export const advancedSection: SectionDefinition<FlattenedPresetData> = {
 export const contextSection: SectionDefinition<FlattenedPresetData> = {
   id: 'context',
   label: '📜 Context',
-  description: 'How much conversation history to include',
-  fieldIds: ['maxMessages', 'maxAge', 'maxImages'],
+  description: 'History limits and context window budget',
+  fieldIds: ['maxMessages', 'maxAge', 'maxImages', 'contextWindowTokens', 'memoryScoreThreshold'],
   fields: [
     {
       id: 'maxMessages',
@@ -274,40 +251,54 @@ export const contextSection: SectionDefinition<FlattenedPresetData> = {
       style: 'short',
       maxLength: 2,
     },
+    {
+      id: 'contextWindowTokens',
+      label: 'Context Window Tokens (max 50% of model)',
+      placeholder: '131072',
+      required: false,
+      style: 'short',
+      maxLength: 10,
+    },
+    {
+      id: 'memoryScoreThreshold',
+      label: 'Memory Score Threshold (0.0-1.0)',
+      placeholder: '0.5',
+      required: false,
+      style: 'short',
+      maxLength: 5,
+    },
   ],
   getStatus: data => {
-    const hasCustomMaxMessages =
-      data.maxMessages !== undefined &&
-      data.maxMessages !== '' &&
-      data.maxMessages !== DEFAULT_MAX_MESSAGES;
-    const hasCustomMaxAge = data.maxAge !== undefined && data.maxAge !== '';
-    const hasCustomMaxImages =
-      data.maxImages !== undefined &&
-      data.maxImages !== '' &&
-      data.maxImages !== DEFAULT_MAX_IMAGES;
-    const hasCustom = hasCustomMaxMessages || hasCustomMaxAge || hasCustomMaxImages;
+    const isSet = (val: string | undefined, def?: string): boolean =>
+      val !== undefined && val !== '' && val !== def;
+    const hasCustom =
+      isSet(data.maxMessages, DEFAULT_MAX_MESSAGES) ||
+      isSet(data.maxAge) ||
+      isSet(data.maxImages, DEFAULT_MAX_IMAGES) ||
+      isSet(data.contextWindowTokens, DEFAULT_CONTEXT_WINDOW) ||
+      isSet(data.memoryScoreThreshold);
     return hasCustom ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
   },
   getPreview: data => {
     const parts: string[] = [];
-    if (data.maxMessages !== undefined && data.maxMessages !== '') {
+    if (data.maxMessages) {
       parts.push(`msgs=${data.maxMessages}`);
     }
-    if (data.maxAge !== undefined && data.maxAge !== '') {
-      // Convert seconds to human-readable
-      const seconds = parseInt(data.maxAge, 10);
-      if (!isNaN(seconds)) {
-        if (seconds >= SECONDS_PER_DAY) {
-          parts.push(`age=${Math.floor(seconds / SECONDS_PER_DAY)}d`);
-        } else if (seconds >= SECONDS_PER_HOUR) {
-          parts.push(`age=${Math.floor(seconds / SECONDS_PER_HOUR)}h`);
-        } else {
-          parts.push(`age=${seconds}s`);
-        }
+    if (data.maxAge) {
+      const s = parseInt(data.maxAge, 10);
+      if (!isNaN(s)) {
+        parts.push(`age=${formatAge(s)}`);
       }
     }
-    if (data.maxImages !== undefined && data.maxImages !== '') {
+    if (data.maxImages) {
       parts.push(`imgs=${data.maxImages}`);
+    }
+    const ctxLabel = formatContextWindow(data);
+    if (ctxLabel !== null) {
+      parts.push(ctxLabel);
+    }
+    if (data.memoryScoreThreshold) {
+      parts.push(`mem≥${data.memoryScoreThreshold}`);
     }
     return parts.length > 0
       ? parts.join(PREVIEW_SEPARATOR)

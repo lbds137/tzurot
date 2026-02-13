@@ -24,7 +24,6 @@ describe('flattenPresetData', () => {
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
-      maxReferencedMessages: 10,
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -44,7 +43,6 @@ describe('flattenPresetData', () => {
     expect(result.visionModel).toBe('anthropic/claude-sonnet-4');
     expect(result.isGlobal).toBe(false);
     expect(result.isOwned).toBe(true);
-    expect(result.maxReferencedMessages).toBe('10');
     // Memory and context window settings
     expect(result.contextWindowTokens).toBe('8192');
     expect(result.memoryScoreThreshold).toBe('');
@@ -62,7 +60,6 @@ describe('flattenPresetData', () => {
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
-      maxReferencedMessages: 10,
       contextWindowTokens: 131072,
       memoryScoreThreshold: 0.75,
       memoryLimit: 20,
@@ -90,7 +87,6 @@ describe('flattenPresetData', () => {
       isGlobal: true,
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
-      maxReferencedMessages: 5,
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -117,7 +113,6 @@ describe('flattenPresetData', () => {
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
-      maxReferencedMessages: 10,
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -153,7 +148,6 @@ describe('flattenPresetData', () => {
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
-      maxReferencedMessages: 10,
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -189,7 +183,6 @@ describe('flattenPresetData', () => {
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
-      maxReferencedMessages: 10,
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -225,7 +218,6 @@ describe('flattenPresetData', () => {
       isGlobal: false,
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
-      maxReferencedMessages: 10,
       contextWindowTokens: 8192,
       memoryScoreThreshold: null,
       memoryLimit: null,
@@ -253,7 +245,6 @@ describe('unflattenPresetData', () => {
       provider: 'openrouter',
       model: 'anthropic/claude-opus-4',
       visionModel: 'anthropic/claude-sonnet-4',
-      maxReferencedMessages: '15',
     };
 
     const result = unflattenPresetData(flat);
@@ -263,7 +254,6 @@ describe('unflattenPresetData', () => {
     expect(result.provider).toBe('openrouter');
     expect(result.model).toBe('anthropic/claude-opus-4');
     expect(result.visionModel).toBe('anthropic/claude-sonnet-4');
-    expect(result.maxReferencedMessages).toBe(15);
   });
 
   it('should set description to null when empty', () => {
@@ -372,13 +362,11 @@ describe('unflattenPresetData', () => {
   it('should ignore invalid numeric values', () => {
     const flat: Partial<FlattenedPresetData> = {
       temperature: 'not-a-number',
-      maxReferencedMessages: 'invalid',
     };
 
     const result = unflattenPresetData(flat);
 
     expect(result.advancedParameters).toBeUndefined();
-    expect(result.maxReferencedMessages).toBeUndefined();
   });
 
   it('should handle mixed valid and invalid values', () => {

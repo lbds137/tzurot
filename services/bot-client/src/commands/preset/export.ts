@@ -23,7 +23,6 @@ const EXPORT_FIELDS = [
   'provider',
   'model',
   'visionModel',
-  'maxReferencedMessages',
   'memoryScoreThreshold',
   'memoryLimit',
   'contextWindowTokens',

@@ -64,7 +64,6 @@ describe('Preset Export', () => {
     isDefault: false,
     isOwned: true,
     permissions: { canEdit: true, canDelete: true },
-    maxReferencedMessages: 10,
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
     contextWindowTokens: 131072,
