@@ -313,6 +313,29 @@ export class DiagnosticCollector {
   }
 
   /**
+   * Record partial LLM response data when invocation fails.
+   * Called from error paths where recordLlmResponse() was never reached.
+   * Ensures /admin debug shows something useful instead of "[not recorded]".
+   */
+  recordPartialLlmResponse(data: Partial<LlmResponseData>): void {
+    // Only set if not already recorded (successful response takes priority)
+    if (this.llmResponse !== null) {
+      return;
+    }
+
+    this.llmInvocationEndMs = Date.now();
+    this.llmResponse = {
+      rawContent: data.rawContent ?? '[empty — LLM returned no content]',
+      finishReason: data.finishReason ?? 'unknown',
+      stopSequenceTriggered: data.stopSequenceTriggered ?? null,
+      promptTokens: data.promptTokens ?? 0,
+      completionTokens: data.completionTokens ?? 0,
+      modelUsed: data.modelUsed ?? 'unknown',
+      reasoningDebug: data.reasoningDebug,
+    };
+  }
+
+  /**
    * Record an error that occurred during processing.
    * Call this before finalize() when the request fails.
    */

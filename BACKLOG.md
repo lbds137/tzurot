@@ -66,6 +66,18 @@ Errors show generic messages without enough context for debugging. Users (and ad
 
 _New items go here. Triage to appropriate section weekly._
 
+### 🐛 Error Serialization Audit
+
+**Context**: During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorObject: true, raw: "{}"}` despite being a real `Error`. This makes logs nearly useless for debugging provider issues.
+
+**Investigate**:
+
+- [ ] LangChain throwing non-Error objects that look like Errors
+- [ ] `normalizeErrorForLogging()` in `retry.ts` wrapping behavior
+- [ ] `determineErrorType()` in `logger.ts` checking `constructor.name`
+
+**Goal**: Every `{ err: ... }` log should show message + stack, never `raw: "{}"`.
+
 ### ✨ Expose `max_tokens` in Preset Edit/Creation Flow
 
 **Context**: Top-level `max_tokens` (output token limit) is not exposed in the Discord preset dashboard. Users can only set it by manually editing `advanced_parameters` in the DB. This became apparent when GLM 4.5 Air configs had `reasoning.max_tokens` set but no top-level `max_tokens`, causing the model to use a scaled default instead of an explicit value.

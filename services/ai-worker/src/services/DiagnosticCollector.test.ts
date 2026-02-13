@@ -840,6 +840,72 @@ describe('DiagnosticCollector', () => {
     });
   });
 
+  describe('recordPartialLlmResponse', () => {
+    it('should set llmResponse with defaults for missing fields', () => {
+      collector.recordPartialLlmResponse({
+        rawContent: '[error — see error data]',
+        modelUsed: 'z-ai/glm-5',
+      });
+
+      const payload = collector.finalize();
+      expect(payload.llmResponse).toEqual({
+        rawContent: '[error — see error data]',
+        finishReason: 'unknown',
+        stopSequenceTriggered: null,
+        promptTokens: 0,
+        completionTokens: 0,
+        modelUsed: 'z-ai/glm-5',
+        reasoningDebug: undefined,
+      });
+    });
+
+    it('should not overwrite existing llmResponse from successful recording', () => {
+      // Simulate a successful response being recorded first
+      collector.recordLlmResponse({
+        rawContent: 'Hello! I am the response.',
+        finishReason: 'stop',
+        stopSequenceTriggered: null,
+        promptTokens: 100,
+        completionTokens: 50,
+        modelUsed: 'openai/gpt-4o',
+      });
+
+      // Then a partial response tries to overwrite (shouldn't happen)
+      collector.recordPartialLlmResponse({
+        rawContent: '[error — see error data]',
+        modelUsed: 'openai/gpt-4o',
+      });
+
+      const payload = collector.finalize();
+      // Original successful response should be preserved
+      expect(payload.llmResponse.rawContent).toBe('Hello! I am the response.');
+      expect(payload.llmResponse.finishReason).toBe('stop');
+      expect(payload.llmResponse.promptTokens).toBe(100);
+    });
+
+    it('should use default rawContent when not provided', () => {
+      collector.recordPartialLlmResponse({
+        modelUsed: 'z-ai/glm-5',
+      });
+
+      const payload = collector.finalize();
+      expect(payload.llmResponse.rawContent).toBe('[empty — LLM returned no content]');
+    });
+
+    it('should set llmInvocationEndMs for timing calculation', () => {
+      collector.markLlmInvocationStart();
+
+      // Small delay so timing is measurable
+      collector.recordPartialLlmResponse({
+        modelUsed: 'z-ai/glm-5',
+      });
+
+      const payload = collector.finalize();
+      expect(payload.timing.llmInvocationMs).toBeDefined();
+      expect(payload.timing.llmInvocationMs).toBeGreaterThanOrEqual(0);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle memories without metadata id', () => {
       collector.recordMemoryRetrieval({
