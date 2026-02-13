@@ -76,9 +76,8 @@ Hardcoded finish reason strings like `'length'` appear in `inspect/embed.ts` and
 
 _This week's active work. Max 3 items._
 
-1. ✨ **Preset Dashboard: `max_tokens` + Reasoning Param UX** — expose max_tokens in preset edit/create, enforce effort vs max_tokens mutual exclusivity
-2. ✨ **Expand `/admin debug` Access to Message Authors** — users can view debug output for their own messages
-3. ✨ **Incognito `/character chat` Poke** — no memories, no active marking when no message attached
+1. ✨ **Preset Dashboard: `max_tokens` UX** — expose max_tokens in preset edit/create dashboard (validation warning for effort vs max_tokens conflict already shipped in beta.72)
+2. ✨ **Incognito `/character chat` Poke** — no memories, no active marking when no message attached
 
 ---
 
@@ -355,15 +354,6 @@ Production observability with metrics collection.
 
 - [ ] Add Prometheus metrics endpoint
 - [ ] Key metrics: request latency, token usage, error rates, queue depth
-
-#### ✨ Admin Debug Filtering
-
-Browse recent diagnostic logs when no identifier provided. Gateway is already ready.
-
-- **Gateway endpoint exists**: `GET /admin/diagnostic/recent?personalityId=&userId=&channelId=` returns last 100 logs (metadata only)
-- **Infrastructure from debug overhaul**: `debug/` module structure, custom ID scheme (`admin-debug::` prefix), component routing in admin/index.ts
-- **UX**: Make `identifier` optional on `/admin debug`. When omitted, show paginated select menu of recent logs (personality name, model, timestamp, status). Selecting one loads the full interactive embed + buttons
-- **Scope**: ~200 lines new code (browse list builder, pagination, select handler) plus gateway call wiring
 
 #### 🏗️ Database-Configurable Model Capabilities
 
