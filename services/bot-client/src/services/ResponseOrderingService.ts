@@ -227,6 +227,24 @@ export class ResponseOrderingService {
   }
 
   /**
+   * Find the earliest userMessageTime among pending jobs, excluding a specific job.
+   * Returns null if no other pending jobs exist.
+   */
+  private findOldestPendingTime(queue: ChannelQueue, excludeJobId: string): number | null {
+    let oldest: number | null = null;
+    for (const [jobId, pending] of queue.pendingJobs) {
+      if (jobId === excludeJobId) {
+        continue;
+      }
+      const time = pending.userMessageTime.getTime();
+      if (oldest === null || time < oldest) {
+        oldest = time;
+      }
+    }
+    return oldest;
+  }
+
+  /**
    * Process the queue, delivering results that are ready.
    * A result is ready when:
    * - No pending jobs have an earlier userMessageTime, OR
@@ -247,19 +265,7 @@ export class ResponseOrderingService {
       const oldestTime = oldest.userMessageTime.getTime();
       const now = Date.now();
 
-      // Find the oldest pending job (excluding the one we're considering)
-      let oldestPendingTime: number | null = null;
-      for (const [pendingJobId, pending] of queue.pendingJobs) {
-        // Skip the job we're about to deliver (it's in pending until we deliver)
-        if (pendingJobId === oldest.jobId) {
-          continue;
-        }
-
-        const time = pending.userMessageTime.getTime();
-        if (oldestPendingTime === null || time < oldestPendingTime) {
-          oldestPendingTime = time;
-        }
-      }
+      const oldestPendingTime = this.findOldestPendingTime(queue, oldest.jobId);
 
       // Check timeout: if waiting too long, deliver anyway
       const waitTime = now - oldest.receivedAt;

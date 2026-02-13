@@ -45,6 +45,123 @@ export class ReplyResolutionService {
   ) {}
 
   /**
+   * Validate that the replied-to message is from a personality.
+   * In DMs: must be from the bot. In guilds: must be from a webhook owned by this bot instance.
+   * @returns true if valid personality message, false if should skip
+   */
+  private validateReferencedMessage(
+    referencedMessage: Message,
+    clientUserId: string,
+    isDM: boolean
+  ): boolean {
+    if (isDM) {
+      if (referencedMessage.author?.id !== clientUserId) {
+        logger.debug('[ReplyResolutionService] Reply in DM is not to a bot message, skipping');
+        return false;
+      }
+      logger.debug('[ReplyResolutionService] DM reply to bot message detected');
+      return true;
+    }
+
+    // Guild: require webhookId (personality messages are sent via webhooks)
+    if (!isValidIdentifier(referencedMessage.webhookId)) {
+      logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
+      return false;
+    }
+
+    // Check cross-instance: prevent both dev and prod bots from responding
+    if (
+      isValidIdentifier(referencedMessage.applicationId) &&
+      referencedMessage.applicationId !== clientUserId
+    ) {
+      logger.debug(
+        {
+          webhookApplicationId: referencedMessage.applicationId,
+          currentBotId: clientUserId,
+        },
+        '[ReplyResolutionService] Ignoring reply to webhook from different bot instance'
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Parse personality name from message content (DM) or webhook username (guild).
+   * Tier 3 fallback — purely for user convenience, not security-dependent.
+   */
+  private parseDisplayName(referencedMessage: Message, isDM: boolean): string | null {
+    if (isDM && referencedMessage.content) {
+      // DM format: **DisplayName:** message content
+      const prefixMatch = /^\*\*([^:\n]+?):\*\*/.exec(referencedMessage.content);
+      if (prefixMatch) {
+        logger.debug(
+          { displayName: prefixMatch[1] },
+          '[ReplyResolutionService] Parsed display name from DM message prefix (tier 3)'
+        );
+        return prefixMatch[1];
+      }
+    } else if (
+      !isDM &&
+      referencedMessage.author !== undefined &&
+      referencedMessage.author !== null
+    ) {
+      // Guild format: Webhook username is "DisplayName | BotName"
+      const webhookUsername = referencedMessage.author.username;
+      if (webhookUsername.includes(' | ')) {
+        const name = webhookUsername.split(' | ')[0].trim();
+        logger.debug(
+          { personalityName: name },
+          '[ReplyResolutionService] Extracted personality name from webhook username (tier 3)'
+        );
+        return name;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Multi-tier personality identifier lookup:
+   * Tier 1: Redis (fast path), Tier 2: Database (DM only), Tier 3: Display name parsing
+   */
+  private async lookupPersonalityIdentifier(
+    referencedMessage: Message,
+    isDM: boolean
+  ): Promise<string | null> {
+    // Tier 1: Redis (fast path for recent messages)
+    let identifier = await redisService.getWebhookPersonality(referencedMessage.id);
+
+    if (isValidIdentifier(identifier) && isUuidFormat(identifier)) {
+      logger.debug(
+        { personalityId: identifier },
+        '[ReplyResolutionService] Found personality ID in Redis (tier 1)'
+      );
+    }
+
+    // Tier 2: Database lookup (DM only when Redis misses)
+    if (!isValidIdentifier(identifier) && isDM && this.gatewayClient !== undefined) {
+      const dbResult = await this.gatewayClient.lookupPersonalityFromConversation(
+        referencedMessage.id
+      );
+      if (dbResult !== null) {
+        identifier = dbResult.personalityId;
+        logger.debug(
+          { personalityId: identifier },
+          '[ReplyResolutionService] Found personality via database lookup (tier 2)'
+        );
+      }
+    }
+
+    // Tier 3: Display name parsing (last resort)
+    if (!isValidIdentifier(identifier)) {
+      identifier = this.parseDisplayName(referencedMessage, isDM);
+    }
+
+    return isValidIdentifier(identifier) ? identifier : null;
+  }
+
+  /**
    * Resolve which personality a reply is targeting
    *
    * Access Control:
@@ -52,15 +169,10 @@ export class ReplyResolutionService {
    * (public personalities or ones they own). This prevents the "Reply Loophole"
    * where User B could reply to User A's private personality messages.
    *
-   * DM vs Guild:
-   * - In guild channels, personality messages are sent via webhooks (webhookId present)
-   * - In DMs, personality messages are sent as regular bot messages (author.id === bot.id)
-   *
    * @param message - Message that is a reply (message.reference must not be null)
    * @param userId - Discord user ID for access control
    * @returns LoadedPersonality if reply targets an accessible personality, null otherwise
    */
-  // eslint-disable-next-line complexity, max-lines-per-function -- Multi-tier lookup (Redis → Database → Display name parsing) for both DM and guild channels requires sequential validation. Discord API nullable fields add necessary checks. All tiers are cohesive to the single task of resolving personality identity.
   async resolvePersonality(message: Message, userId: string): Promise<LoadedPersonality | null> {
     try {
       const messageId = message.reference?.messageId;
@@ -69,114 +181,20 @@ export class ReplyResolutionService {
         return null;
       }
 
-      // Fetch the message being replied to
       const referencedMessage = await message.channel.messages.fetch(messageId);
       const isDM = message.channel.type === ChannelType.DM;
 
-      // Validate the replied-to message is from a personality
-      if (isDM) {
-        // In DMs, bot messages don't have webhookId
-        // Check if the replied-to message is from this bot
-        if (referencedMessage.author?.id !== message.client.user?.id) {
-          logger.debug('[ReplyResolutionService] Reply in DM is not to a bot message, skipping');
-          return null;
-        }
-        logger.debug('[ReplyResolutionService] DM reply to bot message detected');
-      } else {
-        // In guild channels, require webhookId (personality messages are sent via webhooks)
-        if (!isValidIdentifier(referencedMessage.webhookId)) {
-          logger.debug('[ReplyResolutionService] Reply is to a non-webhook message, skipping');
-          return null;
-        }
-
-        // Check if this webhook belongs to the current bot instance
-        // This prevents both dev and prod bots from responding to the same personality webhook
-        if (
-          isValidIdentifier(referencedMessage.applicationId) &&
-          referencedMessage.applicationId !== message.client.user.id
-        ) {
-          logger.debug(
-            {
-              webhookApplicationId: referencedMessage.applicationId,
-              currentBotId: message.client.user.id,
-            },
-            '[ReplyResolutionService] Ignoring reply to webhook from different bot instance'
-          );
-          return null;
-        }
+      if (!this.validateReferencedMessage(referencedMessage, message.client.user?.id ?? '', isDM)) {
+        return null;
       }
 
-      // Tier 1: Try Redis lookup first (fast path for recent messages)
-      // Redis stores personality ID (UUID), not name, to avoid slug/name collisions
-      let personalityIdOrName = await redisService.getWebhookPersonality(referencedMessage.id);
-
-      // Check if Redis value is a UUID (new format) vs name (legacy format)
-      const isUUID = isValidIdentifier(personalityIdOrName) && isUuidFormat(personalityIdOrName);
-
-      if (isUUID) {
-        logger.debug(
-          { personalityId: personalityIdOrName },
-          '[ReplyResolutionService] Found personality ID in Redis (tier 1)'
-        );
-      }
-
-      // Tier 2: Database lookup (authoritative - handles display name collisions)
-      // Only for DMs when Redis misses, since guild webhooks have username fallback
-      if (!isValidIdentifier(personalityIdOrName) && isDM && this.gatewayClient !== undefined) {
-        const dbResult = await this.gatewayClient.lookupPersonalityFromConversation(
-          referencedMessage.id
-        );
-        if (dbResult !== null) {
-          personalityIdOrName = dbResult.personalityId;
-          logger.debug(
-            { personalityId: personalityIdOrName },
-            '[ReplyResolutionService] Found personality via database lookup (tier 2)'
-          );
-        }
-      }
-
-      // Tier 3: Display name parsing (last resort, best-effort UX)
-      // This is purely for user convenience when Redis/DB miss. Security is NOT
-      // dependent on this parsing - loadPersonality() enforces access control below.
-      // Even if parsing extracts the wrong name, unauthorized access is still blocked.
-      if (!isValidIdentifier(personalityIdOrName)) {
-        if (isDM && referencedMessage.content) {
-          // DM format: **DisplayName:** message content
-          // Regex excludes colons and newlines from display name to prevent edge cases
-          const prefixMatch = /^\*\*([^:\n]+?):\*\*/.exec(referencedMessage.content);
-          if (prefixMatch) {
-            personalityIdOrName = prefixMatch[1];
-            logger.debug(
-              { displayName: personalityIdOrName },
-              '[ReplyResolutionService] Parsed display name from DM message prefix (tier 3)'
-            );
-          }
-        } else if (
-          !isDM &&
-          referencedMessage.author !== undefined &&
-          referencedMessage.author !== null
-        ) {
-          // Guild format: Webhook username is "DisplayName | BotName"
-          const webhookUsername = referencedMessage.author.username;
-          if (webhookUsername.includes(' | ')) {
-            personalityIdOrName = webhookUsername.split(' | ')[0].trim();
-            logger.debug(
-              { personalityName: personalityIdOrName },
-              '[ReplyResolutionService] Extracted personality name from webhook username (tier 3)'
-            );
-          }
-        }
-      }
-
-      if (!isValidIdentifier(personalityIdOrName)) {
+      const personalityIdOrName = await this.lookupPersonalityIdentifier(referencedMessage, isDM);
+      if (personalityIdOrName === null) {
         logger.debug('[ReplyResolutionService] No personality found for replied message');
         return null;
       }
 
-      // Load the personality from database with access control
-      // This prevents the "Reply Loophole" - users can't interact with
-      // private personalities by replying to messages from other users
-      // Note: PersonalityLoader prioritizes UUID > Name > Slug, so UUID lookup is direct
+      // Load with access control — prevents the "Reply Loophole"
       const personality = await this.personalityService.loadPersonality(
         personalityIdOrName,
         userId
@@ -197,7 +215,6 @@ export class ReplyResolutionService {
 
       return personality;
     } catch (error) {
-      // Log at appropriate level: expected errors (deleted messages) vs unexpected (Redis, network)
       if (isExpectedDiscordError(error)) {
         logger.debug({ err: error }, '[ReplyResolutionService] Referenced message was deleted');
       } else {
