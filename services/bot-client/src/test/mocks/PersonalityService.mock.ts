@@ -37,7 +37,7 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
   // Create a mock that implements the PersonalityService interface methods we need
   // We use double type assertion (as unknown as PersonalityService) because this is a test mock
   // that only implements the methods we need, not the full class with all properties
-  const mockService = {
+  return {
     loadPersonality: vi.fn().mockImplementation((name: string) => {
       const personality = personalityMap.get(name.toLowerCase());
       if (!personality) {
@@ -67,6 +67,4 @@ export function createMockPersonalityService(personalities: MockPersonality[]): 
       .fn()
       .mockResolvedValue(personalities as unknown as LoadedPersonality[]),
   } as unknown as PersonalityService;
-
-  return mockService;
 }

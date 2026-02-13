@@ -31,6 +31,10 @@ import { resolvePersonalityId, getPersonalityName } from './autocomplete.js';
 
 const logger = createLogger('memory-incognito');
 
+const ALL_PERSONALITIES_LABEL = 'all personalities';
+const INCOGNITO_API_PATH = '/user/memory/incognito';
+const UNEXPECTED_ERROR_MESSAGE = '❌ An unexpected error occurred. Please try again.';
+
 interface SessionWithTime extends IncognitoSession {
   timeRemaining: string;
 }
@@ -63,7 +67,7 @@ interface IncognitoForgetResponse {
  */
 function formatSessionInfo(session: SessionWithTime, personalityName?: string): string {
   const target =
-    session.personalityId === 'all' ? 'all personalities' : (personalityName ?? 'Unknown');
+    session.personalityId === 'all' ? ALL_PERSONALITIES_LABEL : (personalityName ?? 'Unknown');
   return `• **${escapeMarkdown(target)}** (${session.timeRemaining})`;
 }
 
@@ -76,7 +80,7 @@ async function resolvePersonalityOrAll(
   personalityInput: string
 ): Promise<{ id: string; name: string | null } | null> {
   if (personalityInput.toLowerCase() === 'all') {
-    return { id: 'all', name: 'all personalities' };
+    return { id: 'all', name: ALL_PERSONALITIES_LABEL };
   }
 
   const personalityId = await resolvePersonalityId(userId, personalityInput);
@@ -107,7 +111,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
       return;
     }
 
-    const result = await callGatewayApi<IncognitoEnableResponse>('/user/memory/incognito', {
+    const result = await callGatewayApi<IncognitoEnableResponse>(INCOGNITO_API_PATH, {
       userId,
       method: 'POST',
       body: { personalityId: resolved.id, duration },
@@ -142,7 +146,7 @@ export async function handleIncognitoEnable(context: DeferredCommandContext): Pr
     );
   } catch (error) {
     logger.error({ error, userId }, '[Memory/Incognito Enable] Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
 
@@ -164,7 +168,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
       return;
     }
 
-    const result = await callGatewayApi<IncognitoDisableResponse>('/user/memory/incognito', {
+    const result = await callGatewayApi<IncognitoDisableResponse>(INCOGNITO_API_PATH, {
       userId,
       method: 'DELETE',
       body: { personalityId: resolved.id },
@@ -201,7 +205,7 @@ export async function handleIncognitoDisable(context: DeferredCommandContext): P
     );
   } catch (error) {
     logger.error({ error, userId }, '[Memory/Incognito Disable] Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
 
@@ -212,7 +216,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<IncognitoStatusResponse>('/user/memory/incognito', {
+    const result = await callGatewayApi<IncognitoStatusResponse>(INCOGNITO_API_PATH, {
       userId,
       method: 'GET',
     });
@@ -240,7 +244,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
     const sessionLines = await Promise.all(
       data.sessions.map(async session => {
         if (session.personalityId === 'all') {
-          return formatSessionInfo(session, 'all personalities');
+          return formatSessionInfo(session, ALL_PERSONALITIES_LABEL);
         }
         const name = await getPersonalityName(userId, session.personalityId);
         return formatSessionInfo(session, name ?? session.personalityId);
@@ -260,7 +264,7 @@ export async function handleIncognitoStatus(context: DeferredCommandContext): Pr
     );
   } catch (error) {
     logger.error({ error, userId }, '[Memory/Incognito Status] Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }
 
@@ -321,6 +325,6 @@ export async function handleIncognitoForget(context: DeferredCommandContext): Pr
     );
   } catch (error) {
     logger.error({ error, userId }, '[Memory/Incognito Forget] Unexpected error');
-    await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
+    await context.editReply({ content: UNEXPECTED_ERROR_MESSAGE });
   }
 }

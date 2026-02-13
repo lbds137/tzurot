@@ -27,6 +27,13 @@ const logger = createLogger('character-import');
 // TYPES
 // ============================================================================
 
+/** Discord attachment option type (avoids repeating typeof import) */
+type AttachmentOption = NonNullable<
+  ReturnType<
+    typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
+  >
+>;
+
 /** Result of avatar processing */
 interface AvatarProcessingResult {
   success: true;
@@ -135,11 +142,7 @@ function validateCharacterData(
  * Uses shared JSON utilities for file validation and parsing
  */
 async function validateAndParseCharacterJsonFile(
-  file: NonNullable<
-    ReturnType<
-      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
-    >
-  >
+  file: AttachmentOption
 ): Promise<{ data: Record<string, unknown>; slug: string } | { error: string }> {
   // Validate file type and size using shared utility
   const validationResult = validateJsonFile(file);
@@ -165,13 +168,7 @@ async function validateAndParseCharacterJsonFile(
 /**
  * Validate avatar attachment
  */
-function validateAvatarAttachment(
-  avatar: NonNullable<
-    ReturnType<
-      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
-    >
-  >
-): string | null {
+function validateAvatarAttachment(avatar: AttachmentOption): string | null {
   if (avatar.contentType === null || !VALID_IMAGE_TYPES.includes(avatar.contentType)) {
     return (
       '❌ Avatar must be an image file (PNG, JPG, GIF, or WebP).\n' +
@@ -188,11 +185,7 @@ function validateAvatarAttachment(
  * Process avatar attachment
  */
 async function processAvatarDownload(
-  avatar: NonNullable<
-    ReturnType<
-      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
-    >
-  >
+  avatar: AttachmentOption
 ): Promise<AvatarProcessingResult | { error: string }> {
   try {
     const response = await fetch(avatar.url);
@@ -227,11 +220,7 @@ async function processAvatarDownload(
  * Validate and process avatar attachment (combines validation and processing)
  */
 async function validateAndProcessAvatar(
-  avatar: NonNullable<
-    ReturnType<
-      typeof import('discord.js').ChatInputCommandInteraction.prototype.options.getAttachment
-    >
-  >
+  avatar: AttachmentOption
 ): Promise<{ data: string } | { error: string }> {
   const validationError = validateAvatarAttachment(avatar);
   if (validationError !== null) {
