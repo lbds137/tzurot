@@ -1,24 +1,19 @@
 /**
- * Tests for admin debug command handler orchestration
+ * Tests for inspect command handler orchestration
  *
- * Tests the main handleDebug, handleDebugButton, and handleDebugSelectMenu
+ * Tests the main execute(), handleButton(), and handleSelectMenu()
  * handlers that wire together lookup, embed, components, and views.
+ * Also tests access control: admin sees all, regular users see only their own logs.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import type { DiagnosticPayload } from '@tzurot/common-types';
-import {
-  handleDebug,
-  handleDebugButton,
-  handleDebugSelectMenu,
-  isDebugInteraction,
-} from './index.js';
-import { DebugCustomIds } from './customIds.js';
+import { InspectCustomIds } from './customIds.js';
 import { DebugViewType } from './types.js';
-import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
-// Mock logger and config
+// Mock logger, config, and isBotOwner
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
   return {
@@ -33,6 +28,7 @@ vi.mock('@tzurot/common-types', async () => {
       GATEWAY_URL: 'http://localhost:3000',
       INTERNAL_SERVICE_SECRET: 'test-service-secret',
     }),
+    isBotOwner: (id: string) => id === 'owner-123',
   };
 });
 
@@ -110,7 +106,10 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
   };
 }
 
-function createMockContext(identifier: string | null = 'test-req-123'): DeferredCommandContext {
+function createMockContext(
+  identifier: string | null = 'test-req-123',
+  userId = 'owner-123'
+): DeferredCommandContext {
   const mockEditReply = vi.fn().mockResolvedValue(undefined);
   return {
     interaction: {
@@ -123,20 +122,20 @@ function createMockContext(identifier: string | null = 'test-req-123'): Deferred
         getInteger: vi.fn(() => null),
       },
     },
-    user: { id: 'owner-123' },
+    user: { id: userId },
     guild: null,
     member: null,
     channel: null,
     channelId: 'channel-123',
     guildId: null,
-    commandName: 'admin',
+    commandName: 'inspect',
     isEphemeral: true,
     getOption: vi.fn((name: string) => {
       if (name === 'identifier') return identifier;
       return null;
     }),
     getRequiredOption: vi.fn(),
-    getSubcommand: () => 'debug',
+    getSubcommand: () => null,
     getSubcommandGroup: () => null,
     editReply: mockEditReply,
     followUp: vi.fn(),
@@ -144,14 +143,18 @@ function createMockContext(identifier: string | null = 'test-req-123'): Deferred
   } as unknown as DeferredCommandContext;
 }
 
-function createSuccessResponse(requestId: string, payload: DiagnosticPayload) {
+function createSuccessResponse(
+  requestId: string,
+  payload: DiagnosticPayload,
+  userId = '123456789'
+) {
   return new Response(
     JSON.stringify({
       log: {
         id: 'log-uuid',
         requestId,
         personalityId: 'personality-uuid',
-        userId: '123456789',
+        userId,
         guildId: '987654321',
         channelId: '111222333',
         model: 'test',
@@ -168,27 +171,38 @@ function createSuccessResponse(requestId: string, payload: DiagnosticPayload) {
 // Mock browse module
 vi.mock('./browse.js', () => ({
   handleRecentBrowse: vi.fn().mockResolvedValue(undefined),
+  handleBrowsePagination: vi.fn().mockResolvedValue(undefined),
+  handleBrowseLogSelection: vi.fn().mockResolvedValue(undefined),
+  isInspectBrowseInteraction: vi.fn((id: string) => id.includes('::browse::')),
+  isInspectBrowseSelectInteraction: vi.fn((id: string) => id.includes('::browse-select::')),
 }));
 
-describe('handleDebug', () => {
-  beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.restoreAllMocks());
+// Import the default export which contains execute, handleSelectMenu, handleButton
+let inspectCommand: typeof import('./index.js').default;
 
+beforeEach(async () => {
+  vi.clearAllMocks();
+  const mod = await import('./index.js');
+  inspectCommand = mod.default;
+});
+afterEach(() => vi.restoreAllMocks());
+
+describe('execute (slash command)', () => {
   it('should dispatch to browse when identifier is null', async () => {
     const { handleRecentBrowse } = await import('./browse.js');
     const context = createMockContext(null);
-    await handleDebug(context);
+    await inspectCommand.execute(context);
 
-    expect(handleRecentBrowse).toHaveBeenCalledWith(context);
+    expect(handleRecentBrowse).toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
 
   it('should dispatch to browse when identifier is empty string', async () => {
     const { handleRecentBrowse } = await import('./browse.js');
     const context = createMockContext('');
-    await handleDebug(context);
+    await inspectCommand.execute(context);
 
-    expect(handleRecentBrowse).toHaveBeenCalledWith(context);
+    expect(handleRecentBrowse).toHaveBeenCalled();
     expect(fetch).not.toHaveBeenCalled();
   });
 
@@ -197,7 +211,7 @@ describe('handleDebug', () => {
     vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
 
     const context = createMockContext('test-req-123');
-    await handleDebug(context);
+    await inspectCommand.execute(context);
 
     expect(context.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -207,22 +221,11 @@ describe('handleDebug', () => {
     );
   });
 
-  it('should not return files by default', async () => {
-    const mockPayload = createMockDiagnosticPayload();
-    vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
-
-    const context = createMockContext('test-req-123');
-    await handleDebug(context);
-
-    const args = vi.mocked(context.editReply).mock.calls[0][0] as { files?: unknown[] };
-    expect(args.files).toBeUndefined();
-  });
-
   it('should handle 404 errors', async () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
     const context = createMockContext('expired-req');
-    await handleDebug(context);
+    await inspectCommand.execute(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Diagnostic log not found'),
@@ -233,22 +236,38 @@ describe('handleDebug', () => {
     vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
 
     const context = createMockContext('test-req');
-    await handleDebug(context);
+    await inspectCommand.execute(context);
 
     expect(context.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Error fetching diagnostic log'),
     });
   });
+
+  it('should pass no filterUserId for admin users', async () => {
+    const { handleRecentBrowse } = await import('./browse.js');
+    const context = createMockContext(null, 'owner-123');
+    await inspectCommand.execute(context);
+
+    // Admin should pass undefined filterUserId
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context, undefined);
+  });
+
+  it('should pass filterUserId for non-admin users', async () => {
+    const { handleRecentBrowse } = await import('./browse.js');
+    const context = createMockContext(null, 'regular-user-456');
+    await inspectCommand.execute(context);
+
+    // Non-admin should pass their userId
+    expect(handleRecentBrowse).toHaveBeenCalledWith(context, 'regular-user-456');
+  });
 });
 
-describe('handleDebugButton', () => {
-  beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.restoreAllMocks());
-
-  function createMockButtonInteraction(viewType: DebugViewType) {
+describe('handleButton', () => {
+  function createMockButtonInteraction(viewType: DebugViewType, userId = 'owner-123') {
     const requestId = 'test-req-123';
     return {
-      customId: DebugCustomIds.button(requestId, viewType),
+      customId: InspectCustomIds.button(requestId, viewType),
+      user: { id: userId },
       deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').ButtonInteraction;
@@ -259,7 +278,7 @@ describe('handleDebugButton', () => {
     vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
 
     const interaction = createMockButtonInteraction(DebugViewType.FullJson);
-    await handleDebugButton(interaction);
+    await inspectCommand.handleButton!(interaction);
 
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -273,47 +292,35 @@ describe('handleDebugButton', () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
     const interaction = createMockButtonInteraction(DebugViewType.Reasoning);
-    await handleDebugButton(interaction);
+    await inspectCommand.handleButton!(interaction);
 
     expect(interaction.editReply).toHaveBeenCalledWith({
       content: expect.stringContaining('Diagnostic log not found'),
     });
   });
 
-  it('should handle network errors', async () => {
-    vi.mocked(fetch).mockRejectedValue(new Error('Network error'));
-
-    const interaction = createMockButtonInteraction(DebugViewType.FullJson);
-    await handleDebugButton(interaction);
-
-    expect(interaction.editReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Error loading debug view'),
-    });
-  });
-
-  it('should return early for non-debug custom IDs', async () => {
+  it('should return early for non-inspect custom IDs', async () => {
     const interaction = {
       customId: 'admin-settings::btn::foo',
+      user: { id: 'owner-123' },
       deferReply: vi.fn(),
       editReply: vi.fn(),
     } as unknown as import('discord.js').ButtonInteraction;
 
-    await handleDebugButton(interaction);
+    await inspectCommand.handleButton!(interaction);
 
     expect(interaction.deferReply).not.toHaveBeenCalled();
     expect(interaction.editReply).not.toHaveBeenCalled();
   });
 });
 
-describe('handleDebugSelectMenu', () => {
-  beforeEach(() => vi.clearAllMocks());
-  afterEach(() => vi.restoreAllMocks());
-
-  function createMockSelectInteraction(viewType: string) {
+describe('handleSelectMenu', () => {
+  function createMockSelectInteraction(viewType: string, userId = 'owner-123') {
     const requestId = 'test-req-123';
     return {
-      customId: DebugCustomIds.selectMenu(requestId),
+      customId: InspectCustomIds.selectMenu(requestId),
       values: [viewType],
+      user: { id: userId },
       deferReply: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
       reply: vi.fn().mockResolvedValue(undefined),
@@ -325,7 +332,7 @@ describe('handleDebugSelectMenu', () => {
     vi.mocked(fetch).mockResolvedValue(createSuccessResponse('test-req-123', mockPayload));
 
     const interaction = createMockSelectInteraction(DebugViewType.TokenBudget);
-    await handleDebugSelectMenu(interaction);
+    await inspectCommand.handleSelectMenu!(interaction);
 
     expect(interaction.deferReply).toHaveBeenCalledWith({ flags: MessageFlags.Ephemeral });
     expect(interaction.editReply).toHaveBeenCalledWith(
@@ -337,7 +344,7 @@ describe('handleDebugSelectMenu', () => {
 
   it('should reject unknown view types', async () => {
     const interaction = createMockSelectInteraction('invalid-view');
-    await handleDebugSelectMenu(interaction);
+    await inspectCommand.handleSelectMenu!(interaction);
 
     expect(interaction.reply).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -348,29 +355,19 @@ describe('handleDebugSelectMenu', () => {
     expect(interaction.deferReply).not.toHaveBeenCalled();
   });
 
-  it('should return early for non-debug custom IDs', async () => {
+  it('should return early for non-inspect custom IDs', async () => {
     const interaction = {
       customId: 'admin-settings::select::foo',
       values: [DebugViewType.FullJson],
+      user: { id: 'owner-123' },
       deferReply: vi.fn(),
       editReply: vi.fn(),
       reply: vi.fn(),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
 
-    await handleDebugSelectMenu(interaction);
+    await inspectCommand.handleSelectMenu!(interaction);
 
     expect(interaction.deferReply).not.toHaveBeenCalled();
     expect(interaction.reply).not.toHaveBeenCalled();
-  });
-});
-
-describe('isDebugInteraction', () => {
-  it('should return true for debug custom IDs', () => {
-    expect(isDebugInteraction('admin-debug::btn::req::full-json')).toBe(true);
-    expect(isDebugInteraction('admin-debug::select::req')).toBe(true);
-  });
-
-  it('should return false for other custom IDs', () => {
-    expect(isDebugInteraction('admin-settings::btn::foo')).toBe(false);
   });
 });

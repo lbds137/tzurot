@@ -271,6 +271,51 @@ describe('presetConfigValidator', () => {
         expect(result.warnings.filter(w => w.field === 'reasoning_effort')).toHaveLength(0);
       });
     });
+
+    describe('reasoning effort / max_tokens mutual exclusivity', () => {
+      it('should warn when both reasoning effort and max_tokens are set', () => {
+        const config = createTestConfig({
+          reasoning_effort: 'high',
+          max_tokens: '4096',
+        });
+        const result = presetConfigValidator.validate(config);
+
+        expect(result.warnings.some(w => w.field === 'reasoning_effort / max_tokens')).toBe(true);
+        expect(
+          result.warnings.find(w => w.field === 'reasoning_effort / max_tokens')?.message
+        ).toContain('mutually exclusive');
+      });
+
+      it('should not warn when only effort is set', () => {
+        const config = createTestConfig({ reasoning_effort: 'medium' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(
+          result.warnings.filter(w => w.field === 'reasoning_effort / max_tokens')
+        ).toHaveLength(0);
+      });
+
+      it('should not warn when only max_tokens is set', () => {
+        const config = createTestConfig({ max_tokens: '4096' });
+        const result = presetConfigValidator.validate(config);
+
+        expect(
+          result.warnings.filter(w => w.field === 'reasoning_effort / max_tokens')
+        ).toHaveLength(0);
+      });
+
+      it('should not warn when effort is empty string', () => {
+        const config = createTestConfig({
+          reasoning_effort: '',
+          max_tokens: '4096',
+        });
+        const result = presetConfigValidator.validate(config);
+
+        expect(
+          result.warnings.filter(w => w.field === 'reasoning_effort / max_tokens')
+        ).toHaveLength(0);
+      });
+    });
   });
 
   describe('combined scenarios', () => {

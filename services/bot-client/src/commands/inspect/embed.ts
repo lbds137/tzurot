@@ -1,21 +1,21 @@
 /**
- * Diagnostic embed builder for the debug command summary view
+ * Diagnostic embed builder for the inspect command summary view
  */
 
 import { EmbedBuilder } from 'discord.js';
-import type { DiagnosticPayload } from '@tzurot/common-types';
+import { DISCORD_COLORS, type DiagnosticPayload } from '@tzurot/common-types';
 
 /**
  * Determine embed color based on diagnostic state
  */
 export function getEmbedColor(payload: DiagnosticPayload): number {
   if (payload.error) {
-    return 0xff0000;
+    return DISCORD_COLORS.ERROR;
   }
   if (payload.llmResponse.finishReason === 'length') {
-    return 0xff6600;
+    return DISCORD_COLORS.WARNING;
   }
-  return 0x00ff00;
+  return DISCORD_COLORS.SUCCESS;
 }
 
 /**

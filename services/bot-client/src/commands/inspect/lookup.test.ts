@@ -142,7 +142,7 @@ describe('lookupByMessageId', () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(
         JSON.stringify({
-          logs: [{ id: 'log-uuid', requestId: 'req-1', data: mockPayload }],
+          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: '123456789', data: mockPayload }],
           count: 1,
         }),
         { status: 200 }
@@ -164,7 +164,9 @@ describe('lookupByMessageId', () => {
       .mockResolvedValueOnce(new Response('Not found', { status: 404 }))
       .mockResolvedValueOnce(
         new Response(
-          JSON.stringify({ log: { id: 'log-uuid', requestId: 'req-1', data: mockPayload } }),
+          JSON.stringify({
+            log: { id: 'log-uuid', requestId: 'req-1', userId: '123456789', data: mockPayload },
+          }),
           { status: 200 }
         )
       );
@@ -214,8 +216,8 @@ describe('lookupByMessageId', () => {
       new Response(
         JSON.stringify({
           logs: [
-            { id: 'log-2', requestId: 'newer-req', data: mockPayload },
-            { id: 'log-1', requestId: 'older-req', data: mockPayload },
+            { id: 'log-2', requestId: 'newer-req', userId: '123456789', data: mockPayload },
+            { id: 'log-1', requestId: 'older-req', userId: '123456789', data: mockPayload },
           ],
           count: 2,
         }),
@@ -239,6 +241,41 @@ describe('lookupByMessageId', () => {
       expect(result.errorMessage).toContain('HTTP 500');
     }
   });
+
+  it('should reject logs not belonging to filterUserId', async () => {
+    const mockPayload = createMockDiagnosticPayload();
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: 'other-user', data: mockPayload }],
+          count: 1,
+        }),
+        { status: 200 }
+      )
+    );
+
+    const result = await lookupByMessageId('1234567890123456789', 'my-user-id');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('Diagnostic log not found');
+    }
+  });
+
+  it('should allow logs matching filterUserId', async () => {
+    const mockPayload = createMockDiagnosticPayload();
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          logs: [{ id: 'log-uuid', requestId: 'req-1', userId: 'my-user-id', data: mockPayload }],
+          count: 1,
+        }),
+        { status: 200 }
+      )
+    );
+
+    const result = await lookupByMessageId('1234567890123456789', 'my-user-id');
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('lookupByRequestId', () => {
@@ -249,7 +286,9 @@ describe('lookupByRequestId', () => {
     const mockPayload = createMockDiagnosticPayload();
     vi.mocked(fetch).mockResolvedValue(
       new Response(
-        JSON.stringify({ log: { id: 'log-uuid', requestId: 'test-req', data: mockPayload } }),
+        JSON.stringify({
+          log: { id: 'log-uuid', requestId: 'test-req', userId: '123456789', data: mockPayload },
+        }),
         { status: 200 }
       )
     );
@@ -311,6 +350,39 @@ describe('lookupByRequestId', () => {
       expect(result.errorMessage).toContain('HTTP 503');
     }
   });
+
+  it('should reject logs not belonging to filterUserId', async () => {
+    const mockPayload = createMockDiagnosticPayload();
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          log: { id: 'log-uuid', requestId: 'test-req', userId: 'other-user', data: mockPayload },
+        }),
+        { status: 200 }
+      )
+    );
+
+    const result = await lookupByRequestId('test-req', 'my-user-id');
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.errorMessage).toContain('Diagnostic log not found');
+    }
+  });
+
+  it('should allow logs when no filterUserId', async () => {
+    const mockPayload = createMockDiagnosticPayload();
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          log: { id: 'log-uuid', requestId: 'test-req', userId: 'any-user', data: mockPayload },
+        }),
+        { status: 200 }
+      )
+    );
+
+    const result = await lookupByRequestId('test-req');
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('resolveDiagnosticLog', () => {
@@ -352,5 +424,13 @@ describe('resolveDiagnosticLog', () => {
       expect.stringContaining('/by-message/9876543210987654321'),
       expect.any(Object)
     );
+  });
+
+  it('should pass filterUserId through', async () => {
+    vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
+
+    // filterUserId is passed to the underlying lookup function
+    const result = await resolveDiagnosticLog('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'user-123');
+    expect(result.success).toBe(false);
   });
 });

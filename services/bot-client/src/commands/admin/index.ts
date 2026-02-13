@@ -41,18 +41,6 @@ import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
 import {
-  handleDebug,
-  handleDebugButton,
-  handleDebugSelectMenu,
-  isDebugInteraction,
-} from './debug/index.js';
-import {
-  handleBrowsePagination as handleDebugBrowsePagination,
-  handleBrowseLogSelection as handleDebugBrowseLogSelection,
-  isDebugBrowseInteraction,
-  isDebugBrowseSelectInteraction,
-} from './debug/browse.js';
-import {
   handleSettings,
   handleAdminSettingsSelectMenu,
   handleAdminSettingsButton,
@@ -74,7 +62,6 @@ const adminRouter = createSubcommandContextRouter(
     kick: handleKick,
     usage: handleUsage,
     cleanup: handleCleanup,
-    debug: handleDebug,
     settings: handleSettings,
   },
   { logger, logPrefix: '[Admin]' }
@@ -160,18 +147,6 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     return;
   }
 
-  // Debug browse select (must check before general debug interaction)
-  if (isDebugBrowseSelectInteraction(interaction.customId)) {
-    await handleDebugBrowseLogSelection(interaction);
-    return;
-  }
-
-  // Debug interactive views
-  if (isDebugInteraction(interaction.customId)) {
-    await handleDebugSelectMenu(interaction);
-    return;
-  }
-
   // Settings dashboard interactions
   if (isAdminSettingsInteraction(interaction.customId)) {
     // Note: Owner check is done via session ownership (dashboard is only created for owner)
@@ -194,18 +169,6 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
   // Servers back button
   if (parseBackCustomId(customId) !== null) {
     await handleServersBack(interaction);
-    return;
-  }
-
-  // Debug browse pagination (must check before general debug interaction)
-  if (isDebugBrowseInteraction(customId)) {
-    await handleDebugBrowsePagination(interaction);
-    return;
-  }
-
-  // Debug interactive views
-  if (isDebugInteraction(customId)) {
-    await handleDebugButton(interaction);
     return;
   }
 
@@ -306,17 +269,6 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('settings').setDescription('Open global settings dashboard')
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('debug')
-        .setDescription('Retrieve LLM diagnostic log for debugging')
-        .addStringOption(option =>
-          option
-            .setName('identifier')
-            .setDescription('Message ID, message link, or request UUID (omit to browse recent)')
-            .setRequired(false)
-        )
     ),
   deferralMode: 'ephemeral',
   execute,
@@ -324,5 +276,5 @@ export default defineCommand({
   handleSelectMenu,
   handleButton,
   handleModal,
-  componentPrefixes: ['admin-settings', 'admin-servers', 'admin-debug'],
+  componentPrefixes: ['admin-settings', 'admin-servers'],
 });

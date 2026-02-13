@@ -1,5 +1,5 @@
 /**
- * View builders for each debug output format
+ * View builders for each diagnostic output format
  *
  * Each view returns either an ephemeral message payload or a file attachment.
  */
