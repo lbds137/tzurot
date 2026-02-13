@@ -10,6 +10,8 @@ import { createLogger, getConfig, HealthStatus } from '@tzurot/common-types';
 const logger = createLogger('api-gateway');
 const envConfig = getConfig();
 
+const AVATAR_STORAGE_PATH = '/data/avatars';
+
 /**
  * Validate BYOK (Bring Your Own Key) encryption configuration
  * Logs clear warning if not configured, throws if key is invalid format
@@ -64,7 +66,7 @@ async function ensureDirectory(path: string, name: string): Promise<void> {
  * Ensure avatar storage directory exists
  */
 export async function ensureAvatarDirectory(): Promise<void> {
-  await ensureDirectory('/data/avatars', 'Avatar storage');
+  await ensureDirectory(AVATAR_STORAGE_PATH, 'Avatar storage');
 }
 
 /**
@@ -83,8 +85,8 @@ export async function checkAvatarStorage(): Promise<{
   error?: string;
 }> {
   try {
-    await access('/data/avatars');
-    const files = await readdir('/data/avatars');
+    await access(AVATAR_STORAGE_PATH);
+    const files = await readdir(AVATAR_STORAGE_PATH);
     return { status: HealthStatus.Ok, count: files.length };
   } catch (error) {
     return {

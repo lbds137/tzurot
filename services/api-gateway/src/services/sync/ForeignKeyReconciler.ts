@@ -125,6 +125,58 @@ export class ForeignKeyReconciler {
   }
 
   /**
+   * Reconcile a single FK column between dev and prod rows based on timestamp comparison.
+   */
+  private async reconcileFkColumn(opts: {
+    tableName: string;
+    fkColumn: string;
+    devObj: Record<string, unknown>;
+    prodObj: Record<string, unknown>;
+    comparison: string;
+    pkColumns: string[];
+  }): Promise<void> {
+    const { tableName, fkColumn, devObj, prodObj, comparison, pkColumns } = opts;
+    const devValue = devObj[fkColumn];
+    const prodValue = prodObj[fkColumn];
+
+    if (devValue === prodValue) {
+      return;
+    }
+
+    const pkValues = pkColumns.map(col => devObj[col]);
+
+    if (
+      (comparison === 'dev-newer' || comparison === 'same') &&
+      devValue !== null &&
+      devValue !== undefined
+    ) {
+      await this.updateFkColumn({
+        client: this.prodClient,
+        tableName,
+        fkColumn,
+        value: devValue as string,
+        pkColumns,
+        pkValues,
+      });
+    }
+
+    if (
+      (comparison === 'prod-newer' || comparison === 'same') &&
+      prodValue !== null &&
+      prodValue !== undefined
+    ) {
+      await this.updateFkColumn({
+        client: this.devClient,
+        tableName,
+        fkColumn,
+        value: prodValue as string,
+        pkColumns,
+        pkValues,
+      });
+    }
+  }
+
+  /**
    * Reconcile FK columns for rows that exist in both databases
    */
   private async reconcileBothDirections(options: ReconcileBothDirectionsOptions): Promise<void> {
@@ -139,44 +191,17 @@ export class ForeignKeyReconciler {
 
       const devObj = devRow as Record<string, unknown>;
       const prodObj = prodRow as Record<string, unknown>;
-
       const comparison = compareTimestamps(devRow, prodRow, config);
 
       for (const fkColumn of deferredFkColumns) {
-        const devValue = devObj[fkColumn];
-        const prodValue = prodObj[fkColumn];
-
-        if (devValue === prodValue) {
-          continue;
-        }
-
-        const pkValues = pkColumns.map(col => devObj[col]);
-
-        if (comparison === 'dev-newer' || comparison === 'same') {
-          if (devValue !== null && devValue !== undefined) {
-            await this.updateFkColumn({
-              client: this.prodClient,
-              tableName,
-              fkColumn,
-              value: devValue as string,
-              pkColumns,
-              pkValues,
-            });
-          }
-        }
-
-        if (comparison === 'prod-newer' || comparison === 'same') {
-          if (prodValue !== null && prodValue !== undefined) {
-            await this.updateFkColumn({
-              client: this.devClient,
-              tableName,
-              fkColumn,
-              value: prodValue as string,
-              pkColumns,
-              pkValues,
-            });
-          }
-        }
+        await this.reconcileFkColumn({
+          tableName,
+          fkColumn,
+          devObj,
+          prodObj,
+          comparison,
+          pkColumns,
+        });
       }
     }
   }

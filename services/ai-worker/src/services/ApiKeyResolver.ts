@@ -175,13 +175,11 @@ export class ApiKeyResolver {
       }
 
       // Decrypt the key (uses encryption key from environment via getEncryptionKey())
-      const decrypted = decryptApiKey({
+      return decryptApiKey({
         iv: userApiKey.iv,
         content: userApiKey.content,
         tag: userApiKey.tag,
       });
-
-      return decrypted;
     } catch (error) {
       logger.error({ err: error, userId, provider }, 'Failed to retrieve/decrypt user API key');
       return null;

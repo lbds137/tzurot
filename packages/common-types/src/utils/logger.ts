@@ -106,14 +106,12 @@ function extractStandardProps(
 }
 
 /**
- * Extract enumerable and non-enumerable properties
+ * Copy enumerable properties (excluding already-handled ones) into serialized output.
  */
-function extractExtraProps(
-  err: unknown,
+function extractEnumerableProps(
   errObj: Record<string, unknown>,
   serialized: Record<string, unknown>
 ): void {
-  // Enumerable properties
   for (const key of Object.keys(errObj)) {
     if (HANDLED_PROPS.has(key)) {
       continue;
@@ -124,17 +122,38 @@ function extractExtraProps(
     }
     serialized[key] = typeof value === 'string' ? sanitizeLogMessage(value) : value;
   }
+}
 
-  // Non-enumerable properties on Error instances
-  if (err instanceof Error) {
-    for (const key of NODE_ERROR_PROPS) {
-      if (!(key in serialized) && key in errObj) {
-        const value = errObj[key];
-        if (value !== undefined && typeof value !== 'function') {
-          serialized[key] = value;
-        }
+/**
+ * Copy non-enumerable Node.js error properties (code, errno, syscall, etc.)
+ * that aren't already in the serialized output.
+ */
+function extractNonEnumerableProps(
+  errObj: Record<string, unknown>,
+  serialized: Record<string, unknown>
+): void {
+  for (const key of NODE_ERROR_PROPS) {
+    if (!(key in serialized) && key in errObj) {
+      const value = errObj[key];
+      if (value !== undefined && typeof value !== 'function') {
+        serialized[key] = value;
       }
     }
+  }
+}
+
+/**
+ * Extract enumerable and non-enumerable properties
+ */
+function extractExtraProps(
+  err: unknown,
+  errObj: Record<string, unknown>,
+  serialized: Record<string, unknown>
+): void {
+  extractEnumerableProps(errObj, serialized);
+
+  if (err instanceof Error) {
+    extractNonEnumerableProps(errObj, serialized);
   }
 }
 
@@ -177,24 +196,28 @@ function customErrorSerializer(err: unknown): object {
 
   extractStandardProps(err, errObj, serialized);
   extractExtraProps(err, errObj, serialized);
-
-  // Fallback: if we extracted nothing useful, stringify the object for debugging
-  // "useful" means we have something beyond just 'type' and '_nonErrorObject'
-  const usefulKeys = Object.keys(serialized).filter(k => k !== 'type' && k !== '_nonErrorObject');
-  if (usefulKeys.length === 0) {
-    try {
-      const stringified = JSON.stringify(err);
-      if (stringified.length <= 500) {
-        serialized.raw = stringified;
-      } else {
-        serialized.raw = stringified.substring(0, 500) + '... [truncated]';
-      }
-    } catch {
-      serialized.raw = '[circular or non-serializable object]';
-    }
-  }
+  addRawFallback(err, serialized);
 
   return serialized;
+}
+
+/**
+ * If no useful properties were extracted, stringify the object as a raw fallback.
+ * "Useful" means something beyond just 'type' and '_nonErrorObject'.
+ */
+function addRawFallback(err: unknown, serialized: Record<string, unknown>): void {
+  const usefulKeys = Object.keys(serialized).filter(k => k !== 'type' && k !== '_nonErrorObject');
+  if (usefulKeys.length > 0) {
+    return;
+  }
+
+  try {
+    const stringified = JSON.stringify(err);
+    serialized.raw =
+      stringified.length <= 500 ? stringified : stringified.substring(0, 500) + '... [truncated]';
+  } catch {
+    serialized.raw = '[circular or non-serializable object]';
+  }
 }
 
 /**
