@@ -12,7 +12,7 @@
 | [tzurot-docs](./tzurot-docs/SKILL.md)                 | Session start/end, CURRENT.md workflow | `/tzurot-docs`         |
 | [tzurot-db-vector](./tzurot-db-vector/SKILL.md)       | Prisma migrations, drift fixes         | `/tzurot-db-vector`    |
 | [tzurot-testing](./tzurot-testing/SKILL.md)           | Test execution, coverage audits        | `/tzurot-testing`      |
-| [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)   | External AI consultation               | `/tzurot-council-mcp`  |
+| [tzurot-council-mcp](./tzurot-council-mcp/SKILL.md)   | Multi-perspective AI consultation      | `/tzurot-council-mcp`  |
 | [tzurot-doc-audit](./tzurot-doc-audit/SKILL.md)       | Documentation freshness audit          | `/tzurot-doc-audit`    |
 | [tzurot-arch-audit](./tzurot-arch-audit/SKILL.md)     | Architecture health audit              | `/tzurot-arch-audit`   |
 
@@ -27,7 +27,7 @@ The following rules load automatically every session - no invocation needed:
 | `02-code-standards.md` | ESLint limits, TypeScript, testing patterns |
 | `03-database.md`       | Prisma, pgvector, caching                   |
 | `04-discord.md`        | 3-second deferral, slash commands, BullMQ   |
-| `05-tooling.md`        | CLI reference, git workflow                 |
+| `05-tooling.md`        | CLI reference, commit & release standards   |
 | `06-backlog.md`        | Backlog structure, session workflow         |
 | `07-documentation.md`  | Doc placement, naming, lifecycle            |
 
@@ -49,4 +49,4 @@ The following rules load automatically every session - no invocation needed:
 
 ---
 
-**Last Updated**: 2026-02-07
+**Last Updated**: 2026-02-13

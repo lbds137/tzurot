@@ -77,19 +77,7 @@ pnpm ops test:audit --update         # Update baseline after closing gaps
 
 ## Git Workflow
 
-### Standard PR Flow
-
-```bash
-# Start feature
-git checkout develop && git pull origin develop
-git checkout -b feat/your-feature
-
-# Test before commit
-pnpm test
-
-# Create PR to develop (NEVER to main except releases)
-gh pr create --base develop --title "feat: description"
-```
+**Procedures**: See `/tzurot-git-workflow` skill for commit, PR, rebase, and release procedures.
 
 ### Commit Message Format
 
@@ -109,29 +97,34 @@ EOF
 **Types:** `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`
 **Scopes:** `ai-worker`, `api-gateway`, `bot-client`, `common-types`, `ci`, `deps`
 
-### Rebase Conflicts
+### Release Notes Format
 
-```bash
-git checkout develop && git pull origin develop
-git checkout feat/your-feature
-git rebase develop
-# Resolve conflicts, then:
-git push --force-with-lease origin feat/your-feature
+Release notes follow the Conventional Changelog format. This enables machine parsing for Discord release notifications.
+
+```markdown
+## v3.0.0-beta.XX — Brief summary (under 60 chars)
+
+### Features
+
+- **scope:** description (#PR)
+
+### Bug Fixes
+
+- **scope:** description (#PR)
+
+### Improvements
+
+- **scope:** description (#PR)
 ```
 
-## Railway Operations
+**Rules:**
 
-```bash
-# Logs
-railway logs --service api-gateway -n 50
-railway logs | grep "requestId\":\"abc-123"
-
-# Health
-curl https://api-gateway-development-83e8.up.railway.app/health
-
-# Redeploy (railway restart doesn't exist)
-railway redeploy --service bot-client --yes
-```
+- Version + summary line is required (H2)
+- Categories use H3: **Features**, **Bug Fixes**, **Improvements**, **Breaking Changes**, **Chores**
+- Breaking Changes section always comes first when present
+- Only include categories that have entries
+- Line items: `- **scope:** description (#PR)` — scope maps to commit scope
+- End with: `**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`
 
 ## Project Structure
 
