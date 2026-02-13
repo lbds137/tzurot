@@ -428,6 +428,8 @@ Review all `*.test.ts` files to ensure they match their naming convention.
 
 - **Bot Presence Setting** - `/admin presence set <type> <message>`, persist across restarts
 - **Release Notifications** - `/changelog` command, announcement channel, GitHub webhook
+- **Remove Dashboard Close Button** - Redundant with Discord's native "Dismiss Message" on ephemeral messages. Sessions auto-expire via Redis TTL (15 min) anyway.
+- **Align Preset Browse UX with Character Browse** - Characters group by owner with clear section headers and consistent emoji badges (from the Emoji Standardization epic). Presets still use a flat list with ad-hoc badging. Needs: owner grouping, standardized emoji badges, consistent legend formatting.
 
 ### Tooling Polish
 
