@@ -9,14 +9,12 @@
  */
 
 import { ChatOpenAI } from '@langchain/openai';
-import { BaseChatModel } from '@langchain/core/language_models/chat_models';
 import {
   createLogger,
   getConfig,
   AIProvider,
   AI_DEFAULTS,
   AI_ENDPOINTS,
-  type ConvertedLlmParams,
 } from '@tzurot/common-types';
 import { isReasoningModel } from '../utils/reasoningModelUtils.js';
 import { createOpenRouterFetch } from './modelFactory/OpenRouterFetch.js';
@@ -24,6 +22,7 @@ import type { OpenRouterExtraParams } from './modelFactory/OpenRouterFetch.js';
 
 // Re-export extracted modules for backward compatibility
 export { getModelCacheKey } from './modelFactory/CacheKeyBuilder.js';
+export type { ModelConfig, ChatModelResult } from './modelFactory/types.js';
 
 const logger = createLogger('ModelFactory');
 const config = getConfig();
@@ -116,22 +115,7 @@ function validateModelName(requestedModel: string | undefined): string {
     : config.DEFAULT_AI_MODEL;
 }
 
-/**
- * Model configuration for creating chat models.
- * Extends ConvertedLlmParams to include ALL parameters from advancedParameters JSONB.
- */
-export interface ModelConfig extends ConvertedLlmParams {
-  modelName?: string;
-  apiKey?: string; // User-provided key (BYOK)
-}
-
-/**
- * Result of creating a chat model
- */
-export interface ChatModelResult {
-  model: BaseChatModel;
-  modelName: string;
-}
+import type { ModelConfig, ChatModelResult } from './modelFactory/types.js';
 
 /** Add a value to kwargs if defined */
 function addIfDefined<T>(kwargs: Record<string, unknown>, key: string, value: T | undefined): void {

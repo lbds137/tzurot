@@ -6,7 +6,7 @@
  */
 
 import { getConfig } from '@tzurot/common-types';
-import type { ModelConfig } from '../ModelFactory.js';
+import type { ModelConfig } from './types.js';
 
 const config = getConfig();
 
