@@ -120,17 +120,10 @@ function createGetHandler(
 
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(config);
-    const response: Record<string, unknown> = {
-      ...formatted,
-      isOwned,
-      permissions,
-    };
-
-    // Enrich with model context window info for dashboard display
-    await enrichWithModelContext(response, config.model, modelCache);
+    await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.debug({ discordUserId, configId }, '[LlmConfig] Fetched config');
-    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: { ...formatted, isOwned, permissions } }, StatusCodes.OK);
   };
 }
 
@@ -194,20 +187,17 @@ function createCreateHandler(
 
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(config);
-    const response: Record<string, unknown> = {
-      ...formatted,
-      isOwned: true,
-      permissions,
-    };
-
-    // Enrich with model context window info for dashboard display
-    await enrichWithModelContext(response, config.model, modelCache);
+    await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.info(
       { discordUserId, configId: config.id, name: config.name },
       '[LlmConfig] Created config'
     );
-    sendCustomSuccess(res, { config: response }, StatusCodes.CREATED);
+    sendCustomSuccess(
+      res,
+      { config: { ...formatted, isOwned: true, permissions } },
+      StatusCodes.CREATED
+    );
   };
 }
 
@@ -297,21 +287,18 @@ function createUpdateHandler(
 
     // Format with service helper, then add user-specific fields
     const formatted = service.formatConfigDetail(updated);
-    const response: Record<string, unknown> = {
-      ...formatted,
-      isOwned: true,
-      permissions,
-    };
-
-    // Enrich with model context window info for dashboard display
-    await enrichWithModelContext(response, updated.model, modelCache);
+    await enrichWithModelContext(formatted, updated.model, modelCache);
 
     logger.info(
       { discordUserId, configId, name: updated.name, updates: Object.keys(body) },
       '[LlmConfig] Updated config'
     );
 
-    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
+    sendCustomSuccess(
+      res,
+      { config: { ...formatted, isOwned: true, permissions } },
+      StatusCodes.OK
+    );
   };
 }
 

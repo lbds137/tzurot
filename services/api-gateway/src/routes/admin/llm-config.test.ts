@@ -834,6 +834,168 @@ describe('Admin LLM Config Routes', () => {
       expect(cacheService.invalidateAll).toHaveBeenCalled();
     });
 
+    it('should enrich GET response with model context info when modelCache provided', async () => {
+      const mockModelCache = {
+        getModelById: vi.fn().mockResolvedValue({
+          id: 'anthropic/claude-sonnet-4',
+          name: 'Claude Sonnet 4',
+          contextLength: 200000,
+          supportsVision: true,
+          supportsImageGeneration: false,
+          supportsAudioInput: false,
+          supportsAudioOutput: false,
+          promptPricePerMillion: 3,
+          completionPricePerMillion: 15,
+        }),
+      };
+
+      const appWithModel = express();
+      appWithModel.use(express.json());
+      appWithModel.use(
+        '/admin/llm-config',
+        createAdminLlmConfigRoutes(
+          prisma as unknown as PrismaClient,
+          cacheService as unknown as LlmConfigCacheInvalidationService,
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache
+        )
+      );
+
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-1',
+        name: 'Test Config',
+        description: null,
+        provider: 'openrouter',
+        model: 'anthropic/claude-sonnet-4',
+        visionModel: null,
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        advancedParameters: null,
+        contextWindowTokens: 65000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+      });
+
+      const response = await request(appWithModel).get('/admin/llm-config/config-1');
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.modelContextLength).toBe(200000);
+      expect(response.body.config.contextWindowCap).toBe(100000);
+    });
+
+    it('should enrich POST response with model context info when modelCache provided', async () => {
+      const mockModelCache = {
+        getModelById: vi.fn().mockResolvedValue({
+          id: 'anthropic/claude-sonnet-4',
+          name: 'Claude Sonnet 4',
+          contextLength: 200000,
+          supportsVision: true,
+          supportsImageGeneration: false,
+          supportsAudioInput: false,
+          supportsAudioOutput: false,
+          promptPricePerMillion: 3,
+          completionPricePerMillion: 15,
+        }),
+      };
+
+      const appWithModel = express();
+      appWithModel.use(express.json());
+      appWithModel.use(
+        '/admin/llm-config',
+        createAdminLlmConfigRoutes(
+          prisma as unknown as PrismaClient,
+          cacheService as unknown as LlmConfigCacheInvalidationService,
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache
+        )
+      );
+
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.create.mockResolvedValue({
+        id: 'new-config',
+        name: 'New Config',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        contextWindowTokens: 65000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        advancedParameters: null,
+      });
+
+      const response = await request(appWithModel).post('/admin/llm-config').send({
+        name: 'New Config',
+        model: 'anthropic/claude-sonnet-4',
+      });
+
+      expect(response.status).toBe(201);
+      expect(response.body.config.modelContextLength).toBe(200000);
+      expect(response.body.config.contextWindowCap).toBe(100000);
+    });
+
+    it('should enrich PUT response with model context info when modelCache provided', async () => {
+      const mockModelCache = {
+        getModelById: vi.fn().mockResolvedValue({
+          id: 'anthropic/claude-sonnet-4',
+          name: 'Claude Sonnet 4',
+          contextLength: 200000,
+          supportsVision: true,
+          supportsImageGeneration: false,
+          supportsAudioInput: false,
+          supportsAudioOutput: false,
+          promptPricePerMillion: 3,
+          completionPricePerMillion: 15,
+        }),
+      };
+
+      const appWithModel = express();
+      appWithModel.use(express.json());
+      appWithModel.use(
+        '/admin/llm-config',
+        createAdminLlmConfigRoutes(
+          prisma as unknown as PrismaClient,
+          cacheService as unknown as LlmConfigCacheInvalidationService,
+          mockModelCache as unknown as import('../../services/OpenRouterModelCache.js').OpenRouterModelCache
+        )
+      );
+
+      prisma.llmConfig.findUnique.mockResolvedValue({
+        id: 'config-id',
+        name: 'Old Name',
+        isGlobal: true,
+      });
+      prisma.llmConfig.findFirst.mockResolvedValue(null);
+      prisma.llmConfig.update.mockResolvedValue({
+        id: 'config-id',
+        name: 'New Name',
+        model: 'anthropic/claude-sonnet-4',
+        isGlobal: true,
+        isDefault: false,
+        isFreeDefault: false,
+        contextWindowTokens: 65000,
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: null,
+        memoryLimit: null,
+        advancedParameters: null,
+      });
+
+      const response = await request(appWithModel).put('/admin/llm-config/config-id').send({
+        name: 'New Name',
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body.config.modelContextLength).toBe(200000);
+      expect(response.body.config.contextWindowCap).toBe(100000);
+    });
+
     it('should not call invalidate when no cache service provided', async () => {
       // Using the default app without cache service
       prisma.llmConfig.findUnique.mockResolvedValue({
