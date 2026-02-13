@@ -202,7 +202,7 @@ Merged/fine-tuned models may emit stutter fragments before orphan closing tags. 
 
 ## Debugging
 
-Use `/admin debug <message_id>` to see extraction details:
+Use `/inspect <message_id>` to see extraction details:
 
 ```json
 {

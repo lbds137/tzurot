@@ -181,7 +181,7 @@ These are improvements over v2's architecture:
 - **LLM Presets** - User-customizable LLM configurations (`/preset create/edit/list`)
 - **Extended Context** - Pull recent channel messages into prompt context
 - **Multi-layer Duplicate Detection** - Bigram, word, and semantic similarity checks
-- **LLM Diagnostic Flight Recorder** - Admin debug tool for prompt inspection (`/admin debug`)
+- **LLM Diagnostic Flight Recorder** - Diagnostic tool for prompt inspection (`/inspect`)
 
 ---
 
