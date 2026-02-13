@@ -283,7 +283,7 @@ describe('presetConfigValidator', () => {
         expect(result.warnings.some(w => w.field === 'reasoning_effort / max_tokens')).toBe(true);
         expect(
           result.warnings.find(w => w.field === 'reasoning_effort / max_tokens')?.message
-        ).toContain('mutually exclusive');
+        ).toContain('cannot both be active');
       });
 
       it('should not warn when only effort is set', () => {
