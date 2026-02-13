@@ -36,7 +36,7 @@ All rules load automatically from `.claude/rules/`:
 - **02-code-standards.md** - ESLint limits, TypeScript, testing patterns
 - **03-database.md** - Prisma, pgvector, caching
 - **04-discord.md** - 3-second deferral, slash commands, BullMQ
-- **05-tooling.md** - CLI reference, git workflow
+- **05-tooling.md** - CLI reference, commit & release standards
 - **06-backlog.md** - Backlog structure and session workflow
 - **07-documentation.md** - Doc placement, naming, lifecycle
 

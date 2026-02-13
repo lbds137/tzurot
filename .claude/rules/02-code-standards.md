@@ -131,20 +131,7 @@ await assertion;
 | New `*.service.ts` | ✅   | If shared   | ✅ For complex DB operations |
 | Bug fix            | ✅   | If schema   | If multi-component           |
 
-### Integration Tests (`pnpm test:int`)
-
-Integration tests (`*.int.test.ts`) run separately from unit tests and are **not** included in `pnpm test` or pre-push hooks.
-
-**Always run `pnpm test:int` after:**
-
-| Change                           | Why                                                                   |
-| -------------------------------- | --------------------------------------------------------------------- |
-| Add/remove slash command options | `CommandHandler.int.test.ts` snapshots capture full command structure |
-| Add/remove subcommands           | Same snapshot tests                                                   |
-| Restructure command directories  | `getCommandFiles()` discovery changes affect command loading          |
-| Change component prefix routing  | Integration tests verify button/select menu routing                   |
-
-**Update snapshots with:** `pnpm vitest run --config vitest.int.config.ts <file> --update`
+**Integration test procedures**: See `/tzurot-testing` skill. Always run `pnpm test:int` after command structure changes.
 
 ### Schema Test Colocation
 

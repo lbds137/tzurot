@@ -1,7 +1,7 @@
 ---
 name: tzurot-testing
 description: 'Testing procedures. Invoke with /tzurot-testing for test execution, coverage audits, and debugging test failures.'
-lastUpdated: '2026-02-04'
+lastUpdated: '2026-02-13'
 ---
 
 # Testing Procedures
@@ -129,6 +129,21 @@ describe('UserService', () => {
 ```
 
 **⚠️ ALWAYS use `loadPGliteSchema()`** - NEVER create tables manually!
+
+## Integration Test Triggers
+
+Integration tests (`*.int.test.ts`) run separately from unit tests and are **not** included in `pnpm test` or pre-push hooks.
+
+**Always run `pnpm test:int` after:**
+
+| Change                           | Why                                                                   |
+| -------------------------------- | --------------------------------------------------------------------- |
+| Add/remove slash command options | `CommandHandler.int.test.ts` snapshots capture full command structure |
+| Add/remove subcommands           | Same snapshot tests                                                   |
+| Restructure command directories  | `getCommandFiles()` discovery changes affect command loading          |
+| Change component prefix routing  | Integration tests verify button/select menu routing                   |
+
+**Update snapshots with:** `pnpm vitest run --config vitest.int.config.ts <file> --update`
 
 ## Definition of Done
 
