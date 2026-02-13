@@ -1,5 +1,5 @@
 /**
- * Me View Handler
+ * Persona View Handler
  *
  * Displays the user's current profile information including:
  * - Preferred name
@@ -106,7 +106,7 @@ function buildProfileEmbed(personaDetails: PersonaDetails): {
 }
 
 /**
- * Handle /me profile view command
+ * Handle /persona view command
  */
 export async function handleViewPersona(context: DeferredCommandContext): Promise<void> {
   const discordId = context.user.id;

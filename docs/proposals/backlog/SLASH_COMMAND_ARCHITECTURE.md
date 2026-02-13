@@ -310,17 +310,17 @@ LIMIT $4
 
 ### User Commands
 
-| Command Group  | Subcommands                                              | Tier | Status           |
-| -------------- | -------------------------------------------------------- | ---- | ---------------- |
-| `/character`   | create, edit, view, list, delete, avatar, export, import | 2    | ✅ Done          |
-| `/me profile`  | create, edit, view, list, delete, default, share-ltm     | 2    | ⚠️ Needs upgrade |
-| `/me model`    | set, reset, list, clear-default, set-default             | 0-1  | ✅ Done          |
-| `/me timezone` | get, set                                                 | 0    | ✅ Done          |
-| `/preset`      | create, **edit**, list, delete, scope:[User\|Global]     | 2    | ⚠️ Missing edit  |
-| `/alias`       | add, remove, list, scope:[User\|Global]                  | 0    | ❌ New           |
-| `/history`     | clear, undo, stats                                       | 0-1  | ❌ New           |
-| `/memory`      | search, list, edit, delete, purge, stats                 | 3    | ❌ New           |
-| `/wallet`      | add, remove, list, balance                               | 1    | ✅ Done          |
+| Command Group        | Subcommands                                              | Tier | Status          |
+| -------------------- | -------------------------------------------------------- | ---- | --------------- |
+| `/character`         | create, edit, view, list, delete, avatar, export, import | 2    | ✅ Done         |
+| `/persona`           | create, edit, view, browse, default, share-ltm, override | 2    | ✅ Done         |
+| `/settings preset`   | set, clear                                               | 0-1  | ✅ Done         |
+| `/settings timezone` | get, set                                                 | 0    | ✅ Done         |
+| `/preset`            | create, **edit**, list, delete, scope:[User\|Global]     | 2    | ⚠️ Missing edit |
+| `/alias`             | add, remove, list, scope:[User\|Global]                  | 0    | ❌ New          |
+| `/history`           | clear, undo, stats                                       | 0-1  | ❌ New          |
+| `/memory`            | search, list, edit, delete, purge, stats                 | 3    | ❌ New          |
+| `/wallet`            | add, remove, list, balance                               | 1    | ✅ Done         |
 
 ### Admin-Only Operations (via scope parameter or separate)
 
@@ -352,7 +352,7 @@ LIMIT $4
 **Goal**: Users can manage their own data
 
 - [ ] `/preset edit` dashboard (Tier 2)
-- [ ] `/me profile` upgrade to dashboard framework
+- [ ] `/persona` upgrade to dashboard framework
 - [ ] `/history clear` with soft/hard modes (Context Epochs)
 - [ ] `/history undo` (move epoch timestamp back)
 - [ ] `/memory search` semantic search (Tier 3)

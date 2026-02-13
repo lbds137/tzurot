@@ -1,6 +1,6 @@
 /**
- * Me Preset Reset Handler
- * Handles /me preset reset subcommand
+ * Settings Preset Reset Handler
+ * Handles /settings preset reset subcommand
  */
 
 import { createLogger, settingsPresetResetOptions } from '@tzurot/common-types';
@@ -16,7 +16,7 @@ interface ResetResponse {
 }
 
 /**
- * Handle /me preset reset
+ * Handle /settings preset reset
  */
 export async function handleReset(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;

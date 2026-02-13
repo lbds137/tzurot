@@ -1,6 +1,6 @@
 /**
- * Me Preset Default Handler
- * Handles /me preset default subcommand
+ * Settings Preset Default Handler
+ * Handles /settings preset default subcommand
  * Sets the user's global default preset (applies to all personalities)
  */
 
@@ -20,7 +20,7 @@ interface SetDefaultResponse {
 }
 
 /**
- * Handle /me preset default
+ * Handle /settings preset default
  */
 export async function handleDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;

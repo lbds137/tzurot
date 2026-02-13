@@ -82,7 +82,7 @@ This document tracks which features from Tzurot v2 have been ported to v3, which
 
 | Feature            | Status    | Notes                                                  |
 | ------------------ | --------- | ------------------------------------------------------ |
-| User personas      | ✅ Ported | /me profile commands                                   |
+| User personas      | ✅ Ported | /persona commands                                      |
 | Model overrides    | ✅ Ported | Per-personality model selection                        |
 | LLM configurations | ✅ Ported | /llm-config commands                                   |
 | Timezone settings  | ✅ Ported | /settings timezone                                     |

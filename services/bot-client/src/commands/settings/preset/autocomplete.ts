@@ -1,5 +1,5 @@
 /**
- * Me Preset Command Autocomplete Handler
+ * Settings Preset Autocomplete Handler
  * Provides autocomplete suggestions for personality and preset options
  */
 
@@ -33,7 +33,7 @@ interface WalletListResponse {
 const logger = createLogger('settings-preset-autocomplete');
 
 /**
- * Handle autocomplete for /me preset commands
+ * Handle autocomplete for /settings preset commands
  */
 export async function handleAutocomplete(interaction: AutocompleteInteraction): Promise<void> {
   const focusedOption = interaction.options.getFocused(true);

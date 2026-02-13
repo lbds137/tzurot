@@ -1,6 +1,6 @@
 /**
  * Timezone Set Handler
- * Handles /me timezone set command
+ * Handles /settings timezone set command
  */
 
 import {
@@ -16,7 +16,7 @@ import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
 const logger = createLogger('timezone-set');
 
 /**
- * Handle /me timezone set
+ * Handle /settings timezone set
  */
 export async function handleTimezoneSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;

@@ -2,7 +2,7 @@
  * Persona Autocomplete Utility
  *
  * Shared autocomplete handler for persona/profile selection across commands.
- * Used by /me profile commands, /history commands, etc.
+ * Used by /persona commands, /history commands, etc.
  */
 
 import type { AutocompleteInteraction } from 'discord.js';
