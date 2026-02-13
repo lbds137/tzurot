@@ -904,14 +904,14 @@ describe('MessageContextBuilder', () => {
         botUserId: 'bot-123',
       });
 
-      // Should include the first 2 images (limited by maxImages)
+      // Should include the last 2 images (most recent, limited by maxImages)
       // Note: buildContext returns { context, ... } so access via context property
       expect(result.context.extendedContextAttachments).toHaveLength(2);
       expect(result.context.extendedContextAttachments?.[0].url).toBe(
-        'https://cdn.discord.com/attachments/img1.jpg'
+        'https://cdn.discord.com/attachments/img2.png'
       );
       expect(result.context.extendedContextAttachments?.[1].url).toBe(
-        'https://cdn.discord.com/attachments/img2.png'
+        'https://cdn.discord.com/attachments/img3.gif'
       );
     });
 

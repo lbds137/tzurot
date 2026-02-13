@@ -285,7 +285,7 @@ export class MessageContextBuilder {
     // Collect image attachments
     const maxImages = options.extendedContext.maxImages ?? 0;
     if (maxImages > 0 && fetchResult.imageAttachments && fetchResult.imageAttachments.length > 0) {
-      attachments = fetchResult.imageAttachments.slice(0, maxImages);
+      attachments = fetchResult.imageAttachments.slice(-maxImages);
       logger.debug(
         {
           channelId: message.channel.id,

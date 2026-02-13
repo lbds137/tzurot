@@ -371,6 +371,17 @@ export class DiscordChannelFetcher {
       ? { embedsXml, voiceTranscripts }
       : undefined;
 
+    // Store forwarded attachment descriptions as fallback for when vision isn't available
+    if (isForwarded && attachments.length > 0) {
+      const imageLines = attachments
+        .filter(a => a.contentType?.startsWith('image/'))
+        .map(a => `[${a.contentType}: ${a.name ?? 'image'}]`);
+      if (imageLines.length > 0) {
+        messageMetadata = messageMetadata ?? {};
+        messageMetadata.forwardedAttachmentLines = imageLines;
+      }
+    }
+
     // Merge resolved link references into messageMetadata
     const linkedRefs = resolvedReferences?.get(msg.id);
     if (linkedRefs !== undefined && linkedRefs.length > 0) {
