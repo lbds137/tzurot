@@ -123,7 +123,7 @@ Release notes follow the Conventional Changelog format. This enables machine par
 - Categories use H3: **Features**, **Bug Fixes**, **Improvements**, **Breaking Changes**, **Chores**
 - Breaking Changes section always comes first when present
 - Only include categories that have entries
-- Line items: `- **scope:** description (#PR)` — scope maps to commit scope
+- Line items: `- **scope:** description (#123)` — scope maps to commit scope, `#N` auto-links on GitHub
 - End with: `**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`
 
 ## Project Structure
