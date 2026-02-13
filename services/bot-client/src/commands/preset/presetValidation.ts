@@ -139,7 +139,7 @@ export const presetConfigValidator = new ConfigValidator<FlattenedPresetData>()
       const maxTokens = parseNum(c.max_tokens);
       return effort !== undefined && effort.length > 0 && maxTokens !== undefined;
     },
-    'Reasoning effort and max_tokens are mutually exclusive for reasoning models. When effort is set, max_tokens is ignored.'
+    'Reasoning effort and max_tokens cannot both be active. Remove max_tokens to use effort-based reasoning, or remove effort to use explicit token limits.'
   );
 
 /**

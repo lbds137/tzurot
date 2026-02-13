@@ -21,6 +21,9 @@ const RETENTION_HINT = '\u2022 The log may have expired (24h retention)';
 /** Common "not found" message used for 404s and access control rejections */
 const NOT_FOUND_MESSAGE = 'Diagnostic log not found.\n';
 
+/** Log message for access control denials (audit trail) */
+const ACCESS_DENIED_LOG = '[Inspect] Access denied: log belongs to another user';
+
 /** Discord message link regex - captures channel and message IDs */
 const MESSAGE_LINK_REGEX = /discord\.com\/channels\/(?:@me|\d+)\/(\d+)\/(\d+)/;
 
@@ -75,6 +78,7 @@ export async function lookupByMessageId(
     if (response.ok) {
       const result = (await response.json()) as DiagnosticLogResponse;
       if (filterUserId !== undefined && result.log.userId !== filterUserId) {
+        logger.info({ messageId, filterUserId }, ACCESS_DENIED_LOG);
         return { success: false, errorMessage: NOT_FOUND_MESSAGE + RETENTION_HINT };
       }
       return { success: true, log: result.log };
@@ -125,6 +129,7 @@ export async function lookupByMessageId(
 
   const log = logs[0];
   if (filterUserId !== undefined && log.userId !== filterUserId) {
+    logger.info({ messageId, filterUserId }, ACCESS_DENIED_LOG);
     return { success: false, errorMessage: NOT_FOUND_MESSAGE + RETENTION_HINT };
   }
 
@@ -164,6 +169,7 @@ export async function lookupByRequestId(
   const result = (await response.json()) as DiagnosticLogResponse;
 
   if (filterUserId !== undefined && result.log.userId !== filterUserId) {
+    logger.info({ requestId, filterUserId }, ACCESS_DENIED_LOG);
     return { success: false, errorMessage: NOT_FOUND_MESSAGE + RETENTION_HINT };
   }
 
