@@ -293,13 +293,26 @@ function buildOpenRouterClientConfig(
     baseURL: AI_ENDPOINTS.OPENROUTER_BASE_URL,
   };
 
+  // OpenRouter app attribution requires both HTTP-Referer and X-Title headers.
+  // Without HTTP-Referer, the app shows as "unknown" in OpenRouter analytics.
+  // See: https://openrouter.ai/docs/app-attribution
+  const headers: Record<string, string> = {};
+
+  if (config.OPENROUTER_APP_URL !== undefined) {
+    headers['HTTP-Referer'] = config.OPENROUTER_APP_URL;
+  }
+
   if (config.OPENROUTER_APP_TITLE !== undefined) {
     // HTTP headers only accept printable ISO-8859-1 (chars 0x20-0xFF). Strip non-Latin
     // and control characters to prevent "Cannot convert argument to a ByteString" errors.
     const safeTitle = config.OPENROUTER_APP_TITLE.replace(/[^\x20-\xFF]/g, '').trim();
     if (safeTitle.length > 0) {
-      clientConfig.defaultHeaders = { 'X-Title': safeTitle };
+      headers['X-Title'] = safeTitle;
     }
+  }
+
+  if (Object.keys(headers).length > 0) {
+    clientConfig.defaultHeaders = headers;
   }
 
   if (needsCustomFetch) {
