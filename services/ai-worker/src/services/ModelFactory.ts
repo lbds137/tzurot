@@ -303,7 +303,7 @@ function buildOpenRouterClientConfig(
   }
 
   if (config.OPENROUTER_APP_TITLE !== undefined) {
-    // HTTP headers only accept printable ISO-8859-1 (chars 0x20-0xFF). Strip non-Latin
+    // HTTP headers only accept printable ASCII (chars 0x20-0x7E). Strip non-ASCII
     // and control characters to prevent "Cannot convert argument to a ByteString" errors.
     const safeTitle = config.OPENROUTER_APP_TITLE.replace(/[^\x20-\x7E]/g, '').trim();
     if (safeTitle.length > 0) {
