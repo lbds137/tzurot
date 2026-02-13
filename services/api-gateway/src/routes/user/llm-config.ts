@@ -17,6 +17,7 @@ import {
   createLogger,
   UserService,
   LlmConfigResolver,
+  isBotOwner,
   type PrismaClient,
   type LlmConfigSummary,
   type LlmConfigCacheInvalidationService,
@@ -56,13 +57,12 @@ function createListHandler(service: LlmConfigService, prisma: PrismaClient) {
       select: { id: true },
     });
 
-    // Use service to list configs with USER scope
-    // When user is null (not registered), use a fake userId to get only global configs
-    const scope: LlmConfigScope = {
-      type: 'USER',
-      userId: user?.id ?? 'anonymous',
-      discordId: discordUserId,
-    };
+    // Admin sees all presets (same pattern as character browse)
+    // Regular users see global + their own
+    const isAdmin = isBotOwner(discordUserId);
+    const scope: LlmConfigScope = isAdmin
+      ? { type: 'GLOBAL' }
+      : { type: 'USER', userId: user?.id ?? 'anonymous', discordId: discordUserId };
 
     const rawConfigs = await service.list(scope);
 
