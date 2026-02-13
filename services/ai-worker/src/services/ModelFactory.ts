@@ -284,7 +284,12 @@ function buildOpenRouterClientConfig(
   };
 
   if (config.OPENROUTER_APP_TITLE !== undefined) {
-    clientConfig.defaultHeaders = { 'X-Title': config.OPENROUTER_APP_TITLE };
+    // HTTP headers only accept printable ISO-8859-1 (chars 0x20-0xFF). Strip non-Latin
+    // and control characters to prevent "Cannot convert argument to a ByteString" errors.
+    const safeTitle = config.OPENROUTER_APP_TITLE.replace(/[^\x20-\xFF]/g, '').trim();
+    if (safeTitle.length > 0) {
+      clientConfig.defaultHeaders = { 'X-Title': safeTitle };
+    }
   }
 
   if (needsCustomFetch) {

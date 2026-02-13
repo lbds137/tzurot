@@ -41,6 +41,9 @@ Smoke test on dev before bumping to beta.72.
 - [x] ✨ **Preset validation: reasoning effort vs max_tokens warning** — actionable message when both are set
 - [x] 🏗️ **Access denial audit logging** — inspect lookup logs userId on access control rejections
 - [x] 🏗️ **Backlog cleanup** — removed completed items, triaged inbox
+- [x] ✅ **Preset Dashboard: `max_tokens` UX** — verified already fully wired: field in Core Sampling section, flatten/unflatten, validation warnings (low value + reasoning conflicts)
+- [x] 🐛 **Fix ByteString crash with non-ASCII `X-Title` header** — sanitize `OPENROUTER_APP_TITLE` before setting HTTP header (Hebrew chars caused Fetch API crash)
+- [x] 🏗️ **Backlog reorganization** — cleared prod issues (→ Deferred), triaged inbox, promoted Package Extraction epic, moved nice-to-haves to Icebox
 
 ## Recent Highlights
 
