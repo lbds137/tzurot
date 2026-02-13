@@ -269,8 +269,10 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
     }
     if (data.isOwned) {
       badges.push('👤 Owned');
+    } else if (!data.isGlobal) {
+      badges.push('🔒 Private (another user)');
     }
-    return badges.length > 0 ? badges.join(' • ') : '';
+    return badges.join(' • ');
   },
   sections: [
     identitySection,

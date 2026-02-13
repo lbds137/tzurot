@@ -538,9 +538,9 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
       expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('🌐 Global • 👤 Owned');
     });
 
-    it('should return empty string when neither badge applies', () => {
+    it('should show private badge when not owned and not global (admin viewing)', () => {
       const data = { isGlobal: false, isOwned: false } as FlattenedPresetData;
-      expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('');
+      expect(PRESET_DASHBOARD_CONFIG.getDescription!(data)).toBe('🔒 Private (another user)');
     });
   });
 
