@@ -20,6 +20,7 @@ import {
   ERROR_MESSAGES,
   FINISH_REASONS,
   isNaturalStop,
+  resolveFinishReason,
 } from '@tzurot/common-types';
 import {
   createChatModel,
@@ -321,12 +322,7 @@ export class LLMInvoker {
       return;
     }
 
-    // Extract finish_reason - providers use different field names
-    // OpenAI/OpenRouter: finish_reason
-    // Anthropic: stop_reason
-    // Google: finishReason (camelCase)
-    const rawReason = metadata.finish_reason ?? metadata.stop_reason ?? metadata.finishReason;
-    const finishReason = typeof rawReason === 'string' ? rawReason : FINISH_REASONS.UNKNOWN;
+    const finishReason = resolveFinishReason(metadata);
 
     // Extract which stop sequence triggered (if any)
     // OpenAI/OpenRouter: stop (the actual sequence that triggered)
@@ -396,9 +392,7 @@ export class LLMInvoker {
       .response_metadata;
     const additionalKwargs = (response as { additional_kwargs?: Record<string, unknown> })
       .additional_kwargs;
-    const rawDiagReason =
-      metadata?.finish_reason ?? metadata?.stop_reason ?? metadata?.finishReason;
-    const finishReason = typeof rawDiagReason === 'string' ? rawDiagReason : FINISH_REASONS.UNKNOWN;
+    const finishReason = resolveFinishReason(metadata);
     const usage = metadata?.usage as
       | { prompt_tokens?: number; completion_tokens?: number }
       | undefined;

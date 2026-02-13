@@ -28,7 +28,6 @@
     "cpd": "jscpd ./services ./packages --config .jscpd.json",
     "cpd:report": "jscpd ./services ./packages --config .jscpd.json --reporters html",
     "depcruise": "depcruise services/ packages/ --config .dependency-cruiser.cjs",
-    "depcruise:baseline": "depcruise services/ packages/ --config .dependency-cruiser.cjs --output-type baseline > .dependency-cruiser-baseline.json",
     "depcruise:graph": "depcruise services/ packages/ --config .dependency-cruiser.cjs --output-type dot | dot -T svg > reports/dependency-graph.svg",
     "knip": "knip",
     "knip:fix": "knip --fix",

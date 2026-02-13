@@ -120,11 +120,12 @@ if ! pnpm cpd; then
     echo "Run 'pnpm cpd:report' for detailed HTML report"
 fi
 
-# 9. Run dependency boundary checks (warning only - doesn't block push)
+# 9. Run dependency boundary checks (BLOCKING)
 echo "Running dependency boundary checks..."
-if ! pnpm depcruise 2>/dev/null; then
-    echo "${YELLOW}⚠️  Dependency boundary violations detected${NC}"
+if ! pnpm depcruise; then
+    echo "${RED}Dependency boundary check failed!${NC}"
     echo "Run 'pnpm depcruise' for details"
+    exit 1
 fi
 
 echo "${GREEN}All pre-push checks passed!${NC}"

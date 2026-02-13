@@ -37,12 +37,13 @@ module.exports = {
     },
   ],
   options: {
-    // Baseline of known violations (25 circular deps as of 2026-02-08, all in generated Prisma code).
-    // Run `pnpm depcruise:baseline` to regenerate after fixing violations.
-    // DO NOT manually edit the baseline file.
-    knownViolations: require('./.dependency-cruiser-baseline.json'),
     doNotFollow: {
       path: ['node_modules', 'dist', '\\.turbo'],
+    },
+    exclude: {
+      // Generated Prisma client has inherent circular deps (models ↔ prismaNamespace).
+      // These are auto-generated and unfixable — exclude rather than baseline.
+      path: ['src/generated/prisma/'],
     },
     tsPreCompilationDeps: true,
     tsConfig: {
