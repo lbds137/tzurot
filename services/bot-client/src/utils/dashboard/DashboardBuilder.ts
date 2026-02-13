@@ -31,9 +31,12 @@ export function buildDashboardEmbed<T>(config: DashboardConfig<T>, data: T): Emb
     .setColor(config.color ?? DISCORD_COLORS.BLURPLE)
     .setTimestamp();
 
-  // Add description if provided
+  // Add description if provided (guard against empty string — Discord requires 1+ chars)
   if (config.getDescription) {
-    embed.setDescription(config.getDescription(data));
+    const description = config.getDescription(data);
+    if (description.length > 0) {
+      embed.setDescription(description);
+    }
   }
 
   // Add section fields
