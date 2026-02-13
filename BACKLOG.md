@@ -55,18 +55,16 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
 
-### 🏗️ Eliminate Remaining ESLint Warnings (bot-client cognitive complexity only)
+### 🏗️ Enforce Zero Warnings in CI
 
-7 cognitive-complexity warnings remaining, all in bot-client. All other warning types fixed 2026-02-12. Bundle with bot-client package splitting effort.
-
-Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnings pass in CI but fail on commit. Need to harmonize around the stricter rule.
+Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnings pass in CI but fail on commit. Need to harmonize around the stricter rule. All warnings are now fixed (2026-02-13).
 
 - [x] Fix non-bot-client warnings (common-types, api-gateway, ai-worker) — done 2026-02-12
 - [x] Fix bot-client `sonarjs/no-duplicate-string` warnings (extract constants) — done 2026-02-12
 - [x] Fix remaining minor warnings (`no-redundant-jump`, `prefer-immediate-return`) — done 2026-02-12
-- [ ] Fix bot-client `sonarjs/cognitive-complexity` warnings (extract helpers)
-- [ ] Add `--max-warnings=0` to all package `lint` scripts in `package.json`
-- [ ] Verify CI passes with stricter rule
+- [x] Fix bot-client `sonarjs/cognitive-complexity` warnings (extract helpers) — done 2026-02-13
+- [x] Add `--max-warnings=0` to all package `lint` scripts in `package.json` — done 2026-02-13
+- [x] Verify CI passes with stricter rule — CI runs `pnpm run lint` which invokes each package's script, so `--max-warnings=0` is inherited automatically
 
 ### 🧹 Redis Failure Injection Tests
 
