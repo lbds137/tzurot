@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { getEmbedColor, buildReasoningField, buildDiagnosticEmbed } from './embed.js';
+import { DISCORD_COLORS } from '@tzurot/common-types';
 import type { DiagnosticPayload } from '@tzurot/common-types';
+import { getEmbedColor, buildReasoningField, buildDiagnosticEmbed } from './embed.js';
 
 function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPayload {
   return {
@@ -75,22 +76,22 @@ function createMockPayload(overrides?: Partial<DiagnosticPayload>): DiagnosticPa
 }
 
 describe('getEmbedColor', () => {
-  it('should return red for errors', () => {
+  it('should return ERROR color for errors', () => {
     const payload = createMockPayload({
       error: { message: 'fail', category: 'API', failedAtStage: 'llm' },
     });
-    expect(getEmbedColor(payload)).toBe(0xff0000);
+    expect(getEmbedColor(payload)).toBe(DISCORD_COLORS.ERROR);
   });
 
-  it('should return orange for length finish reason', () => {
+  it('should return WARNING color for length finish reason', () => {
     const payload = createMockPayload();
     payload.llmResponse.finishReason = 'length';
-    expect(getEmbedColor(payload)).toBe(0xff6600);
+    expect(getEmbedColor(payload)).toBe(DISCORD_COLORS.WARNING);
   });
 
-  it('should return green for success', () => {
+  it('should return SUCCESS color for success', () => {
     const payload = createMockPayload();
-    expect(getEmbedColor(payload)).toBe(0x00ff00);
+    expect(getEmbedColor(payload)).toBe(DISCORD_COLORS.SUCCESS);
   });
 });
 

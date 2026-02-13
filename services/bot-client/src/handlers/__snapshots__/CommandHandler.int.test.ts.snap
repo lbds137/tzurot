@@ -150,27 +150,6 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "options": [],
     "type": 1,
   },
-  {
-    "description": "Retrieve LLM diagnostic log for debugging",
-    "description_localizations": undefined,
-    "name": "debug",
-    "name_localizations": undefined,
-    "options": [
-      {
-        "autocomplete": undefined,
-        "choices": undefined,
-        "description": "Message ID, message link, or request UUID (omit to browse recent)",
-        "description_localizations": undefined,
-        "max_length": undefined,
-        "min_length": undefined,
-        "name": "identifier",
-        "name_localizations": undefined,
-        "required": false,
-        "type": 3,
-      },
-    ],
-    "type": 1,
-  },
 ]
 `;
 
@@ -822,4 +801,4 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
 ]
 `;
 
-exports[`CommandHandler (component) > command structure snapshots > should have stable command count > total-command-count 1`] = `9`;
+exports[`CommandHandler (component) > command structure snapshots > should have stable command count > total-command-count 1`] = `10`;

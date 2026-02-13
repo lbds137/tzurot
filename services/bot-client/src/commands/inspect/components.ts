@@ -1,5 +1,5 @@
 /**
- * Interactive components (buttons + select menu) for the debug command
+ * Interactive components (buttons + select menu) for the inspect command
  */
 
 import {
@@ -10,29 +10,29 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { DebugViewType } from './types.js';
-import { DebugCustomIds } from './customIds.js';
+import { InspectCustomIds } from './customIds.js';
 
 /**
- * Build the button row and select menu row for the debug summary embed
+ * Build the button row and select menu row for the diagnostic summary embed
  */
-export function buildDebugComponents(
+export function buildInspectComponents(
   requestId: string
 ): ActionRowBuilder<MessageActionRowComponentBuilder>[] {
   const buttonRow = new ActionRowBuilder<MessageActionRowComponentBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(DebugCustomIds.button(requestId, DebugViewType.Reasoning))
+      .setCustomId(InspectCustomIds.button(requestId, DebugViewType.Reasoning))
       .setLabel('View Reasoning')
       .setEmoji('\ud83d\udcad')
       .setStyle(ButtonStyle.Primary),
     new ButtonBuilder()
-      .setCustomId(DebugCustomIds.button(requestId, DebugViewType.FullJson))
+      .setCustomId(InspectCustomIds.button(requestId, DebugViewType.FullJson))
       .setLabel('Full JSON')
       .setEmoji('\ud83d\udcc4')
       .setStyle(ButtonStyle.Secondary)
   );
 
   const selectMenu = new StringSelectMenuBuilder()
-    .setCustomId(DebugCustomIds.selectMenu(requestId))
+    .setCustomId(InspectCustomIds.selectMenu(requestId))
     .setPlaceholder('More views...')
     .addOptions(
       {

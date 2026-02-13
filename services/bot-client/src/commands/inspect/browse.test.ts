@@ -1,15 +1,15 @@
 /**
- * Tests for admin debug browse module
+ * Tests for inspect browse module
  *
  * Tests the browse UI for recent diagnostic logs:
- * - fetchRecentLogs — API call and parsing
+ * - fetchRecentLogs — API call and parsing with userId filtering
  * - formatTimeAgo — relative time formatting
  * - buildBrowsePage — embed + components assembly
  * - buildEmptyBrowseEmbed — empty state
  * - handleRecentBrowse — slash command entry
  * - handleBrowsePagination — button navigation
  * - handleBrowseLogSelection — select menu drill-in
- * - isDebugBrowseInteraction / isDebugBrowseSelectInteraction — guards
+ * - isInspectBrowseInteraction / isInspectBrowseSelectInteraction — guards
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -22,11 +22,11 @@ import {
   handleRecentBrowse,
   handleBrowsePagination,
   handleBrowseLogSelection,
-  isDebugBrowseInteraction,
-  isDebugBrowseSelectInteraction,
+  isInspectBrowseInteraction,
+  isInspectBrowseSelectInteraction,
 } from './browse.js';
 import type { DiagnosticLogSummary } from './types.js';
-import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock logger and config
 vi.mock('@tzurot/common-types', async () => {
@@ -195,6 +195,31 @@ describe('fetchRecentLogs', () => {
 
     await expect(fetchRecentLogs()).rejects.toThrow('Failed to fetch recent logs');
   });
+
+  it('should include userId query param when provided', async () => {
+    const logs = [createMockLog()];
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
+    );
+
+    await fetchRecentLogs('user-123');
+
+    expect(fetch).toHaveBeenCalledWith(
+      expect.stringContaining('userId=user-123'),
+      expect.any(Object)
+    );
+  });
+
+  it('should not include userId param when not provided', async () => {
+    const logs = [createMockLog()];
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(JSON.stringify({ logs, count: 1 }), { status: 200 })
+    );
+
+    await fetchRecentLogs();
+
+    expect(fetch).toHaveBeenCalledWith(expect.not.stringContaining('userId='), expect.any(Object));
+  });
 });
 
 describe('buildBrowsePage', () => {
@@ -284,7 +309,8 @@ describe('handleBrowsePagination', () => {
     );
 
     const interaction = {
-      customId: 'admin-debug::browse::1::all::',
+      customId: 'inspect::browse::1::all::',
+      user: { id: 'user-123' },
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').ButtonInteraction;
@@ -303,6 +329,7 @@ describe('handleBrowsePagination', () => {
   it('should return early for non-browse custom IDs', async () => {
     const interaction = {
       customId: 'admin-settings::btn::foo',
+      user: { id: 'user-123' },
       deferUpdate: vi.fn(),
       editReply: vi.fn(),
     } as unknown as import('discord.js').ButtonInteraction;
@@ -341,8 +368,9 @@ describe('handleBrowseLogSelection', () => {
     );
 
     const interaction = {
-      customId: 'admin-debug::browse-select::0::all::',
+      customId: 'inspect::browse-select::0::all::',
       values: ['req-uuid-0'],
+      user: { id: 'user-123' },
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
@@ -353,7 +381,6 @@ describe('handleBrowseLogSelection', () => {
     expect(interaction.editReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: expect.arrayContaining([expect.any(Object)]),
-        // Should have debug components + back button row
         components: expect.any(Array),
       })
     );
@@ -369,8 +396,9 @@ describe('handleBrowseLogSelection', () => {
     vi.mocked(fetch).mockResolvedValue(new Response('Not found', { status: 404 }));
 
     const interaction = {
-      customId: 'admin-debug::browse-select::0::all::',
+      customId: 'inspect::browse-select::0::all::',
       values: ['req-expired'],
+      user: { id: 'user-123' },
       deferUpdate: vi.fn().mockResolvedValue(undefined),
       editReply: vi.fn().mockResolvedValue(undefined),
     } as unknown as import('discord.js').StringSelectMenuInteraction;
@@ -386,16 +414,16 @@ describe('handleBrowseLogSelection', () => {
 });
 
 describe('custom ID guards', () => {
-  it('isDebugBrowseInteraction should match browse custom IDs', () => {
-    expect(isDebugBrowseInteraction('admin-debug::browse::0::all::')).toBe(true);
-    expect(isDebugBrowseInteraction('admin-debug::browse::1::all::')).toBe(true);
-    expect(isDebugBrowseInteraction('admin-debug::browse-select::0::all::')).toBe(false);
-    expect(isDebugBrowseInteraction('admin-settings::browse::0')).toBe(false);
+  it('isInspectBrowseInteraction should match browse custom IDs', () => {
+    expect(isInspectBrowseInteraction('inspect::browse::0::all::')).toBe(true);
+    expect(isInspectBrowseInteraction('inspect::browse::1::all::')).toBe(true);
+    expect(isInspectBrowseInteraction('inspect::browse-select::0::all::')).toBe(false);
+    expect(isInspectBrowseInteraction('admin-settings::browse::0')).toBe(false);
   });
 
-  it('isDebugBrowseSelectInteraction should match browse-select custom IDs', () => {
-    expect(isDebugBrowseSelectInteraction('admin-debug::browse-select::0::all::')).toBe(true);
-    expect(isDebugBrowseSelectInteraction('admin-debug::browse::0::all::')).toBe(false);
-    expect(isDebugBrowseSelectInteraction('admin-settings::browse-select::0')).toBe(false);
+  it('isInspectBrowseSelectInteraction should match browse-select custom IDs', () => {
+    expect(isInspectBrowseSelectInteraction('inspect::browse-select::0::all::')).toBe(true);
+    expect(isInspectBrowseSelectInteraction('inspect::browse::0::all::')).toBe(false);
+    expect(isInspectBrowseSelectInteraction('admin-settings::browse-select::0')).toBe(false);
   });
 });

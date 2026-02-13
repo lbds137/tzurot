@@ -66,7 +66,9 @@ Errors show generic messages without enough context for debugging. Users (and ad
 
 _New items go here. Triage to appropriate section weekly._
 
-_Empty — all items triaged._
+### 🏗️ [LIFT] Extract Finish Reason String Constants
+
+Hardcoded finish reason strings like `'length'` appear in `inspect/embed.ts` and potentially elsewhere. Extract to named constants in `common-types` (e.g., `FINISH_REASONS.LENGTH`, `FINISH_REASONS.STOP`) to avoid magic strings and improve discoverability.
 
 ---
 

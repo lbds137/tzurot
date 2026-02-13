@@ -1,5 +1,5 @@
 /**
- * Types for the admin debug command module
+ * Types for the inspect command module
  */
 
 import type { DiagnosticPayload } from '@tzurot/common-types';

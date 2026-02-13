@@ -1,14 +1,14 @@
 /**
- * Custom ID builders and parsers for debug interactive components
+ * Custom ID builders and parsers for inspect interactive components
  *
  * Custom ID scheme:
- *   Buttons:     admin-debug::btn::{requestId}::{viewType}
- *   Select menu: admin-debug::select::{requestId}
+ *   Buttons:     inspect::btn::{requestId}::{viewType}
+ *   Select menu: inspect::select::{requestId}
  */
 
 import { DebugViewType } from './types.js';
 
-const PREFIX = 'admin-debug';
+const PREFIX = 'inspect';
 const DELIMITER = '::';
 
 /** Build a button custom ID for a specific view */
@@ -21,7 +21,7 @@ function selectMenu(requestId: string): string {
   return [PREFIX, 'select', requestId].join(DELIMITER);
 }
 
-/** Parse a button custom ID. Returns null if not a debug button. */
+/** Parse a button custom ID. Returns null if not an inspect button. */
 function parseButton(customId: string): { requestId: string; viewType: DebugViewType } | null {
   const parts = customId.split(DELIMITER);
   if (parts.length !== 4 || parts[0] !== PREFIX || parts[1] !== 'btn') {
@@ -34,7 +34,7 @@ function parseButton(customId: string): { requestId: string; viewType: DebugView
   return { requestId: parts[2], viewType };
 }
 
-/** Parse a select menu custom ID. Returns null if not a debug select. */
+/** Parse a select menu custom ID. Returns null if not an inspect select. */
 function parseSelectMenu(customId: string): { requestId: string } | null {
   const parts = customId.split(DELIMITER);
   if (parts.length !== 3 || parts[0] !== PREFIX || parts[1] !== 'select') {
@@ -43,16 +43,16 @@ function parseSelectMenu(customId: string): { requestId: string } | null {
   return { requestId: parts[2] };
 }
 
-/** Check if a custom ID belongs to the debug module */
-function isDebug(customId: string): boolean {
+/** Check if a custom ID belongs to the inspect module */
+function isInspect(customId: string): boolean {
   return customId.startsWith(PREFIX + DELIMITER);
 }
 
-export const DebugCustomIds = {
+export const InspectCustomIds = {
   PREFIX,
   button,
   selectMenu,
   parseButton,
   parseSelectMenu,
-  isDebug,
+  isInspect,
 } as const;
