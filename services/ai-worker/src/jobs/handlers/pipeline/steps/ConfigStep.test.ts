@@ -390,7 +390,7 @@ describe('ConfigStep', () => {
         expect(mockCascade.resolveOverrides).toHaveBeenCalledWith('user-456', 'personality-123');
       });
 
-      it('should not set configOverrides when cascadeResolver is absent', async () => {
+      it('should fall back to hardcoded defaults when cascadeResolver is absent', async () => {
         step = new ConfigStep();
 
         const context: GenerationContext = {
@@ -400,10 +400,13 @@ describe('ConfigStep', () => {
 
         const result = await step.process(context);
 
-        expect(result.configOverrides).toBeUndefined();
+        // Should have hardcoded defaults, not undefined
+        expect(result.configOverrides).toBeDefined();
+        expect(result.configOverrides?.maxMessages).toBe(50);
+        expect(result.configOverrides?.sources.maxMessages).toBe('hardcoded');
       });
 
-      it('should handle cascadeResolver error gracefully', async () => {
+      it('should fall back to hardcoded defaults when cascadeResolver throws', async () => {
         const mockCascade = createMockCascadeResolver();
         vi.mocked(mockCascade.resolveOverrides).mockRejectedValue(new Error('DB error'));
 
@@ -416,8 +419,10 @@ describe('ConfigStep', () => {
 
         const result = await step.process(context);
 
-        // Should continue without configOverrides
-        expect(result.configOverrides).toBeUndefined();
+        // Should have hardcoded defaults, not undefined
+        expect(result.configOverrides).toBeDefined();
+        expect(result.configOverrides?.maxMessages).toBe(50);
+        expect(result.configOverrides?.sources.maxMessages).toBe('hardcoded');
         // Config should still be set
         expect(result.config).toBeDefined();
       });
