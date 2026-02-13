@@ -88,19 +88,30 @@ Automatic fallback to alternative free model on 402 quota errors. Track quota hi
 
 ## 🏗 Active Epic: Package Extraction
 
-_Focus: Reduce common-types bloat and improve module boundaries._
+_Focus: Reduce common-types export bloat and split bot-client, the largest package._
 
-common-types has 607 exports (12x the 50-export threshold). bot-client is 45.7K lines with 767 exports.
+**Codebase snapshot (2026-02-12)**: 108K hand-written production LOC + 45K Prisma-generated.
+
+| Package      | Files | LOC | Exports | Status                                                                              |
+| ------------ | ----- | --- | ------- | ----------------------------------------------------------------------------------- |
+| bot-client   | 254   | 46K | 767     | **Outlier** — nearly half the codebase, primary extraction target                   |
+| ai-worker    | 105   | 19K | —       | Healthy                                                                             |
+| api-gateway  | 104   | 17K | —       | Healthy                                                                             |
+| common-types | 99    | 16K | 607     | LOC is fine (45K "bloat" was Prisma-generated); **607 exports** is the real problem |
+| tooling      | 61    | 9K  | —       | Fine                                                                                |
+
+**Key insight**: common-types LOC is reasonable at 16K — the 61K number includes 45K of Prisma-generated code. The problem is the 607 exports (12x the 50-export threshold), not the size.
 
 ### Phase 1: Assessment
 
-- [ ] Reassess common-types export count — if still >50, extract domain packages
-- [ ] Identify highest-value extraction candidates
+- [ ] Reassess common-types export count — categorize exports by domain to identify extraction boundaries
+- [ ] Profile bot-client's 46K lines — which subdirectories are self-contained?
 - [ ] Reference: PR #558 analysis
 
 ### Phase 2: Extraction
 
 - [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
+- [ ] Re-evaluate whether common-types needs splitting or just export pruning
 
 **Previous work**: Architecture Health epic (PRs #593–#597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
 
@@ -265,6 +276,35 @@ _Beyond text: voice and images._
 
 ---
 
+### Theme: CPD Clone Reduction
+
+_Focus: Reduce 149 code clones to <100. Extract shared patterns into reusable utilities._
+
+High-value extractions done (PR #599). Remaining 149 clones (~1.93%) are structural duplication across service boundaries.
+
+#### Phase 1: Shared Utilities
+
+- [ ] Factory files: 5+ clones of `DeepPartial`/`deepMerge` — extract shared helper to common-types
+- [ ] `dateFormatting.ts`: 4 clones of similar date formatting logic — consolidate
+- [ ] Redis setup: IORedis config duplication across services — extract factory
+
+#### Phase 2: Bot-Client Patterns
+
+- [ ] Subcommand routers: 3 near-identical implementations — unify or extract base
+- [ ] Pagination/browse builders: duplicated page calculation, sort toggle, button construction
+- [ ] Error handling: repeated replied/deferred check + followUp/reply pattern in CommandHandler
+- [ ] Custom ID parsing: duplicated page/sort extraction logic
+
+#### Phase 3: API Gateway / AI Worker
+
+- [ ] Personality routes: duplicate Prisma select objects, permission checks — extract route helpers
+- [ ] Dashboard handlers: session/ownership boilerplate — may already have shared utils
+- [ ] Avatar operations: duplicated file deletion and glob-based cleanup
+
+**Target**: <100 clones or <1.5%. Currently 149 clones, ~1.93%.
+
+---
+
 ### Theme: Error Observability Overhaul
 
 _Comprehensive audit and fix of error serialization across the stack._
@@ -378,17 +418,7 @@ Inconsistent casing between services. Low value / high effort.
 
 Status command fires up to 100 parallel API calls. Have API return names with sessions.
 
-### Code Quality (Quarterly Review)
-
-#### 🧹 CPD Clone Reduction (149 clones, ~1.93%)
-
-Well under 5% CI threshold. High-value extractions done (PR #599). Remaining clones are mostly structural similarity (personality route CRUD, factory `deepMerge` helpers, dashboard session boilerplate). Categories to investigate:
-
-- Factory files: 5+ clones of `DeepPartial`/`deepMerge` — extract shared helper to common-types
-- Personality routes: duplicate Prisma select objects, permission checks — extract route helpers
-- Dashboard handlers: session/ownership boilerplate — may already have shared utils
-- `dateFormatting.ts`: 4 clones of similar date formatting logic — consolidate
-  Target: reduce to <100 clones or <1.5%. Revisit quarterly.
+### Code Quality
 
 #### 🧹 Audit Existing Tests for Type Violations
 
