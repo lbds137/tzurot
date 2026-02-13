@@ -43,7 +43,7 @@ const logger = createLogger('LLMInvoker');
  * When stop sequences are passed to these models, they return 400 Bad Request.
  *
  * Research source: OpenRouter model API pages (January 2026)
- * - glm-4.5-air: Only supports reasoning, max_tokens, temperature, top_p, tools, tool_choice
+ * - glm-4.5-air: Only supports temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice
  * - gemini-3-pro-preview: Only supports temperature, top_p, frequency_penalty
  * - gemma-3-27b-it:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty
  * - llama-3.3-70b-instruct:free: Only supports max_tokens, temperature, presence_penalty, repetition_penalty, frequency_penalty, tool_choice, tools
