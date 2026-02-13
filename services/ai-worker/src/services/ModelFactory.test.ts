@@ -623,21 +623,21 @@ describe('ModelFactory', () => {
       expect(callArgs.presencePenalty).toBeUndefined();
     });
 
-    it('should filter seed from modelKwargs for GLM 4.5 Air', () => {
+    it('should filter seed and topK from modelKwargs for GLM 4.5 Air', () => {
       const config: ModelConfig = {
         modelName: 'z-ai/glm-4.5-air:free',
         seed: 42,
-        topK: 40, // topK IS supported
+        topK: 40,
+        topP: 0.95, // top_p IS supported by Z.AI
       };
 
       createChatModel(config);
 
-      const callArgs = mockChatOpenAI.mock.calls[0][0] as {
-        modelKwargs?: Record<string, unknown>;
-      };
-      expect(callArgs.modelKwargs).toBeDefined();
-      expect(callArgs.modelKwargs?.seed).toBeUndefined();
-      expect(callArgs.modelKwargs?.top_k).toBe(40); // Supported param preserved
+      const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
+      const kwargs = callArgs.modelKwargs as Record<string, unknown> | undefined;
+      expect(kwargs?.seed).toBeUndefined();
+      expect(kwargs?.top_k).toBeUndefined();
+      expect(callArgs.topP).toBe(0.95); // Supported param preserved
     });
 
     it('should preserve all params for non-restricted models', () => {
@@ -671,15 +671,13 @@ describe('ModelFactory', () => {
       createChatModel(config);
 
       const callArgs = mockChatOpenAI.mock.calls[0][0] as Record<string, unknown>;
-      // Unsupported params filtered
+      // Unsupported params filtered (per Z.AI docs)
       expect(callArgs.frequencyPenalty).toBeUndefined();
       expect(callArgs.presencePenalty).toBeUndefined();
       // Supported params preserved
       expect(callArgs.topP).toBe(0.95);
-      const kwargs = callArgs.modelKwargs as Record<string, unknown>;
-      expect(kwargs.seed).toBeUndefined();
-      expect(kwargs.top_k).toBe(40);
-      expect(kwargs.repetition_penalty).toBe(1.05);
+      // All modelKwargs params were unsupported, so modelKwargs is omitted entirely
+      expect(callArgs.modelKwargs).toBeUndefined();
     });
   });
 

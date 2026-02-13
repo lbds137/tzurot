@@ -38,11 +38,21 @@ const config = getConfig();
  */
 const RESTRICTED_PARAM_MODELS: { pattern: RegExp; unsupported: ReadonlySet<string> }[] = [
   {
-    // GLM 4.5 Air supports only: temperature, top_p, top_k, max_tokens,
-    // repetition_penalty, reasoning, tools, tool_choice
-    // frequency_penalty confirmed to cause 400 errors in production
+    // Z.AI docs (docs.z.ai/api-reference/llm/chat-completion) list supported params as:
+    // temperature, top_p, max_tokens, stop (max 1), thinking, tools, tool_choice,
+    // do_sample, response_format, stream
+    // Everything else causes intermittent 400 "Invalid API parameter" (code 1210)
     pattern: /glm-4\.5-air/i,
-    unsupported: new Set(['frequency_penalty', 'presence_penalty', 'seed']),
+    unsupported: new Set([
+      'frequency_penalty',
+      'presence_penalty',
+      'repetition_penalty',
+      'seed',
+      'top_k',
+      'min_p',
+      'top_a',
+      'logit_bias',
+    ]),
   },
 ];
 
