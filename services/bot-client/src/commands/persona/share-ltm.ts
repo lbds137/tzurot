@@ -1,7 +1,7 @@
 /**
- * Me Settings Handler
+ * Persona Share-LTM Handler
  *
- * Manages profile settings like LTM (Long-Term Memory) sharing across personalities.
+ * Manages LTM (Long-Term Memory) sharing across personalities.
  *
  * Uses gateway API for all data access (no direct Prisma).
  */
@@ -23,7 +23,7 @@ interface UpdateSettingsResponse {
 }
 
 /**
- * Handle /me settings share-ltm command
+ * Handle /persona share-ltm command
  */
 export async function handleShareLtmSetting(context: DeferredCommandContext): Promise<void> {
   const discordId = context.user.id;
@@ -61,7 +61,7 @@ export async function handleShareLtmSetting(context: DeferredCommandContext): Pr
 
       logger.warn(
         { userId: discordId, enabled, error: result.error },
-        '[Me] Failed to update LTM sharing setting via gateway'
+        '[Persona] Failed to update LTM sharing setting via gateway'
       );
       await context.editReply({
         content: '❌ Failed to update LTM sharing setting. Please try again later.',
@@ -90,9 +90,15 @@ export async function handleShareLtmSetting(context: DeferredCommandContext): Pr
       content: responseText,
     });
 
-    logger.info({ userId: discordId, enabled }, '[Me] Updated shareLtmAcrossPersonalities setting');
+    logger.info(
+      { userId: discordId, enabled },
+      '[Persona] Updated shareLtmAcrossPersonalities setting'
+    );
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Me] Failed to update LTM sharing setting');
+    logger.error(
+      { err: error, userId: discordId },
+      '[Persona] Failed to update LTM sharing setting'
+    );
     await context.editReply({
       content: '❌ Failed to update LTM sharing setting. Please try again later.',
     });

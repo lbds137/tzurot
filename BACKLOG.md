@@ -169,7 +169,7 @@ _Import and export characters and user data. Users own their data._
 
 Unified export of all user-owned data. Currently preset export and character export exist but are separate.
 
-- [ ] `/me export` command - download all user data as JSON/ZIP
+- [ ] `/persona export` command - download all user data as JSON/ZIP
 - [ ] Include: personas, presets, LLM configs, memories, conversation history
 - [ ] Include: user settings, timezone, API keys (masked)
 - [ ] Consider: character cards (PNG with embedded metadata) for personalities
@@ -214,7 +214,7 @@ Allow multiple personalities active in a single channel.
 "Sidecar prompt" appended to system message per-user.
 
 - [ ] Add `systemPrompt` field to User or UserPersonalityConfig
-- [ ] `/me profile` dashboard upgrade to edit system prompt
+- [ ] `/persona` dashboard upgrade to edit system prompt
 
 #### ✨ Channel Allowlist/Denylist
 

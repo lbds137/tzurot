@@ -1,6 +1,6 @@
 /**
- * Me Preset Clear-Default Handler
- * Handles /me preset clear-default subcommand
+ * Settings Preset Clear-Default Handler
+ * Handles /settings preset clear-default subcommand
  * Clears the user's global default preset
  */
 
@@ -12,7 +12,7 @@ import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 const logger = createLogger('settings-preset-clear-default');
 
 /**
- * Handle /me preset clear-default
+ * Handle /settings preset clear-default
  */
 export async function handleClearDefault(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;

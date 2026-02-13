@@ -168,49 +168,56 @@ Commands with subcommand groups follow a hierarchical folder structure that mirr
 4. **Types stay DRY** - Shared types go in `types.ts` or common-types package
 5. **Index.ts for routing** - Main index.ts handles command registration and routing only
 
-#### Example: Complex Command with Subcommand Groups
+#### Example: Complex Command with Subcommands
 
-For a command like `/me` with multiple subcommand groups:
+For a command like `/persona` with multiple subcommands:
 
 ```
-commands/me/
+commands/persona/
 ├── index.ts                    # Command registration & routing (SlashCommandBuilder)
 ├── index.test.ts               # Tests for routing logic
 ├── autocomplete.ts             # Shared autocomplete handlers
 ├── autocomplete.test.ts
-├── profile/                    # /me profile <subcommand>
-│   ├── view.ts                 # /me profile view
-│   ├── view.test.ts
-│   ├── edit.ts                 # /me profile edit
-│   ├── edit.test.ts
-│   ├── create.ts               # /me profile create
-│   ├── create.test.ts
-│   ├── list.ts                 # /me profile list
-│   ├── list.test.ts
-│   ├── default.ts              # /me profile default
-│   ├── default.test.ts
-│   ├── share-ltm.ts            # /me profile share-ltm
-│   ├── share-ltm.test.ts
-│   ├── override-set.ts         # /me profile override-set
-│   ├── override-set.test.ts
-│   ├── override-clear.ts       # /me profile override-clear
-│   ├── override-clear.test.ts
-│   └── utils/                  # Shared profile utilities (DRY)
-│       └── modalBuilder.ts     # Modal building logic used by create/edit
-├── timezone/                   # /me timezone <subcommand>
-│   ├── set.ts                  # /me timezone set
+├── view.ts                     # /persona view
+├── view.test.ts
+├── edit.ts                     # /persona edit
+├── edit.test.ts
+├── create.ts                   # /persona create
+├── create.test.ts
+├── browse.ts                   # /persona browse
+├── browse.test.ts
+├── default.ts                  # /persona default
+├── default.test.ts
+├── share-ltm.ts                # /persona share-ltm
+├── share-ltm.test.ts
+├── override/                   # /persona override <subcommand>
+│   ├── set.ts                  # /persona override set
 │   ├── set.test.ts
-│   ├── get.ts                  # /me timezone get
-│   ├── get.test.ts
-│   └── utils.ts                # Shared timezone utilities (DRY)
-└── model/                      # /me model <subcommand>
-    ├── list.ts                 # /me model list
-    ├── set.ts                  # /me model set
-    ├── reset.ts                # /me model reset
-    ├── set-default.ts          # /me model set-default
-    ├── clear-default.ts        # /me model clear-default
-    ├── autocomplete.ts         # Model-specific autocomplete
-    └── *.test.ts               # Tests colocated with source
+│   ├── clear.ts                # /persona override clear
+│   └── clear.test.ts
+├── config.ts                   # Dashboard config
+├── types.ts                    # Shared types
+└── utils/                      # Shared profile utilities (DRY)
+    └── modalBuilder.ts         # Modal building logic used by create/edit
+```
+
+For a command like `/settings` with subcommand groups:
+
+```
+commands/settings/
+├── index.ts                    # Command registration & routing
+├── index.test.ts
+├── timezone/                   # /settings timezone <subcommand>
+│   ├── set.ts                  # /settings timezone set
+│   ├── set.test.ts
+│   ├── get.ts                  # /settings timezone get
+│   └── get.test.ts
+├── apikey/                     # /settings apikey <subcommand>
+│   ├── set.ts                  # /settings apikey set
+│   └── remove.ts               # /settings apikey remove
+└── preset/                     # /settings preset <subcommand>
+    ├── set.ts                  # /settings preset set
+    └── clear.ts                # /settings preset clear
 ```
 
 #### Anti-Patterns to Avoid
