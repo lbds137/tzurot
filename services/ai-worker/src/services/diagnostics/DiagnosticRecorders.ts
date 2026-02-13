@@ -6,7 +6,7 @@
  */
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import { FINISH_REASONS, type LoadedPersonality } from '@tzurot/common-types';
 import type { LlmResponseData } from './DiagnosticTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
@@ -96,7 +96,9 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
 
 /** Extract the finish reason from response metadata (multiple possible field names) */
 function resolveFinishReason(meta: ParsedResponseMetadata['responseMetadata']): string {
-  return String(meta?.finish_reason ?? meta?.stop_reason ?? meta?.finishReason ?? 'unknown');
+  return String(
+    meta?.finish_reason ?? meta?.stop_reason ?? meta?.finishReason ?? FINISH_REASONS.UNKNOWN
+  );
 }
 
 /** Extract stop sequence from response metadata */

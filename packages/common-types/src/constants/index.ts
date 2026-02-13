@@ -104,5 +104,8 @@ export {
   getTimezoneInfo,
 } from './timezone.js';
 
+// Finish reason constants
+export { FINISH_REASONS, isNaturalStop, type FinishReason } from './finishReasons.js';
+
 // Wallet (BYOK) constants
 export { WALLET_ERROR_MESSAGES, API_KEY_FORMATS } from './wallet.js';

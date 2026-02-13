@@ -6,14 +6,15 @@
  * reaching that stage).
  */
 
-import type {
-  DiagnosticInputProcessing,
-  DiagnosticMemoryRetrieval,
-  DiagnosticTokenBudget,
-  DiagnosticAssembledPrompt,
-  DiagnosticLlmConfig,
-  DiagnosticLlmResponse,
-  DiagnosticPostProcessing,
+import {
+  FINISH_REASONS,
+  type DiagnosticInputProcessing,
+  type DiagnosticMemoryRetrieval,
+  type DiagnosticTokenBudget,
+  type DiagnosticAssembledPrompt,
+  type DiagnosticLlmConfig,
+  type DiagnosticLlmResponse,
+  type DiagnosticPostProcessing,
 } from '@tzurot/common-types';
 
 /** Sentinel value for pipeline stages that didn't record their data. */
@@ -67,7 +68,7 @@ export function getDefaultLlmConfig(): DiagnosticLlmConfig {
 export function getDefaultLlmResponse(): DiagnosticLlmResponse {
   return {
     rawContent: NOT_RECORDED,
-    finishReason: 'unknown',
+    finishReason: FINISH_REASONS.UNKNOWN,
     stopSequenceTriggered: null,
     promptTokens: 0,
     completionTokens: 0,

@@ -19,6 +19,7 @@ import type { BaseMessage } from '@langchain/core/messages';
 import {
   createLogger,
   AttachmentType,
+  FINISH_REASONS,
   type DiagnosticPayload,
   type DiagnosticMeta,
   type DiagnosticInputProcessing,
@@ -326,7 +327,7 @@ export class DiagnosticCollector {
     this.llmInvocationEndMs = Date.now();
     this.llmResponse = {
       rawContent: data.rawContent ?? '[empty — LLM returned no content]',
-      finishReason: data.finishReason ?? 'unknown',
+      finishReason: data.finishReason ?? FINISH_REASONS.UNKNOWN,
       stopSequenceTriggered: data.stopSequenceTriggered ?? null,
       promptTokens: data.promptTokens ?? 0,
       completionTokens: data.completionTokens ?? 0,
