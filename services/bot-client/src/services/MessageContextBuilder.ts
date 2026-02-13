@@ -334,21 +334,23 @@ export class MessageContextBuilder {
   }
 
   /** Extract referenced messages and resolve mentions - delegates to ReferenceExtractor */
-  private async extractReferencesAndMentions(
-    message: Message,
-    content: string,
-    personality: LoadedPersonality,
-    history: ConversationMessage[],
-    isWeighInMode = false
-  ): Promise<ReferencesAndMentionsResult> {
+  private async extractRefsAndMentions(opts: {
+    message: Message;
+    content: string;
+    personality: LoadedPersonality;
+    history: ConversationMessage[];
+    isWeighInMode?: boolean;
+    maxReferences?: number;
+  }): Promise<ReferencesAndMentionsResult> {
     return extractReferencesAndMentions({
       prisma: this.prisma,
       mentionResolver: this.mentionResolver,
-      message,
-      content,
-      personality,
-      history,
-      isWeighInMode,
+      message: opts.message,
+      content: opts.content,
+      personality: opts.personality,
+      history: opts.history,
+      isWeighInMode: opts.isWeighInMode ?? false,
+      maxReferences: opts.maxReferences ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
     });
   }
 
@@ -427,13 +429,15 @@ export class MessageContextBuilder {
     const participantGuildInfo = extendedContext.participantGuildInfo;
 
     // Step 5: Extract references and resolve mentions
-    const refsAndMentions = await this.extractReferencesAndMentions(
+    // maxReferences shares the same budget as maxMessages (no additive surprise)
+    const refsAndMentions = await this.extractRefsAndMentions({
       message,
       content,
       personality,
       history,
-      options.isWeighInMode ?? false
-    );
+      isWeighInMode: options.isWeighInMode,
+      maxReferences: options.extendedContext?.maxMessages,
+    });
     const { messageContent, referencedMessages, mentionedPersonas, referencedChannels } =
       refsAndMentions;
 

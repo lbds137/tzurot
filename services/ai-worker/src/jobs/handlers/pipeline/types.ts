@@ -7,7 +7,11 @@
  */
 
 import type { Job } from 'bullmq';
-import type { LLMGenerationJobData, LLMGenerationResult } from '@tzurot/common-types';
+import type {
+  LLMGenerationJobData,
+  LLMGenerationResult,
+  ResolvedConfigOverrides,
+} from '@tzurot/common-types';
 import type { BaseMessage } from '@langchain/core/messages';
 import type { ProcessedAttachment } from '../../../services/MultimodalProcessor.js';
 
@@ -136,6 +140,9 @@ export interface GenerationContext {
 
   /** Resolved LLM config with user overrides (set by ConfigStep) */
   config?: ResolvedConfig;
+
+  /** Resolved config cascade overrides (set by ConfigStep) */
+  configOverrides?: ResolvedConfigOverrides;
 
   /** Resolved API key/auth info (set by AuthStep) */
   auth?: ResolvedAuth;

@@ -6,13 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
-import {
-  createLogger,
-  MessageRole,
-  CONTENT_TYPES,
-  INTERVALS,
-  MESSAGE_LIMITS,
-} from '@tzurot/common-types';
+import { createLogger, MessageRole, CONTENT_TYPES, INTERVALS } from '@tzurot/common-types';
 import type {
   PrismaClient,
   LoadedPersonality,
@@ -43,6 +37,8 @@ interface ExtractReferencesOptions {
   personality: LoadedPersonality;
   history: ConversationMessage[];
   isWeighInMode?: boolean;
+  /** Maximum number of references to extract. Shares budget with maxMessages. */
+  maxReferences: number;
 }
 
 /**
@@ -60,6 +56,7 @@ export async function extractReferencesAndMentions(
     personality,
     history,
     isWeighInMode = false,
+    maxReferences,
   } = opts;
   // In weigh-in mode, the anchor message is the latest channel message (not from the invoking user).
   // Its reply references are irrelevant to the weigh-in prompt — skip extraction entirely.
@@ -106,7 +103,7 @@ export async function extractReferencesAndMentions(
   logger.debug('[MessageContextBuilder] Extracting referenced messages with deduplication');
   const referenceExtractor = new MessageReferenceExtractor({
     prisma,
-    maxReferences: MESSAGE_LIMITS.MAX_REFERENCED_MESSAGES,
+    maxReferences,
     embedProcessingDelayMs: INTERVALS.EMBED_PROCESSING_DELAY,
     conversationHistoryMessageIds,
     conversationHistoryTimestamps,
