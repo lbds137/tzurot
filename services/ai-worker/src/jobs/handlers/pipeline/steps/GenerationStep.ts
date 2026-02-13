@@ -449,6 +449,13 @@ export class GenerationStep implements IPipelineStep {
         `[GenerationStep] Generation failed: ${errorInfo.category}`
       );
 
+      // Record partial LLM response for /admin debug visibility
+      // The LLMInvoker may have thrown before recordLlmResponse() was called
+      diagnosticCollector.recordPartialLlmResponse({
+        rawContent: '[error — see error data]',
+        modelUsed: effectivePersonality.model ?? 'unknown',
+      });
+
       // Record error in diagnostic collector for debugging failed requests
       diagnosticCollector.recordError({
         message: errorMessage,

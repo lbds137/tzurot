@@ -101,6 +101,18 @@ function injectReasoningIntoMessage(message: Record<string, unknown>): boolean {
     '[ModelFactory] Inspecting response message for reasoning content'
   );
 
+  // Detect refusal field — LangChain drops this just like reasoning
+  if (typeof message.refusal === 'string' && message.refusal.length > 0) {
+    logger.warn(
+      {
+        refusalLength: message.refusal.length,
+        refusalPreview: message.refusal.substring(0, 200),
+        hasContent: typeof message.content === 'string' && message.content.length > 0,
+      },
+      '[ModelFactory] Model returned refusal field — content may be empty'
+    );
+  }
+
   let reasoning: string | null = null;
 
   // Source 1: message.reasoning (string — DeepSeek R1, Kimi K2, QwQ)

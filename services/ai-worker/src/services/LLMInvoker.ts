@@ -266,8 +266,7 @@ export class LLMInvoker {
         {
           err: emptyResponseError,
           modelName,
-          responseType: Array.isArray(response.content) ? 'array' : typeof response.content,
-          contentLength: Array.isArray(response.content) ? response.content.length : 0,
+          ...this.extractResponseDiagnostics(response),
         },
         '[LLMInvoker] Empty response detected, treating as retryable error'
       );
@@ -383,5 +382,36 @@ export class LLMInvoker {
       // Unknown finish reason - log for investigation
       logger.info(logContext, '[LLMInvoker] Model completion with non-standard finish_reason');
     }
+  }
+
+  /**
+   * Extract diagnostic metadata from a response for enriched error logging.
+   * Pulls finish_reason, token usage, refusal, and key inventories from
+   * LangChain's response_metadata and additional_kwargs.
+   */
+  private extractResponseDiagnostics(response: BaseMessage): Record<string, unknown> {
+    const metadata = (response as { response_metadata?: Record<string, unknown> })
+      .response_metadata;
+    const additionalKwargs = (response as { additional_kwargs?: Record<string, unknown> })
+      .additional_kwargs;
+    const finishReason =
+      metadata?.finish_reason ?? metadata?.stop_reason ?? metadata?.finishReason ?? 'unknown';
+    const usage = metadata?.usage as
+      | { prompt_tokens?: number; completion_tokens?: number }
+      | undefined;
+
+    return {
+      responseType: Array.isArray(response.content) ? 'array' : typeof response.content,
+      contentLength: Array.isArray(response.content) ? response.content.length : 0,
+      finishReason,
+      promptTokens: usage?.prompt_tokens,
+      completionTokens: usage?.completion_tokens,
+      refusal:
+        (response as unknown as Record<string, unknown>).refusal ??
+        additionalKwargs?.refusal ??
+        null,
+      responseMetadataKeys: metadata !== undefined ? Object.keys(metadata) : [],
+      additionalKwargsKeys: additionalKwargs !== undefined ? Object.keys(additionalKwargs) : [],
+    };
   }
 }
