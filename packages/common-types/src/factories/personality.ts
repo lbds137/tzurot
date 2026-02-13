@@ -18,6 +18,8 @@ import {
 // Default UUIDs for consistent test data (RFC 4122 compliant v5 UUIDs)
 const DEFAULT_PERSONALITY_ID = '33333333-3333-5333-8333-333333333333';
 const DEFAULT_OWNER_ID = '44444444-4444-5444-8444-444444444444';
+const DEFAULT_SLUG = 'test-character';
+const DEFAULT_DISPLAY_NAME = 'Test Character';
 
 /** Base personality data with all required fields */
 function createBasePersonality(overrides?: Partial<PersonalityFull>): PersonalityFull {
@@ -25,8 +27,8 @@ function createBasePersonality(overrides?: Partial<PersonalityFull>): Personalit
   return {
     id: DEFAULT_PERSONALITY_ID,
     name: 'TestCharacter',
-    slug: 'test-character',
-    displayName: 'Test Character',
+    slug: DEFAULT_SLUG,
+    displayName: DEFAULT_DISPLAY_NAME,
     characterInfo: 'A test character for unit tests',
     personalityTraits: 'Friendly, helpful',
     personalityTone: 'Casual and warm',
@@ -100,8 +102,8 @@ export function mockListPersonalitiesResponse(
     {
       id: DEFAULT_PERSONALITY_ID,
       name: 'TestCharacter',
-      slug: 'test-character',
-      displayName: 'Test Character',
+      slug: DEFAULT_SLUG,
+      displayName: DEFAULT_DISPLAY_NAME,
       isPublic: false,
       isOwned: true,
       ownerId: DEFAULT_OWNER_ID,
@@ -115,8 +117,8 @@ export function mockListPersonalitiesResponse(
       personalities?.map(p => ({
         id: p.id ?? DEFAULT_PERSONALITY_ID,
         name: p.name ?? 'TestCharacter',
-        slug: p.slug ?? 'test-character',
-        displayName: p.displayName ?? 'Test Character',
+        slug: p.slug ?? DEFAULT_SLUG,
+        displayName: p.displayName ?? DEFAULT_DISPLAY_NAME,
         isPublic: p.isPublic ?? false,
         isOwned: p.isOwned ?? true,
         ownerId: p.ownerId ?? DEFAULT_OWNER_ID,
