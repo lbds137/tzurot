@@ -9,6 +9,7 @@ import {
   DISCORD_COLORS,
   type EnvConfig,
   characterImportOptions,
+  PersonalityCreateSchema,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -234,6 +235,24 @@ async function validateAndProcessAvatar(
   return { data: result.data };
 }
 
+/**
+ * Validate import payload against the API schema before sending.
+ * Returns a user-friendly error message listing each field issue, or null if valid.
+ */
+function validatePayloadFields(payload: Record<string, unknown>): string | null {
+  const result = PersonalityCreateSchema.safeParse(payload);
+  if (result.success) {
+    return null;
+  }
+
+  const fieldErrors = result.error.issues.map(issue => {
+    const field = issue.path.join('.');
+    return `• **${field}**: ${issue.message}`;
+  });
+
+  return `❌ **Validation errors in import file:**\n${fieldErrors.join('\n')}`;
+}
+
 // ============================================================================
 // PAYLOAD BUILDING
 // ============================================================================
@@ -403,7 +422,14 @@ export async function handleImport(
     // Step 4: Build payload
     const payload = buildImportPayload(parseResult.data, slug, avatarData);
 
-    // Step 5: Check if character already exists
+    // Step 5: Validate field lengths before hitting the API
+    const validationError = validatePayloadFields(payload);
+    if (validationError !== null) {
+      await context.editReply(validationError);
+      return;
+    }
+
+    // Step 6: Check if character already exists
     const existingCheck = await checkExistingCharacter(slug, userId);
     if (existingCheck.exists && !existingCheck.canEdit) {
       await context.editReply(
@@ -413,7 +439,7 @@ export async function handleImport(
       return;
     }
 
-    // Step 6: Create or update character
+    // Step 7: Create or update character
     const saveResult = await saveCharacter(slug, userId, payload, existingCheck.exists);
     if (!saveResult.ok) {
       await context.editReply(
@@ -423,7 +449,7 @@ export async function handleImport(
       return;
     }
 
-    // Step 7: Send success response
+    // Step 8: Send success response
     const embed = buildSuccessEmbed(payload, slug, existingCheck.exists);
     await context.editReply({ embeds: [embed] });
 

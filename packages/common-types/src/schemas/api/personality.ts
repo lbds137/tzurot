@@ -11,6 +11,7 @@
  */
 
 import { z } from 'zod';
+import { DISCORD_LIMITS } from '../../constants/discord.js';
 import { EntityPermissionsSchema, nullableString } from './shared.js';
 
 // ============================================================================
@@ -151,24 +152,27 @@ const slugSchema = z
  * The difference in behavior (ownerId, isPublic defaults) is handled by the service layer.
  */
 export const PersonalityCreateSchema = z.object({
-  // Required fields
-  name: z.string().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  // Required fields — limits match Discord dashboard modal config
+  name: z.string().min(1, 'name is required').max(255, 'name must be 255 characters or less'),
   slug: slugSchema,
-  characterInfo: z.string().min(1, 'characterInfo is required'),
-  personalityTraits: z.string().min(1, 'personalityTraits is required'),
+  characterInfo: z
+    .string()
+    .min(1, 'characterInfo is required')
+    .max(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityTraits: z.string().min(1, 'personalityTraits is required').max(1000),
 
   // Optional display name (defaults to name if not provided)
-  displayName: nullableString(100),
+  displayName: nullableString(255),
 
-  // Character definition (all optional)
-  personalityTone: nullableString(500),
+  // Character definition (all optional) — limits match Discord dashboard modal config
+  personalityTone: nullableString(1000),
   personalityAge: nullableString(100),
-  personalityAppearance: nullableString(1000),
-  personalityLikes: nullableString(500),
-  personalityDislikes: nullableString(500),
-  conversationalGoals: nullableString(1000),
-  conversationalExamples: nullableString(2000),
-  errorMessage: nullableString(500),
+  personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityLikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityDislikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  conversationalGoals: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  conversationalExamples: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  errorMessage: nullableString(1000),
 
   // Visibility - defaults to false, can be set to true to make public
   isPublic: z.boolean().optional(),
@@ -189,22 +193,22 @@ export type PersonalityCreateInput = z.infer<typeof PersonalityCreateSchema>;
  * Empty strings are transformed to null for nullable fields.
  */
 export const PersonalityUpdateSchema = z.object({
-  // Core fields
-  name: z.string().min(1).max(100).optional(),
+  // Core fields — limits match Discord dashboard modal config
+  name: z.string().min(1).max(255).optional(),
   slug: slugSchema.optional(),
-  displayName: nullableString(100),
-  characterInfo: z.string().min(1).optional(),
-  personalityTraits: z.string().min(1).optional(),
+  displayName: nullableString(255),
+  characterInfo: z.string().min(1).max(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH).optional(),
+  personalityTraits: z.string().min(1).max(1000).optional(),
 
-  // Character definition
-  personalityTone: nullableString(500),
+  // Character definition — limits match Discord dashboard modal config
+  personalityTone: nullableString(1000),
   personalityAge: nullableString(100),
-  personalityAppearance: nullableString(1000),
-  personalityLikes: nullableString(500),
-  personalityDislikes: nullableString(500),
-  conversationalGoals: nullableString(1000),
-  conversationalExamples: nullableString(2000),
-  errorMessage: nullableString(500),
+  personalityAppearance: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityLikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  personalityDislikes: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  conversationalGoals: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  conversationalExamples: nullableString(DISCORD_LIMITS.MODAL_INPUT_MAX_LENGTH),
+  errorMessage: nullableString(1000),
 
   // Visibility
   isPublic: z.boolean().optional(),

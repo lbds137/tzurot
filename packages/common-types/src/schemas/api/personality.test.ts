@@ -311,8 +311,8 @@ describe('Personality API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should reject name exceeding 100 characters', () => {
-      const input = { ...validCreateInput, name: 'a'.repeat(101) };
+    it('should reject name exceeding 255 characters', () => {
+      const input = { ...validCreateInput, name: 'a'.repeat(256) };
       const result = PersonalityCreateSchema.safeParse(input);
       expect(result.success).toBe(false);
     });
