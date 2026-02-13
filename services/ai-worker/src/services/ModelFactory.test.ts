@@ -15,6 +15,7 @@ const { mockChatOpenAI, mockConfigData } = vi.hoisted(() => ({
     DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
     OPENROUTER_API_KEY: 'test-openrouter-key',
     OPENROUTER_APP_TITLE: undefined as string | undefined,
+    OPENROUTER_APP_URL: undefined as string | undefined,
   },
 }));
 
@@ -64,6 +65,7 @@ describe('ModelFactory', () => {
     mockIsReasoningModel.mockClear();
     mockIsReasoningModel.mockReturnValue(false); // Default: not a reasoning model
     mockConfigData.OPENROUTER_APP_TITLE = undefined; // Reset per test
+    mockConfigData.OPENROUTER_APP_URL = undefined; // Reset per test
   });
 
   afterEach(() => {
@@ -801,10 +803,10 @@ describe('ModelFactory', () => {
   });
 
   // ===================================
-  // X-Title header sanitization
+  // App attribution headers
   // ===================================
 
-  describe('X-Title header sanitization', () => {
+  describe('app attribution headers', () => {
     it('should pass ASCII app title as X-Title header', () => {
       mockConfigData.OPENROUTER_APP_TITLE = 'MyBot';
 
@@ -827,7 +829,7 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.defaultHeaders).toEqual({ 'X-Title': 'Bot' });
     });
 
-    it('should omit X-Title header when title is entirely non-ASCII', () => {
+    it('should omit headers when title is entirely non-ASCII and no URL', () => {
       mockConfigData.OPENROUTER_APP_TITLE = 'צורות';
 
       createChatModel({ modelName: 'test-model' });
@@ -838,8 +840,9 @@ describe('ModelFactory', () => {
       expect(callArgs?.configuration?.defaultHeaders).toBeUndefined();
     });
 
-    it('should not set X-Title header when OPENROUTER_APP_TITLE is undefined', () => {
+    it('should not set headers when both config values are undefined', () => {
       mockConfigData.OPENROUTER_APP_TITLE = undefined;
+      mockConfigData.OPENROUTER_APP_URL = undefined;
 
       createChatModel({ modelName: 'test-model' });
 
@@ -847,6 +850,34 @@ describe('ModelFactory', () => {
         configuration?: { defaultHeaders?: Record<string, string> };
       };
       expect(callArgs?.configuration?.defaultHeaders).toBeUndefined();
+    });
+
+    it('should set HTTP-Referer header when OPENROUTER_APP_URL is set', () => {
+      mockConfigData.OPENROUTER_APP_URL = 'https://myapp.example.com';
+
+      createChatModel({ modelName: 'test-model' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toEqual({
+        'HTTP-Referer': 'https://myapp.example.com',
+      });
+    });
+
+    it('should set both headers when both config values are set', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = 'MyBot';
+      mockConfigData.OPENROUTER_APP_URL = 'https://myapp.example.com';
+
+      createChatModel({ modelName: 'test-model' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toEqual({
+        'HTTP-Referer': 'https://myapp.example.com',
+        'X-Title': 'MyBot',
+      });
     });
   });
 });
