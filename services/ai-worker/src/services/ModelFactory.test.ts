@@ -8,8 +8,14 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Mock @langchain/openai - use vi.hoisted for top-level mock reference
-const { mockChatOpenAI } = vi.hoisted(() => ({
+const { mockChatOpenAI, mockConfigData } = vi.hoisted(() => ({
   mockChatOpenAI: vi.fn(),
+  mockConfigData: {
+    AI_PROVIDER: 'openrouter' as const,
+    DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
+    OPENROUTER_API_KEY: 'test-openrouter-key',
+    OPENROUTER_APP_TITLE: undefined as string | undefined,
+  },
 }));
 
 vi.mock('@langchain/openai', () => ({
@@ -24,11 +30,7 @@ vi.mock('@tzurot/common-types', () => ({
     warn: vi.fn(),
     error: vi.fn(),
   }),
-  getConfig: () => ({
-    AI_PROVIDER: 'openrouter',
-    DEFAULT_AI_MODEL: 'anthropic/claude-sonnet-4.5',
-    OPENROUTER_API_KEY: 'test-openrouter-key',
-  }),
+  getConfig: () => mockConfigData,
   AIProvider: {
     OpenRouter: 'openrouter',
   },
@@ -61,6 +63,7 @@ describe('ModelFactory', () => {
     mockChatOpenAI.mockClear();
     mockIsReasoningModel.mockClear();
     mockIsReasoningModel.mockReturnValue(false); // Default: not a reasoning model
+    mockConfigData.OPENROUTER_APP_TITLE = undefined; // Reset per test
   });
 
   afterEach(() => {
@@ -796,6 +799,56 @@ describe('ModelFactory', () => {
 
       const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as { maxTokens?: number };
       expect(callArgs?.maxTokens).toBe(65536); // Maximum for xhigh effort
+    });
+  });
+
+  // ===================================
+  // X-Title header sanitization
+  // ===================================
+
+  describe('X-Title header sanitization', () => {
+    it('should pass ASCII app title as X-Title header', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = 'MyBot';
+
+      createChatModel({ modelName: 'test-model' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toEqual({ 'X-Title': 'MyBot' });
+    });
+
+    it('should strip non-Latin characters from X-Title header', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = 'צורות Bot';
+
+      createChatModel({ modelName: 'test-model' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toEqual({ 'X-Title': 'Bot' });
+    });
+
+    it('should omit X-Title header when title is entirely non-ASCII', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = 'צורות';
+
+      createChatModel({ modelName: 'test-model' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toBeUndefined();
+    });
+
+    it('should not set X-Title header when OPENROUTER_APP_TITLE is undefined', () => {
+      mockConfigData.OPENROUTER_APP_TITLE = undefined;
+
+      createChatModel({ modelName: 'test-model' });
+
+      const callArgs = mockChatOpenAI.mock.calls[0]?.[0] as {
+        configuration?: { defaultHeaders?: Record<string, string> };
+      };
+      expect(callArgs?.configuration?.defaultHeaders).toBeUndefined();
     });
   });
 });

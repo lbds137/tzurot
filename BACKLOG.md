@@ -13,52 +13,7 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-### 🐛 Free Model Error Handling (GLM/Z-AI) — PARTIALLY FIXED
-
-**Observed**: 2026-02-03 to 2026-02-05
-**Debug files**: `debug/400_*.json`, `debug/glm_4.5_air_*.json`
-
-Provider returns 400 error but response may contain usable content. Currently treated as total failure.
-
-**Root causes identified and fixed (on `develop`, pending deploy)**:
-
-- [x] `frequency_penalty` causes 400 on GLM 4.5 Air (restricted param set) — **fixed**: parameter filtering in ModelFactory
-- [x] `maxTokens` defaulting to 4096 instead of auto-scaling for reasoning models — **fixed**: made maxTokens optional, removed hardcoded default
-- [x] Missing model detection patterns (GPT-OSS, StepFun, Hermes 4, MiMo) — **fixed**: added to reasoningModelUtils
-- [x] Stop sequences sent to models that don't support them (R1-0528:free) — **fixed**: added to blocklist
-
-**Remaining**:
-
-- [x] Check for extractable content before throwing on 400 — **fixed in PR #587**: `tryRecoverErrorContent()` extracts valid content from 400 responses
-- [ ] GLM 4.5 Air empty reasoning with low `maxTokens` — model skips thinking when budget is tight (may be unavoidable)
-
-### 🐛 Error UX Improvements (Quota + General)
-
-**Observed**: 2026-02-03
-**Debug file**: `debug/402_quota_exceeded.json`
-
-Errors show generic messages without enough context for debugging. Users (and admins) need both human-friendly category AND technical details.
-
-**Symptoms**:
-
-- `nousresearch/hermes-3-llama-3.1-405b:free` returns 402 quota exceeded
-- User sees generic "something went wrong" instead of "Model quota exceeded - try again later"
-- No visibility into actual error code/message for debugging
-- No fallback to other free models
-
-**Fix approach - Error Display** (MOSTLY DONE — PR #587):
-
-- [x] Standardize error response format: `{ category, userMessage, technicalDetails }` — unified `ApiErrorInfo` with Zod schema
-- [x] Discord embeds show category (bold) + user-friendly message — `USER_ERROR_MESSAGES[category]`
-- [x] Add collapsible/spoiler section with technical details (error code, provider message, request ID) — `formatErrorSpoiler()`
-- [ ] Admin errors can show full technical context; user errors show sanitized version
-
-**Fix approach - Quota Handling** (PARTIALLY DONE — PR #587):
-
-- [x] Detect 402 quota errors specifically — `apiErrorParser` classifies 402 → `QUOTA_EXCEEDED`
-- [x] Show user-friendly "model quota exceeded, try again in a few minutes" message — `USER_ERROR_MESSAGES.QUOTA_EXCEEDED`
-- [ ] Consider automatic fallback to alternative free model
-- [ ] Track quota hits per model to avoid repeated failures
+_None currently._
 
 ---
 
@@ -66,9 +21,7 @@ Errors show generic messages without enough context for debugging. Users (and ad
 
 _New items go here. Triage to appropriate section weekly._
 
-### 🏗️ [LIFT] Extract Finish Reason String Constants
-
-Hardcoded finish reason strings like `'length'` appear in `inspect/embed.ts` and potentially elsewhere. Extract to named constants in `common-types` (e.g., `FINISH_REASONS.LENGTH`, `FINISH_REASONS.STOP`) to avoid magic strings and improve discoverability.
+_Empty — triaged 2026-02-12._
 
 ---
 
@@ -76,8 +29,8 @@ Hardcoded finish reason strings like `'length'` appear in `inspect/embed.ts` and
 
 _This week's active work. Max 3 items._
 
-1. ✨ **Preset Dashboard: `max_tokens` UX** — expose max_tokens in preset edit/create dashboard (validation warning for effort vs max_tokens conflict already shipped in beta.72)
-2. ✨ **Incognito `/character chat` Poke** — no memories, no active marking when no message attached
+1. ✨ **Incognito `/character chat` Poke** — no memories, no active marking when no message attached
+2. ✨ **Reply-to Context in Prompting** — include replied-to message context so AI knows what the user is replying to
 
 ---
 
@@ -92,14 +45,6 @@ Admin command showing bot health and diagnostics.
 - [ ] `/admin health` - Show uptime, version, connected services
 - [ ] Include: Discord connection, Redis, PostgreSQL, BullMQ queue depth
 - [ ] Optional: memory usage, active personality count
-
-### ✨ Bot Presence Setting
-
-Allow setting the bot's status message (like user status).
-
-- [ ] `/admin presence set <type> <message>` - Set bot presence (Playing, Watching, etc.)
-- [ ] `/admin presence clear` - Clear custom presence
-- [ ] Persist across restarts (store in database or env)
 
 ### ✨ Discord Emoji/Sticker Image Support
 
@@ -123,45 +68,45 @@ Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnin
 - [ ] Add `--max-warnings=0` to all package `lint` scripts in `package.json`
 - [ ] Verify CI passes with stricter rule
 
-### ✨ Reply-to Context in Prompting
-
-When a user replies to a specific message, the AI has no awareness of which message is being replied to. Include enough context so the AI knows what the user is direct-replying to, without duplicating the full message content.
-
-- [ ] Detect when the trigger message is a Discord reply
-- [ ] Include a reference to the replied-to message (e.g. brief indicator, author, timestamp)
-- [ ] Don't duplicate the full message content — it's already in the conversation history
-
 ### 🧹 Redis Failure Injection Tests
 
 SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
 
-### 🧹 Release Notifications
+### 🏗️ [LIFT] Extract Finish Reason String Constants
 
-Notify users of new releases.
+Hardcoded finish reason strings like `'length'` appear in `inspect/embed.ts` and potentially elsewhere. Extract to named constants in `common-types` (e.g., `FINISH_REASONS.LENGTH`, `FINISH_REASONS.STOP`).
 
-- [ ] `/changelog` command showing recent releases
-- [ ] Optional announcement channel integration
-- [ ] GitHub releases webhook
+### ✨ Admin/User Error Context Differentiation
 
----
+Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped), this is the remaining differentiation.
 
-## 🏗 Active Epic: _None — selecting next_
+### ✨ Free Model Quota Resilience
 
-Previous epic (Zod Schema Hardening) completed 2026-02-08. All 5 phases across PRs #601–#603+. Zero `req.body as Type` casts remain.
+Automatic fallback to alternative free model on 402 quota errors. Track quota hits per model to avoid repeated failures. Foundation shipped in PR #587.
 
 ---
 
-## 📅 Next Epic: Package Extraction
+## 🏗 Active Epic: Package Extraction
 
 _Focus: Reduce common-types bloat and improve module boundaries._
 
 common-types has 607 exports (12x the 50-export threshold). bot-client is 45.7K lines with 767 exports.
 
+### Phase 1: Assessment
+
 - [ ] Reassess common-types export count — if still >50, extract domain packages
-- [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
+- [ ] Identify highest-value extraction candidates
 - [ ] Reference: PR #558 analysis
 
+### Phase 2: Extraction
+
+- [ ] Candidates: `@tzurot/discord-dashboard` (30 files, self-contained), `@tzurot/message-references` (12 files), `@tzurot/discord-command-context` (6 files)
+
 **Previous work**: Architecture Health epic (PRs #593–#597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
+
+---
+
+## 📅 Next Epic: _TBD — select from Future Themes when Package Extraction completes_
 
 ---
 
@@ -449,6 +394,11 @@ Well under 5% CI threshold. High-value extractions done (PR #599). Remaining clo
 
 Review all `*.test.ts` files to ensure they match their naming convention.
 
+### Nice-to-Have Features
+
+- **Bot Presence Setting** - `/admin presence set <type> <message>`, persist across restarts
+- **Release Notifications** - `/changelog` command, announcement channel, GitHub webhook
+
 ### Tooling Polish
 
 #### 🏗️ Type-Safe Command Options Hardening
@@ -488,6 +438,7 @@ _Decided not to do yet._
 | Handler factory generator         | Add when creating many new routes                                                           |
 | Scaling preparation (timers)      | Single-instance sufficient for now                                                          |
 | Vision failure JIT repair         | Negative cache now skipped during retries (PR #617); TTL expiry handles cross-request dedup |
+| GLM 4.5 Air empty reasoning       | Model skips thinking when maxTokens budget is tight — model behavior, not our bug           |
 
 ---
 
