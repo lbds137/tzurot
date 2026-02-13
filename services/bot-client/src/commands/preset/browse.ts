@@ -118,6 +118,8 @@ function buildBrowseSelectMenu(
       badges.push('🌐');
     } else if (preset.isOwned) {
       badges.push('🔒');
+    } else {
+      badges.push('👤');
     }
     if (preset.isDefault) {
       badges.push('⭐');
@@ -125,7 +127,7 @@ function buildBrowseSelectMenu(
     if (isFreeModel(preset.model)) {
       badges.push('🆓');
     }
-    const badgeStr = badges.length > 0 ? badges.join('') + ' ' : '';
+    const badgeStr = badges.join('') + ' ';
 
     // Label: "1. 🌐⭐ Preset Name"
     const label = truncateForSelect(`${num}. ${badgeStr}${preset.name}`);
@@ -198,6 +200,8 @@ function formatPresetLine(c: LlmConfigSummary, isGuestMode: boolean, index: numb
     badges.push('🌐');
   } else if (c.isOwned) {
     badges.push('🔒');
+  } else {
+    badges.push('👤');
   }
   if (c.isDefault) {
     badges.push('⭐');
@@ -303,7 +307,7 @@ function buildBrowsePage(
   if (filter !== 'all') {
     footerParts.push(`filtered by: ${filterLabels[filter]}`);
   }
-  footerParts.push(`🌐 Global  🔒 Yours  ⭐ Default  🆓 Free (${freeCount})`);
+  footerParts.push(`🌐 Global  🔒 Private  👤 Other user  ⭐ Default  🆓 Free (${freeCount})`);
   embed.setFooter({ text: footerParts.join(' • ') });
 
   // Build components
