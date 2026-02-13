@@ -13,7 +13,7 @@ Commands should be organized by **user intent**, not database schema or internal
 ✅ GOOD: /preset create       (user understands "preset")
 
 ❌ BAD: /model set-default    (abstract - "model" of what?)
-✅ GOOD: /me settings model   (clear - MY settings, MY model choice)
+✅ GOOD: /settings preset set  (clear - MY settings, MY preset choice)
 ```
 
 ### 2. Discoverability
@@ -71,18 +71,21 @@ Use these consistently across all entity commands:
 Use groups to organize related functionality within a command:
 
 ```typescript
-// Good structure
-/me
-  ├── persona       (group)
-  │   ├── view
-  │   ├── edit
-  │   ├── create
-  │   └── list
-  ├── settings      (group)
-  │   ├── timezone
-  │   └── model
-  └── overrides     (group)
-      ├── list
+// Good structure — separate top-level commands by concern
+/persona              // Profile management
+  ├── view
+  ├── edit
+  ├── create
+  └── browse
+
+/settings             // User preferences
+  ├── timezone
+  │   ├── get
+  │   └── set
+  ├── apikey
+  │   ├── set
+  │   └── remove
+  └── preset
       ├── set
       └── clear
 ```
@@ -396,8 +399,8 @@ await interaction.reply({
 await interaction.reply({
   content:
     '✅ Preset saved!\n\n' +
-    'Use `/me settings model` to set it as your default, or\n' +
-    '`/me overrides set` to use it for specific characters.',
+    'Use `/settings preset set` to set it as your default, or\n' +
+    '`/persona override set` to use it for specific characters.',
   flags: MessageFlags.Ephemeral,
 });
 ```
@@ -417,14 +420,14 @@ await interaction.reply({
 
 ```
 ❌ /model set + /profile override set   (same thing, two places)
-✅ /me overrides set                     (one place for user overrides)
+✅ /persona override set                 (one place for user overrides)
 ```
 
 ### 3. Deep Nesting for Simple Operations
 
 ```
-❌ /settings timezone set Europe/London   (too deep for one value)
-✅ /me settings timezone Europe/London    (acceptable with /me grouping)
+❌ /settings timezone set Europe/London   (three levels deep for one value)
+✅ /settings timezone set Europe/London   (acceptable — /settings groups user preferences)
 ```
 
 ### 4. Non-Ephemeral Sensitive Data
@@ -463,13 +466,19 @@ commands/
 │   ├── create.ts        # Subcommand handlers
 │   ├── edit.ts
 │   └── *.test.ts        # Colocated tests
-├── me/
+├── persona/
 │   ├── index.ts
-│   ├── persona/         # Subcommand group
-│   │   ├── view.ts
-│   │   └── edit.ts
-│   └── settings/
-│       └── timezone.ts
+│   ├── view.ts
+│   ├── edit.ts
+│   └── browse.ts
+├── settings/
+│   ├── index.ts
+│   ├── timezone/
+│   │   ├── set.ts
+│   │   └── get.ts
+│   └── apikey/
+│       ├── set.ts
+│       └── remove.ts
 ```
 
 ### Command Definition Pattern

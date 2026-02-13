@@ -35,7 +35,7 @@ import type {
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 
-// Persona handlers (moved from /me/profile)
+// Persona handlers
 import { handleViewPersona, handleExpandContent } from './view.js';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { handleSetDefaultPersona } from './default.js';

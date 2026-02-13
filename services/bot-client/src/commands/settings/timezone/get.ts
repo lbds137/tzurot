@@ -1,6 +1,6 @@
 /**
  * Timezone Get Handler
- * Handles /me timezone get command
+ * Handles /settings timezone get command
  */
 
 import { createLogger, TIMEZONE_DISCORD_CHOICES } from '@tzurot/common-types';
@@ -12,13 +12,16 @@ import { getCurrentTimeInTimezone, type TimezoneResponse } from './utils.js';
 const logger = createLogger('timezone-get');
 
 /**
- * Handle /me timezone get
+ * Handle /settings timezone get
  */
 export async function handleTimezoneGet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
-    const result = await callGatewayApi<TimezoneResponse>('/user/timezone', { userId, timeout: GATEWAY_TIMEOUTS.DEFERRED });
+    const result = await callGatewayApi<TimezoneResponse>('/user/timezone', {
+      userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
+    });
 
     if (!result.ok) {
       logger.warn({ userId, status: result.status }, '[Timezone] Failed to get timezone');

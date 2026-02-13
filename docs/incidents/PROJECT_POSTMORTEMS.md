@@ -422,7 +422,7 @@ RUN pnpm turbo run build --filter=@tzurot/service-name...
 
 ## 2025-12-06 - API Contract Mismatch in /me Commands
 
-**What Happened**: Profile override-set (`/me profile override-set`) and character creation (`/character create`) failed in production. Bot-client expected response shapes that didn't match what gateway returned.
+**What Happened**: Profile override-set (`/persona override set`) and character creation (`/character create`) failed in production. Bot-client expected response shapes that didn't match what gateway returned.
 
 **Impact**:
 
@@ -441,7 +441,7 @@ RUN pnpm turbo run build --filter=@tzurot/service-name...
 
 **Specific Issues**:
 
-1. Bot-client test mocked `GET /user/persona/override/:slug` - endpoint that never existed
+1. Bot-client test mocked `GET /user/persona/override/:slug` — endpoint that never existed
 2. Gateway PUT returned minimal data, bot expected full objects
 3. Gateway POST returned `{ id, slug }`, bot needed 20+ fields for dashboard
 
@@ -556,11 +556,11 @@ UPDATE user_personality_configs SET id = '<v5-uuid>' WHERE user_id = '...' AND p
 Instead of relying on `componentPrefixes` hack, restructured commands so command name = entityType:
 
 ```typescript
-// OLD: Command name 'me' needs componentPrefixes: ['profile']
-// Dashboard uses entityType: 'profile' -> customIds like 'profile::menu::...'
-// Requires hack to route 'profile' prefix to 'me' command
+// OLD: Command name 'me' needed componentPrefixes: ['profile']
+// Dashboard used entityType: 'profile' -> customIds like 'profile::menu::...'
+// Required hack to route 'profile' prefix to 'me' command
 
-// NEW: Command name 'persona' matches entityType
+// CURRENT: Command name 'persona' matches entityType
 // Dashboard uses entityType: 'persona' -> customIds like 'persona::menu::...'
 // Routing works naturally via command name prefix
 ```

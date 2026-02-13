@@ -2,10 +2,8 @@
  * Tests for Settings Command Index
  * Tests command routing for consolidated settings (timezone, apikey, preset)
  *
- * Migration:
- * - /me timezone → /settings timezone
- * - /wallet → /settings apikey
- * - /me preset → /settings preset
+ * History:
+ * - Consolidated from former /me timezone, /wallet, and /me preset commands
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';

@@ -1,6 +1,6 @@
 /**
- * Me Preset Set Handler
- * Handles /me preset set subcommand
+ * Settings Preset Set Handler
+ * Handles /settings preset set subcommand
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -21,7 +21,7 @@ interface SetResponse {
 }
 
 /**
- * Handle /me preset set
+ * Handle /settings preset set
  */
 export async function handleSet(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;

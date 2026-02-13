@@ -7,10 +7,8 @@
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
  * - /settings preset browse|set|reset|default|clear-default - Manage preset overrides
  *
- * MIGRATION:
- * - /me timezone → /settings timezone
- * - /wallet → /settings apikey
- * - /me preset → /settings preset
+ * HISTORY:
+ * - Consolidated from former /me timezone, /wallet, and /me preset commands
  */
 
 import { SlashCommandBuilder } from 'discord.js';
@@ -29,7 +27,7 @@ import type {
 import { createTypedSubcommandRouter } from '../../utils/subcommandRouter.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 
-// Timezone handlers (moved from /me/timezone)
+// Timezone handlers
 import { handleTimezoneSet } from './timezone/set.js';
 import { handleTimezoneGet } from './timezone/get.js';
 
@@ -41,7 +39,7 @@ import { handleTestKey } from './apikey/test.js';
 import { handleApikeyModalSubmit } from './apikey/modal.js';
 import { ApikeyCustomIds } from '../../utils/customIds.js';
 
-// Preset handlers (moved from /me/preset)
+// Preset handlers
 import { handleBrowseOverrides } from './preset/browse.js';
 import { handleSet as handlePresetSet } from './preset/set.js';
 import { handleReset as handlePresetReset } from './preset/reset.js';

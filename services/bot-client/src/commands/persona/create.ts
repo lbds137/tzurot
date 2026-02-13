@@ -1,5 +1,5 @@
 /**
- * Me Create Handler
+ * Persona Create Handler
  *
  * Allows users to create new named profiles via a Discord modal.
  * Each profile can have:
@@ -36,7 +36,7 @@ interface CreatePersonaResponse {
 }
 
 /**
- * Handle /me profile create command - shows modal
+ * Handle /persona create command - shows modal
  */
 export async function handleCreatePersona(context: ModalCommandContext): Promise<void> {
   try {

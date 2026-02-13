@@ -183,7 +183,7 @@ Additive customization: context, memory, feature toggles, plus optional inline L
 ### Phase 4: Admin & User UX
 
 1. **Admin settings UI**: `/admin settings` command to configure global defaults
-2. **User config UI**: `/me config` or inline overrides on `/character edit` dashboard
+2. **User config UI**: `/settings config` or inline overrides on `/character edit` dashboard
 3. **Per-field source indicators**: Show users where each setting comes from ("using character default", "your override", etc.)
 
 ### Phase 5: Extended Cascade
