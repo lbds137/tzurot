@@ -1,7 +1,7 @@
 ---
 name: tzurot-git-workflow
 description: 'Git workflow procedures. Invoke with /tzurot-git-workflow for commit, PR, and release procedures.'
-lastUpdated: '2026-02-04'
+lastUpdated: '2026-02-13'
 ---
 
 # Git Workflow Procedures
@@ -98,13 +98,17 @@ pnpm bump-version 3.0.0-beta.XX
 git commit -am "chore: bump version to 3.0.0-beta.XX"
 ```
 
-### 2. Create Release PR
+### 2. Write Release Notes
+
+Write release notes following the Conventional Changelog format defined in `.claude/rules/05-tooling.md`.
+
+### 3. Create Release PR
 
 ```bash
 gh pr create --base main --head develop --title "Release v3.0.0-beta.XX: Description"
 ```
 
-### 3. After Merge to Main
+### 4. After Merge to Main
 
 ```bash
 git fetch --all

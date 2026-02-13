@@ -1,7 +1,7 @@
 ---
 name: tzurot-council-mcp
-description: 'MCP consultation procedures. Invoke with /tzurot-council-mcp when stuck, planning major refactors, or needing a second opinion.'
-lastUpdated: '2026-02-04'
+description: 'Multi-perspective AI consultation. Invoke with /tzurot-council-mcp for major refactors (>500 lines), structured debugging after failed attempts, or when a technical decision has multiple viable approaches.'
+lastUpdated: '2026-02-13'
 ---
 
 # Council MCP Procedures
