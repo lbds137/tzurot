@@ -162,6 +162,17 @@ Additive customization: context, memory, feature toggles, plus optional inline L
    - Replace current `LlmConfigResolver.resolveConfig()` usage
    - New resolver handles both LLM config and context/memory settings
 
+5. **Unify `MAX_REFERENCED_MESSAGES` into `maxMessages`**
+   - Currently `MAX_REFERENCED_MESSAGES` (hardcoded to 20 in `ReferenceExtractor.ts`) is a separate limit independent of `maxMessages`
+   - This means the real context window can grow to `maxMessages + MAX_REFERENCED_MESSAGES` (up to 70 messages), which is unintuitive and hard to reason about
+   - **New behavior:** `maxMessages` is the total conversation budget. Referenced messages consume slots from this budget. If a user sets `maxMessages=50` and there are 5 referenced messages, only 45 chat history messages are fetched
+   - **Implementation:**
+     - Remove `MAX_REFERENCED_MESSAGES` constant from `common-types/constants/ai.ts`
+     - `ReferenceExtractor` takes `maxMessages` from resolved config instead of a hardcoded limit
+     - `ContextBuilder` (or wherever history+references are assembled) enforces the total: `historySlots = maxMessages - referencedMessageCount`
+     - References are always prioritized over history (they're explicitly cited by the user)
+   - **Migration:** No data migration needed -- just runtime behavior change. Users who had `maxMessages=50` were effectively getting up to 70; now they get exactly 50
+
 ### Phase 3: LlmConfig Cleanup
 
 1. **Soft-deprecate** non-LLM fields on `LlmConfig` (keep in DB, stop reading from them in the resolver)
