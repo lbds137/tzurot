@@ -7,11 +7,11 @@
 
 ## Session Goal
 
-_Release v3.0.0-beta.71: Vision pipeline + message links + reference hydration._
+_Production fix: Vision cache validation to unblock image description retries._
 
 ## Active Task
 
-Release complete. All PRs merged, tagged, and released.
+🐛 **Vision cache validation** (PR #622) — PR created, awaiting merge + deploy.
 
 ---
 
@@ -26,6 +26,7 @@ Release complete. All PRs merged, tagged, and released.
 
 ## Completed This Session
 
+- [x] 🐛 **Vision cache validation** (PR #622) — L1 cache stored error-like text as valid descriptions, blocking retries; added 18-pattern validator on cache read/write + `skipCache` option
 - [x] 🐛 **Message link bug fix** (PR #619) — links silently dropped when URL is only content; added placeholder + defense-in-depth filter
 - [x] 🏗️ **Quote format unification** (PR #619) — unified 3 formatters into shared `formatQuoteElement()`, deleted `ForwardedMessageFormatter`, extracted `AttachmentProcessor`
 - [x] ✨ **Stored reference hydration** (PR #620) — linked messages in extended context enriched with resolved persona names/IDs + cached vision descriptions
