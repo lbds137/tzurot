@@ -78,6 +78,39 @@ _New items go here. Triage to appropriate section weekly._
 
 **Goal**: Every `{ err: ... }` log should show message + stack, never `raw: "{}"`.
 
+### ✨ Incognito `/character chat` With No Message
+
+**Observed**: 2026-02-07
+
+When `/character chat` is used with no attached message (weigh-in mode), it acts like a "poke" to get the character talking. This should be more anonymous:
+
+- [ ] Don't include the user's memories (user is trying to anonymously prod)
+- [ ] Don't mark the user as active in the persona list
+- [ ] Character shouldn't know which user prompted the nudge
+
+**Implementation notes**: In `bot-client/src/commands/character/chat.ts`, weigh-in mode is detected at line 408 (`isWeighInMode`). The persona resolver (`getPersonaResolver().resolve()`) is always called at line 434 even in weigh-in mode — need to verify if marking-as-active is a side effect. Content is set to `WEIGH_IN_MESSAGE` constant (line 483). Key code paths: lines 406-484.
+
+### ✨ Expand `/admin debug` Access to Message Authors
+
+**Observed**: 2026-02-10
+
+Currently `/admin debug` is admin-only, but users should be able to view debug output for their own messages. No privacy concern if the user authored the initial message.
+
+- [ ] Add check: allow access if the requesting user is the author of the trigger message
+- [ ] Keep admin access for all messages unchanged
+
+**Implementation notes**: Diagnostic log stores `triggerMessageId` (in `DiagnosticCollector.ts`). To verify authorship: fetch the trigger message from Discord using channel ID + message ID (both available in the diagnostic log metadata), compare `message.author.id` with the requesting user's ID. Must handle deleted messages gracefully (fallback to admin-only). Changes go in `bot-client/src/commands/admin/debug/index.ts` `handleDebug` function (lines 48-84), plus the gateway endpoint at `api-gateway/src/routes/admin/diagnostic.ts`.
+
+### ✨ Reply-to Context in Prompting
+
+**Observed**: 2026-02-12
+
+When a user replies to a specific message, the AI has no awareness of which message is being replied to. Include enough context so the AI knows what message the user is direct-replying to, without duplicating the full message content (which would pollute the context window).
+
+- [ ] Detect when the trigger message is a Discord reply
+- [ ] Include a reference to the replied-to message (e.g. brief indicator, author, timestamp)
+- [ ] Don't duplicate the full message content — it's already in the conversation history
+
 ### ✨ Expose `max_tokens` in Preset Edit/Creation Flow
 
 **Context**: Top-level `max_tokens` (output token limit) is not exposed in the Discord preset dashboard. Users can only set it by manually editing `advanced_parameters` in the DB. This became apparent when GLM 4.5 Air configs had `reasoning.max_tokens` set but no top-level `max_tokens`, causing the model to use a scaled default instead of an explicit value.
