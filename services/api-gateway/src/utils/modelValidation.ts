@@ -68,6 +68,12 @@ export async function validateModelAndContextWindow(
   return { contextWindowCap: cap };
 }
 
+/** Object with optional model context fields, set by enrichWithModelContext */
+interface ModelContextEnrichable {
+  modelContextLength?: number;
+  contextWindowCap?: number;
+}
+
 /**
  * Enrich an API response object with model context window info.
  * Adds `modelContextLength` and `contextWindowCap` fields if the model
@@ -77,7 +83,7 @@ export async function validateModelAndContextWindow(
  * context window cap info in the preset dashboard.
  */
 export async function enrichWithModelContext(
-  response: Record<string, unknown>,
+  response: ModelContextEnrichable,
   model: string | undefined,
   modelCache: OpenRouterModelCache | undefined
 ): Promise<void> {

@@ -61,13 +61,10 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
     }
 
     const formatted = service.formatConfigDetail(config);
-    const response: Record<string, unknown> = { ...formatted };
-
-    // Enrich with model context window info for dashboard display
-    await enrichWithModelContext(response, config.model, modelCache);
+    await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.debug({ configId }, '[AdminLlmConfig] Fetched config');
-    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
   };
 }
 
@@ -118,16 +115,13 @@ function createCreateConfigHandler(
 
     const config = await service.create({ type: 'GLOBAL' }, body, adminUser.id);
     const formatted = service.formatConfigDetail(config);
-    const response: Record<string, unknown> = { ...formatted };
-
-    // Enrich with model context window info for dashboard display
-    await enrichWithModelContext(response, config.model, modelCache);
+    await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.info(
       { configId: config.id, name: config.name },
       '[AdminLlmConfig] Created global config'
     );
-    sendCustomSuccess(res, { config: response }, StatusCodes.CREATED);
+    sendCustomSuccess(res, { config: formatted }, StatusCodes.CREATED);
   };
 }
 
@@ -192,16 +186,13 @@ function createEditConfigHandler(
 
     const config = await service.update(configId ?? '', body);
     const formatted = service.formatConfigDetail(config);
-    const response: Record<string, unknown> = { ...formatted };
-
-    // Enrich with model context window info for dashboard display
-    await enrichWithModelContext(response, config.model, modelCache);
+    await enrichWithModelContext(formatted, config.model, modelCache);
 
     logger.info(
       { configId, name: config.name, updates: Object.keys(body) },
       '[AdminLlmConfig] Updated global config'
     );
-    sendCustomSuccess(res, { config: response }, StatusCodes.OK);
+    sendCustomSuccess(res, { config: formatted }, StatusCodes.OK);
   };
 }
 

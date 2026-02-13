@@ -96,6 +96,10 @@ interface FormattedConfigDetail {
   maxAge: number | null;
   maxImages: number;
   params: Record<string, unknown>;
+  /** Model's full context window (from OpenRouter), set by enrichWithModelContext */
+  modelContextLength?: number;
+  /** 50% cap for contextWindowTokens, set by enrichWithModelContext */
+  contextWindowCap?: number;
 }
 
 // ============================================================================

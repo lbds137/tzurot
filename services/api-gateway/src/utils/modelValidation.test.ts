@@ -105,10 +105,7 @@ describe('enrichWithModelContext', () => {
   it('should add context fields when model is found', async () => {
     const model = createMockModel({ contextLength: 200000 });
     const cache = createMockModelCache(model);
-    const response: Record<string, unknown> = {
-      id: 'config-1',
-      model: 'anthropic/claude-sonnet-4',
-    };
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
 
     await enrichWithModelContext(response, 'anthropic/claude-sonnet-4', cache);
 
@@ -117,7 +114,7 @@ describe('enrichWithModelContext', () => {
   });
 
   it('should skip when modelCache is undefined', async () => {
-    const response: Record<string, unknown> = { id: 'config-1' };
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
 
     await enrichWithModelContext(response, 'anthropic/claude-sonnet-4', undefined);
 
@@ -127,7 +124,7 @@ describe('enrichWithModelContext', () => {
 
   it('should skip when model is undefined', async () => {
     const cache = createMockModelCache(createMockModel());
-    const response: Record<string, unknown> = { id: 'config-1' };
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
 
     await enrichWithModelContext(response, undefined, cache);
 
@@ -137,7 +134,7 @@ describe('enrichWithModelContext', () => {
 
   it('should skip when model is not found in cache', async () => {
     const cache = createMockModelCache(null);
-    const response: Record<string, unknown> = { id: 'config-1' };
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
 
     await enrichWithModelContext(response, 'unknown/model', cache);
 
@@ -148,7 +145,7 @@ describe('enrichWithModelContext', () => {
   it('should floor the context window cap', async () => {
     const model = createMockModel({ contextLength: 131073 });
     const cache = createMockModelCache(model);
-    const response: Record<string, unknown> = {};
+    const response: { modelContextLength?: number; contextWindowCap?: number } = {};
 
     await enrichWithModelContext(response, 'test/model', cache);
 
