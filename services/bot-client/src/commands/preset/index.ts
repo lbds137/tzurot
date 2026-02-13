@@ -127,7 +127,6 @@ async function selectMenu(interaction: StringSelectMenuInteraction): Promise<voi
   // Handle dashboard select - edit sections
   if (isPresetDashboardInteraction(interaction.customId)) {
     await handleSelectMenu(interaction);
-    return;
   }
 }
 

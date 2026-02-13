@@ -26,6 +26,9 @@ import { callGatewayApi } from '../../utils/userGatewayClient.js';
 
 const logger = createLogger('persona-view');
 
+const PROFILE_FETCH_ERROR = '❌ Failed to retrieve your profile. Please try again later.';
+const CONTENT_FIELD_NAME = '📝 Content';
+
 /** Response type for persona list */
 interface PersonaSummary {
   id: string;
@@ -78,7 +81,7 @@ function buildProfileEmbed(personaDetails: PersonaDetails): {
     const content = isTruncated
       ? contentText.substring(0, CONTENT_PREVIEW_LENGTH) + '...'
       : contentText;
-    embed.addFields({ name: '📝 Content', value: content, inline: false });
+    embed.addFields({ name: CONTENT_FIELD_NAME, value: content, inline: false });
 
     if (isTruncated) {
       const expandButton = new ButtonBuilder()
@@ -92,7 +95,7 @@ function buildProfileEmbed(personaDetails: PersonaDetails): {
     }
   } else {
     embed.addFields({
-      name: '📝 Content',
+      name: CONTENT_FIELD_NAME,
       value: '*No content set. Use `/persona edit` to add information about yourself.*',
       inline: false,
     });
@@ -116,7 +119,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (!result.ok) {
       logger.warn({ userId: discordId, error: result.error }, '[Persona] Failed to fetch personas');
       await context.editReply({
-        content: '❌ Failed to retrieve your profile. Please try again later.',
+        content: PROFILE_FETCH_ERROR,
       });
       return;
     }
@@ -142,7 +145,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
         '[Persona] Failed to fetch persona details'
       );
       await context.editReply({
-        content: '❌ Failed to retrieve your profile. Please try again later.',
+        content: PROFILE_FETCH_ERROR,
       });
       return;
     }
@@ -153,7 +156,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Persona] Failed to view profile');
     await context.editReply({
-      content: '❌ Failed to retrieve your profile. Please try again later.',
+      content: PROFILE_FETCH_ERROR,
     });
   }
 }

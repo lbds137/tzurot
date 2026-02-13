@@ -40,6 +40,9 @@ import { createSuccessEmbed } from '../../utils/commandHelpers.js';
 
 const logger = createLogger('history-command');
 
+const HARD_DELETE_OPERATION = 'hard-delete';
+const PERSONA_OPTION_DESCRIPTION = 'The persona to use (defaults to your active persona)';
+
 /**
  * Context-aware subcommand router
  * Routes to handlers that receive DeferredCommandContext
@@ -49,7 +52,7 @@ const historyRouter = createSubcommandContextRouter(
     clear: handleClear,
     undo: handleUndo,
     stats: handleStats,
-    'hard-delete': handleHardDelete,
+    [HARD_DELETE_OPERATION]: handleHardDelete,
   },
   { logger, logPrefix: '[History]' }
 );
@@ -64,13 +67,65 @@ async function execute(ctx: SafeCommandContext): Promise<void> {
 }
 
 /**
+ * Build the hard-delete execution callback for modal submission
+ */
+function buildHardDeleteOperation(
+  userId: string,
+  personalitySlug: string,
+  channelId: string
+): () => Promise<DestructiveOperationResult> {
+  return async (): Promise<DestructiveOperationResult> => {
+    interface HardDeleteResponse {
+      success: boolean;
+      deletedCount: number;
+      message: string;
+    }
+
+    const result = await callGatewayApi<HardDeleteResponse>('/user/history/hard-delete', {
+      userId,
+      method: 'DELETE',
+      body: { personalitySlug, channelId },
+    });
+
+    if (!result.ok) {
+      logger.error(
+        { userId, personalitySlug, channelId, error: result.error },
+        '[History] Hard-delete API failed'
+      );
+      return {
+        success: false,
+        errorMessage:
+          result.status === 404
+            ? `Personality "${personalitySlug}" not found.`
+            : 'Failed to delete history. Please try again.',
+      };
+    }
+
+    const { deletedCount } = result.data;
+
+    logger.info(
+      { userId, personalitySlug, channelId, deletedCount },
+      '[History] Hard-delete completed'
+    );
+
+    return {
+      success: true,
+      successEmbed: createSuccessEmbed(
+        'History Deleted',
+        `Permanently deleted **${deletedCount}** message${deletedCount === 1 ? '' : 's'} ` +
+          `from your conversation history with **${personalitySlug}** in this channel.`
+      ),
+    };
+  };
+}
+
+/**
  * Handle modal submissions for history command
  * Routes destructive confirmation modals
  */
 async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   const customId = interaction.customId;
 
-  // Check if this is a destructive confirmation modal
   if (DestructiveCustomIds.isDestructive(customId)) {
     const parsed = DestructiveCustomIds.parse(customId);
     if (parsed === null) {
@@ -78,8 +133,7 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
       return;
     }
 
-    // Handle hard-delete modal submission
-    if (parsed.operation === 'hard-delete' && parsed.action === 'modal_submit') {
+    if (parsed.operation === HARD_DELETE_OPERATION && parsed.action === 'modal_submit') {
       const entityInfo =
         parsed.entityId !== undefined ? parseHardDeleteEntityId(parsed.entityId) : null;
 
@@ -92,53 +146,11 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
       }
 
       const { personalitySlug, channelId } = entityInfo;
-      const userId = interaction.user.id;
-
-      // Execute the hard-delete operation
-      const executeOperation = async (): Promise<DestructiveOperationResult> => {
-        interface HardDeleteResponse {
-          success: boolean;
-          deletedCount: number;
-          message: string;
-        }
-
-        const result = await callGatewayApi<HardDeleteResponse>('/user/history/hard-delete', {
-          userId,
-          method: 'DELETE',
-          body: { personalitySlug, channelId },
-        });
-
-        if (!result.ok) {
-          logger.error(
-            { userId, personalitySlug, channelId, error: result.error },
-            '[History] Hard-delete API failed'
-          );
-          return {
-            success: false,
-            errorMessage:
-              result.status === 404
-                ? `Personality "${personalitySlug}" not found.`
-                : 'Failed to delete history. Please try again.',
-          };
-        }
-
-        const { deletedCount } = result.data;
-
-        logger.info(
-          { userId, personalitySlug, channelId, deletedCount },
-          '[History] Hard-delete completed'
-        );
-
-        return {
-          success: true,
-          successEmbed: createSuccessEmbed(
-            'History Deleted',
-            `Permanently deleted **${deletedCount}** message${deletedCount === 1 ? '' : 's'} ` +
-              `from your conversation history with **${personalitySlug}** in this channel.`
-          ),
-        };
-      };
-
+      const executeOperation = buildHardDeleteOperation(
+        interaction.user.id,
+        personalitySlug,
+        channelId
+      );
       await handleDestructiveModalSubmit(interaction, 'DELETE', executeOperation);
       return;
     }
@@ -163,13 +175,43 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 }
 
 /**
+ * Handle the confirm button for hard-delete operations
+ */
+async function handleHardDeleteConfirm(
+  interaction: ButtonInteraction,
+  entityId: string | undefined
+): Promise<void> {
+  const entityInfo = entityId !== undefined ? parseHardDeleteEntityId(entityId) : null;
+
+  if (entityInfo === null) {
+    logger.warn({ entityId }, '[History] Failed to parse entityId');
+    await interaction.update({
+      content: 'Error: Invalid entity ID format.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const config = createHardDeleteConfig({
+    entityType: 'conversation history',
+    entityName: entityInfo.personalitySlug,
+    additionalWarning: '**This action is PERMANENT and cannot be undone!**',
+    source: 'history',
+    operation: HARD_DELETE_OPERATION,
+    entityId,
+  });
+
+  await handleDestructiveConfirmButton(interaction, config);
+}
+
+/**
  * Handle button interactions for history command
  * Routes destructive confirmation buttons
  */
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   const customId = interaction.customId;
 
-  // Check if this is a destructive confirmation button
   if (DestructiveCustomIds.isDestructive(customId)) {
     const parsed = DestructiveCustomIds.parse(customId);
     if (parsed === null) {
@@ -177,39 +219,13 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
       return;
     }
 
-    // Handle hard-delete operation
-    if (parsed.operation === 'hard-delete') {
+    if (parsed.operation === HARD_DELETE_OPERATION) {
       if (parsed.action === 'cancel_button') {
         await handleDestructiveCancel(interaction, 'Hard-delete cancelled.');
         return;
       }
-
       if (parsed.action === 'confirm_button') {
-        // Parse the entityId to get personalitySlug and channelId
-        const entityInfo =
-          parsed.entityId !== undefined ? parseHardDeleteEntityId(parsed.entityId) : null;
-
-        if (entityInfo === null) {
-          logger.warn({ entityId: parsed.entityId }, '[History] Failed to parse entityId');
-          await interaction.update({
-            content: 'Error: Invalid entity ID format.',
-            embeds: [],
-            components: [],
-          });
-          return;
-        }
-
-        // Recreate the config for the modal
-        const config = createHardDeleteConfig({
-          entityType: 'conversation history',
-          entityName: entityInfo.personalitySlug,
-          additionalWarning: '**This action is PERMANENT and cannot be undone!**',
-          source: 'history',
-          operation: 'hard-delete',
-          entityId: parsed.entityId,
-        });
-
-        await handleDestructiveConfirmButton(interaction, config);
+        await handleHardDeleteConfirm(interaction, parsed.entityId);
         return;
       }
     }
@@ -244,7 +260,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('persona')
-            .setDescription('The persona to use (defaults to your active persona)')
+            .setDescription(PERSONA_OPTION_DESCRIPTION)
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -263,7 +279,7 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('persona')
-            .setDescription('The persona to use (defaults to your active persona)')
+            .setDescription(PERSONA_OPTION_DESCRIPTION)
             .setRequired(false)
             .setAutocomplete(true)
         )
@@ -282,14 +298,14 @@ export default defineCommand({
         .addStringOption(option =>
           option
             .setName('persona')
-            .setDescription('The persona to use (defaults to your active persona)')
+            .setDescription(PERSONA_OPTION_DESCRIPTION)
             .setRequired(false)
             .setAutocomplete(true)
         )
     )
     .addSubcommand(subcommand =>
       subcommand
-        .setName('hard-delete')
+        .setName(HARD_DELETE_OPERATION)
         .setDescription('PERMANENTLY delete conversation history (cannot be undone!)')
         .addStringOption(option =>
           option
