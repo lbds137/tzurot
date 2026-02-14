@@ -27,6 +27,7 @@ import { StatusCodes } from 'http-status-codes';
 import type { Redis } from 'ioredis';
 import {
   createLogger,
+  Prisma,
   type PrismaClient,
   generateUserPersonalityConfigUuid,
   FocusModeSchema,
@@ -256,14 +257,43 @@ async function handleSetFocus(
     return;
   }
 
+  // Read existing configOverrides to merge focusModeEnabled into JSONB
+  const upcId = generateUserPersonalityConfigUuid(user.id, personalityId);
+  const existing = await prisma.userPersonalityConfig.findUnique({
+    where: { id: upcId },
+    select: { configOverrides: true },
+  });
+
+  const existingOverrides =
+    existing?.configOverrides !== null &&
+    existing?.configOverrides !== undefined &&
+    typeof existing.configOverrides === 'object' &&
+    !Array.isArray(existing.configOverrides)
+      ? (existing.configOverrides as Record<string, unknown>)
+      : {};
+
+  // Merge focusModeEnabled into JSONB (dual-write: column + JSONB)
+  // Strip false to keep JSONB clean (false is the default)
+  const mergedOverrides: Record<string, unknown> = { ...existingOverrides };
+  if (enabled) {
+    mergedOverrides.focusModeEnabled = true;
+  } else {
+    delete mergedOverrides.focusModeEnabled;
+  }
+  const configOverridesValue =
+    Object.keys(mergedOverrides).length > 0
+      ? (mergedOverrides as Prisma.InputJsonValue)
+      : Prisma.JsonNull;
+
   await prisma.userPersonalityConfig.upsert({
     where: { userId_personalityId: { userId: user.id, personalityId } },
-    update: { focusModeEnabled: enabled },
+    update: { focusModeEnabled: enabled, configOverrides: configOverridesValue },
     create: {
-      id: generateUserPersonalityConfigUuid(user.id, personalityId),
+      id: upcId,
       userId: user.id,
       personalityId,
       focusModeEnabled: enabled,
+      configOverrides: configOverridesValue,
     },
   });
 
