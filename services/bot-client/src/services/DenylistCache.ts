@@ -165,7 +165,7 @@ export class DenylistCache {
    * Checks all scopes in priority order and returns true if ANY matching entry is BLOCK mode.
    * Used by the context builder to filter messages from extended context.
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Priority-ordered scope lookup across 5 denial scopes (bot-user, bot-guild, guild-user, channel, personality)
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Sequential scope checks: bot-user → bot-guild → guild-user → channel-user → personality-user, each needs its own conditional branch
   isBlocked(userId: string, guildId?: string, channelId?: string, personalityId?: string): boolean {
     // Check bot-wide user block
     if (userId.length > 0) {
