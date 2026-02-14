@@ -664,23 +664,33 @@ describe('LLM Advanced Params Schema', () => {
 
     it('should contain database-specific keys', () => {
       // These keys exist in LoadedPersonality/ResolvedLlmConfig but not in AdvancedParams
-      const dbSpecificKeys = [
-        'visionModel',
-        'memoryScoreThreshold',
-        'memoryLimit',
-        'contextWindowTokens',
-      ];
+      // Note: memoryScoreThreshold, memoryLimit, maxMessages, maxAge, maxImages
+      // moved to ConfigOverrides cascade (Phase 3 cleanup)
+      const dbSpecificKeys = ['visionModel', 'contextWindowTokens'];
 
       for (const key of dbSpecificKeys) {
         expect(LLM_CONFIG_OVERRIDE_KEYS).toContain(key);
       }
     });
 
-    it('should have exactly 25 keys', () => {
+    it('should not contain keys moved to ConfigOverrides cascade', () => {
+      const movedToCascade = [
+        'memoryScoreThreshold',
+        'memoryLimit',
+        'maxMessages',
+        'maxAge',
+        'maxImages',
+      ];
+
+      for (const key of movedToCascade) {
+        expect(LLM_CONFIG_OVERRIDE_KEYS).not.toContain(key);
+      }
+    });
+
+    it('should have exactly 20 keys', () => {
       // This test ensures we notice if keys are accidentally added or removed
-      // Update this number when intentionally adding new config params
-      // Added maxMessages, maxAge, maxImages for Phase 2 config consolidation
-      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(25);
+      // Phase 3: Removed 5 context/memory keys (moved to ConfigOverrides cascade)
+      expect(LLM_CONFIG_OVERRIDE_KEYS.length).toBe(20);
     });
   });
 });
