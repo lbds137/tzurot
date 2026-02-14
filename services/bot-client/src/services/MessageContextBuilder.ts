@@ -31,6 +31,7 @@ import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
 import { MentionResolver } from './MentionResolver.js';
 import { DiscordChannelFetcher, type FetchableChannel } from './DiscordChannelFetcher.js';
+import type { DenylistCache } from './DenylistCache.js';
 import { TranscriptRetriever } from '../handlers/references/TranscriptRetriever.js';
 import {
   resolveExtendedContextPersonaIds,
@@ -132,10 +133,12 @@ export class MessageContextBuilder {
   private personaResolver: PersonaResolver;
   private channelFetcher: DiscordChannelFetcher;
   private transcriptRetriever: TranscriptRetriever;
+  private denylistCache?: DenylistCache;
 
   constructor(
     private prisma: PrismaClient,
-    personaResolver: PersonaResolver
+    personaResolver: PersonaResolver,
+    denylistCache?: DenylistCache
   ) {
     this.conversationHistory = new ConversationHistoryService(prisma);
     this.conversationSync = new ConversationSyncService(prisma);
@@ -144,6 +147,7 @@ export class MessageContextBuilder {
     this.personaResolver = personaResolver;
     this.channelFetcher = new DiscordChannelFetcher();
     this.transcriptRetriever = new TranscriptRetriever(this.conversationHistory);
+    this.denylistCache = denylistCache;
   }
 
   /**
@@ -179,7 +183,7 @@ export class MessageContextBuilder {
   /**
    * Fetch extended context from Discord channel and merge with history.
    */
-  // eslint-disable-next-line max-lines-per-function -- Cohesive extended context workflow
+  // eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity -- Cohesive extended context workflow with guard clauses and optional feature checks
   private async fetchExtendedContext(
     params: ExtendedContextParams
   ): Promise<ExtendedContextResult> {
@@ -222,6 +226,21 @@ export class MessageContextBuilder {
           this.transcriptRetriever.retrieveTranscript(discordMessageId, attachmentUrl),
         contextEpoch,
         maxAge: options.extendedContext.maxAge,
+        isBlockDenied:
+          this.denylistCache !== undefined
+            ? (discordUserId: string) => {
+                const cache = this.denylistCache;
+                if (cache === undefined) {
+                  return false;
+                }
+                return cache.isBlocked(
+                  discordUserId,
+                  message.guildId ?? undefined,
+                  message.channelId,
+                  personality.id
+                );
+              }
+            : undefined,
       }
     );
 

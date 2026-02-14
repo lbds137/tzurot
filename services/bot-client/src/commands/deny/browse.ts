@@ -37,6 +37,7 @@ interface DenylistEntryResponse {
   discordId: string;
   scope: string;
   scopeId: string;
+  mode: string;
   reason: string | null;
   addedAt: string;
 }
@@ -49,9 +50,10 @@ export function isDenyBrowseInteraction(customId: string): boolean {
 /** Format a single entry for embed display */
 function formatEntry(entry: DenylistEntryResponse, index: number): string {
   const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`;
+  const modeBadge = entry.mode === 'MUTE' ? ' [MUTE]' : '';
   const date = new Date(entry.addedAt).toLocaleDateString();
   const reason = entry.reason !== null ? ` — ${escapeMarkdown(entry.reason)}` : '';
-  return `${String(index + 1)}. \`${entry.discordId}\` (${entry.type}) [${scopeInfo}]${reason}\n   _Added ${date}_`;
+  return `${String(index + 1)}. \`${entry.discordId}\` (${entry.type}) [${scopeInfo}]${modeBadge}${reason}\n   _Added ${date}_`;
 }
 
 /** Sort entries by the specified sort type */

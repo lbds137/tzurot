@@ -107,6 +107,7 @@ const sampleEntries = [
     discordId: '111222333444555666',
     scope: 'BOT',
     scopeId: '*',
+    mode: 'BLOCK',
     reason: 'Spamming',
     addedAt: '2026-01-15T00:00:00.000Z',
   },
@@ -115,6 +116,7 @@ const sampleEntries = [
     discordId: '999888777666555444',
     scope: 'BOT',
     scopeId: '*',
+    mode: 'BLOCK',
     reason: null,
     addedAt: '2026-01-10T00:00:00.000Z',
   },
@@ -123,6 +125,7 @@ const sampleEntries = [
     discordId: '555666777888999000',
     scope: 'CHANNEL',
     scopeId: '123456789',
+    mode: 'MUTE',
     reason: 'Abusive behavior',
     addedAt: '2026-01-05T00:00:00.000Z',
   },
@@ -260,6 +263,39 @@ describe('handleBrowse', () => {
     expect(call.embeds[0].data.description).toContain('USER');
     expect(call.embeds[0].data.description).toContain('Bot-wide');
     expect(call.embeds[0].data.description).toContain('Spamming');
+  });
+
+  it('should show MUTE badge for MUTE-mode entries', async () => {
+    vi.mocked(adminFetch).mockResolvedValue(
+      mockOkResponse({
+        entries: [sampleEntries[2]],
+      })
+    );
+    const context = createMockContext();
+
+    await handleBrowse(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { description: string } }[];
+    };
+    expect(call.embeds[0].data.description).toContain('[MUTE]');
+  });
+
+  it('should not show mode badge for BLOCK-mode entries', async () => {
+    vi.mocked(adminFetch).mockResolvedValue(
+      mockOkResponse({
+        entries: [sampleEntries[0]],
+      })
+    );
+    const context = createMockContext();
+
+    await handleBrowse(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { description: string } }[];
+    };
+    expect(call.embeds[0].data.description).not.toContain('[MUTE]');
+    expect(call.embeds[0].data.description).not.toContain('[BLOCK]');
   });
 
   it('should show scope details for non-BOT scopes', async () => {

@@ -32,6 +32,10 @@ export type DenylistEntityType = z.infer<typeof denylistEntityTypeSchema>;
 export const denylistScopeSchema = z.enum(['BOT', 'GUILD', 'CHANNEL', 'PERSONALITY']);
 export type DenylistScope = z.infer<typeof denylistScopeSchema>;
 
+/** Denial mode: BLOCK (full deny) or MUTE (don't respond but keep in context) */
+export const denylistModeSchema = z.enum(['BLOCK', 'MUTE']);
+export type DenylistMode = z.infer<typeof denylistModeSchema>;
+
 // ============================================================================
 // POST /admin/denylist — Add entry
 // ============================================================================
@@ -45,6 +49,7 @@ export const DenylistAddSchema = z.object({
   discordId: z.string().min(1, 'discordId is required').max(20, 'discordId too long'),
   scope: denylistScopeSchema.default('BOT'),
   scopeId: z.string().max(40, 'scopeId too long').default('*'),
+  mode: denylistModeSchema.default('BLOCK'),
   reason: z.string().max(500, 'Reason too long').optional(),
 });
 export type DenylistAddInput = z.infer<typeof DenylistAddSchema>;
@@ -60,6 +65,7 @@ export const DenylistEntrySchema = z.object({
   discordId: z.string(),
   scope: denylistScopeSchema,
   scopeId: z.string(),
+  mode: denylistModeSchema,
   reason: z.string().nullable(),
   addedBy: z.string(),
   addedAt: z.coerce.date(),

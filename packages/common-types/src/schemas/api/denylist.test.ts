@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   denylistEntityTypeSchema,
   denylistScopeSchema,
+  denylistModeSchema,
   DenylistAddSchema,
   DenylistEntrySchema,
   DenylistCacheResponseSchema,
@@ -33,6 +34,18 @@ describe('denylistScopeSchema', () => {
   });
 });
 
+describe('denylistModeSchema', () => {
+  it('should accept BLOCK and MUTE', () => {
+    expect(denylistModeSchema.safeParse('BLOCK').success).toBe(true);
+    expect(denylistModeSchema.safeParse('MUTE').success).toBe(true);
+  });
+
+  it('should reject invalid modes', () => {
+    expect(denylistModeSchema.safeParse('SILENT').success).toBe(false);
+    expect(denylistModeSchema.safeParse('block').success).toBe(false);
+  });
+});
+
 describe('DenylistAddSchema', () => {
   it('should accept a valid USER + BOT entry with defaults', () => {
     const result = DenylistAddSchema.safeParse({
@@ -43,7 +56,29 @@ describe('DenylistAddSchema', () => {
     if (result.success) {
       expect(result.data.scope).toBe('BOT');
       expect(result.data.scopeId).toBe('*');
+      expect(result.data.mode).toBe('BLOCK');
     }
+  });
+
+  it('should accept explicit MUTE mode', () => {
+    const result = DenylistAddSchema.safeParse({
+      type: 'USER',
+      discordId: '123456789012345678',
+      mode: 'MUTE',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.mode).toBe('MUTE');
+    }
+  });
+
+  it('should reject invalid mode', () => {
+    const result = DenylistAddSchema.safeParse({
+      type: 'USER',
+      discordId: '123456789012345678',
+      mode: 'SILENT',
+    });
+    expect(result.success).toBe(false);
   });
 
   it('should accept a valid USER + CHANNEL entry', () => {
@@ -135,6 +170,7 @@ describe('DenylistEntrySchema', () => {
     discordId: '123456789012345678',
     scope: 'BOT' as const,
     scopeId: '*',
+    mode: 'BLOCK' as const,
     reason: null,
     addedBy: '999999999999999999',
     addedAt: '2026-01-15T00:00:00.000Z',
@@ -185,6 +221,7 @@ describe('DenylistCacheResponseSchema', () => {
           discordId: '123456789012345678',
           scope: 'BOT',
           scopeId: '*',
+          mode: 'BLOCK',
           reason: null,
           addedBy: '999999999999999999',
           addedAt: '2026-01-15T00:00:00.000Z',

@@ -69,6 +69,7 @@ describe('handleAdd', () => {
         discordId: '999888777',
         scope: 'BOT',
         scopeId: '*',
+        mode: 'BLOCK',
         reason: undefined,
       },
       'user-123'
