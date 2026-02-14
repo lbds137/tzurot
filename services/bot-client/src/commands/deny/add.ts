@@ -9,14 +9,9 @@ import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { adminPostJson } from '../../utils/adminApiClient.js';
 import { checkDenyPermission } from './permissions.js';
+import { stripMention } from './mentionUtils.js';
 
 const logger = createLogger('deny-add');
-
-/** Strip Discord mention wrappers: <@123>, <@!123> → 123 */
-function stripMention(input: string): string {
-  const match = /^<@!?(\d+)>$/.exec(input);
-  return match !== null ? match[1] : input;
-}
 
 export async function handleAdd(context: DeferredCommandContext): Promise<void> {
   const type = context.getOption<string>('type') ?? 'USER';

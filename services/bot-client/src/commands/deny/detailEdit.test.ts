@@ -258,6 +258,23 @@ describe('handleEditModal', () => {
     );
   });
 
+  it('should reject reason exceeding max length', async () => {
+    mockSessionManager.get.mockResolvedValue(sampleSession);
+    const longReason = 'x'.repeat(501);
+    const interaction = createMockModalInteraction('deny::modal::entry-uuid-1234::edit', {
+      scope: 'BOT',
+      scopeId: '*',
+      reason: longReason,
+    });
+
+    await handleEditModal(interaction, 'entry-uuid-1234');
+
+    expect(interaction.editReply).toHaveBeenCalledWith(
+      expect.objectContaining({ content: expect.stringContaining('Reason too long') })
+    );
+    expect(adminPostJson).not.toHaveBeenCalled();
+  });
+
   it('should clear reason when empty string submitted', async () => {
     mockSessionManager.get.mockResolvedValue(sampleSession);
     mockSessionManager.update.mockResolvedValue(sampleSession);
