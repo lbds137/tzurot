@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-12
-> **Version**: v3.0.0-beta.71
+> **Last Updated**: 2026-02-14
+> **Version**: v3.0.0-beta.73
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -55,24 +55,23 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
 
-### 🏗️ Enforce Zero Warnings in CI
+### 🏗️ Denylist Hardening (PR #631 Review Follow-ups)
 
-Pre-commit hook uses `--max-warnings=0` but `pnpm lint` and CI do not — warnings pass in CI but fail on commit. Need to harmonize around the stricter rule. All warnings are now fixed (2026-02-13).
+From Claude code review. All minor optimizations, not blockers.
 
-- [x] Fix non-bot-client warnings (common-types, api-gateway, ai-worker) — done 2026-02-12
-- [x] Fix bot-client `sonarjs/no-duplicate-string` warnings (extract constants) — done 2026-02-12
-- [x] Fix remaining minor warnings (`no-redundant-jump`, `prefer-immediate-return`) — done 2026-02-12
-- [x] Fix bot-client `sonarjs/cognitive-complexity` warnings (extract helpers) — done 2026-02-13
-- [x] Add `--max-warnings=0` to all package `lint` scripts in `package.json` — done 2026-02-13
-- [x] Verify CI passes with stricter rule — CI runs `pnpm run lint` which invokes each package's script, so `--max-warnings=0` is inherited automatically
+- [ ] Add composite index `[type, addedAt]` on `DenylistedEntity` for query performance
+- [ ] Document cache hydration 10k limit in bot-client `DenylistCache.ts`
+- [ ] Add rate limiting to admin denylist endpoints (10 req/min per user)
+- [ ] Consider batch invalidation support for bulk denylist operations
+
+### 🏗️ Config Cascade Cleanup (PR #631 Review Follow-ups)
+
+- [ ] Create migration to copy `focusModeEnabled` column values into `configOverrides` JSONB, then drop column
+- [ ] Document `ConfigCascadeResolver` setInterval cleanup limitation for horizontal scaling
 
 ### 🧹 Redis Failure Injection Tests
 
 SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
-
-### 🏗️ [LIFT] Extract Finish Reason String Constants
-
-Hardcoded finish reason strings like `'length'` appear in `inspect/embed.ts` and potentially elsewhere. Extract to named constants in `common-types` (e.g., `FINISH_REASONS.LENGTH`, `FINISH_REASONS.STOP`).
 
 ### ✨ Admin/User Error Context Differentiation
 
@@ -359,24 +358,6 @@ Migrate stub commands to proper TypeScript implementations.
 
 ---
 
-### Theme: Moderation & Access Control
-
-#### ✨ User Denylist
-
-Block specific Discord users from using the bot entirely.
-
-- [ ] Add `denylisted_users` table (discord_id, reason, denylisted_at, denylisted_by)
-- [ ] Early-exit middleware in message handler
-
-#### ✨ Server Denylist
-
-Block the bot from operating in specific Discord servers.
-
-- [ ] Add `denylisted_servers` table
-- [ ] Auto-leave option when denylisted
-
----
-
 ## 🧊 Icebox
 
 _Ideas for later. Resist the shiny object._
@@ -468,7 +449,7 @@ _Decided not to do yet._
 | Handler factory generator         | Add when creating many new routes                                                           |
 | Scaling preparation (timers)      | Single-instance sufficient for now                                                          |
 | Vision failure JIT repair         | Negative cache now skipped during retries (PR #617); TTL expiry handles cross-request dedup |
-| GLM 4.5 Air empty reasoning       | Model skips thinking when maxTokens budget is tight — model behavior, not our bug           |
+| GLM 4.5 Air empty reasoning       | Fixed in v3.0.0-beta.73 — reasoning-only responses now used as content                      |
 
 ---
 
