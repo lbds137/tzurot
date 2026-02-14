@@ -22,7 +22,12 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { createLogger, DISCORD_COLORS, type GetAdminSettingsResponse } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  HARDCODED_CONFIG_DEFAULTS,
+  type GetAdminSettingsResponse,
+} from '@tzurot/common-types';
 import { adminFetch, adminPatchJson } from '../../utils/adminApiClient.js';
 import {
   type SettingsDashboardConfig,
@@ -162,26 +167,27 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
 }
 
 /**
- * Convert API response to dashboard SettingsData format
+ * Convert API response to dashboard SettingsData format.
+ * Reads from configDefaults JSONB (config cascade admin tier).
  */
-function convertToSettingsData(_settings: GetAdminSettingsResponse): SettingsData {
-  // Note: Global context limits are now managed via LlmConfig.
-  // These dashboards show defaults until fully migrated.
+function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData {
+  const defaults = settings.configDefaults;
+
   return {
     maxMessages: {
-      localValue: 20,
-      effectiveValue: 20,
-      source: 'default',
+      localValue: defaults?.maxMessages ?? null,
+      effectiveValue: defaults?.maxMessages ?? HARDCODED_CONFIG_DEFAULTS.maxMessages,
+      source: defaults?.maxMessages !== undefined ? 'global' : 'default',
     },
     maxAge: {
-      localValue: null,
-      effectiveValue: null,
-      source: 'default',
+      localValue: defaults?.maxAge ?? null,
+      effectiveValue: defaults?.maxAge ?? HARDCODED_CONFIG_DEFAULTS.maxAge,
+      source: defaults?.maxAge !== undefined ? 'global' : 'default',
     },
     maxImages: {
-      localValue: 0,
-      effectiveValue: 0,
-      source: 'default',
+      localValue: defaults?.maxImages ?? null,
+      effectiveValue: defaults?.maxImages ?? HARDCODED_CONFIG_DEFAULTS.maxImages,
+      source: defaults?.maxImages !== undefined ? 'global' : 'default',
     },
   };
 }
@@ -230,33 +236,36 @@ async function handleSettingUpdate(
 }
 
 /**
- * Map dashboard setting ID to API field update
+ * Map dashboard setting ID to API PATCH body.
+ * Writes to configDefaults JSONB (config cascade admin tier).
+ *
+ * The API uses merge semantics — we send only the field being updated.
+ * Sending null for a field value removes it from configDefaults.
  */
 function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
     case 'maxMessages':
-      // null means use default (20)
-      return { extendedContextMaxMessages: value ?? 20 };
+      // null means clear override (use hardcoded default)
+      return { configDefaults: { maxMessages: value ?? undefined } };
 
     case 'maxAge': {
       // value can be:
-      // - null: use default
+      // - null: clear override (use hardcoded default)
       // - -1: "off" (disabled, store as null in DB)
       // - number: seconds
       if (value === null) {
-        // Use default (2 hours)
-        return { extendedContextMaxAge: 2 * 60 * 60 };
+        return { configDefaults: { maxAge: undefined } };
       }
       if (value === -1) {
-        // "off" means disabled
-        return { extendedContextMaxAge: null };
+        // "off" means disabled — store as null in JSONB
+        return { configDefaults: { maxAge: null } };
       }
-      return { extendedContextMaxAge: value };
+      return { configDefaults: { maxAge: value } };
     }
 
     case 'maxImages':
-      // null means use default (0)
-      return { extendedContextMaxImages: value ?? 0 };
+      // null means clear override (use hardcoded default)
+      return { configDefaults: { maxImages: value ?? undefined } };
 
     default:
       return null;

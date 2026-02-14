@@ -13,6 +13,7 @@ import {
   type LlmConfigCacheInvalidationService,
   type ConversationRetentionService,
   type DenylistCacheInvalidationService,
+  type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createDbSyncRoute } from './dbSync.js';
@@ -33,6 +34,7 @@ interface AdminRouterOptions {
   retentionService?: ConversationRetentionService;
   modelCache?: OpenRouterModelCache;
   denylistInvalidation?: DenylistCacheInvalidationService;
+  cascadeInvalidation?: ConfigCascadeCacheInvalidationService;
 }
 
 /**
@@ -46,6 +48,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
     retentionService,
     modelCache,
     denylistInvalidation,
+    cascadeInvalidation,
   } = opts;
   const router = Router();
 
@@ -71,7 +74,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
   router.use('/usage', createAdminUsageRoutes(prisma));
 
   // Bot settings endpoint
-  router.use('/settings', createAdminSettingsRoutes(prisma));
+  router.use('/settings', createAdminSettingsRoutes(prisma, cascadeInvalidation));
 
   // Cleanup endpoint (for conversation history and tombstones)
   if (retentionService !== undefined) {
