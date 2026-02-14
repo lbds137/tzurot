@@ -331,6 +331,80 @@ describe('PersonalityMessageHandler', () => {
       );
     });
 
+    it('should prefer cascade overrides over LlmConfig values for context settings', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      // Mock gateway to return both LlmConfig result and cascade overrides
+      vi.mocked(callGatewayApi).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          config: {
+            model: 'test-model',
+            maxMessages: 50, // LlmConfig says 50
+            maxAge: null,
+            maxImages: 10,
+          },
+          source: 'personality',
+          overrides: {
+            maxMessages: 30, // Cascade says 30
+            maxAge: 7200, // Cascade says 2 hours
+            maxImages: 5, // Cascade says 5
+            memoryScoreThreshold: 0.8,
+            memoryLimit: 15,
+            focusModeEnabled: false,
+            sources: {
+              maxMessages: 'user-personality',
+              maxAge: 'admin',
+              maxImages: 'personality',
+              memoryScoreThreshold: 'hardcoded',
+              memoryLimit: 'user-default',
+              focusModeEnabled: 'hardcoded',
+            },
+          },
+        },
+      });
+
+      const mockContext = {
+        userMessage: 'Test cascade',
+        conversationHistory: [],
+        attachments: [],
+        referencedMessages: [],
+        environment: {},
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue({
+        context: mockContext,
+        personaId: 'persona-123',
+        messageContent: 'Test cascade',
+        referencedMessages: [],
+        conversationHistory: [],
+      });
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Test cascade');
+
+      // Should use cascade override values, not LlmConfig values
+      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
+        mockMessage,
+        mockPersonality,
+        'Test cascade',
+        {
+          extendedContext: {
+            maxMessages: 30, // From cascade, not LlmConfig's 50
+            maxAge: 7200, // From cascade, not LlmConfig's null
+            maxImages: 5, // From cascade, not LlmConfig's 10
+            sources: {
+              maxMessages: 'user-personality', // Per-field source tracking
+              maxAge: 'admin',
+              maxImages: 'personality',
+            },
+          },
+          botUserId: 'bot-123',
+        }
+      );
+    });
+
     it('should handle voice transcript content', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();
