@@ -13,7 +13,12 @@
  */
 
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import type { AutocompleteInteraction, ButtonInteraction } from 'discord.js';
+import type {
+  AutocompleteInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+  ModalSubmitInteraction,
+} from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import {
   defineCommand,
@@ -24,7 +29,14 @@ import { createSubcommandContextRouter } from '../../utils/subcommandContextRout
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
 import { handleAdd } from './add.js';
 import { handleRemove } from './remove.js';
-import { handleBrowse, handleBrowsePagination, isDenyBrowseInteraction } from './browse.js';
+import {
+  handleBrowse,
+  handleBrowsePagination,
+  handleBrowseSelect,
+  isDenyBrowseInteraction,
+  isDenyBrowseSelectInteraction,
+} from './browse.js';
+import { handleDetailButton, handleDetailModal } from './detail.js';
 
 const logger = createLogger('deny-command');
 
@@ -52,7 +64,20 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
 async function handleButton(interaction: ButtonInteraction): Promise<void> {
   if (isDenyBrowseInteraction(interaction.customId)) {
     await handleBrowsePagination(interaction);
+  } else {
+    // Detail view buttons (deny::mode::, deny::edit::, deny::del::, etc.)
+    await handleDetailButton(interaction);
   }
+}
+
+async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (isDenyBrowseSelectInteraction(interaction.customId)) {
+    await handleBrowseSelect(interaction);
+  }
+}
+
+async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
+  await handleDetailModal(interaction);
 }
 
 const TYPE_CHOICES: { name: string; value: string }[] = [
@@ -180,4 +205,6 @@ export default defineCommand({
   execute,
   autocomplete,
   handleButton,
+  handleSelectMenu,
+  handleModal,
 });
