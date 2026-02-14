@@ -43,7 +43,7 @@ function handleAddEntry(
       return sendZodError(res, parseResult.error);
     }
 
-    const { type, discordId, scope, scopeId, reason } = parseResult.data;
+    const { type, discordId, scope, scopeId, mode, reason } = parseResult.data;
     const addedBy = extractOwnerId(req) ?? 'unknown';
 
     // Prevent denying the bot owner
@@ -68,11 +68,11 @@ function handleAddEntry(
       return;
     }
 
-    // Upsert to handle re-adding with updated reason
+    // Upsert to handle re-adding with updated reason/mode
     const entry = await prisma.denylistedEntity.upsert({
       where: { type_discordId_scope_scopeId: { type, discordId, scope, scopeId } },
-      update: { reason, addedBy },
-      create: { type, discordId, scope, scopeId, reason, addedBy },
+      update: { reason, mode, addedBy },
+      create: { type, discordId, scope, scopeId, mode, reason, addedBy },
     });
 
     await denylistInvalidation.publishAdd({
@@ -80,6 +80,7 @@ function handleAddEntry(
       discordId: entry.discordId,
       scope: entry.scope,
       scopeId: entry.scopeId,
+      mode: entry.mode,
     });
 
     logger.info({ type, discordId, scope, scopeId, addedBy }, '[Admin] Denylist entry added');
@@ -171,7 +172,13 @@ export function createDenylistRoutes(
 
       await prisma.denylistedEntity.delete({ where: { id: existing.id } });
 
-      await denylistInvalidation.publishRemove({ type, discordId, scope, scopeId });
+      await denylistInvalidation.publishRemove({
+        type,
+        discordId,
+        scope,
+        scopeId,
+        mode: existing.mode,
+      });
       logger.info({ type, discordId, scope, scopeId }, '[Admin] Denylist entry removed');
       sendCustomSuccess(res, { success: true, removed: true });
     })

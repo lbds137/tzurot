@@ -67,6 +67,11 @@ const SCOPE_CHOICES: { name: string; value: string }[] = [
   { name: 'Personality (specific character)', value: 'PERSONALITY' },
 ];
 
+const MODE_CHOICES: { name: string; value: string }[] = [
+  { name: 'Block (full deny, default)', value: 'BLOCK' },
+  { name: 'Mute (ignore but keep in context)', value: 'MUTE' },
+];
+
 const FILTER_CHOICES: { name: string; value: string }[] = [
   { name: 'All Types', value: 'all' },
   { name: 'Users Only', value: 'user' },
@@ -115,6 +120,13 @@ export default defineCommand({
         )
         .addStringOption(opt =>
           opt.setName('reason').setDescription('Reason for the denial').setRequired(false)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('mode')
+            .setDescription('Denial mode (default: Block)')
+            .setRequired(false)
+            .addChoices(...MODE_CHOICES)
         )
     )
     .addSubcommand(sub =>

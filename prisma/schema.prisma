@@ -579,6 +579,8 @@ model DenylistedEntity {
   scope     String   @default("BOT") @db.VarChar(15)
   /// Target ID for scoped denials. '*' for BOT scope, channel/personality ID otherwise.
   scopeId   String   @default("*") @map("scope_id") @db.VarChar(40)
+  /// Denial mode: 'BLOCK' (full deny, default) or 'MUTE' (don't respond but keep in context)
+  mode      String   @default("BLOCK") @db.VarChar(10)
   /// Optional reason for the denial
   reason    String?  @db.Text
   /// Discord ID of the admin who added this entry

@@ -30,6 +30,7 @@ export interface DenylistEntryRef {
   discordId: string;
   scope: string;
   scopeId: string;
+  mode: string;
 }
 
 /**
@@ -64,6 +65,7 @@ export function isValidDenylistInvalidationEvent(obj: unknown): obj is DenylistI
       typeof entry.discordId === 'string' &&
       typeof entry.scope === 'string' &&
       typeof entry.scopeId === 'string' &&
+      typeof entry.mode === 'string' &&
       Object.keys(event).length === 2
     );
   }

@@ -171,7 +171,7 @@ export class DiscordChannelFetcher {
   /**
    * Process and filter Discord messages
    */
-  // eslint-disable-next-line complexity, max-lines-per-function, sonarjs/cognitive-complexity -- Cohesive message processing
+  // eslint-disable-next-line complexity, max-lines-per-function, max-statements, sonarjs/cognitive-complexity -- Cohesive message processing pipeline with sequential filters, voice transcript fallback, and participant collection
   private async processMessages(
     messages: Message[],
     options: FetchOptions,
@@ -244,6 +244,10 @@ export class DiscordChannelFetcher {
         continue;
       }
       if (isThinkingBlockMessage(msg)) {
+        continue;
+      }
+      // Filter BLOCK-denied users from extended context
+      if (options.isBlockDenied?.(msg.author.id) === true) {
         continue;
       }
       if (options.contextEpoch !== undefined && msg.createdAt < options.contextEpoch) {

@@ -5,31 +5,46 @@
  * Hydrated on startup from the API gateway, then kept in sync
  * via Redis pub/sub invalidation events.
  *
- * Four data structures for different scope lookups:
- * - botUsers: Set of user Discord IDs denied bot-wide
- * - botGuilds: Set of guild Discord IDs denied bot-wide
- * - channelUsers: Map of userId → Set of channelIds
- * - personalityUsers: Map of userId → Set of personalityIds
+ * Stores mode (BLOCK or MUTE) per entry:
+ * - BLOCK: Full deny — bot doesn't respond AND messages filtered from context
+ * - MUTE: Soft deny — bot doesn't respond but messages remain in context
+ *
+ * Five data structures for different scope lookups:
+ * - botUsers: Map of user Discord ID → DenylistMode
+ * - botGuilds: Map of guild Discord ID → DenylistMode
+ * - guildUsers: Map of userId → Map of guildId → DenylistMode
+ * - channelUsers: Map of userId → Map of channelId → DenylistMode
+ * - personalityUsers: Map of userId → Map of personalityId → DenylistMode
  */
 
 import {
   createLogger,
   type DenylistInvalidationEvent,
   type DenylistCacheResponse,
+  type DenylistMode,
 } from '@tzurot/common-types';
 import type { GatewayClient } from '../utils/GatewayClient.js';
 
 const logger = createLogger('DenylistCache');
 
+/** Default mode for entries that don't specify one (backward compat with hydration) */
+const DEFAULT_MODE: DenylistMode = 'BLOCK';
+
 export class DenylistCache {
-  private botUsers = new Set<string>();
-  private botGuilds = new Set<string>();
-  private guildUsers = new Map<string, Set<string>>();
-  private channelUsers = new Map<string, Set<string>>();
-  private personalityUsers = new Map<string, Set<string>>();
+  private botUsers = new Map<string, DenylistMode>();
+  private botGuilds = new Map<string, DenylistMode>();
+  private guildUsers = new Map<string, Map<string, DenylistMode>>();
+  private channelUsers = new Map<string, Map<string, DenylistMode>>();
+  private personalityUsers = new Map<string, Map<string, DenylistMode>>();
 
   /**
-   * Hydrate cache from the API gateway on startup
+   * Hydrate cache from the API gateway on startup.
+   *
+   * Fail-open by design: if the gateway is unreachable, the bot starts with
+   * an empty denylist cache and operates permissively. This favors availability
+   * over strictness — better to allow everyone temporarily than to block all
+   * users because of a transient gateway outage. The cache will be populated
+   * once the gateway becomes reachable (via retry or pub/sub sync).
    */
   async hydrate(gatewayClient: GatewayClient): Promise<void> {
     try {
@@ -62,7 +77,8 @@ export class DenylistCache {
     this.personalityUsers.clear();
 
     for (const entry of response.entries) {
-      this.addEntry(entry.type, entry.discordId, entry.scope, entry.scopeId);
+      const mode = this.resolveMode(entry.mode);
+      this.addEntry(entry.type, entry.discordId, entry.scope, entry.scopeId, mode);
     }
   }
 
@@ -71,14 +87,16 @@ export class DenylistCache {
    */
   handleEvent(event: DenylistInvalidationEvent): void {
     if (event.type === 'add') {
+      const mode = this.resolveMode(event.entry.mode);
       this.addEntry(
         event.entry.type,
         event.entry.discordId,
         event.entry.scope,
-        event.entry.scopeId
+        event.entry.scopeId,
+        mode
       );
       logger.debug(
-        { entityType: event.entry.type, discordId: event.entry.discordId },
+        { entityType: event.entry.type, discordId: event.entry.discordId, mode },
         '[DenylistCache] Added entry from event'
       );
     } else if (event.type === 'remove') {
@@ -97,7 +115,7 @@ export class DenylistCache {
   }
 
   /**
-   * Check if a user or guild is denied bot-wide
+   * Check if a user or guild is denied bot-wide (both BLOCK and MUTE)
    */
   isBotDenied(userId: string, guildId?: string): boolean {
     if (userId.length > 0 && this.botUsers.has(userId)) {
@@ -110,9 +128,9 @@ export class DenylistCache {
   }
 
   /**
-   * Check if a user is denied within a specific guild
+   * Check if a user is denied within a specific guild (USER+GUILD scope, both modes)
    */
-  isGuildDenied(userId: string, guildId: string): boolean {
+  isUserGuildDenied(userId: string, guildId: string): boolean {
     const guilds = this.guildUsers.get(userId);
     if (guilds === undefined) {
       return false;
@@ -121,7 +139,7 @@ export class DenylistCache {
   }
 
   /**
-   * Check if a user is denied for a specific channel
+   * Check if a user is denied for a specific channel (both BLOCK and MUTE)
    */
   isChannelDenied(userId: string, channelId: string): boolean {
     const channels = this.channelUsers.get(userId);
@@ -132,7 +150,7 @@ export class DenylistCache {
   }
 
   /**
-   * Check if a user is denied for a specific personality
+   * Check if a user is denied for a specific personality (both BLOCK and MUTE)
    */
   isPersonalityDenied(userId: string, personalityId: string): boolean {
     const personalities = this.personalityUsers.get(userId);
@@ -143,27 +161,100 @@ export class DenylistCache {
   }
 
   /**
-   * Get the set of bot-denied guild IDs (for guild-leave checks)
+   * Check if a user is BLOCK-denied (messages should be filtered from context).
+   * Checks all scopes in priority order and returns true if ANY matching entry is BLOCK mode.
+   * Used by the context builder to filter messages from extended context.
    */
-  getDeniedGuildIds(): ReadonlySet<string> {
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Priority-ordered scope lookup across 5 denial scopes (bot-user, bot-guild, guild-user, channel, personality)
+  isBlocked(userId: string, guildId?: string, channelId?: string, personalityId?: string): boolean {
+    // Check bot-wide user block
+    if (userId.length > 0) {
+      const userMode = this.botUsers.get(userId);
+      if (userMode === 'BLOCK') {
+        return true;
+      }
+    }
+
+    // Check bot-wide guild block
+    if (guildId !== undefined) {
+      const guildMode = this.botGuilds.get(guildId);
+      if (guildMode === 'BLOCK') {
+        return true;
+      }
+    }
+
+    // Check guild-scoped user block
+    if (guildId !== undefined) {
+      const guildMap = this.guildUsers.get(userId);
+      if (guildMap !== undefined) {
+        const mode = guildMap.get(guildId);
+        if (mode === 'BLOCK') {
+          return true;
+        }
+      }
+    }
+
+    // Check channel-scoped user block
+    if (channelId !== undefined) {
+      const channelMap = this.channelUsers.get(userId);
+      if (channelMap !== undefined) {
+        const mode = channelMap.get(channelId);
+        if (mode === 'BLOCK') {
+          return true;
+        }
+      }
+    }
+
+    // Check personality-scoped user block
+    if (personalityId !== undefined) {
+      const persMap = this.personalityUsers.get(userId);
+      if (persMap !== undefined) {
+        const mode = persMap.get(personalityId);
+        if (mode === 'BLOCK') {
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get the map of bot-denied guild IDs (for guild-leave checks)
+   */
+  getDeniedGuildIds(): ReadonlyMap<string, DenylistMode> {
     return this.botGuilds;
   }
 
-  /** Map from non-BOT scope name to the corresponding Map<discordId, Set<scopeId>> */
-  private readonly scopeMaps: Record<string, Map<string, Set<string>>> = {
+  /** Map from non-BOT scope name to the corresponding Map<discordId, Map<scopeId, mode>> */
+  private readonly scopeMaps: Record<string, Map<string, Map<string, DenylistMode>>> = {
     GUILD: this.guildUsers,
     CHANNEL: this.channelUsers,
     PERSONALITY: this.personalityUsers,
   };
 
-  private addEntry(type: string, discordId: string, scope: string, scopeId: string): void {
+  /** Resolve mode string to DenylistMode, defaulting to BLOCK for missing/unknown values */
+  private resolveMode(mode: string | undefined): DenylistMode {
+    if (mode === 'MUTE') {
+      return 'MUTE';
+    }
+    return DEFAULT_MODE;
+  }
+
+  private addEntry(
+    type: string,
+    discordId: string,
+    scope: string,
+    scopeId: string,
+    mode: DenylistMode
+  ): void {
     if (scope === 'BOT') {
       const target = type === 'USER' ? this.botUsers : type === 'GUILD' ? this.botGuilds : null;
-      target?.add(discordId);
+      target?.set(discordId, mode);
       return;
     }
     if (type === 'USER') {
-      this.addToScopeMap(scope, discordId, scopeId);
+      this.addToScopeMap(scope, discordId, scopeId, mode);
     }
   }
 
@@ -178,17 +269,22 @@ export class DenylistCache {
     }
   }
 
-  private addToScopeMap(scope: string, discordId: string, scopeId: string): void {
+  private addToScopeMap(
+    scope: string,
+    discordId: string,
+    scopeId: string,
+    mode: DenylistMode
+  ): void {
     const map = this.scopeMaps[scope];
     if (map === undefined) {
       return;
     }
-    let set = map.get(discordId);
-    if (set === undefined) {
-      set = new Set<string>();
-      map.set(discordId, set);
+    let inner = map.get(discordId);
+    if (inner === undefined) {
+      inner = new Map<string, DenylistMode>();
+      map.set(discordId, inner);
     }
-    set.add(scopeId);
+    inner.set(scopeId, mode);
   }
 
   private removeFromScopeMap(scope: string, discordId: string, scopeId: string): void {
@@ -196,12 +292,12 @@ export class DenylistCache {
     if (map === undefined) {
       return;
     }
-    const set = map.get(discordId);
-    if (set === undefined) {
+    const inner = map.get(discordId);
+    if (inner === undefined) {
       return;
     }
-    set.delete(scopeId);
-    if (set.size === 0) {
+    inner.delete(scopeId);
+    if (inner.size === 0) {
       map.delete(discordId);
     }
   }

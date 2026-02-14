@@ -42,7 +42,7 @@ export class DenylistFilter implements IMessageProcessor {
     // Check guild-scoped user denial
     if (
       message.guildId !== null &&
-      this.denylistCache.isGuildDenied(message.author.id, message.guildId)
+      this.denylistCache.isUserGuildDenied(message.author.id, message.guildId)
     ) {
       logger.debug(
         { userId: message.author.id, guildId: message.guildId },

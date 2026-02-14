@@ -29,14 +29,14 @@ describe('DenylistFilter', () => {
   let filter: DenylistFilter;
   let mockCache: {
     isBotDenied: ReturnType<typeof vi.fn>;
-    isGuildDenied: ReturnType<typeof vi.fn>;
+    isUserGuildDenied: ReturnType<typeof vi.fn>;
     isChannelDenied: ReturnType<typeof vi.fn>;
   };
 
   beforeEach(() => {
     mockCache = {
       isBotDenied: vi.fn().mockReturnValue(false),
-      isGuildDenied: vi.fn().mockReturnValue(false),
+      isUserGuildDenied: vi.fn().mockReturnValue(false),
       isChannelDenied: vi.fn().mockReturnValue(false),
     };
     filter = new DenylistFilter(mockCache as unknown as DenylistCache);
