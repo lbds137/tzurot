@@ -15,6 +15,7 @@ import {
   TEXT_LIMITS,
   formatMemoryTimestamp,
   type LoadedPersonality,
+  type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import type {
   MemoryDocument,
@@ -109,11 +110,15 @@ export class MemoryRetriever {
 
   /**
    * Retrieve and log relevant memories from vector store
+   *
+   * @param configOverrides - When provided, cascade-resolved values override personality defaults
+   *   for memoryLimit, memoryScoreThreshold, and focusModeEnabled.
    */
   async retrieveRelevantMemories(
     personality: LoadedPersonality,
     userMessage: string,
-    context: ConversationContext
+    context: ConversationContext,
+    configOverrides?: ResolvedConfigOverrides
   ): Promise<MemoryRetrievalResult> {
     const excludeNewerThan = this.calculateDeduplicationCutoff(context);
 
@@ -131,7 +136,10 @@ export class MemoryRetriever {
       return { memories: [], focusModeEnabled: false };
     }
 
-    const { personaId, shareLtmAcrossPersonalities, focusModeEnabled } = personaResult;
+    const { personaId, shareLtmAcrossPersonalities } = personaResult;
+
+    // Determine focusModeEnabled: cascade overrides > DB column (from persona resolver)
+    const focusModeEnabled = configOverrides?.focusModeEnabled ?? personaResult.focusModeEnabled;
 
     // Check if focus mode is enabled - skip retrieval but continue saving memories
     if (focusModeEnabled) {
@@ -140,24 +148,31 @@ export class MemoryRetriever {
           userId: context.userId,
           personalityId: personality.id,
           personalityName: personality.name,
+          source: configOverrides !== undefined ? 'cascade' : 'db-column',
         },
         '[MemoryRetriever] Focus mode enabled - skipping LTM retrieval (memories still being saved)'
       );
       return { memories: [], focusModeEnabled: true };
     }
 
+    // Determine memory retrieval params: cascade overrides > personality values > AI defaults
+    const effectiveMemoryLimit =
+      configOverrides?.memoryLimit ??
+      (personality.memoryLimit !== undefined && personality.memoryLimit > 0
+        ? personality.memoryLimit
+        : AI_DEFAULTS.MEMORY_LIMIT);
+    const effectiveScoreThreshold =
+      configOverrides?.memoryScoreThreshold ??
+      (personality.memoryScoreThreshold !== undefined && personality.memoryScoreThreshold > 0
+        ? personality.memoryScoreThreshold
+        : AI_DEFAULTS.MEMORY_SCORE_THRESHOLD);
+
     const memoryQueryOptions: MemoryQueryOptions = {
       personaId,
       personalityId: shareLtmAcrossPersonalities ? undefined : personality.id,
       sessionId: context.sessionId,
-      limit:
-        personality.memoryLimit !== undefined && personality.memoryLimit > 0
-          ? personality.memoryLimit
-          : AI_DEFAULTS.MEMORY_LIMIT,
-      scoreThreshold:
-        personality.memoryScoreThreshold !== undefined && personality.memoryScoreThreshold > 0
-          ? personality.memoryScoreThreshold
-          : AI_DEFAULTS.MEMORY_SCORE_THRESHOLD,
+      limit: effectiveMemoryLimit,
+      scoreThreshold: effectiveScoreThreshold,
       excludeNewerThan,
     };
 

@@ -142,7 +142,8 @@ describe('ConversationalRAGService', () => {
       expect(getMemoryRetrieverMock().retrieveRelevantMemories).toHaveBeenCalledWith(
         personality,
         'search query',
-        context
+        context,
+        undefined // No configOverrides passed
       );
     });
 
