@@ -248,6 +248,92 @@ describe('OpenRouterFetch', () => {
     expect(result.status).toBe(400);
   });
 
+  it('should use reasoning as content when 200 response has reasoning only (empty content)', async () => {
+    const customFetch = createFetch();
+
+    const responseBody = {
+      choices: [
+        {
+          message: {
+            content: '',
+            reasoning: 'This is the actual dialogue response',
+          },
+        },
+      ],
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+    const result = await customFetch('https://api.test.com/v1/chat', {
+      method: 'GET',
+    });
+
+    expect(result.status).toBe(200);
+    const body = (await result.json()) as Record<string, unknown>;
+    const choices = body.choices as Array<{ message: { content: string } }>;
+    // Should use reasoning directly as content — no <reasoning> tags
+    expect(choices[0].message.content).toBe('This is the actual dialogue response');
+    expect(choices[0].message.content).not.toContain('<reasoning>');
+  });
+
+  it('should recover reasoning from 400 response when content is empty', async () => {
+    const customFetch = createFetch();
+
+    const responseBody = {
+      choices: [
+        {
+          message: {
+            content: '',
+            reasoning: 'Model put dialogue here by mistake',
+          },
+        },
+      ],
+      error: { message: 'Some provider error' },
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 400));
+
+    const result = await customFetch('https://api.test.com/v1/chat', {
+      method: 'GET',
+    });
+
+    // Should synthesize a 200 response with reasoning as content
+    expect(result.status).toBe(200);
+    const body = (await result.json()) as Record<string, unknown>;
+    const choices = body.choices as Array<{ message: { content: string } }>;
+    expect(choices[0].message.content).toBe('Model put dialogue here by mistake');
+    expect(choices[0].message.content).not.toContain('<reasoning>');
+  });
+
+  it('should wrap reasoning in tags when both reasoning and content are present (regression guard)', async () => {
+    const customFetch = createFetch();
+
+    const responseBody = {
+      choices: [
+        {
+          message: {
+            content: 'Actual response content',
+            reasoning: 'Internal thinking process',
+          },
+        },
+      ],
+    };
+
+    globalThis.fetch = vi.fn().mockResolvedValueOnce(mockResponse(responseBody, 200));
+
+    const result = await customFetch('https://api.test.com/v1/chat', {
+      method: 'GET',
+    });
+
+    expect(result.status).toBe(200);
+    const body = (await result.json()) as Record<string, unknown>;
+    const choices = body.choices as Array<{ message: { content: string } }>;
+    // When both exist, reasoning should be wrapped in tags and content preserved
+    expect(choices[0].message.content).toBe(
+      '<reasoning>Internal thinking process</reasoning>\nActual response content'
+    );
+  });
+
   it('should inject OpenRouter params into POST request body', async () => {
     const customFetch = createOpenRouterFetch({
       transforms: ['middle-out'],

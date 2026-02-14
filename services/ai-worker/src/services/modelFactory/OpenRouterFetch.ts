@@ -129,6 +129,17 @@ function injectReasoningIntoMessage(message: Record<string, unknown>): boolean {
   }
 
   const content = typeof message.content === 'string' ? message.content : '';
+
+  if (content.trim().length === 0) {
+    // Model put response in reasoning with empty content — use reasoning as content
+    logger.warn(
+      { reasoningLength: reasoning.length },
+      '[ModelFactory] Empty content with populated reasoning — using reasoning as content'
+    );
+    message.content = reasoning;
+    return true;
+  }
+
   message.content = `<reasoning>${reasoning}</reasoning>\n${content}`;
 
   logger.debug(
@@ -187,12 +198,24 @@ async function tryRecoverErrorContent(response: Response): Promise<Response | nu
     const firstChoice = choices[0] as Record<string, unknown> | undefined;
     const msg = firstChoice?.message as Record<string, unknown> | undefined;
     const content = msg?.content;
-    if (typeof content !== 'string' || content.length === 0) {
-      return null;
+    let recoveredLength: number;
+    let fromReasoning = false;
+
+    if (typeof content === 'string' && content.length > 0) {
+      recoveredLength = content.length;
+    } else {
+      // Check reasoning field — model may have put response there
+      const reasoning = msg?.reasoning;
+      if (typeof reasoning !== 'string' || reasoning.length === 0) {
+        return null;
+      }
+      recoveredLength = reasoning.length;
+      fromReasoning = true;
+      // reasoning exists — interceptReasoningResponse will move it to content
     }
 
     logger.warn(
-      { status: response.status, contentLength: content.length },
+      { status: response.status, contentLength: recoveredLength, fromReasoning },
       '[ModelFactory] Recovered valid content from error response — synthesizing 200'
     );
     interceptReasoningResponse(body);
