@@ -1,16 +1,13 @@
 /**
  * Character Settings Dashboard
  *
- * Interactive dashboard for managing character-level extended context settings.
- * Supports tri-state (auto/on/off) with inheritance from channel/global defaults.
+ * Interactive dashboard for managing per-personality config cascade overrides.
+ * Shows effective values from the 4-tier cascade with source indicators.
  *
  * Settings:
- * - Extended Context: Auto/Enable/Disable
  * - Max Messages: 1-100 or Auto
  * - Max Age: Duration, Off, or Auto
  * - Max Images: 0-20 or Auto
- *
- * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
 import type {
@@ -22,11 +19,11 @@ import {
   createLogger,
   DISCORD_COLORS,
   type EnvConfig,
+  type ResolvedConfigOverrides,
   characterSettingsOptions,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { GatewayClient } from '../../utils/GatewayClient.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
@@ -42,6 +39,9 @@ import {
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('character-settings');
+
+/** Cascade source indicating a user's per-personality override */
+const USER_PERSONALITY_SOURCE = 'user-personality';
 
 /**
  * Entity type for custom IDs
@@ -108,30 +108,30 @@ export async function handleSettings(
 
     const personality = result.data.personality;
 
-    // Get admin settings for global defaults
-    const gatewayClient = new GatewayClient();
-    const adminSettings = await gatewayClient.getAdminSettings();
+    // Resolve cascade overrides for this user+personality
+    const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
+      `/user/config-overrides/resolve/${personality.id}`,
+      { method: 'GET', userId }
+    );
 
-    if (adminSettings === null) {
+    if (!cascadeResult.ok) {
       await context.editReply({
-        content: 'Failed to fetch global settings.',
+        content: 'Failed to fetch config settings.',
       });
       return;
     }
 
-    // Convert to dashboard data format
-    const data = convertToSettingsData(personality, adminSettings);
+    // Convert resolved cascade to dashboard data format
+    const data = convertToSettingsData(cascadeResult.data);
 
     // Create and display the dashboard
-    // NOTE: createSettingsDashboard expects raw interaction for ongoing component updates
     await createSettingsDashboard(context.interaction, {
       config: CHARACTER_SETTINGS_CONFIG,
       data,
-      entityId: characterSlug,
+      entityId: `${characterSlug}--${personality.id}`,
       entityName: `${personality.name} (${personality.slug})`,
       userId,
-      updateHandler: (buttonInteraction, session, settingId, newValue) =>
-        handleSettingUpdate(buttonInteraction, session, settingId, newValue, characterSlug),
+      updateHandler: createUpdateHandler(characterSlug, personality.id),
     });
 
     logger.info({ characterSlug, userId }, '[Character Settings] Dashboard opened');
@@ -154,8 +154,13 @@ export async function handleCharacterSettingsSelectMenu(
     return;
   }
 
-  // Extract character slug from the custom ID
-  const characterSlug = extractCharacterSlug(interaction.customId);
+  const parsed = parseSettingsCustomId(interaction.customId);
+  const entityId = parsed?.entityId ?? null;
+  if (entityId === null) {
+    return;
+  }
+
+  const [characterSlug, personalityId] = parseEntityId(entityId);
   if (characterSlug === null) {
     return;
   }
@@ -163,8 +168,7 @@ export async function handleCharacterSettingsSelectMenu(
   await handleSettingsSelectMenu(
     interaction,
     CHARACTER_SETTINGS_CONFIG,
-    (buttonInteraction, session, settingId, newValue) =>
-      handleSettingUpdate(buttonInteraction, session, settingId, newValue, characterSlug)
+    createUpdateHandler(characterSlug, personalityId)
   );
 }
 
@@ -176,8 +180,13 @@ export async function handleCharacterSettingsButton(interaction: ButtonInteracti
     return;
   }
 
-  // Extract character slug from the custom ID
-  const characterSlug = extractCharacterSlug(interaction.customId);
+  const parsed = parseSettingsCustomId(interaction.customId);
+  const entityId = parsed?.entityId ?? null;
+  if (entityId === null) {
+    return;
+  }
+
+  const [characterSlug, personalityId] = parseEntityId(entityId);
   if (characterSlug === null) {
     return;
   }
@@ -185,8 +194,7 @@ export async function handleCharacterSettingsButton(interaction: ButtonInteracti
   await handleSettingsButton(
     interaction,
     CHARACTER_SETTINGS_CONFIG,
-    (buttonInteraction, session, settingId, newValue) =>
-      handleSettingUpdate(buttonInteraction, session, settingId, newValue, characterSlug)
+    createUpdateHandler(characterSlug, personalityId)
   );
 }
 
@@ -200,8 +208,13 @@ export async function handleCharacterSettingsModal(
     return;
   }
 
-  // Extract character slug from the custom ID
-  const characterSlug = extractCharacterSlug(interaction.customId);
+  const parsed = parseSettingsCustomId(interaction.customId);
+  const entityId = parsed?.entityId ?? null;
+  if (entityId === null) {
+    return;
+  }
+
+  const [characterSlug, personalityId] = parseEntityId(entityId);
   if (characterSlug === null) {
     return;
   }
@@ -209,8 +222,7 @@ export async function handleCharacterSettingsModal(
   await handleSettingsModal(
     interaction,
     CHARACTER_SETTINGS_CONFIG,
-    (buttonInteraction, session, settingId, newValue) =>
-      handleSettingUpdate(buttonInteraction, session, settingId, newValue, characterSlug)
+    createUpdateHandler(characterSlug, personalityId)
   );
 }
 
@@ -222,89 +234,112 @@ export function isCharacterSettingsInteraction(customId: string): boolean {
 }
 
 /**
- * Extract character slug from custom ID
- * Uses centralized parseSettingsCustomId for consistent parsing
+ * Parse entityId into [characterSlug, personalityId]
+ * Format: "slug--uuid" (uses -- to avoid conflict with :: custom ID delimiter)
  */
-function extractCharacterSlug(customId: string): string | null {
-  const parsed = parseSettingsCustomId(customId);
-  return parsed?.entityId ?? null;
+function parseEntityId(entityId: string): [string | null, string | null] {
+  const idx = entityId.indexOf('--');
+  if (idx !== -1) {
+    return [entityId.slice(0, idx), entityId.slice(idx + 2)];
+  }
+  return [entityId, null];
 }
 
 /**
- * Convert API response to dashboard SettingsData format
+ * Map cascade source to dashboard SettingSource
  */
-function convertToSettingsData(
-  personality: PersonalityResponse['personality'],
-  _adminSettings: Record<string, unknown>
-): SettingsData {
-  // Note: maxMessages/maxAge/maxImages now come from LlmConfig,
-  // but these dashboards still show personality-level values for reference.
-  // These will be fully migrated to LlmConfig dashboards in a follow-up.
-  const maxMessagesLocal =
-    ((personality as Record<string, unknown>).extendedContextMaxMessages as number | null) ?? null;
-  const maxAgeLocal =
-    ((personality as Record<string, unknown>).extendedContextMaxAge as number | null) ?? null;
-  const maxImagesLocal =
-    ((personality as Record<string, unknown>).extendedContextMaxImages as number | null) ?? null;
+function mapSource(source: string): 'personality' | 'global' | 'channel' | 'default' {
+  switch (source) {
+    case USER_PERSONALITY_SOURCE:
+      return 'channel'; // "Your override" — closest match in existing type
+    case 'user-default':
+      return 'global';
+    case 'personality':
+      return 'personality';
+    case 'admin':
+      return 'global';
+    default:
+      return 'default';
+  }
+}
 
+/**
+ * Convert cascade-resolved overrides to dashboard SettingsData format
+ */
+function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData {
   return {
     maxMessages: {
-      localValue: maxMessagesLocal,
-      effectiveValue: maxMessagesLocal ?? 20,
-      source: maxMessagesLocal !== null ? 'personality' : 'default',
+      localValue:
+        resolved.sources.maxMessages === USER_PERSONALITY_SOURCE ? resolved.maxMessages : null,
+      effectiveValue: resolved.maxMessages,
+      source: mapSource(resolved.sources.maxMessages),
     },
     maxAge: {
-      localValue: maxAgeLocal,
-      effectiveValue: maxAgeLocal ?? null,
-      source: maxAgeLocal !== null ? 'personality' : 'default',
+      localValue: resolved.sources.maxAge === USER_PERSONALITY_SOURCE ? resolved.maxAge : null,
+      effectiveValue: resolved.maxAge,
+      source: mapSource(resolved.sources.maxAge),
     },
     maxImages: {
-      localValue: maxImagesLocal,
-      effectiveValue: maxImagesLocal ?? 0,
-      source: maxImagesLocal !== null ? 'personality' : 'default',
+      localValue:
+        resolved.sources.maxImages === USER_PERSONALITY_SOURCE ? resolved.maxImages : null,
+      effectiveValue: resolved.maxImages,
+      source: mapSource(resolved.sources.maxImages),
     },
   };
 }
 
 /**
+ * Create a settings update handler bound to a specific character+personality.
+ * Returns a 4-param handler matching the SettingsUpdateHandler signature.
+ */
+function createUpdateHandler(characterSlug: string, personalityId: string | null) {
+  return (
+    interaction: ButtonInteraction | ModalSubmitInteraction,
+    _session: SettingsDashboardSession,
+    settingId: string,
+    newValue: unknown
+  ): Promise<SettingUpdateResult> =>
+    handleSettingUpdate(interaction, settingId, newValue, characterSlug, personalityId);
+}
+
+/**
  * Handle setting updates from the dashboard
+ * Writes to user's per-personality config overrides via cascade endpoint
  */
 async function handleSettingUpdate(
   interaction: ButtonInteraction | ModalSubmitInteraction,
-  _session: SettingsDashboardSession,
   settingId: string,
   newValue: unknown,
-  characterSlug: string
+  characterSlug: string,
+  personalityId: string | null
 ): Promise<SettingUpdateResult> {
   const userId = interaction.user.id;
 
+  if (personalityId === null) {
+    return { success: false, error: 'Missing personality ID' };
+  }
+
   logger.debug(
-    { settingId, newValue, characterSlug, userId },
+    { settingId, newValue, characterSlug, personalityId, userId },
     '[Character Settings] Updating setting'
   );
 
   try {
-    // Map setting ID to API field name
+    // Map setting ID to cascade field
     const body = mapSettingToApiUpdate(settingId, newValue);
 
     if (body === null) {
       return { success: false, error: 'Unknown setting' };
     }
 
-    // Send update to API gateway
-    const result = await callGatewayApi(`/user/personality/${characterSlug}`, {
-      method: 'PUT',
+    // Write to per-personality config overrides
+    const result = await callGatewayApi(`/user/config-overrides/${personalityId}`, {
+      method: 'PATCH',
       body,
       userId,
     });
 
     if (!result.ok) {
-      if (result.status === 401) {
-        return { success: false, error: 'You do not have permission to edit this character.' };
-      }
-      if (result.status === 404) {
-        return { success: false, error: `Character "${characterSlug}" not found.` };
-      }
       logger.warn(
         { settingId, error: result.error, characterSlug },
         '[Character Settings] Update failed'
@@ -312,27 +347,17 @@ async function handleSettingUpdate(
       return { success: false, error: result.error };
     }
 
-    // Fetch fresh data
-    const refreshResult = await callGatewayApi<PersonalityResponse>(
-      `/user/personality/${characterSlug}`,
-      {
-        method: 'GET',
-        userId,
-      }
+    // Re-resolve cascade to get updated effective values
+    const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
+      `/user/config-overrides/resolve/${personalityId}`,
+      { method: 'GET', userId }
     );
 
-    if (!refreshResult.ok) {
+    if (!cascadeResult.ok) {
       return { success: false, error: 'Failed to fetch updated settings' };
     }
 
-    const gatewayClient = new GatewayClient();
-    const adminSettings = await gatewayClient.getAdminSettings();
-
-    if (adminSettings === null) {
-      return { success: false, error: 'Failed to fetch global settings' };
-    }
-
-    const newData = convertToSettingsData(refreshResult.data.personality, adminSettings);
+    const newData = convertToSettingsData(cascadeResult.data);
 
     logger.info(
       { settingId, newValue, characterSlug, userId },
@@ -350,32 +375,25 @@ async function handleSettingUpdate(
 }
 
 /**
- * Map dashboard setting ID to API field update
+ * Map dashboard setting ID to cascade config override field.
+ *
+ * Dashboard values: null = auto (inherit), -1 = off (duration only), number = explicit
+ * Cascade API: null body = clear all, field absent = inherit, field null = no limit
  */
 function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
   switch (settingId) {
     case 'maxMessages':
-      // null means auto (inherit from channel/global)
-      return { extendedContextMaxMessages: value };
+      // null means auto (inherit from lower tier)
+      return { maxMessages: value };
 
-    case 'maxAge': {
-      // value can be:
-      // - null: auto (inherit from channel/global)
-      // - -1: "off" (disabled)
-      // - number: seconds
-      if (value === -1) {
-        // "off" means disabled - but for personality, null means auto
-        // We need to differentiate - store 0 as "off"?
-        // Actually, looking at the Duration class, null in DB means "off/disabled"
-        // So -1 should map to a specific "off" value
-        return { extendedContextMaxAge: null };
-      }
-      return { extendedContextMaxAge: value };
-    }
+    case 'maxAge':
+      // null = auto (inherit), -1 = "off" (no limit), number = seconds
+      // -1 sentinel from framework means "disabled" → null in cascade (no age limit)
+      return { maxAge: value === -1 ? null : value };
 
     case 'maxImages':
-      // null means auto (inherit from channel/global)
-      return { extendedContextMaxImages: value };
+      // null means auto (inherit from lower tier)
+      return { maxImages: value };
 
     default:
       return null;

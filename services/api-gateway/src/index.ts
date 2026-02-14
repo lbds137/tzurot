@@ -229,13 +229,14 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
 
   app.use(
     '/user',
-    createUserRouter(
+    createUserRouter({
       prisma,
       llmConfigCacheInvalidation,
       cacheInvalidationService,
-      cacheRedis,
-      modelCache
-    )
+      redis: cacheRedis,
+      modelCache,
+      cascadeInvalidation,
+    })
   );
   logger.info('[Gateway] User routes registered (with personality cache invalidation, incognito)');
 
