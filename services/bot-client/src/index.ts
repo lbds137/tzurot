@@ -269,7 +269,9 @@ client.on(Events.InteractionCreate, interaction => {
         if (
           services.denylistCache.isBotDenied(interaction.user.id, guildId) ||
           (guildId !== undefined &&
-            services.denylistCache.isGuildDenied(interaction.user.id, guildId))
+            services.denylistCache.isGuildDenied(interaction.user.id, guildId)) ||
+          (interaction.channelId !== null &&
+            services.denylistCache.isChannelDenied(interaction.user.id, interaction.channelId))
         ) {
           return;
         }
@@ -416,7 +418,9 @@ client.once(Events.ClientReady, () => {
 client.on(Events.GuildCreate, guild => {
   if (services.denylistCache.isBotDenied('', guild.id)) {
     logger.info({ guildId: guild.id, guildName: guild.name }, '[Bot] Leaving denied guild');
-    void guild.leave();
+    void guild.leave().catch(err => {
+      logger.error({ err, guildId: guild.id }, '[Bot] Failed to leave denied guild');
+    });
   }
 });
 
@@ -548,7 +552,9 @@ async function subscribeToCacheInvalidation(): Promise<void> {
   await services.denylistCacheInvalidationService.subscribe(event => {
     if (event.type === 'all') {
       // Full reload — re-hydrate from gateway
-      void services.denylistCache.hydrate(services.gatewayClient);
+      void services.denylistCache.hydrate(services.gatewayClient).catch(err => {
+        logger.error({ err }, '[Bot] Failed to re-hydrate denylist cache');
+      });
       logger.info('[Bot] Denylist cache full reload triggered');
     } else {
       // Incremental add/remove
@@ -562,7 +568,9 @@ async function subscribeToCacheInvalidation(): Promise<void> {
             { guildId: guild.id, guildName: guild.name },
             '[Bot] Leaving newly denied guild'
           );
-          void guild.leave();
+          void guild.leave().catch(err => {
+            logger.error({ err, guildId: guild.id }, '[Bot] Failed to leave newly denied guild');
+          });
         }
       }
     }

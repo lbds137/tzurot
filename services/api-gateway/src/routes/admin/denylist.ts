@@ -11,6 +11,8 @@ import {
   createLogger,
   isBotOwner,
   DenylistAddSchema,
+  denylistEntityTypeSchema,
+  denylistScopeSchema,
   type PrismaClient,
   type DenylistCacheInvalidationService,
 } from '@tzurot/common-types';
@@ -21,6 +23,12 @@ import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 
 const logger = createLogger('admin-denylist');
+
+/** Max entries returned in paginated list view */
+const LIST_MAX_ENTRIES = 500;
+
+/** Max entries returned for bot-client cache hydration (all entries) */
+const CACHE_HYDRATION_MAX_ENTRIES = 10_000;
 
 /**
  * Handle POST / — Add or update a denylist entry
@@ -93,13 +101,23 @@ export function createDenylistRoutes(
     '/',
     asyncHandler(async (req: Request, res: Response) => {
       const typeFilter = req.query.type;
-      const where =
-        typeof typeFilter === 'string' && typeFilter.length > 0 ? { type: typeFilter } : {};
+      let where = {};
+      if (typeof typeFilter === 'string' && typeFilter.length > 0) {
+        const parsed = denylistEntityTypeSchema.safeParse(typeFilter);
+        if (!parsed.success) {
+          sendError(
+            res,
+            ErrorResponses.validationError('Invalid type filter — must be USER or GUILD')
+          );
+          return;
+        }
+        where = { type: parsed.data };
+      }
 
       const entries = await prisma.denylistedEntity.findMany({
         where,
         orderBy: { addedAt: 'desc' },
-        take: 500,
+        take: LIST_MAX_ENTRIES,
       });
 
       sendCustomSuccess(res, { success: true, entries, count: entries.length });
@@ -110,7 +128,7 @@ export function createDenylistRoutes(
   router.get(
     '/cache',
     asyncHandler(async (_req: Request, res: Response) => {
-      const entries = await prisma.denylistedEntity.findMany({ take: 10000 });
+      const entries = await prisma.denylistedEntity.findMany({ take: CACHE_HYDRATION_MAX_ENTRIES });
       sendCustomSuccess(res, { entries });
     })
   );
@@ -122,9 +140,24 @@ export function createDenylistRoutes(
   router.delete(
     '/:type/:discordId/:scope/:scopeId',
     asyncHandler(async (req: Request, res: Response) => {
-      const type = req.params.type as string;
+      const typeResult = denylistEntityTypeSchema.safeParse(req.params.type);
+      if (!typeResult.success) {
+        sendError(res, ErrorResponses.validationError('Invalid type — must be USER or GUILD'));
+        return;
+      }
+      const scopeResult = denylistScopeSchema.safeParse(req.params.scope);
+      if (!scopeResult.success) {
+        sendError(
+          res,
+          ErrorResponses.validationError(
+            'Invalid scope — must be BOT, GUILD, CHANNEL, or PERSONALITY'
+          )
+        );
+        return;
+      }
+      const type = typeResult.data;
       const discordId = req.params.discordId as string;
-      const scope = req.params.scope as string;
+      const scope = scopeResult.data;
       const scopeId = req.params.scopeId as string;
 
       const existing = await prisma.denylistedEntity.findUnique({

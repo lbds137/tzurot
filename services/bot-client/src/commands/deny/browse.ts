@@ -5,7 +5,7 @@
  * Bot owner only. Uses the shared browse pattern for consistent UX.
  */
 
-import { EmbedBuilder } from 'discord.js';
+import { EmbedBuilder, escapeMarkdown } from 'discord.js';
 import type { ButtonInteraction, ActionRowBuilder, ButtonBuilder } from 'discord.js';
 import { createLogger, isBotOwner, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
@@ -50,7 +50,7 @@ export function isDenyBrowseInteraction(customId: string): boolean {
 function formatEntry(entry: DenylistEntryResponse, index: number): string {
   const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`;
   const date = new Date(entry.addedAt).toLocaleDateString();
-  const reason = entry.reason !== null ? ` — ${entry.reason}` : '';
+  const reason = entry.reason !== null ? ` — ${escapeMarkdown(entry.reason)}` : '';
   return `${String(index + 1)}. \`${entry.discordId}\` (${entry.type}) [${scopeInfo}]${reason}\n   _Added ${date}_`;
 }
 

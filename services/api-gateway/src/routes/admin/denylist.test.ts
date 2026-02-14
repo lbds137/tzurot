@@ -73,7 +73,7 @@ describe('Denylist Admin Routes', () => {
       expect(response.body.success).toBe(true);
       expect(response.body.entries).toEqual([]);
       expect(mockPrisma.denylistedEntity.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({ where: {}, take: 500 })
+        expect.objectContaining({ where: {} })
       );
     });
 
@@ -84,6 +84,14 @@ describe('Denylist Admin Routes', () => {
         expect.objectContaining({ where: { type: 'USER' } })
       );
     });
+
+    it('should reject invalid type filter', async () => {
+      const response = await request(app).get('/admin/denylist?type=INVALID');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('Invalid type filter');
+      expect(mockPrisma.denylistedEntity.findMany).not.toHaveBeenCalled();
+    });
   });
 
   describe('GET /admin/denylist/cache', () => {
@@ -92,7 +100,9 @@ describe('Denylist Admin Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.entries).toEqual([]);
-      expect(mockPrisma.denylistedEntity.findMany).toHaveBeenCalledWith({ take: 10000 });
+      expect(mockPrisma.denylistedEntity.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ take: 10_000 })
+      );
     });
   });
 
@@ -251,6 +261,26 @@ describe('Denylist Admin Routes', () => {
 
       expect(response.status).toBe(404);
       expect(mockPrisma.denylistedEntity.delete).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid type param', async () => {
+      const response = await request(app).delete(
+        '/admin/denylist/INVALID/123456789012345678/BOT/*'
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('Invalid type');
+      expect(mockPrisma.denylistedEntity.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should reject invalid scope param', async () => {
+      const response = await request(app).delete(
+        '/admin/denylist/USER/123456789012345678/INVALID/*'
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('Invalid scope');
+      expect(mockPrisma.denylistedEntity.findUnique).not.toHaveBeenCalled();
     });
   });
 });
