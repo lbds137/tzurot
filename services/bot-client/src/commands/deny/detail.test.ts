@@ -271,10 +271,11 @@ describe('handleDetailButton', () => {
       );
     });
 
-    it('should delete entry on confirm', async () => {
+    it('should delete entry and return to browse when entries remain', async () => {
       mockSessionManager.get.mockResolvedValue(sampleSession);
       mockSessionManager.delete.mockResolvedValue(true);
       vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+      vi.mocked(fetchEntries).mockResolvedValue([sampleEntry]);
       const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
 
       await handleDetailButton(interaction);
@@ -288,9 +289,31 @@ describe('handleDetailButton', () => {
         'deny-detail',
         'entry-uuid-1234'
       );
+      expect(fetchEntries).toHaveBeenCalledWith('user-123');
+      expect(buildBrowseResponse).toHaveBeenCalledWith([sampleEntry], 0, 'all', 'date');
       expect(interaction.editReply).toHaveBeenCalledWith(
-        expect.objectContaining({ content: expect.stringContaining('has been deleted') })
+        expect.objectContaining({
+          content: expect.stringContaining('has been deleted'),
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
       );
+    });
+
+    it('should delete entry and show empty message when no entries remain', async () => {
+      mockSessionManager.get.mockResolvedValue(sampleSession);
+      mockSessionManager.delete.mockResolvedValue(true);
+      vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+      vi.mocked(fetchEntries).mockResolvedValue([]);
+      const interaction = createMockButtonInteraction('deny::confirm-del::entry-uuid-1234');
+
+      await handleDetailButton(interaction);
+
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: expect.stringContaining('No entries remaining'),
+        embeds: [],
+        components: [],
+      });
     });
 
     it('should return to detail view on cancel', async () => {

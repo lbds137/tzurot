@@ -187,8 +187,28 @@ async function handleConfirmDelete(interaction: ButtonInteraction, entryId: stri
     }
 
     await getSessionManager().delete(interaction.user.id, ENTITY_TYPE, entryId);
+
+    // Try to return to browse list instead of dead-ending
+    const { fetchEntries, buildBrowseResponse } = await import('./browse.js');
+    const entries = await fetchEntries(interaction.user.id);
+    if (entries !== null && entries.length > 0) {
+      const ctx = data.browseContext;
+      const { embed, components } = buildBrowseResponse(
+        entries,
+        ctx.page,
+        ctx.filter as DenyBrowseFilter,
+        ctx.sort as 'name' | 'date'
+      );
+      await interaction.editReply({
+        content: `\u2705 Denylist entry for ${data.type} \`${data.discordId}\` has been deleted.`,
+        embeds: [embed],
+        components,
+      });
+      return;
+    }
+
     await interaction.editReply({
-      content: `\u2705 Denylist entry for ${data.type} \`${data.discordId}\` has been deleted.`,
+      content: `\u2705 Denylist entry for ${data.type} \`${data.discordId}\` has been deleted. No entries remaining.`,
       embeds: [],
       components: [],
     });
