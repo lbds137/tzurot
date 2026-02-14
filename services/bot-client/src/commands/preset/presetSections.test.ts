@@ -7,7 +7,7 @@ import {
   identitySection,
   coreSamplingSection,
   advancedSection,
-  contextSection,
+  contextWindowSection,
   reasoningSection,
 } from './presetSections.js';
 import { SectionStatus } from '../../utils/dashboard/types.js';
@@ -236,77 +236,31 @@ describe('reasoningSection', () => {
   });
 });
 
-describe('contextSection', () => {
+describe('contextWindowSection', () => {
   it('should have correct id and label', () => {
-    expect(contextSection.id).toBe('context');
-    expect(contextSection.label).toBe('📜 Context');
+    expect(contextWindowSection.id).toBe('contextWindow');
+    expect(contextWindowSection.label).toBe('📜 Context Window');
   });
 
-  it('should have correct fields', () => {
-    expect(contextSection.fields).toHaveLength(5);
-    const keys = contextSection.fields.map(f => f.id);
-    expect(keys).toEqual([
-      'maxMessages',
-      'maxAge',
-      'maxImages',
-      'contextWindowTokens',
-      'memoryScoreThreshold',
-    ]);
+  it('should have correct fields (contextWindowTokens only)', () => {
+    expect(contextWindowSection.fields).toHaveLength(1);
+    const keys = contextWindowSection.fields.map(f => f.id);
+    expect(keys).toEqual(['contextWindowTokens']);
   });
 
-  it('should return DEFAULT status when using default values', () => {
-    const data = { maxMessages: '50', maxAge: '', maxImages: '10' } as FlattenedPresetData;
-    expect(contextSection.getStatus(data)).toBe(SectionStatus.DEFAULT);
+  it('should return DEFAULT status when using default value', () => {
+    const data = { contextWindowTokens: '131072' } as FlattenedPresetData;
+    expect(contextWindowSection.getStatus(data)).toBe(SectionStatus.DEFAULT);
   });
 
-  it('should return COMPLETE status when maxMessages differs from default', () => {
-    const data = { maxMessages: '25' } as FlattenedPresetData;
-    expect(contextSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
-  });
-
-  it('should return COMPLETE status when maxAge is set', () => {
-    const data = { maxMessages: '50', maxAge: '86400', maxImages: '10' } as FlattenedPresetData;
-    expect(contextSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
-  });
-
-  it('should return COMPLETE status when maxImages differs from default', () => {
-    const data = { maxMessages: '50', maxAge: '', maxImages: '5' } as FlattenedPresetData;
-    expect(contextSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
-  });
-
-  it('should show preview with all fields', () => {
-    const data = {
-      maxMessages: '30',
-      maxAge: '86400',
-      maxImages: '5',
-    } as FlattenedPresetData;
-    const preview = contextSection.getPreview(data);
-    expect(preview).toContain('msgs=30');
-    expect(preview).toContain('age=1d');
-    expect(preview).toContain('imgs=5');
-  });
-
-  it('should format maxAge as days when >= 86400', () => {
-    const data = { maxAge: '172800' } as FlattenedPresetData; // 2 days
-    const preview = contextSection.getPreview(data);
-    expect(preview).toContain('age=2d');
-  });
-
-  it('should format maxAge as hours when >= 3600 but < 86400', () => {
-    const data = { maxAge: '7200' } as FlattenedPresetData; // 2 hours
-    const preview = contextSection.getPreview(data);
-    expect(preview).toContain('age=2h');
-  });
-
-  it('should format maxAge as seconds when < 3600', () => {
-    const data = { maxAge: '1800' } as FlattenedPresetData; // 30 minutes = 1800 seconds
-    const preview = contextSection.getPreview(data);
-    expect(preview).toContain('age=1800s');
-  });
-
-  it('should show defaults message when no params customized', () => {
+  it('should return DEFAULT status when empty', () => {
     const data = {} as FlattenedPresetData;
-    expect(contextSection.getPreview(data)).toBe('_Using defaults (50 msgs, no limit, 10 imgs)_');
+    expect(contextWindowSection.getStatus(data)).toBe(SectionStatus.DEFAULT);
+  });
+
+  it('should return COMPLETE status when contextWindowTokens differs from default', () => {
+    const data = { contextWindowTokens: '65536' } as FlattenedPresetData;
+    expect(contextWindowSection.getStatus(data)).toBe(SectionStatus.COMPLETE);
   });
 
   it('should show context window with model cap info when available', () => {
@@ -315,7 +269,7 @@ describe('contextSection', () => {
       modelContextLength: 200000,
       contextWindowCap: 100000,
     } as FlattenedPresetData;
-    const preview = contextSection.getPreview(data);
+    const preview = contextWindowSection.getPreview(data);
     expect(preview).toContain('ctx=100K / 200K');
   });
 
@@ -325,7 +279,7 @@ describe('contextSection', () => {
       modelContextLength: 128000,
       contextWindowCap: 64000,
     } as FlattenedPresetData;
-    const preview = contextSection.getPreview(data);
+    const preview = contextWindowSection.getPreview(data);
     expect(preview).toContain('ctx=131K (max 64K ⚠️)');
   });
 
@@ -333,9 +287,14 @@ describe('contextSection', () => {
     const data = {
       contextWindowTokens: '131072',
     } as FlattenedPresetData;
-    const preview = contextSection.getPreview(data);
+    const preview = contextWindowSection.getPreview(data);
     expect(preview).toContain('ctx=131K');
     expect(preview).not.toContain('/');
     expect(preview).not.toContain('⚠️');
+  });
+
+  it('should show default message when no context window set', () => {
+    const data = {} as FlattenedPresetData;
+    expect(contextWindowSection.getPreview(data)).toBe('_Using defaults_');
   });
 });
