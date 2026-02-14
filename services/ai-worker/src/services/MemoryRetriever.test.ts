@@ -8,7 +8,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { MemoryRetriever } from './MemoryRetriever.js';
 import type { PgvectorMemoryAdapter } from './PgvectorMemoryAdapter.js';
-import type { LoadedPersonality } from '@tzurot/common-types';
+import type { LoadedPersonality, ResolvedConfigOverrides } from '@tzurot/common-types';
 import type { ConversationContext } from './ConversationalRAGTypes.js';
 import type { PersonaResolver } from './resolvers/index.js';
 
@@ -642,6 +642,114 @@ describe('MemoryRetriever', () => {
           personalityId: undefined, // Not filtered by personality when sharing
         })
       );
+    });
+
+    describe('with configOverrides', () => {
+      const cascadeOverrides: ResolvedConfigOverrides = {
+        maxMessages: 30,
+        maxAge: null,
+        maxImages: 5,
+        memoryScoreThreshold: 0.8,
+        memoryLimit: 10,
+        focusModeEnabled: false,
+        sources: {
+          maxMessages: 'user-personality',
+          maxAge: 'hardcoded',
+          maxImages: 'personality',
+          memoryScoreThreshold: 'admin',
+          memoryLimit: 'user-default',
+          focusModeEnabled: 'hardcoded',
+        },
+      };
+
+      it('should use cascade memoryLimit and memoryScoreThreshold over personality values', async () => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+          shareLtmAcrossPersonalities: false,
+          focusModeEnabled: false,
+        });
+
+        await retriever.retrieveRelevantMemories(
+          mockPersonality,
+          'test query',
+          context,
+          cascadeOverrides
+        );
+
+        expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+          'test query',
+          expect.objectContaining({
+            limit: 10, // From cascade, not personality's 15
+            scoreThreshold: 0.8, // From cascade, not personality's 0.7
+          })
+        );
+      });
+
+      it('should use cascade focusModeEnabled over DB column value', async () => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+          shareLtmAcrossPersonalities: false,
+          focusModeEnabled: false, // DB says disabled
+        });
+
+        const focusOverrides: ResolvedConfigOverrides = {
+          ...cascadeOverrides,
+          focusModeEnabled: true, // Cascade says enabled
+        };
+
+        const result = await retriever.retrieveRelevantMemories(
+          mockPersonality,
+          'test query',
+          context,
+          focusOverrides
+        );
+
+        expect(result).toEqual({ memories: [], focusModeEnabled: true });
+        expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
+      });
+
+      it('should fall back to DB focusModeEnabled when cascade says false and DB says true', async () => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+          shareLtmAcrossPersonalities: false,
+          focusModeEnabled: true, // DB says enabled
+        });
+
+        // Cascade says disabled — cascade takes priority
+        const result = await retriever.retrieveRelevantMemories(
+          mockPersonality,
+          'test query',
+          context,
+          cascadeOverrides // focusModeEnabled: false
+        );
+
+        // Cascade value (false) overrides DB column (true)
+        expect(result.focusModeEnabled).toBe(false);
+        expect(mockMemoryManager.queryMemories).toHaveBeenCalled();
+      });
+
+      it('should fall back to personality values when configOverrides is undefined', async () => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+          shareLtmAcrossPersonalities: false,
+          focusModeEnabled: false,
+        });
+
+        await retriever.retrieveRelevantMemories(
+          mockPersonality,
+          'test query',
+          context,
+          undefined // No cascade overrides
+        );
+
+        expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+          'test query',
+          expect.objectContaining({
+            limit: 15, // Personality value
+            scoreThreshold: 0.7, // Personality value
+          })
+        );
+      });
     });
 
     it('should use channel-scoped retrieval when channels are referenced', async () => {
