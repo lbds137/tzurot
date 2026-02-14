@@ -92,13 +92,13 @@ describe('PersonalityMessageHandler', () => {
       enrichWithPersonaNames: vi.fn().mockResolvedValue(undefined),
     };
 
-    handler = new PersonalityMessageHandler(
-      mockGatewayClient as any,
-      mockJobTracker as any,
-      mockContextBuilder as any,
-      mockPersistence as any,
-      mockReferenceEnricher as any
-    );
+    handler = new PersonalityMessageHandler({
+      gatewayClient: mockGatewayClient as any,
+      jobTracker: mockJobTracker as any,
+      contextBuilder: mockContextBuilder as any,
+      persistence: mockPersistence as any,
+      referenceEnricher: mockReferenceEnricher as any,
+    });
   });
 
   describe('handleMessage', () => {

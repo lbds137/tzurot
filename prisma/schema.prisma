@@ -564,3 +564,29 @@ model LlmDiagnosticLog {
   @@index([channelId])
   @@map("llm_diagnostic_logs")
 }
+
+/// Denylist: block specific Discord users or guilds from using the bot.
+/// Supports granular scoping: bot-wide, channel-specific, or personality-specific.
+/// All denials are silent - the bot simply doesn't respond.
+model DenylistedEntity {
+  /// Auto-generated UUID (operational data, no sync needed)
+  id        String   @id @default(uuid()) @db.Uuid
+  /// Entity type: 'USER' or 'GUILD'
+  type      String   @db.VarChar(10)
+  /// Discord snowflake ID of the user or guild
+  discordId String   @map("discord_id") @db.VarChar(20)
+  /// Scope of denial: 'BOT' (all), 'CHANNEL' (specific channel), 'PERSONALITY' (specific character)
+  scope     String   @default("BOT") @db.VarChar(15)
+  /// Target ID for scoped denials. '*' for BOT scope, channel/personality ID otherwise.
+  scopeId   String   @default("*") @map("scope_id") @db.VarChar(40)
+  /// Optional reason for the denial
+  reason    String?  @db.Text
+  /// Discord ID of the admin who added this entry
+  addedBy   String   @map("added_by") @db.VarChar(20)
+  /// When this entry was created
+  addedAt   DateTime @default(now()) @map("added_at")
+
+  @@unique([type, discordId, scope, scopeId])
+  @@index([type, discordId])
+  @@map("denylisted_entities")
+}

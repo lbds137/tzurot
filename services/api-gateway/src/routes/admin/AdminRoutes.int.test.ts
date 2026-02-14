@@ -47,7 +47,7 @@ describe('Admin Routes Integration', () => {
     );
 
     // Mount admin router
-    const adminRouter = createAdminRouter(prisma, cacheInvalidationService);
+    const adminRouter = createAdminRouter({ prisma, cacheInvalidationService });
     app.use('/admin', adminRouter);
   }, 30000);
 

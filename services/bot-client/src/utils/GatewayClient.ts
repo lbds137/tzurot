@@ -14,6 +14,7 @@ import {
   TTLCache,
   type GetChannelSettingsResponse,
   type GetAdminSettingsResponse,
+  type DenylistCacheResponse,
 } from '@tzurot/common-types';
 import type { LoadedPersonality, MessageContext, GenerateResponse } from '../types.js';
 
@@ -352,6 +353,31 @@ export class GatewayClient {
    */
   async getChannelActivation(channelId: string): Promise<GetChannelSettingsResponse | null> {
     return this.getChannelSettings(channelId);
+  }
+
+  /**
+   * Fetch all denylist entries for cache hydration.
+   * Called once on startup to populate the in-memory DenylistCache.
+   */
+  async getDenylistEntries(): Promise<DenylistCacheResponse> {
+    try {
+      const response = await fetch(`${this.baseUrl}/admin/denylist/cache`, {
+        headers: {
+          'X-Service-Auth': config.INTERNAL_SERVICE_SECRET ?? '',
+        },
+        signal: AbortSignal.timeout(10000), // 10s - potentially large payload
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Denylist cache fetch failed: ${response.status} ${errorText}`);
+      }
+
+      return (await response.json()) as DenylistCacheResponse;
+    } catch (error) {
+      logger.error({ err: error }, '[GatewayClient] Failed to fetch denylist entries');
+      throw error;
+    }
   }
 
   /**
