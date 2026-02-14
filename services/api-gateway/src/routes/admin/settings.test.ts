@@ -55,6 +55,7 @@ function createDefaultSettings(
   overrides: Partial<{
     id: string;
     updatedBy: string | null;
+    configDefaults: Record<string, unknown> | null;
     createdAt: Date;
     updatedAt: Date;
   }> = {}
@@ -62,6 +63,7 @@ function createDefaultSettings(
   return {
     id: ADMIN_SETTINGS_SINGLETON_ID,
     updatedBy: null,
+    configDefaults: null,
     createdAt: new Date('2024-01-01'),
     updatedAt: new Date('2024-01-01'),
     ...overrides,

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { ConfigOverridesSchema } from './configOverrides.js';
 
 // ============================================================================
 // AdminSettings Schema
@@ -18,6 +19,8 @@ import { z } from 'zod';
 export const AdminSettingsSchema = z.object({
   id: z.string().uuid(),
   updatedBy: z.string().uuid().nullable(),
+  /** Admin-tier config cascade defaults (JSONB). Null when no admin overrides set. */
+  configDefaults: ConfigOverridesSchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

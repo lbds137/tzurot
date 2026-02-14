@@ -24,6 +24,7 @@ import {
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
   DenylistCacheInvalidationService,
+  ConfigCascadeCacheInvalidationService,
   ConversationRetentionService,
   type PrismaClient,
 } from '@tzurot/common-types';
@@ -94,6 +95,7 @@ interface ServicesContext {
   apiKeyCacheInvalidation: ApiKeyCacheInvalidationService;
   llmConfigCacheInvalidation: LlmConfigCacheInvalidationService;
   denylistInvalidation: DenylistCacheInvalidationService;
+  cascadeInvalidation: ConfigCascadeCacheInvalidationService;
   attachmentStorage: AttachmentStorageService;
   modelCache: OpenRouterModelCache;
   dbNotificationListener: DatabaseNotificationListener;
@@ -136,6 +138,9 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   const denylistInvalidation = new DenylistCacheInvalidationService(cacheRedis);
   logger.info('[Gateway] Denylist cache invalidation service initialized');
 
+  const cascadeInvalidation = new ConfigCascadeCacheInvalidationService(cacheRedis);
+  logger.info('[Gateway] Config cascade cache invalidation service initialized');
+
   const attachmentStorage = new AttachmentStorageService({
     gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
   });
@@ -172,6 +177,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
     denylistInvalidation,
+    cascadeInvalidation,
     attachmentStorage,
     modelCache,
     dbNotificationListener,
@@ -189,6 +195,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
     denylistInvalidation,
+    cascadeInvalidation,
     attachmentStorage,
     modelCache,
   } = services;
@@ -244,6 +251,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
       retentionService,
       modelCache,
       denylistInvalidation,
+      cascadeInvalidation,
     })
   );
   logger.info('[Gateway] Admin routes registered');
