@@ -1,5 +1,37 @@
 import { describe, it, expect } from 'vitest';
-import { DenylistAddSchema, DenylistEntrySchema, DenylistCacheResponseSchema } from './denylist.js';
+import {
+  denylistEntityTypeSchema,
+  denylistScopeSchema,
+  DenylistAddSchema,
+  DenylistEntrySchema,
+  DenylistCacheResponseSchema,
+} from './denylist.js';
+
+describe('denylistEntityTypeSchema', () => {
+  it('should accept USER and GUILD', () => {
+    expect(denylistEntityTypeSchema.safeParse('USER').success).toBe(true);
+    expect(denylistEntityTypeSchema.safeParse('GUILD').success).toBe(true);
+  });
+
+  it('should reject invalid types', () => {
+    expect(denylistEntityTypeSchema.safeParse('CHANNEL').success).toBe(false);
+    expect(denylistEntityTypeSchema.safeParse('BOT').success).toBe(false);
+  });
+});
+
+describe('denylistScopeSchema', () => {
+  it('should accept all valid scopes', () => {
+    expect(denylistScopeSchema.safeParse('BOT').success).toBe(true);
+    expect(denylistScopeSchema.safeParse('GUILD').success).toBe(true);
+    expect(denylistScopeSchema.safeParse('CHANNEL').success).toBe(true);
+    expect(denylistScopeSchema.safeParse('PERSONALITY').success).toBe(true);
+  });
+
+  it('should reject invalid scopes', () => {
+    expect(denylistScopeSchema.safeParse('SERVER').success).toBe(false);
+    expect(denylistScopeSchema.safeParse('USER').success).toBe(false);
+  });
+});
 
 describe('DenylistAddSchema', () => {
   it('should accept a valid USER + BOT entry with defaults', () => {
