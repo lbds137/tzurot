@@ -70,13 +70,18 @@ export async function handleEdit(interaction: ButtonInteraction, entryId: string
   await interaction.showModal(modal);
 }
 
-/** Validate scope and return error message if invalid, null if OK */
-function validateScope(scope: string, scopeId: string): string | null {
+const MAX_REASON_LENGTH = 500;
+
+/** Validate edit modal inputs. Returns error message if invalid, null if OK. */
+function validateEditInput(scope: string, scopeId: string, reason: string | null): string | null {
   if (!VALID_SCOPES.includes(scope as (typeof VALID_SCOPES)[number])) {
     return `\u274C Invalid scope "${scope}". Must be BOT, GUILD, CHANNEL, or PERSONALITY.`;
   }
   if (scope === 'BOT' && scopeId !== '*') {
     return '\u274C BOT scope requires scope ID to be `*`.';
+  }
+  if (reason !== null && reason.length > MAX_REASON_LENGTH) {
+    return `\u274C Reason too long (${reason.length}/${MAX_REASON_LENGTH} characters).`;
   }
   return null;
 }
@@ -105,7 +110,7 @@ export async function handleEditModal(
   const newScopeId = interaction.fields.getTextInputValue('scopeId').trim();
   const newReason = interaction.fields.getTextInputValue('reason').trim() || null;
 
-  const validationError = validateScope(newScope, newScopeId);
+  const validationError = validateEditInput(newScope, newScopeId, newReason);
   if (validationError !== null) {
     await interaction.editReply({ content: validationError, embeds: [], components: [] });
     return;

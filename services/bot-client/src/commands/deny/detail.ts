@@ -28,7 +28,7 @@ async function replyExpired(interaction: {
   editReply: ButtonInteraction['editReply'];
 }): Promise<void> {
   await interaction.editReply({
-    content: DASHBOARD_MESSAGES.SESSION_EXPIRED,
+    content: `${DASHBOARD_MESSAGES.SESSION_EXPIRED} Use \`/deny browse\` to view entries again.`,
     embeds: [],
     components: [],
   });
