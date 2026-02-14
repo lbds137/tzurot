@@ -412,16 +412,18 @@ client.once(Events.ClientReady, () => {
   // Initialize verification message cleanup service and start scheduler
   initVerificationCleanupService(client);
   startVerificationCleanupScheduler();
-});
 
-// Auto-leave denied guilds when bot is added
-client.on(Events.GuildCreate, guild => {
-  if (services.denylistCache.isBotDenied('', guild.id)) {
-    logger.info({ guildId: guild.id, guildName: guild.name }, '[Bot] Leaving denied guild');
-    void guild.leave().catch(err => {
-      logger.error({ err, guildId: guild.id }, '[Bot] Failed to leave denied guild');
-    });
-  }
+  // Auto-leave denied guilds when bot is added.
+  // Registered inside ClientReady to make the dependency on denylistCache hydration explicit
+  // (hydration runs in start() before client.login(), but co-locating here is clearer).
+  client.on(Events.GuildCreate, guild => {
+    if (services.denylistCache.isBotDenied('', guild.id)) {
+      logger.info({ guildId: guild.id, guildName: guild.name }, '[Bot] Leaving denied guild');
+      void guild.leave().catch(err => {
+        logger.error({ err, guildId: guild.id }, '[Bot] Failed to leave denied guild');
+      });
+    }
+  });
 });
 
 // Error handling
