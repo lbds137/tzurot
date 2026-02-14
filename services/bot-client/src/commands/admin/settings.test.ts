@@ -56,6 +56,7 @@ describe('Admin Settings Dashboard', () => {
   const mockSettings = {
     id: '550e8400-e29b-41d4-a716-446655440001',
     updatedBy: 'user-123',
+    configDefaults: null,
     createdAt: '2025-01-15T00:00:00.000Z',
     updatedAt: '2025-01-15T00:00:00.000Z',
   };
@@ -425,14 +426,14 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxMessages: 75 }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxMessages: 75 } }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxMessages: 75 },
+        { configDefaults: { maxMessages: 75 } },
         'user-456'
       );
     });
@@ -443,14 +444,14 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxAge: 7200 }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxAge: 7200 } }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxAge: 7200 }, // 2h = 7200 seconds
+        { configDefaults: { maxAge: 7200 } }, // 2h = 7200 seconds
         'user-456'
       );
     });
@@ -464,19 +465,19 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxAge: null }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxAge: null } }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxAge: null }, // "off" maps to null
+        { configDefaults: { maxAge: null } }, // "off" maps to null in JSONB
         'user-456'
       );
     });
 
-    it('should use default maxAge when set to "auto"', async () => {
+    it('should clear maxAge override when set to "auto"', async () => {
       const interaction = createMockModalInteraction(
         'admin-settings::modal::global::maxAge',
         'auto'
@@ -485,15 +486,15 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxAge: 7200 }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: null }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means use default (2 hours)
+      // For global settings, auto means clear the override (use hardcoded default)
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxAge: 7200 },
+        { configDefaults: { maxAge: undefined } },
         'user-456'
       );
     });
@@ -507,19 +508,19 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxImages: 10 }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: { maxImages: 10 } }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxImages: 10 },
+        { configDefaults: { maxImages: 10 } },
         'user-456'
       );
     });
 
-    it('should use default maxImages when set to "auto"', async () => {
+    it('should clear maxImages override when set to "auto"', async () => {
       const interaction = createMockModalInteraction(
         'admin-settings::modal::global::maxImages',
         'auto'
@@ -528,20 +529,20 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxImages: 0 }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: null }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means use default (0)
+      // For global settings, auto means clear the override
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxImages: 0 },
+        { configDefaults: { maxImages: undefined } },
         'user-456'
       );
     });
 
-    it('should use default maxMessages when set to "auto"', async () => {
+    it('should clear maxMessages override when set to "auto"', async () => {
       const interaction = createMockModalInteraction(
         'admin-settings::modal::global::maxMessages',
         'auto'
@@ -550,15 +551,15 @@ describe('Admin Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockAdminPatchJson.mockResolvedValue({
         ok: true,
-        json: vi.fn().mockResolvedValue({ ...mockSettings, extendedContextMaxMessages: 20 }),
+        json: vi.fn().mockResolvedValue({ ...mockSettings, configDefaults: null }),
       });
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means use default (20)
+      // For global settings, auto means clear the override
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { extendedContextMaxMessages: 20 },
+        { configDefaults: { maxMessages: undefined } },
         'user-456'
       );
     });

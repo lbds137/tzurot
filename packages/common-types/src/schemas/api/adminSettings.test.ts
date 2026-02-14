@@ -13,6 +13,7 @@ describe('Admin Settings API Contract Tests', () => {
       const data = {
         id: '550e8400-e29b-41d4-a716-446655440001',
         updatedBy: '550e8400-e29b-41d4-a716-446655440002',
+        configDefaults: { maxMessages: 30, maxAge: 7200 },
         createdAt: '2025-01-15T12:00:00.000Z',
         updatedAt: '2025-01-20T15:30:00.000Z',
       };
@@ -20,10 +21,11 @@ describe('Admin Settings API Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should accept null updatedBy (never edited)', () => {
+    it('should accept null configDefaults (no admin overrides)', () => {
       const data = {
         id: '550e8400-e29b-41d4-a716-446655440001',
         updatedBy: null,
+        configDefaults: null,
         createdAt: '2025-01-15T12:00:00.000Z',
         updatedAt: '2025-01-15T12:00:00.000Z',
       };
@@ -35,6 +37,7 @@ describe('Admin Settings API Contract Tests', () => {
       const data = {
         id: 'not-a-uuid',
         updatedBy: null,
+        configDefaults: null,
         createdAt: '2025-01-15T12:00:00.000Z',
         updatedAt: '2025-01-15T12:00:00.000Z',
       };
