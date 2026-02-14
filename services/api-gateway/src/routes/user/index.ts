@@ -54,6 +54,7 @@ import type {
   PrismaClient,
   LlmConfigCacheInvalidationService,
   CacheInvalidationService,
+  ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createTimezoneRoutes } from './timezone.js';
@@ -67,22 +68,30 @@ import { createChannelRoutes } from './channel/index.js';
 import { createMemoryRoutes } from './memory.js';
 import { createNsfwRoutes } from './nsfw.js';
 import { createConversationLookupRoutes } from './conversationLookup.js';
+import { createConfigOverrideRoutes } from './config-overrides.js';
+
+/** Dependencies for creating the user router */
+interface UserRouterOptions {
+  prisma: PrismaClient;
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService;
+  cacheInvalidationService?: CacheInvalidationService;
+  redis?: Redis;
+  modelCache?: OpenRouterModelCache;
+  cascadeInvalidation?: ConfigCascadeCacheInvalidationService;
+}
 
 /**
  * Create user router with injected dependencies
- * @param prisma - Prisma client instance
- * @param llmConfigCacheInvalidation - Optional cache invalidation service for LLM configs
- * @param cacheInvalidationService - Optional cache invalidation service for personality changes
- * @param redis - Optional Redis client for incognito mode session management
- * @param modelCache - Optional model cache for validating model IDs on preset create/update
  */
-export function createUserRouter(
-  prisma: PrismaClient,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  cacheInvalidationService?: CacheInvalidationService,
-  redis?: Redis,
-  modelCache?: OpenRouterModelCache
-): Router {
+export function createUserRouter(opts: UserRouterOptions): Router {
+  const {
+    prisma,
+    llmConfigCacheInvalidation,
+    cacheInvalidationService,
+    redis,
+    modelCache,
+    cascadeInvalidation,
+  } = opts;
   const router = Router();
 
   // Timezone routes
@@ -114,6 +123,9 @@ export function createUserRouter(
 
   // NSFW verification routes (for DM interactions)
   router.use('/nsfw', createNsfwRoutes(prisma));
+
+  // Config override routes (cascade overrides for context/memory settings)
+  router.use('/config-overrides', createConfigOverrideRoutes(prisma, cascadeInvalidation));
 
   // Conversation lookup routes (internal service-to-service, no user auth)
   router.use('/conversation', createConversationLookupRoutes(prisma));

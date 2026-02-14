@@ -2,6 +2,7 @@
  * Tests for Character Settings Dashboard
  *
  * Tests the interactive settings dashboard for character settings.
+ * Uses cascade config overrides via /user/config-overrides/ endpoints.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -13,7 +14,7 @@ import {
   handleCharacterSettingsModal,
   isCharacterSettingsInteraction,
 } from './settings.js';
-import type { EnvConfig } from '@tzurot/common-types';
+import type { EnvConfig, ResolvedConfigOverrides } from '@tzurot/common-types';
 
 // Mock dependencies
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -32,14 +33,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 const mockCallGatewayApi = vi.fn();
 vi.mock('../../utils/userGatewayClient.js', () => ({
   callGatewayApi: (...args: unknown[]) => mockCallGatewayApi(...args),
-}));
-
-// Mock getAdminSettings
-const mockGetAdminSettings = vi.fn();
-vi.mock('../../utils/GatewayClient.js', () => ({
-  GatewayClient: class MockGatewayClient {
-    getAdminSettings = mockGetAdminSettings;
-  },
 }));
 
 // Mock the session manager
@@ -66,7 +59,22 @@ describe('Character Settings Dashboard', () => {
     },
   };
 
-  const mockAdminSettings = {};
+  const mockResolvedOverrides: ResolvedConfigOverrides = {
+    maxMessages: 50,
+    maxAge: 7200,
+    maxImages: 5,
+    memoryScoreThreshold: 0.5,
+    memoryLimit: 20,
+    focusModeEnabled: false,
+    sources: {
+      maxMessages: 'personality',
+      maxAge: 'personality',
+      maxImages: 'personality',
+      memoryScoreThreshold: 'personality',
+      memoryLimit: 'personality',
+      focusModeEnabled: 'personality',
+    },
+  };
 
   const mockConfig: EnvConfig = {} as EnvConfig;
 
@@ -160,18 +168,22 @@ describe('Character Settings Dashboard', () => {
   describe('handleSettings', () => {
     it('should display settings dashboard embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockPersonality,
-      });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
+      // First call: fetch personality
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
         method: 'GET',
         userId: 'user-456',
       });
+      // Second call: resolve cascade overrides
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/config-overrides/resolve/personality-123',
+        { method: 'GET', userId: 'user-456' }
+      );
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -182,11 +194,9 @@ describe('Character Settings Dashboard', () => {
 
     it('should include Character Settings title in embed', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockPersonality,
-      });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
@@ -199,11 +209,9 @@ describe('Character Settings Dashboard', () => {
 
     it('should include character name in embed description', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockPersonality,
-      });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
@@ -215,11 +223,9 @@ describe('Character Settings Dashboard', () => {
 
     it('should include all 3 settings fields', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockPersonality,
-      });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleSettings(context, mockConfig);
 
@@ -259,18 +265,16 @@ describe('Character Settings Dashboard', () => {
       });
     });
 
-    it('should handle admin settings fetch failure', async () => {
+    it('should handle cascade resolve failure', async () => {
       const context = createMockContext();
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: mockPersonality,
-      });
-      mockGetAdminSettings.mockResolvedValue(null);
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
+        .mockResolvedValueOnce({ ok: false, error: 'Cascade error' });
 
       await handleSettings(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: 'Failed to fetch global settings.',
+        content: 'Failed to fetch config settings.',
       });
     });
 
@@ -286,7 +290,6 @@ describe('Character Settings Dashboard', () => {
     });
 
     it('should show error message on network failure', async () => {
-      // With deferred commands, errors should always be shown via editReply
       const context = createMockContext();
       mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 
@@ -332,8 +335,9 @@ describe('Character Settings Dashboard', () => {
     });
 
     it('should handle permission denied (401) response', async () => {
+      // Entity ID now uses slug::personalityId format
       const interaction = {
-        customId: 'character-settings::set::aurora::maxMessages:auto',
+        customId: 'character-settings::set::aurora--personality-123::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -343,7 +347,7 @@ describe('Character Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora',
+          entityId: 'aurora--personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
@@ -362,16 +366,17 @@ describe('Character Settings Dashboard', () => {
 
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
+      // The settings framework shows "Failed to update: {error}"
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('permission'),
+          content: expect.stringContaining('Failed to update'),
         })
       );
     });
 
     it('should handle character not found (404) response', async () => {
       const interaction = {
-        customId: 'character-settings::set::aurora::maxMessages:auto',
+        customId: 'character-settings::set::aurora--personality-123::maxMessages:auto',
         user: { id: 'user-456' },
         reply: vi.fn(),
         update: vi.fn(),
@@ -381,7 +386,7 @@ describe('Character Settings Dashboard', () => {
       mockSessionManager.get.mockReturnValue({
         data: {
           userId: 'user-456',
-          entityId: 'aurora',
+          entityId: 'aurora--personality-123',
           data: {
             maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
             maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
@@ -400,9 +405,10 @@ describe('Character Settings Dashboard', () => {
 
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
+      // The settings framework shows "Failed to update: {error}"
       expect(interaction.reply).toHaveBeenCalledWith(
         expect.objectContaining({
-          content: expect.stringContaining('not found'),
+          content: expect.stringContaining('Failed to update'),
         })
       );
     });
@@ -434,10 +440,11 @@ describe('Character Settings Dashboard', () => {
       editReply: vi.fn().mockResolvedValue(undefined),
     });
 
+    // Entity ID is now slug::personalityId
     const createSessionWithSetting = (settingId: string) => ({
       data: {
         userId: 'user-456',
-        entityId: 'aurora',
+        entityId: 'aurora--personality-123',
         data: {
           maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
           maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
@@ -459,155 +466,133 @@ describe('Character Settings Dashboard', () => {
       expect(interaction.reply).not.toHaveBeenCalled();
     });
 
-    it('should update maxMessages setting', async () => {
+    it('should update maxMessages setting via cascade endpoint', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxMessages',
+        'character-settings::modal::aurora--personality-123::maxMessages',
         '75'
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
 
       await handleCharacterSettingsModal(interaction as never);
 
+      // Should call PATCH on cascade endpoint with correct field
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
+        '/user/config-overrides/personality-123',
         expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxMessages: 75 },
+          method: 'PATCH',
+          body: { maxMessages: 75 },
         })
       );
     });
 
     it('should update maxAge setting with duration string (2h)', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxAge',
+        'character-settings::modal::aurora--personality-123::maxAge',
         '2h'
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleCharacterSettingsModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
+        '/user/config-overrides/personality-123',
         expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxAge: 7200 },
+          method: 'PATCH',
+          body: { maxAge: 7200 },
         })
       );
     });
 
     it('should update maxAge setting to "off" (disabled)', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxAge',
+        'character-settings::modal::aurora--personality-123::maxAge',
         'off'
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleCharacterSettingsModal(interaction as never);
 
-      // "off" maps to null in DB for personality settings
+      // "off" maps to null in cascade config overrides
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
+        '/user/config-overrides/personality-123',
         expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxAge: null },
+          method: 'PATCH',
+          body: { maxAge: null },
         })
       );
     });
 
-    it('should set maxAge to auto (null) when empty', async () => {
+    it('should set maxAge to auto (null) when auto selected', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxAge',
+        'character-settings::modal::aurora--personality-123::maxAge',
         'auto'
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleCharacterSettingsModal(interaction as never);
 
-      // "auto" means inherit (null)
+      // "auto" means inherit (null) — inherit from lower cascade tier
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
+        '/user/config-overrides/personality-123',
         expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxAge: null },
+          method: 'PATCH',
+          body: { maxAge: null },
         })
       );
     });
 
-    it('should update maxImages setting', async () => {
+    it('should update maxImages setting via cascade endpoint', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxImages',
+        'character-settings::modal::aurora--personality-123::maxImages',
         '10'
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true })
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality });
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides });
 
       await handleCharacterSettingsModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/personality/aurora',
+        '/user/config-overrides/personality-123',
         expect.objectContaining({
-          method: 'PUT',
-          body: { extendedContextMaxImages: 10 },
+          method: 'PATCH',
+          body: { maxImages: 10 },
         })
       );
     });
 
     it('should handle refresh failure after update', async () => {
       const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxMessages',
+        'character-settings::modal::aurora--personality-123::maxMessages',
         '50'
       );
 
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PUT succeeds
-        .mockResolvedValueOnce({ ok: false, error: 'Fetch failed' }); // GET fails
+        .mockResolvedValueOnce({ ok: true }) // PATCH succeeds
+        .mockResolvedValueOnce({ ok: false, error: 'Fetch failed' }); // resolve fails
 
       await handleCharacterSettingsModal(interaction as never);
 
       // When refresh fails, handler should not call editReply (preserves state)
-      expect(interaction.editReply).not.toHaveBeenCalled();
-    });
-
-    it('should handle admin settings fetch failure after update', async () => {
-      const interaction = createMockModalInteraction(
-        'character-settings::modal::aurora::maxMessages',
-        '50'
-      );
-
-      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
-      mockCallGatewayApi
-        .mockResolvedValueOnce({ ok: true }) // PUT succeeds
-        .mockResolvedValueOnce({ ok: true, data: mockPersonality }); // GET succeeds
-      mockGetAdminSettings.mockResolvedValue(null); // Admin settings fails
-
-      await handleCharacterSettingsModal(interaction as never);
-
-      // When admin settings fetch fails, handler should not call editReply
       expect(interaction.editReply).not.toHaveBeenCalled();
     });
   });
