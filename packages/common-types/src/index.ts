@@ -67,6 +67,7 @@ export * from './services/PersonaCacheInvalidationService.js';
 export * from './services/ChannelActivationCacheInvalidationService.js';
 export * from './services/ConfigCascadeResolver.js';
 export * from './services/ConfigCascadeCacheInvalidationService.js';
+export * from './services/DenylistCacheInvalidationService.js';
 export { VoiceTranscriptCache } from './services/VoiceTranscriptCache.js';
 export { VisionDescriptionCache } from './services/VisionDescriptionCache.js';
 export { PersistentVisionCache } from './services/PersistentVisionCache.js';

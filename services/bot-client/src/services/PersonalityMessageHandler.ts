@@ -8,7 +8,7 @@
 
 import type { Message, SendableChannels } from 'discord.js';
 import type { LoadedPersonality, ConfigResolutionResult } from '@tzurot/common-types';
-import { createLogger, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
+import { createLogger, isBotOwner, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../utils/userGatewayClient.js';
 import { JobTracker } from './JobTracker.js';
@@ -16,20 +16,39 @@ import { MessageContextBuilder } from './MessageContextBuilder.js';
 import { ConversationPersistence } from './ConversationPersistence.js';
 import { ReferenceEnrichmentService } from './ReferenceEnrichmentService.js';
 import { handleNsfwVerification, sendVerificationConfirmation } from '../utils/nsfwVerification.js';
+import type { MessageContext } from '../types.js';
+import type { DenylistCache } from './DenylistCache.js';
 
 const logger = createLogger('PersonalityMessageHandler');
+
+export interface PersonalityMessageHandlerDeps {
+  gatewayClient: GatewayClient;
+  jobTracker: JobTracker;
+  contextBuilder: MessageContextBuilder;
+  persistence: ConversationPersistence;
+  referenceEnricher: ReferenceEnrichmentService;
+  denylistCache?: DenylistCache;
+}
 
 /**
  * Handles personality message processing
  */
 export class PersonalityMessageHandler {
-  constructor(
-    private readonly gatewayClient: GatewayClient,
-    private readonly jobTracker: JobTracker,
-    private readonly contextBuilder: MessageContextBuilder,
-    private readonly persistence: ConversationPersistence,
-    private readonly referenceEnricher: ReferenceEnrichmentService
-  ) {}
+  private readonly gatewayClient: GatewayClient;
+  private readonly jobTracker: JobTracker;
+  private readonly contextBuilder: MessageContextBuilder;
+  private readonly persistence: ConversationPersistence;
+  private readonly referenceEnricher: ReferenceEnrichmentService;
+  private readonly denylistCache?: DenylistCache;
+
+  constructor(deps: PersonalityMessageHandlerDeps) {
+    this.gatewayClient = deps.gatewayClient;
+    this.jobTracker = deps.jobTracker;
+    this.contextBuilder = deps.contextBuilder;
+    this.persistence = deps.persistence;
+    this.referenceEnricher = deps.referenceEnricher;
+    this.denylistCache = deps.denylistCache;
+  }
 
   /**
    * Resolve LLM config from gateway, applying user overrides.
@@ -118,6 +137,19 @@ export class PersonalityMessageHandler {
     try {
       const { channel } = message;
 
+      // Check personality-scoped denial (silent deny)
+      if (
+        this.denylistCache !== undefined &&
+        !isBotOwner(message.author.id) &&
+        this.denylistCache.isPersonalityDenied(message.author.id, personality.id)
+      ) {
+        logger.debug(
+          { userId: message.author.id, personalityId: personality.id },
+          '[PersonalityMessageHandler] User denied for this personality, ignoring'
+        );
+        return;
+      }
+
       // Handle NSFW verification (auto-verify in NSFW channels, block unverified DMs)
       const verificationResult = await handleNsfwVerification(message, 'PersonalityMessageHandler');
       if (!verificationResult.allowed) {
@@ -180,44 +212,12 @@ export class PersonalityMessageHandler {
         referencedMessages: context.referencedMessages,
       });
 
-      // Capture timestamp for chronological ordering
-      const userMessageTime = new Date();
-
-      // Submit job to api-gateway (ASYNC PATTERN - returns immediately with jobId)
-      // Include trigger message ID for diagnostic lookup
-      const { jobId } = await this.gatewayClient.generate(personality, {
-        ...context,
-        triggerMessageId: message.id,
-      });
-
-      // Verify channel type is compatible with JobTracker (TextChannel, DMChannel, or NewsChannel)
-      if (!isTypingChannel(channel)) {
-        logger.warn(
-          { channelType: channel.type },
-          '[PersonalityMessageHandler] Unsupported channel type for AI interactions'
-        );
-        throw new Error('This channel type is not supported for AI interactions');
-      }
-
-      // Start typing indicator and store job context (managed by JobTracker)
-      // TypeScript knows channel is TextChannel | DMChannel | NewsChannel after type guard
-      this.jobTracker.trackJob(jobId, channel, {
-        message,
-        personality,
+      // Submit job and start tracking
+      await this.submitAndTrackJob(message, personality, context, {
         personaId,
-        userMessageContent: messageContent,
-        userMessageTime,
+        messageContent,
         isAutoResponse: options.isAutoResponse,
       });
-
-      logger.info(
-        {
-          jobId,
-          personalityName: personality.displayName,
-          historyLength: context.conversationHistory?.length ?? 0,
-        },
-        '[PersonalityMessageHandler] Job submitted successfully, awaiting async result'
-      );
     } catch (error) {
       logger.error(
         { err: error },
@@ -232,5 +232,47 @@ export class PersonalityMessageHandler {
         );
       });
     }
+  }
+
+  /** Submit AI job to gateway and start typing/tracking */
+  private async submitAndTrackJob(
+    message: Message,
+    personality: LoadedPersonality,
+    context: MessageContext,
+    jobMeta: { personaId: string; messageContent: string; isAutoResponse?: boolean }
+  ): Promise<void> {
+    const userMessageTime = new Date();
+    const { channel } = message;
+
+    const { jobId } = await this.gatewayClient.generate(personality, {
+      ...context,
+      triggerMessageId: message.id,
+    });
+
+    if (!isTypingChannel(channel)) {
+      logger.warn(
+        { channelType: channel.type },
+        '[PersonalityMessageHandler] Unsupported channel type for AI interactions'
+      );
+      throw new Error('This channel type is not supported for AI interactions');
+    }
+
+    this.jobTracker.trackJob(jobId, channel, {
+      message,
+      personality,
+      personaId: jobMeta.personaId,
+      userMessageContent: jobMeta.messageContent,
+      userMessageTime,
+      isAutoResponse: jobMeta.isAutoResponse,
+    });
+
+    logger.info(
+      {
+        jobId,
+        personalityName: personality.displayName,
+        historyLength: context.conversationHistory?.length ?? 0,
+      },
+      '[PersonalityMessageHandler] Job submitted successfully, awaiting async result'
+    );
   }
 }

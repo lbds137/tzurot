@@ -9,12 +9,14 @@ import {
 import { Redis } from 'ioredis';
 import {
   createLogger,
+  isBotOwner,
   PersonalityService,
   CacheInvalidationService,
   UserService,
   PersonaResolver,
   PersonaCacheInvalidationService,
   ChannelActivationCacheInvalidationService,
+  DenylistCacheInvalidationService,
   ConversationHistoryService,
   disconnectPrisma,
   getPrismaClient,
@@ -41,6 +43,7 @@ import { ReferenceEnrichmentService } from './services/ReferenceEnrichmentServic
 import { ReplyResolutionService } from './services/ReplyResolutionService.js';
 import { PersonalityMessageHandler } from './services/PersonalityMessageHandler.js';
 import { PersonalityIdCache } from './services/PersonalityIdCache.js';
+import { DenylistCache } from './services/DenylistCache.js';
 import { registerServices } from './services/serviceRegistry.js';
 
 // Processors
@@ -52,6 +55,7 @@ import { ActivatedChannelProcessor } from './processors/ActivatedChannelProcesso
 import { DMSessionProcessor } from './processors/DMSessionProcessor.js';
 import { PersonalityMentionProcessor } from './processors/PersonalityMentionProcessor.js';
 import { BotMentionProcessor } from './processors/BotMentionProcessor.js';
+import { DenylistFilter } from './processors/DenylistFilter.js';
 import {
   startNotificationCacheCleanup,
   stopNotificationCacheCleanup,
@@ -114,6 +118,8 @@ interface Services {
   cacheInvalidationService: CacheInvalidationService;
   personaCacheInvalidationService: PersonaCacheInvalidationService;
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
+  denylistCache: DenylistCache;
+  denylistCacheInvalidationService: DenylistCacheInvalidationService;
 }
 
 /**
@@ -159,6 +165,10 @@ function createServices(): Services {
     cacheRedis
   );
 
+  // Denylist cache and invalidation service
+  const denylistCache = new DenylistCache();
+  const denylistCacheInvalidationService = new DenylistCacheInvalidationService(cacheRedis);
+
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
   const contextBuilder = new MessageContextBuilder(prisma, personaResolver);
@@ -168,25 +178,28 @@ function createServices(): Services {
   const replyResolver = new ReplyResolutionService(personalityIdCache, gatewayClient);
 
   // Personality message handler (used by multiple processors)
-  const personalityHandler = new PersonalityMessageHandler(
+  const personalityHandler = new PersonalityMessageHandler({
     gatewayClient,
     jobTracker,
     contextBuilder,
     persistence,
-    referenceEnricher
-  );
+    referenceEnricher,
+    denylistCache,
+  });
 
   // Create processor chain (order matters!)
   // 1. BotMessageFilter - Ignore bot messages
-  // 2. EmptyMessageFilter - Ignore empty messages
-  // 3. VoiceMessageProcessor - Transcribe voice messages (sets transcript for later processors)
-  // 4. ReplyMessageProcessor - Handle replies to personality webhooks (HIGHEST PRIORITY)
-  // 5. ActivatedChannelProcessor - Auto-respond in channels with activated personalities
-  // 6. DMSessionProcessor - Handle sticky DM sessions (continue conversation without @mention)
-  // 7. PersonalityMentionProcessor - Handle @personality mentions
-  // 8. BotMentionProcessor - Handle @bot mentions
+  // 2. DenylistFilter - Silently ignore denied users/guilds/channels
+  // 3. EmptyMessageFilter - Ignore empty messages
+  // 4. VoiceMessageProcessor - Transcribe voice messages (sets transcript for later processors)
+  // 5. ReplyMessageProcessor - Handle replies to personality webhooks (HIGHEST PRIORITY)
+  // 6. ActivatedChannelProcessor - Auto-respond in channels with activated personalities
+  // 7. DMSessionProcessor - Handle sticky DM sessions (continue conversation without @mention)
+  // 8. PersonalityMentionProcessor - Handle @personality mentions
+  // 9. BotMentionProcessor - Handle @bot mentions
   const processors = [
     new BotMessageFilter(),
+    new DenylistFilter(denylistCache),
     new EmptyMessageFilter(),
     new VoiceMessageProcessor(voiceTranscription, personalityIdCache),
     new ReplyMessageProcessor(replyResolver, personalityHandler),
@@ -210,6 +223,7 @@ function createServices(): Services {
     channelActivationCacheInvalidationService,
     messageContextBuilder: contextBuilder,
     conversationPersistence: persistence,
+    denylistCache,
   });
 
   return {
@@ -225,6 +239,8 @@ function createServices(): Services {
     cacheInvalidationService,
     personaCacheInvalidationService,
     channelActivationCacheInvalidationService,
+    denylistCache,
+    denylistCacheInvalidationService,
   };
 }
 
@@ -247,6 +263,18 @@ client.on(Events.MessageCreate, message => {
 client.on(Events.InteractionCreate, interaction => {
   void (async () => {
     try {
+      // Denylist check — applies to ALL interaction types (silent deny)
+      if (!isBotOwner(interaction.user.id)) {
+        const guildId = interaction.guildId ?? undefined;
+        if (
+          services.denylistCache.isBotDenied(interaction.user.id, guildId) ||
+          (guildId !== undefined &&
+            services.denylistCache.isGuildDenied(interaction.user.id, guildId))
+        ) {
+          return;
+        }
+      }
+
       if (interaction.isChatInputCommand()) {
         // Get the command to determine its deferral mode
         const command = commandHandler.getCommand(interaction.commandName);
@@ -384,6 +412,14 @@ client.once(Events.ClientReady, () => {
   startVerificationCleanupScheduler();
 });
 
+// Auto-leave denied guilds when bot is added
+client.on(Events.GuildCreate, guild => {
+  if (services.denylistCache.isBotDenied('', guild.id)) {
+    logger.info({ guildId: guild.id, guildName: guild.name }, '[Bot] Leaving denied guild');
+    void guild.leave();
+  }
+});
+
 // Error handling
 client.on(Events.Error, error => {
   logger.error({ err: error }, 'Discord client error');
@@ -419,6 +455,7 @@ process.on('SIGINT', () => {
       void services.cacheInvalidationService.unsubscribe();
       void services.personaCacheInvalidationService.unsubscribe();
       void services.channelActivationCacheInvalidationService.unsubscribe();
+      void services.denylistCacheInvalidationService.unsubscribe();
       services.personaResolver.stopCleanup();
       services.cacheRedis.disconnect();
       void closeRedis();
@@ -480,7 +517,7 @@ async function startResultsListener(): Promise<void> {
 }
 
 /**
- * Subscribe to all cache invalidation events (personality, persona, channel activation)
+ * Subscribe to all cache invalidation events (personality, persona, channel activation, denylist)
  */
 async function subscribeToCacheInvalidation(): Promise<void> {
   await services.cacheInvalidationService.subscribe();
@@ -507,6 +544,30 @@ async function subscribeToCacheInvalidation(): Promise<void> {
     }
   });
   logger.info('[Bot] Subscribed to channel activation cache invalidation events');
+
+  await services.denylistCacheInvalidationService.subscribe(event => {
+    if (event.type === 'all') {
+      // Full reload — re-hydrate from gateway
+      void services.denylistCache.hydrate(services.gatewayClient);
+      logger.info('[Bot] Denylist cache full reload triggered');
+    } else {
+      // Incremental add/remove
+      services.denylistCache.handleEvent(event);
+
+      // If a guild was just denied, check if bot is in that guild and leave
+      if (event.type === 'add' && event.entry.type === 'GUILD' && event.entry.scope === 'BOT') {
+        const guild = client.guilds.cache.get(event.entry.discordId);
+        if (guild !== undefined) {
+          logger.info(
+            { guildId: guild.id, guildName: guild.name },
+            '[Bot] Leaving newly denied guild'
+          );
+          void guild.leave();
+        }
+      }
+    }
+  });
+  logger.info('[Bot] Subscribed to denylist cache invalidation events');
 }
 
 // Start the bot with explicit return type
@@ -547,6 +608,10 @@ async function start(): Promise<void> {
     logger.info('[Bot] Initializing services with dependency injection...');
     services = createServices();
     logger.info('[Bot] All services initialized');
+
+    // Hydrate denylist cache from gateway
+    await services.denylistCache.hydrate(services.gatewayClient);
+    logger.info('[Bot] Denylist cache hydrated');
 
     // Start notification cache cleanup timer
     startNotificationCacheCleanup();
