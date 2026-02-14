@@ -74,7 +74,9 @@ describe('handleAdd', () => {
       },
       'user-123'
     );
-    expect(context.editReply).toHaveBeenCalledWith('✅ User `999888777` denied (bot-wide).');
+    expect(context.editReply).toHaveBeenCalledWith(
+      '✅ User <@999888777> (`999888777`) denied (bot-wide).'
+    );
   });
 
   it('should add a channel-scoped denial with reason', async () => {
@@ -97,7 +99,9 @@ describe('handleAdd', () => {
       }),
       'user-123'
     );
-    expect(context.editReply).toHaveBeenCalledWith('✅ User `999888777` denied (channel-scoped).');
+    expect(context.editReply).toHaveBeenCalledWith(
+      '✅ User <@999888777> (`999888777`) denied (channel-scoped).'
+    );
   });
 
   it('should reject GUILD type with non-BOT scope', async () => {
@@ -116,6 +120,34 @@ describe('handleAdd', () => {
     await handleAdd(context);
 
     expect(adminPostJson).not.toHaveBeenCalled();
+  });
+
+  it('should strip Discord mention wrapper from target', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
+    vi.mocked(adminPostJson).mockResolvedValue(mockOkResponse({ success: true }));
+    const context = createMockContext({ target: '<@999888777>' });
+
+    await handleAdd(context);
+
+    expect(adminPostJson).toHaveBeenCalledWith(
+      '/admin/denylist',
+      expect.objectContaining({ discordId: '999888777' }),
+      'user-123'
+    );
+  });
+
+  it('should strip nickname mention wrapper from target', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
+    vi.mocked(adminPostJson).mockResolvedValue(mockOkResponse({ success: true }));
+    const context = createMockContext({ target: '<@!999888777>' });
+
+    await handleAdd(context);
+
+    expect(adminPostJson).toHaveBeenCalledWith(
+      '/admin/denylist',
+      expect.objectContaining({ discordId: '999888777' }),
+      'user-123'
+    );
   });
 
   it('should handle API error', async () => {

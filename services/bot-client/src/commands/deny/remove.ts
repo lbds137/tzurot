@@ -12,9 +12,15 @@ import { checkDenyPermission } from './permissions.js';
 
 const logger = createLogger('deny-remove');
 
+/** Strip Discord mention wrappers: <@123>, <@!123> → 123 */
+function stripMention(input: string): string {
+  const match = /^<@!?(\d+)>$/.exec(input);
+  return match !== null ? match[1] : input;
+}
+
 export async function handleRemove(context: DeferredCommandContext): Promise<void> {
   const type = context.getOption<string>('type') ?? 'USER';
-  const target = context.getRequiredOption<string>('target');
+  const target = stripMention(context.getRequiredOption<string>('target'));
   const scope = context.getOption<string>('scope') ?? 'BOT';
   const channelId = context.interaction.options.getChannel('channel')?.id ?? null;
   const personality = context.getOption<string>('personality');
@@ -40,7 +46,10 @@ export async function handleRemove(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    await context.editReply(`✅ Denial removed for \`${target}\` (${scope.toLowerCase()} scope).`);
+    const targetDisplay = type === 'USER' ? `<@${target}> (\`${target}\`)` : `\`${target}\``;
+    await context.editReply(
+      `✅ Denial removed for ${targetDisplay} (${scope.toLowerCase()} scope).`
+    );
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to remove denial');
     await context.editReply('❌ Failed to remove denial. Please try again.');
