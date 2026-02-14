@@ -10,6 +10,7 @@ import type {
   LoadedPersonality,
   AttachmentMetadata,
   ReferencedMessage,
+  ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
 
@@ -318,4 +319,9 @@ export interface GenerateResponseOptions {
    * If provided, pipeline stages will record their data for debugging.
    */
   diagnosticCollector?: DiagnosticCollectorRef;
+  /**
+   * Resolved config cascade overrides (from ConfigStep).
+   * When provided, memory retrieval uses these values instead of personality defaults.
+   */
+  configOverrides?: ResolvedConfigOverrides;
 }

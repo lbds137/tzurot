@@ -12,6 +12,7 @@ import {
   ApiErrorType,
   generateErrorReferenceId,
   USER_ERROR_MESSAGES,
+  type ResolvedConfigOverrides,
 } from '@tzurot/common-types';
 import type { ConversationalRAGService } from '../../../../services/ConversationalRAGService.js';
 import type {
@@ -132,6 +133,7 @@ export class GenerationStep implements IPipelineStep {
     isGuestMode: boolean;
     jobId: string | undefined;
     diagnosticCollector?: DiagnosticCollector;
+    configOverrides?: ResolvedConfigOverrides;
   }): Promise<{ response: RAGResponse; duplicateRetries: number; emptyRetries: number }> {
     const {
       personality,
@@ -142,6 +144,7 @@ export class GenerationStep implements IPipelineStep {
       isGuestMode,
       jobId,
       diagnosticCollector,
+      configOverrides,
     } = opts;
 
     let duplicateRetries = 0;
@@ -187,6 +190,7 @@ export class GenerationStep implements IPipelineStep {
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
           diagnosticCollector,
+          configOverrides,
         }
       );
 
@@ -317,6 +321,7 @@ export class GenerationStep implements IPipelineStep {
         isGuestMode,
         jobId: job.id,
         diagnosticCollector,
+        configOverrides: context.configOverrides,
       });
 
       // Store memory ONCE after retry loop completes with a valid response.

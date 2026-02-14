@@ -327,6 +327,7 @@ export class ConversationalRAGService {
       isGuestMode = false,
       retryConfig,
       diagnosticCollector: diagnosticCollectorRef,
+      configOverrides,
     } = options;
     const diagnosticCollector = diagnosticCollectorRef as DiagnosticCollector | undefined;
 
@@ -375,7 +376,8 @@ export class ConversationalRAGService {
         await this.memoryRetriever.retrieveRelevantMemories(
           personality,
           inputs.searchQuery,
-          context
+          context,
+          configOverrides
         );
 
       // Step 4: Allocate token budgets and select content
