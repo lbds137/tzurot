@@ -89,6 +89,8 @@ export const REDIS_CHANNELS = {
   CHANNEL_ACTIVATION_CACHE_INVALIDATION: 'cache:channel-activation-invalidation',
   /** Channel for broadcasting config cascade cache invalidation events across services */
   CONFIG_CASCADE_CACHE_INVALIDATION: 'cache:config-cascade-invalidation',
+  /** Channel for broadcasting denylist cache invalidation events across bot-client instances */
+  DENYLIST_CACHE_INVALIDATION: 'cache:denylist-invalidation',
 } as const;
 
 /**

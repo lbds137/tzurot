@@ -21,6 +21,7 @@ import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
+import type { DenylistCache } from './DenylistCache.js';
 
 // Service references - set during app initialization
 let jobTracker: JobTracker | undefined;
@@ -34,6 +35,7 @@ let channelActivationCacheInvalidationService:
   | undefined;
 let messageContextBuilder: MessageContextBuilder | undefined;
 let conversationPersistence: ConversationPersistence | undefined;
+let denylistCache: DenylistCache | undefined;
 
 /**
  * Services that can be registered and accessed globally
@@ -48,6 +50,7 @@ interface RegisteredServices {
   channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
   messageContextBuilder: MessageContextBuilder;
   conversationPersistence: ConversationPersistence;
+  denylistCache: DenylistCache;
 }
 
 /**
@@ -64,6 +67,7 @@ export function registerServices(services: RegisteredServices): void {
   channelActivationCacheInvalidationService = services.channelActivationCacheInvalidationService;
   messageContextBuilder = services.messageContextBuilder;
   conversationPersistence = services.conversationPersistence;
+  denylistCache = services.denylistCache;
 }
 
 /**
@@ -171,6 +175,17 @@ export function getConversationPersistence(): ConversationPersistence {
 }
 
 /**
+ * Get the DenylistCache instance
+ * @throws Error if services not registered
+ */
+export function getDenylistCache(): DenylistCache {
+  if (denylistCache === undefined) {
+    throw new Error('DenylistCache not registered. Call registerServices() first.');
+  }
+  return denylistCache;
+}
+
+/**
  * Check if services have been registered
  */
 export function areServicesRegistered(): boolean {
@@ -183,7 +198,8 @@ export function areServicesRegistered(): boolean {
     personaResolver !== undefined &&
     channelActivationCacheInvalidationService !== undefined &&
     messageContextBuilder !== undefined &&
-    conversationPersistence !== undefined
+    conversationPersistence !== undefined &&
+    denylistCache !== undefined
   );
 }
 
@@ -206,4 +222,5 @@ export function resetServices(): void {
   channelActivationCacheInvalidationService = undefined;
   messageContextBuilder = undefined;
   conversationPersistence = undefined;
+  denylistCache = undefined;
 }

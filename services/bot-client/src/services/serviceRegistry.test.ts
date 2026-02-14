@@ -16,6 +16,7 @@ import type { JobTracker } from './JobTracker.js';
 import type { WebhookManager } from '../utils/WebhookManager.js';
 import type { MessageContextBuilder } from './MessageContextBuilder.js';
 import type { ConversationPersistence } from './ConversationPersistence.js';
+import type { DenylistCache } from './DenylistCache.js';
 
 const mockConversationPersistence = {
   saveUserMessageFromFields: vi.fn(),
@@ -113,6 +114,9 @@ describe('serviceRegistry', () => {
     const mockMessageContextBuilder = {
       buildContext: vi.fn(),
     } as unknown as MessageContextBuilder;
+    const mockDenylistCache = {
+      isBotDenied: vi.fn(),
+    } as unknown as DenylistCache;
 
     it('should return registered JobTracker', async () => {
       const { registerServices, getJobTracker } = await import('./serviceRegistry.js');
@@ -127,6 +131,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getJobTracker()).toBe(mockJobTracker);
@@ -145,6 +150,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getWebhookManager()).toBe(mockWebhookManager);
@@ -163,6 +169,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getGatewayClient()).toBe(mockGatewayClient);
@@ -181,6 +188,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getPersonalityService()).toBe(mockPersonalityService);
@@ -200,6 +208,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getConversationHistoryService()).toBe(mockConversationHistoryService);
@@ -218,6 +227,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getPersonaResolver()).toBe(mockPersonaResolver);
@@ -237,6 +247,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getChannelActivationCacheInvalidationService()).toBe(
@@ -257,6 +268,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getMessageContextBuilder()).toBe(mockMessageContextBuilder);
@@ -275,6 +287,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(getConversationPersistence()).toBe(mockConversationPersistence);
@@ -293,6 +306,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: mockMessageContextBuilder,
         conversationPersistence: mockConversationPersistence,
+        denylistCache: mockDenylistCache,
       });
 
       expect(areServicesRegistered()).toBe(true);
@@ -315,6 +329,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: undefined,
         messageContextBuilder: undefined,
         conversationPersistence: undefined,
+        denylistCache: undefined,
       } as unknown as {
         jobTracker: JobTracker;
         webhookManager: WebhookManager;
@@ -325,6 +340,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: ChannelActivationCacheInvalidationService;
         messageContextBuilder: MessageContextBuilder;
         conversationPersistence: ConversationPersistence;
+        denylistCache: DenylistCache;
       };
 
       registerServices(partialServices);
@@ -355,6 +371,9 @@ describe('serviceRegistry', () => {
       const localMockConversationPersistence = {
         saveUserMessageFromFields: vi.fn(),
       } as unknown as ConversationPersistence;
+      const localMockDenylistCache = {
+        isBotDenied: vi.fn(),
+      } as unknown as DenylistCache;
 
       // Register services first
       registerServices({
@@ -367,6 +386,7 @@ describe('serviceRegistry', () => {
         channelActivationCacheInvalidationService: mockChannelActivationCacheInvalidationService,
         messageContextBuilder: localMockMessageContextBuilder,
         conversationPersistence: localMockConversationPersistence,
+        denylistCache: localMockDenylistCache,
       });
 
       expect(areServicesRegistered()).toBe(true);

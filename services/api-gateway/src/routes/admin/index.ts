@@ -12,6 +12,7 @@ import {
   type CacheInvalidationService,
   type LlmConfigCacheInvalidationService,
   type ConversationRetentionService,
+  type DenylistCacheInvalidationService,
 } from '@tzurot/common-types';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createDbSyncRoute } from './dbSync.js';
@@ -23,21 +24,29 @@ import { createAdminUsageRoutes } from './usage.js';
 import { createCleanupRoute } from './cleanup.js';
 import { createAdminSettingsRoutes } from './settings.js';
 import { createDiagnosticRoutes } from './diagnostic.js';
+import { createDenylistRoutes } from './denylist.js';
+
+interface AdminRouterOptions {
+  prisma: PrismaClient;
+  cacheInvalidationService: CacheInvalidationService;
+  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService;
+  retentionService?: ConversationRetentionService;
+  modelCache?: OpenRouterModelCache;
+  denylistInvalidation?: DenylistCacheInvalidationService;
+}
 
 /**
  * Create admin router with injected dependencies
- * @param prisma - Prisma client for database operations
- * @param cacheInvalidationService - Service for invalidating personality caches across all services
- * @param llmConfigCacheInvalidation - Service for invalidating LLM config caches across all services
- * @param retentionService - Service for conversation retention operations (cleanup)
  */
-export function createAdminRouter(
-  prisma: PrismaClient,
-  cacheInvalidationService: CacheInvalidationService,
-  llmConfigCacheInvalidation?: LlmConfigCacheInvalidationService,
-  retentionService?: ConversationRetentionService,
-  modelCache?: OpenRouterModelCache
-): Router {
+export function createAdminRouter(opts: AdminRouterOptions): Router {
+  const {
+    prisma,
+    cacheInvalidationService,
+    llmConfigCacheInvalidation,
+    retentionService,
+    modelCache,
+    denylistInvalidation,
+  } = opts;
   const router = Router();
 
   // Note: Service auth is applied globally - no need to apply here
@@ -71,6 +80,11 @@ export function createAdminRouter(
 
   // Diagnostic logs endpoint (flight recorder for LLM requests)
   router.use('/diagnostic', createDiagnosticRoutes(prisma));
+
+  // Denylist management endpoints (user/guild blocking)
+  if (denylistInvalidation !== undefined) {
+    router.use('/denylist', createDenylistRoutes(prisma, denylistInvalidation));
+  }
 
   return router;
 }

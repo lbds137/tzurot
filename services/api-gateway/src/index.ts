@@ -23,6 +23,7 @@ import {
   CacheInvalidationService,
   ApiKeyCacheInvalidationService,
   LlmConfigCacheInvalidationService,
+  DenylistCacheInvalidationService,
   ConversationRetentionService,
   type PrismaClient,
 } from '@tzurot/common-types';
@@ -92,6 +93,7 @@ interface ServicesContext {
   cacheInvalidationService: CacheInvalidationService;
   apiKeyCacheInvalidation: ApiKeyCacheInvalidationService;
   llmConfigCacheInvalidation: LlmConfigCacheInvalidationService;
+  denylistInvalidation: DenylistCacheInvalidationService;
   attachmentStorage: AttachmentStorageService;
   modelCache: OpenRouterModelCache;
   dbNotificationListener: DatabaseNotificationListener;
@@ -131,6 +133,9 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
   const llmConfigCacheInvalidation = new LlmConfigCacheInvalidationService(cacheRedis);
   logger.info('[Gateway] LLM config cache invalidation service initialized');
 
+  const denylistInvalidation = new DenylistCacheInvalidationService(cacheRedis);
+  logger.info('[Gateway] Denylist cache invalidation service initialized');
+
   const attachmentStorage = new AttachmentStorageService({
     gatewayUrl: envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL,
   });
@@ -166,6 +171,7 @@ async function initializeServices(prisma: PrismaClient): Promise<ServicesContext
     cacheInvalidationService,
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
+    denylistInvalidation,
     attachmentStorage,
     modelCache,
     dbNotificationListener,
@@ -182,6 +188,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
     cacheInvalidationService,
     apiKeyCacheInvalidation,
     llmConfigCacheInvalidation,
+    denylistInvalidation,
     attachmentStorage,
     modelCache,
   } = services;
@@ -230,13 +237,14 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
 
   app.use(
     '/admin',
-    createAdminRouter(
+    createAdminRouter({
       prisma,
       cacheInvalidationService,
       llmConfigCacheInvalidation,
       retentionService,
-      modelCache
-    )
+      modelCache,
+      denylistInvalidation,
+    })
   );
   logger.info('[Gateway] Admin routes registered');
 

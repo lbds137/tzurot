@@ -38,6 +38,9 @@ export * from './configOverrides.js';
 // Usage endpoints
 export * from './usage.js';
 
+// Denylist schemas
+export * from './denylist.js';
+
 // Admin input schemas
 export * from './admin.js';
 

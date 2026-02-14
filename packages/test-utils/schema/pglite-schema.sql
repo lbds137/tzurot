@@ -359,6 +359,20 @@ CREATE TABLE "llm_diagnostic_logs" (
     CONSTRAINT "llm_diagnostic_logs_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "denylisted_entities" (
+    "id" UUID NOT NULL,
+    "type" VARCHAR(10) NOT NULL,
+    "discord_id" VARCHAR(20) NOT NULL,
+    "scope" VARCHAR(15) NOT NULL DEFAULT 'BOT',
+    "scope_id" VARCHAR(40) NOT NULL DEFAULT '*',
+    "reason" TEXT,
+    "added_by" VARCHAR(20) NOT NULL,
+    "added_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "denylisted_entities_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_discord_id_key" ON "users"("discord_id");
 
@@ -580,6 +594,12 @@ CREATE INDEX "llm_diagnostic_logs_guild_id_idx" ON "llm_diagnostic_logs"("guild_
 
 -- CreateIndex
 CREATE INDEX "llm_diagnostic_logs_channel_id_idx" ON "llm_diagnostic_logs"("channel_id");
+
+-- CreateIndex
+CREATE INDEX "denylisted_entities_type_discord_id_idx" ON "denylisted_entities"("type", "discord_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "denylisted_entities_type_discord_id_scope_scope_id_key" ON "denylisted_entities"("type", "discord_id", "scope", "scope_id");
 
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
