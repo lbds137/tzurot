@@ -9,11 +9,11 @@
  * Subcommands:
  * - /deny add — Add a denial entry
  * - /deny remove — Remove a denial entry
- * - /deny list — List all denial entries (owner only)
+ * - /deny browse — Browse denial entries with pagination (owner only)
  */
 
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
-import type { AutocompleteInteraction } from 'discord.js';
+import type { AutocompleteInteraction, ButtonInteraction } from 'discord.js';
 import { createLogger } from '@tzurot/common-types';
 import {
   defineCommand,
@@ -24,7 +24,7 @@ import { createSubcommandContextRouter } from '../../utils/subcommandContextRout
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
 import { handleAdd } from './add.js';
 import { handleRemove } from './remove.js';
-import { handleList } from './list.js';
+import { handleBrowse, handleBrowsePagination, isDenyBrowseInteraction } from './browse.js';
 
 const logger = createLogger('deny-command');
 
@@ -32,7 +32,7 @@ const denyRouter = createSubcommandContextRouter(
   {
     add: handleAdd,
     remove: handleRemove,
-    list: handleList,
+    browse: handleBrowse,
   },
   { logger, logPrefix: '[Deny]' }
 );
@@ -49,6 +49,12 @@ async function autocomplete(interaction: AutocompleteInteraction): Promise<void>
   }
 }
 
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  if (isDenyBrowseInteraction(interaction.customId)) {
+    await handleBrowsePagination(interaction);
+  }
+}
+
 const TYPE_CHOICES: { name: string; value: string }[] = [
   { name: 'User', value: 'USER' },
   { name: 'Server', value: 'GUILD' },
@@ -59,6 +65,12 @@ const SCOPE_CHOICES: { name: string; value: string }[] = [
   { name: 'Guild (this server)', value: 'GUILD' },
   { name: 'Channel (specific channel)', value: 'CHANNEL' },
   { name: 'Personality (specific character)', value: 'PERSONALITY' },
+];
+
+const FILTER_CHOICES: { name: string; value: string }[] = [
+  { name: 'All Types', value: 'all' },
+  { name: 'Users Only', value: 'user' },
+  { name: 'Servers Only', value: 'guild' },
 ];
 
 export default defineCommand({
@@ -143,16 +155,17 @@ export default defineCommand({
     )
     .addSubcommand(sub =>
       sub
-        .setName('list')
-        .setDescription('List all denial entries (owner only)')
+        .setName('browse')
+        .setDescription('Browse denial entries (owner only)')
         .addStringOption(opt =>
           opt
-            .setName('type')
+            .setName('filter')
             .setDescription('Filter by entity type')
             .setRequired(false)
-            .addChoices(...TYPE_CHOICES)
+            .addChoices(...FILTER_CHOICES)
         )
     ),
   execute,
   autocomplete,
+  handleButton,
 });
