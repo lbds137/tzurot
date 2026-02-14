@@ -219,8 +219,8 @@ describe('LlmConfigResolver', () => {
       expect(result.config.presencePenalty).toBe(0.2);
       expect(result.config.repetitionPenalty).toBe(1.1);
       expect(result.config.maxTokens).toBe(8000);
-      // Non-JSONB field still uses Prisma Decimal conversion
-      expect(result.config.memoryScoreThreshold).toBe(0.75);
+      // memoryScoreThreshold no longer copied from LlmConfig (moved to cascade)
+      expect(result.config.memoryScoreThreshold).toBeUndefined();
     });
 
     it('should fall back to personality default on database error', async () => {
@@ -389,7 +389,8 @@ describe('LlmConfigResolver', () => {
       expect(result.config.model).toBe('google/gemini-2.0-flash');
       expect(result.config.temperature).toBe(0.5);
       expect(result.config.topK).toBe(50);
-      expect(result.config.memoryLimit).toBe(5);
+      // memoryLimit no longer copied from LlmConfig (moved to cascade)
+      expect(result.config.memoryLimit).toBeUndefined();
 
       // Personality defaults for null/undefined values
       expect(result.config.visionModel).toBe('anthropic/claude-sonnet-4');
@@ -554,8 +555,9 @@ describe('LlmConfigResolver', () => {
   });
 
   describe('toNumber edge cases', () => {
-    it('should handle Prisma Decimal for memoryScoreThreshold', async () => {
-      // memoryScoreThreshold is still a Prisma Decimal (not in JSONB)
+    it('should not copy memoryScoreThreshold from LlmConfig (moved to cascade)', async () => {
+      // memoryScoreThreshold was a Prisma Decimal field, but is no longer copied
+      // from LlmConfig — it now comes from the config cascade (ConfigCascadeResolver)
       const mockDecimal = {
         toNumber: () => 0.85,
       };
@@ -568,7 +570,7 @@ describe('LlmConfigResolver', () => {
           model: 'test/model',
           visionModel: null,
           advancedParameters: null,
-          memoryScoreThreshold: mockDecimal, // Prisma Decimal
+          memoryScoreThreshold: mockDecimal,
           memoryLimit: null,
           contextWindowTokens: null,
         },
@@ -577,7 +579,8 @@ describe('LlmConfigResolver', () => {
 
       const result = await resolver.resolveConfig('user-123', 'personality-1', mockPersonality);
 
-      expect(result.config.memoryScoreThreshold).toBe(0.85);
+      // No longer copied from LlmConfig — comes from cascade instead
+      expect(result.config.memoryScoreThreshold).toBeUndefined();
     });
 
     it('should handle invalid advancedParameters gracefully', async () => {
@@ -729,8 +732,8 @@ describe('LlmConfigResolver', () => {
       expect(result!.topP).toBe(0.9);
       expect(result!.frequencyPenalty).toBe(0.3);
       expect(result!.presencePenalty).toBe(0.2);
-      // Prisma Decimal - uses toNumber()
-      expect(result!.memoryScoreThreshold).toBe(0.85);
+      // memoryScoreThreshold no longer copied from LlmConfig (moved to cascade)
+      expect(result!.memoryScoreThreshold).toBeUndefined();
     });
 
     it('should be invalidated when clearCache is called', async () => {

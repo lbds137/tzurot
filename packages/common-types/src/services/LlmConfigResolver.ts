@@ -373,14 +373,10 @@ export class LlmConfigResolver {
         transforms: mapped.transforms,
         route: mapped.route,
         verbosity: mapped.verbosity,
-        // Memory/context
-        memoryScoreThreshold: mapped.memoryScoreThreshold,
-        memoryLimit: mapped.memoryLimit,
+        // Context window (model-coupled, stays in LlmConfig)
         contextWindowTokens: mapped.contextWindowTokens,
-        // Context settings (conversation history limits)
-        maxMessages: mapped.maxMessages,
-        maxAge: mapped.maxAge,
-        maxImages: mapped.maxImages,
+        // Note: memoryScoreThreshold, memoryLimit, maxMessages, maxAge, maxImages
+        // now come from ConfigOverrides cascade, not LlmConfig presets.
       };
 
       // Cache the result
