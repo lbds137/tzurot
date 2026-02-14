@@ -7,7 +7,11 @@
  */
 
 import type { Message, SendableChannels } from 'discord.js';
-import type { LoadedPersonality, ConfigResolutionResult } from '@tzurot/common-types';
+import type {
+  LoadedPersonality,
+  ConfigResolutionResult,
+  SettingSource,
+} from '@tzurot/common-types';
 import { createLogger, isBotOwner, isTypingChannel, MESSAGE_LIMITS } from '@tzurot/common-types';
 import { GatewayClient } from '../utils/GatewayClient.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../utils/userGatewayClient.js';
@@ -92,6 +96,9 @@ export class PersonalityMessageHandler {
   /**
    * Build extended context settings from resolved config.
    * Extended context is always enabled — these settings control the limits.
+   *
+   * Prefers cascade overrides (per-field source tracking) when available,
+   * falls back to LlmConfig-based values for backwards compatibility.
    */
   private buildExtendedContextSettings(
     _personality: LoadedPersonality,
@@ -101,12 +108,28 @@ export class PersonalityMessageHandler {
     maxAge: number | null;
     maxImages: number;
     sources: {
-      maxMessages: 'personality' | 'user-personality' | 'user-default';
-      maxAge: 'personality' | 'user-personality' | 'user-default';
-      maxImages: 'personality' | 'user-personality' | 'user-default';
+      maxMessages: SettingSource;
+      maxAge: SettingSource;
+      maxImages: SettingSource;
     };
   } {
-    const { config, source } = resolvedConfig;
+    const { config, source, overrides } = resolvedConfig;
+
+    // Prefer cascade overrides (per-field source tracking) when available
+    if (overrides !== undefined) {
+      return {
+        maxMessages: overrides.maxMessages,
+        maxAge: overrides.maxAge,
+        maxImages: overrides.maxImages,
+        sources: {
+          maxMessages: overrides.sources.maxMessages,
+          maxAge: overrides.sources.maxAge,
+          maxImages: overrides.sources.maxImages,
+        },
+      };
+    }
+
+    // Fallback: LlmConfig-based resolution (pre-cascade)
     return {
       maxMessages: config.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       maxAge: config.maxAge ?? null,
