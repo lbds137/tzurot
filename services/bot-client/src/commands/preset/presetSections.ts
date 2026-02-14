@@ -13,14 +13,8 @@ const PREVIEW_SEPARATOR = ', ';
 /** Default preview message when no custom values set */
 const DEFAULT_PREVIEW = '_Using defaults_';
 
-// Context section defaults
-const DEFAULT_MAX_MESSAGES = '50';
-const DEFAULT_MAX_IMAGES = '10';
+// Context window defaults
 const DEFAULT_CONTEXT_WINDOW = '131072';
-
-// Time conversion constants
-const SECONDS_PER_DAY = 86400;
-const SECONDS_PER_HOUR = 3600;
 
 /** Format context window tokens with optional model cap info */
 function formatContextWindow(data: FlattenedPresetData): string | null {
@@ -41,17 +35,6 @@ function formatContextWindow(data: FlattenedPresetData): string | null {
   }
   const modelK = Math.round((data.modelContextLength ?? 0) / 1000);
   return `ctx=${ctxK}K / ${modelK}K`;
-}
-
-/** Format seconds as human-readable duration (e.g., "2d", "6h", "300s") */
-function formatAge(seconds: number): string {
-  if (seconds >= SECONDS_PER_DAY) {
-    return `${Math.floor(seconds / SECONDS_PER_DAY)}d`;
-  }
-  if (seconds >= SECONDS_PER_HOUR) {
-    return `${Math.floor(seconds / SECONDS_PER_HOUR)}h`;
-  }
-  return `${seconds}s`;
 }
 
 /** Shorthand for creating a modal field definition (most fields share required=false, style=short) */
@@ -221,36 +204,12 @@ export const advancedSection: SectionDefinition<FlattenedPresetData> = {
   },
 };
 
-export const contextSection: SectionDefinition<FlattenedPresetData> = {
-  id: 'context',
-  label: '📜 Context',
-  description: 'History limits and context window budget',
-  fieldIds: ['maxMessages', 'maxAge', 'maxImages', 'contextWindowTokens', 'memoryScoreThreshold'],
+export const contextWindowSection: SectionDefinition<FlattenedPresetData> = {
+  id: 'contextWindow',
+  label: '📜 Context Window',
+  description: 'Token budget for conversation context',
+  fieldIds: ['contextWindowTokens'],
   fields: [
-    {
-      id: 'maxMessages',
-      label: 'Max Messages (1-100)',
-      placeholder: '50',
-      required: false,
-      style: 'short',
-      maxLength: 3,
-    },
-    {
-      id: 'maxAge',
-      label: 'Max Age (seconds, empty = no limit)',
-      placeholder: '86400 (24 hours)',
-      required: false,
-      style: 'short',
-      maxLength: 10,
-    },
-    {
-      id: 'maxImages',
-      label: 'Max Images (0-20, 0 = disabled)',
-      placeholder: '10',
-      required: false,
-      style: 'short',
-      maxLength: 2,
-    },
     {
       id: 'contextWindowTokens',
       label: 'Context Window Tokens (max 50% of model)',
@@ -259,50 +218,17 @@ export const contextSection: SectionDefinition<FlattenedPresetData> = {
       style: 'short',
       maxLength: 10,
     },
-    {
-      id: 'memoryScoreThreshold',
-      label: 'Memory Score Threshold (0.0-1.0)',
-      placeholder: '0.5',
-      required: false,
-      style: 'short',
-      maxLength: 5,
-    },
   ],
   getStatus: data => {
-    const isSet = (val: string | undefined, def?: string): boolean =>
-      val !== undefined && val !== '' && val !== def;
-    const hasCustom =
-      isSet(data.maxMessages, DEFAULT_MAX_MESSAGES) ||
-      isSet(data.maxAge) ||
-      isSet(data.maxImages, DEFAULT_MAX_IMAGES) ||
-      isSet(data.contextWindowTokens, DEFAULT_CONTEXT_WINDOW) ||
-      isSet(data.memoryScoreThreshold);
-    return hasCustom ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
+    const isSet =
+      data.contextWindowTokens !== undefined &&
+      data.contextWindowTokens !== '' &&
+      data.contextWindowTokens !== DEFAULT_CONTEXT_WINDOW;
+    return isSet ? SectionStatus.COMPLETE : SectionStatus.DEFAULT;
   },
   getPreview: data => {
-    const parts: string[] = [];
-    if (data.maxMessages) {
-      parts.push(`msgs=${data.maxMessages}`);
-    }
-    if (data.maxAge) {
-      const s = parseInt(data.maxAge, 10);
-      if (!isNaN(s)) {
-        parts.push(`age=${formatAge(s)}`);
-      }
-    }
-    if (data.maxImages) {
-      parts.push(`imgs=${data.maxImages}`);
-    }
     const ctxLabel = formatContextWindow(data);
-    if (ctxLabel !== null) {
-      parts.push(ctxLabel);
-    }
-    if (data.memoryScoreThreshold) {
-      parts.push(`mem≥${data.memoryScoreThreshold}`);
-    }
-    return parts.length > 0
-      ? parts.join(PREVIEW_SEPARATOR)
-      : `_Using defaults (${DEFAULT_MAX_MESSAGES} msgs, no limit, ${DEFAULT_MAX_IMAGES} imgs)_`;
+    return ctxLabel ?? DEFAULT_PREVIEW;
   },
 };
 

@@ -46,15 +46,8 @@ export function flattenPresetData(data: PresetData): FlattenedPresetData {
     reasoning_enabled: data.params.reasoning?.enabled?.toString() ?? '',
     // Output params
     show_thinking: data.params.show_thinking?.toString() ?? '',
-    // Context settings
-    maxMessages: String(data.maxMessages),
-    maxAge: data.maxAge !== null ? String(data.maxAge) : '',
-    maxImages: String(data.maxImages),
-    // Memory and context window settings
+    // Context window (model-coupled, stays in LlmConfig)
     contextWindowTokens: String(data.contextWindowTokens),
-    memoryScoreThreshold:
-      data.memoryScoreThreshold !== null ? String(data.memoryScoreThreshold) : '',
-    memoryLimit: data.memoryLimit !== null ? String(data.memoryLimit) : '',
     // Model context info (display-only, not editable)
     modelContextLength: data.modelContextLength,
     contextWindowCap: data.contextWindowCap,
@@ -132,54 +125,6 @@ function parseOptionalInt(value: string | undefined): number | undefined {
   return isNaN(num) ? undefined : num;
 }
 
-/** Parse a nullable numeric field: empty string → null, valid number → number, else skip */
-function parseNullableNumeric(
-  value: string | undefined,
-  result: Record<string, unknown>,
-  key: string,
-  parser: (v: string) => number
-): void {
-  if (value === undefined) {
-    return;
-  }
-  if (value.length === 0) {
-    result[key] = null;
-  } else {
-    const num = parser(value);
-    if (!isNaN(num)) {
-      result[key] = num;
-    }
-  }
-}
-
-/** Parse integer context fields from flattened data */
-function parseContextSettings(
-  flat: Partial<FlattenedPresetData>,
-  result: Record<string, unknown>
-): void {
-  const maxMessages = parseOptionalInt(flat.maxMessages);
-  if (maxMessages !== undefined) {
-    result.maxMessages = maxMessages;
-  }
-
-  // maxAge: empty string means null (no time limit)
-  if (flat.maxAge !== undefined) {
-    if (flat.maxAge.length === 0) {
-      result.maxAge = null;
-    } else {
-      const maxAge = parseOptionalInt(flat.maxAge);
-      if (maxAge !== undefined) {
-        result.maxAge = maxAge;
-      }
-    }
-  }
-
-  const maxImages = parseOptionalInt(flat.maxImages);
-  if (maxImages !== undefined) {
-    result.maxImages = maxImages;
-  }
-}
-
 /** Build advancedParameters object from flattened data */
 function buildAdvancedParameters(
   flat: Partial<FlattenedPresetData>
@@ -224,16 +169,11 @@ export function unflattenPresetData(flat: Partial<FlattenedPresetData>): Record<
   addStringField(result, 'model', flat.model);
   addStringField(result, 'visionModel', flat.visionModel, true);
 
-  // Context settings
-  parseContextSettings(flat, result);
-
-  // Memory and context window settings
+  // Context window (model-coupled, stays in LlmConfig)
   const contextWindowTokens = parseOptionalInt(flat.contextWindowTokens);
   if (contextWindowTokens !== undefined) {
     result.contextWindowTokens = contextWindowTokens;
   }
-  parseNullableNumeric(flat.memoryScoreThreshold, result, 'memoryScoreThreshold', parseFloat);
-  parseNullableNumeric(flat.memoryLimit, result, 'memoryLimit', v => parseInt(v, 10));
 
   // Build advancedParameters
   const advancedParameters = buildAdvancedParameters(flat);
@@ -249,7 +189,7 @@ import {
   identitySection,
   coreSamplingSection,
   advancedSection,
-  contextSection,
+  contextWindowSection,
   reasoningSection,
 } from './presetSections.js';
 
@@ -275,7 +215,7 @@ export const PRESET_DASHBOARD_CONFIG: DashboardConfig<FlattenedPresetData> = {
     identitySection,
     coreSamplingSection,
     advancedSection,
-    contextSection,
+    contextWindowSection,
     reasoningSection,
   ],
   actions: [], // Refresh button already exists - no need for dropdown entry
