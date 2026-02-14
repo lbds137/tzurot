@@ -419,7 +419,10 @@ describe('/user/memory routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should enable focus mode successfully', async () => {
+    it('should enable focus mode with dual-write to column and configOverrides JSONB', async () => {
+      // No existing UPC record
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
+
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
@@ -429,22 +432,24 @@ describe('/user/memory routes', () => {
 
       await handler(req, res);
 
-      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith({
-        where: {
-          userId_personalityId: {
+      // Should read existing configOverrides before writing
+      expect(mockPrisma.userPersonalityConfig.findUnique).toHaveBeenCalled();
+
+      // Should dual-write: column + JSONB
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {
+            focusModeEnabled: true,
+            configOverrides: { focusModeEnabled: true },
+          },
+          create: expect.objectContaining({
             userId: TEST_USER_ID,
             personalityId: TEST_PERSONALITY_ID,
-          },
-        },
-        update: {
-          focusModeEnabled: true,
-        },
-        create: expect.objectContaining({
-          userId: TEST_USER_ID,
-          personalityId: TEST_PERSONALITY_ID,
-          focusModeEnabled: true,
-        }),
-      });
+            focusModeEnabled: true,
+            configOverrides: { focusModeEnabled: true },
+          }),
+        })
+      );
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -457,7 +462,12 @@ describe('/user/memory routes', () => {
       );
     });
 
-    it('should disable focus mode successfully', async () => {
+    it('should disable focus mode and strip focusModeEnabled from configOverrides', async () => {
+      // Existing UPC with focusModeEnabled in JSONB
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+        configOverrides: { focusModeEnabled: true, maxMessages: 30 },
+      });
+
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'post', '/focus');
       const { req, res } = createMockReqRes({
@@ -467,13 +477,16 @@ describe('/user/memory routes', () => {
 
       await handler(req, res);
 
+      // Should preserve other fields but remove focusModeEnabled (false is the default)
       expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           update: {
             focusModeEnabled: false,
+            configOverrides: { maxMessages: 30 },
           },
           create: expect.objectContaining({
             focusModeEnabled: false,
+            configOverrides: { maxMessages: 30 },
           }),
         })
       );
@@ -482,6 +495,32 @@ describe('/user/memory routes', () => {
         expect.objectContaining({
           focusModeEnabled: false,
           message: expect.stringContaining('disabled'),
+        })
+      );
+    });
+
+    it('should merge focusModeEnabled with existing configOverrides', async () => {
+      // Existing UPC with other overrides but no focusModeEnabled
+      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
+        configOverrides: { maxMessages: 25, maxImages: 5 },
+      });
+
+      const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/focus');
+      const { req, res } = createMockReqRes({
+        personalityId: TEST_PERSONALITY_ID,
+        enabled: true,
+      });
+
+      await handler(req, res);
+
+      // Should merge focusModeEnabled into existing overrides
+      expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          update: {
+            focusModeEnabled: true,
+            configOverrides: { maxMessages: 25, maxImages: 5, focusModeEnabled: true },
+          },
         })
       );
     });
