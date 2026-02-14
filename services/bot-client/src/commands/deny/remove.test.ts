@@ -67,7 +67,7 @@ describe('handleRemove', () => {
       userId: 'user-123',
     });
     expect(context.editReply).toHaveBeenCalledWith(
-      '✅ Denial removed for `999888777` (bot scope).'
+      '✅ Denial removed for <@999888777> (`999888777`) (bot scope).'
     );
   });
 
@@ -79,6 +79,19 @@ describe('handleRemove', () => {
     await handleRemove(context);
 
     expect(context.editReply).toHaveBeenCalledWith('❌ No matching denial entry found.');
+  });
+
+  it('should strip Discord mention wrapper from target', async () => {
+    vi.mocked(checkDenyPermission).mockResolvedValue({ allowed: true, scopeId: '*' });
+    vi.mocked(adminFetch).mockResolvedValue(mockOkResponse({ success: true }));
+    const context = createMockContext({ target: '<@999888777>' });
+
+    await handleRemove(context);
+
+    expect(adminFetch).toHaveBeenCalledWith('/admin/denylist/USER/999888777/BOT/*', {
+      method: 'DELETE',
+      userId: 'user-123',
+    });
   });
 
   it('should stop when permission denied', async () => {
