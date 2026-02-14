@@ -22,6 +22,7 @@ import {
 } from './LlmConfigMapper.js';
 import type { PrismaClient } from './prisma.js';
 import type { LoadedPersonality } from '../types/schemas/index.js';
+import type { ResolvedConfigOverrides } from '../schemas/api/configOverrides.js';
 
 const logger = createLogger('LlmConfigResolver');
 
@@ -53,6 +54,8 @@ export interface ConfigResolutionResult {
   source: 'user-personality' | 'user-default' | 'personality';
   /** Name of the config used (if override) */
   configName?: string;
+  /** Cascade-resolved config overrides (from ConfigCascadeResolver, returned by resolve endpoint) */
+  overrides?: ResolvedConfigOverrides;
 }
 
 /**
