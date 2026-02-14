@@ -31,6 +31,7 @@ const createMockPrisma = () => ({
       discordId: '123456789012345678',
       scope: 'BOT',
       scopeId: '*',
+      mode: 'BLOCK',
       reason: null,
       addedBy: '999999999999999999',
       addedAt: new Date(),
@@ -127,6 +128,7 @@ describe('Denylist Admin Routes', () => {
         discordId: '123456789012345678',
         scope: 'CHANNEL',
         scopeId: '987654321',
+        mode: 'BLOCK',
         reason: null,
         addedBy: '999999999999999999',
         addedAt: new Date(),
@@ -150,6 +152,7 @@ describe('Denylist Admin Routes', () => {
         discordId: '123456789012345678',
         scope: 'BOT',
         scopeId: '*',
+        mode: 'BLOCK',
         reason: null,
         addedBy: '999999999999999999',
         addedAt: new Date(),
@@ -162,6 +165,51 @@ describe('Denylist Admin Routes', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+    });
+
+    it('should pass mode through to upsert and publish', async () => {
+      mockPrisma.denylistedEntity.upsert.mockResolvedValue({
+        id: 'test-uuid',
+        type: 'USER',
+        discordId: '123456789012345678',
+        scope: 'BOT',
+        scopeId: '*',
+        mode: 'MUTE',
+        reason: null,
+        addedBy: '999999999999999999',
+        addedAt: new Date(),
+      });
+
+      const response = await request(app).post('/admin/denylist').send({
+        type: 'USER',
+        discordId: '123456789012345678',
+        mode: 'MUTE',
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.denylistedEntity.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ mode: 'MUTE' }),
+          update: expect.objectContaining({ mode: 'MUTE' }),
+        })
+      );
+      expect(mockInvalidation.publishAdd).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: 'MUTE' })
+      );
+    });
+
+    it('should default mode to BLOCK', async () => {
+      const response = await request(app).post('/admin/denylist').send({
+        type: 'USER',
+        discordId: '123456789012345678',
+      });
+
+      expect(response.status).toBe(200);
+      expect(mockPrisma.denylistedEntity.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({ mode: 'BLOCK' }),
+        })
+      );
     });
 
     it('should reject denying the bot owner', async () => {
@@ -241,6 +289,7 @@ describe('Denylist Admin Routes', () => {
         discordId: '123456789012345678',
         scope: 'BOT',
         scopeId: '*',
+        mode: 'BLOCK',
       });
 
       const response = await request(app).delete('/admin/denylist/USER/123456789012345678/BOT/*');

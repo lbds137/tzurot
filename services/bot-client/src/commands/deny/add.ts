@@ -19,6 +19,7 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
   const channelId = context.interaction.options.getChannel('channel')?.id ?? null;
   const personality = context.getOption<string>('personality');
   const reason = context.getOption<string>('reason');
+  const mode = context.getOption<string>('mode') ?? 'BLOCK';
 
   // GUILD type can only use BOT scope
   if (type === 'GUILD' && scope !== 'BOT') {
@@ -40,6 +41,7 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
         discordId: target,
         scope,
         scopeId: perm.scopeId,
+        mode,
         reason: reason ?? undefined,
       },
       context.user.id
@@ -58,8 +60,9 @@ export async function handleAdd(context: DeferredCommandContext): Promise<void> 
         : scope === 'GUILD'
           ? 'guild-scoped'
           : `${scope.toLowerCase()}-scoped`;
+    const modeDesc = mode === 'MUTE' ? ', muted' : '';
 
-    await context.editReply(`✅ ${label} \`${target}\` denied (${scopeDesc}).`);
+    await context.editReply(`✅ ${label} \`${target}\` denied (${scopeDesc}${modeDesc}).`);
   } catch (error) {
     logger.error({ err: error }, '[Deny] Failed to add denial');
     await context.editReply('❌ Failed to add denial. Please try again.');

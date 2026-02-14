@@ -171,7 +171,7 @@ function createServices(): Services {
 
   // Message handling services
   const responseSender = new DiscordResponseSender(webhookManager);
-  const contextBuilder = new MessageContextBuilder(prisma, personaResolver);
+  const contextBuilder = new MessageContextBuilder(prisma, personaResolver, denylistCache);
   const persistence = new ConversationPersistence(prisma);
   const voiceTranscription = new VoiceTranscriptionService(gatewayClient);
   const referenceEnricher = new ReferenceEnrichmentService(userService, personaResolver);
@@ -269,7 +269,7 @@ client.on(Events.InteractionCreate, interaction => {
         if (
           services.denylistCache.isBotDenied(interaction.user.id, guildId) ||
           (guildId !== undefined &&
-            services.denylistCache.isGuildDenied(interaction.user.id, guildId)) ||
+            services.denylistCache.isUserGuildDenied(interaction.user.id, guildId)) ||
           (interaction.channelId !== null &&
             services.denylistCache.isChannelDenied(interaction.user.id, interaction.channelId))
         ) {

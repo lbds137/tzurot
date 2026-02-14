@@ -366,6 +366,7 @@ CREATE TABLE "denylisted_entities" (
     "discord_id" VARCHAR(20) NOT NULL,
     "scope" VARCHAR(15) NOT NULL DEFAULT 'BOT',
     "scope_id" VARCHAR(40) NOT NULL DEFAULT '*',
+    "mode" VARCHAR(10) NOT NULL DEFAULT 'BLOCK',
     "reason" TEXT,
     "added_by" VARCHAR(20) NOT NULL,
     "added_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,

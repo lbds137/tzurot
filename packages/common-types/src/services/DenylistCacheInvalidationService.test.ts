@@ -52,7 +52,7 @@ describe('DenylistCacheInvalidationService', () => {
       expect(
         isValidDenylistInvalidationEvent({
           type: 'add',
-          entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*' },
+          entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
         })
       ).toBe(true);
     });
@@ -61,7 +61,7 @@ describe('DenylistCacheInvalidationService', () => {
       expect(
         isValidDenylistInvalidationEvent({
           type: 'remove',
-          entry: { type: 'GUILD', discordId: '456', scope: 'BOT', scopeId: '*' },
+          entry: { type: 'GUILD', discordId: '456', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
         })
       ).toBe(true);
     });
@@ -108,7 +108,16 @@ describe('DenylistCacheInvalidationService', () => {
       expect(
         isValidDenylistInvalidationEvent({
           type: 'add',
-          entry: { type: 'USER', discordId: 123, scope: 'BOT', scopeId: '*' },
+          entry: { type: 'USER', discordId: 123, scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
+        })
+      ).toBe(false);
+    });
+
+    it('should reject add event with missing mode field', () => {
+      expect(
+        isValidDenylistInvalidationEvent({
+          type: 'add',
+          entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*' },
         })
       ).toBe(false);
     });
@@ -121,7 +130,7 @@ describe('DenylistCacheInvalidationService', () => {
       expect(
         isValidDenylistInvalidationEvent({
           type: 'add',
-          entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*' },
+          entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
           extra: 'field',
         })
       ).toBe(false);
@@ -149,7 +158,7 @@ describe('DenylistCacheInvalidationService', () => {
 
       const event: DenylistInvalidationEvent = {
         type: 'add',
-        entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*' },
+        entry: { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*', mode: 'BLOCK' },
       };
       messageHandler(REDIS_CHANNELS.DENYLIST_CACHE_INVALIDATION, JSON.stringify(event));
 
@@ -166,7 +175,7 @@ describe('DenylistCacheInvalidationService', () => {
 
       const event: DenylistInvalidationEvent = {
         type: 'remove',
-        entry: { type: 'USER', discordId: '123', scope: 'CHANNEL', scopeId: '456' },
+        entry: { type: 'USER', discordId: '123', scope: 'CHANNEL', scopeId: '456', mode: 'BLOCK' },
       };
       messageHandler(REDIS_CHANNELS.DENYLIST_CACHE_INVALIDATION, JSON.stringify(event));
 
@@ -203,7 +212,7 @@ describe('DenylistCacheInvalidationService', () => {
 
   describe('publishAdd', () => {
     it('should publish add event', async () => {
-      const entry = { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*' };
+      const entry = { type: 'USER', discordId: '123', scope: 'BOT', scopeId: '*', mode: 'BLOCK' };
       await service.publishAdd(entry);
 
       expect(mockRedis.publish).toHaveBeenCalledWith(
@@ -215,7 +224,7 @@ describe('DenylistCacheInvalidationService', () => {
 
   describe('publishRemove', () => {
     it('should publish remove event', async () => {
-      const entry = { type: 'GUILD', discordId: '456', scope: 'BOT', scopeId: '*' };
+      const entry = { type: 'GUILD', discordId: '456', scope: 'BOT', scopeId: '*', mode: 'BLOCK' };
       await service.publishRemove(entry);
 
       expect(mockRedis.publish).toHaveBeenCalledWith(

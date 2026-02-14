@@ -71,6 +71,8 @@ export interface FetchOptions {
   contextEpoch?: Date;
   /** Maximum age in seconds - ignore messages older than this (null = disabled) */
   maxAge?: number | null;
+  /** Optional callback to check if a user is BLOCK-denied (filters their messages from context) */
+  isBlockDenied?: (discordUserId: string) => boolean;
 }
 
 /**
