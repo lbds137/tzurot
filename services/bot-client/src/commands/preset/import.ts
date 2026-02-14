@@ -22,8 +22,6 @@ interface ImportedPresetData {
   provider?: string;
   model?: string;
   visionModel?: string;
-  memoryScoreThreshold?: number;
-  memoryLimit?: number;
   contextWindowTokens?: number;
   advancedParameters?: {
     temperature?: number;
@@ -65,8 +63,6 @@ export const PRESET_JSON_TEMPLATE = `{
   "provider": "anthropic",
   "model": "anthropic/claude-sonnet-4",
   "visionModel": "anthropic/claude-sonnet-4 (optional)",
-  "memoryScoreThreshold": 0.5,
-  "memoryLimit": 20,
   "contextWindowTokens": 131072,
   "advancedParameters": {
     "temperature": 0.7,
@@ -92,8 +88,6 @@ const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
   { key: 'provider', label: 'Provider' },
   { key: 'model', label: 'Model' },
   { key: 'visionModel', label: 'Vision Model' },
-  { key: 'memoryScoreThreshold', label: 'Memory Score Threshold' },
-  { key: 'memoryLimit', label: 'Memory Limit' },
   { key: 'contextWindowTokens', label: 'Context Window Tokens' },
   { key: 'advancedParameters', label: 'Advanced Parameters' },
 ];
@@ -164,12 +158,6 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
   if (data.visionModel !== undefined && data.visionModel !== '') {
     payload.visionModel = data.visionModel;
   }
-  if (data.memoryScoreThreshold !== undefined) {
-    payload.memoryScoreThreshold = data.memoryScoreThreshold;
-  }
-  if (data.memoryLimit !== undefined) {
-    payload.memoryLimit = data.memoryLimit;
-  }
   if (data.contextWindowTokens !== undefined) {
     payload.contextWindowTokens = data.contextWindowTokens;
   }
@@ -210,8 +198,6 @@ async function createPresetFromImport(
       provider: payload.provider,
       description: payload.description,
       visionModel: payload.visionModel,
-      memoryScoreThreshold: payload.memoryScoreThreshold,
-      memoryLimit: payload.memoryLimit,
       contextWindowTokens: payload.contextWindowTokens,
       advancedParameters: payload.advancedParameters,
     },

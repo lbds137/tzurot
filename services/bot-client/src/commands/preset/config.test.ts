@@ -25,11 +25,6 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       contextWindowTokens: 8192,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       params: {},
     };
 
@@ -43,37 +38,7 @@ describe('flattenPresetData', () => {
     expect(result.visionModel).toBe('anthropic/claude-sonnet-4');
     expect(result.isGlobal).toBe(false);
     expect(result.isOwned).toBe(true);
-    // Memory and context window settings
     expect(result.contextWindowTokens).toBe('8192');
-    expect(result.memoryScoreThreshold).toBe('');
-    expect(result.memoryLimit).toBe('');
-  });
-
-  it('should flatten memory and context window settings with values', () => {
-    const preset: PresetData = {
-      id: 'preset-123',
-      name: 'My Preset',
-      description: null,
-      provider: 'openrouter',
-      model: 'anthropic/claude-sonnet-4',
-      visionModel: null,
-      isGlobal: false,
-      isOwned: true,
-      permissions: { canEdit: true, canDelete: true },
-      contextWindowTokens: 131072,
-      memoryScoreThreshold: 0.75,
-      memoryLimit: 20,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
-      params: {},
-    };
-
-    const result = flattenPresetData(preset);
-
-    expect(result.contextWindowTokens).toBe('131072');
-    expect(result.memoryScoreThreshold).toBe('0.75');
-    expect(result.memoryLimit).toBe('20');
   });
 
   it('should handle null description and visionModel', () => {
@@ -88,11 +53,6 @@ describe('flattenPresetData', () => {
       isOwned: false,
       permissions: { canEdit: false, canDelete: false },
       contextWindowTokens: 8192,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       params: {},
     };
 
@@ -114,11 +74,6 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       contextWindowTokens: 8192,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       params: {
         temperature: 0.7,
         top_p: 0.9,
@@ -149,11 +104,6 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       contextWindowTokens: 8192,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       params: {
         frequency_penalty: 0.5,
         presence_penalty: 0.3,
@@ -184,11 +134,6 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       contextWindowTokens: 8192,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       params: {
         reasoning: {
           effort: 'high',
@@ -219,11 +164,6 @@ describe('flattenPresetData', () => {
       isOwned: true,
       permissions: { canEdit: true, canDelete: true },
       contextWindowTokens: 8192,
-      memoryScoreThreshold: null,
-      memoryLimit: null,
-      maxMessages: 50,
-      maxAge: null,
-      maxImages: 10,
       params: {},
     };
 
@@ -386,35 +326,7 @@ describe('unflattenPresetData', () => {
     });
   });
 
-  it('should unflatten context settings (maxMessages, maxAge, maxImages)', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      maxMessages: '30',
-      maxAge: '86400',
-      maxImages: '5',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.maxMessages).toBe(30);
-    expect(result.maxAge).toBe(86400);
-    expect(result.maxImages).toBe(5);
-  });
-
-  it('should set maxAge to null when empty string', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      maxMessages: '50',
-      maxAge: '',
-      maxImages: '10',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.maxMessages).toBe(50);
-    expect(result.maxAge).toBeNull();
-    expect(result.maxImages).toBe(10);
-  });
-
-  it('should not include context settings when values are undefined', () => {
+  it('should not include removed context/memory fields (moved to cascade)', () => {
     const flat: Partial<FlattenedPresetData> = {
       name: 'Test',
     };
@@ -424,6 +336,8 @@ describe('unflattenPresetData', () => {
     expect(result.maxMessages).toBeUndefined();
     expect(result.maxAge).toBeUndefined();
     expect(result.maxImages).toBeUndefined();
+    expect(result.memoryScoreThreshold).toBeUndefined();
+    expect(result.memoryLimit).toBeUndefined();
   });
 
   it('should unflatten contextWindowTokens', () => {
@@ -436,47 +350,7 @@ describe('unflattenPresetData', () => {
     expect(result.contextWindowTokens).toBe(131072);
   });
 
-  it('should unflatten memoryScoreThreshold', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      memoryScoreThreshold: '0.75',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.memoryScoreThreshold).toBe(0.75);
-  });
-
-  it('should set memoryScoreThreshold to null when empty', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      memoryScoreThreshold: '',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.memoryScoreThreshold).toBeNull();
-  });
-
-  it('should unflatten memoryLimit', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      memoryLimit: '20',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.memoryLimit).toBe(20);
-  });
-
-  it('should set memoryLimit to null when empty', () => {
-    const flat: Partial<FlattenedPresetData> = {
-      memoryLimit: '',
-    };
-
-    const result = unflattenPresetData(flat);
-
-    expect(result.memoryLimit).toBeNull();
-  });
-
-  it('should not include memory/context window settings when undefined', () => {
+  it('should not include contextWindowTokens when undefined', () => {
     const flat: Partial<FlattenedPresetData> = {
       name: 'Test',
     };
@@ -484,8 +358,6 @@ describe('unflattenPresetData', () => {
     const result = unflattenPresetData(flat);
 
     expect(result.contextWindowTokens).toBeUndefined();
-    expect(result.memoryScoreThreshold).toBeUndefined();
-    expect(result.memoryLimit).toBeUndefined();
   });
 });
 
@@ -500,7 +372,7 @@ describe('PRESET_DASHBOARD_CONFIG', () => {
 
   it('should have correct section IDs', () => {
     const sectionIds = PRESET_DASHBOARD_CONFIG.sections.map(s => s.id);
-    expect(sectionIds).toEqual(['identity', 'sampling', 'advanced', 'context', 'reasoning']);
+    expect(sectionIds).toEqual(['identity', 'sampling', 'advanced', 'contextWindow', 'reasoning']);
   });
 
   describe('getTitle', () => {

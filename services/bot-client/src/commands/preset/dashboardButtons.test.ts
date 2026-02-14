@@ -212,12 +212,7 @@ describe('Preset Dashboard Buttons', () => {
       reasoning_exclude: '',
       reasoning_enabled: '',
       show_thinking: '',
-      maxMessages: '50',
-      maxAge: '',
-      maxImages: '10',
       contextWindowTokens: '131072',
-      memoryScoreThreshold: '',
-      memoryLimit: '',
       ...overrides,
     }) as FlattenedPresetData;
 
@@ -302,11 +297,6 @@ describe('Preset Dashboard Buttons', () => {
     isOwned: true,
     permissions: { canEdit: true },
     contextWindowTokens: 8192,
-    memoryScoreThreshold: null,
-    memoryLimit: null,
-    maxMessages: 50,
-    maxAge: null,
-    maxImages: 10,
     params: {
       temperature: 0.7,
       top_p: null,
@@ -663,12 +653,7 @@ describe('Preset Dashboard Buttons', () => {
         data: createMockFlattenedPreset({
           name: 'Full Preset',
           temperature: '0.8',
-          maxMessages: '30',
-          maxAge: '86400',
-          maxImages: '5',
           contextWindowTokens: '262144',
-          memoryScoreThreshold: '0.75',
-          memoryLimit: '20',
         }),
       });
       const clonedPreset = {
@@ -681,16 +666,11 @@ describe('Preset Dashboard Buttons', () => {
 
       await handleCloneButton(mockInteraction, 'preset-123');
 
-      // Verify update was called with context, memory, and advanced settings
+      // Verify update was called with context window and advanced settings
       expect(mockUpdatePreset).toHaveBeenCalledWith(
         'cloned-preset',
         expect.objectContaining({
-          maxMessages: 30,
-          maxAge: 86400,
-          maxImages: 5,
           contextWindowTokens: 262144,
-          memoryScoreThreshold: 0.75,
-          memoryLimit: 20,
           advancedParameters: expect.objectContaining({
             temperature: 0.8,
           }),

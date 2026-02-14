@@ -64,8 +64,6 @@ describe('Preset Export', () => {
     isDefault: false,
     isOwned: true,
     permissions: { canEdit: true, canDelete: true },
-    memoryScoreThreshold: 0.5,
-    memoryLimit: 20,
     contextWindowTokens: 131072,
     params: {
       temperature: 0.7,
@@ -144,17 +142,15 @@ describe('Preset Export', () => {
       expect(mockContext.editReply).toHaveBeenCalled();
     });
 
-    it('should include memory and context window fields in export', async () => {
-      const presetWithMemoryConfig = {
+    it('should include context window field in export', async () => {
+      const presetWithCustomCtx = {
         ...mockPresetData,
-        memoryScoreThreshold: 0.6,
-        memoryLimit: 30,
         contextWindowTokens: 65536,
       };
 
       vi.mocked(userGatewayClient.callGatewayApi).mockResolvedValue({
         ok: true,
-        data: { config: presetWithMemoryConfig },
+        data: { config: presetWithCustomCtx },
       });
 
       const mockContext = createMockContext();

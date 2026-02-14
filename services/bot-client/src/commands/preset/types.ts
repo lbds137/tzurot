@@ -33,19 +33,8 @@ export interface PresetData {
   isOwned: boolean;
   /** Server-computed permissions for the requesting user */
   permissions: EntityPermissions;
-  /** Memory retrieval score threshold (0.0-1.0) */
-  memoryScoreThreshold: number | null;
-  /** Maximum number of memories to retrieve */
-  memoryLimit: number | null;
-  /** Context window token budget */
+  /** Context window token budget (model-coupled, stays in LlmConfig) */
   contextWindowTokens: number;
-  // Context settings - control how much history to fetch
-  /** Max messages to fetch from conversation history (1-100) */
-  maxMessages: number;
-  /** Max age in seconds for messages (null = no time limit) */
-  maxAge: number | null;
-  /** Max images to process from extended context (0-20, 0 disables) */
-  maxImages: number;
   /** Model's full context window (from OpenRouter), undefined if unknown */
   modelContextLength?: number;
   /** 50% cap for contextWindowTokens, undefined if unknown */
@@ -108,14 +97,8 @@ export interface FlattenedPresetData {
   reasoning_enabled: string;
   // Output params
   show_thinking: string;
-  // Context settings
-  maxMessages: string;
-  maxAge: string;
-  maxImages: string;
-  // Memory and context window settings
+  // Context window (model-coupled, stays in LlmConfig)
   contextWindowTokens: string;
-  memoryScoreThreshold: string;
-  memoryLimit: string;
   /** Model's full context window (display-only, not editable) */
   modelContextLength?: number;
   /** 50% cap for contextWindowTokens (display-only, not editable) */

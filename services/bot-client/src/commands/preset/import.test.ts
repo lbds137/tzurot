@@ -267,11 +267,9 @@ describe('Preset Import', () => {
       );
     });
 
-    it('should import preset with memory and context window fields', async () => {
+    it('should import preset with context window field', async () => {
       vi.mocked(jsonFileUtils.validateAndParseJsonFile).mockResolvedValue({
         data: createValidPresetData({
-          memoryScoreThreshold: 0.6,
-          memoryLimit: 30,
           contextWindowTokens: 65536,
         }),
       });
@@ -288,8 +286,6 @@ describe('Preset Import', () => {
         '/user/llm-config',
         expect.objectContaining({
           body: expect.objectContaining({
-            memoryScoreThreshold: 0.6,
-            memoryLimit: 30,
             contextWindowTokens: 65536,
           }),
         })
