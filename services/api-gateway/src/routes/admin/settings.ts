@@ -145,9 +145,15 @@ export function createAdminSettingsRoutes(
 
       const { configDefaults } = req.body as { configDefaults?: Record<string, unknown> | null };
 
+      // Resolve Discord ID → User UUID for the updatedBy FK
+      const user = await prisma.user.findFirst({
+        where: { discordId: req.userId },
+        select: { id: true },
+      });
+
       // Build update data (use unchecked input to set updatedBy scalar directly)
       const updateData: Prisma.AdminSettingsUncheckedUpdateInput = {
-        updatedBy: req.userId,
+        updatedBy: user?.id ?? null,
       };
 
       if (configDefaults !== undefined) {

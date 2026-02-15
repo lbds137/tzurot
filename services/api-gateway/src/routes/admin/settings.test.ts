@@ -36,6 +36,7 @@ const MOCK_USER_UUID = '550e8400-e29b-41d4-a716-446655440000';
 function createMockPrisma(): {
   adminSettings: {
     upsert: ReturnType<typeof vi.fn>;
+    update: ReturnType<typeof vi.fn>;
   };
   user: {
     findFirst: ReturnType<typeof vi.fn>;
@@ -44,6 +45,7 @@ function createMockPrisma(): {
   return {
     adminSettings: {
       upsert: vi.fn(),
+      update: vi.fn(),
     },
     user: {
       findFirst: vi.fn(),
@@ -167,6 +169,96 @@ describe('Admin Settings Routes (Singleton)', () => {
       expect(response.body.id).toBe(ADMIN_SETTINGS_SINGLETON_ID);
       // isBotOwner should NOT be called for service-only operations
       expect(mockIsBotOwner).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('PATCH /admin/settings', () => {
+    it('should reject non-owners', async () => {
+      mockIsBotOwner.mockReturnValue(false);
+
+      const response = await request(app)
+        .patch('/admin/settings')
+        .send({ configDefaults: { maxMessages: 30 } });
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('UNAUTHORIZED');
+    });
+
+    it('should update configDefaults with valid overrides', async () => {
+      const updatedSettings = createDefaultSettings({
+        configDefaults: { maxMessages: 30 },
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app)
+        .patch('/admin/settings')
+        .send({ configDefaults: { maxMessages: 30 } });
+
+      expect(response.status).toBe(200);
+      expect(response.body.configDefaults).toEqual({ maxMessages: 30 });
+      expect(response.body.updatedBy).toBe(MOCK_USER_UUID);
+    });
+
+    it('should clear configDefaults when null is sent', async () => {
+      const updatedSettings = createDefaultSettings({
+        configDefaults: null,
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app).patch('/admin/settings').send({ configDefaults: null });
+
+      expect(response.status).toBe(200);
+      expect(response.body.configDefaults).toBeNull();
+    });
+
+    it('should reject invalid configDefaults format', async () => {
+      const response = await request(app)
+        .patch('/admin/settings')
+        .send({ configDefaults: { maxMessages: 'not-a-number' } });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toBe('VALIDATION_ERROR');
+    });
+
+    it('should merge with existing configDefaults', async () => {
+      // Existing settings have maxImages: 5
+      mockPrisma.adminSettings.upsert.mockResolvedValue(
+        createDefaultSettings({ configDefaults: { maxImages: 5 } })
+      );
+
+      const updatedSettings = createDefaultSettings({
+        configDefaults: { maxImages: 5, maxMessages: 30 },
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app)
+        .patch('/admin/settings')
+        .send({ configDefaults: { maxMessages: 30 } });
+
+      expect(response.status).toBe(200);
+      expect(response.body.configDefaults).toEqual({ maxImages: 5, maxMessages: 30 });
+    });
+
+    it('should set updatedBy on update', async () => {
+      const updatedSettings = createDefaultSettings({
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app).patch('/admin/settings').send({ configDefaults: null });
+
+      // Route resolves Discord ID → user UUID via prisma.user.findFirst
+      expect(mockPrisma.adminSettings.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            updatedBy: MOCK_USER_UUID,
+          }),
+        })
+      );
+      expect(response.status).toBe(200);
     });
   });
 });
