@@ -52,23 +52,22 @@ export class DenylistFilter implements IMessageProcessor {
       return Promise.resolve(true);
     }
 
-    // Check channel-scoped user denial (thread-specific first, then parent)
-    if (this.denylistCache.isChannelDenied(message.author.id, message.channelId)) {
-      logger.debug(
-        { userId: message.author.id, channelId: message.channelId },
-        '[DenylistFilter] Message from user denied in this channel'
-      );
-      return Promise.resolve(true);
-    }
-
-    // Check parent channel denial for threads (inherit BLOCK and MUTE from parent)
+    // Check channel-scoped user denial (thread-specific first, then parent).
+    // Both BLOCK and MUTE prevent the bot from responding here. This differs from
+    // DenylistCache.isBlocked() which only inherits BLOCK from parent (MUTE messages
+    // still appear in context but the bot won't respond to them).
     const parentId = getThreadParentId(message.channel);
-    if (parentId !== null && this.denylistCache.isChannelDenied(message.author.id, parentId)) {
-      logger.debug(
-        { userId: message.author.id, channelId: message.channelId, parentChannelId: parentId },
-        '[DenylistFilter] Message from user denied in parent channel (inherited by thread)'
-      );
-      return Promise.resolve(true);
+    const channelIdsToCheck =
+      parentId !== null ? [message.channelId, parentId] : [message.channelId];
+
+    for (const channelId of channelIdsToCheck) {
+      if (this.denylistCache.isChannelDenied(message.author.id, channelId)) {
+        logger.debug(
+          { userId: message.author.id, channelId: message.channelId, deniedIn: channelId },
+          '[DenylistFilter] Message from user denied in channel'
+        );
+        return Promise.resolve(true);
+      }
     }
 
     return Promise.resolve(false);
