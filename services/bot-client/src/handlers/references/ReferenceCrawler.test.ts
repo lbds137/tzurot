@@ -324,8 +324,7 @@ describe('ReferenceCrawler', () => {
   });
 
   describe('Deduplication', () => {
-    it('should skip LINK references already in conversation history (exact match)', async () => {
-      // LINK references can be deduplicated - they're incidental mentions in message text
+    it('should preserve LINK references in history as deduped stubs', async () => {
       const referencedMessage = createMockMessage({
         id: 'ref-1',
         content: 'Already in history',
@@ -341,7 +340,7 @@ describe('ReferenceCrawler', () => {
           messageId: 'ref-1',
           channelId: 'channel-1',
           guildId: 'guild-1',
-          type: ReferenceType.LINK, // Link references ARE deduplicated
+          type: ReferenceType.LINK,
           discordUrl: 'https://discord.com/channels/1/2/ref-1',
         },
       ]);
@@ -352,20 +351,20 @@ describe('ReferenceCrawler', () => {
         maxReferences: 10,
         strategies: [mockStrategy],
         linkExtractor: mockLinkExtractor,
-        conversationHistoryMessageIds: new Set(['ref-1']), // Mark as already in history
+        conversationHistoryMessageIds: new Set(['ref-1']),
       });
 
       const result = await crawler.crawl(message);
 
-      expect(result.messages.size).toBe(0); // Link references should be excluded if in history
+      expect(result.messages.size).toBe(1);
+      const crawled = result.messages.get('ref-1');
+      expect(crawled?.metadata.isDeduplicated).toBe(true);
     });
 
-    it('should skip REPLY references when they are in conversation history', async () => {
-      // With chronologically ordered chat_log, LLMs properly attend to recent messages.
-      // No need to duplicate replies that are already in conversation history.
+    it('should preserve REPLY references in history as deduped stubs', async () => {
       const referencedMessage = createMockMessage({
         id: 'ref-1',
-        content: 'Already in history - will be skipped',
+        content: 'Already in history - preserved as stub',
       });
 
       const message = createMockMessage({
@@ -387,13 +386,78 @@ describe('ReferenceCrawler', () => {
         maxReferences: 10,
         strategies: [mockStrategy],
         linkExtractor: mockLinkExtractor,
-        conversationHistoryMessageIds: new Set(['ref-1']), // Mark as already in history
+        conversationHistoryMessageIds: new Set(['ref-1']),
       });
 
       const result = await crawler.crawl(message);
 
-      // Replies in conversation history should be skipped (no duplication needed)
-      expect(result.messages.size).toBe(0);
+      expect(result.messages.size).toBe(1);
+      const crawled = result.messages.get('ref-1');
+      expect(crawled?.metadata.isDeduplicated).toBe(true);
+      expect(crawled?.metadata.depth).toBe(1);
+    });
+
+    it('should NOT queue deduped stubs for further BFS traversal', async () => {
+      // level-2 is behind level-1, which is in history (deduped)
+      // The deduped stub should NOT cause level-2 to be traversed
+      const level2Message = createMockMessage({
+        id: 'level-2',
+        content: 'Should not be reached',
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+      });
+
+      const level1Message = createMockMessage({
+        id: 'level-1',
+        content: 'In history',
+        createdAt: new Date('2025-01-01T12:01:00Z'),
+        reference: { messageId: 'level-2' } as any,
+        fetchReference: vi.fn().mockResolvedValue(level2Message),
+      });
+
+      const rootMessage = createMockMessage({
+        id: 'root',
+        reference: { messageId: 'level-1' } as any,
+        fetchReference: vi.fn().mockResolvedValue(level1Message),
+      });
+
+      vi.mocked(mockStrategy.extract).mockImplementation(async msg => {
+        if (msg.id === 'root') {
+          return [
+            {
+              messageId: 'level-1',
+              channelId: 'channel-1',
+              guildId: 'guild-1',
+              type: ReferenceType.REPLY,
+            },
+          ];
+        }
+        if (msg.id === 'level-1') {
+          return [
+            {
+              messageId: 'level-2',
+              channelId: 'channel-1',
+              guildId: 'guild-1',
+              type: ReferenceType.REPLY,
+            },
+          ];
+        }
+        return [];
+      });
+
+      const crawler = new ReferenceCrawler({
+        maxReferences: 10,
+        strategies: [mockStrategy],
+        linkExtractor: mockLinkExtractor,
+        conversationHistoryMessageIds: new Set(['level-1']),
+      });
+
+      const result = await crawler.crawl(rootMessage);
+
+      // level-1 should be a deduped stub
+      expect(result.messages.size).toBe(1);
+      expect(result.messages.get('level-1')?.metadata.isDeduplicated).toBe(true);
+      // level-2 should NOT be reached (no BFS traversal from deduped stubs)
+      expect(result.messages.has('level-2')).toBe(false);
     });
 
     it('should skip duplicate references within same crawl', async () => {

@@ -54,4 +54,6 @@ export interface ReferenceMetadata {
   timestamp: Date;
   /** Discord URL (for link replacement) */
   discordUrl?: string;
+  /** True when the reference was found in conversation history (dedup stub) */
+  isDeduplicated?: boolean;
 }
