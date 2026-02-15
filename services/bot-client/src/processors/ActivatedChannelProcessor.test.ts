@@ -20,7 +20,13 @@ vi.mock('./VoiceMessageProcessor.js', () => ({
   },
 }));
 
+// Mock discordChannelTypes
+vi.mock('../utils/discordChannelTypes.js', () => ({
+  getThreadParentId: vi.fn().mockReturnValue(null),
+}));
+
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
+import { getThreadParentId } from '../utils/discordChannelTypes.js';
 
 function createMockMessage(options?: {
   content?: string;
@@ -347,6 +353,93 @@ describe('ActivatedChannelProcessor', () => {
         'Text content', // Message content used
         { isAutoResponse: true }
       );
+    });
+  });
+
+  describe('Thread inheritance', () => {
+    it('should fall back to parent channel settings when thread has no activation', async () => {
+      const message = createMockMessage({ channelId: 'thread-123' });
+
+      // Thread has no settings
+      mockGatewayClient.getChannelSettings
+        .mockResolvedValueOnce(null) // thread check
+        .mockResolvedValueOnce({
+          hasSettings: true,
+          settings: {
+            id: 'settings-id',
+            channelId: 'parent-chan',
+            guildId: 'guild-123',
+            personalitySlug: 'lilith',
+            personalityName: 'Lilith',
+            autoRespond: true,
+            activatedBy: 'user-uuid',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        } as GetChannelSettingsResponse);
+
+      // Thread has a parent
+      (getThreadParentId as ReturnType<typeof vi.fn>).mockReturnValue('parent-chan');
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      const result = await processor.process(message);
+
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledWith('thread-123');
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledWith('parent-chan');
+      expect(result).toBe(true);
+    });
+
+    it('should use thread-specific activation over parent', async () => {
+      const message = createMockMessage({ channelId: 'thread-123' });
+
+      // Thread has its own settings
+      mockGatewayClient.getChannelSettings.mockResolvedValueOnce({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
+          channelId: 'thread-123',
+          guildId: 'guild-123',
+          personalitySlug: 'lilith',
+          personalityName: 'Lilith',
+          autoRespond: true,
+          activatedBy: 'user-uuid',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      } as GetChannelSettingsResponse);
+
+      (getThreadParentId as ReturnType<typeof vi.fn>).mockReturnValue('parent-chan');
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      const result = await processor.process(message);
+
+      // Should only call once — thread has settings, no parent fallback
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledTimes(1);
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledWith('thread-123');
+      expect(result).toBe(true);
+    });
+
+    it('should not fall back for non-thread channels', async () => {
+      const message = createMockMessage({ channelId: 'regular-chan' });
+      mockGatewayClient.getChannelSettings.mockResolvedValue(null);
+      (getThreadParentId as ReturnType<typeof vi.fn>).mockReturnValue(null);
+
+      const result = await processor.process(message);
+
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledTimes(1);
+      expect(result).toBe(false);
+    });
+
+    it('should return false when neither thread nor parent has settings', async () => {
+      const message = createMockMessage({ channelId: 'thread-123' });
+      mockGatewayClient.getChannelSettings
+        .mockResolvedValueOnce(null) // thread
+        .mockResolvedValueOnce(null); // parent
+
+      (getThreadParentId as ReturnType<typeof vi.fn>).mockReturnValue('parent-chan');
+
+      const result = await processor.process(message);
+
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledTimes(2);
+      expect(result).toBe(false);
     });
   });
 

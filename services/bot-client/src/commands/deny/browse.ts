@@ -168,7 +168,7 @@ function buildBrowsePage(
   if (pageEntries.length > 0) {
     const selectMenu = new StringSelectMenuBuilder()
       .setCustomId(browseHelpers.buildSelect(safePage, filter, sort, null))
-      .setPlaceholder('Select an entry to view details...');
+      .setPlaceholder('Select an entry to view/edit...');
 
     for (let i = 0; i < pageEntries.length; i++) {
       const entry = pageEntries[i];
