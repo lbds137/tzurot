@@ -64,9 +64,10 @@ From Claude code review. All minor optimizations, not blockers.
 - [ ] Add rate limiting to admin denylist endpoints (10 req/min per user)
 - [ ] Consider batch invalidation support for bulk denylist operations
 
-### 🏗️ Config Cascade Cleanup (PR #631 Review Follow-ups)
+### 🏗️ Config Cascade Cleanup (Post-PR #632)
 
-- [ ] Create migration to copy `focusModeEnabled` column values into `configOverrides` JSONB, then drop column
+- [x] ~~Create migration to copy `focusModeEnabled` column values into `configOverrides` JSONB~~ (done in PR #632, dual-write active)
+- [ ] Drop `focusModeEnabled` boolean column after confirming all reads use cascade (separate migration)
 - [ ] Document `ConfigCascadeResolver` setInterval cleanup limitation for horizontal scaling
 
 ### 🧹 Redis Failure Injection Tests
