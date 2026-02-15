@@ -184,7 +184,10 @@ export class ResponsePostProcessor {
     }
 
     // Filter out referenced messages that are already in history
-    const filtered = referencedMessages.filter(ref => !historyIds.has(ref.discordMessageId));
+    // Preserve deduped stubs — they carry the reply-target signal with truncated content
+    const filtered = referencedMessages.filter(
+      ref => ref.isDeduplicated === true || !historyIds.has(ref.discordMessageId)
+    );
 
     if (filtered.length < referencedMessages.length) {
       const removed = referencedMessages.length - filtered.length;

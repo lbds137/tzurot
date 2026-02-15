@@ -328,6 +328,124 @@ describe('ReferenceFormatter', () => {
     });
   });
 
+  describe('Deduplicated Stubs', () => {
+    it('should produce minimal ReferencedMessage for deduped metadata', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'deduped-1',
+          {
+            message: createMockMessage({
+              id: 'deduped-1',
+              content: 'This is the original message content',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'deduped-1',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      expect(result.references).toHaveLength(1);
+      const ref = result.references[0];
+      expect(ref.isDeduplicated).toBe(true);
+      expect(ref.content).toBe('This is the original message content');
+      expect(ref.embeds).toBe('');
+      expect(ref.locationContext).toBe('');
+      expect(ref.referenceNumber).toBe(1);
+      // Should NOT call messageFormatter.formatMessage
+      expect(mockMessageFormatter.formatMessage).not.toHaveBeenCalled();
+    });
+
+    it('should truncate long content in deduped stubs to ~100 chars', async () => {
+      const longContent = 'A'.repeat(200);
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'deduped-long',
+          {
+            message: createMockMessage({
+              id: 'deduped-long',
+              content: longContent,
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'deduped-long',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      const ref = result.references[0];
+      expect(ref.content.length).toBeLessThanOrEqual(103); // 100 + '...'
+      expect(ref.content.endsWith('...')).toBe(true);
+    });
+
+    it('should not truncate short content in deduped stubs', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'deduped-short',
+          {
+            message: createMockMessage({
+              id: 'deduped-short',
+              content: 'Short',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'deduped-short',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      expect(result.references[0].content).toBe('Short');
+    });
+
+    it('should replace Discord links for deduped stubs with discordUrl', async () => {
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'deduped-link',
+          {
+            message: createMockMessage({
+              id: 'deduped-link',
+              content: 'Content in history',
+              createdAt: new Date('2025-01-01T12:00:00Z'),
+            }),
+            metadata: {
+              messageId: 'deduped-link',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              discordUrl: 'https://discord.com/channels/1/2/3',
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format(
+        'See https://discord.com/channels/1/2/3',
+        crawledMessages,
+        10
+      );
+
+      expect(result.updatedContent).toBe('See [Reference 1]');
+    });
+  });
+
   describe('Limit Enforcement', () => {
     it('should apply maxReferences limit', async () => {
       const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>();

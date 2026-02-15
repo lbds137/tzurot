@@ -40,7 +40,6 @@ export class ReferenceFormatter {
    * @param maxReferences - Maximum number of references to include
    * @returns Formatted references and updated content
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Sorts by depth then chronologically, assigns reference numbers, formats XML with content truncation and attachment metadata
   async format(
     originalContent: string,
     crawledMessages: Map<string, { message: Message; metadata: ReferenceMetadata }>,
@@ -77,6 +76,14 @@ export class ReferenceFormatter {
     let currentNumber = 1;
 
     for (const { message, metadata } of selected) {
+      // Deduped stubs: minimal ReferencedMessage with truncated content
+      if (metadata.isDeduplicated === true) {
+        references.push(this.buildDedupedStub(message, currentNumber));
+        this.trackLink(metadata, currentNumber, linkMap);
+        currentNumber++;
+        continue;
+      }
+
       // Check if this is a forwarded message with snapshots
       if (isForwardedMessage(message)) {
         // Extract each snapshot from the forward as a separate reference
@@ -87,16 +94,7 @@ export class ReferenceFormatter {
             message
           );
           references.push(snapshotReference);
-
-          // Track Discord link for replacement
-          if (
-            metadata.discordUrl !== undefined &&
-            metadata.discordUrl !== null &&
-            metadata.discordUrl.length > 0
-          ) {
-            linkMap.set(metadata.discordUrl, currentNumber);
-          }
-
+          this.trackLink(metadata, currentNumber, linkMap);
           currentNumber++;
 
           logger.debug(
@@ -112,16 +110,7 @@ export class ReferenceFormatter {
         // Regular message (not a forward)
         const formattedMessage = await this.messageFormatter.formatMessage(message, currentNumber);
         references.push(formattedMessage);
-
-        // Track Discord link for replacement
-        if (
-          metadata.discordUrl !== undefined &&
-          metadata.discordUrl !== null &&
-          metadata.discordUrl.length > 0
-        ) {
-          linkMap.set(metadata.discordUrl, currentNumber);
-        }
-
+        this.trackLink(metadata, currentNumber, linkMap);
         currentNumber++;
       }
     }
@@ -141,6 +130,39 @@ export class ReferenceFormatter {
       references,
       updatedContent,
     };
+  }
+
+  /** Build a minimal ReferencedMessage for a deduped reference */
+  private buildDedupedStub(message: Message, refNumber: number): ReferencedMessage {
+    const truncatedContent =
+      message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content;
+    return {
+      referenceNumber: refNumber,
+      discordMessageId: message.id,
+      discordUserId: message.author.id,
+      authorUsername: message.author.username,
+      authorDisplayName: message.author.displayName ?? message.author.username,
+      content: truncatedContent,
+      embeds: '',
+      timestamp: message.createdAt.toISOString(),
+      locationContext: '',
+      isDeduplicated: true,
+    };
+  }
+
+  /** Track a Discord link for [Reference N] replacement if present */
+  private trackLink(
+    metadata: ReferenceMetadata,
+    refNumber: number,
+    linkMap: Map<string, number>
+  ): void {
+    if (
+      metadata.discordUrl !== undefined &&
+      metadata.discordUrl !== null &&
+      metadata.discordUrl.length > 0
+    ) {
+      linkMap.set(metadata.discordUrl, refNumber);
+    }
   }
 
   /**

@@ -67,6 +67,21 @@ export class ReferencedMessageFormatter {
 
     // Process each reference into XML
     for (const ref of references) {
+      // Deduped stubs: lightweight quote with reply-target note (no attachment processing)
+      if (ref.isDeduplicated === true) {
+        const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
+        const dedupedElement = formatQuoteElement({
+          number: ref.referenceNumber,
+          from: ref.authorDisplayName,
+          username: ref.authorUsername,
+          timestamp:
+            absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
+          content: `[Reply target — full message is in conversation above]\n\n${ref.content}`,
+        });
+        referenceElements.push(dedupedElement);
+        continue;
+      }
+
       // Forwarded messages use the shared QuoteFormatter for consistency
       if (ref.isForwarded === true) {
         const forwardedElement = await this.formatForwardedReference(

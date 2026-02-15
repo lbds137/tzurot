@@ -356,6 +356,44 @@ describe('ResponsePostProcessor', () => {
       expect(result).toHaveLength(0);
     });
 
+    it('should preserve references with isDeduplicated === true even when in history', () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'msg1',
+          discordUserId: 'user1',
+          authorUsername: 'user1',
+          authorDisplayName: 'User One',
+          content: 'Deduped stub content',
+          embeds: '',
+          timestamp: '2025-01-01T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        },
+        {
+          referenceNumber: 2,
+          discordMessageId: 'msg2',
+          discordUserId: 'user2',
+          authorUsername: 'user2',
+          authorDisplayName: 'User Two',
+          content: 'Normal ref not in history',
+          embeds: '',
+          timestamp: '2025-01-01T00:01:00Z',
+          locationContext: '<location/>',
+        },
+      ];
+
+      const history = [{ id: 'msg1' }, { id: 'msg3' }];
+
+      const result = processor.filterDuplicateReferences(references, history);
+
+      // msg1 has isDeduplicated: true, so it should be preserved despite being in history
+      expect(result).toHaveLength(2);
+      expect(result[0].discordMessageId).toBe('msg1');
+      expect(result[0].isDeduplicated).toBe(true);
+      expect(result[1].discordMessageId).toBe('msg2');
+    });
+
     it('should handle history entries without id field', () => {
       const references: ReferencedMessage[] = [
         {

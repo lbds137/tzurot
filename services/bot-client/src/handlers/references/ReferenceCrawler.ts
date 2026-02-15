@@ -142,42 +142,35 @@ export class ReferenceCrawler {
           continue;
         }
 
-        // Check deduplication - skip if already in conversation history
-        // Now that chat_log is chronologically ordered (oldest first, newest last),
-        // LLMs properly attend to recent messages. No need to duplicate content.
-        if (!this.shouldIncludeReference(referencedMessage)) {
-          logger.debug(
-            {
-              messageId: referencedMessage.id,
-              reason: 'found in conversation history',
-              isReply: refResult.type === ReferenceType.REPLY,
-            },
-            '[ReferenceCrawler] Skipping reference - already in conversation'
-          );
+        const isDeduplicated = !this.shouldIncludeReference(referencedMessage);
+
+        if (isDeduplicated) {
+          // Preserve as lightweight stub (no BFS traversal from stubs)
+          this.addToResults({
+            message: referencedMessage,
+            depth: depth + 1,
+            discordUrl: refResult.discordUrl,
+            isDeduplicated: true,
+            extractedIds: extractedMessageIds,
+            messages,
+          });
           continue;
         }
 
-        // Check if we've hit the limit before adding
         if (messages.size >= this.maxReferences) {
-          break; // Stop processing more references
+          break;
         }
 
-        // Mark as extracted
-        extractedMessageIds.add(referencedMessage.id);
-
-        // Store message with metadata
-        // (Referenced messages are always added, never the root message itself)
-        messages.set(referencedMessage.id, {
+        // Add full reference and queue for further traversal
+        this.addToResults({
           message: referencedMessage,
-          metadata: {
-            messageId: referencedMessage.id,
-            depth: depth + 1,
-            timestamp: referencedMessage.createdAt,
-            discordUrl: refResult.discordUrl,
-          },
+          depth: depth + 1,
+          discordUrl: refResult.discordUrl,
+          isDeduplicated: false,
+          extractedIds: extractedMessageIds,
+          messages,
         });
 
-        // Queue for next depth level (still have room)
         if (messages.size < this.maxReferences) {
           queue.push({
             message: referencedMessage,
@@ -197,6 +190,30 @@ export class ReferenceCrawler {
     );
 
     return { messages, maxDepth };
+  }
+
+  /** Store a fetched reference in the results map with metadata */
+  private addToResults(opts: {
+    message: Message;
+    depth: number;
+    discordUrl?: string;
+    isDeduplicated: boolean;
+    extractedIds: Set<string>;
+    messages: Map<string, { message: Message; metadata: ReferenceMetadata }>;
+  }): void {
+    opts.extractedIds.add(opts.message.id);
+    if (opts.messages.size < this.maxReferences) {
+      opts.messages.set(opts.message.id, {
+        message: opts.message,
+        metadata: {
+          messageId: opts.message.id,
+          depth: opts.depth,
+          timestamp: opts.message.createdAt,
+          discordUrl: opts.discordUrl,
+          ...(opts.isDeduplicated ? { isDeduplicated: true } : {}),
+        },
+      });
+    }
   }
 
   /**

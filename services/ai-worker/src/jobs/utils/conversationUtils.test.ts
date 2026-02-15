@@ -824,7 +824,7 @@ describe('Conversation Utilities', () => {
       expect(result).toContain('document.pdf');
     });
 
-    it('should deduplicate quoted messages that are already in conversation history', () => {
+    it('should render deduped quoted messages as lightweight stubs instead of dropping them', () => {
       // The quoted message has the same Discord ID as a message in the history
       const quotedMessageId = 'msg-already-in-history';
 
@@ -861,10 +861,9 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      // The message content should appear only once (from the original)
-      // Not duplicated in the quoted_messages section
-      expect(result).not.toContain('<quoted_messages>');
-      // Both messages should still be present
+      // Deduped refs are now preserved as lightweight stubs (not dropped)
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('[Reply target — full message is in conversation above]');
       expect(result).toContain('from="Bob"');
       expect(result).toContain('from="Alice"');
       expect(result).toContain('Replying to your earlier message');
@@ -944,12 +943,13 @@ describe('Conversation Utilities', () => {
 
       const result = formatConversationHistoryAsXml(history, 'TestBot');
 
-      // Should have quoted_messages section with only the out-of-history message
+      // Should have quoted_messages section with the out-of-history message (full)
+      // AND the in-history message as a lightweight stub
       expect(result).toContain('<quoted_messages>');
       expect(result).toContain('from="Charlie"');
       expect(result).toContain('Message from elsewhere');
-      // Should NOT have Bob's message duplicated in quotes
-      expect(result.match(/Already shown message/g)?.length).toBe(1);
+      // Bob's message appears once in history and once as a truncated stub in quoted_messages
+      expect(result.match(/Already shown message/g)?.length).toBe(2);
     });
 
     it('should infer role="assistant" for quoted messages from the personality', () => {
