@@ -45,6 +45,10 @@ export class DenylistCache {
    * over strictness — better to allow everyone temporarily than to block all
    * users because of a transient gateway outage. The cache will be populated
    * once the gateway becomes reachable (via retry or pub/sub sync).
+   *
+   * Note: The gateway endpoint returns up to 10,000 entries (hardcoded limit).
+   * At current scale this is more than sufficient, but if the denylist grows
+   * significantly, pagination or streaming would be needed.
    */
   async hydrate(gatewayClient: GatewayClient): Promise<void> {
     try {
@@ -165,8 +169,14 @@ export class DenylistCache {
    * Checks all scopes in priority order and returns true if ANY matching entry is BLOCK mode.
    * Used by the context builder to filter messages from extended context.
    */
-  // eslint-disable-next-line sonarjs/cognitive-complexity -- Sequential scope checks: bot-user → bot-guild → guild-user → channel-user → personality-user, each needs its own conditional branch
-  isBlocked(userId: string, guildId?: string, channelId?: string, personalityId?: string): boolean {
+  // eslint-disable-next-line sonarjs/cognitive-complexity -- Sequential scope checks: bot-user → bot-guild → guild-user → channel-user (+ parent thread) → personality-user
+  isBlocked(
+    userId: string,
+    guildId?: string,
+    channelId?: string,
+    personalityId?: string,
+    parentChannelId?: string
+  ): boolean {
     // Check bot-wide user block
     if (userId.length > 0) {
       const userMode = this.botUsers.get(userId);
@@ -194,13 +204,20 @@ export class DenylistCache {
       }
     }
 
-    // Check channel-scoped user block
+    // Check channel-scoped user block (with thread→parent inheritance)
     if (channelId !== undefined) {
       const channelMap = this.channelUsers.get(userId);
       if (channelMap !== undefined) {
         const mode = channelMap.get(channelId);
         if (mode === 'BLOCK') {
           return true;
+        }
+        // Only inherit from parent if thread has NO explicit entry (MUTE overrides parent BLOCK)
+        if (mode === undefined && parentChannelId !== undefined) {
+          const parentMode = channelMap.get(parentChannelId);
+          if (parentMode === 'BLOCK') {
+            return true;
+          }
         }
       }
     }

@@ -7,6 +7,7 @@ import { ChannelType } from 'discord.js';
 import {
   isThreadChannel,
   getThreadParent,
+  getThreadParentId,
   isTextBasedMessageChannel,
 } from './discordChannelTypes.js';
 
@@ -67,6 +68,53 @@ describe('discordChannelTypes', () => {
         parent: null,
       } as never;
       expect(getThreadParent(channel)).toBeNull();
+    });
+  });
+
+  describe('getThreadParentId', () => {
+    it('returns null for null channel', () => {
+      expect(getThreadParentId(null)).toBeNull();
+    });
+
+    it('returns null for non-thread channel', () => {
+      const channel = { type: ChannelType.GuildText } as never;
+      expect(getThreadParentId(channel)).toBeNull();
+    });
+
+    it('returns parentId for PublicThread', () => {
+      const channel = {
+        type: ChannelType.PublicThread,
+        parentId: 'parent-123',
+        parent: null,
+      } as never;
+      expect(getThreadParentId(channel)).toBe('parent-123');
+    });
+
+    it('returns parentId for PrivateThread', () => {
+      const channel = {
+        type: ChannelType.PrivateThread,
+        parentId: 'parent-456',
+        parent: null,
+      } as never;
+      expect(getThreadParentId(channel)).toBe('parent-456');
+    });
+
+    it('returns parentId for AnnouncementThread', () => {
+      const channel = {
+        type: ChannelType.AnnouncementThread,
+        parentId: 'parent-789',
+        parent: null,
+      } as never;
+      expect(getThreadParentId(channel)).toBe('parent-789');
+    });
+
+    it('returns null when thread has null parentId', () => {
+      const channel = {
+        type: ChannelType.PublicThread,
+        parentId: null,
+        parent: null,
+      } as never;
+      expect(getThreadParentId(channel)).toBeNull();
     });
   });
 

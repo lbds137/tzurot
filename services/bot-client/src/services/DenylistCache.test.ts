@@ -344,6 +344,94 @@ describe('DenylistCache', () => {
       expect(cache.isBlocked('user1')).toBe(false);
     });
 
+    describe('with parentChannelId (thread inheritance)', () => {
+      it('should inherit BLOCK from parent channel when thread has no entry', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'BLOCK',
+          },
+        });
+
+        expect(cache.isBlocked('user1', undefined, 'thread-123', undefined, 'parent-chan')).toBe(
+          true
+        );
+      });
+
+      it('should NOT inherit MUTE from parent channel', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'MUTE',
+          },
+        });
+
+        expect(cache.isBlocked('user1', undefined, 'thread-123', undefined, 'parent-chan')).toBe(
+          false
+        );
+      });
+
+      it('should let thread MUTE override parent BLOCK', () => {
+        // Parent has BLOCK
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'parent-chan',
+            mode: 'BLOCK',
+          },
+        });
+        // Thread has explicit MUTE (overrides parent)
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'thread-123',
+            mode: 'MUTE',
+          },
+        });
+
+        expect(cache.isBlocked('user1', undefined, 'thread-123', undefined, 'parent-chan')).toBe(
+          false
+        );
+      });
+
+      it('should return false when neither thread nor parent has entry', () => {
+        expect(cache.isBlocked('user1', undefined, 'thread-123', undefined, 'parent-chan')).toBe(
+          false
+        );
+      });
+
+      it('should return true when thread itself has BLOCK (ignores parent)', () => {
+        cache.handleEvent({
+          type: 'add',
+          entry: {
+            type: 'USER',
+            discordId: 'user1',
+            scope: 'CHANNEL',
+            scopeId: 'thread-123',
+            mode: 'BLOCK',
+          },
+        });
+
+        expect(cache.isBlocked('user1', undefined, 'thread-123', undefined, 'parent-chan')).toBe(
+          true
+        );
+      });
+    });
+
     it('should check all scopes and return true if any is BLOCK', () => {
       // MUTE at bot level, BLOCK at channel level
       cache.handleEvent({
