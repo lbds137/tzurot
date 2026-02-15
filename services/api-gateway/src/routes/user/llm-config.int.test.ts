@@ -130,9 +130,6 @@ describe('LLM Config Resolution Integration', () => {
       name: 'test-personality',
       displayName: 'Test Personality',
       model: 'default-model',
-      maxMessages: 25,
-      maxAge: null,
-      maxImages: 5,
     };
 
     it('should return personality defaults when no user override exists', async () => {
@@ -143,12 +140,11 @@ describe('LLM Config Resolution Integration', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.source).toBe('personality');
+      // LlmConfigResolver only resolves LLM fields (model, reasoning, etc.)
+      // Context/memory fields (maxMessages, maxAge, maxImages) are resolved via ConfigCascadeResolver
       expect(response.body.config).toEqual(
         expect.objectContaining({
           model: 'default-model',
-          maxMessages: 25,
-          maxAge: null,
-          maxImages: 5,
         })
       );
     });
