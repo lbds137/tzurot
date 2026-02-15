@@ -73,6 +73,18 @@ export function createConfigOverrideRoutes(
   const userService = new UserService(prisma);
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
+  /** Publish cascade invalidation for a user, swallowing errors */
+  async function tryInvalidateUser(discordUserId: string): Promise<void> {
+    if (cascadeInvalidation === undefined) {
+      return;
+    }
+    try {
+      await cascadeInvalidation.invalidateUser(discordUserId);
+    } catch (error) {
+      logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
+    }
+  }
+
   // All routes require authentication
   router.use(requireUserAuth);
 
@@ -122,13 +134,7 @@ export function createConfigOverrideRoutes(
           data: { configDefaults: Prisma.JsonNull },
         });
 
-        if (cascadeInvalidation !== undefined) {
-          try {
-            await cascadeInvalidation.invalidateUser(req.userId);
-          } catch (error) {
-            logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-          }
-        }
+        await tryInvalidateUser(req.userId);
 
         sendCustomSuccess(res, { configDefaults: null }, StatusCodes.OK);
         return;
@@ -152,13 +158,7 @@ export function createConfigOverrideRoutes(
         },
       });
 
-      if (cascadeInvalidation !== undefined) {
-        try {
-          await cascadeInvalidation.invalidateUser(req.userId);
-        } catch (error) {
-          logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-        }
-      }
+      await tryInvalidateUser(req.userId);
 
       sendCustomSuccess(res, { configDefaults: merged }, StatusCodes.OK);
     })
@@ -181,13 +181,7 @@ export function createConfigOverrideRoutes(
         data: { configDefaults: Prisma.JsonNull },
       });
 
-      if (cascadeInvalidation !== undefined) {
-        try {
-          await cascadeInvalidation.invalidateUser(req.userId);
-        } catch (error) {
-          logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-        }
-      }
+      await tryInvalidateUser(req.userId);
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
     })
@@ -240,13 +234,7 @@ export function createConfigOverrideRoutes(
           });
         }
 
-        if (cascadeInvalidation !== undefined) {
-          try {
-            await cascadeInvalidation.invalidateUser(req.userId);
-          } catch (error) {
-            logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-          }
-        }
+        await tryInvalidateUser(req.userId);
 
         sendCustomSuccess(res, { configOverrides: null }, StatusCodes.OK);
         return;
@@ -271,13 +259,7 @@ export function createConfigOverrideRoutes(
         },
       });
 
-      if (cascadeInvalidation !== undefined) {
-        try {
-          await cascadeInvalidation.invalidateUser(req.userId);
-        } catch (error) {
-          logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-        }
-      }
+      await tryInvalidateUser(req.userId);
 
       sendCustomSuccess(res, { configOverrides: merged }, StatusCodes.OK);
     })
@@ -309,13 +291,7 @@ export function createConfigOverrideRoutes(
         });
       }
 
-      if (cascadeInvalidation !== undefined) {
-        try {
-          await cascadeInvalidation.invalidateUser(req.userId);
-        } catch (error) {
-          logger.warn({ err: error }, CASCADE_INVALIDATION_WARN);
-        }
-      }
+      await tryInvalidateUser(req.userId);
 
       sendCustomSuccess(res, { success: true }, StatusCodes.OK);
     })
