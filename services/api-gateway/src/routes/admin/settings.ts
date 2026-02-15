@@ -13,12 +13,12 @@ import {
   type PrismaClient,
   Prisma,
   AdminSettingsSchema,
-  ConfigOverridesSchema,
   ADMIN_SETTINGS_SINGLETON_ID,
   createLogger,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { isAuthorizedForRead, isAuthorizedForWrite } from '../../services/AuthMiddleware.js';
@@ -44,43 +44,6 @@ async function getOrCreateSettings(
     },
     update: {}, // No-op if exists
   });
-}
-
-/**
- * Resolve configDefaults value for DB update.
- * Merges partial overrides with existing JSONB, validates, and returns clean object or null.
- */
-async function resolveConfigDefaults(
-  prisma: PrismaClient,
-  input: Record<string, unknown> | null
-): Promise<Record<string, unknown> | null | 'invalid'> {
-  if (input === null) {
-    return null;
-  }
-
-  const parseResult = ConfigOverridesSchema.partial().safeParse(input);
-  if (!parseResult.success) {
-    return 'invalid';
-  }
-
-  // Merge with existing values
-  const existing = await getOrCreateSettings(prisma);
-  const existingDefaults =
-    existing.configDefaults !== null &&
-    typeof existing.configDefaults === 'object' &&
-    !Array.isArray(existing.configDefaults)
-      ? (existing.configDefaults as Record<string, unknown>)
-      : {};
-  const merged: Record<string, unknown> = { ...existingDefaults, ...parseResult.data };
-
-  // Remove undefined/null fields to keep JSONB clean
-  for (const key of Object.keys(merged)) {
-    if (merged[key] === undefined || merged[key] === null) {
-      delete merged[key];
-    }
-  }
-
-  return Object.keys(merged).length > 0 ? merged : null;
 }
 
 export function createAdminSettingsRoutes(
@@ -157,15 +120,20 @@ export function createAdminSettingsRoutes(
       };
 
       if (configDefaults !== undefined) {
-        const configDefaultsValue = await resolveConfigDefaults(prisma, configDefaults);
-        if (configDefaultsValue === 'invalid') {
-          sendError(res, ErrorResponses.validationError('Invalid configDefaults format'));
-          return;
+        if (configDefaults === null) {
+          updateData.configDefaults = Prisma.JsonNull;
+        } else {
+          const existing = await getOrCreateSettings(prisma);
+          const configDefaultsValue = mergeConfigOverrides(existing.configDefaults, configDefaults);
+          if (configDefaultsValue === 'invalid') {
+            sendError(res, ErrorResponses.validationError('Invalid configDefaults format'));
+            return;
+          }
+          updateData.configDefaults =
+            configDefaultsValue === null
+              ? Prisma.JsonNull
+              : (configDefaultsValue as Prisma.InputJsonValue);
         }
-        updateData.configDefaults =
-          configDefaultsValue === null
-            ? Prisma.JsonNull
-            : (configDefaultsValue as Prisma.InputJsonValue);
       }
 
       const updated = await prisma.adminSettings.update({

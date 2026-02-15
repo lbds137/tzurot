@@ -17,7 +17,6 @@ import {
   createLogger,
   UserService,
   ConfigCascadeResolver,
-  ConfigOverridesSchema,
   Prisma,
   generateUserPersonalityConfigUuid,
   type PrismaClient,
@@ -25,6 +24,7 @@ import {
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
+import { mergeConfigOverrides } from '../../utils/configOverrideMerge.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { getRequiredParam } from '../../utils/requestParams.js';
@@ -35,35 +35,6 @@ const logger = createLogger('user-config-overrides');
 const BOT_USER_ERROR = 'Cannot create user for bot';
 const CASCADE_INVALIDATION_WARN = 'Failed to publish cascade invalidation';
 
-/**
- * Merge partial config overrides into existing JSONB.
- * Validates input, merges with existing, strips null/undefined fields.
- */
-function mergeConfigOverrides(
-  existing: unknown,
-  input: Record<string, unknown>
-): Record<string, unknown> | null | 'invalid' {
-  const parseResult = ConfigOverridesSchema.partial().safeParse(input);
-  if (!parseResult.success) {
-    return 'invalid';
-  }
-
-  const existingObj =
-    existing !== null && typeof existing === 'object' && !Array.isArray(existing)
-      ? (existing as Record<string, unknown>)
-      : {};
-  const merged: Record<string, unknown> = { ...existingObj, ...parseResult.data };
-
-  // Remove undefined/null fields to keep JSONB clean
-  for (const key of Object.keys(merged)) {
-    if (merged[key] === undefined || merged[key] === null) {
-      delete merged[key];
-    }
-  }
-
-  return Object.keys(merged).length > 0 ? merged : null;
-}
-
 // eslint-disable-next-line max-lines-per-function -- Route factory with 6 endpoints following model-override.ts pattern
 export function createConfigOverrideRoutes(
   prisma: PrismaClient,
@@ -73,7 +44,8 @@ export function createConfigOverrideRoutes(
   const userService = new UserService(prisma);
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
-  /** Publish cascade invalidation for a user, swallowing errors */
+  /** Publish cascade invalidation for a user, swallowing errors.
+   *  If pub/sub fails, caches expire via TTL (30s) for eventual consistency. */
   async function tryInvalidateUser(discordUserId: string): Promise<void> {
     if (cascadeInvalidation === undefined) {
       return;
