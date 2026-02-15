@@ -297,6 +297,84 @@ describe('ReferencedMessageFormatter', () => {
     });
   });
 
+  describe('Deduplicated stubs', () => {
+    it('should format deduped stubs as lightweight quotes with reply-target note', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'deduped-123',
+          discordUserId: 'user-123',
+          authorUsername: 'alice123',
+          authorDisplayName: 'Alice',
+          content: 'Some truncated content...',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain('<quote number="1" from="Alice" username="alice123">');
+      expect(result).toContain('[Reply target — full message is in conversation above]');
+      expect(result).toContain('Some truncated content...');
+      expect(result).toContain('</quote>');
+    });
+
+    it('should not process attachments for deduped stubs', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'deduped-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Has attachments',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+          attachments: [
+            {
+              url: 'https://example.com/image.png',
+              contentType: 'image/png',
+              name: 'image.png',
+              size: 1000,
+            },
+          ],
+        },
+      ];
+
+      await formatter.formatReferencedMessages(references, mockPersonality);
+
+      // Should NOT call vision or transcription APIs
+      expect(mockDescribeImage).not.toHaveBeenCalled();
+      expect(mockTranscribeAudio).not.toHaveBeenCalled();
+    });
+
+    it('should include timestamp for deduped stubs', async () => {
+      const references: ReferencedMessage[] = [
+        {
+          referenceNumber: 1,
+          discordMessageId: 'deduped-123',
+          discordUserId: 'user-123',
+          authorUsername: 'testuser',
+          authorDisplayName: 'Test User',
+          content: 'Stub content',
+          embeds: '',
+          timestamp: '2025-12-06T00:00:00Z',
+          locationContext: '',
+          isDeduplicated: true,
+        },
+      ];
+
+      const result = await formatter.formatReferencedMessages(references, mockPersonality);
+
+      expect(result).toContain('<time absolute="Fri, Dec 6, 2025" relative="just now"/>');
+    });
+  });
+
   describe('Image attachment processing', () => {
     it('should process image attachments in parallel', async () => {
       // Use hoisted mock directly (mockDescribeImage from vi.hoisted())

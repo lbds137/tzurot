@@ -55,6 +55,7 @@ export const referencedMessageSchema = z.object({
   locationContext: z.string(), // Rich formatted location context (Server/Category/Channel/Thread)
   attachments: z.array(attachmentMetadataSchema).optional(), // Attachments from referenced message
   isForwarded: z.boolean().optional(), // True if this is a forwarded message (author info unavailable)
+  isDeduplicated: z.boolean().optional(), // True when full content is already in conversation history (stub)
 });
 
 /**

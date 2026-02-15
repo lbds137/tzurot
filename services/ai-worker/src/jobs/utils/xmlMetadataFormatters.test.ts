@@ -246,7 +246,7 @@ describe('xmlMetadataFormatters', () => {
       expect(result).toContain('[image/png: photo.png]');
     });
 
-    it('filters out refs whose discordMessageId is in history', () => {
+    it('renders deduped stubs for refs whose discordMessageId is in history', () => {
       const msg = makeEntry({
         messageMetadata: {
           referencedMessages: [
@@ -254,7 +254,7 @@ describe('xmlMetadataFormatters', () => {
               discordMessageId: 'already-in-history',
               authorUsername: 'user1',
               authorDisplayName: 'User One',
-              content: 'Duplicated',
+              content: 'Duplicated message that is in history',
               timestamp: '2026-01-01T00:00:00.000Z',
               locationContext: '',
             },
@@ -264,7 +264,69 @@ describe('xmlMetadataFormatters', () => {
 
       const historyIds = new Set(['already-in-history']);
       const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
-      expect(result).toBe('');
+      expect(result).toContain('<quoted_messages>');
+      expect(result).toContain('[Reply target — full message is in conversation above]');
+      expect(result).toContain('Duplicated message that is in history');
+      expect(result).toContain('from="User One"');
+    });
+
+    it('truncates long content in deduped stubs to ~100 chars', () => {
+      const longContent = 'X'.repeat(200);
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: 'in-history',
+              authorUsername: 'user1',
+              authorDisplayName: 'User One',
+              content: longContent,
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+            },
+          ],
+        },
+      });
+
+      const historyIds = new Set(['in-history']);
+      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      // Should contain truncated content with '...'
+      expect(result).toContain('X'.repeat(100) + '...');
+      expect(result).not.toContain('X'.repeat(101));
+    });
+
+    it('renders both full refs and deduped stubs together', () => {
+      const msg = makeEntry({
+        messageMetadata: {
+          referencedMessages: [
+            {
+              discordMessageId: 'in-history',
+              authorUsername: 'user1',
+              authorDisplayName: 'User One',
+              content: 'In history',
+              timestamp: '2026-01-01T00:00:00.000Z',
+              locationContext: '',
+            },
+            {
+              discordMessageId: 'not-in-history',
+              authorUsername: 'user2',
+              authorDisplayName: 'User Two',
+              content: 'Not in history',
+              timestamp: '2026-01-01T00:01:00.000Z',
+              locationContext: '',
+            },
+          ],
+        },
+      });
+
+      const historyIds = new Set(['in-history']);
+      const result = formatQuotedSection(msg, 'user', personalityName, historyIds, undefined);
+      expect(result).toContain('<quoted_messages>');
+      // Full ref for User Two
+      expect(result).toContain('from="User Two"');
+      expect(result).toContain('Not in history');
+      // Deduped stub for User One
+      expect(result).toContain('[Reply target — full message is in conversation above]');
+      expect(result).toContain('In history');
     });
 
     it('detects assistant role via personality name', () => {

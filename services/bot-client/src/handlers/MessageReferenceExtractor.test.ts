@@ -274,12 +274,12 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
   });
 
   describe('Deduplication', () => {
-    it('should exclude REPLY references when they are in conversation history', async () => {
-      // With chronologically ordered chat_log, LLMs properly attend to recent messages.
-      // No need to duplicate replies that are already in conversation history.
+    it('should preserve REPLY references in history as deduped stubs', async () => {
+      // Replies in conversation history are preserved as lightweight stubs
+      // so the AI knows which message the user is responding to.
       const referencedMessage = createMockMessage({
         id: 'referenced-123',
-        content: 'Already in history - will be skipped',
+        content: 'Already in history - preserved as stub',
         channel: createConfiguredChannel(),
       });
 
@@ -305,8 +305,10 @@ describe('MessageReferenceExtractor (Orchestration)', () => {
 
       const references = await dedupExtractor.extractReferences(message);
 
-      // Replies in conversation history should be skipped (no duplication needed)
-      expect(references.length).toBe(0);
+      // Deduped reply should be preserved as a stub with isDeduplicated flag
+      expect(references.length).toBe(1);
+      expect(references[0].isDeduplicated).toBe(true);
+      expect(references[0].content).toBe('Already in history - preserved as stub');
     });
   });
 });

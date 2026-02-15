@@ -302,6 +302,27 @@ describe('API Endpoint Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
+    it('should validate referenced message with isDeduplicated flag', () => {
+      const dedupedReference = {
+        referenceNumber: 1,
+        discordMessageId: 'msg-123',
+        discordUserId: 'user-456',
+        authorUsername: 'testuser',
+        authorDisplayName: 'Test User',
+        content: 'Truncated content...',
+        embeds: '',
+        timestamp: new Date().toISOString(),
+        locationContext: '',
+        isDeduplicated: true,
+      };
+
+      const result = referencedMessageSchema.safeParse(dedupedReference);
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.isDeduplicated).toBe(true);
+      }
+    });
+
     it('should validate loaded personality structure', () => {
       const validPersonality = {
         id: 'personality-123',

@@ -118,21 +118,46 @@ export function formatQuotedSection(
     return '';
   }
 
-  const refsToFormat =
-    historyMessageIds !== undefined
-      ? msg.messageMetadata.referencedMessages.filter(
-          ref => !historyMessageIds.has(ref.discordMessageId)
-        )
-      : msg.messageMetadata.referencedMessages;
+  const allRefs = msg.messageMetadata.referencedMessages;
 
-  if (refsToFormat.length === 0) {
+  // Separate refs into full (not in history) and deduped (in history → lightweight stub)
+  const fullRefs: StoredReferencedMessage[] = [];
+  const dedupedRefs: StoredReferencedMessage[] = [];
+
+  for (const ref of allRefs) {
+    if (historyMessageIds?.has(ref.discordMessageId) === true) {
+      dedupedRefs.push(ref);
+    } else {
+      fullRefs.push(ref);
+    }
+  }
+
+  if (fullRefs.length === 0 && dedupedRefs.length === 0) {
     return '';
   }
 
-  const formattedRefs = refsToFormat
-    .map(ref => formatStoredReferencedMessage(ref, personalityName, allPersonalityNames))
-    .join('\n');
-  return `\n<quoted_messages>\n${formattedRefs}\n</quoted_messages>`;
+  // Full refs: existing behavior
+  const formattedFull = fullRefs.map(ref =>
+    formatStoredReferencedMessage(ref, personalityName, allPersonalityNames)
+  );
+
+  // Deduped refs: lightweight stubs with truncated content and reply-target note
+  const formattedDeduped = dedupedRefs.map(ref => {
+    const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
+    const truncatedContent =
+      ref.content.length > 100 ? ref.content.substring(0, 100) + '...' : ref.content;
+    return formatQuoteElement({
+      from: authorName,
+      timeFormatted:
+        ref.timestamp !== undefined && ref.timestamp.length > 0
+          ? formatPromptTimestamp(ref.timestamp)
+          : undefined,
+      content: `[Reply target — full message is in conversation above]\n\n${truncatedContent}`,
+    });
+  });
+
+  const allFormatted = [...formattedFull, ...formattedDeduped].join('\n');
+  return `\n<quoted_messages>\n${allFormatted}\n</quoted_messages>`;
 }
 
 /** Format image descriptions section for XML output */
