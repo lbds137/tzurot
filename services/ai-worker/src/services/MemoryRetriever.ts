@@ -114,12 +114,22 @@ export class MemoryRetriever {
    * @param configOverrides - When provided, cascade-resolved values override personality defaults
    *   for memoryLimit, memoryScoreThreshold, and focusModeEnabled.
    */
+  // eslint-disable-next-line complexity, sonarjs/cognitive-complexity -- Guard clauses for weigh-in/focus/no-persona early exits add branches but keep the flow flat
   async retrieveRelevantMemories(
     personality: LoadedPersonality,
     userMessage: string,
     context: ConversationContext,
     configOverrides?: ResolvedConfigOverrides
   ): Promise<MemoryRetrievalResult> {
+    // Weigh-in mode: anonymous poke — skip LTM retrieval entirely (no past memories injected)
+    if (context.isWeighIn === true) {
+      logger.info(
+        { userId: context.userId, personalityId: personality.id },
+        '[MemoryRetriever] Weigh-in mode - skipping LTM retrieval'
+      );
+      return { memories: [], focusModeEnabled: false };
+    }
+
     const excludeNewerThan = this.calculateDeduplicationCutoff(context);
 
     // Resolve user's personaId for this personality using PersonaResolver

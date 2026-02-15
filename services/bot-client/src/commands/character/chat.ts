@@ -196,10 +196,12 @@ function adjustContextForWeighInMode(
     return false;
   }
 
-  // In weigh-in mode, clear persona info so no <from> tag is added
+  // In weigh-in mode, clear persona info so no <from> tag is added,
+  // and mark as weigh-in so ai-worker skips LTM retrieval and storage
   if (isWeighInMode) {
     buildResult.context.activePersonaId = undefined;
     buildResult.context.activePersonaName = undefined;
+    buildResult.context.isWeighIn = true;
   }
 
   return true;

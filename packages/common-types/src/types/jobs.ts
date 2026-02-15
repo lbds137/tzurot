@@ -97,6 +97,8 @@ export interface JobContext {
   referencedMessages?: ReferencedMessage[];
   mentionedPersonas?: MentionedPersona[];
   referencedChannels?: ReferencedChannel[];
+  /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage */
+  isWeighIn?: boolean;
 }
 
 /**

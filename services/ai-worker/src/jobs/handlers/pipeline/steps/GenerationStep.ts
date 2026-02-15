@@ -69,6 +69,7 @@ function buildConversationContext(
     serverId: jobContext.serverId,
     sessionId: jobContext.sessionId,
     isProxyMessage: jobContext.isProxyMessage,
+    isWeighIn: jobContext.isWeighIn,
     activePersonaId: jobContext.activePersonaId,
     activePersonaName: jobContext.activePersonaName,
     // Guild-specific info for participants (roles, color, join date)

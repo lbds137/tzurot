@@ -181,6 +181,8 @@ export const requestContextSchema = z.object({
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   // Referenced channels (from #channel mentions - used for LTM scoping)
   referencedChannels: z.array(referencedChannelSchema).optional(),
+  // Weigh-in mode flag (anonymous poke - skip LTM retrieval and storage)
+  isWeighIn: z.boolean().optional(),
 });
 
 // Infer TypeScript types from schemas
