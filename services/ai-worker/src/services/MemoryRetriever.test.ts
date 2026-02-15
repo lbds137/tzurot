@@ -474,6 +474,24 @@ describe('MemoryRetriever', () => {
       expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
     });
 
+    it('should return empty memories when isWeighIn is true', async () => {
+      const weighInContext: ConversationContext = {
+        userId: 'discord-user-123',
+        isWeighIn: true,
+      };
+
+      const result = await retriever.retrieveRelevantMemories(
+        mockPersonality,
+        'test query',
+        weighInContext
+      );
+
+      expect(result).toEqual({ memories: [], focusModeEnabled: false });
+      // Should NOT even resolve persona or query memories
+      expect(mockPersonaResolver.resolveForMemory).not.toHaveBeenCalled();
+      expect(mockMemoryManager.queryMemories).not.toHaveBeenCalled();
+    });
+
     it('should return empty array when focus mode is enabled', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',

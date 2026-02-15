@@ -820,6 +820,35 @@ describe('Character Chat Handler', () => {
         expect.stringContaining('I agree with the previous point.')
       );
     });
+
+    it('should set isWeighIn flag on context in weigh-in mode', async () => {
+      const mockChannel = createMockChannel();
+      const mockContext = createMockContext('test-char', null, mockChannel);
+      const personality = createMockPersonality({ id: 'personality-uuid-123' });
+
+      mockMessageContextBuilder.buildContext.mockResolvedValue(
+        createMockContextBuildResult({ conversationHistory: createMockHistory() })
+      );
+      mockPersonalityService.loadPersonality.mockResolvedValue(personality);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123', requestId: 'req-123' });
+      mockGatewayClient.pollJobUntilComplete.mockResolvedValue({
+        content: 'Weigh-in response',
+        metadata: {},
+      });
+      mockWebhookManager.sendAsPersonality.mockResolvedValue({ id: 'msg-123' });
+
+      await handleChat(mockContext, mockConfig);
+
+      // Weigh-in mode should set isWeighIn flag for ai-worker LTM skip
+      expect(mockGatewayClient.generate).toHaveBeenCalledWith(
+        personality,
+        expect.objectContaining({
+          isWeighIn: true,
+          activePersonaId: undefined,
+          activePersonaName: undefined,
+        })
+      );
+    });
   });
 
   describe('persona preferred name lookup', () => {

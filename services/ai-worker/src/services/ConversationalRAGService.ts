@@ -438,10 +438,10 @@ export class ConversationalRAGService {
         );
 
       // Step 6: Check incognito mode and handle memory storage
-      const incognitoModeActive = await redisService.isIncognitoActive(
-        context.userId,
-        personality.id
-      );
+      // Weigh-in mode reuses the incognito pipeline (skip storage, set flag on response)
+      const incognitoModeActive =
+        context.isWeighIn === true ||
+        (await redisService.isIncognitoActive(context.userId, personality.id));
 
       // Build deferred memory data for potential later storage
       let deferredMemoryData: DeferredMemoryData | undefined;
