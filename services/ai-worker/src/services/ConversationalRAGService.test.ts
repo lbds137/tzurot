@@ -377,6 +377,36 @@ describe('ConversationalRAGService', () => {
       expect(result.deferredMemoryData).toBeUndefined();
     });
 
+    it('should skip LTM storage when isWeighIn is true (weigh-in mode)', async () => {
+      const personality = createMockPersonality();
+      const context = createMockContext({ isWeighIn: true });
+
+      const result = await service.generateResponse(personality, 'Test', context);
+
+      // LTM storage should NOT have been called
+      expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
+      // Response should indicate incognito mode was active (weigh-in reuses incognito pipeline)
+      expect(result.incognitoModeActive).toBe(true);
+    });
+
+    it('should not return deferredMemoryData when isWeighIn is true', async () => {
+      getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
+        personaId: 'persona-123',
+        shareLtmAcrossPersonalities: false,
+      });
+
+      const personality = createMockPersonality();
+      const context = createMockContext({ isWeighIn: true });
+
+      const result = await service.generateResponse(personality, 'Test', context, {
+        skipMemoryStorage: true,
+      });
+
+      // Even with skipMemoryStorage, no deferredMemoryData when weigh-in
+      expect(result.deferredMemoryData).toBeUndefined();
+      expect(result.incognitoModeActive).toBe(true);
+    });
+
     it('should not return deferredMemoryData when incognito mode is active', async () => {
       const { redisService } = await import('../redis.js');
       vi.mocked(redisService.isIncognitoActive).mockResolvedValue(true);

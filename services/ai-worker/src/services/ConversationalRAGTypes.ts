@@ -52,6 +52,8 @@ export interface ConversationContext {
   userName?: string;
   userTimezone?: string;
   isProxyMessage?: boolean;
+  /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage */
+  isWeighIn?: boolean;
   activePersonaId?: string;
   activePersonaName?: string;
   discordUsername?: string;
