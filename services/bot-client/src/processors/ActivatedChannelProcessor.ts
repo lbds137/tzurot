@@ -18,6 +18,7 @@ import { PersonalityMessageHandler } from '../services/PersonalityMessageHandler
 import { VoiceMessageProcessor } from './VoiceMessageProcessor.js';
 import { shouldNotifyUser } from './notificationCache.js';
 import { getEffectiveContent } from '../utils/messageTypeUtils.js';
+import { getThreadParentId } from '../utils/discordChannelTypes.js';
 
 const logger = createLogger('ActivatedChannelProcessor');
 
@@ -32,8 +33,21 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
     const channelId = message.channelId;
     const userId = message.author.id;
 
-    // Check if this channel has an activated personality
-    const channelSettings = await this.gatewayClient.getChannelSettings(channelId);
+    // Check if this channel has an activated personality (thread-specific first, then parent)
+    let channelSettings = await this.gatewayClient.getChannelSettings(channelId);
+
+    const hasActivation =
+      channelSettings?.hasSettings === true &&
+      channelSettings?.settings?.personalitySlug !== undefined &&
+      channelSettings.settings.personalitySlug !== null;
+
+    // Fall back to parent channel for threads without their own activation
+    if (!hasActivation) {
+      const parentId = getThreadParentId(message.channel);
+      if (parentId !== null) {
+        channelSettings = await this.gatewayClient.getChannelSettings(parentId);
+      }
+    }
 
     if (
       channelSettings?.hasSettings !== true ||

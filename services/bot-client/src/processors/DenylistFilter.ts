@@ -15,6 +15,7 @@ import type { Message } from 'discord.js';
 import { createLogger, isBotOwner } from '@tzurot/common-types';
 import type { IMessageProcessor } from './IMessageProcessor.js';
 import type { DenylistCache } from '../services/DenylistCache.js';
+import { getThreadParentId } from '../utils/discordChannelTypes.js';
 
 const logger = createLogger('DenylistFilter');
 
@@ -51,11 +52,21 @@ export class DenylistFilter implements IMessageProcessor {
       return Promise.resolve(true);
     }
 
-    // Check channel-scoped user denial
+    // Check channel-scoped user denial (thread-specific first, then parent)
     if (this.denylistCache.isChannelDenied(message.author.id, message.channelId)) {
       logger.debug(
         { userId: message.author.id, channelId: message.channelId },
         '[DenylistFilter] Message from user denied in this channel'
+      );
+      return Promise.resolve(true);
+    }
+
+    // Check parent channel denial for threads (inherit BLOCK and MUTE from parent)
+    const parentId = getThreadParentId(message.channel);
+    if (parentId !== null && this.denylistCache.isChannelDenied(message.author.id, parentId)) {
+      logger.debug(
+        { userId: message.author.id, channelId: message.channelId, parentChannelId: parentId },
+        '[DenylistFilter] Message from user denied in parent channel (inherited by thread)'
       );
       return Promise.resolve(true);
     }

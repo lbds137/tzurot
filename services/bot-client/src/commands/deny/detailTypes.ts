@@ -74,27 +74,27 @@ export function buildDetailButtons(
   return [
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`deny::mode::${entryId}`)
-        .setLabel(toggleLabel)
-        .setEmoji(toggleEmoji)
-        .setStyle(ButtonStyle.Primary),
-      new ButtonBuilder()
         .setCustomId(`deny::edit::${entryId}`)
         .setLabel('Edit')
         .setEmoji('\u270F\uFE0F')
+        .setStyle(ButtonStyle.Primary),
+      new ButtonBuilder()
+        .setCustomId(`deny::mode::${entryId}`)
+        .setLabel(toggleLabel)
+        .setEmoji(toggleEmoji)
         .setStyle(ButtonStyle.Secondary)
     ),
     new ActionRowBuilder<ButtonBuilder>().addComponents(
       new ButtonBuilder()
-        .setCustomId(`deny::del::${entryId}`)
-        .setLabel('Delete')
-        .setEmoji('\u{1F5D1}\uFE0F')
-        .setStyle(ButtonStyle.Danger),
-      new ButtonBuilder()
         .setCustomId(`deny::back::${entryId}`)
         .setLabel('Back to Browse')
         .setEmoji('\u25C0\uFE0F')
-        .setStyle(ButtonStyle.Secondary)
+        .setStyle(ButtonStyle.Secondary),
+      new ButtonBuilder()
+        .setCustomId(`deny::del::${entryId}`)
+        .setLabel('Delete')
+        .setEmoji('\u{1F5D1}\uFE0F')
+        .setStyle(ButtonStyle.Danger)
     ),
   ];
 }

@@ -54,6 +54,19 @@ export function getThreadParent(channel: Channel | null): AnyThreadChannel['pare
 }
 
 /**
+ * Get the parent channel ID of a thread.
+ * Returns the parentId string for thread channels, null for non-threads.
+ * Uses parentId (always available as a string snowflake) instead of parent
+ * (which may not be cached and requires an API fetch).
+ */
+export function getThreadParentId(channel: Channel | null): string | null {
+  if (!isThreadChannel(channel)) {
+    return null;
+  }
+  return channel.parentId;
+}
+
+/**
  * Check if a channel is a text-based channel that supports message operations
  * Includes: DM, GuildText, GuildNews, and all thread types
  */

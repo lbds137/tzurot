@@ -83,33 +83,33 @@ describe('buildDetailButtons', () => {
     const rows = buildDetailButtons('entry-123', 'BLOCK');
 
     expect(rows).toHaveLength(2);
-    // First row has toggle + edit
+    // First row: Edit (Primary) + Mode Toggle
     const row1 = rows[0].toJSON().components as APIButtonComponentWithCustomId[];
-    expect(row1[0].label).toBe('Switch to Mute');
-    expect(row1[1].label).toBe('Edit');
+    expect(row1[0].label).toBe('Edit');
+    expect(row1[1].label).toBe('Switch to Mute');
 
-    // Second row has delete + back
+    // Second row: Back + Delete (Danger always last)
     const row2 = rows[1].toJSON().components as APIButtonComponentWithCustomId[];
-    expect(row2[0].label).toBe('Delete');
-    expect(row2[1].label).toBe('Back to Browse');
+    expect(row2[0].label).toBe('Back to Browse');
+    expect(row2[1].label).toBe('Delete');
   });
 
   it('should build buttons for MUTE mode', () => {
     const rows = buildDetailButtons('entry-123', 'MUTE');
 
     const row1 = rows[0].toJSON().components as APIButtonComponentWithCustomId[];
-    expect(row1[0].label).toBe('Switch to Block');
+    expect(row1[1].label).toBe('Switch to Block');
   });
 
   it('should include entry ID in custom IDs', () => {
     const rows = buildDetailButtons('entry-123', 'BLOCK');
 
     const row1 = rows[0].toJSON().components as APIButtonComponentWithCustomId[];
-    expect(row1[0].custom_id).toBe('deny::mode::entry-123');
-    expect(row1[1].custom_id).toBe('deny::edit::entry-123');
+    expect(row1[0].custom_id).toBe('deny::edit::entry-123');
+    expect(row1[1].custom_id).toBe('deny::mode::entry-123');
 
     const row2 = rows[1].toJSON().components as APIButtonComponentWithCustomId[];
-    expect(row2[0].custom_id).toBe('deny::del::entry-123');
-    expect(row2[1].custom_id).toBe('deny::back::entry-123');
+    expect(row2[0].custom_id).toBe('deny::back::entry-123');
+    expect(row2[1].custom_id).toBe('deny::del::entry-123');
   });
 });
