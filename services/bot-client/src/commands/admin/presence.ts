@@ -26,6 +26,7 @@ const ACTIVITY_LABELS: Record<number, string> = {
   [ActivityType.Playing]: 'Playing',
   [ActivityType.Listening]: 'Listening to',
   [ActivityType.Watching]: 'Watching',
+  [ActivityType.Custom]: 'Custom Status',
   [ActivityType.Competing]: 'Competing in',
 };
 
@@ -71,6 +72,17 @@ async function showCurrentPresence(context: DeferredCommandContext): Promise<voi
   }
 }
 
+/** Apply a presence to the Discord client. Custom status uses `state` instead of `name`. */
+function applyPresence(client: Client, type: ActivityType, text: string): void {
+  if (type === ActivityType.Custom) {
+    client.user?.setPresence({
+      activities: [{ type: ActivityType.Custom, name: 'Custom Status', state: text }],
+    });
+  } else {
+    client.user?.setActivity(text, { type });
+  }
+}
+
 async function setPresence(
   context: DeferredCommandContext,
   type: ActivityType,
@@ -81,7 +93,7 @@ async function setPresence(
 
   try {
     await redis.set(REDIS_KEY, JSON.stringify(data));
-    client.user?.setActivity(text, { type });
+    applyPresence(client, type, text);
 
     const label = ACTIVITY_LABELS[type] ?? 'Unknown';
     await context.editReply({ content: `✅ Presence set: **${label}** ${text}` });
@@ -136,7 +148,7 @@ export async function restoreBotPresence(client: Client): Promise<void> {
     return;
   }
 
-  client.user?.setActivity(data.text, { type: data.type });
+  applyPresence(client, data.type, data.text);
 
   const label = ACTIVITY_LABELS[data.type] ?? 'Unknown';
   logger.info({ type: data.type, text: data.text }, `[Presence] Restored: ${label} ${data.text}`);
