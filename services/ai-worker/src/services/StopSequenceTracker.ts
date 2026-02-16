@@ -1,18 +1,28 @@
 /**
  * Stop Sequence Tracker
  *
- * Tracks stop sequence activations in memory for diagnostics.
+ * Tracks stop sequence activations in memory and Redis for diagnostics.
  * Helps validate which stop sequences are actually useful vs unnecessary.
  *
  * Features:
  * - In-memory scoreboard (counts since last restart)
+ * - Redis persistence (survives restarts, readable by gateway)
  * - Structured logging for Railway log search
  * - Stats endpoint for admin commands
  */
 
 import { createLogger } from '@tzurot/common-types';
+import type { Redis } from 'ioredis';
 
 const logger = createLogger('StopSequenceTracker');
+
+/** Redis key prefix for stop sequence stats */
+const REDIS_KEYS = {
+  TOTAL: 'stop_seq:total',
+  BY_SEQUENCE: 'stop_seq:by_sequence',
+  BY_MODEL: 'stop_seq:by_model',
+  STARTED_AT: 'stop_seq:started_at',
+} as const;
 
 interface StopSequenceStats {
   /** Total activations since restart */
@@ -33,6 +43,21 @@ const stats: StopSequenceStats = {
   startedAt: new Date(),
 };
 
+// Optional Redis client for cross-service persistence
+let redisClient: Redis | undefined;
+
+/**
+ * Initialize Redis persistence for stop sequence stats.
+ * Call once at startup with the cache Redis client.
+ */
+export function initStopSequenceRedis(client: Redis): void {
+  redisClient = client;
+  // Set started_at only if not already set (preserves across restarts)
+  client.setnx(REDIS_KEYS.STARTED_AT, new Date().toISOString()).catch(err => {
+    logger.warn({ err }, '[StopSequenceTracker] Failed to set started_at in Redis');
+  });
+}
+
 /**
  * Record a stop sequence activation.
  * Call this when a stop sequence triggers during LLM generation.
@@ -50,6 +75,17 @@ export function recordStopSequenceActivation(
   stats.totalActivations++;
   stats.bySequence.set(sequence, (stats.bySequence.get(sequence) ?? 0) + 1);
   stats.byModel.set(modelName, (stats.byModel.get(modelName) ?? 0) + 1);
+
+  // Persist to Redis (fire-and-forget)
+  if (redisClient !== undefined) {
+    const pipeline = redisClient.pipeline();
+    pipeline.incr(REDIS_KEYS.TOTAL);
+    pipeline.hincrby(REDIS_KEYS.BY_SEQUENCE, sequence, 1);
+    pipeline.hincrby(REDIS_KEYS.BY_MODEL, modelName, 1);
+    pipeline.exec().catch(err => {
+      logger.warn({ err }, '[StopSequenceTracker] Failed to persist stats to Redis');
+    });
+  }
 
   // Log with structured JSON for Railway log search
   // Search with: json.event="stop_sequence_triggered"
@@ -94,4 +130,16 @@ export function resetStopSequenceStats(): void {
   stats.bySequence.clear();
   stats.byModel.clear();
   stats.startedAt = new Date();
+
+  // Also clear Redis keys if available
+  if (redisClient !== undefined) {
+    redisClient
+      .del(REDIS_KEYS.TOTAL, REDIS_KEYS.BY_SEQUENCE, REDIS_KEYS.BY_MODEL, REDIS_KEYS.STARTED_AT)
+      .catch(err => {
+        logger.warn({ err }, '[StopSequenceTracker] Failed to clear Redis stats');
+      });
+  }
 }
+
+/** Exported for testing */
+export { REDIS_KEYS as STOP_SEQUENCE_REDIS_KEYS };

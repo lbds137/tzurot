@@ -7,7 +7,10 @@ import {
   recordStopSequenceActivation,
   getStopSequenceStats,
   resetStopSequenceStats,
+  initStopSequenceRedis,
+  STOP_SEQUENCE_REDIS_KEYS,
 } from './StopSequenceTracker.js';
+import type { Redis } from 'ioredis';
 
 // Mock the logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -22,6 +25,23 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     }),
   };
 });
+
+/** Create a mock Redis client with pipeline support */
+function createMockRedis() {
+  const pipelineExec = vi.fn().mockResolvedValue([]);
+  const pipelineMethods = {
+    incr: vi.fn().mockReturnThis(),
+    hincrby: vi.fn().mockReturnThis(),
+    exec: pipelineExec,
+  };
+  const mockRedis = {
+    setnx: vi.fn().mockResolvedValue(1),
+    del: vi.fn().mockResolvedValue(1),
+    pipeline: vi.fn().mockReturnValue(pipelineMethods),
+  } as unknown as Redis;
+
+  return { mockRedis, pipelineMethods, pipelineExec };
+}
 
 describe('StopSequenceTracker', () => {
   beforeEach(() => {
@@ -113,6 +133,63 @@ describe('StopSequenceTracker', () => {
       expect(new Date(afterReset).getTime()).toBeGreaterThanOrEqual(
         new Date(beforeReset).getTime()
       );
+    });
+  });
+
+  describe('Redis persistence', () => {
+    it('should call setnx for started_at on init', () => {
+      const { mockRedis } = createMockRedis();
+
+      initStopSequenceRedis(mockRedis);
+
+      expect(mockRedis.setnx).toHaveBeenCalledWith(
+        STOP_SEQUENCE_REDIS_KEYS.STARTED_AT,
+        expect.any(String)
+      );
+    });
+
+    it('should persist activations to Redis via pipeline', () => {
+      const { mockRedis, pipelineMethods } = createMockRedis();
+      initStopSequenceRedis(mockRedis);
+
+      recordStopSequenceActivation('\nUser:', 'gpt-4');
+
+      expect(mockRedis.pipeline).toHaveBeenCalled();
+      expect(pipelineMethods.incr).toHaveBeenCalledWith(STOP_SEQUENCE_REDIS_KEYS.TOTAL);
+      expect(pipelineMethods.hincrby).toHaveBeenCalledWith(
+        STOP_SEQUENCE_REDIS_KEYS.BY_SEQUENCE,
+        '\nUser:',
+        1
+      );
+      expect(pipelineMethods.hincrby).toHaveBeenCalledWith(
+        STOP_SEQUENCE_REDIS_KEYS.BY_MODEL,
+        'gpt-4',
+        1
+      );
+      expect(pipelineMethods.exec).toHaveBeenCalled();
+    });
+
+    it('should clear Redis keys on reset', () => {
+      const { mockRedis } = createMockRedis();
+      initStopSequenceRedis(mockRedis);
+
+      resetStopSequenceStats();
+
+      expect(mockRedis.del).toHaveBeenCalledWith(
+        STOP_SEQUENCE_REDIS_KEYS.TOTAL,
+        STOP_SEQUENCE_REDIS_KEYS.BY_SEQUENCE,
+        STOP_SEQUENCE_REDIS_KEYS.BY_MODEL,
+        STOP_SEQUENCE_REDIS_KEYS.STARTED_AT
+      );
+    });
+
+    it('should handle Redis pipeline errors gracefully', () => {
+      const { mockRedis, pipelineMethods } = createMockRedis();
+      pipelineMethods.exec.mockRejectedValue(new Error('Redis down'));
+      initStopSequenceRedis(mockRedis);
+
+      // Should not throw
+      expect(() => recordStopSequenceActivation('\nUser:', 'gpt-4')).not.toThrow();
     });
   });
 });

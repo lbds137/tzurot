@@ -150,6 +150,81 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "options": [],
     "type": 1,
   },
+  {
+    "description": "View stop sequence activation statistics",
+    "description_localizations": undefined,
+    "name": "stop-sequences",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Check bot health and connected services",
+    "description_localizations": undefined,
+    "name": "health",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Set or view the bot presence (activity status)",
+    "description_localizations": undefined,
+    "name": "presence",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "Playing",
+            "name_localizations": undefined,
+            "value": 0,
+          },
+          {
+            "name": "Listening to",
+            "name_localizations": undefined,
+            "value": 2,
+          },
+          {
+            "name": "Watching",
+            "name_localizations": undefined,
+            "value": 3,
+          },
+          {
+            "name": "Competing in",
+            "name_localizations": undefined,
+            "value": 5,
+          },
+          {
+            "name": "None (clear)",
+            "name_localizations": undefined,
+            "value": 99,
+          },
+        ],
+        "description": "Activity type",
+        "description_localizations": undefined,
+        "max_value": undefined,
+        "min_value": undefined,
+        "name": "type",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 4,
+      },
+      {
+        "autocomplete": undefined,
+        "choices": undefined,
+        "description": "Activity text (e.g., "with fire")",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "text",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
 ]
 `;
 
