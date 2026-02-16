@@ -134,6 +134,12 @@ export function createDenylistRoutes(
     '/cache',
     asyncHandler(async (_req: Request, res: Response) => {
       const entries = await prisma.denylistedEntity.findMany({ take: CACHE_HYDRATION_MAX_ENTRIES });
+      if (entries.length >= CACHE_HYDRATION_MAX_ENTRIES) {
+        logger.warn(
+          { count: entries.length, limit: CACHE_HYDRATION_MAX_ENTRIES },
+          '[Denylist] Cache hydration hit max entry limit — some entries may not be cached'
+        );
+      }
       sendCustomSuccess(res, { entries });
     })
   );

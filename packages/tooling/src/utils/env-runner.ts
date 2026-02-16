@@ -12,6 +12,16 @@ import chalk from 'chalk';
 
 export type Environment = 'local' | 'dev' | 'prod';
 
+const VALID_ENVIRONMENTS = new Set<string>(['local', 'dev', 'prod']);
+
+/**
+ * Check if a string is a valid Environment value.
+ * Used for early runtime validation since CAC passes raw user input.
+ */
+export function isValidEnvironment(env: string): env is Environment {
+  return VALID_ENVIRONMENTS.has(env);
+}
+
 /**
  * npm_config_* vars that npx needs to function correctly.
  * All others (injected by pnpm) are stripped to suppress
@@ -226,11 +236,20 @@ export async function runPrismaCommand(
 }
 
 /**
- * Validate environment before running database operations
+ * Validate environment before running database operations.
  *
- * If DATABASE_URL is not set and env is 'local', suggests using --env dev instead.
+ * Checks:
+ * 1. The env string is a valid value (CAC passes raw user input)
+ * 2. For 'local': DATABASE_URL is set
+ * 3. For 'dev'/'prod': Railway CLI is authenticated
  */
-export function validateEnvironment(env: Environment): void {
+export function validateEnvironment(env: string): void {
+  if (!isValidEnvironment(env)) {
+    console.error(chalk.red(`❌ Invalid environment: "${String(env)}"`));
+    console.error(chalk.dim(`   Valid values: ${[...VALID_ENVIRONMENTS].join(', ')}`));
+    process.exit(1);
+  }
+
   if (env === 'local') {
     if (!process.env.DATABASE_URL) {
       console.error(chalk.yellow('⚠️  DATABASE_URL not set in .env'));
@@ -250,7 +269,8 @@ export function validateEnvironment(env: Environment): void {
 }
 
 /**
- * Display environment info banner
+ * Display environment info banner.
+ * Validates the environment string at runtime (CAC passes raw user input).
  */
 export function showEnvironmentBanner(env: Environment): void {
   const envColors: Record<Environment, typeof chalk.green> = {

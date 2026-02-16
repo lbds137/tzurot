@@ -64,7 +64,8 @@ export async function showDetailView(
     guildId: string | null;
   },
   entry: DenylistEntryResponse,
-  browseContext: { page: number; filter: string; sort: string }
+  browseContext: { page: number; filter: string; sort: string },
+  content?: string
 ): Promise<void> {
   const sessionData: DenyDetailSession = {
     id: entry.id,
@@ -90,6 +91,7 @@ export async function showDetailView(
   });
 
   await interaction.editReply({
+    content: content ?? '',
     embeds: [buildDetailEmbed(entry)],
     components: buildDetailButtons(entry.id, entry.mode),
   });
