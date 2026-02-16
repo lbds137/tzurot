@@ -10,6 +10,7 @@
  * - /deny add — Add a denial entry
  * - /deny remove — Remove a denial entry
  * - /deny browse — Browse denial entries with pagination (owner only)
+ * - /deny view — Look up denylist entries by Discord ID (owner only)
  */
 
 import { ChannelType, SlashCommandBuilder } from 'discord.js';
@@ -29,6 +30,7 @@ import { createSubcommandContextRouter } from '../../utils/subcommandContextRout
 import { handlePersonalityAutocomplete } from '../../utils/autocomplete/index.js';
 import { handleAdd } from './add.js';
 import { handleRemove } from './remove.js';
+import { handleView } from './view.js';
 import {
   handleBrowse,
   handleBrowsePagination,
@@ -45,6 +47,7 @@ const denyRouter = createSubcommandContextRouter(
     add: handleAdd,
     remove: handleRemove,
     browse: handleBrowse,
+    view: handleView,
   },
   { logger, logPrefix: '[Deny]' }
 );
@@ -97,6 +100,8 @@ const MODE_CHOICES: { name: string; value: string }[] = [
   { name: 'Mute (ignore but keep in context)', value: 'MUTE' },
 ];
 
+const TARGET_DESCRIPTION = 'Discord user or server ID';
+
 const FILTER_CHOICES: { name: string; value: string }[] = [
   { name: 'All Types', value: 'all' },
   { name: 'Users Only', value: 'user' },
@@ -113,7 +118,7 @@ export default defineCommand({
         .setName('add')
         .setDescription('Deny a user or server')
         .addStringOption(opt =>
-          opt.setName('target').setDescription('Discord user or server ID').setRequired(true)
+          opt.setName('target').setDescription(TARGET_DESCRIPTION).setRequired(true)
         )
         .addStringOption(opt =>
           opt
@@ -159,7 +164,7 @@ export default defineCommand({
         .setName('remove')
         .setDescription('Remove a denial')
         .addStringOption(opt =>
-          opt.setName('target').setDescription('Discord user or server ID').setRequired(true)
+          opt.setName('target').setDescription(TARGET_DESCRIPTION).setRequired(true)
         )
         .addStringOption(opt =>
           opt
@@ -200,6 +205,21 @@ export default defineCommand({
             .setDescription('Filter by entity type')
             .setRequired(false)
             .addChoices(...FILTER_CHOICES)
+        )
+    )
+    .addSubcommand(sub =>
+      sub
+        .setName('view')
+        .setDescription('Look up denial entries by Discord ID (owner only)')
+        .addStringOption(opt =>
+          opt.setName('target').setDescription(TARGET_DESCRIPTION).setRequired(true)
+        )
+        .addStringOption(opt =>
+          opt
+            .setName('type')
+            .setDescription('Entity type filter')
+            .setRequired(false)
+            .addChoices(...TYPE_CHOICES)
         )
     ),
   execute,
