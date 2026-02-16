@@ -134,7 +134,7 @@ function createStatusHandler(prisma: PrismaClient) {
     });
 
     if (user === null) {
-      sendCustomSuccess(res, { authenticated: false });
+      sendCustomSuccess(res, { hasCredentials: false, service: CREDENTIAL_SERVICES.SHAPES_INC });
       return;
     }
 
@@ -144,12 +144,13 @@ function createStatusHandler(prisma: PrismaClient) {
     });
 
     if (credential === null) {
-      sendCustomSuccess(res, { authenticated: false });
+      sendCustomSuccess(res, { hasCredentials: false, service: CREDENTIAL_SERVICES.SHAPES_INC });
       return;
     }
 
     sendCustomSuccess(res, {
-      authenticated: true,
+      hasCredentials: true,
+      service: CREDENTIAL_SERVICES.SHAPES_INC,
       storedAt: credential.createdAt.toISOString(),
       lastUsedAt: credential.lastUsedAt?.toISOString() ?? null,
       expiresAt: credential.expiresAt?.toISOString() ?? null,
