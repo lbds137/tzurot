@@ -50,6 +50,22 @@ import { extractXmlTextContent } from '../utils/xmlTextExtractor.js';
 const clean = extractXmlTextContent(xmlString);
 ```
 
+### Server-Side Request Forgery (SSRF) Prevention
+
+**Never interpolate user-provided values into URLs without `encodeURIComponent()`.** CodeQL flags this as "Server-side request forgery." Slugs, IDs, and any value from request bodies or API responses can contain path traversal (`../`), query injection (`?`), or fragment manipulation (`#`).
+
+```typescript
+// ❌ WRONG - SSRF vulnerability (CodeQL critical)
+const url = `${BASE_URL}/api/resource/${slug}`;
+const url = `${BASE_URL}/api/resource/${apiResponseId}/details`;
+
+// ✅ CORRECT - Encode all dynamic path segments
+const url = `${BASE_URL}/api/resource/${encodeURIComponent(slug)}`;
+const url = `${BASE_URL}/api/resource/${encodeURIComponent(apiResponseId)}/details`;
+```
+
+**Applies to ALL dynamic URL segments**, including values from trusted API responses (defense in depth).
+
 ### Logging (No PII)
 
 ```typescript
