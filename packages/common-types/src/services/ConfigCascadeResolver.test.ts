@@ -122,7 +122,6 @@ describe('ConfigCascadeResolver', () => {
         personalityConfigs: [
           {
             configOverrides: { maxMessages: 10, focusModeEnabled: true },
-            focusModeEnabled: false,
           },
         ],
       });
@@ -136,43 +135,6 @@ describe('ConfigCascadeResolver', () => {
       // Admin memoryLimit persists (not overridden by higher tiers)
       expect(result.memoryLimit).toBe(30);
       expect(result.sources.memoryLimit).toBe('admin');
-    });
-
-    it('should handle legacy focusModeEnabled column', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
-        id: 'internal-id',
-        configDefaults: null,
-        personalityConfigs: [
-          {
-            configOverrides: null,
-            focusModeEnabled: true,
-          },
-        ],
-      });
-
-      const result = await resolver.resolveOverrides('user-123', 'personality-456');
-
-      expect(result.focusModeEnabled).toBe(true);
-      expect(result.sources.focusModeEnabled).toBe('user-personality');
-    });
-
-    it('should prefer JSONB focusModeEnabled over legacy column', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({
-        id: 'internal-id',
-        configDefaults: null,
-        personalityConfigs: [
-          {
-            configOverrides: { focusModeEnabled: false },
-            focusModeEnabled: true, // Legacy column says true, but JSONB says false
-          },
-        ],
-      });
-
-      const result = await resolver.resolveOverrides('user-123', 'personality-456');
-
-      // JSONB overrides legacy column
-      expect(result.focusModeEnabled).toBe(false);
-      expect(result.sources.focusModeEnabled).toBe('user-personality');
     });
 
     it('should skip invalid JSONB with warning', async () => {

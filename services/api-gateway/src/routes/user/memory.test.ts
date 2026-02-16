@@ -122,7 +122,7 @@ describe('/user/memory routes', () => {
 
     mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
       personaId: TEST_PERSONA_ID,
-      focusModeEnabled: false,
+      configOverrides: null,
     });
 
     mockPrisma.userPersonalityConfig.upsert.mockResolvedValue({});
@@ -261,7 +261,7 @@ describe('/user/memory routes', () => {
     it('should return focusModeEnabled true when enabled', async () => {
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
         personaId: TEST_PERSONA_ID,
-        focusModeEnabled: true,
+        configOverrides: { focusModeEnabled: true },
       });
 
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
@@ -326,7 +326,7 @@ describe('/user/memory routes', () => {
 
     it('should return focusModeEnabled true when enabled', async () => {
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        focusModeEnabled: true,
+        configOverrides: { focusModeEnabled: true },
       });
 
       const router = createMemoryRoutes(mockPrisma as unknown as PrismaClient);
@@ -419,7 +419,7 @@ describe('/user/memory routes', () => {
       expect(res.status).toHaveBeenCalledWith(404);
     });
 
-    it('should enable focus mode with dual-write to column and configOverrides JSONB', async () => {
+    it('should enable focus mode by writing to configOverrides JSONB', async () => {
       // No existing UPC record
       mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue(null);
 
@@ -435,17 +435,15 @@ describe('/user/memory routes', () => {
       // Should read existing configOverrides before writing
       expect(mockPrisma.userPersonalityConfig.findUnique).toHaveBeenCalled();
 
-      // Should dual-write: column + JSONB
+      // Should write JSONB only (no column dual-write)
       expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           update: {
-            focusModeEnabled: true,
             configOverrides: { focusModeEnabled: true },
           },
           create: expect.objectContaining({
             userId: TEST_USER_ID,
             personalityId: TEST_PERSONALITY_ID,
-            focusModeEnabled: true,
             configOverrides: { focusModeEnabled: true },
           }),
         })
@@ -481,11 +479,9 @@ describe('/user/memory routes', () => {
       expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           update: {
-            focusModeEnabled: false,
             configOverrides: { maxMessages: 30 },
           },
           create: expect.objectContaining({
-            focusModeEnabled: false,
             configOverrides: { maxMessages: 30 },
           }),
         })
@@ -518,7 +514,6 @@ describe('/user/memory routes', () => {
       expect(mockPrisma.userPersonalityConfig.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           update: {
-            focusModeEnabled: true,
             configOverrides: { maxMessages: 25, maxImages: 5, focusModeEnabled: true },
           },
         })
