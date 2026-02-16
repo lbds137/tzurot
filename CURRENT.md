@@ -7,11 +7,11 @@
 
 ## Session Goal
 
-_Shapes.inc character backup & import planning + housekeeping._
+_Shapes.inc character backup & import — API research, plan finalization, implementation._
 
 ## Active Task
 
-Shapes.inc implementation **blocked** — waiting for real API data in `debug/shapes/`.
+Shapes.inc import plan **finalized** — API data fetched, field mappings confirmed, design decisions made. Documentation committed to develop. Ready to begin implementation on feature branch.
 
 ---
 
@@ -21,13 +21,16 @@ Shapes.inc implementation **blocked** — waiting for real API data in `debug/sh
 - [x] 🐛 **GLM 4.5 Air Bug Triage** — Model uses `<think>` as roleplay formatting without closing tag; `UNCLOSED_TAG_PATTERN` consumes all content as thinking, leaving visible content empty. Added to backlog inbox with fix options.
 - [x] 🧹 **Doc Cleanup** — Deleted completed proposals (V2_FEATURE_TRACKING, timeout-architecture-refactor, whisper-transcript-cleanup, ltm-context-separation). Moved config-cascade-design to backlog (Phase 1 done, Phases 2-5 future). Added superseded note to old shapes.inc design doc.
 - [x] 🧹 **Debug Folder Cleanup** — Removed 10 stale debug files (~564KB). Kept GLM bug reference and recent diagnostic.
-- [x] 🧹 **Backlog Updates** — Added GLM 4.5 Air bug to inbox, Personality Aliases to icebox (with v2 feature documentation), Prompt Caching to icebox, shapes.inc import plan to references.
+- [x] 🧹 **Backlog Updates** — Added GLM 4.5 Air bug to inbox, Personality Aliases to icebox, Prompt Caching to icebox, shapes.inc import plan to references.
+- [x] ✨ **Shapes.inc API Research** — Fetched real data from all 7 API endpoints using session cookie. Saved configs, memories, stories, user personas for Lilith (2,267 memories) and Cerridwen (10 memories) to `debug/shapes/`. Discovered split cookie format, username-based lookup, memory pagination.
+- [x] ✨ **Field Mapping Validation** — Confirmed existing `PersonalityMapper.ts` handles most fields correctly. Documented unmapped fields (all null in tested shapes). Resolved sidecar prompt → customFields storage, knowledge → `type` column on memories.
+- [x] 📝 **Plan Finalization** — Updated proposal with API findings, confirmed field mappings, cookie handling notes, knowledge/sidecar design decisions. Updated BACKLOG.md with refined shapes.inc import and User System Prompts entries.
 
-## Next Session
+## Next Steps
 
-- Shapes.inc implementation Phase 1 (once real API data available)
-- CPD (copy-paste detection) cleanup — tackle the 149 clones
-- Slash Command UX Audit from backlog
+1. Create feature branch `feat/shapes-import`
+2. Begin Phase 1: Schema + Credential Management
+3. Run `pnpm quality` after Phase 1
 
 ## Recent Highlights
 
