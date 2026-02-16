@@ -27,6 +27,7 @@ import { createCleanupRoute } from './cleanup.js';
 import { createAdminSettingsRoutes } from './settings.js';
 import { createDiagnosticRoutes } from './diagnostic.js';
 import { createDenylistRoutes } from './denylist.js';
+import { createStopSequenceRoutes } from './stopSequences.js';
 
 interface AdminRouterOptions {
   prisma: PrismaClient;
@@ -90,6 +91,11 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
   // Denylist management endpoints (user/guild blocking)
   if (denylistInvalidation !== undefined) {
     router.use('/denylist', createDenylistRoutes(prisma, denylistInvalidation, redis));
+  }
+
+  // Stop sequence activation stats (read from Redis, written by ai-worker)
+  if (redis !== undefined) {
+    router.use('/stop-sequences', createStopSequenceRoutes(redis));
   }
 
   return router;
