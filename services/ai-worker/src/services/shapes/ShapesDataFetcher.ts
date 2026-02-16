@@ -13,6 +13,8 @@
 
 import {
   createLogger,
+  SHAPES_BASE_URL,
+  SHAPES_USER_AGENT,
   type ShapesIncPersonalityConfig,
   type ShapesIncMemory,
   type ShapesIncStory,
@@ -21,8 +23,6 @@ import {
 } from '@tzurot/common-types';
 
 const logger = createLogger('ShapesDataFetcher');
-
-const SHAPES_BASE_URL = 'https://shapes.inc';
 const REQUEST_TIMEOUT_MS = 30_000;
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
@@ -280,7 +280,7 @@ export class ShapesDataFetcher {
       const response = await fetch(url, {
         headers: {
           Cookie: this.currentCookie,
-          'User-Agent': 'Mozilla/5.0 (compatible; Tzurot/3.0)',
+          'User-Agent': SHAPES_USER_AGENT,
           Accept: 'application/json',
         },
         signal: controller.signal,
