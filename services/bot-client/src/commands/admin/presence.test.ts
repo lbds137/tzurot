@@ -131,6 +131,25 @@ describe('handlePresence', () => {
     });
   });
 
+  it('should set Custom status with state field', async () => {
+    const context = createMockContext({ type: ActivityType.Custom, text: 'feeling great' });
+    await handlePresence(context);
+
+    expect(mockRedisSet).toHaveBeenCalledWith(
+      'bot:presence',
+      JSON.stringify({ type: ActivityType.Custom, text: 'feeling great' })
+    );
+    const client = context.interaction.client;
+    expect(client.user?.setPresence).toHaveBeenCalledWith({
+      activities: [{ type: ActivityType.Custom, name: 'Custom Status', state: 'feeling great' }],
+    });
+    // Should NOT call setActivity for Custom type
+    expect(client.user?.setActivity).not.toHaveBeenCalled();
+    expect(context.editReply).toHaveBeenCalledWith({
+      content: expect.stringContaining('Custom Status'),
+    });
+  });
+
   it('should require text when type is provided', async () => {
     const context = createMockContext({ type: ActivityType.Playing });
     await handlePresence(context);
@@ -160,10 +179,11 @@ describe('restoreBotPresence', () => {
     mockRedisGet.mockResolvedValue(null);
   });
 
-  it('should restore presence from Redis on startup', async () => {
+  it('should restore standard presence from Redis on startup', async () => {
     const mockSetActivity = vi.fn();
+    const mockSetPresence = vi.fn();
     const client = {
-      user: { setActivity: mockSetActivity },
+      user: { setActivity: mockSetActivity, setPresence: mockSetPresence },
     } as unknown as Client;
 
     mockRedisGet.mockResolvedValue(JSON.stringify({ type: ActivityType.Listening, text: 'music' }));
@@ -173,10 +193,27 @@ describe('restoreBotPresence', () => {
     expect(mockSetActivity).toHaveBeenCalledWith('music', { type: ActivityType.Listening });
   });
 
+  it('should restore Custom status from Redis on startup', async () => {
+    const mockSetActivity = vi.fn();
+    const mockSetPresence = vi.fn();
+    const client = {
+      user: { setActivity: mockSetActivity, setPresence: mockSetPresence },
+    } as unknown as Client;
+
+    mockRedisGet.mockResolvedValue(JSON.stringify({ type: ActivityType.Custom, text: 'vibing' }));
+
+    await restoreBotPresence(client);
+
+    expect(mockSetPresence).toHaveBeenCalledWith({
+      activities: [{ type: ActivityType.Custom, name: 'Custom Status', state: 'vibing' }],
+    });
+    expect(mockSetActivity).not.toHaveBeenCalled();
+  });
+
   it('should do nothing when no presence is stored', async () => {
     const mockSetActivity = vi.fn();
     const client = {
-      user: { setActivity: mockSetActivity },
+      user: { setActivity: mockSetActivity, setPresence: vi.fn() },
     } as unknown as Client;
 
     await restoreBotPresence(client);
@@ -187,7 +224,7 @@ describe('restoreBotPresence', () => {
   it('should handle malformed JSON in Redis gracefully', async () => {
     const mockSetActivity = vi.fn();
     const client = {
-      user: { setActivity: mockSetActivity },
+      user: { setActivity: mockSetActivity, setPresence: vi.fn() },
     } as unknown as Client;
 
     mockRedisGet.mockResolvedValue('not valid json{{{');
@@ -200,7 +237,7 @@ describe('restoreBotPresence', () => {
   it('should handle invalid shape in Redis gracefully', async () => {
     const mockSetActivity = vi.fn();
     const client = {
-      user: { setActivity: mockSetActivity },
+      user: { setActivity: mockSetActivity, setPresence: vi.fn() },
     } as unknown as Client;
 
     mockRedisGet.mockResolvedValue(JSON.stringify({ wrong: 'shape' }));
