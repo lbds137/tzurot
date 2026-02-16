@@ -26,6 +26,7 @@ const logger = createLogger('ShapesDataFetcher');
 const REQUEST_TIMEOUT_MS = 30_000;
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
+const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
 
 // ============================================================================
 // Error Types
@@ -180,7 +181,7 @@ export class ShapesDataFetcher {
     let page = 1;
     let hasNext = true;
 
-    while (hasNext) {
+    while (hasNext && page <= MAX_MEMORY_PAGES) {
       const url = `${SHAPES_BASE_URL}/api/memory/${encodeURIComponent(shapeId)}?page=${page}&limit=${MEMORIES_PER_PAGE}`;
 
       let response: PaginatedMemoryResponse;
