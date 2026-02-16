@@ -182,14 +182,15 @@ Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibi
 - [ ] Map character card fields to v3 personality schema
 - [ ] `/character import` support for PNG files
 
-#### 🏗️ Shapes.inc Import
+#### ✨ Shapes.inc Import (Ready for Implementation)
 
-Migration path from v2. Legacy data migration.
+Full automated import from shapes.inc via `/shapes` command group. API endpoints confirmed, field mappings validated against real data. See `docs/proposals/active/shapes-inc-import-plan.md`.
 
-- [ ] Parse shapes.inc backup JSON format
-- [ ] Import wizard slash command (`/character import --source shapes`)
-- [ ] Map shapes.inc fields to v3 personality schema
-- [ ] Handle avatar migration
+- [ ] Phase 1: Schema (UserCredential, ImportJob tables + `type` column on memories) + `/shapes auth|logout`
+- [ ] Phase 2: Data fetcher service (TypeScript, split cookie handling, username lookup, memory pagination)
+- [ ] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
+- [ ] Phase 4: `/shapes import|export|status` slash commands
+- [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
 
 ---
 
@@ -206,12 +207,14 @@ Allow multiple personalities active in a single channel.
 - [ ] Handle @mentions when multiple personalities present
 - [ ] `/channel add-personality` and `/channel remove-personality` commands
 
-#### ✨ User System Prompts
+#### ✨ User System Prompts (Sidecar Prompts)
 
-"Sidecar prompt" appended to system message per-user.
+Per-user text injected into the system message, shaping how characters interact with that specific user. Shapes.inc calls this "user personalization" — a freeform backstory (~3KB) the user writes about themselves per character. During shapes.inc import, this data is preserved in `customFields.sidecarPrompt` JSONB.
 
-- [ ] Add `systemPrompt` field to User or UserPersonalityConfig
-- [ ] `/persona` dashboard upgrade to edit system prompt
+- [ ] Add `sidecarPrompt` field to `UserPersonalityConfig` (per-user-per-character) or `User` (global)
+- [ ] Prompt assembly: inject sidecar text into system message (after character profile, before conversation)
+- [ ] `/persona` dashboard upgrade to edit sidecar prompt
+- [ ] Migration: move shapes.inc imported `customFields.sidecarPrompt` to proper field
 
 #### ✨ Channel Allowlist/Denylist
 
