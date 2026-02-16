@@ -40,6 +40,9 @@ import {
 import { handleKick } from './kick.js';
 import { handleUsage } from './usage.js';
 import { handleCleanup } from './cleanup.js';
+import { handleStopSequences } from './stop-sequences.js';
+import { handleHealth } from './health.js';
+import { handlePresence } from './presence.js';
 import {
   handleSettings,
   handleAdminSettingsSelectMenu,
@@ -62,6 +65,9 @@ const adminRouter = createSubcommandContextRouter(
     kick: handleKick,
     usage: handleUsage,
     cleanup: handleCleanup,
+    'stop-sequences': handleStopSequences,
+    health: handleHealth,
+    presence: handlePresence,
     settings: handleSettings,
   },
   { logger, logPrefix: '[Admin]' }
@@ -269,6 +275,38 @@ export default defineCommand({
     )
     .addSubcommand(subcommand =>
       subcommand.setName('settings').setDescription('Open global settings dashboard')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('stop-sequences')
+        .setDescription('View stop sequence activation statistics')
+    )
+    .addSubcommand(subcommand =>
+      subcommand.setName('health').setDescription('Check bot health and connected services')
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('presence')
+        .setDescription('Set or view the bot presence (activity status)')
+        .addIntegerOption(option =>
+          option
+            .setName('type')
+            .setDescription('Activity type')
+            .setRequired(false)
+            .addChoices(
+              { name: 'Playing', value: 0 },
+              { name: 'Listening to', value: 2 },
+              { name: 'Watching', value: 3 },
+              { name: 'Competing in', value: 5 },
+              { name: 'None (clear)', value: 99 }
+            )
+        )
+        .addStringOption(option =>
+          option
+            .setName('text')
+            .setDescription('Activity text (e.g., "with fire")')
+            .setRequired(false)
+        )
     ),
   deferralMode: 'ephemeral',
   execute,

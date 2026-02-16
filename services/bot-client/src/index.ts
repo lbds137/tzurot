@@ -66,6 +66,7 @@ import {
   stopVerificationCleanupScheduler,
 } from './services/VerificationCleanupScheduler.js';
 import { validateDiscordToken, validateRedisUrl, logGatewayHealthStatus } from './startup.js';
+import { restoreBotPresence } from './commands/admin/presence.js';
 import {
   createDeferredContext,
   createModalContext,
@@ -412,6 +413,11 @@ client.once(Events.ClientReady, () => {
   // Initialize verification message cleanup service and start scheduler
   initVerificationCleanupService(client);
   startVerificationCleanupScheduler();
+
+  // Restore saved bot presence from Redis
+  void restoreBotPresence(client).catch(err =>
+    logger.warn({ err }, '[Bot] Failed to restore presence')
+  );
 
   // Auto-leave denied guilds when bot is added.
   // Registered inside ClientReady to make the dependency on denylistCache hydration explicit

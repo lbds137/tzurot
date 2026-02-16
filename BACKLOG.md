@@ -33,6 +33,7 @@ _Empty — both items completed. Pull next from Quick Wins or Active Epic._
 
 **Recently completed:**
 
+- ~~✨ Admin Commands Bundle~~ (`/admin stop-sequences`, `/admin health`, `/admin presence`, depcruise graduation)
 - ~~✨ Incognito `/character chat` Poke~~ (weigh-in mode, PRs #633+)
 - ~~✨ Reply-to Context in Prompting~~ (PRs #636, #637)
 - ~~🏗️ Quick Wins Cleanup~~ (Config Cascade drop column, Denylist hardening + `/deny view`, Redis failure tests)
@@ -42,14 +43,6 @@ _Empty — both items completed. Pull next from Quick Wins or Active Epic._
 ## ⚡️ Quick Wins
 
 _Small tasks that can be done between major features. Good for momentum._
-
-### ✨ Bot Health Status
-
-Admin command showing bot health and diagnostics.
-
-- [ ] `/admin health` - Show uptime, version, connected services
-- [ ] Include: Discord connection, Redis, PostgreSQL, BullMQ queue depth
-- [ ] Optional: memory usage, active personality count
 
 ### ✨ Discord Emoji/Sticker Image Support
 
@@ -329,14 +322,6 @@ Admin errors should show full technical context; user errors show sanitized vers
 
 _Backend health: monitoring, debugging, developer experience._
 
-#### ✨ Stop Sequence Stats Admin Command
-
-Expose stop sequence activation stats via `/admin stats stop-sequences`.
-
-- [ ] Store stats in Redis (ai-worker writes on each activation)
-- [ ] Add gateway endpoint `GET /admin/stop-sequence-stats`
-- [ ] Add `/admin stats` subcommand with `stop-sequences` option
-
 #### 🏗️ Metrics & Monitoring (Prometheus)
 
 Production observability with metrics collection.
@@ -352,7 +337,7 @@ Move hardcoded model patterns to database for admin updates without deployment.
 
 Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint has warnings for complexity/statements that don't block CI. As we hit targets, tighten the ratchet:
 
-- [ ] **depcruise**: 25 known violations are all generated Prisma code (expected, keep suppressed). Switch from warning to blocking in pre-push hook — it's already clean for our code
+- [x] **depcruise**: Already blocking in pre-push hook (`.husky/pre-push` line 129-135). Done.
 - [ ] **CPD**: Currently non-blocking in pre-push. Once under target (<100 clones), add threshold check that blocks push
 - [ ] **ESLint warnings**: `max-statements`, `complexity`, `max-lines-per-function` are warn-level. Audit current violation count, set a baseline, block new violations
 - [ ] **Knip**: Dead code detection runs manually. Add to pre-push or CI as blocking check
@@ -404,7 +389,6 @@ Review all `*.test.ts` files to ensure they match their naming convention.
 
 ### Nice-to-Have Features
 
-- **Bot Presence Setting** - `/admin presence set <type> <message>`, persist across restarts
 - **Release Notifications** - `/changelog` command, announcement channel, GitHub webhook
 - **Remove Dashboard Close Button** - Redundant with Discord's native "Dismiss Message" on ephemeral messages. Sessions auto-expire via Redis TTL (15 min) anyway.
 - **Align Preset Browse UX with Character Browse** - Characters group by owner with clear section headers and consistent emoji badges (from the Emoji Standardization epic). Presets still use a flat list with ad-hoc badging. Needs: owner grouping, standardized emoji badges, consistent legend formatting.
