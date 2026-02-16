@@ -15,6 +15,7 @@ import {
   type DenylistCacheInvalidationService,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
+import type { Redis } from 'ioredis';
 import type { OpenRouterModelCache } from '../../services/OpenRouterModelCache.js';
 import { createDbSyncRoute } from './dbSync.js';
 import { createCreatePersonalityRoute } from './createPersonality.js';
@@ -35,6 +36,7 @@ interface AdminRouterOptions {
   modelCache?: OpenRouterModelCache;
   denylistInvalidation?: DenylistCacheInvalidationService;
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService;
+  redis?: Redis;
 }
 
 /**
@@ -49,6 +51,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
     modelCache,
     denylistInvalidation,
     cascadeInvalidation,
+    redis,
   } = opts;
   const router = Router();
 
@@ -86,7 +89,7 @@ export function createAdminRouter(opts: AdminRouterOptions): Router {
 
   // Denylist management endpoints (user/guild blocking)
   if (denylistInvalidation !== undefined) {
-    router.use('/denylist', createDenylistRoutes(prisma, denylistInvalidation));
+    router.use('/denylist', createDenylistRoutes(prisma, denylistInvalidation, redis));
   }
 
   return router;

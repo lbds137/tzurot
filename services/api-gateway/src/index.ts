@@ -253,6 +253,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
       modelCache,
       denylistInvalidation,
       cascadeInvalidation,
+      redis: cacheRedis,
     })
   );
   logger.info('[Gateway] Admin routes registered');
