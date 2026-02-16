@@ -271,7 +271,7 @@ describe('PersonaResolver', () => {
 
       mockPrismaClient.userPersonalityConfig.findFirst
         .mockResolvedValueOnce(null) // persona override check
-        .mockResolvedValueOnce({ focusModeEnabled: false }); // focus mode check
+        .mockResolvedValueOnce({ configOverrides: null }); // focus mode check (no overrides)
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 
@@ -300,7 +300,7 @@ describe('PersonaResolver', () => {
 
       mockPrismaClient.userPersonalityConfig.findFirst
         .mockResolvedValueOnce(null) // persona override
-        .mockResolvedValueOnce({ focusModeEnabled: true }); // focus mode enabled
+        .mockResolvedValueOnce({ configOverrides: { focusModeEnabled: true } }); // focus mode enabled
 
       const result = await resolver.resolveForMemory('discord-123', 'personality-456');
 

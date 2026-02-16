@@ -281,8 +281,6 @@ model UserPersonalityConfig {
   personalityId    String   @map("personality_id") @db.Uuid
   personaId        String?  @map("persona_id") @db.Uuid
   llmConfigId      String?  @map("llm_config_id") @db.Uuid
-  /// Focus Mode: When true, LTM retrieval is disabled (memories still saved, just not retrieved)
-  focusModeEnabled Boolean  @default(false) @map("focus_mode_enabled")
   /// JSONB config cascade overrides (user+personality tier). Validated against ConfigOverridesSchema at runtime.
   configOverrides  Json?    @map("config_overrides")
   createdAt        DateTime @default(now()) @map("created_at")
@@ -590,5 +588,6 @@ model DenylistedEntity {
 
   @@unique([type, discordId, scope, scopeId])
   @@index([type, discordId])
+  @@index([type, addedAt])
   @@map("denylisted_entities")
 }
