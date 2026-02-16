@@ -25,8 +25,8 @@ vi.mock('@tzurot/common-types', () => ({
 }));
 
 // Mock QuoteFormatter - pass through to real implementation for structural tests
-vi.mock('../../services/prompt/QuoteFormatter.js', () => ({
-  formatQuoteElement: vi.fn().mockImplementation((opts: Record<string, unknown>) => {
+const { mockFormatQuoteElement, mockFormatDedupedQuote } = vi.hoisted(() => {
+  const fqe = vi.fn().mockImplementation((opts: Record<string, unknown>) => {
     const attrs: string[] = [];
     if (opts.type !== undefined) attrs.push(`type="${opts.type}"`);
     if (opts.from !== undefined) attrs.push(`from="${opts.from}"`);
@@ -53,7 +53,26 @@ vi.mock('../../services/prompt/QuoteFormatter.js', () => ({
     }
     parts.push('</quote>');
     return parts.join('\n');
-  }),
+  });
+
+  const fdq = vi
+    .fn()
+    .mockImplementation((opts: { from: string; timeFormatted?: string; content: string }) => {
+      const truncated =
+        opts.content.length > 100 ? opts.content.substring(0, 100) + '...' : opts.content;
+      return fqe({
+        from: opts.from,
+        timeFormatted: opts.timeFormatted,
+        content: `[Reply target — full message is in conversation above]\n\n${truncated}`,
+      });
+    });
+
+  return { mockFormatQuoteElement: fqe, mockFormatDedupedQuote: fdq };
+});
+
+vi.mock('../../services/prompt/QuoteFormatter.js', () => ({
+  formatQuoteElement: mockFormatQuoteElement,
+  formatDedupedQuote: mockFormatDedupedQuote,
 }));
 
 function makeEntry(overrides: Partial<RawHistoryEntry> = {}): RawHistoryEntry {
