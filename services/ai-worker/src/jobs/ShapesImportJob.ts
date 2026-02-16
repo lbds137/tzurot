@@ -24,6 +24,7 @@ import {
   type ShapesDataFetchResult,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
+  SHAPES_USER_AGENT,
 } from '@tzurot/common-types';
 import type { Prisma } from '@tzurot/common-types';
 import {
@@ -39,6 +40,9 @@ const logger = createLogger('ShapesImportJob');
 
 /** Default persona ID for imported memories (system-level) */
 const IMPORT_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
+
+/** Update progress in DB every N memories */
+const PROGRESS_UPDATE_INTERVAL = 25;
 
 interface ShapesImportJobDeps {
   prisma: PrismaClient;
@@ -83,19 +87,25 @@ export async function processShapesImportJob(
       existingPersonalityId,
     });
 
-    // 5. Import memories (skips if personality already has memories — prevents duplicates on re-import)
-    const memoryStats = await importMemories(
+    // 5. Download and store avatar
+    if (fetchResult.config.avatar !== '' && importType !== 'memory_only') {
+      await downloadAndStoreAvatar(prisma, personalityId, fetchResult.config.avatar);
+    }
+
+    // 6. Import memories (skips if personality already has memories — prevents duplicates on re-import)
+    const memoryStats = await importMemories({
       memoryAdapter,
       prisma,
-      fetchResult.memories.map(m => ({
+      memories: fetchResult.memories.map(m => ({
         text: m.result,
         senders: m.senders,
         createdAt: m.metadata.created_at * 1000,
       })),
-      personalityId
-    );
+      personalityId,
+      importJobId,
+    });
 
-    // 6. Mark completed
+    // 7. Mark completed
     await markImportCompleted({ prisma, importJobId, personalityId, memoryStats, fetchResult });
 
     const result: ShapesImportJobResult = {
@@ -361,18 +371,62 @@ async function createFullPersonality(
   return { personalityId: mapped.personality.id, slug: mapped.personality.slug };
 }
 
+async function downloadAndStoreAvatar(
+  prisma: PrismaClient,
+  personalityId: string,
+  avatarUrl: string
+): Promise<void> {
+  try {
+    const response = await fetch(avatarUrl, {
+      headers: { 'User-Agent': SHAPES_USER_AGENT },
+    });
+
+    if (!response.ok) {
+      logger.warn(
+        { personalityId, status: response.status },
+        '[ShapesImportJob] Failed to download avatar — skipping'
+      );
+      return;
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    await prisma.personality.update({
+      where: { id: personalityId },
+      data: { avatarData: buffer },
+    });
+
+    logger.info(
+      { personalityId, sizeBytes: buffer.length },
+      '[ShapesImportJob] Avatar downloaded and stored'
+    );
+  } catch (error) {
+    // Non-fatal — personality is usable without an avatar
+    logger.warn(
+      { err: error, personalityId },
+      '[ShapesImportJob] Avatar download failed — skipping'
+    );
+  }
+}
+
 interface MemoryToImport {
   text: string;
   senders: string[];
   createdAt: number; // ms timestamp
 }
 
+interface ImportMemoriesOpts {
+  memoryAdapter: PgvectorMemoryAdapter;
+  prisma: PrismaClient;
+  memories: MemoryToImport[];
+  personalityId: string;
+  importJobId: string;
+}
+
 async function importMemories(
-  memoryAdapter: PgvectorMemoryAdapter,
-  prisma: PrismaClient,
-  memories: MemoryToImport[],
-  personalityId: string
+  opts: ImportMemoriesOpts
 ): Promise<{ imported: number; failed: number; skipped: number }> {
+  const { memoryAdapter, prisma, memories, personalityId, importJobId } = opts;
+
   // Check for existing memories to prevent duplicates on re-import
   const existingCount = await prisma.memory.count({
     where: { personalityId },
@@ -388,6 +442,7 @@ async function importMemories(
 
   let imported = 0;
   let failed = 0;
+  const total = memories.length;
 
   for (const memory of memories) {
     try {
@@ -405,6 +460,20 @@ async function importMemories(
 
       await memoryAdapter.addMemory({ text: memory.text, metadata });
       imported++;
+
+      // Periodically update progress in the database
+      if (imported % PROGRESS_UPDATE_INTERVAL === 0) {
+        await prisma.importJob.update({
+          where: { id: importJobId },
+          data: {
+            memoriesImported: imported,
+            memoriesFailed: failed,
+            importMetadata: {
+              progress: { imported, failed, total },
+            } as Prisma.InputJsonValue,
+          },
+        });
+      }
     } catch (error) {
       failed++;
       logger.warn({ err: error, personalityId }, '[ShapesImportJob] Failed to import memory');

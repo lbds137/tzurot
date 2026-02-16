@@ -2,7 +2,7 @@
  * Shapes Export Subcommand
  *
  * Fetches full character data from shapes.inc and returns it as
- * a downloadable JSON file attachment in Discord.
+ * a downloadable file attachment in Discord (JSON or Markdown).
  */
 
 import { EmbedBuilder, AttachmentBuilder } from 'discord.js';
@@ -18,18 +18,142 @@ const DISCORD_FILE_LIMIT = 8 * 1024 * 1024;
 /** Extended timeout for export — fetching all memories can be slow */
 const EXPORT_TIMEOUT = 120_000;
 
+interface ShapesMemory {
+  result: string;
+  senders: string[];
+  metadata: { created_at: number };
+}
+
+interface ShapesStory {
+  title: string;
+  content: string;
+  story_type: string;
+}
+
 interface ExportResponse {
   exportedAt: string;
   sourceSlug: string;
   config: Record<string, unknown>;
-  memories: unknown[];
-  stories: unknown[];
+  memories: ShapesMemory[];
+  stories: ShapesStory[];
   userPersonalization: Record<string, unknown> | null;
   stats: {
     memoriesCount: number;
     storiesCount: number;
     hasUserPersonalization: boolean;
   };
+}
+
+type ExportFormat = 'json' | 'markdown';
+
+// ============================================================================
+// Markdown formatter
+// ============================================================================
+
+/** Key personality config fields to include in markdown export */
+const PERSONALITY_FIELDS: readonly { key: string; label: string }[] = [
+  { key: 'personality_traits', label: 'Personality Traits' },
+  { key: 'personality_tone', label: 'Tone' },
+  { key: 'personality_age', label: 'Age' },
+  { key: 'personality_appearance', label: 'Appearance' },
+  { key: 'personality_likes', label: 'Likes' },
+  { key: 'personality_dislikes', label: 'Dislikes' },
+  { key: 'personality_conversational_goals', label: 'Conversational Goals' },
+  { key: 'personality_conversational_examples', label: 'Conversational Examples' },
+  { key: 'personality_history', label: 'History' },
+] as const;
+
+/** Extract a string field from the untyped config Record */
+function configString(config: Record<string, unknown>, key: string): string | undefined {
+  const value = config[key];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function formatConfigSection(config: Record<string, unknown>, sourceSlug: string): string[] {
+  const lines: string[] = [];
+  const name = configString(config, 'name') ?? sourceSlug;
+  lines.push(`# ${name}`, '');
+
+  const jailbreak = configString(config, 'jailbreak');
+  if (jailbreak !== undefined) {
+    lines.push('## System Prompt', '', jailbreak, '');
+  }
+
+  const userPrompt = configString(config, 'user_prompt');
+  if (userPrompt !== undefined) {
+    lines.push('## Character Info', '', userPrompt, '');
+  }
+
+  const personalityLines = PERSONALITY_FIELDS.map(({ key, label }) => ({
+    label,
+    value: configString(config, key),
+  }))
+    .filter((f): f is { label: string; value: string } => f.value !== undefined)
+    .map(({ label, value }) => `### ${label}\n\n${value}`);
+
+  if (personalityLines.length > 0) {
+    lines.push('## Personality', '', personalityLines.join('\n\n'), '');
+  }
+
+  return lines;
+}
+
+function formatMemoriesSection(memories: ShapesMemory[]): string[] {
+  if (memories.length === 0) {
+    return [];
+  }
+
+  const lines = ['## Memories', '', `*${String(memories.length)} conversation memories*`, ''];
+  for (const memory of memories) {
+    const date = new Date(memory.metadata.created_at * 1000).toISOString().split('T')[0];
+    const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
+    lines.push(`- **${date}**${senders}: ${memory.result}`);
+  }
+  lines.push('');
+  return lines;
+}
+
+function formatStoriesSection(stories: ShapesStory[]): string[] {
+  if (stories.length === 0) {
+    return [];
+  }
+
+  const lines = ['## Knowledge Base', ''];
+  for (const story of stories) {
+    const title = story.title !== '' ? story.title : `(${story.story_type})`;
+    lines.push(`### ${title}`, '', story.content, '');
+  }
+  return lines;
+}
+
+function formatExportAsMarkdown(data: ExportResponse): string {
+  const lines: string[] = [];
+
+  lines.push(`> Exported from shapes.inc on ${data.exportedAt}`, '');
+  lines.push(...formatConfigSection(data.config, data.sourceSlug));
+
+  // User personalization
+  const backstory =
+    data.userPersonalization !== null
+      ? configString(data.userPersonalization, 'backstory')
+      : undefined;
+  if (backstory !== undefined) {
+    lines.push('## User Personalization', '', backstory, '');
+  }
+
+  lines.push(...formatStoriesSection(data.stories));
+  lines.push(...formatMemoriesSection(data.memories));
+
+  // Stats footer
+  lines.push(
+    '---',
+    '',
+    `Memories: ${String(data.stats.memoriesCount)} | ` +
+      `Stories: ${String(data.stats.storiesCount)} | ` +
+      `User Personalization: ${data.stats.hasUserPersonalization ? 'Yes' : 'No'}`
+  );
+
+  return lines.join('\n');
 }
 
 /**
@@ -39,6 +163,8 @@ interface ExportResponse {
 export async function handleExport(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const slug = context.interaction.options.getString('slug', true).trim().toLowerCase();
+  const formatRaw = context.interaction.options.getString('format') ?? 'json';
+  const format: ExportFormat = formatRaw === 'markdown' ? 'markdown' : 'json';
 
   try {
     // Show progress message
@@ -67,23 +193,26 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
     }
 
     const { data } = result;
-    const jsonContent = JSON.stringify(data, null, 2);
-    const jsonBytes = Buffer.byteLength(jsonContent, 'utf8');
 
-    if (jsonBytes > DISCORD_FILE_LIMIT) {
-      // Too large for Discord — send summary + config-only file
-      await sendLargeExportSummary(context, data, slug, jsonBytes);
+    const { content: fileContent, filename } =
+      format === 'markdown'
+        ? { content: formatExportAsMarkdown(data), filename: `${slug}-export.md` }
+        : { content: JSON.stringify(data, null, 2), filename: `${slug}-export.json` };
+
+    const fileBytes = Buffer.byteLength(fileContent, 'utf8');
+
+    if (fileBytes > DISCORD_FILE_LIMIT) {
+      await sendLargeExportSummary(context, data, slug, fileBytes);
     } else {
-      // Send full export as attachment
-      const attachment = new AttachmentBuilder(Buffer.from(jsonContent, 'utf8'), {
-        name: `${slug}-export.json`,
+      const attachment = new AttachmentBuilder(Buffer.from(fileContent, 'utf8'), {
+        name: filename,
         description: `Shapes.inc export for ${slug}`,
       });
 
       const embed = new EmbedBuilder()
         .setColor(DISCORD_COLORS.SUCCESS)
         .setTitle('📤 Export Complete')
-        .setDescription(`Exported **${slug}** from shapes.inc.`)
+        .setDescription(`Exported **${slug}** from shapes.inc as ${format.toUpperCase()}.`)
         .addFields(
           { name: 'Memories', value: String(data.stats.memoriesCount), inline: true },
           { name: 'Stories', value: String(data.stats.storiesCount), inline: true },
@@ -102,9 +231,10 @@ export async function handleExport(context: DeferredCommandContext): Promise<voi
       {
         userId,
         slug,
+        format,
         memoriesCount: data.stats.memoriesCount,
         storiesCount: data.stats.storiesCount,
-        sizeBytes: jsonBytes,
+        sizeBytes: fileBytes,
       },
       '[Shapes] Export sent'
     );
