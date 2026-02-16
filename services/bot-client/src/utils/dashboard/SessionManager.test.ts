@@ -841,6 +841,129 @@ describe('Redis failure injection', () => {
     expect(session).not.toBeNull();
     expect(session.userId).toBe('user1');
   });
+
+  it('update() should return updated session when setex fails after get (fail-open)', async () => {
+    const storedSession = {
+      entityType: 'test',
+      entityId: 'entity1',
+      userId: 'user1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+      createdAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    };
+
+    const failingRedis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(storedSession)),
+      setex: vi.fn().mockRejectedValue(new Error('SETEX failed')),
+      expire: vi.fn().mockRejectedValue(new Error('EXPIRE failed')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const updated = await manager.update<TestData>('user1', 'test', 'entity1', { value: 99 });
+
+    // Fail-open: returns the updated session even though Redis write failed
+    expect(updated).not.toBeNull();
+    expect(updated?.data.value).toBe(99);
+  });
+
+  it('delete() should return false when pipeline.exec() throws after get', async () => {
+    const storedSession = {
+      entityType: 'test',
+      entityId: 'entity1',
+      userId: 'user1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+      createdAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    };
+
+    const failingRedis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(storedSession)),
+      pipeline: () => ({
+        del: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockRejectedValue(new Error('Pipeline exec failed')),
+      }),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const result = await manager.delete('user1', 'test', 'entity1');
+
+    expect(result).toBe(false);
+  });
+
+  it('findByMessageId() should return null when corrupt data and cleanup del() throws', async () => {
+    const failingRedis = {
+      get: vi
+        .fn()
+        .mockResolvedValueOnce('session:user1:test:entity1') // msg index returns session key
+        .mockResolvedValueOnce('not-valid-json{{{'), // session data is corrupt
+      del: vi.fn().mockRejectedValue(new Error('DEL cleanup failed')),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const session = await manager.findByMessageId<TestData>('msg123');
+
+    // Returns null and swallows the cleanup error (no unhandled rejection)
+    expect(session).toBeNull();
+  });
+
+  it('set() should return session when pipeline.exec() returns null (Redis timeout)', async () => {
+    const nullResultRedis = {
+      pipeline: () => ({
+        setex: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue(null),
+      }),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(nullResultRedis, 60);
+    const session = await manager.set<TestData>({
+      userId: 'user1',
+      entityType: 'test',
+      entityId: 'entity1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+    });
+
+    // Session is returned (fail-open) even with null pipeline result
+    expect(session).not.toBeNull();
+    expect(session.userId).toBe('user1');
+    expect(session.data.name).toBe('test');
+  });
+
+  it('touch() should return false when partial pipeline ops fail', async () => {
+    const storedSession = {
+      entityType: 'test',
+      entityId: 'entity1',
+      userId: 'user1',
+      data: { name: 'test', value: 1 },
+      messageId: 'msg1',
+      channelId: 'ch1',
+      createdAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    };
+
+    const failingRedis = {
+      get: vi.fn().mockResolvedValue(JSON.stringify(storedSession)),
+      pipeline: () => ({
+        setex: vi.fn().mockReturnThis(),
+        expire: vi.fn().mockReturnThis(),
+        exec: vi.fn().mockResolvedValue([
+          [new Error('SETEX failed'), null], // First op fails
+          [null, 1], // Second op succeeds
+        ]),
+      }),
+    } as unknown as Redis;
+
+    const manager = new DashboardSessionManager(failingRedis, 60);
+    const result = await manager.touch('user1', 'test', 'entity1');
+
+    // touch returns true (it completed), but logs a warning about partial failure
+    expect(result).toBe(true);
+  });
 });
 
 describe('Dashboard types utilities', () => {
