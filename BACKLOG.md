@@ -294,6 +294,7 @@ _Comprehensive audit of logging quality, error serialization, and log hygiene ac
 During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorObject: true, raw: "{}"}` despite being a real `Error`. Makes logs nearly useless for debugging provider issues.
 
 - [ ] Audit LangChain throwing non-Error objects that look like Errors
+- [ ] Audit Node `undici` fetch errors — `TypeError` from `fetch()` serializes as `raw: "{}"` in Pino (non-enumerable properties). Seen in `GatewayClient.submitJob()` and `PersonalityMessageHandler` on Railway dev (2026-02-15)
 - [ ] Review `normalizeErrorForLogging()` in `retry.ts` wrapping behavior
 - [ ] Review `determineErrorType()` in `logger.ts` checking `constructor.name`
 - [ ] Codebase-wide scan for `{ err: ... }` patterns that produce useless output
