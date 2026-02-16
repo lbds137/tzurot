@@ -1,9 +1,10 @@
 # Shapes.inc Character Backup & Import
 
-> **Status**: Active — Awaiting real API data inspection before implementation
+> **Status**: Ready for implementation
 > **Created**: 2026-02-16
 > **Supersedes**: `docs/proposals/backlog/SHAPES_INC_SLASH_COMMAND_DESIGN.md` (detailed reference)
 > **Related**: `scripts/data/import-personality/` (existing CLI tooling), `scripts/data/backup-personalities-data.js` (v3 backup script)
+> **Real API data**: `debug/shapes/` (gitignored — config, memories, stories, user persona for Lilith + Cerridwen)
 
 ## Context
 
@@ -14,9 +15,7 @@ A shapes.inc user wants to export their character data and migrate to Tzurot. Th
 1. **Export**: Fetch data from shapes.inc, provide as downloadable JSON
 2. **Import**: Fetch + import directly into Tzurot (personality, system prompt, LLM config, memories)
 
-**Sidecar prompt dependency**: Shapes.inc has `user_personalization` data (per-user instructions to characters). We don't know the exact format yet. We'll build the data fetcher first, inspect the real data, then decide where to store it in Tzurot.
-
-**Blocking on**: Real shapes.inc API data (will be placed in `debug/shapes/` for inspection). Some undocumented API endpoints may have changed since late 2025.
+**Sidecar prompt**: The shapes.inc `backstory` field from `/shapes/{id}/user` is the per-user personalization data — a freeform text the user writes about themselves in the context of each character. This maps to system-prompt-level context. For MVP, stored in `customFields` JSONB during import; proper system-prompt injection designed later (see backlog: User System Prompts).
 
 ---
 
@@ -34,11 +33,64 @@ New top-level command group (cleaner than overloading `/character import`):
 
 ---
 
+## API Research Findings (2026-02-16)
+
+Real data fetched and inspected in `debug/shapes/`. Key findings:
+
+### Confirmed Endpoints
+
+| Endpoint                                    | Method | Returns                                                                                          |
+| ------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------ |
+| `/api/users/info`                           | GET    | User profile (UUID, email, shape list)                                                           |
+| `/api/shapes?category=self`                 | GET    | All owned shapes (50 found, with IDs + usernames)                                                |
+| `/api/shapes/{id}`                          | GET    | Full shape config (173 fields, ~40KB)                                                            |
+| `/api/shapes/username/{slug}`               | GET    | Same as UUID lookup (undocumented, works)                                                        |
+| `/api/shapes/{id}/user`                     | GET    | User persona: `backstory`, `preferred_name`, `pronouns`, `engine_*` overrides                    |
+| `/api/shapes/{id}/stories`                  | GET    | Knowledge base entries (poems, essays, mythology — `story_type: general\|command\|relationship`) |
+| `/api/shapes/{id}/training`                 | GET    | Training data (empty for tested shapes)                                                          |
+| `/api/shapes/{id}/memories?page=N&limit=20` | GET    | Paginated memories (1-indexed, max limit 20, `pagination.has_next`)                              |
+
+### Cookie Authentication
+
+- Session cookie is **split**: `appSession.0` + `appSession.1` (exceeds single cookie size limit)
+- Both parts must be sent together: `Cookie: appSession.0=...; appSession.1=...`
+- Cookie **rotates on each API call** (new `set-cookie` response headers)
+- For import jobs: fetch cookie once, use for all requests in the job (rotation doesn't invalidate mid-session)
+
+### Field Mapping Confirmation
+
+Most shapes.inc fields already mapped by existing `PersonalityMapper.ts`:
+
+| Shapes.inc Field                                                    | Tzurot Field                                 | Status   |
+| ------------------------------------------------------------------- | -------------------------------------------- | -------- |
+| `jailbreak`                                                         | SystemPrompt content                         | Mapped   |
+| `user_prompt`                                                       | `characterInfo`                              | Mapped   |
+| `personality_traits/tone/age/appearance/likes/dislikes`             | Dedicated Personality columns                | Mapped   |
+| `conversational_goals/examples`                                     | Dedicated Personality columns                | Mapped   |
+| `error_message`                                                     | `errorMessage`                               | Mapped   |
+| `engine_*` fields                                                   | LlmConfig `advancedParameters` JSONB         | Mapped   |
+| `personality_history`                                               | `customFields.personalityHistory` (overflow) | Mapped   |
+| `keywords, favorite_reacts, search_description`                     | `customFields` JSONB                         | Mapped   |
+| `personality_catchphrases, physical_traits, chatiness_level, goals` | Not mapped (null for tested shapes)          | Deferred |
+
+### Data Sizes (Real Examples)
+
+| Shape     | Memories          | Knowledge           | Config Size |
+| --------- | ----------------- | ------------------- | ----------- |
+| Lilith    | 2,267 (114 pages) | 10+ stories (141KB) | 41KB        |
+| Cerridwen | 10 (1 page)       | None                | 39KB        |
+
+### Knowledge vs Memories
+
+Stories/knowledge entries are semantically different from conversation memory summaries. Decision: add `type` column to memories table (`'memory' | 'knowledge'`) in Phase 1 migration. Defer actual knowledge import to post-MVP.
+
+---
+
 ## Phase 1: Schema + Credential Management
 
 ### Database Migration
 
-Two new tables, one migration:
+Two new tables + one column addition, one migration:
 
 **UserCredential** — Reuses the `encryptApiKey`/`decryptApiKey` pattern from `packages/common-types/src/utils/encryption.ts` (AES-256-GCM, same `API_KEY_ENCRYPTION_KEY` env var):
 
@@ -99,18 +151,19 @@ model ImportJob {
 
 ### Files to create/modify
 
-| File                                                   | Action                                                            |
-| ------------------------------------------------------ | ----------------------------------------------------------------- |
-| `prisma/schema.prisma`                                 | Add UserCredential, ImportJob models + User/Personality relations |
-| Migration SQL                                          | `pnpm ops db:safe-migrate --name add_shapes_import_tables`        |
-| `packages/common-types/src/utils/deterministicUuid.ts` | Add `generateUserCredentialUuid`, `generateImportJobUuid`         |
-| `packages/common-types/src/constants/queue.ts`         | Add `ShapesImport` job type + prefix                              |
-| `packages/common-types/src/types/shapes-import.ts`     | Job data/result types                                             |
-| `services/bot-client/src/commands/shapes/index.ts`     | Command definition                                                |
-| `services/bot-client/src/commands/shapes/auth.ts`      | Modal handler                                                     |
-| `services/bot-client/src/commands/shapes/logout.ts`    | Logout handler                                                    |
-| `services/api-gateway/src/routes/user/shapes/auth.ts`  | Credential CRUD                                                   |
-| `services/api-gateway/src/routes/user/index.ts`        | Mount shapes routes                                               |
+| File                                                   | Action                                                                            |
+| ------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `prisma/schema.prisma`                                 | Add UserCredential, ImportJob models + User/Personality relations                 |
+| Migration SQL                                          | `pnpm ops db:safe-migrate --name add_shapes_import_tables`                        |
+| `prisma/schema.prisma` (memories)                      | Add `type` column to Memory model (`'memory' \| 'knowledge'`, default `'memory'`) |
+| `packages/common-types/src/utils/deterministicUuid.ts` | Add `generateUserCredentialUuid`, `generateImportJobUuid`                         |
+| `packages/common-types/src/constants/queue.ts`         | Add `ShapesImport` job type + prefix                                              |
+| `packages/common-types/src/types/shapes-import.ts`     | Job data/result types                                                             |
+| `services/bot-client/src/commands/shapes/index.ts`     | Command definition                                                                |
+| `services/bot-client/src/commands/shapes/auth.ts`      | Modal handler                                                                     |
+| `services/bot-client/src/commands/shapes/logout.ts`    | Logout handler                                                                    |
+| `services/api-gateway/src/routes/user/shapes/auth.ts`  | Credential CRUD                                                                   |
+| `services/api-gateway/src/routes/user/index.ts`        | Mount shapes routes                                                               |
 
 ---
 
@@ -127,6 +180,9 @@ Why ai-worker (not api-gateway): The fetcher is an internal data source for a ba
 - TypeScript with proper types (move shapes.inc types from `scripts/data/import-personality/types.ts` to `common-types`)
 - Return structured data objects instead of writing JSON files to disk
 - Use native `fetch()` (Node 25) instead of `https.get()`
+- **Split cookie handling**: Send both `appSession.0` and `appSession.1` parts together
+- **Username-based lookup**: Use `/api/shapes/username/{slug}` (avoids needing UUID)
+- **Memory pagination**: Walk all pages using `pagination.has_next` flag (max 20 per page)
 - AbortController timeouts per request
 - Structured error types: `ShapesAuthError`, `ShapesNotFoundError`, `ShapesRateLimitError`
 - Progress callback for DM updates (future)
@@ -134,12 +190,17 @@ Why ai-worker (not api-gateway): The fetcher is an internal data source for a ba
 
 ```typescript
 interface ShapesDataFetchResult {
-  config: ShapesIncPersonalityConfig;
-  memories: ShapesIncMemory[];
-  knowledge: unknown[]; // Raw, format varies
-  userPersonalization: unknown | null; // Unknown format -- inspect and decide later
-  chatHistory: ShapesIncChatMessage[];
-  stats: { memoriesCount; chatMessagesCount; knowledgeCount };
+  config: ShapesIncPersonalityConfig; // Full 173-field config
+  memories: ShapesIncMemory[]; // All pages, flattened
+  stories: ShapesIncStory[]; // Knowledge base entries
+  userPersonalization: {
+    // From /shapes/{id}/user
+    backstory: string; // Sidecar prompt text
+    preferredName: string;
+    pronouns: string;
+    engineOverrides: Record<string, unknown>;
+  } | null;
+  stats: { memoriesCount: number; storiesCount: number; pagesTraversed: number };
 }
 ```
 
@@ -255,31 +316,29 @@ Add `shapes-import` case to `AIJobProcessor.processJob()` at `services/ai-worker
 
 ---
 
-## Phase 5: Sidecar Prompts (After Data Inspection)
+## Phase 5: Sidecar Prompt Injection (Backlogged)
 
-**Deferred until we can inspect actual `user_personalization` data from Phase 2.**
+**Data format confirmed**: The `backstory` field from `/shapes/{id}/user` is a freeform text blob (typically ~3KB) that the user writes about themselves in the context of each character. It serves as system-prompt-level context that shapes how the character interacts with that specific user.
 
-Once we see the real data format, decide:
+**MVP storage**: During import, `backstory` is stored in `personality.customFields.sidecarPrompt` JSONB. This preserves the data without requiring schema changes.
 
-- **Option A**: Map to `Persona.content` (already injected into prompts as participant context)
-- **Option B**: Add `sidecarPrompt` field to `UserPersonalityConfig` (new prompt assembly logic needed)
-- **Option C**: Add `systemPrompt` to User model (global per-user, not per-character)
-
-Until then, raw `user_personalization` data is preserved in `personality.customFields` JSONB -- no data loss, just not actively used in prompting yet.
+**Proper injection (backlogged as "User System Prompts")**: Requires a new field (likely on `UserPersonalityConfig` or `User`) plus prompt assembly changes to inject the sidecar text into the system message. This is a separate feature that benefits all users, not just imports.
 
 ---
 
 ## What's Deferred (Not in MVP)
 
-| Item                              | Why Deferred                                              |
-| --------------------------------- | --------------------------------------------------------- |
-| DM progress updates (incremental) | Completion-only DM is sufficient for MVP                  |
-| Knowledge/training data import    | No Tzurot equivalent yet                                  |
-| Chat history import               | No Tzurot feature to map this to                          |
-| Force re-import / overwrite       | Handle by preventing duplicates initially                 |
-| Batch import UI                   | Single character import is sufficient                     |
-| Import rate limiting              | Single-user project, not needed                           |
-| BYOK for embeddings               | Embeddings are local (free) -- this concern is eliminated |
+| Item                              | Why Deferred                                                                                                                                           |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| DM progress updates (incremental) | Completion-only DM is sufficient for MVP                                                                                                               |
+| Knowledge/story import            | `type` column added to memories table for future use; stories are semantically different from conversation summaries and need separate retrieval logic |
+| Training data import              | Empty for all tested shapes; no Tzurot equivalent yet                                                                                                  |
+| Chat history import               | No Tzurot feature to map this to                                                                                                                       |
+| Force re-import / overwrite       | Handle by preventing duplicates initially                                                                                                              |
+| Batch import UI                   | Single character import is sufficient                                                                                                                  |
+| Import rate limiting              | Single-user project, not needed                                                                                                                        |
+| BYOK for embeddings               | Embeddings are local (free) -- this concern is eliminated                                                                                              |
+| Sidecar prompt injection          | Data preserved in customFields; proper injection is backlogged as "User System Prompts"                                                                |
 
 ---
 
@@ -321,7 +380,8 @@ Run `pnpm quality` after every phase. Run `pnpm test:int` after Phase 4 (new sla
 ## Existing Reference Documents
 
 - **Detailed design doc**: `docs/proposals/backlog/SHAPES_INC_SLASH_COMMAND_DESIGN.md` (1174 lines, comprehensive UX/technical spec)
-- **API reference**: `tzurot-legacy/docs/external-services/SHAPES_INC_API_REFERENCE.md`
+- **API reference (live data)**: `debug/shapes/api-reference.md` (gitignored, updated 2026-02-16 with real endpoint testing)
+- **Real API responses**: `debug/shapes/*.json` (gitignored — configs, memories, stories, user personas for Lilith + Cerridwen)
 - **Import scripts**: `scripts/data/import-personality/` (PersonalityMapper, MemoryImporter, types)
 - **Backup script**: `scripts/data/backup-personalities-data.js`
 - **Type definitions**: `scripts/data/import-personality/types.ts`
