@@ -1,8 +1,8 @@
 # Shapes.inc Import Slash Command Design
 
 > **Created**: 2025-11-17
-> **Status**: Planning Phase (Future Work)
-> **Purpose**: Design document for future `/import shapes` slash command
+> **Status**: Superseded by [`docs/proposals/active/shapes-inc-import-plan.md`](../active/shapes-inc-import-plan.md)
+> **Purpose**: Detailed reference for shapes.inc import design (UX flows, security, error handling)
 >
 > **Technical Reference**: See [SHAPES_INC_MIGRATION_REFERENCE.md](../migration/SHAPES_INC_MIGRATION_REFERENCE.md) for data structures, UUID mapping, LTM handling strategy, and scripts reference.
 >

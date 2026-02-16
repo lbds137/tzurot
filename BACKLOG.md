@@ -21,7 +21,17 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
-_Empty — triaged 2026-02-12._
+### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
+
+GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty. Combined with provider 400 errors, responses fail completely.
+
+**Debug file**: `debug/debug-compact-cc13fc44-0eeb-43e2-a881-a78e8cdafda0.json`
+
+**Fix options**:
+
+- Allowlist models that support thinking (only extract from known reasoning models)
+- Require both open AND close tags for extraction (stricter pattern)
+- Fallback: if thinking extraction leaves visible content empty, use thinking as content
 
 ---
 
@@ -370,6 +380,7 @@ _Ideas for later. Resist the shiny object._
 
 _Eventually kill v2, but these are rarely used features._
 
+- **Personality Aliases** - User-managed alternative names for personalities. v2 had: multi-word aliases (1-4 words, longest-match priority), smart collision handling (append name parts, then random suffix), auto-alias creation from display names, and alias reassignment between personalities. Single-level indirection only (alias → personality ID, no chains). v3 already has `PersonalityAlias` model in schema.
 - **Rate Limiting** - Token bucket rate limiting
 - **PluralKit Proxy Support** - Support PluralKit proxied messages
 
@@ -380,6 +391,10 @@ _Eventually kill v2, but these are rarely used features._
 Partially done: migrated from `include_reasoning` to modern `reasoning` param via `modelKwargs`. But the custom fetch wrapper in `ModelFactory.ts` that intercepts raw OpenRouter HTTP responses and injects `<reasoning>` tags is still fragile — LangChain's Chat Completions converter silently drops `reasoning` fields, so we intercept before it parses. Needs a cleaner approach (e.g., native Responses API support from OpenRouter, or a LangChain plugin).
 
 **Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 4)
+
+#### 🏗️ Prompt Caching (Anthropic)
+
+Add `cache_control` breakpoints to static prompt sections (character profile, response protocol) for Anthropic models via OpenRouter. Deferred Phase 4 from the XML prompt restructure.
 
 #### 🏗️ Streaming Responses
 
@@ -455,6 +470,6 @@ _Decided not to do yet._
 
 - [GitHub Releases](https://github.com/lbds137/tzurot/releases) - Full release history
 - [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
-- [docs/proposals/active/V2_FEATURE_TRACKING.md](docs/proposals/active/V2_FEATURE_TRACKING.md)
+- [docs/proposals/active/shapes-inc-import-plan.md](docs/proposals/active/shapes-inc-import-plan.md)
 - [docs/research/sillytavern-features.md](docs/research/sillytavern-features.md)
 - [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md)
