@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-14
-> **Version**: v3.0.0-beta.73
+> **Last Updated**: 2026-02-16
+> **Version**: v3.0.0-beta.74
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -29,8 +29,13 @@ _Empty — triaged 2026-02-12._
 
 _This week's active work. Max 3 items._
 
-1. ✨ **Incognito `/character chat` Poke** — no memories, no active marking when no message attached
-2. ✨ **Reply-to Context in Prompting** — include replied-to message context so AI knows what the user is replying to
+_Empty — both items completed. Pull next from Quick Wins or Active Epic._
+
+**Recently completed:**
+
+- ~~✨ Incognito `/character chat` Poke~~ (weigh-in mode, PRs #633+)
+- ~~✨ Reply-to Context in Prompting~~ (PRs #636, #637)
+- ~~🏗️ Quick Wins Cleanup~~ (Config Cascade drop column, Denylist hardening + `/deny view`, Redis failure tests)
 
 ---
 
@@ -54,29 +59,6 @@ Support custom Discord emoji and stickers in vision context.
 - [ ] Extract sticker URLs from message stickers
 - [ ] Include in vision context alongside attachments
 - [ ] Handle animated emoji/stickers (GIF vs static)
-
-### 🏗️ Denylist Hardening (PR #631 Review Follow-ups)
-
-From Claude code review. All minor optimizations, not blockers.
-
-- [ ] Add composite index `[type, addedAt]` on `DenylistedEntity` for query performance
-- [ ] Document cache hydration 10k limit in bot-client `DenylistCache.ts`
-- [ ] Add rate limiting to admin denylist endpoints (10 req/min per user)
-- [ ] Consider batch invalidation support for bulk denylist operations
-
-### 🏗️ Config Cascade Cleanup (Post-PR #632)
-
-- [x] ~~Create migration to copy `focusModeEnabled` column values into `configOverrides` JSONB~~ (done in PR #632, dual-write active)
-- [ ] Drop `focusModeEnabled` boolean column after confirming all reads use cascade (separate migration)
-- [ ] Document `ConfigCascadeResolver` setInterval cleanup limitation for horizontal scaling
-
-### 🧹 Redis Failure Injection Tests
-
-SessionManager has acknowledged gap in testing Redis failure scenarios. Add failure injection tests for graceful degradation verification.
-
-### ✨ Admin/User Error Context Differentiation
-
-Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped), this is the remaining differentiation.
 
 ### ✨ Free Model Quota Resilience
 
@@ -303,9 +285,9 @@ High-value extractions done (PR #599). Remaining 149 clones (~1.93%) are structu
 
 ---
 
-### Theme: Error Observability Overhaul
+### Theme: Logging & Error Observability
 
-_Comprehensive audit and fix of error serialization across the stack._
+_Comprehensive audit of logging quality, error serialization, and log hygiene across the stack._
 
 #### 🐛 Error Serialization Audit
 
@@ -316,6 +298,29 @@ During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorOb
 - [ ] Review `determineErrorType()` in `logger.ts` checking `constructor.name`
 - [ ] Codebase-wide scan for `{ err: ... }` patterns that produce useless output
 - [ ] Goal: every `{ err: ... }` log shows message + stack, never `raw: "{}"`
+
+#### 🧹 Logging Verbosity Audit
+
+Some operations log at INFO when they should be DEBUG. Noisy logs obscure real issues in production.
+
+- [ ] Audit all `logger.info()` calls — demote routine operations to DEBUG
+- [ ] Ensure ERROR/WARN are reserved for actionable items
+- [ ] Review hot paths (message processing, cache lookups) for excessive logging
+
+#### 🏗️ Consistent Service Prefix Injection
+
+Auto-inject `[ServiceName]` prefix in logs instead of hardcoding in every log call.
+
+- [ ] Extend Pino logger factory to auto-add service name prefix
+- [ ] Remove manual `[ServiceName]` prefixes from log messages
+- [ ] Consider structured `service` field instead of string prefix
+
+#### ✨ Admin/User Error Context Differentiation
+
+Admin errors should show full technical context; user errors show sanitized version. Partially done in PR #587 (error display framework shipped), this is the remaining differentiation.
+
+- [ ] Admin error responses include stack traces and internal context
+- [ ] User-facing errors show friendly messages without internals
 
 ---
 
@@ -374,21 +379,13 @@ _Eventually kill v2, but these are rarely used features._
 
 #### 🏗️ Reasoning/Thinking Modernization
 
-Custom fetch wrapper, XML tag injection, multiple extraction paths. Needs stable foundation.
+Partially done: migrated from `include_reasoning` to modern `reasoning` param via `modelKwargs`. But the custom fetch wrapper in `ModelFactory.ts` that intercepts raw OpenRouter HTTP responses and injects `<reasoning>` tags is still fragile — LangChain's Chat Completions converter silently drops `reasoning` fields, so we intercept before it parses. Needs a cleaner approach (e.g., native Responses API support from OpenRouter, or a LangChain plugin).
 
 **Full details**: `~/.claude/plans/tender-tinkering-stonebraker.md` (Phase 4)
 
 #### 🏗️ Streaming Responses
 
 Stream LLM responses to Discord for better UX on long generations.
-
-#### 🏗️ Consistent Service Prefix Injection
-
-Auto-inject `[ServiceName]` prefix in logs instead of hardcoding.
-
-#### 🧹 Logging Verbosity Audit
-
-Some operations log at INFO when they should be DEBUG.
 
 #### 🏗️ File Naming Convention Audit
 
@@ -441,16 +438,19 @@ Define free-tier model allowlist, usage quotas, upgrade prompts.
 
 _Decided not to do yet._
 
-| Item                              | Why                                                                                         |
-| --------------------------------- | ------------------------------------------------------------------------------------------- |
-| Schema versioning for BullMQ jobs | No breaking changes yet                                                                     |
-| Contract tests for HTTP API       | Single consumer, integration tests sufficient                                               |
-| Redis pipelining                  | Fast enough at current traffic                                                              |
-| BYOK `lastUsedAt` tracking        | Nice-to-have, not breaking                                                                  |
-| Handler factory generator         | Add when creating many new routes                                                           |
-| Scaling preparation (timers)      | Single-instance sufficient for now                                                          |
-| Vision failure JIT repair         | Negative cache now skipped during retries (PR #617); TTL expiry handles cross-request dedup |
-| GLM 4.5 Air empty reasoning       | Fixed in v3.0.0-beta.73 — reasoning-only responses now used as content                      |
+| Item                                        | Why                                                                                                                                          |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| Schema versioning for BullMQ jobs           | No breaking changes yet                                                                                                                      |
+| Contract tests for HTTP API                 | Single consumer, integration tests sufficient                                                                                                |
+| Redis pipelining                            | Fast enough at current traffic                                                                                                               |
+| BYOK `lastUsedAt` tracking                  | Nice-to-have, not breaking                                                                                                                   |
+| Handler factory generator                   | Add when creating many new routes                                                                                                            |
+| Scaling preparation (timers)                | Single-instance sufficient for now                                                                                                           |
+| Vision failure JIT repair                   | Negative cache now skipped during retries (PR #617); TTL expiry handles cross-request dedup                                                  |
+| GLM 4.5 Air empty reasoning                 | Fixed in v3.0.0-beta.73 — reasoning-only responses now used as content                                                                       |
+| Denylist batch cache invalidation           | Single pubsub messages handle current scale; premature optimization for bulk ops that rarely happen                                          |
+| Deny detail view DashboardBuilder migration | Action-oriented UI (toggle/edit/delete) doesn't fit multi-section edit dashboard pattern; already uses SessionManager and DASHBOARD_MESSAGES |
+| Thread config cascade for threads           | Requires gateway-side changes to resolve parent channel overrides; low impact since few users use thread-specific config                     |
 
 ---
 
