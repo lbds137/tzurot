@@ -28,7 +28,6 @@ import {
   TIMEOUTS,
   type PrismaClient,
   type AnyJobData,
-  type AnyJobResult,
 } from '@tzurot/common-types';
 import { validateRequiredEnvVars, validateAIConfig, buildHealthResponse } from './startup.js';
 import { setupCacheInvalidation } from './cacheInvalidation.js';
@@ -155,10 +154,12 @@ async function initializeLocalEmbedding(): Promise<LocalEmbeddingService | undef
 /**
  * Create the main BullMQ worker with event handlers
  */
-function createMainWorker(jobProcessor: AIJobProcessor): Worker<AnyJobData, AnyJobResult> {
-  const worker = new Worker<AnyJobData, AnyJobResult>(
+function createMainWorker(jobProcessor: AIJobProcessor): Worker {
+  // Worker uses broad types because it handles both standard AI jobs (AnyJobData)
+  // and shapes-import jobs (ShapesImportJobData) which have different structures
+  const worker = new Worker(
     config.worker.queueName,
-    async (job: Job<AnyJobData>) => jobProcessor.processJob(job),
+    async (job: Job) => jobProcessor.processJob(job as Job<AnyJobData>),
     {
       connection: config.redis,
       concurrency: config.worker.concurrency,
@@ -174,21 +175,24 @@ function createMainWorker(jobProcessor: AIJobProcessor): Worker<AnyJobData, AnyJ
     );
   });
 
-  worker.on('active', (job: Job<AnyJobData>) => {
-    logger.debug(
-      { jobId: job.id ?? 'unknown', jobType: job.data.jobType },
-      '[AIWorker] Processing job'
-    );
+  worker.on('active', (job: Job) => {
+    const jobType = (job.data as Record<string, unknown>).jobType ?? job.name;
+    logger.debug({ jobId: job.id ?? 'unknown', jobType }, '[AIWorker] Processing job');
   });
 
-  worker.on('completed', (job: Job<AnyJobData>, result: AnyJobResult) => {
+  worker.on('completed', (job: Job, result: unknown) => {
+    const anyResult = result as Record<string, unknown> | undefined;
     logger.info(
-      { requestId: result.requestId, processingTime: result.metadata?.processingTimeMs },
+      {
+        requestId: anyResult?.requestId,
+        processingTime: (anyResult?.metadata as Record<string, unknown> | undefined)
+          ?.processingTimeMs,
+      },
       `[AIWorker] Job ${job.id ?? 'unknown'} completed`
     );
   });
 
-  worker.on('failed', (job: Job<AnyJobData> | undefined, error: Error) => {
+  worker.on('failed', (job: Job | undefined, error: Error) => {
     const jobId = job?.id ?? 'unknown';
     logger.error({ err: error }, `[AIWorker] Job ${jobId} failed`);
   });

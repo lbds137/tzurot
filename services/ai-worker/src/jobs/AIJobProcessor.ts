@@ -20,10 +20,13 @@ import {
   type AudioTranscriptionJobData,
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
+  type ShapesImportJobData,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
   type LLMGenerationResult,
+  type ShapesImportJobResult,
   generateUsageLogUuid,
+  JobType,
 } from '@tzurot/common-types';
 import type { PrismaClient, Prisma } from '@tzurot/common-types';
 import { redisService } from '../redis.js';
@@ -31,6 +34,7 @@ import { cleanupOldJobResults } from './CleanupJobResults.js';
 import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import { LLMGenerationHandler } from './handlers/LLMGenerationHandler.js';
+import { processShapesImportJob } from './ShapesImportJob.js';
 
 const logger = createLogger('AIJobProcessor');
 
@@ -56,6 +60,7 @@ interface AIJobProcessorOptions {
 
 export class AIJobProcessor {
   private prisma: PrismaClient;
+  private memoryManager?: PgvectorMemoryAdapter;
   private ragService: ConversationalRAGService;
   private llmGenerationHandler: LLMGenerationHandler;
   private apiKeyResolver: ApiKeyResolver;
@@ -74,6 +79,7 @@ export class AIJobProcessor {
     } = options;
 
     this.prisma = prisma;
+    this.memoryManager = memoryManager;
 
     // Use provided RAGService (for testing) or create new one (for production)
     // Note: PersonaResolver is passed through to MemoryRetriever for persona-based memory retrieval
@@ -99,7 +105,13 @@ export class AIJobProcessor {
   /**
    * Process a single AI job - routes to appropriate handler based on job type
    */
-  async processJob(job: Job<AnyJobData>): Promise<AnyJobResult> {
+  async processJob(job: Job<AnyJobData>): Promise<AnyJobResult | ShapesImportJobResult> {
+    // Shapes import jobs use job.name for routing (they don't extend BaseJobData)
+    if (job.name === (JobType.ShapesImport as string)) {
+      logger.info({ jobId: job.id, jobType: job.name }, '[AIJobProcessor] Processing job');
+      return this.processShapesImportJobWrapper(job as unknown as Job<ShapesImportJobData>);
+    }
+
     const jobType = job.data.jobType;
 
     logger.info({ jobId: job.id, jobType }, '[AIJobProcessor] Processing job');
@@ -360,5 +372,25 @@ export class AIJobProcessor {
       // Don't throw - we still want BullMQ to mark the job as complete
       // The result is in the job's return value as fallback
     }
+  }
+
+  /**
+   * Wrapper for shapes.inc import job
+   *
+   * Import jobs are self-contained: they manage their own status tracking via
+   * ImportJob records and don't use Redis stream delivery. Results are stored
+   * directly in the ImportJob table.
+   */
+  private async processShapesImportJobWrapper(
+    job: Job<ShapesImportJobData>
+  ): Promise<ShapesImportJobResult> {
+    if (this.memoryManager === undefined) {
+      throw new Error('Memory manager not available - cannot process shapes import');
+    }
+
+    return processShapesImportJob(job, {
+      prisma: this.prisma,
+      memoryAdapter: this.memoryManager,
+    });
   }
 }

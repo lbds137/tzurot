@@ -31,6 +31,8 @@ export const JOB_PREFIXES = {
   AUDIO_TRANSCRIPTION: 'audio-',
   /** Prefix for image description jobs */
   IMAGE_DESCRIPTION: 'image-',
+  /** Prefix for shapes.inc import jobs */
+  SHAPES_IMPORT: 'shapes-import-',
 } as const;
 
 /**
@@ -118,4 +120,6 @@ export enum JobType {
   ImageDescription = 'image-description',
   /** LLM generation job (may depend on preprocessing jobs) */
   LLMGeneration = 'llm-generation',
+  /** Shapes.inc character import job (personality + memories) */
+  ShapesImport = 'shapes-import',
 }
