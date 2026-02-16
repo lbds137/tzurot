@@ -24,21 +24,25 @@ import {
   type ShapesDataFetchResult,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
-  SHAPES_USER_AGENT,
 } from '@tzurot/common-types';
 import type { Prisma } from '@tzurot/common-types';
 import {
   ShapesDataFetcher,
   ShapesAuthError,
   ShapesNotFoundError,
+  ShapesRateLimitError,
 } from '../services/shapes/ShapesDataFetcher.js';
-import { mapShapesConfigToPersonality } from '../services/shapes/ShapesPersonalityMapper.js';
+import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 import type { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 import type { MemoryMetadata } from '../services/PgvectorTypes.js';
 
 const logger = createLogger('ShapesImportJob');
 
-/** Default persona ID for imported memories (system-level) */
+/**
+ * Sentinel persona ID for imported memories.
+ * Imported memories are global knowledge (not tied to any user's persona interaction),
+ * so they use the nil UUID as a system-level placeholder.
+ */
 const IMPORT_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
 
 /** Update progress in DB every N memories */
@@ -249,6 +253,7 @@ interface HandleErrorOpts {
 async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJobResult> {
   const errorMessage = opts.error instanceof Error ? opts.error.message : String(opts.error);
 
+  const isRateLimited = opts.error instanceof ShapesRateLimitError;
   logger.error(
     {
       err: opts.error,
@@ -256,8 +261,11 @@ async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJob
       sourceSlug: opts.sourceSlug,
       isAuthError: opts.error instanceof ShapesAuthError,
       isNotFound: opts.error instanceof ShapesNotFoundError,
+      isRateLimited,
     },
-    '[ShapesImportJob] Import failed'
+    isRateLimited
+      ? '[ShapesImportJob] Rate limited by shapes.inc — BullMQ will retry'
+      : '[ShapesImportJob] Import failed'
   );
 
   await opts.prisma.importJob.update({
@@ -272,140 +280,6 @@ async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJob
     importType: opts.importType,
     error: errorMessage,
   };
-}
-
-async function createFullPersonality(
-  prisma: PrismaClient,
-  config: ShapesIncPersonalityConfig,
-  slug: string,
-  ownerId: string
-): Promise<{ personalityId: string; slug: string }> {
-  const mapped = mapShapesConfigToPersonality(config, slug);
-
-  // Create system prompt
-  await prisma.systemPrompt.upsert({
-    where: { id: mapped.systemPrompt.id },
-    create: {
-      id: mapped.systemPrompt.id,
-      name: mapped.systemPrompt.name,
-      content: mapped.systemPrompt.content,
-    },
-    update: {
-      content: mapped.systemPrompt.content,
-    },
-  });
-
-  // Create personality
-  const customFieldsJson = (mapped.personality.customFields ?? undefined) as
-    | Prisma.InputJsonValue
-    | undefined;
-  await prisma.personality.upsert({
-    where: { slug: mapped.personality.slug },
-    create: {
-      ...mapped.personality,
-      customFields: customFieldsJson,
-      ownerId,
-      systemPromptId: mapped.systemPrompt.id,
-    },
-    update: {
-      characterInfo: mapped.personality.characterInfo,
-      personalityTraits: mapped.personality.personalityTraits,
-      personalityTone: mapped.personality.personalityTone,
-      personalityAge: mapped.personality.personalityAge,
-      personalityAppearance: mapped.personality.personalityAppearance,
-      personalityLikes: mapped.personality.personalityLikes,
-      personalityDislikes: mapped.personality.personalityDislikes,
-      conversationalGoals: mapped.personality.conversationalGoals,
-      conversationalExamples: mapped.personality.conversationalExamples,
-      errorMessage: mapped.personality.errorMessage,
-      customFields: customFieldsJson,
-      systemPromptId: mapped.systemPrompt.id,
-    },
-  });
-
-  // Create LLM config and link as default
-  const advancedParamsJson = mapped.llmConfig.advancedParameters as Prisma.InputJsonValue;
-  await prisma.llmConfig.upsert({
-    where: { id: mapped.llmConfig.id },
-    create: {
-      id: mapped.llmConfig.id,
-      name: mapped.llmConfig.name,
-      description: mapped.llmConfig.description,
-      model: mapped.llmConfig.model,
-      provider: mapped.llmConfig.provider,
-      advancedParameters: advancedParamsJson,
-      memoryScoreThreshold: mapped.llmConfig.memoryScoreThreshold,
-      memoryLimit: mapped.llmConfig.memoryLimit,
-      contextWindowTokens: mapped.llmConfig.contextWindowTokens,
-      maxMessages: mapped.llmConfig.maxMessages,
-      ownerId,
-      isGlobal: false,
-      isDefault: false,
-    },
-    update: {
-      model: mapped.llmConfig.model,
-      advancedParameters: advancedParamsJson,
-      memoryScoreThreshold: mapped.llmConfig.memoryScoreThreshold,
-      memoryLimit: mapped.llmConfig.memoryLimit,
-      maxMessages: mapped.llmConfig.maxMessages,
-    },
-  });
-
-  // Link as default config for this personality
-  await prisma.personalityDefaultConfig.upsert({
-    where: { personalityId: mapped.personality.id },
-    create: {
-      personalityId: mapped.personality.id,
-      llmConfigId: mapped.llmConfig.id,
-    },
-    update: {
-      llmConfigId: mapped.llmConfig.id,
-    },
-  });
-
-  logger.info(
-    { personalityId: mapped.personality.id, slug: mapped.personality.slug },
-    '[ShapesImportJob] Created/updated personality with LLM config'
-  );
-
-  return { personalityId: mapped.personality.id, slug: mapped.personality.slug };
-}
-
-async function downloadAndStoreAvatar(
-  prisma: PrismaClient,
-  personalityId: string,
-  avatarUrl: string
-): Promise<void> {
-  try {
-    const response = await fetch(avatarUrl, {
-      headers: { 'User-Agent': SHAPES_USER_AGENT },
-    });
-
-    if (!response.ok) {
-      logger.warn(
-        { personalityId, status: response.status },
-        '[ShapesImportJob] Failed to download avatar — skipping'
-      );
-      return;
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    await prisma.personality.update({
-      where: { id: personalityId },
-      data: { avatarData: buffer },
-    });
-
-    logger.info(
-      { personalityId, sizeBytes: buffer.length },
-      '[ShapesImportJob] Avatar downloaded and stored'
-    );
-  } catch (error) {
-    // Non-fatal — personality is usable without an avatar
-    logger.warn(
-      { err: error, personalityId },
-      '[ShapesImportJob] Avatar download failed — skipping'
-    );
-  }
 }
 
 interface MemoryToImport {

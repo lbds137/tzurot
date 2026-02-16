@@ -46,6 +46,12 @@ vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
       this.name = 'ShapesNotFoundError';
     }
   },
+  ShapesRateLimitError: class ShapesRateLimitError extends Error {
+    constructor() {
+      super('Rate limited by shapes.inc');
+      this.name = 'ShapesRateLimitError';
+    }
+  },
 }));
 
 // Mock PersonalityMapper

@@ -37,6 +37,7 @@ const logger = createLogger('shapes-export');
 const EXPORT_TOTAL_TIMEOUT_MS = 300_000; // 5 minutes for multi-page fetch
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
+const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
 
 // ============================================================================
 // Shapes.inc API helpers (lightweight — no class, just functions)
@@ -105,7 +106,7 @@ async function fetchAllMemories(shapeId: string, ctx: FetchContext): Promise<Sha
   let page = 1;
   let hasNext = true;
 
-  while (hasNext) {
+  while (hasNext && page <= MAX_MEMORY_PAGES) {
     if (page > 1) {
       await delay();
     }
@@ -156,8 +157,12 @@ async function fetchShapeExportData(slug: string, ctx: FetchContext): Promise<Sh
       `${SHAPES_BASE_URL}/api/shapes/${encodeURIComponent(config.id)}/user`,
       ctx
     );
-  } catch {
-    logger.debug({ slug }, '[Shapes] No user personalization found');
+  } catch (error) {
+    if (error instanceof ShapesExportNotFoundError) {
+      logger.debug({ slug }, '[Shapes] No user personalization found');
+    } else {
+      throw error;
+    }
   }
 
   return { config, memories, stories, userPersonalization };

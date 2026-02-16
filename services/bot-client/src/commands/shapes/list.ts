@@ -163,9 +163,9 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
       collector.on('collect', interaction => {
         const handleInteraction = async (): Promise<void> => {
           if (interaction.isStringSelectMenu()) {
-            await handleSelectInteraction(interaction, userId);
+            await handleSelectInteraction(interaction);
           } else if (interaction.isButton()) {
-            await handlePageInteraction(interaction, currentShapes);
+            await handleButtonInteraction(interaction, currentShapes);
           }
         };
         handleInteraction().catch((error: unknown) => {
@@ -179,9 +179,6 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
           /* noop */
         });
       });
-
-      // Keep reference for page navigation
-      void currentShapes;
     } catch {
       // Collector creation can fail if message was deleted
     }
@@ -193,10 +190,7 @@ export async function handleList(context: DeferredCommandContext): Promise<void>
   }
 }
 
-async function handleSelectInteraction(
-  interaction: StringSelectMenuInteraction,
-  userId: string
-): Promise<void> {
+async function handleSelectInteraction(interaction: StringSelectMenuInteraction): Promise<void> {
   const selectedSlug = interaction.values[0];
 
   // Show action buttons for the selected shape
@@ -233,16 +227,15 @@ async function handleSelectInteraction(
       new ActionRowBuilder<ButtonBuilder>().addComponents(importButton, exportButton, backButton),
     ],
   });
-
-  void userId;
 }
 
-async function handlePageInteraction(
+async function handleButtonInteraction(
   interaction: ButtonInteraction,
   shapes: ShapeItem[]
 ): Promise<void> {
   const customId = interaction.customId;
 
+  // Pagination buttons
   if (customId.startsWith('shapes::list-prev::') || customId.startsWith('shapes::list-next::')) {
     const currentPage = parseInt(customId.split('::')[2], 10);
     const newPage = customId.includes('prev') ? currentPage - 1 : currentPage + 1;
@@ -251,6 +244,39 @@ async function handlePageInteraction(
     await interaction.update({
       embeds: [embed],
       components: components as ActionRowBuilder<ButtonBuilder>[],
+    });
+    return;
+  }
+
+  // Back to list
+  if (customId === 'shapes::action-back') {
+    const { embed, components } = buildListPage(shapes, 0);
+    await interaction.update({
+      embeds: [embed],
+      components: components as ActionRowBuilder<ButtonBuilder>[],
+    });
+    return;
+  }
+
+  // Import/Export action buttons
+  if (
+    customId.startsWith('shapes::action-import::') ||
+    customId.startsWith('shapes::action-export::')
+  ) {
+    const slug = customId.split('::')[2];
+    const action = customId.includes('import') ? 'import' : 'export';
+
+    await interaction.update({
+      embeds: [
+        new EmbedBuilder()
+          .setColor(DISCORD_COLORS.BLURPLE)
+          .setDescription(
+            action === 'import'
+              ? `Use \`/shapes import slug:${slug}\` to import **${slug}** into Tzurot.`
+              : `Use \`/shapes export slug:${slug}\` to download **${slug}** as a file.`
+          ),
+      ],
+      components: [],
     });
   }
 }
