@@ -19,6 +19,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       error: vi.fn(),
     }),
     decryptApiKey: vi.fn().mockReturnValue('appSession.0=abc; appSession.1=def'),
+    encryptApiKey: vi
+      .fn()
+      .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),
   };
 });
 
@@ -109,6 +112,9 @@ const mockPrisma = {
   personalityDefaultConfig: {
     upsert: vi.fn().mockResolvedValue({}),
   },
+  memory: {
+    count: vi.fn().mockResolvedValue(0),
+  },
 };
 
 // Mock MemoryAdapter
@@ -169,6 +175,9 @@ describe('processShapesImportJob', () => {
       userPersonalization: null,
       stats: { memoriesCount: 1, storiesCount: 0, pagesTraversed: 1 },
     });
+
+    // Default: no existing memories (fresh import)
+    mockPrisma.memory.count.mockResolvedValue(0);
   });
 
   it('should update import job to in_progress', async () => {
@@ -276,6 +285,20 @@ describe('processShapesImportJob', () => {
         data: expect.objectContaining({ status: 'failed' }),
       })
     );
+  });
+
+  it('should skip memory import if personality already has memories', async () => {
+    mockPrisma.memory.count.mockResolvedValue(50);
+
+    const job = createMockJob();
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.memoriesImported).toBe(0);
+    expect(mockMemoryAdapter.addMemory).not.toHaveBeenCalled();
   });
 
   it('should count failed memories without failing the job', async () => {
