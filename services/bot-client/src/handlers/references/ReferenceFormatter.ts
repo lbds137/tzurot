@@ -6,7 +6,7 @@
  */
 
 import type { Message } from 'discord.js';
-import { createLogger, type ReferencedMessage } from '@tzurot/common-types';
+import { createLogger, type ReferencedMessage, TEXT_LIMITS } from '@tzurot/common-types';
 import { MessageLinkParser } from '../../utils/MessageLinkParser.js';
 import { isForwardedMessage, type ReferenceMetadata } from './types.js';
 import { MessageFormatter } from './MessageFormatter.js';
@@ -134,8 +134,11 @@ export class ReferenceFormatter {
 
   /** Build a minimal ReferencedMessage for a deduped reference */
   private buildDedupedStub(message: Message, refNumber: number): ReferencedMessage {
+    const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
     const truncatedContent =
-      message.content.length > 100 ? message.content.substring(0, 100) + '...' : message.content;
+      message.content.length > limit
+        ? message.content.substring(0, limit) + '...'
+        : message.content;
     return {
       referenceNumber: refNumber,
       discordMessageId: message.id,

@@ -11,7 +11,7 @@
  * to provide context about the quote source.
  */
 
-import { escapeXml, escapeXmlContent } from '@tzurot/common-types';
+import { escapeXml, escapeXmlContent, TEXT_LIMITS } from '@tzurot/common-types';
 
 /**
  * Options for formatting a single <quote> element.
@@ -163,5 +163,46 @@ export function formatForwardedQuote(content: ForwardedMessageContent): string {
     embedsXml: content.embedsXml,
     voiceTranscripts: content.voiceTranscripts,
     attachmentLines: content.attachmentLines,
+  });
+}
+
+/** Prefix for deduplicated reference stubs */
+export const DEDUP_REPLY_TARGET_PREFIX = '[Reply target — full message is in conversation above]';
+
+/**
+ * Options for formatting a deduplicated reference stub.
+ * Lightweight — no attachments, embeds, or location context.
+ */
+export interface DedupedQuoteOptions {
+  /** Reference number (real-time refs only) */
+  number?: number;
+  /** Author display name */
+  from: string;
+  /** Author username (real-time refs only) */
+  username?: string;
+  /** Structured timestamp as child element */
+  timestamp?: { absolute: string; relative: string };
+  /** Pre-formatted timestamp as attribute */
+  timeFormatted?: string;
+  /** Original message content (will be truncated) */
+  content: string;
+}
+
+/**
+ * Format a deduplicated reference as a lightweight <quote> stub.
+ * Truncates content and prepends the reply-target note.
+ */
+export function formatDedupedQuote(opts: DedupedQuoteOptions): string {
+  const limit = TEXT_LIMITS.DEDUP_STUB_CONTENT;
+  const truncated =
+    opts.content.length > limit ? opts.content.substring(0, limit) + '...' : opts.content;
+
+  return formatQuoteElement({
+    number: opts.number,
+    from: opts.from,
+    username: opts.username,
+    timestamp: opts.timestamp,
+    timeFormatted: opts.timeFormatted,
+    content: `${DEDUP_REPLY_TARGET_PREFIX}\n\n${truncated}`,
   });
 }

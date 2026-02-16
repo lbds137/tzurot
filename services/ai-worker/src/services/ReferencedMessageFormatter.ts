@@ -17,6 +17,7 @@ import type { ProcessedAttachment } from './MultimodalProcessor.js';
 import {
   formatQuoteElement,
   formatForwardedQuote,
+  formatDedupedQuote,
   type ForwardedMessageContent,
 } from './prompt/QuoteFormatter.js';
 import { processAttachmentsParallel } from './AttachmentProcessor.js';
@@ -70,15 +71,16 @@ export class ReferencedMessageFormatter {
       // Deduped stubs: lightweight quote with reply-target note (no attachment processing)
       if (ref.isDeduplicated === true) {
         const { absolute, relative } = formatTimestampWithDelta(ref.timestamp);
-        const dedupedElement = formatQuoteElement({
-          number: ref.referenceNumber,
-          from: ref.authorDisplayName,
-          username: ref.authorUsername,
-          timestamp:
-            absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
-          content: `[Reply target — full message is in conversation above]\n\n${ref.content}`,
-        });
-        referenceElements.push(dedupedElement);
+        referenceElements.push(
+          formatDedupedQuote({
+            number: ref.referenceNumber,
+            from: ref.authorDisplayName,
+            username: ref.authorUsername,
+            timestamp:
+              absolute.length > 0 && relative.length > 0 ? { absolute, relative } : undefined,
+            content: ref.content,
+          })
+        );
         continue;
       }
 

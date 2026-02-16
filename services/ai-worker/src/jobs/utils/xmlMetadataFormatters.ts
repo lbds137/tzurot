@@ -12,7 +12,7 @@ import {
   formatPromptTimestamp,
   type StoredReferencedMessage,
 } from '@tzurot/common-types';
-import { formatQuoteElement } from '../../services/prompt/QuoteFormatter.js';
+import { formatQuoteElement, formatDedupedQuote } from '../../services/prompt/QuoteFormatter.js';
 import type { RawHistoryEntry } from './conversationTypes.js';
 
 /**
@@ -144,15 +144,13 @@ export function formatQuotedSection(
   // Deduped refs: lightweight stubs with truncated content and reply-target note
   const formattedDeduped = dedupedRefs.map(ref => {
     const authorName = ref.resolvedPersonaName ?? (ref.authorDisplayName || ref.authorUsername);
-    const truncatedContent =
-      ref.content.length > 100 ? ref.content.substring(0, 100) + '...' : ref.content;
-    return formatQuoteElement({
+    return formatDedupedQuote({
       from: authorName,
       timeFormatted:
         ref.timestamp !== undefined && ref.timestamp.length > 0
           ? formatPromptTimestamp(ref.timestamp)
           : undefined,
-      content: `[Reply target — full message is in conversation above]\n\n${truncatedContent}`,
+      content: ref.content,
     });
   });
 
