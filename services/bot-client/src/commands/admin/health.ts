@@ -9,6 +9,7 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
+import { formatDuration } from '../../utils/formatting.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-health');
@@ -26,25 +27,6 @@ interface GatewayHealthResponse {
   };
   timestamp: string;
   uptime: number;
-}
-
-/** Format milliseconds into a human-readable duration */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) {
-    return `${days}d ${hours % 24}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m`;
-  }
-  return `${seconds}s`;
 }
 
 function statusIcon(ok: boolean): string {
@@ -106,7 +88,7 @@ export async function handleHealth(context: DeferredCommandContext): Promise<voi
   } catch (error) {
     logger.warn({ err: error }, 'Gateway health check failed');
     embed.addFields({
-      name: '🗄️ Gateway',
+      name: GATEWAY_FIELD_NAME,
       value: '❌ Unreachable',
     });
     embed.setColor(DISCORD_COLORS.WARNING);
