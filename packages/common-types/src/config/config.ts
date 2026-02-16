@@ -165,7 +165,8 @@ export function validateEnv(): EnvConfig {
 
       throw new Error(
         `Environment validation failed:\n${issues}\n\n` +
-          'Please check your .env file and ensure all required variables are set.'
+          'Please check your .env file and ensure all required variables are set.',
+        { cause: error }
       );
     }
     throw error;

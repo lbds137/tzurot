@@ -234,7 +234,7 @@ export class OpenRouterModelCache {
 
       if (error instanceof Error && error.name === 'AbortError') {
         logger.error({ err: error }, '[OpenRouterModelCache] Request to OpenRouter timed out');
-        throw new Error('OpenRouter API request timed out');
+        throw new Error('OpenRouter API request timed out', { cause: error });
       }
 
       logger.error({ err: error }, '[OpenRouterModelCache] Failed to fetch from OpenRouter');

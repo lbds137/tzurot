@@ -125,7 +125,9 @@ export class UserService {
         });
         if (existingUser === null) {
           // This shouldn't happen - P2002 means the record exists
-          throw new Error(`User not found after P2002 error for discordId: ${discordId}`);
+          throw new Error(`User not found after P2002 error for discordId: ${discordId}`, {
+            cause: error,
+          });
         }
         return existingUser;
       }

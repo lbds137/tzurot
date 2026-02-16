@@ -171,7 +171,8 @@ export async function optimizeAvatar(
     const originalMessage = error instanceof Error ? error.message : 'Unknown error';
     logger.error({ err: error }, '[ImageProcessor] Failed to process avatar image');
     throw new Error(
-      `Failed to process avatar image: ${originalMessage}. Ensure it is a valid image format.`
+      `Failed to process avatar image: ${originalMessage}. Ensure it is a valid image format.`,
+      { cause: error }
     );
   }
 }
