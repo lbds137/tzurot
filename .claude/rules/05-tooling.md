@@ -101,9 +101,10 @@ EOF
 
 Release notes follow the Conventional Changelog format. This enables machine parsing for Discord release notifications.
 
-```markdown
-## v3.0.0-beta.XX — Brief summary (under 60 chars)
+- **Release title**: `v3.0.0-beta.XX` (version number only, no summary)
+- **Body** starts directly with category headings (no version line in body)
 
+```markdown
 ### Features
 
 - **scope:** description (#PR)
@@ -115,15 +116,16 @@ Release notes follow the Conventional Changelog format. This enables machine par
 ### Improvements
 
 - **scope:** description (#PR)
+
+**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW
 ```
 
 **Rules:**
 
-- Version + summary line is required (H2)
-- Categories use H3: **Features**, **Bug Fixes**, **Improvements**, **Breaking Changes**, **Chores**
+- Categories use H3: **Features**, **Bug Fixes**, **Improvements**, **Breaking Changes**, **Chores**, **Tests**, **Database Migrations**
 - Breaking Changes section always comes first when present
 - Only include categories that have entries
-- Line items: `- **scope:** description (#123)` — scope maps to commit scope, `#N` auto-links on GitHub
+- Line items: `- **scope:** description (#123)` — scope maps to commit scope, `#N` auto-links on GitHub (PR numbers optional)
 - End with: `**Full Changelog**: https://github.com/lbds137/tzurot/compare/vOLD...vNEW`
 
 ## Project Structure
