@@ -318,7 +318,7 @@ export async function withTimeout<T>(
   } catch (error) {
     clearTimeout(timeoutId);
     if ((error as Error).name === 'AbortError') {
-      throw new Error(`${operationName} timed out after ${timeoutMs}ms`);
+      throw new Error(`${operationName} timed out after ${timeoutMs}ms`, { cause: error });
     }
     throw error;
   }

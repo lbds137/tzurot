@@ -92,7 +92,7 @@ export function parseRedisUrl(url: string): RedisConnectionConfig {
 
     // Only fallback to localhost in development
     if (process.env.NODE_ENV === 'production') {
-      throw new Error('Failed to parse REDIS_URL in production environment');
+      throw new Error('Failed to parse REDIS_URL in production environment', { cause: error });
     }
 
     logger.warn({ err: error }, '[RedisUtils] Falling back to localhost (development only)');

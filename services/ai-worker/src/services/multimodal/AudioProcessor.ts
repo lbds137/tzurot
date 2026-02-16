@@ -122,7 +122,9 @@ export async function transcribeAudio(
   } catch (error) {
     clearTimeout(fetchTimeout);
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`Audio file download timed out after ${TIMEOUTS.AUDIO_FETCH}ms`);
+      throw new Error(`Audio file download timed out after ${TIMEOUTS.AUDIO_FETCH}ms`, {
+        cause: error,
+      });
     }
     throw error;
   }
