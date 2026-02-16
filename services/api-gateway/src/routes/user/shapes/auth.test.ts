@@ -224,23 +224,23 @@ describe('Shapes Auth Routes', () => {
       return { req, res };
     }
 
-    it('should return authenticated: false when user not found', async () => {
+    it('should return hasCredentials: false when user not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue(null);
       const { res } = await callStatusHandler();
 
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ authenticated: false }));
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasCredentials: false }));
     });
 
-    it('should return authenticated: false when credential not found', async () => {
+    it('should return hasCredentials: false when credential not found', async () => {
       mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callStatusHandler();
 
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ authenticated: false }));
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasCredentials: false }));
     });
 
-    it('should return authenticated: true with timestamps', async () => {
+    it('should return hasCredentials: true with timestamps', async () => {
       const now = new Date('2026-02-16T12:00:00Z');
       mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
       mockPrisma.userCredential.findFirst.mockResolvedValue({
@@ -253,7 +253,7 @@ describe('Shapes Auth Routes', () => {
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          authenticated: true,
+          hasCredentials: true,
           storedAt: now.toISOString(),
           lastUsedAt: null,
           expiresAt: null,

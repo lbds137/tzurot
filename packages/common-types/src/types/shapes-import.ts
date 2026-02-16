@@ -180,3 +180,14 @@ export const CREDENTIAL_TYPES = {
 export const IMPORT_SOURCES = {
   SHAPES_INC: 'shapes_inc',
 } as const;
+
+/** Shapes.inc API base URL */
+export const SHAPES_BASE_URL = 'https://shapes.inc';
+
+/**
+ * User-Agent for shapes.inc API calls.
+ * Uses a standard Chrome UA — the user authenticated with their own session cookie,
+ * so we're acting as their browser to automate data retrieval on their behalf.
+ */
+export const SHAPES_USER_AGENT =
+  'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36';
