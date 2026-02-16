@@ -294,6 +294,7 @@ export default defineCommand({
             .setDescription('Activity type')
             .setRequired(false)
             .addChoices(
+              { name: 'Custom Status', value: 4 },
               { name: 'Playing', value: 0 },
               { name: 'Listening to', value: 2 },
               { name: 'Watching', value: 3 },
