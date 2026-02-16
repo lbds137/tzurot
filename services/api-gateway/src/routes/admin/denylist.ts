@@ -7,6 +7,7 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import type { Redis } from 'ioredis';
 import {
   createLogger,
   isBotOwner,
@@ -21,6 +22,7 @@ import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendCustomSuccess, sendError } from '../../utils/responseHelpers.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
+import { createRedisDenylistRateLimiter } from '../../utils/RedisRateLimiter.js';
 
 const logger = createLogger('admin-denylist');
 
@@ -93,9 +95,11 @@ function handleAddEntry(
  */
 export function createDenylistRoutes(
   prisma: PrismaClient,
-  denylistInvalidation: DenylistCacheInvalidationService
+  denylistInvalidation: DenylistCacheInvalidationService,
+  redis?: Redis
 ): Router {
   const router = Router();
+  const rateLimiter = redis !== undefined ? createRedisDenylistRateLimiter(redis) : undefined;
 
   // GET / — List all entries (optional ?type= filter)
   router.get(
@@ -134,12 +138,14 @@ export function createDenylistRoutes(
     })
   );
 
-  // POST / — Add denylist entry
-  router.post('/', handleAddEntry(prisma, denylistInvalidation));
+  // POST / — Add denylist entry (rate limited)
+  const mutationMiddleware = rateLimiter !== undefined ? [rateLimiter] : [];
+  router.post('/', ...mutationMiddleware, handleAddEntry(prisma, denylistInvalidation));
 
-  // DELETE /:type/:discordId/:scope/:scopeId — Remove entry
+  // DELETE /:type/:discordId/:scope/:scopeId — Remove entry (rate limited)
   router.delete(
     '/:type/:discordId/:scope/:scopeId',
+    ...mutationMiddleware,
     asyncHandler(async (req: Request, res: Response) => {
       const typeResult = denylistEntityTypeSchema.safeParse(req.params.type);
       if (!typeResult.success) {
