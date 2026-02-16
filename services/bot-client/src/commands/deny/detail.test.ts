@@ -156,6 +156,7 @@ describe('showDetailView', () => {
       })
     );
     expect(interaction.editReply).toHaveBeenCalledWith({
+      content: '',
       embeds: expect.any(Array),
       components: expect.any(Array),
     });

@@ -57,15 +57,16 @@ export async function handleView(context: DeferredCommandContext): Promise<void>
     return;
   }
 
-  // Multiple matches — show the first match's detail view
+  // Multiple matches — show the first match's detail view with a note
   logger.debug(
     { target, matchCount: matches.length },
     '[Deny] Multiple entries found, showing first'
   );
 
-  await showDetailView(context.interaction, matches[0], {
-    page: 0,
-    filter: 'all',
-    sort: 'date',
-  });
+  await showDetailView(
+    context.interaction,
+    matches[0],
+    { page: 0, filter: 'all', sort: 'date' },
+    `Found ${matches.length} entries for \`${target.trim()}\`. Showing first match — use the type filter for a specific entry.`
+  );
 }

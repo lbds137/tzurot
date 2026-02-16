@@ -140,17 +140,18 @@ describe('handleView', () => {
     });
   });
 
-  it('should show first match when multiple entries found', async () => {
+  it('should show first match with multi-match note when multiple entries found', async () => {
     vi.mocked(fetchEntries).mockResolvedValue([ENTRY_USER, ENTRY_GUILD]);
     const context = createMockContext({ target: '999888777' });
 
     await handleView(context);
 
-    expect(showDetailView).toHaveBeenCalledWith(context.interaction, ENTRY_USER, {
-      page: 0,
-      filter: 'all',
-      sort: 'date',
-    });
+    expect(showDetailView).toHaveBeenCalledWith(
+      context.interaction,
+      ENTRY_USER,
+      { page: 0, filter: 'all', sort: 'date' },
+      expect.stringContaining('Found 2 entries')
+    );
   });
 
   it('should filter by type when provided', async () => {
