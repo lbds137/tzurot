@@ -132,7 +132,7 @@ export class LLMInvoker {
    * - Dynamic global timeout based on attachment count
    * - Per-attempt timeout using LLM_PER_ATTEMPT constant
    * - Reasoning model support (o1, Claude 3.7+, Gemini Thinking)
-   * - Stop sequences to prevent identity bleeding (e.g., ["\nLila:", "\nLeviathan:"])
+   * - Stop sequences to enforce XML turn boundaries and prevent identity bleeding
    */
   async invokeWithRetry(options: InvokeWithRetryOptions): Promise<BaseMessage> {
     const { model, messages, modelName, imageCount = 0, audioCount = 0, stopSequences } = options;
