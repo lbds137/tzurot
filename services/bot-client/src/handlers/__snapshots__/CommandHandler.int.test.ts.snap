@@ -176,6 +176,11 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
         "autocomplete": undefined,
         "choices": [
           {
+            "name": "Custom Status",
+            "name_localizations": undefined,
+            "value": 4,
+          },
+          {
             "name": "Playing",
             "name_localizations": undefined,
             "value": 0,
