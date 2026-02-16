@@ -206,6 +206,34 @@ export function generateUserApiKeyUuid(userId: string, provider: string): string
 }
 
 /**
+ * Generate deterministic UUID for UserCredential
+ * Seed: user_credential:{userId}:{service}:{credentialType}
+ *
+ * User credentials are unique per user+service+type combination.
+ */
+export function generateUserCredentialUuid(
+  userId: string,
+  service: string,
+  credentialType: string
+): string {
+  return uuidv5(`user_credential:${userId}:${service}:${credentialType}`, TZUROT_NAMESPACE);
+}
+
+/**
+ * Generate deterministic UUID for ImportJob
+ * Seed: import_job:{userId}:{sourceSlug}:{sourceService}
+ *
+ * Import jobs are unique per user+source slug+service combination.
+ */
+export function generateImportJobUuid(
+  userId: string,
+  sourceSlug: string,
+  sourceService: string
+): string {
+  return uuidv5(`import_job:${userId}:${sourceSlug}:${sourceService}`, TZUROT_NAMESPACE);
+}
+
+/**
  * UUID v4 format regex pattern
  * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
  */
