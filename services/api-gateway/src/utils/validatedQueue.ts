@@ -24,17 +24,23 @@ import {
   JobType,
 } from '@tzurot/common-types';
 import type { ZodSchema } from 'zod';
+import { z } from 'zod';
 
 const logger = createLogger('ValidatedQueue');
 
 /**
  * Map of job types to their Zod validation schemas
  * This ensures all job types have runtime validation
+ *
+ * Note: ShapesImport jobs bypass this validated queue (they use their own
+ * enqueue path in the shapes import routes). A passthrough schema is included
+ * to satisfy the Record<JobType, ZodSchema> constraint.
  */
 const SCHEMA_MAP: Record<JobType, ZodSchema> = {
   [JobType.AudioTranscription]: audioTranscriptionJobDataSchema,
   [JobType.ImageDescription]: imageDescriptionJobDataSchema,
   [JobType.LLMGeneration]: llmGenerationJobDataSchema,
+  [JobType.ShapesImport]: z.record(z.string(), z.unknown()), // Validated at enqueue site
 };
 
 /**

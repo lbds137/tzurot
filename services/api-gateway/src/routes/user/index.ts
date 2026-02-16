@@ -49,6 +49,7 @@
  */
 
 import { Router } from 'express';
+import type { Queue } from 'bullmq';
 import type { Redis } from 'ioredis';
 import type {
   PrismaClient,
@@ -69,6 +70,7 @@ import { createMemoryRoutes } from './memory.js';
 import { createNsfwRoutes } from './nsfw.js';
 import { createConversationLookupRoutes } from './conversationLookup.js';
 import { createConfigOverrideRoutes } from './config-overrides.js';
+import { createShapesRoutes } from './shapes/index.js';
 
 /** Dependencies for creating the user router */
 interface UserRouterOptions {
@@ -78,6 +80,7 @@ interface UserRouterOptions {
   redis?: Redis;
   modelCache?: OpenRouterModelCache;
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService;
+  aiQueue?: Queue;
 }
 
 /**
@@ -91,6 +94,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
     redis,
     modelCache,
     cascadeInvalidation,
+    aiQueue,
   } = opts;
   const router = Router();
 
@@ -129,6 +133,9 @@ export function createUserRouter(opts: UserRouterOptions): Router {
 
   // Conversation lookup routes (internal service-to-service, no user auth)
   router.use('/conversation', createConversationLookupRoutes(prisma));
+
+  // Shapes.inc import routes (credential management, import jobs)
+  router.use('/shapes', createShapesRoutes(prisma, aiQueue));
 
   return router;
 }

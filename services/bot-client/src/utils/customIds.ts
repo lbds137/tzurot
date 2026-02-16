@@ -504,6 +504,35 @@ export const PersonaCustomIds = {
 } as const;
 
 // ============================================================================
+// SHAPES COMMAND
+// ============================================================================
+
+export const ShapesCustomIds = {
+  /** Auth modal - two text inputs for cookie parts */
+  auth: () => `shapes::auth` as const,
+
+  /** Parse shapes customId */
+  parse: (
+    customId: string
+  ): {
+    command: 'shapes';
+    action: string;
+  } | null => {
+    const parts = customId.split(CUSTOM_ID_DELIMITER);
+    if (parts[0] !== 'shapes' || parts.length < 2) {
+      return null;
+    }
+    return {
+      command: 'shapes',
+      action: parts[1],
+    };
+  },
+
+  /** Check if customId belongs to shapes command */
+  isShapes: (customId: string): boolean => customId.startsWith('shapes::'),
+} as const;
+
+// ============================================================================
 // UTILITY FUNCTIONS
 // ============================================================================
 

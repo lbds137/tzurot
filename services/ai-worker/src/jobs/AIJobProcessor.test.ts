@@ -591,10 +591,11 @@ describe('AIJobProcessor', () => {
         const job = createMockJob(jobDataWithTriggerMessageId, 'llm-job-123');
 
         const result = await processor.processJob(job);
+        const llmResult = result as import('@tzurot/common-types').LLMGenerationResult;
 
-        expect(result.success).toBe(false);
-        expect(result.error).toBe('Duplicate message - already processed');
-        expect(result.metadata).toEqual({
+        expect(llmResult.success).toBe(false);
+        expect(llmResult.error).toBe('Duplicate message - already processed');
+        expect(llmResult.metadata).toEqual({
           triggerMessageId: 'discord-msg-123',
           skipReason: 'idempotency_check_failed',
         });

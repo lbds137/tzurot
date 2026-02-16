@@ -181,7 +181,8 @@ describe('AIJobProcessor Component Test', () => {
       } as Job<LLMGenerationJobData>;
 
       // Process the job
-      const result = await jobProcessor.processJob(mockJob);
+      const rawResult = await jobProcessor.processJob(mockJob);
+      const result = rawResult as import('@tzurot/common-types').LLMGenerationResult;
 
       // Verify RAG service was called
       expect(mockRagService.generateResponse).toHaveBeenCalledTimes(1);
@@ -337,7 +338,8 @@ describe('AIJobProcessor Component Test', () => {
       } as Job<LLMGenerationJobData>;
 
       // Process the job - errors are caught and returned as failed results
-      const result = await jobProcessor.processJob(mockJob);
+      const rawResult = await jobProcessor.processJob(mockJob);
+      const result = rawResult as import('@tzurot/common-types').LLMGenerationResult;
 
       // Verify error is captured in result
       expect(result.success).toBe(false);

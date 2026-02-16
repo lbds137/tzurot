@@ -30,6 +30,8 @@ model User {
   createdAt             DateTime                   @default(now()) @map("created_at")
   updatedAt             DateTime                   @updatedAt @map("updated_at")
   apiKeys               UserApiKey[]
+  credentials           UserCredential[]
+  importJobs            ImportJob[]
   usageLogs             UsageLog[]
   channelSettings       ChannelSettings[]
   adminSettingsUpdates  AdminSettings[]
@@ -237,6 +239,7 @@ model Personality {
   owners                PersonalityOwner[]
   userConfigs           UserPersonalityConfig[]
   personaHistoryConfigs UserPersonaHistoryConfig[]
+  importJobs            ImportJob[]
 
   @@index([slug])
   @@index([ownerId])
@@ -441,6 +444,8 @@ model Memory {
   updatedAt            DateTime               @default(now()) @updatedAt @map("updated_at")
   legacyShapesUserId   String?                @map("legacy_shapes_user_id") @db.Uuid
   sourceSystem         String                 @default("tzurot-v3") @map("source_system") @db.VarChar(50)
+  /// Memory type: 'memory' for conversation summaries, 'knowledge' for imported knowledge base entries
+  type                 String                 @default("memory") @map("type") @db.VarChar(20)
   /// Protected "core memories" that survive batch delete and purge operations
   isLocked             Boolean                @default(false) @map("is_locked")
   /// Memory visibility: normal, hidden, archived (for future use)
@@ -590,4 +595,56 @@ model DenylistedEntity {
   @@index([type, discordId])
   @@index([type, addedAt])
   @@map("denylisted_entities")
+}
+
+/// Encrypted credentials for external service authentication (e.g., shapes.inc session cookies).
+/// Uses AES-256-GCM encryption with same pattern as UserApiKey (iv, content, tag).
+model UserCredential {
+  id             String    @id @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// External service identifier (e.g., 'shapes_inc')
+  service        String    @db.VarChar(50)
+  /// Type of credential (e.g., 'session_cookie')
+  credentialType String    @map("credential_type") @db.VarChar(50)
+  iv             String    @db.VarChar(32)
+  content        String    @db.Text
+  tag            String    @db.VarChar(32)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  expiresAt      DateTime? @map("expires_at")
+  lastUsedAt     DateTime? @map("last_used_at")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, service, credentialType])
+  @@index([userId])
+  @@map("user_credentials")
+}
+
+/// Tracks import job history and audit trail for character imports from external services.
+model ImportJob {
+  id               String       @id @db.Uuid
+  userId           String       @map("user_id") @db.Uuid
+  personalityId    String?      @map("personality_id") @db.Uuid
+  /// Original slug/username on the source service
+  sourceSlug       String       @map("source_slug") @db.VarChar(255)
+  /// Source service identifier (e.g., 'shapes_inc')
+  sourceService    String       @map("source_service") @db.VarChar(50)
+  /// Job status: pending, in_progress, completed, failed
+  status           String       @default("pending") @db.VarChar(50)
+  /// Whether this is a full import (owner) or memory-only (non-owner)
+  importType       String       @default("full") @map("import_type") @db.VarChar(20)
+  memoriesImported Int?         @map("memories_imported")
+  memoriesFailed   Int?         @map("memories_failed")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  startedAt        DateTime?    @map("started_at")
+  completedAt      DateTime?    @map("completed_at")
+  errorMessage     String?      @map("error_message")
+  /// Additional metadata (source config snapshot, stats, etc.)
+  importMetadata   Json?        @map("import_metadata")
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  personality      Personality? @relation(fields: [personalityId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, sourceSlug, sourceService])
+  @@index([userId])
+  @@index([status])
+  @@map("import_jobs")
 }
