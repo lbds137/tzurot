@@ -57,6 +57,18 @@ Support custom Discord emoji and stickers in vision context.
 
 Automatic fallback to alternative free model on 402 quota errors. Track quota hits per model to avoid repeated failures. Foundation shipped in PR #587.
 
+### 🏗️ Slash Command UX Audit
+
+Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.
+
+- [ ] Audit browse/pagination: which commands use shared `utils/browse/` vs rolling their own?
+- [ ] Audit dashboard pattern: which commands use `utils/dashboard/` vs custom embeds?
+- [ ] Audit response patterns: ephemeral vs public consistency, error message formatting
+- [ ] Audit empty-state handling: how does each command handle zero results?
+- [ ] Audit button/select menu patterns: consistent ordering, emoji usage, customId prefixes
+- [ ] Identify commands that could benefit from richer UI (e.g., `/admin presence` → dashboard)
+- [ ] Document findings and create standardization tasks
+
 ---
 
 ## 🏗 Active Epic: Package Extraction

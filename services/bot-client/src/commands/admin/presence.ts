@@ -76,7 +76,9 @@ async function showCurrentPresence(context: DeferredCommandContext): Promise<voi
 function applyPresence(client: Client, type: ActivityType, text: string): void {
   if (type === ActivityType.Custom) {
     client.user?.setPresence({
-      activities: [{ type: ActivityType.Custom, name: 'Custom Status', state: text }],
+      activities: [
+        { type: ActivityType.Custom, name: ACTIVITY_LABELS[ActivityType.Custom], state: text },
+      ],
     });
   } else {
     client.user?.setActivity(text, { type });
