@@ -117,7 +117,25 @@ export async function restoreBotPresence(client: Client): Promise<void> {
     return;
   }
 
-  const data = JSON.parse(stored) as PresenceData;
+  let data: PresenceData;
+  try {
+    const parsed: unknown = JSON.parse(stored);
+    // Validate shape before using
+    if (
+      typeof parsed !== 'object' ||
+      parsed === null ||
+      typeof (parsed as PresenceData).type !== 'number' ||
+      typeof (parsed as PresenceData).text !== 'string'
+    ) {
+      logger.warn({ stored }, '[Presence] Invalid presence data in Redis, skipping restore');
+      return;
+    }
+    data = parsed as PresenceData;
+  } catch (err) {
+    logger.warn({ err, stored }, '[Presence] Failed to parse presence data from Redis');
+    return;
+  }
+
   client.user?.setActivity(data.text, { type: data.type });
 
   const label = ACTIVITY_LABELS[data.type] ?? 'Unknown';

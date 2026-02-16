@@ -8,34 +8,19 @@
 import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { adminFetch } from '../../utils/adminApiClient.js';
+import { formatDuration } from '../../utils/formatting.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 const logger = createLogger('admin-stop-sequences');
+
+/** Max entries per embed field to stay under Discord's 1024-char field limit */
+const MAX_FIELD_ENTRIES = 15;
 
 interface StopSequenceStatsResponse {
   totalActivations: number;
   bySequence: Record<string, number>;
   byModel: Record<string, number>;
   startedAt: string;
-}
-
-/** Format milliseconds into a human-readable duration */
-function formatDuration(ms: number): string {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) {
-    return `${days}d ${hours % 24}h`;
-  }
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m`;
-  }
-  return `${seconds}s`;
 }
 
 /** Sort entries by count descending */
@@ -84,17 +69,25 @@ export async function handleStopSequences(context: DeferredCommandContext): Prom
       `**Total Activations:** ${stats.totalActivations}\n**Tracking:** ${trackingDuration}`
     );
 
-    // By Sequence table
+    // By Sequence table (truncated to prevent Discord 1024-char field overflow)
     const sequenceEntries = sortedEntries(stats.bySequence);
     if (sequenceEntries.length > 0) {
-      const lines = sequenceEntries.map(([seq, count]) => `\`${displaySequence(seq)}\` — ${count}`);
+      const shown = sequenceEntries.slice(0, MAX_FIELD_ENTRIES);
+      const lines = shown.map(([seq, count]) => `\`${displaySequence(seq)}\` — ${count}`);
+      if (sequenceEntries.length > MAX_FIELD_ENTRIES) {
+        lines.push(`*...and ${sequenceEntries.length - MAX_FIELD_ENTRIES} more*`);
+      }
       embed.addFields({ name: 'By Sequence', value: lines.join('\n') });
     }
 
-    // By Model table
+    // By Model table (truncated to prevent Discord 1024-char field overflow)
     const modelEntries = sortedEntries(stats.byModel);
     if (modelEntries.length > 0) {
-      const lines = modelEntries.map(([model, count]) => `\`${stripProvider(model)}\` — ${count}`);
+      const shown = modelEntries.slice(0, MAX_FIELD_ENTRIES);
+      const lines = shown.map(([model, count]) => `\`${stripProvider(model)}\` — ${count}`);
+      if (modelEntries.length > MAX_FIELD_ENTRIES) {
+        lines.push(`*...and ${modelEntries.length - MAX_FIELD_ENTRIES} more*`);
+      }
       embed.addFields({ name: 'By Model', value: lines.join('\n') });
     }
 

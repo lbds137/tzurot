@@ -183,4 +183,30 @@ describe('restoreBotPresence', () => {
 
     expect(mockSetActivity).not.toHaveBeenCalled();
   });
+
+  it('should handle malformed JSON in Redis gracefully', async () => {
+    const mockSetActivity = vi.fn();
+    const client = {
+      user: { setActivity: mockSetActivity },
+    } as unknown as Client;
+
+    mockRedisGet.mockResolvedValue('not valid json{{{');
+
+    await restoreBotPresence(client);
+
+    expect(mockSetActivity).not.toHaveBeenCalled();
+  });
+
+  it('should handle invalid shape in Redis gracefully', async () => {
+    const mockSetActivity = vi.fn();
+    const client = {
+      user: { setActivity: mockSetActivity },
+    } as unknown as Client;
+
+    mockRedisGet.mockResolvedValue(JSON.stringify({ wrong: 'shape' }));
+
+    await restoreBotPresence(client);
+
+    expect(mockSetActivity).not.toHaveBeenCalled();
+  });
 });
