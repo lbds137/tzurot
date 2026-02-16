@@ -118,6 +118,36 @@ describe('handleStopSequences', () => {
     expect(call.embeds[0].data.description).toContain('No activations');
   });
 
+  it('should truncate long lists with "...and N more"', async () => {
+    // Build 20 sequences to exceed the 15-entry limit
+    const bySequence: Record<string, number> = {};
+    for (let i = 0; i < 20; i++) {
+      bySequence[`\nSeq${i}:`] = 20 - i;
+    }
+
+    mockAdminFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          totalActivations: 210,
+          bySequence,
+          byModel: { 'gpt-4': 210 },
+          startedAt: new Date(Date.now() - 3600_000).toISOString(),
+        }),
+    });
+
+    const context = createMockContext();
+    await handleStopSequences(context);
+
+    const call = vi.mocked(context.editReply).mock.calls[0][0] as {
+      embeds: { data: { fields: { name: string; value: string }[] } }[];
+    };
+    const seqField = call.embeds[0].data.fields.find(
+      (f: { name: string }) => f.name === 'By Sequence'
+    );
+    expect(seqField?.value).toContain('...and 5 more');
+  });
+
   it('should handle gateway error', async () => {
     mockAdminFetch.mockResolvedValue({
       ok: false,
