@@ -111,7 +111,7 @@ async function fetchAllMemories(shapeId: string, ctx: FetchContext): Promise<Sha
     }
 
     const result = await shapesApiFetch<MemoryPage>(
-      `${SHAPES_BASE_URL}/api/memory/${shapeId}?page=${String(page)}&limit=${String(MEMORIES_PER_PAGE)}`,
+      `${SHAPES_BASE_URL}/api/memory/${encodeURIComponent(shapeId)}?page=${String(page)}&limit=${String(MEMORIES_PER_PAGE)}`,
       ctx
     );
 
@@ -136,7 +136,7 @@ interface ShapeExportData {
 
 async function fetchShapeExportData(slug: string, ctx: FetchContext): Promise<ShapeExportData> {
   const config = await shapesApiFetch<ShapesIncPersonalityConfig>(
-    `${SHAPES_BASE_URL}/api/shapes/username/${slug}`,
+    `${SHAPES_BASE_URL}/api/shapes/username/${encodeURIComponent(slug)}`,
     ctx
   );
 
@@ -145,7 +145,7 @@ async function fetchShapeExportData(slug: string, ctx: FetchContext): Promise<Sh
 
   await delay();
   const stories = await shapesApiFetch<ShapesIncStory[]>(
-    `${SHAPES_BASE_URL}/api/shapes/${config.id}/story`,
+    `${SHAPES_BASE_URL}/api/shapes/${encodeURIComponent(config.id)}/story`,
     ctx
   );
 
@@ -153,7 +153,7 @@ async function fetchShapeExportData(slug: string, ctx: FetchContext): Promise<Sh
   let userPersonalization: ShapesIncUserPersonalization | null = null;
   try {
     userPersonalization = await shapesApiFetch<ShapesIncUserPersonalization>(
-      `${SHAPES_BASE_URL}/api/shapes/${config.id}/user`,
+      `${SHAPES_BASE_URL}/api/shapes/${encodeURIComponent(config.id)}/user`,
       ctx
     );
   } catch {
