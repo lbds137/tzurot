@@ -28,6 +28,9 @@ interface ImportJob {
   createdAt: string;
   completedAt: string | null;
   errorMessage: string | null;
+  importMetadata: {
+    progress?: { imported: number; failed: number; total: number };
+  } | null;
 }
 
 interface ImportJobsResponse {
@@ -41,10 +44,23 @@ const STATUS_EMOJI: Record<string, string> = {
   failed: '❌',
 };
 
+function formatProgressDetail(job: ImportJob): string {
+  const progress = job.importMetadata?.progress;
+  if (progress === undefined) {
+    return '\n   Fetching data from shapes.inc...';
+  }
+  const pct = progress.total > 0 ? Math.round((progress.imported / progress.total) * 100) : 0;
+  return `\n   Progress: ${progress.imported}/${progress.total} memories (${pct}%)`;
+}
+
 function formatJobStatus(job: ImportJob): string {
   const emoji = STATUS_EMOJI[job.status] ?? '❓';
   const date = new Date(job.createdAt).toLocaleDateString();
   let line = `${emoji} **${job.sourceSlug}** — ${job.status} (${date})`;
+
+  if (job.status === 'in_progress') {
+    line += formatProgressDetail(job);
+  }
 
   if (job.status === 'completed' && job.memoriesImported !== null) {
     line += `\n   Memories: ${job.memoriesImported} imported`;
