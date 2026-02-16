@@ -1,30 +1,39 @@
 # Current
 
-> **Session**: 2026-02-15
-> **Version**: v3.0.0-beta.74
+> **Session**: 2026-02-16
+> **Version**: v3.0.0-beta.76
 
 ---
 
 ## Session Goal
 
-_PR #633 review follow-ups + production migration catch-up._
+_Admin commands bundle (stop-sequences, health, presence) + custom status support + release._
 
 ## Active Task
 
-Done — PR follow-ups applied, prod migrations deployed.
+Done — beta.76 released.
 
 ---
 
 ## Completed This Session
 
-- [x] 🏗️ **PR #633 Review Follow-ups** — extracted duplicated JSONB merge logic into shared `configOverrideMerge.ts` utility, added colocated tests, TTL comment
-- [x] 🧹 **Production Migrations** — applied 2 pending migrations (`migrate_llmconfig_to_cascade`, `migrate_focus_mode_to_cascade`) to prod; dev was already up to date
+- [x] ✨ **Admin Commands Bundle** (#640) — `/admin stop-sequences` (Redis stats from ai-worker via gateway), `/admin health` (gateway + Discord metrics), `/admin presence` (Redis-persisted, restored on startup)
+- [x] ✨ **Custom Status Support** (#641) — `ActivityType.Custom` uses `state` field; extracted `applyPresence()` helper
+- [x] 🐛 **Strip `<from>` Tags** (#639) — model responses leaking XML tags
+- [x] 🧹 **Stale skill-eval.sh Cleanup** — removed 9 references to non-existent skills (now always-loaded rules)
+- [x] 🧹 **Release Notes Format** — updated `05-tooling.md` to match actual style (version-only title, no H2 in body)
+- [x] 🧹 **Backlog Updates** — added Slash Command UX Audit + button-based presence UI to Quick Wins
+
+## Next Session
+
+- CPD (copy-paste detection) cleanup — tackle the 165 clones
+- Slash Command UX Audit from backlog
 
 ## Recent Highlights
 
+- **beta.76**: Admin commands bundle, custom status, `<from>` tag fix, hook cleanup
+- **beta.75**: Reply-to context, `/deny view`, denylist hardening, stop sequence cleanup
 - **beta.74**: Config cascade PR feedback, prod migration catch-up
-- **beta.73**: Config cascade (PR #632), denylist system (PR #631), GLM empty reasoning fix
-- **beta.72**: `/inspect` command, preset validation, ByteString crash fix
 
 ---
 
