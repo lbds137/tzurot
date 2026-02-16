@@ -34,7 +34,7 @@ import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-export');
 
-const REQUEST_TIMEOUT_MS = 30_000;
+const EXPORT_TOTAL_TIMEOUT_MS = 300_000; // 5 minutes for multi-page fetch
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
 
@@ -207,7 +207,7 @@ function createExportHandler(prisma: PrismaClient) {
     });
 
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS * 10);
+    const timeout = setTimeout(() => controller.abort(), EXPORT_TOTAL_TIMEOUT_MS);
 
     try {
       const data = await fetchShapeExportData(normalizedSlug, {

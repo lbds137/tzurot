@@ -16,6 +16,7 @@ import type { Job } from 'bullmq';
 import {
   createLogger,
   decryptApiKey,
+  encryptApiKey,
   type PrismaClient,
   type ShapesImportJobData,
   type ShapesImportJobResult,
@@ -82,9 +83,10 @@ export async function processShapesImportJob(
       existingPersonalityId,
     });
 
-    // 5. Import memories
+    // 5. Import memories (skips if personality already has memories — prevents duplicates on re-import)
     const memoryStats = await importMemories(
       memoryAdapter,
+      prisma,
       fetchResult.memories.map(m => ({
         text: m.result,
         senders: m.senders,
@@ -138,23 +140,26 @@ async function getDecryptedCookie(prisma: PrismaClient, userId: string): Promise
 async function persistUpdatedCookie(
   prisma: PrismaClient,
   userId: string,
-  _updatedCookie: string
+  updatedCookie: string
 ): Promise<void> {
   try {
-    // We'd need to re-encrypt the cookie, but since the import is done
-    // and the cookie rotation means it's already stale for the DB record,
-    // we simply update lastUsedAt to signal the credential was used.
+    const encrypted = encryptApiKey(updatedCookie);
     await prisma.userCredential.updateMany({
       where: {
         userId,
         service: CREDENTIAL_SERVICES.SHAPES_INC,
         credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
       },
-      data: { lastUsedAt: new Date() },
+      data: {
+        iv: encrypted.iv,
+        content: encrypted.content,
+        tag: encrypted.tag,
+        lastUsedAt: new Date(),
+      },
     });
   } catch (error) {
-    // Non-fatal - log and continue
-    logger.warn({ err: error }, '[ShapesImportJob] Failed to update credential lastUsedAt');
+    // Non-fatal — cookie may be stale for next use, but import already succeeded
+    logger.warn({ err: error }, '[ShapesImportJob] Failed to persist updated cookie');
   }
 }
 
@@ -199,7 +204,7 @@ interface MarkCompletedOpts {
   prisma: PrismaClient;
   importJobId: string;
   personalityId: string;
-  memoryStats: { imported: number; failed: number };
+  memoryStats: { imported: number; failed: number; skipped: number };
   fetchResult: ShapesDataFetchResult;
 }
 
@@ -216,6 +221,7 @@ async function markImportCompleted(opts: MarkCompletedOpts): Promise<void> {
         storiesCount: opts.fetchResult.stats.storiesCount,
         pagesTraversed: opts.fetchResult.stats.pagesTraversed,
         hasUserPersonalization: opts.fetchResult.userPersonalization !== null,
+        memoriesSkipped: opts.memoryStats.skipped,
       } as Prisma.InputJsonValue,
     },
   });
@@ -363,9 +369,23 @@ interface MemoryToImport {
 
 async function importMemories(
   memoryAdapter: PgvectorMemoryAdapter,
+  prisma: PrismaClient,
   memories: MemoryToImport[],
   personalityId: string
-): Promise<{ imported: number; failed: number }> {
+): Promise<{ imported: number; failed: number; skipped: number }> {
+  // Check for existing memories to prevent duplicates on re-import
+  const existingCount = await prisma.memory.count({
+    where: { personalityId },
+  });
+
+  if (existingCount > 0) {
+    logger.info(
+      { personalityId, existingCount },
+      '[ShapesImportJob] Personality already has memories — skipping memory import to prevent duplicates'
+    );
+    return { imported: 0, failed: 0, skipped: memories.length };
+  }
+
   let imported = 0;
   let failed = 0;
 
@@ -391,5 +411,5 @@ async function importMemories(
     }
   }
 
-  return { imported, failed };
+  return { imported, failed, skipped: 0 };
 }
