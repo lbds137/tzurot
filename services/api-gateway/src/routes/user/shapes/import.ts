@@ -166,6 +166,7 @@ function createListImportJobsHandler(prisma: PrismaClient) {
         createdAt: true,
         completedAt: true,
         errorMessage: true,
+        importMetadata: true,
       },
     });
 

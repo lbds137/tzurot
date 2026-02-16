@@ -73,16 +73,36 @@ export default defineCommand({
             .setDescription('The shapes.inc character username/slug')
             .setRequired(true)
         )
+        .addStringOption(option =>
+          option
+            .setName('import_type')
+            .setDescription('Import type (default: full)')
+            .addChoices(
+              { name: 'Full Character', value: 'full' },
+              { name: 'Memory Only', value: 'memory_only' }
+            )
+        )
+        .addStringOption(option =>
+          option
+            .setName('personality')
+            .setDescription('Target personality for memory_only import (required for Memory Only)')
+        )
     )
     .addSubcommand(subcommand =>
       subcommand
         .setName('export')
-        .setDescription('Export a shapes.inc character as a JSON file')
+        .setDescription('Export a shapes.inc character data')
         .addStringOption(option =>
           option
             .setName('slug')
             .setDescription('The shapes.inc character username/slug')
             .setRequired(true)
+        )
+        .addStringOption(option =>
+          option
+            .setName('format')
+            .setDescription('Export format (default: json)')
+            .addChoices({ name: 'JSON', value: 'json' }, { name: 'Markdown', value: 'markdown' })
         )
     )
     .addSubcommand(subcommand =>

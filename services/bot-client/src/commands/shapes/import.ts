@@ -31,18 +31,28 @@ interface ImportResponse {
   status: string;
 }
 
+interface ImportParams {
+  slug: string;
+  importType: 'full' | 'memory_only';
+  existingPersonalityId?: string;
+}
+
 /** Start the import after user confirms via button */
 async function startImport(
   buttonInteraction: MessageComponentInteraction,
   userId: string,
-  slug: string
+  params: ImportParams
 ): Promise<void> {
+  const { slug, importType, existingPersonalityId } = params;
+
   await buttonInteraction.update({
     embeds: [
       new EmbedBuilder()
         .setColor(DISCORD_COLORS.WARNING)
         .setTitle('⏳ Starting Import...')
-        .setDescription(`Queuing import for **${slug}**...`),
+        .setDescription(
+          `Queuing ${importType === 'memory_only' ? 'memory-only ' : ''}import for **${slug}**...`
+        ),
     ],
     components: [],
   });
@@ -50,7 +60,7 @@ async function startImport(
   const importResult = await callGatewayApi<ImportResponse>('/user/shapes/import', {
     method: 'POST',
     userId,
-    body: { sourceSlug: slug, importType: 'full' },
+    body: { sourceSlug: slug, importType, existingPersonalityId },
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
@@ -97,6 +107,10 @@ async function startImport(
 export async function handleImport(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
   const slug = context.interaction.options.getString('slug', true).trim().toLowerCase();
+  const importTypeRaw = context.interaction.options.getString('import_type') ?? 'full';
+  const importType: 'full' | 'memory_only' =
+    importTypeRaw === 'memory_only' ? 'memory_only' : 'full';
+  const existingPersonalityId = context.interaction.options.getString('personality') ?? undefined;
 
   try {
     // 1. Check credentials exist
@@ -114,17 +128,35 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       return;
     }
 
+    // Validate memory_only requires personality param
+    if (importType === 'memory_only' && existingPersonalityId === undefined) {
+      await context.editReply({
+        content:
+          '❌ `memory_only` import requires a `personality` parameter.\n\n' +
+          'Use `/shapes import slug:<slug> import_type:Memory Only personality:<name>` to import memories into an existing character.',
+      });
+      return;
+    }
+
     // 2. Show confirmation embed
+    const isMemoryOnly = importType === 'memory_only';
     const confirmEmbed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.BLURPLE)
-      .setTitle('📥 Import from Shapes.inc')
+      .setTitle(isMemoryOnly ? '📥 Import Memories from Shapes.inc' : '📥 Import from Shapes.inc')
       .setDescription(
-        `Ready to import **${slug}** from shapes.inc.\n\n` +
-          'This will:\n' +
-          '• Create a new personality with the character config\n' +
-          '• Import all conversation memories\n' +
-          '• Set up the LLM configuration\n\n' +
-          'The import runs in the background and may take a few minutes for characters with many memories.'
+        isMemoryOnly
+          ? `Ready to import memories from **${slug}** into an existing personality.\n\n` +
+              'This will:\n' +
+              '• Fetch all conversation memories from shapes.inc\n' +
+              '• Import them into the selected Tzurot personality\n\n' +
+              'Existing personality config will not be changed.'
+          : `Ready to import **${slug}** from shapes.inc.\n\n` +
+              'This will:\n' +
+              '• Create a new personality with the character config\n' +
+              '• Download the character avatar\n' +
+              '• Import all conversation memories\n' +
+              '• Set up the LLM configuration\n\n' +
+              'The import runs in the background and may take a few minutes for characters with many memories.'
       )
       .setTimestamp();
 
@@ -159,7 +191,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
         return;
       }
 
-      await startImport(buttonInteraction, userId, slug);
+      await startImport(buttonInteraction, userId, { slug, importType, existingPersonalityId });
     } catch {
       // Timeout waiting for button click
       await context.editReply({
