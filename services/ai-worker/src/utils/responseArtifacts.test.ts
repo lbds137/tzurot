@@ -81,6 +81,38 @@ describe('stripResponseArtifacts', () => {
     });
   });
 
+  describe('<from> tag stripping', () => {
+    it('should strip leading <from> tag with id', () => {
+      const content =
+        '<from id="d70561a6-a8ca-530c-a28b-e14333816f8b">Kevbear</from>\n\nIf I were you...';
+      expect(stripResponseArtifacts(content, 'Lilith')).toBe('If I were you...');
+    });
+
+    it('should strip leading <from> tag without id', () => {
+      expect(stripResponseArtifacts('<from>Alice</from>\n\nHello there!', 'Emily')).toBe(
+        'Hello there!'
+      );
+    });
+
+    it('should strip <from> tag with whitespace after', () => {
+      expect(stripResponseArtifacts('<from>Bob</from>  Hello', 'Emily')).toBe('Hello');
+    });
+
+    it('should be case-insensitive', () => {
+      expect(stripResponseArtifacts('<FROM>Alice</FROM>\n\nHi', 'Emily')).toBe('Hi');
+    });
+
+    it('should NOT strip <from> in middle of content', () => {
+      const content = 'The message was <from>Alice</from> formatted badly';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    });
+
+    it('should handle <from> combined with trailing </message>', () => {
+      const content = '<from id="abc">User</from>\n\nHello!</message>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Hello!');
+    });
+  });
+
   describe('XML leading tag stripping', () => {
     it('should strip leading <message> tag with speaker', () => {
       expect(stripResponseArtifacts('<message speaker="Emily">Hello', 'Emily')).toBe('Hello');
