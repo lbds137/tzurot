@@ -5,6 +5,7 @@
  * learns patterns from conversation history or training data and adds unwanted artifacts.
  *
  * With XML-formatted prompts, models may:
+ * - Echo <from id="...">Name</from> tags (speaker identification from prompt)
  * - Append </message> tags (learning from chat_log structure)
  * - Append </current_turn> or </incoming_message> tags (from training data)
  * - Add <message speaker="Name"> prefixes
@@ -23,6 +24,9 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
   const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   return [
+    // Leading <from> tag: model echoes speaker identification from prompt
+    // '<from id="abc">Kevbear</from>\n\nHello' → 'Hello'
+    /^<from\b[^>]*>[^<]*<\/from>\s*/i,
     // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
     // Must be checked before simpler trailing tags since it's multiline
     /\s*<reactions>[\s\S]*?<\/reactions>\s*$/i,
