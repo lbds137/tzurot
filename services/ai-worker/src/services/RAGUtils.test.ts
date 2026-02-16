@@ -247,13 +247,15 @@ describe('RAGUtils', () => {
 
   describe('generateStopSequences', () => {
     /**
-     * The new stop sequence structure prioritizes hallucination prevention:
+     * Stop sequence structure (legacy plain-text markers removed):
      * Priority 1: XML structure (2 slots) - </message>, <message
-     * Priority 2: Hallucinated turn prevention (4 slots) - \nUser:, \nHuman:, User:, Human:
-     * Priority 3: Instruct format markers (3 slots) - ###, \nAssistant:, <|user|>
-     * Priority 4: Self-labeling prevention (1 slot) - \nAI:
-     * Priority 5: Personality name (1 slot) - \n{name}:
-     * Priority 6: Participants (remaining 5 slots)
+     * Priority 2: Personality name (1 slot) - \n{name}:
+     * Priority 3: Participants (remaining 13 slots)
+     *
+     * Legacy plain-text markers (User:, Human:, ###, <|user|>, \nAI:, etc.)
+     * were removed because the XML prompt format makes them unnecessary, and
+     * they cause false positives with reasoning models whose chain-of-thought
+     * may contain these substrings mid-generation.
      */
 
     it('should generate stop sequence for personality name', () => {
@@ -292,36 +294,20 @@ describe('RAGUtils', () => {
       expect(result).not.toContain('<quoted_messages>');
     });
 
-    it('should include hallucination prevention sequences', () => {
+    it('should NOT include legacy plain-text role markers', () => {
       const participantPersonas = new Map<string, ParticipantInfo>();
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      // Primary hallucination prevention (4 slots)
-      expect(result).toContain('\nUser:');
-      expect(result).toContain('\nHuman:');
-      expect(result).toContain('User:');
-      expect(result).toContain('Human:');
-    });
-
-    it('should include instruct format markers', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>();
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Instruct format markers (3 slots)
-      expect(result).toContain('###');
-      expect(result).toContain('\nAssistant:');
-      expect(result).toContain('<|user|>');
-    });
-
-    it('should include self-labeling prevention', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>();
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Self-labeling prevention (1 slot)
-      expect(result).toContain('\nAI:');
+      // These were removed — they cause false positives with reasoning models
+      expect(result).not.toContain('\nUser:');
+      expect(result).not.toContain('\nHuman:');
+      expect(result).not.toContain('User:');
+      expect(result).not.toContain('Human:');
+      expect(result).not.toContain('###');
+      expect(result).not.toContain('\nAssistant:');
+      expect(result).not.toContain('<|user|>');
+      expect(result).not.toContain('\nAI:');
     });
 
     it('should return stop sequences in priority order', () => {
@@ -336,26 +322,12 @@ describe('RAGUtils', () => {
       expect(result[0]).toBe('</message>');
       expect(result[1]).toBe('<message');
 
-      // Priority 2: Hallucination prevention (indices 2-5)
-      expect(result[2]).toBe('\nUser:');
-      expect(result[3]).toBe('\nHuman:');
-      expect(result[4]).toBe('User:');
-      expect(result[5]).toBe('Human:');
+      // Priority 2: Personality (index 2)
+      expect(result[2]).toBe('\nLilith:');
 
-      // Priority 3: Instruct format markers (indices 6-8)
-      expect(result[6]).toBe('###');
-      expect(result[7]).toBe('\nAssistant:');
-      expect(result[8]).toBe('<|user|>');
-
-      // Priority 4: Self-labeling prevention (index 9)
-      expect(result[9]).toBe('\nAI:');
-
-      // Priority 5: Personality (index 10)
-      expect(result[10]).toBe('\nLilith:');
-
-      // Priority 6: Participants (indices 11+)
-      expect(result[11]).toBe('\nAlice:');
-      expect(result[12]).toBe('\nBob:');
+      // Priority 3: Participants (indices 3+)
+      expect(result[3]).toBe('\nAlice:');
+      expect(result[4]).toBe('\nBob:');
     });
 
     it('should return correct total count of stop sequences', () => {
@@ -365,8 +337,8 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      // 2 XML + 4 hallucination + 3 instruct + 1 self-label + 1 personality + 1 participant = 12
-      expect(result.length).toBe(12);
+      // 2 XML + 1 personality + 1 participant = 4
+      expect(result.length).toBe(4);
     });
 
     it('should handle empty participant map', () => {
@@ -374,25 +346,23 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('TestBot', participantPersonas);
 
-      // Should have all reserved slots: 2 XML + 4 hallucination + 3 instruct + 1 self-label + 1 personality = 11
+      // Should have reserved slots only: 2 XML + 1 personality = 3
       expect(result).toContain('\nTestBot:');
-      expect(result.length).toBe(11);
+      expect(result.length).toBe(3);
     });
 
     it('should cap stop sequences at 16 (Google API limit)', () => {
       // Create many participants to exceed the limit
-      // Reserved slots: 2 XML + 4 hallucination + 3 instruct + 1 self-label + 1 personality = 11
-      // Available for participants: 16 - 11 = 5
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
-        ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
-        ['User3', { content: '', isActive: true, personaId: 'persona-3' }],
-        ['User4', { content: '', isActive: true, personaId: 'persona-4' }],
-        ['User5', { content: '', isActive: true, personaId: 'persona-5' }],
-        ['User6', { content: '', isActive: true, personaId: 'persona-6' }], // Should be truncated
-        ['User7', { content: '', isActive: true, personaId: 'persona-7' }], // Should be truncated
-        ['User8', { content: '', isActive: true, personaId: 'persona-8' }], // Should be truncated
-      ]);
+      // Reserved slots: 2 XML + 1 personality = 3
+      // Available for participants: 16 - 3 = 13
+      const participantPersonas = new Map<string, ParticipantInfo>();
+      for (let i = 1; i <= 15; i++) {
+        participantPersonas.set(`User${i}`, {
+          content: '',
+          isActive: true,
+          personaId: `persona-${i}`,
+        });
+      }
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
@@ -401,19 +371,15 @@ describe('RAGUtils', () => {
 
       // All priority sequences should be present
       expect(result).toContain('</message>');
-      expect(result).toContain('\nUser:');
-      expect(result).toContain('###');
-      expect(result).toContain('\nAI:');
       expect(result).toContain('\nLilith:');
 
-      // First 5 participants should be present
+      // First 13 participants should be present
       expect(result).toContain('\nUser1:');
-      expect(result).toContain('\nUser5:');
+      expect(result).toContain('\nUser13:');
 
-      // User6+ should be truncated
-      expect(result).not.toContain('\nUser6:');
-      expect(result).not.toContain('\nUser7:');
-      expect(result).not.toContain('\nUser8:');
+      // User14+ should be truncated
+      expect(result).not.toContain('\nUser14:');
+      expect(result).not.toContain('\nUser15:');
     });
 
     it('should not truncate when under the limit', () => {
@@ -425,22 +391,23 @@ describe('RAGUtils', () => {
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
-      // 11 reserved + 3 participants = 14 (under limit)
-      expect(result.length).toBe(14);
+      // 3 reserved + 3 participants = 6 (under limit)
+      expect(result.length).toBe(6);
       expect(result).toContain('\nUser1:');
       expect(result).toContain('\nUser2:');
       expect(result).toContain('\nUser3:');
     });
 
     it('should not truncate when exactly at the limit (16)', () => {
-      // 5 participants + 11 reserved = exactly 16 (the limit)
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
-        ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
-        ['User3', { content: '', isActive: true, personaId: 'persona-3' }],
-        ['User4', { content: '', isActive: true, personaId: 'persona-4' }],
-        ['User5', { content: '', isActive: true, personaId: 'persona-5' }],
-      ]);
+      // 13 participants + 3 reserved = exactly 16 (the limit)
+      const participantPersonas = new Map<string, ParticipantInfo>();
+      for (let i = 1; i <= 13; i++) {
+        participantPersonas.set(`User${i}`, {
+          content: '',
+          isActive: true,
+          personaId: `persona-${i}`,
+        });
+      }
 
       const result = generateStopSequences('Lilith', participantPersonas);
 
@@ -449,16 +416,11 @@ describe('RAGUtils', () => {
 
       // All participants should be present
       expect(result).toContain('\nUser1:');
-      expect(result).toContain('\nUser2:');
-      expect(result).toContain('\nUser3:');
-      expect(result).toContain('\nUser4:');
-      expect(result).toContain('\nUser5:');
+      expect(result).toContain('\nUser13:');
 
-      // Personality and all priority sequences should be present
+      // Personality and XML should be present
       expect(result).toContain('\nLilith:');
       expect(result).toContain('</message>');
-      expect(result).toContain('\nUser:');
-      expect(result).toContain('###');
     });
 
     it('should work with participants that have guildInfo', () => {

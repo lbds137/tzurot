@@ -86,7 +86,7 @@ export const MESSAGE_LIMITS = {
   /**
    * Maximum number of participant personas to include in AI prompt context
    * These get full persona details (name, pronouns, about text)
-   * Separate from stop sequence limit (5) which stays fixed
+   * Separate from stop sequence limit (13) which stays fixed
    */
   MAX_PARTICIPANT_PERSONAS: 10,
 } as const;
