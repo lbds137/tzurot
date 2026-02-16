@@ -114,10 +114,16 @@ if ! pnpm turbo run typecheck:spec $TURBO_FILTER $TURBO_ARGS; then
 fi
 
 # 8. Run copy-paste detection (warning only - doesn't block push)
+# Note: jscpd consoleFull reporter generates ~4000 lines of output for all clones.
+# Capture output to prevent pipe/OOM issues in constrained environments (Steam Deck).
 echo "Running copy-paste detection..."
-if ! pnpm cpd; then
-    echo "${YELLOW}⚠️  Copy-paste detection found potential duplicates${NC}"
+CPD_OUTPUT=$(pnpm cpd 2>&1) || true
+CPD_SUMMARY=$(echo "$CPD_OUTPUT" | grep -E "Found [0-9]+ clones|duplicated lines" | head -2)
+if [ -n "$CPD_SUMMARY" ]; then
+    echo "${YELLOW}⚠️  $CPD_SUMMARY${NC}"
     echo "Run 'pnpm cpd:report' for detailed HTML report"
+else
+    echo "Copy-paste detection completed."
 fi
 
 # 9. Run dependency boundary checks (BLOCKING)
