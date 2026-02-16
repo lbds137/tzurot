@@ -133,16 +133,20 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
         return false; // Default to disabled if user not found
       }
 
-      // Check UserPersonalityConfig for focus mode
+      // Check UserPersonalityConfig for focus mode (stored in configOverrides JSONB)
       const config = await this.prisma.userPersonalityConfig.findFirst({
         where: {
           userId: user.id,
           personalityId,
         },
-        select: { focusModeEnabled: true },
+        select: { configOverrides: true },
       });
 
-      return config?.focusModeEnabled ?? false;
+      if (config?.configOverrides === null || config?.configOverrides === undefined) {
+        return false;
+      }
+      const overrides = config.configOverrides as Record<string, unknown>;
+      return overrides.focusModeEnabled === true;
     } catch (error) {
       logger.error(
         { err: error, discordUserId, personalityId },

@@ -166,7 +166,7 @@ export class ConfigCascadeResolver {
             personalityId !== undefined
               ? {
                   where: { personalityId },
-                  select: { configOverrides: true, focusModeEnabled: true },
+                  select: { configOverrides: true },
                   take: 1,
                 }
               : undefined,
@@ -180,28 +180,9 @@ export class ConfigCascadeResolver {
       this.pushIfValid(tiers, user.configDefaults, 'user-default');
 
       // Tier 4: User-personality overrides
-      this.extractUserPersonalityTier(tiers, user.personalityConfigs?.[0]);
+      this.pushIfValid(tiers, user.personalityConfigs?.[0]?.configOverrides, 'user-personality');
     } catch (error) {
       logger.warn({ err: error, userId }, 'Failed to load user config defaults');
-    }
-  }
-
-  /** Extract user-personality tier from UPC record, including legacy focusModeEnabled */
-  private extractUserPersonalityTier(
-    tiers: TierData[],
-    upc?: { configOverrides: unknown; focusModeEnabled: boolean }
-  ): void {
-    if (upc === undefined) {
-      return;
-    }
-
-    this.pushIfValid(tiers, upc.configOverrides, 'user-personality');
-
-    // Legacy: if focusModeEnabled is set on the column but not in any JSONB,
-    // treat it as a user-personality override
-    const focusInJsonb = tiers.some(t => t.overrides.focusModeEnabled !== undefined);
-    if (upc.focusModeEnabled && !focusInJsonb) {
-      tiers.push({ source: 'user-personality', overrides: { focusModeEnabled: true } });
     }
   }
 
@@ -302,6 +283,14 @@ export class ConfigCascadeResolver {
     }
   }
 
+  /**
+   * Start periodic cleanup of expired cache entries.
+   *
+   * Note: This uses a local setInterval, so each service instance maintains its own
+   * cleanup schedule. This is fine for single-instance deployment but would cause
+   * redundant work under horizontal scaling. If scaling, consider replacing with
+   * a BullMQ repeatable job or Redis TTL-based caching.
+   */
   private startCleanupInterval(): void {
     this.cleanupInterval = setInterval(() => {
       const now = Date.now();

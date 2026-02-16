@@ -132,7 +132,7 @@ async function handleGetStats(
 
   const config = await prisma.userPersonalityConfig.findUnique({
     where: { userId_personalityId: { userId: user.id, personalityId } },
-    select: { personaId: true, focusModeEnabled: true },
+    select: { personaId: true, configOverrides: true },
   });
 
   const personaId = config?.personaId ?? (await getDefaultPersonaId(prisma, user.id));
@@ -187,7 +187,8 @@ async function handleGetStats(
       lockedCount,
       oldestMemory: oldestMemory?.createdAt?.toISOString() ?? null,
       newestMemory: newestMemory?.createdAt?.toISOString() ?? null,
-      focusModeEnabled: config?.focusModeEnabled ?? false,
+      focusModeEnabled:
+        (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
     },
     StatusCodes.OK
   );
@@ -216,14 +217,15 @@ async function handleGetFocus(
 
   const config = await prisma.userPersonalityConfig.findUnique({
     where: { userId_personalityId: { userId: user.id, personalityId } },
-    select: { focusModeEnabled: true },
+    select: { configOverrides: true },
   });
 
   sendCustomSuccess(
     res,
     {
       personalityId,
-      focusModeEnabled: config?.focusModeEnabled ?? false,
+      focusModeEnabled:
+        (config?.configOverrides as Record<string, unknown> | null)?.focusModeEnabled === true,
     },
     StatusCodes.OK
   );
@@ -287,12 +289,11 @@ async function handleSetFocus(
 
   await prisma.userPersonalityConfig.upsert({
     where: { userId_personalityId: { userId: user.id, personalityId } },
-    update: { focusModeEnabled: enabled, configOverrides: configOverridesValue },
+    update: { configOverrides: configOverridesValue },
     create: {
       id: upcId,
       userId: user.id,
       personalityId,
-      focusModeEnabled: enabled,
       configOverrides: configOverridesValue,
     },
   });

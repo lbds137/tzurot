@@ -190,7 +190,6 @@ CREATE TABLE "user_personality_configs" (
     "personality_id" UUID NOT NULL,
     "persona_id" UUID,
     "llm_config_id" UUID,
-    "focus_mode_enabled" BOOLEAN NOT NULL DEFAULT false,
     "config_overrides" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -598,6 +597,9 @@ CREATE INDEX "llm_diagnostic_logs_channel_id_idx" ON "llm_diagnostic_logs"("chan
 
 -- CreateIndex
 CREATE INDEX "denylisted_entities_type_discord_id_idx" ON "denylisted_entities"("type", "discord_id");
+
+-- CreateIndex
+CREATE INDEX "denylisted_entities_type_added_at_idx" ON "denylisted_entities"("type", "added_at");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "denylisted_entities_type_discord_id_scope_scope_id_key" ON "denylisted_entities"("type", "discord_id", "scope", "scope_id");
