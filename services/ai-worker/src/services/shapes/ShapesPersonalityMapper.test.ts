@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { mapShapesConfigToPersonality } from './ShapesPersonalityMapper.js';
+import { mapShapesConfigToPersonality, parseBirthday } from './ShapesPersonalityMapper.js';
 import type { ShapesIncPersonalityConfig } from '@tzurot/common-types';
 
 // Mock common-types
@@ -120,6 +120,35 @@ describe('mapShapesConfigToPersonality', () => {
       expect(result.personality.customFields?.personalityHistory).toBe('Born in a test suite.');
     });
 
+    it('should capture shape_initial_message from shape_settings', () => {
+      const config = createSampleConfig({
+        shape_settings: {
+          shape_initial_message: 'Hello, I am your guide.',
+        },
+      } as Partial<ShapesIncPersonalityConfig>);
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.customFields?.initialMessage).toBe('Hello, I am your guide.');
+    });
+
+    it('should not set initialMessage when shape_settings is absent', () => {
+      const config = createSampleConfig();
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.customFields?.initialMessage).toBeUndefined();
+    });
+
+    it('should not set initialMessage when shape_initial_message is empty', () => {
+      const config = createSampleConfig({
+        shape_settings: {
+          shape_initial_message: '',
+        },
+      } as Partial<ShapesIncPersonalityConfig>);
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.customFields?.initialMessage).toBeUndefined();
+    });
+
     it('should track import source in custom fields', () => {
       const config = createSampleConfig();
       const result = mapShapesConfigToPersonality(config, 'test-slug');
@@ -177,6 +206,46 @@ describe('mapShapesConfigToPersonality', () => {
     });
   });
 
+  describe('birthday parsing', () => {
+    it('should parse MM-DD format into month and day', () => {
+      const config = createSampleConfig({ birthday: '03-15' });
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.birthMonth).toBe(3);
+      expect(result.personality.birthDay).toBe(15);
+      expect(result.personality.birthYear).toBeNull();
+    });
+
+    it('should parse YYYY-MM-DD format into month, day, and year', () => {
+      const config = createSampleConfig({ birthday: '1995-12-25' });
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.birthMonth).toBe(12);
+      expect(result.personality.birthDay).toBe(25);
+      expect(result.personality.birthYear).toBe(1995);
+    });
+
+    it('should return nulls for unparseable birthday', () => {
+      const config = createSampleConfig({ birthday: 'March 15th' });
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.birthMonth).toBeNull();
+      expect(result.personality.birthDay).toBeNull();
+      expect(result.personality.birthYear).toBeNull();
+      // Raw string still preserved in customFields
+      expect(result.personality.customFields?.birthday).toBe('March 15th');
+    });
+
+    it('should return nulls when birthday is absent', () => {
+      const config = createSampleConfig();
+      const result = mapShapesConfigToPersonality(config, 'test-slug');
+
+      expect(result.personality.birthMonth).toBeNull();
+      expect(result.personality.birthDay).toBeNull();
+      expect(result.personality.birthYear).toBeNull();
+    });
+  });
+
   describe('deterministic UUIDs', () => {
     it('should generate consistent IDs for the same slug', () => {
       const config = createSampleConfig();
@@ -195,5 +264,43 @@ describe('mapShapesConfigToPersonality', () => {
 
       expect(result1.personality.id).not.toBe(result2.personality.id);
     });
+  });
+});
+
+describe('parseBirthday', () => {
+  it('should parse MM-DD', () => {
+    expect(parseBirthday('06-21')).toEqual({ month: 6, day: 21, year: null });
+  });
+
+  it('should parse single-digit M-D', () => {
+    expect(parseBirthday('1-5')).toEqual({ month: 1, day: 5, year: null });
+  });
+
+  it('should parse YYYY-MM-DD', () => {
+    expect(parseBirthday('2000-01-31')).toEqual({ month: 1, day: 31, year: 2000 });
+  });
+
+  it('should reject invalid month', () => {
+    expect(parseBirthday('13-01')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should reject invalid day', () => {
+    expect(parseBirthday('01-32')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should reject month 0', () => {
+    expect(parseBirthday('00-15')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should reject day 0', () => {
+    expect(parseBirthday('06-00')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should return nulls for freeform text', () => {
+    expect(parseBirthday('June 21st')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should return nulls for empty string', () => {
+    expect(parseBirthday('')).toEqual({ month: null, day: null, year: null });
   });
 });

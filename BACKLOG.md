@@ -191,6 +191,8 @@ Full automated import from shapes.inc via `/shapes` command group. Shipped on de
 - [x] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
 - [x] Phase 4: `/shapes list|import|export|status` slash commands
 - [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
+- [ ] Phase 6 (backlogged): Voice/image field import — shapes.inc has `voice_model`, `voice_id`, `voice_stability`, `image_jailbreak`, `image_size` etc. Currently set `voiceEnabled: false`, `imageEnabled: false`. Import when Tzurot adds voice/image support.
+- [ ] Phase 7 (backlogged): Training data import — shapes.inc has training pairs (see `debug/shapes/lilith-training.json`). Tzurot has no training data schema yet. Needs: define training data schema → import from shapes.inc.
 
 ---
 

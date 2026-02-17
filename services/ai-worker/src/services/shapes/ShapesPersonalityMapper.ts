@@ -46,6 +46,9 @@ export interface MappedPersonality {
   isPublic: boolean;
   voiceEnabled: boolean;
   imageEnabled: boolean;
+  birthMonth: number | null;
+  birthDay: number | null;
+  birthYear: number | null;
   customFields: Record<string, unknown> | null;
 }
 
@@ -115,36 +118,65 @@ function mapSystemPrompt(config: ShapesIncPersonalityConfig, slug: string): Mapp
   };
 }
 
-function mapPersonality(config: ShapesIncPersonalityConfig, slug: string): MappedPersonality {
-  // Build custom fields for overflow/unmapped data
+/** String custom fields: config key → customFields key */
+const STRING_CUSTOM_FIELDS = [
+  { configKey: 'personality_history', customKey: 'personalityHistory' },
+  { configKey: 'search_description', customKey: 'searchDescription' },
+  { configKey: 'wack_message', customKey: 'wackMessage' },
+  { configKey: 'sleep_message', customKey: 'sleepMessage' },
+  { configKey: 'birthday', customKey: 'birthday' },
+] as const;
+
+/** Array custom fields: config key → customFields key */
+const ARRAY_CUSTOM_FIELDS = [
+  { configKey: 'keywords', customKey: 'keywords' },
+  { configKey: 'favorite_reacts', customKey: 'favoriteReacts' },
+] as const;
+
+function buildCustomFields(config: ShapesIncPersonalityConfig): Record<string, unknown> {
   const customFields: Record<string, unknown> = {};
 
-  if (config.personality_history !== undefined && config.personality_history !== '') {
-    customFields.personalityHistory = config.personality_history;
+  // Data-driven: string fields (non-empty → include)
+  for (const { configKey, customKey } of STRING_CUSTOM_FIELDS) {
+    const value = config[configKey];
+    if (typeof value === 'string' && value !== '') {
+      customFields[customKey] = value;
+    }
   }
-  if (config.keywords !== undefined && config.keywords.length > 0) {
-    customFields.keywords = config.keywords;
+
+  // Data-driven: array fields (non-empty → include)
+  for (const { configKey, customKey } of ARRAY_CUSTOM_FIELDS) {
+    const value = config[configKey];
+    if (Array.isArray(value) && value.length > 0) {
+      customFields[customKey] = value;
+    }
   }
-  if (config.favorite_reacts !== undefined && config.favorite_reacts.length > 0) {
-    customFields.favoriteReacts = config.favorite_reacts;
-  }
-  if (config.search_description !== undefined && config.search_description !== '') {
-    customFields.searchDescription = config.search_description;
-  }
-  if (config.wack_message !== undefined && config.wack_message !== '') {
-    customFields.wackMessage = config.wack_message;
-  }
-  if (config.sleep_message !== undefined && config.sleep_message !== '') {
-    customFields.sleepMessage = config.sleep_message;
-  }
-  if (config.birthday !== undefined && config.birthday !== '') {
-    customFields.birthday = config.birthday;
+
+  // Capture initial message from shape_settings (comes through [key: string]: unknown catch-all)
+  const shapeSettings = config.shape_settings as { shape_initial_message?: string } | undefined;
+  if (
+    shapeSettings?.shape_initial_message !== undefined &&
+    shapeSettings.shape_initial_message !== ''
+  ) {
+    customFields.initialMessage = shapeSettings.shape_initial_message;
   }
 
   // Track import source
   customFields.importSource = 'shapes_inc';
   customFields.shapesUsername = config.username;
   customFields.shapesId = config.id;
+
+  return customFields;
+}
+
+function mapPersonality(config: ShapesIncPersonalityConfig, slug: string): MappedPersonality {
+  const customFields = buildCustomFields(config);
+
+  // Parse birthday into typed columns (raw string kept in customFields as fallback)
+  const birthday =
+    config.birthday !== undefined && config.birthday !== ''
+      ? parseBirthday(config.birthday)
+      : { month: null, day: null, year: null };
 
   return {
     id: generatePersonalityUuid(slug),
@@ -164,6 +196,9 @@ function mapPersonality(config: ShapesIncPersonalityConfig, slug: string): Mappe
     isPublic: false,
     voiceEnabled: false,
     imageEnabled: false,
+    birthMonth: birthday.month,
+    birthDay: birthday.day,
+    birthYear: birthday.year,
     customFields: Object.keys(customFields).length > 0 ? customFields : null,
   };
 }
@@ -217,6 +252,48 @@ function mapLlmConfig(config: ShapesIncPersonalityConfig, slug: string): MappedL
     contextWindowTokens: 128_000,
     maxMessages: config.stm_window || 20,
   };
+}
+
+interface ParsedBirthday {
+  month: number | null;
+  day: number | null;
+  year: number | null;
+}
+
+/**
+ * Parse a birthday string into typed month/day/year components.
+ * Handles common formats:
+ * - "MM-DD" → month + day, no year
+ * - "YYYY-MM-DD" → month + day + year
+ * Returns all nulls on parse failure (raw string kept in customFields as fallback).
+ */
+export function parseBirthday(value: string): ParsedBirthday {
+  const nullResult: ParsedBirthday = { month: null, day: null, year: null };
+
+  // Try YYYY-MM-DD first
+  const fullMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(value);
+  if (fullMatch !== null) {
+    const year = parseInt(fullMatch[1], 10);
+    const month = parseInt(fullMatch[2], 10);
+    const day = parseInt(fullMatch[3], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { month, day, year };
+    }
+    return nullResult;
+  }
+
+  // Try MM-DD
+  const shortMatch = /^(\d{1,2})-(\d{1,2})$/.exec(value);
+  if (shortMatch !== null) {
+    const month = parseInt(shortMatch[1], 10);
+    const day = parseInt(shortMatch[2], 10);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { month, day, year: null };
+    }
+    return nullResult;
+  }
+
+  return nullResult;
 }
 
 function emptyToNull(value: string | undefined): string | null {

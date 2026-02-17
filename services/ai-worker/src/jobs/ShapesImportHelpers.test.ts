@@ -46,6 +46,9 @@ const { mockMapResult } = vi.hoisted(() => ({
       isPublic: false,
       voiceEnabled: false,
       imageEnabled: false,
+      birthMonth: null,
+      birthDay: null,
+      birthYear: null,
       customFields: { importSource: 'shapes_inc' },
     },
     llmConfig: {
@@ -179,6 +182,7 @@ describe('downloadAndStoreAvatar', () => {
 
     expect(fetch).toHaveBeenCalledWith('https://example.com/avatar.png', {
       headers: { 'User-Agent': 'test-user-agent' },
+      signal: expect.any(AbortSignal),
     });
     expect(mockPrisma.personality.update).toHaveBeenCalledWith({
       where: { id: 'pers-id' },
@@ -216,5 +220,52 @@ describe('downloadAndStoreAvatar', () => {
     await downloadAndStoreAvatar(mockPrisma as never, 'pers-id', 'https://example.com/avatar.png');
 
     expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+  });
+
+  it('should pass AbortSignal to fetch for timeout protection', async () => {
+    const imageData = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        arrayBuffer: () => Promise.resolve(imageData.buffer),
+      })
+    );
+
+    await downloadAndStoreAvatar(mockPrisma as never, 'pers-id', 'https://example.com/avatar.png');
+
+    const fetchCall = vi.mocked(fetch).mock.calls[0];
+    const fetchOptions = fetchCall[1] as RequestInit;
+    expect(fetchOptions.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it('should handle abort timeout gracefully', async () => {
+    vi.useFakeTimers();
+
+    // Simulate a fetch that never resolves
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(
+        (_url: string, opts: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            opts.signal?.addEventListener('abort', () => {
+              reject(new DOMException('The operation was aborted.', 'AbortError'));
+            });
+          })
+      )
+    );
+
+    const promise = downloadAndStoreAvatar(
+      mockPrisma as never,
+      'pers-id',
+      'https://example.com/slow-avatar.png'
+    );
+
+    await vi.advanceTimersByTimeAsync(30_000);
+    await promise;
+
+    expect(mockPrisma.personality.update).not.toHaveBeenCalled();
+
+    vi.useRealTimers();
   });
 });

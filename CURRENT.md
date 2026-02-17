@@ -11,25 +11,25 @@ _Shapes.inc character backup & import — plan finalization, implementation, and
 
 ## Active Task
 
-Shapes.inc import **fully implemented** (Phases 1-4) and deployed. Dependency bumps consolidated. Migrations applied to dev and prod.
+Shapes.inc import **gap fixes** — 5 verified gaps from deep verification against legacy scripts. Branch: `fix/shapes-import-gaps`.
 
 ---
 
 ## Completed This Session
 
-- [x] ✨ **Shapes.inc Import — Full Implementation** — `/shapes auth|logout|list|import|export|status` slash commands, data fetcher service, BullMQ import pipeline, personality mapper, pgvector memory import with local embeddings. All with tests.
-- [x] 🗄️ **Migration Deployed** — `add_shapes_import_tables` applied to dev and prod Railway (UserCredential, ImportJob tables, memories.type column)
-- [x] 📦 **Dependency Consolidation** — Merged 6 dependabot PRs into single commit: ESLint v10, typescript-eslint 8.56.0, Prisma 7.4.0, BullMQ 5.69.3, LangChain 1.2.24, and more
-- [x] 📝 **Plan Finalization** — API research, field mapping validation, cookie handling, slug normalization, post-MVP cleanup plan
-- [x] 🧹 **Doc Cleanup** — Deleted completed proposals (V2_FEATURE_TRACKING, timeout-architecture-refactor, whisper-transcript-cleanup, ltm-context-separation, shapes-inc-import-plan). Moved config-cascade-design to backlog. Updated BACKLOG.md references.
-- [x] 🧹 **Debug Folder Cleanup** — Removed 10 stale debug files (~564KB)
-- [x] 🧹 **Legacy Script Cleanup** — Deleted `scripts/data/import-personality/` (22 files) and `scripts/data/backup-personalities-data.js`, superseded by `/shapes` service pipeline. Removed root package.json script aliases.
+- [x] 🐛 **Fix 1: Partial re-import dedup** — Replaced count-based skip with content-based deduplication (query existing content → Set → skip duplicates). Partial retries now import only missing memories.
+- [x] 🐛 **Fix 2: Avatar download timeout** — Added AbortController with 30s timeout to `downloadAndStoreAvatar()` fetch call. Matches `ShapesDataFetcher.REQUEST_TIMEOUT_MS`.
+- [x] ✨ **Fix 3: Stuck import job cleanup** — New `cleanupStuckImportJobs.ts` scheduled every 15 minutes. Finds `in_progress` jobs older than 1 hour, marks them failed so users can retry.
+- [x] ✨ **Fix 4: Capture initial message** — Extract `shape_settings.shape_initial_message` into `customFields.initialMessage` in ShapesPersonalityMapper.
+- [x] ✨ **Fix 5: Parse birthday** — New `parseBirthday()` helper parses `MM-DD` and `YYYY-MM-DD` formats into `birthMonth`/`birthDay`/`birthYear` typed columns. Raw string kept in customFields as fallback.
+- [x] 🏗️ **Complexity refactor** — Extracted `buildCustomFields()` with data-driven field mapping to reduce `mapPersonality` complexity below ESLint threshold.
+- [x] 📝 **Backlog** — Added voice/image field import and training data import as future phases.
 
 ## Next Steps
 
-1. End-to-end verification: auth → import → verify character exists → talk to it
-2. Release as beta.77
-3. Pull next task from Quick Wins or Active Epic
+1. Commit and create PR for `fix/shapes-import-gaps`
+2. End-to-end verification: auth → import → verify character exists → talk to it
+3. Release as beta.77
 
 ## Recent Highlights
 
