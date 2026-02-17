@@ -17,6 +17,7 @@ import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
 import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
+import { cleanupStuckExportJobs } from './jobs/cleanupStuckExportJobs.js';
 import { cleanupExpiredExports } from './jobs/cleanupExpiredExports.js';
 import {
   createLogger,
@@ -44,6 +45,7 @@ const SCHEDULED_JOBS = {
   PROCESS_PENDING_MEMORIES: 'process-pending-memories',
   CLEANUP_DIAGNOSTIC_LOGS: 'cleanup-diagnostic-logs',
   CLEANUP_STUCK_IMPORTS: 'cleanup-stuck-imports',
+  CLEANUP_STUCK_EXPORTS: 'cleanup-stuck-exports',
   CLEANUP_EXPIRED_EXPORTS: 'cleanup-expired-exports',
 } as const;
 
@@ -232,6 +234,10 @@ async function setupScheduledJobs(
         logger.info('[Scheduled] Running stuck import job cleanup');
         return cleanupStuckImportJobs(prisma);
       }
+      if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS) {
+        logger.info('[Scheduled] Running stuck export job cleanup');
+        return cleanupStuckExportJobs(prisma);
+      }
       if (job.name === SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS) {
         logger.info('[Scheduled] Running expired export cleanup');
         return cleanupExpiredExports(prisma);
@@ -274,6 +280,13 @@ async function setupScheduledJobs(
     { repeat: { pattern: '*/15 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS }
   );
 
+  // Add repeatable job for stuck export job cleanup (every 15 minutes, offset by 7 min)
+  await scheduledQueue.add(
+    SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS,
+    {},
+    { repeat: { pattern: '7,22,37,52 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_STUCK_EXPORTS }
+  );
+
   // Add repeatable job for expired export cleanup (hourly, offset by 30 min)
   await scheduledQueue.add(
     SCHEDULED_JOBS.CLEANUP_EXPIRED_EXPORTS,
@@ -282,7 +295,7 @@ async function setupScheduledJobs(
   );
 
   logger.info(
-    '[AIWorker] Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports: every 15 min, expired exports: hourly)'
+    '[AIWorker] Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports/exports: every 15 min, expired exports: hourly)'
   );
 
   return { scheduledQueue, scheduledWorker };

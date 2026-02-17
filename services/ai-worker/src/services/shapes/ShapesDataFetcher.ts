@@ -53,6 +53,15 @@ export class ShapesRateLimitError extends Error {
   }
 }
 
+export class ShapesServerError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = 'ShapesServerError';
+    this.status = status;
+  }
+}
+
 export class ShapesFetchError extends Error {
   readonly status: number;
   constructor(status: number, message: string) {
@@ -307,6 +316,13 @@ export class ShapesDataFetcher {
 
       if (response.status === 429) {
         throw new ShapesRateLimitError();
+      }
+
+      if (response.status >= 500) {
+        throw new ShapesServerError(
+          response.status,
+          `Shapes.inc server error: HTTP ${response.status} from ${url}`
+        );
       }
 
       throw new ShapesFetchError(

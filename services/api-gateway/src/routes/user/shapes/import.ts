@@ -26,6 +26,18 @@ import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-import');
 
+async function verifyPersonalityOwnership(
+  prisma: PrismaClient,
+  personalityId: string,
+  userId: string
+): Promise<boolean> {
+  const personality = await prisma.personality.findFirst({
+    where: { id: personalityId, ownerId: userId },
+    select: { id: true },
+  });
+  return personality !== null;
+}
+
 function createImportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -59,6 +71,14 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
     const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
     if (userId === null) {
       return sendError(res, ErrorResponses.validationError('Cannot create user'));
+    }
+
+    // Verify ownership for memory_only imports
+    if (validImportType === 'memory_only' && existingPersonalityId !== undefined) {
+      const isOwner = await verifyPersonalityOwnership(prisma, existingPersonalityId, userId);
+      if (!isOwner) {
+        return sendError(res, ErrorResponses.notFound('Personality not found or not owned by you'));
+      }
     }
 
     // Check for existing pending/in_progress import
@@ -113,7 +133,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       existingPersonalityId,
     };
 
-    const jobId = `${JOB_PREFIXES.SHAPES_IMPORT}${importJobId}`;
+    const jobId = `${JOB_PREFIXES.SHAPES_IMPORT}${importJobId}-${Date.now()}`;
     await queue.add(JobType.ShapesImport, jobData, { jobId });
 
     logger.info(

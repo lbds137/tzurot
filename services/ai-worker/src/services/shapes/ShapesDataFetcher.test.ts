@@ -10,6 +10,7 @@ import {
   ShapesAuthError,
   ShapesNotFoundError,
   ShapesRateLimitError,
+  ShapesServerError,
   ShapesFetchError,
 } from './ShapesDataFetcher.js';
 
@@ -283,8 +284,30 @@ describe('ShapesDataFetcher', () => {
       await assertion;
     });
 
-    it('should throw ShapesFetchError on 500', async () => {
+    it('should throw ShapesServerError on 500', async () => {
       mockFetch.mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(ShapesServerError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    });
+
+    it('should throw ShapesServerError on 502', async () => {
+      mockFetch.mockResolvedValueOnce(createMockResponse(502, { error: 'Bad Gateway' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(ShapesServerError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+    });
+
+    it('should throw ShapesFetchError on 4xx client errors (not 401/403/404/429)', async () => {
+      mockFetch.mockResolvedValueOnce(createMockResponse(422, { error: 'Unprocessable' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
         sessionCookie: 'appSession.0=abc; appSession.1=def',

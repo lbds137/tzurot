@@ -43,6 +43,9 @@ const mockPrisma = {
   persona: {
     create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
   },
+  personality: {
+    findFirst: vi.fn().mockResolvedValue({ id: 'existing-pers-id' }),
+  },
   importJob: {
     findFirst: vi.fn().mockResolvedValue(null),
     upsert: vi.fn().mockResolvedValue({ id: 'import-job-123' }),

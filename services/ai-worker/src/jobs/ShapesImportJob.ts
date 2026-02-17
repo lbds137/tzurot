@@ -31,6 +31,7 @@ import {
   ShapesAuthError,
   ShapesNotFoundError,
   ShapesRateLimitError,
+  ShapesServerError,
 } from '../services/shapes/ShapesDataFetcher.js';
 import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 import type { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
@@ -99,8 +100,19 @@ export async function processShapesImportJob(
     });
 
     // 5. Download and store avatar
+    let avatarDownloaded = false;
+    let avatarError: string | undefined;
     if (fetchResult.config.avatar !== '' && importType !== 'memory_only') {
-      await downloadAndStoreAvatar(prisma, personalityId, fetchResult.config.avatar);
+      try {
+        await downloadAndStoreAvatar(prisma, personalityId, fetchResult.config.avatar);
+        avatarDownloaded = true;
+      } catch (error) {
+        avatarError = error instanceof Error ? error.message : String(error);
+        logger.warn(
+          { err: error, personalityId },
+          '[ShapesImportJob] Avatar download failed — continuing without avatar'
+        );
+      }
     }
 
     // 6. Import memories (skips if personality already has memories — prevents duplicates on re-import)
@@ -117,7 +129,15 @@ export async function processShapesImportJob(
     });
 
     // 7. Mark completed
-    await markImportCompleted({ prisma, importJobId, personalityId, memoryStats, fetchResult });
+    await markImportCompleted({
+      prisma,
+      importJobId,
+      personalityId,
+      memoryStats,
+      fetchResult,
+      avatarDownloaded,
+      avatarError,
+    });
 
     const result: ShapesImportJobResult = {
       success: true,
@@ -125,12 +145,21 @@ export async function processShapesImportJob(
       personalitySlug,
       memoriesImported: memoryStats.imported,
       memoriesFailed: memoryStats.failed,
+      memoriesSkipped: memoryStats.skipped,
       importType,
     };
     logger.info({ jobId: job.id, ...result }, '[ShapesImportJob] Import completed successfully');
     return result;
   } catch (error) {
-    return handleImportError({ error, prisma, importJobId, importType, jobId: job.id, sourceSlug });
+    return handleImportError({
+      error,
+      prisma,
+      importJobId,
+      importType,
+      jobId: job.id,
+      sourceSlug,
+      job,
+    });
   }
 }
 
@@ -227,9 +256,22 @@ interface MarkCompletedOpts {
   personalityId: string;
   memoryStats: { imported: number; failed: number; skipped: number };
   fetchResult: ShapesDataFetchResult;
+  avatarDownloaded: boolean;
+  avatarError?: string;
 }
 
 async function markImportCompleted(opts: MarkCompletedOpts): Promise<void> {
+  const metadata: Record<string, unknown> = {
+    storiesCount: opts.fetchResult.stats.storiesCount,
+    pagesTraversed: opts.fetchResult.stats.pagesTraversed,
+    hasUserPersonalization: opts.fetchResult.userPersonalization !== null,
+    memoriesSkipped: opts.memoryStats.skipped,
+    avatarDownloaded: opts.avatarDownloaded,
+  };
+  if (opts.avatarError !== undefined) {
+    metadata.avatarError = opts.avatarError;
+  }
+
   await opts.prisma.importJob.update({
     where: { id: opts.importJobId },
     data: {
@@ -238,12 +280,7 @@ async function markImportCompleted(opts: MarkCompletedOpts): Promise<void> {
       memoriesImported: opts.memoryStats.imported,
       memoriesFailed: opts.memoryStats.failed,
       completedAt: new Date(),
-      importMetadata: {
-        storiesCount: opts.fetchResult.stats.storiesCount,
-        pagesTraversed: opts.fetchResult.stats.pagesTraversed,
-        hasUserPersonalization: opts.fetchResult.userPersonalization !== null,
-        memoriesSkipped: opts.memoryStats.skipped,
-      } as Prisma.InputJsonValue,
+      importMetadata: metadata as Prisma.InputJsonValue,
     },
   });
 }
@@ -255,12 +292,16 @@ interface HandleErrorOpts {
   importType: 'full' | typeof IMPORT_TYPE_MEMORY_ONLY;
   jobId: string | undefined;
   sourceSlug: string;
+  job: Job<ShapesImportJobData>;
 }
 
 async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJobResult> {
   const errorMessage = opts.error instanceof Error ? opts.error.message : String(opts.error);
 
   const isRateLimited = opts.error instanceof ShapesRateLimitError;
+  const isServerError = opts.error instanceof ShapesServerError;
+  const isRetryable = isRateLimited || isServerError;
+
   logger.error(
     {
       err: opts.error,
@@ -269,11 +310,19 @@ async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJob
       isAuthError: opts.error instanceof ShapesAuthError,
       isNotFound: opts.error instanceof ShapesNotFoundError,
       isRateLimited,
+      isServerError,
     },
-    isRateLimited
-      ? '[ShapesImportJob] Rate limited by shapes.inc — BullMQ will retry'
+    isRetryable
+      ? '[ShapesImportJob] Retryable error — BullMQ will retry'
       : '[ShapesImportJob] Import failed'
   );
+
+  // Re-throw retryable errors for BullMQ retry if attempts remain.
+  // On the final attempt, fall through to mark the DB record as 'failed'.
+  const maxAttempts = opts.job.opts.attempts ?? 1;
+  if (isRetryable && opts.job.attemptsMade < maxAttempts - 1) {
+    throw opts.error;
+  }
 
   await opts.prisma.importJob.update({
     where: { id: opts.importJobId },

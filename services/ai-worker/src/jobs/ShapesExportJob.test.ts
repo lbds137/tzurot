@@ -52,6 +52,14 @@ vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
       this.name = 'ShapesRateLimitError';
     }
   },
+  ShapesServerError: class ShapesServerError extends Error {
+    readonly status: number;
+    constructor(status: number, msg: string) {
+      super(msg);
+      this.name = 'ShapesServerError';
+      this.status = status;
+    }
+  },
 }));
 
 // Mock formatters
@@ -214,6 +222,39 @@ describe('ShapesExportJob', () => {
     expect(result.error).toContain('Rate limited');
 
     // Should mark in_progress first, then failed
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
+    expect(updateCalls[1][0].data.status).toBe('failed');
+  });
+
+  it('should re-throw server errors for BullMQ retry when attempts remain', async () => {
+    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(502, 'Bad Gateway'));
+
+    // attemptsMade=0, attempts=3 → 2 retries remain
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+    await expect(processShapesExportJob(job, { prisma: mockPrisma as never })).rejects.toThrow(
+      'Bad Gateway'
+    );
+
+    // Should mark in_progress but NOT failed (BullMQ will retry)
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
+  });
+
+  it('should mark as failed on final server error attempt', async () => {
+    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(504, 'Gateway Timeout'));
+
+    // attemptsMade=2, attempts=3 → last attempt
+    const job = createMockJob({}, { attemptsMade: 2, attempts: 3 });
+    const result = await processShapesExportJob(job, { prisma: mockPrisma as never });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Gateway Timeout');
+
     const updateCalls = mockPrisma.exportJob.update.mock.calls;
     expect(updateCalls).toHaveLength(2);
     expect(updateCalls[0][0].data.status).toBe('in_progress');
