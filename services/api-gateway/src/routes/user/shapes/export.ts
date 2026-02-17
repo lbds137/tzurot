@@ -23,6 +23,7 @@ import {
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
   getConfig,
+  Prisma,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
@@ -34,6 +35,70 @@ const logger = createLogger('shapes-export');
 
 /** Export jobs expire after 24 hours */
 const EXPORT_EXPIRY_HOURS = 24;
+
+interface CreateOrConflictResult {
+  exportJobId: string;
+  conflictStatus: string | null;
+}
+
+/**
+ * Atomically check for conflicts and create/reset the export job.
+ * Without a transaction, two concurrent requests can both pass findFirst
+ * and the second upsert silently resets the first job's status.
+ */
+async function createExportJobOrConflict(
+  prisma: PrismaClient,
+  userId: string,
+  normalizedSlug: string,
+  format: string,
+  expiresAt: Date
+): Promise<CreateOrConflictResult> {
+  const exportJobId = generateExportJobUuid(userId, normalizedSlug, IMPORT_SOURCES.SHAPES_INC);
+
+  const conflictStatus = await prisma.$transaction(async tx => {
+    const existingJob = await tx.exportJob.findFirst({
+      where: {
+        userId,
+        sourceSlug: normalizedSlug,
+        sourceService: IMPORT_SOURCES.SHAPES_INC,
+        status: { in: ['pending', 'in_progress'] },
+      },
+    });
+
+    if (existingJob !== null) {
+      return existingJob.status;
+    }
+
+    await tx.exportJob.upsert({
+      where: { id: exportJobId },
+      create: {
+        id: exportJobId,
+        userId,
+        sourceSlug: normalizedSlug,
+        sourceService: IMPORT_SOURCES.SHAPES_INC,
+        status: 'pending',
+        format,
+        expiresAt,
+      },
+      update: {
+        status: 'pending',
+        format,
+        fileContent: null,
+        fileName: null,
+        fileSizeBytes: null,
+        errorMessage: null,
+        startedAt: null,
+        completedAt: null,
+        expiresAt,
+        exportMetadata: Prisma.JsonNull,
+      },
+    });
+
+    return null;
+  });
+
+  return { exportJobId, conflictStatus };
+}
 
 function createExportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
   return async (req: AuthenticatedRequest, res: Response) => {
@@ -47,7 +112,8 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, userService: Us
     const normalizedSlug = slug.trim().toLowerCase();
     const format = formatRaw === 'markdown' ? 'markdown' : 'json';
 
-    // Get or create internal user
+    // Get or create internal user (display name resolved later by bot-client;
+    // passing discordUserId as placeholder username matches the import flow)
     const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
     if (userId === null) {
       return sendError(res, ErrorResponses.validationError('Cannot create user'));
@@ -70,58 +136,27 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       );
     }
 
-    // Check for existing pending/in_progress export for same slug
-    const existingJob = await prisma.exportJob.findFirst({
-      where: {
-        userId,
-        sourceSlug: normalizedSlug,
-        sourceService: IMPORT_SOURCES.SHAPES_INC,
-        status: { in: ['pending', 'in_progress'] },
-      },
-    });
+    const expiresAt = new Date(Date.now() + EXPORT_EXPIRY_HOURS * 60 * 60 * 1000);
+    const { exportJobId, conflictStatus } = await createExportJobOrConflict(
+      prisma,
+      userId,
+      normalizedSlug,
+      format,
+      expiresAt
+    );
 
-    if (existingJob !== null) {
+    if (conflictStatus !== null) {
       return sendError(
         res,
         ErrorResponses.conflict(
-          `An export for '${normalizedSlug}' is already ${existingJob.status}. Wait for it to complete.`
+          `An export for '${normalizedSlug}' is already ${conflictStatus}. Wait for it to complete.`
         )
       );
     }
 
-    // Create ExportJob record
-    const exportJobId = generateExportJobUuid(userId, normalizedSlug, IMPORT_SOURCES.SHAPES_INC);
-    const expiresAt = new Date(Date.now() + EXPORT_EXPIRY_HOURS * 60 * 60 * 1000);
-
-    await prisma.exportJob.upsert({
-      where: { id: exportJobId },
-      create: {
-        id: exportJobId,
-        userId,
-        sourceSlug: normalizedSlug,
-        sourceService: IMPORT_SOURCES.SHAPES_INC,
-        status: 'pending',
-        format,
-        expiresAt,
-      },
-      update: {
-        status: 'pending',
-        format,
-        fileContent: null,
-        fileName: null,
-        fileSizeBytes: null,
-        errorMessage: null,
-        startedAt: null,
-        completedAt: null,
-        expiresAt,
-        exportMetadata: undefined,
-      },
-    });
-
     // Enqueue BullMQ job
     const jobData: ShapesExportJobData = {
       userId,
-      discordUserId,
       sourceSlug: normalizedSlug,
       exportJobId,
       format,

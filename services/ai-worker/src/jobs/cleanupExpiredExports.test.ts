@@ -49,4 +49,10 @@ describe('cleanupExpiredExports', () => {
 
     expect(result.deleted).toBe(0);
   });
+
+  it('should handle deleteMany errors gracefully', async () => {
+    mockPrisma.exportJob.deleteMany.mockRejectedValue(new Error('DB connection lost'));
+
+    await expect(cleanupExpiredExports(mockPrisma as never)).rejects.toThrow('DB connection lost');
+  });
 });

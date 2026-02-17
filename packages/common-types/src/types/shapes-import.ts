@@ -205,10 +205,8 @@ const exportFormatEnum = z.enum(['json', 'markdown']);
  * Consumed by: ai-worker (ShapesExportJob.ts)
  */
 export const shapesExportJobDataSchema = z.object({
-  /** Internal Tzurot user ID (UUID) */
+  /** Internal Tzurot user ID (UUID) — used for credential lookup and DB writes */
   userId: z.string().uuid(),
-  /** Discord user ID (for credential resolution) */
-  discordUserId: z.string().min(1),
   /** Shapes.inc slug/username to export */
   sourceSlug: z.string().min(1),
   /** ExportJob record ID for status tracking */
@@ -234,10 +232,8 @@ export const shapesExportResultSchema = z.object({
 
 /** Data passed to the shapes export BullMQ job */
 export interface ShapesExportJobData {
-  /** Internal Tzurot user ID (UUID) */
+  /** Internal Tzurot user ID (UUID) — used for credential lookup and DB writes */
   userId: string;
-  /** Discord user ID (for credential resolution) */
-  discordUserId: string;
   /** Shapes.inc slug/username to export */
   sourceSlug: string;
   /** ExportJob record ID for status tracking */
