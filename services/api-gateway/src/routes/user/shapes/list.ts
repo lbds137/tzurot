@@ -81,12 +81,28 @@ function createListHandler(prisma: PrismaClient) {
         signal: controller.signal,
       });
 
-      if (!response.ok) {
-        if (response.status === 401 || response.status === 403) {
+      // Detect redirect to login page (shapes.inc may redirect instead of 401)
+      const finalUrl = response.url;
+      const wasRedirected = finalUrl !== `${SHAPES_BASE_URL}/api/shapes?category=self`;
+
+      if (!response.ok || wasRedirected) {
+        const bodyText = await response.text().catch(() => '(unreadable)');
+        logger.warn(
+          {
+            status: response.status,
+            finalUrl,
+            wasRedirected,
+            bodyPreview: bodyText.slice(0, 200),
+            discordUserId,
+          },
+          '[Shapes] shapes.inc API call failed'
+        );
+
+        if (response.status === 401 || response.status === 403 || wasRedirected) {
           return sendError(
             res,
             ErrorResponses.unauthorized(
-              'Session cookie expired. Re-authenticate with /shapes auth.'
+              'Session cookie expired or invalid. Re-authenticate with /shapes auth.'
             )
           );
         }

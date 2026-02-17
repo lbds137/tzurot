@@ -106,6 +106,7 @@ describe('Shapes List Routes', () => {
       // Mock global fetch
       const mockFetch = vi.fn().mockResolvedValue({
         ok: true,
+        url: 'https://shapes.inc/api/shapes?category=self',
         json: vi
           .fn()
           .mockResolvedValue([{ id: 'shape-1', name: 'Test', username: 'test', avatar: '' }]),
