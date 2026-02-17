@@ -29,7 +29,7 @@
       "ignoreDependencies": ["eslint"]
     },
     "packages/embeddings": {
-      "entry": ["src/**/*.test.ts"],
+      "entry": ["src/**/*.test.ts", "src/embeddingWorker.ts"],
       "includeEntryExports": true,
       "ignoreDependencies": ["@huggingface/transformers", "onnxruntime-node"]
     },
