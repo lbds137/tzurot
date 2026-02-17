@@ -50,7 +50,7 @@ export async function cleanupStuckImportJobs(
         startedAt: { lt: cutoff },
       },
       select: { id: true, sourceSlug: true, startedAt: true },
-      take: 100,
+      take: 500,
     });
 
     if (stuckJobs.length === 0) {
