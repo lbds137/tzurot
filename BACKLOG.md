@@ -182,14 +182,14 @@ Import V2/V3 character cards (PNG with embedded metadata). SillyTavern compatibi
 - [ ] Map character card fields to v3 personality schema
 - [ ] `/character import` support for PNG files
 
-#### ✨ Shapes.inc Import (Ready for Implementation)
+#### ✨ Shapes.inc Import (Implemented)
 
-Full automated import from shapes.inc via `/shapes` command group. API endpoints confirmed, field mappings validated against real data. See `docs/proposals/active/shapes-inc-import-plan.md`.
+Full automated import from shapes.inc via `/shapes` command group. Shipped on develop.
 
-- [ ] Phase 1: Schema (UserCredential, ImportJob tables + `type` column on memories) + `/shapes auth|logout`
-- [ ] Phase 2: Data fetcher service (TypeScript, split cookie handling, username lookup, memory pagination)
-- [ ] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
-- [ ] Phase 4: `/shapes import|export|status` slash commands
+- [x] Phase 1: Schema (UserCredential, ImportJob tables + `type` column on memories) + `/shapes auth|logout`
+- [x] Phase 2: Data fetcher service (TypeScript, split cookie handling, username lookup, memory pagination)
+- [x] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
+- [x] Phase 4: `/shapes list|import|export|status` slash commands
 - [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
 
 ---
@@ -431,10 +431,6 @@ Review all `*.test.ts` files to ensure they match their naming convention.
 - [ ] AST-based parsing for robustness
 - [ ] Channel type refinement
 
-#### 🧹 Consolidate import-personality Scripts
-
-`scripts/data/import-personality/` workspace needs cleanup.
-
 #### 🧹 Railway Ops CLI Enhancements
 
 Low priority quality-of-life improvements.
@@ -473,6 +469,6 @@ _Decided not to do yet._
 
 - [GitHub Releases](https://github.com/lbds137/tzurot/releases) - Full release history
 - [docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md](docs/proposals/backlog/OPENMEMORY_MIGRATION_PLAN.md)
-- [docs/proposals/active/shapes-inc-import-plan.md](docs/proposals/active/shapes-inc-import-plan.md)
+- Shapes.inc import: Phases 1-4 complete on develop (see Character Portability theme)
 - [docs/research/sillytavern-features.md](docs/research/sillytavern-features.md)
 - [docs/research/voice-cloning-2026.md](docs/research/voice-cloning-2026.md)

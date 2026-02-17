@@ -7,12 +7,6 @@ describe('tooling package exports', () => {
     expect(typeof module.registerDbCommands).toBe('function');
   });
 
-  it('should export registerDataCommands', async () => {
-    const module = await import('./index.js');
-    expect(module.registerDataCommands).toBeDefined();
-    expect(typeof module.registerDataCommands).toBe('function');
-  });
-
   it('should export registerDeployCommands', async () => {
     const module = await import('./index.js');
     expect(module.registerDeployCommands).toBeDefined();
