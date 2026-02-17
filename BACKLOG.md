@@ -21,6 +21,15 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
+### 🏗️ [LIFT] Investigate Safe Auto-Migration on Railway
+
+Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env dev/prod`). This caused a P2002 bug when a migration was deployed as code but never applied. Investigate options:
+
+- Dev-only auto-migration in the Railway start command
+- Pre-deploy hook with `prisma migrate deploy`
+- Dry-run check in prod with approval gate
+- CI step that validates migration state matches schema
+
 ### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
 
 GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty. Combined with provider 400 errors, responses fail completely.

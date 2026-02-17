@@ -52,6 +52,8 @@ pnpm ops deploy:setup-vars --env dev --dry-run  # Preview env var setup
 pnpm ops run --env dev <command>     # Run any command with Railway creds
 ```
 
+**Post-deploy migration reminder:** If the deployment includes new Prisma migrations, run `pnpm ops db:migrate --env dev` and `--env prod` after deploying. Migrations are NOT auto-applied on Railway.
+
 ### Codebase Analysis (Xray)
 
 ```bash

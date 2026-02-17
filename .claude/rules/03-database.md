@@ -72,6 +72,17 @@ All commands work in non-interactive environments (AI assistants, CI).
 
 **NEVER** use `prisma migrate reset` (destroys all data) or raw `prisma migrate` commands.
 
+### Deployment (CRITICAL)
+
+**Migrations are NOT auto-applied on Railway.** After any deployment that includes new migrations, you MUST manually run:
+
+```bash
+pnpm ops db:migrate --env dev   # Apply to development
+pnpm ops db:migrate --env prod  # Apply to production (requires confirmation)
+```
+
+Forgetting this causes Prisma `P2002` and other constraint errors at runtime because the code expects schema changes that haven't been applied yet.
+
 ### Protected Indexes (CRITICAL)
 
 Prisma tries to DROP these indexes in migrations - ALWAYS review and remove:

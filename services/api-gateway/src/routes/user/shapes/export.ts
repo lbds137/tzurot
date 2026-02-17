@@ -154,13 +154,34 @@ function createExportHandler(
     }
 
     const expiresAt = new Date(Date.now() + EXPORT_EXPIRY_HOURS * 60 * 60 * 1000);
-    const { exportJobId, conflictStatus } = await createExportJobOrConflict(
-      prisma,
-      userId,
-      normalizedSlug,
-      format,
-      expiresAt
-    );
+
+    let exportJobId: string;
+    let conflictStatus: string | null;
+    try {
+      ({ exportJobId, conflictStatus } = await createExportJobOrConflict(
+        prisma,
+        userId,
+        normalizedSlug,
+        format,
+        expiresAt
+      ));
+    } catch (error: unknown) {
+      // Defense-in-depth: catch Prisma P2002 (unique constraint violation)
+      // in case migration state drifts or concurrent requests race past the transaction
+      if (isPrismaUniqueConstraintError(error)) {
+        logger.warn(
+          { discordUserId, sourceSlug: normalizedSlug, format },
+          '[Shapes] P2002 unique constraint — treating as conflict'
+        );
+        return sendError(
+          res,
+          ErrorResponses.conflict(
+            `An export for '${normalizedSlug}' is already in progress. Wait for it to complete.`
+          )
+        );
+      }
+      throw error;
+    }
 
     if (conflictStatus !== null) {
       return sendError(
@@ -179,7 +200,7 @@ function createExportHandler(
       format,
     };
 
-    const jobId = `${JOB_PREFIXES.SHAPES_EXPORT}${exportJobId}`;
+    const jobId = `${JOB_PREFIXES.SHAPES_EXPORT}${exportJobId}-${Date.now()}`;
     await queue.add(JobType.ShapesExport, jobData, { jobId });
 
     logger.info(
@@ -249,6 +270,10 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
 
     sendCustomSuccess(res, { jobs: jobsWithUrls });
   };
+}
+
+function isPrismaUniqueConstraintError(error: unknown): boolean {
+  return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 }
 
 export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {
