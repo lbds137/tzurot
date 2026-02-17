@@ -55,8 +55,7 @@ describe('embeddingWorker', () => {
   }
 
   function getMessageHandler(): (msg: unknown) => void {
-    // The last registered handler is the one for incoming messages
-    // (first postMessage is the 'ready' signal from module init)
+    // Returns the handler registered via parentPort.on('message', handler)
     const handler = messageHandlers[messageHandlers.length - 1];
     if (handler === undefined) {
       throw new Error('No message handler registered');
