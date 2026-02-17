@@ -37,6 +37,8 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
     return extractor;
   }
 
+  // Sticky failure: once the model fails to load, all future calls throw immediately.
+  // Recovery requires the main thread to restart the worker (creates a fresh V8 isolate).
   if (modelLoadError !== null) {
     throw new Error(`Model previously failed to load: ${modelLoadError}`);
   }
