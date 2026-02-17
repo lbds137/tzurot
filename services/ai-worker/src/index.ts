@@ -16,6 +16,7 @@ import { LocalEmbeddingService } from '@tzurot/embeddings';
 import { AIJobProcessor } from './jobs/AIJobProcessor.js';
 import { PendingMemoryProcessor } from './jobs/PendingMemoryProcessor.js';
 import { cleanupDiagnosticLogs } from './jobs/CleanupDiagnosticLogs.js';
+import { cleanupStuckImportJobs } from './jobs/cleanupStuckImportJobs.js';
 import {
   createLogger,
   getConfig,
@@ -41,6 +42,7 @@ import { initStopSequenceRedis } from './services/StopSequenceTracker.js';
 const SCHEDULED_JOBS = {
   PROCESS_PENDING_MEMORIES: 'process-pending-memories',
   CLEANUP_DIAGNOSTIC_LOGS: 'cleanup-diagnostic-logs',
+  CLEANUP_STUCK_IMPORTS: 'cleanup-stuck-imports',
 } as const;
 
 // ============================================================================
@@ -224,6 +226,10 @@ async function setupScheduledJobs(
         logger.debug('[Scheduled] Running diagnostic log cleanup');
         return cleanupDiagnosticLogs(prisma);
       }
+      if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS) {
+        logger.debug('[Scheduled] Running stuck import job cleanup');
+        return cleanupStuckImportJobs(prisma);
+      }
       return null;
     },
     {
@@ -255,8 +261,15 @@ async function setupScheduledJobs(
     { repeat: { pattern: '0 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_DIAGNOSTIC_LOGS }
   );
 
+  // Add repeatable job for stuck import job cleanup (every 15 minutes)
+  await scheduledQueue.add(
+    SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS,
+    {},
+    { repeat: { pattern: '*/15 * * * *' }, jobId: SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS }
+  );
+
   logger.info(
-    '[AIWorker] Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly)'
+    '[AIWorker] Scheduled jobs configured (pending memory: every 10 min, diagnostic cleanup: hourly, stuck imports: every 15 min)'
   );
 
   return { scheduledQueue, scheduledWorker };

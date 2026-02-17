@@ -76,6 +76,9 @@ vi.mock('../services/shapes/ShapesPersonalityMapper.js', () => ({
       isPublic: false,
       voiceEnabled: false,
       imageEnabled: false,
+      birthMonth: null,
+      birthDay: null,
+      birthYear: null,
       customFields: { importSource: 'shapes_inc' },
     },
     llmConfig: {
@@ -120,6 +123,7 @@ const mockPrisma = {
   },
   memory: {
     count: vi.fn().mockResolvedValue(0),
+    findMany: vi.fn().mockResolvedValue([]),
   },
 };
 
@@ -184,6 +188,7 @@ describe('processShapesImportJob', () => {
 
     // Default: no existing memories (fresh import)
     mockPrisma.memory.count.mockResolvedValue(0);
+    mockPrisma.memory.findMany.mockResolvedValue([]);
   });
 
   it('should update import job to in_progress', async () => {
@@ -293,8 +298,8 @@ describe('processShapesImportJob', () => {
     );
   });
 
-  it('should skip memory import if personality already has memories', async () => {
-    mockPrisma.memory.count.mockResolvedValue(50);
+  it('should skip all memories if personality already has identical content', async () => {
+    mockPrisma.memory.findMany.mockResolvedValue([{ content: 'Test memory content' }]);
 
     const job = createMockJob();
     const result = await processShapesImportJob(job, {
@@ -305,6 +310,71 @@ describe('processShapesImportJob', () => {
     expect(result.success).toBe(true);
     expect(result.memoriesImported).toBe(0);
     expect(mockMemoryAdapter.addMemory).not.toHaveBeenCalled();
+  });
+
+  it('should import only new memories on partial re-import', async () => {
+    // Simulate: first memory already exists, second is new
+    mockPrisma.memory.findMany.mockResolvedValue([{ content: 'Test memory content' }]);
+
+    mockFetchShapeData.mockResolvedValue({
+      config: {
+        id: 'shape-uuid',
+        name: 'Test Shape',
+        username: 'test-shape',
+        avatar: '',
+        jailbreak: 'system prompt',
+        user_prompt: 'char info',
+        personality_traits: 'traits',
+        engine_model: 'openai/gpt-4o',
+        engine_temperature: 0.8,
+        stm_window: 10,
+        ltm_enabled: true,
+        ltm_threshold: 0.3,
+        ltm_max_retrieved_summaries: 5,
+      },
+      memories: [
+        {
+          id: 'mem-1',
+          shape_id: 'shape-uuid',
+          senders: ['user-1'],
+          result: 'Test memory content',
+          metadata: {
+            start_ts: 1700000000,
+            end_ts: 1700001000,
+            created_at: 1700001000,
+            senders: ['user-1'],
+          },
+        },
+        {
+          id: 'mem-2',
+          shape_id: 'shape-uuid',
+          senders: ['user-2'],
+          result: 'New memory from retry',
+          metadata: {
+            start_ts: 1700002000,
+            end_ts: 1700003000,
+            created_at: 1700003000,
+            senders: ['user-2'],
+          },
+        },
+      ],
+      stories: [],
+      userPersonalization: null,
+      stats: { memoriesCount: 2, storiesCount: 0, pagesTraversed: 1 },
+    });
+
+    const job = createMockJob();
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.memoriesImported).toBe(1);
+    expect(mockMemoryAdapter.addMemory).toHaveBeenCalledTimes(1);
+    expect(mockMemoryAdapter.addMemory).toHaveBeenCalledWith(
+      expect.objectContaining({ text: 'New memory from retry' })
+    );
   });
 
   it('should count failed memories without failing the job', async () => {

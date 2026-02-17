@@ -19,6 +19,9 @@ const logger = createLogger('ShapesImportJob');
 /** Max avatar size (10MB — matches Discord's limit) */
 const MAX_AVATAR_BYTES = 10 * 1024 * 1024;
 
+/** Avatar download timeout in ms (matches ShapesDataFetcher.REQUEST_TIMEOUT_MS) */
+const AVATAR_TIMEOUT_MS = 30_000;
+
 export async function createFullPersonality(
   prisma: PrismaClient,
   config: ShapesIncPersonalityConfig,
@@ -63,6 +66,9 @@ export async function createFullPersonality(
       conversationalGoals: mapped.personality.conversationalGoals,
       conversationalExamples: mapped.personality.conversationalExamples,
       errorMessage: mapped.personality.errorMessage,
+      birthMonth: mapped.personality.birthMonth,
+      birthDay: mapped.personality.birthDay,
+      birthYear: mapped.personality.birthYear,
       customFields: customFieldsJson,
       systemPromptId: mapped.systemPrompt.id,
     },
@@ -121,9 +127,13 @@ export async function downloadAndStoreAvatar(
   personalityId: string,
   avatarUrl: string
 ): Promise<void> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), AVATAR_TIMEOUT_MS);
+
   try {
     const response = await fetch(avatarUrl, {
       headers: { 'User-Agent': SHAPES_USER_AGENT },
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -159,5 +169,7 @@ export async function downloadAndStoreAvatar(
       { err: error, personalityId },
       '[ShapesImportJob] Avatar download failed — skipping'
     );
+  } finally {
+    clearTimeout(timeout);
   }
 }
