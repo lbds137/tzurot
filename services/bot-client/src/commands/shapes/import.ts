@@ -72,6 +72,7 @@ export async function startImport(
         ? `An import for **${slug}** is already in progress. Check \`/shapes status\` for details.`
         : `Failed to start import: ${importResult.error}`;
 
+    // update() already acknowledged the interaction above; editReply() modifies the original message
     await buttonInteraction.editReply({
       embeds: [
         new EmbedBuilder()
@@ -94,6 +95,7 @@ export async function startImport(
     .addFields({ name: 'Job ID', value: `\`${importResult.data.importJobId}\``, inline: true })
     .setTimestamp();
 
+  // update() already acknowledged the interaction; editReply() modifies the original message
   await buttonInteraction.editReply({ embeds: [successEmbed], components: [] });
 
   logger.info(

@@ -145,6 +145,20 @@ describe('handleShapesButton', () => {
       );
     });
 
+    it('should show error on import-confirm with invalid importType', async () => {
+      const interaction = createMockButtonInteraction(
+        'shapes::import-confirm::invalid_type',
+        'slug:test-slug'
+      );
+      await handleShapesButton(interaction);
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Invalid import state'),
+        })
+      );
+    });
+
     it('should show cancellation message on import-cancel', async () => {
       const interaction = createMockButtonInteraction('shapes::import-cancel');
       await handleShapesButton(interaction);
@@ -243,6 +257,18 @@ describe('handleShapesButton', () => {
       );
     });
 
+    it('should show error when action-import has no slug', async () => {
+      // shapes::action-import with no third segment → parsed.slug is undefined
+      const interaction = createMockButtonInteraction('shapes::action-import');
+      await handleShapesButton(interaction);
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Invalid shape selection'),
+        })
+      );
+    });
+
     it('should show export hint on action-export', async () => {
       const interaction = createMockButtonInteraction('shapes::action-export::my-shape');
       await handleShapesButton(interaction);
@@ -283,6 +309,23 @@ describe('handleShapesButton', () => {
       expect(updateArgs.embeds[0].data.footer.text).toContain('Page 1 of 2');
     });
   });
+
+  describe('error handling', () => {
+    it('should show error message when handler throws unexpectedly', async () => {
+      // fetchShapesList throws — triggers the outer catch block
+      mockCallGatewayApi.mockRejectedValue(new Error('Unexpected network failure'));
+
+      const interaction = createMockButtonInteraction('shapes::list-prev::1');
+      await handleShapesButton(interaction);
+
+      // Should attempt to show error to user via fallback update
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('unexpected error'),
+        })
+      );
+    });
+  });
 });
 
 describe('handleShapesSelectMenu', () => {
@@ -320,5 +363,16 @@ describe('handleShapesSelectMenu', () => {
     expect(buttons[0].data.custom_id).toBe('shapes::action-import::test-slug');
     expect(buttons[1].data.custom_id).toBe('shapes::action-export::test-slug');
     expect(buttons[2].data.custom_id).toBe('shapes::action-back');
+  });
+
+  it('should show error for unknown select menu action', async () => {
+    const interaction = createMockSelectInteraction('shapes::unknown-action::0', ['test']);
+    await handleShapesSelectMenu(interaction);
+
+    expect(mockUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        content: expect.stringContaining('Unknown action'),
+      })
+    );
   });
 });
