@@ -10,6 +10,7 @@ import { EmbedBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 
 const logger = createLogger('shapes-export');
 
@@ -91,19 +92,4 @@ function handleExportError(
   }
 
   return context.editReply({ embeds: [], content: message }).then(() => undefined);
-}
-
-/** Map known internal error patterns to user-friendly messages */
-function sanitizeErrorForDiscord(error: string): string {
-  if (error.includes('Unique constraint') || error.includes('P2002')) {
-    return 'A duplicate export was detected. Please wait a moment and try again.';
-  }
-  if (error.includes('connect') || error.includes('ECONNREFUSED')) {
-    return 'Service temporarily unavailable. Please try again in a moment.';
-  }
-  // Avoid leaking internal details — only pass through short, non-technical messages
-  if (error.length > 200 || error.includes('prisma') || error.includes('at ')) {
-    return 'Something went wrong. Please try again or contact support.';
-  }
-  return error;
 }
