@@ -45,6 +45,11 @@ interface CreateOrConflictResult {
  * Atomically check for conflicts and create/reset the export job.
  * Without a transaction, two concurrent requests can both pass findFirst
  * and the second upsert silently resets the first job's status.
+ *
+ * Note: The UUID is deterministic on (userId, slug, service), so re-exports
+ * for the same shape upsert the same row — this replaces any previous
+ * completed/failed export, invalidating its download URL immediately.
+ * Only active (pending/in_progress) exports trigger a 409 conflict.
  */
 async function createExportJobOrConflict(
   prisma: PrismaClient,
