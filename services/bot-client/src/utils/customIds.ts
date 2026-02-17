@@ -531,7 +531,12 @@ export const ShapesCustomIds = {
   listPrev: (page: number) => `shapes::list-prev::${String(page)}` as const,
   /** Next page button */
   listNext: (page: number) => `shapes::list-next::${String(page)}` as const,
-  /** Select menu for choosing a shape */
+  /**
+   * Select menu for choosing a shape.
+   * Page is encoded for consistency with other list custom IDs but currently
+   * unused — action-back always returns to page 0. Available if we later
+   * want back-navigation to return to the original page.
+   */
   listSelect: (page: number) => `shapes::list-select::${String(page)}` as const,
   /** Disabled page info button */
   listInfo: () => 'shapes::list-info' as const,

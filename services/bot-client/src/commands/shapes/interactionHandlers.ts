@@ -80,6 +80,8 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
     }
 
     // --- Auth continue/cancel ---
+    // No user ownership check needed — the message is ephemeral (deferralMode: 'ephemeral'),
+    // so only the original requester can see and click these buttons.
     if (action === 'auth-continue') {
       await interaction.showModal(buildAuthModal());
       return;
@@ -175,7 +177,8 @@ async function handleListPagination(
   isPrev: boolean
 ): Promise<void> {
   // currentPage comes from the custom ID (set at render time) so it may be stale
-  // if the list changed. buildListPage clamps out-of-bounds pages safely.
+  // if the list changed. buildListPage clamps out-of-bounds pages safely
+  // (including negative values from prev on page 0 via safePage = Math.max(0, ...)).
   const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
   await handleListPage(interaction, targetPage);
 }
@@ -284,7 +287,10 @@ async function handleImportConfirm(
   // Slug is stored in the embed footer (not the custom ID) to avoid
   // Discord's 100-char custom ID limit with long slugs
   const footerText = interaction.message.embeds[0]?.footer?.text ?? '';
-  const slug = footerText.startsWith('slug:') ? footerText.slice(5) : undefined;
+  const rawSlug = footerText.startsWith('slug:') ? footerText.slice(5) : undefined;
+  // Validate slug format — shapes.inc usernames are lowercase alphanumeric + hyphens
+  const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
+  const slug = rawSlug !== undefined && SLUG_PATTERN.test(rawSlug) ? rawSlug : undefined;
 
   if (slug === undefined || importType === undefined) {
     logger.warn({ customId: interaction.customId }, '[Shapes] Import confirm missing state');
