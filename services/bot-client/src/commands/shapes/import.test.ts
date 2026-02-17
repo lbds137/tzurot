@@ -6,6 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { MessageComponentInteraction } from 'discord.js';
 import { handleImport, startImport } from './import.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -186,7 +187,7 @@ describe('startImport', () => {
       user: { id: '123456789' },
       update: mockUpdate,
       editReply: mockEditReply,
-    } as any;
+    } as unknown as MessageComponentInteraction;
   }
 
   it('should call gateway import API with correct params', async () => {

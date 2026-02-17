@@ -260,13 +260,17 @@ describe('handleShapesButton', () => {
       );
     });
 
-    it('should re-fetch list on action-back', async () => {
+    it('should re-fetch list and show page 0 on action-back', async () => {
+      const shapes = Array.from({ length: 15 }, (_, i) => ({
+        id: `shape-${String(i)}`,
+        name: `Shape ${String(i)}`,
+        username: `shape-${String(i)}`,
+        avatar: '',
+      }));
+
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
-        data: {
-          shapes: [{ id: '1', name: 'Test', username: 'test', avatar: '' }],
-          total: 1,
-        },
+        data: { shapes, total: shapes.length },
       });
 
       const interaction = createMockButtonInteraction('shapes::action-back');
@@ -274,6 +278,9 @@ describe('handleShapesButton', () => {
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/shapes/list', expect.anything());
       expect(mockUpdate).toHaveBeenCalledTimes(1);
+      // Should always return to page 0 regardless of previous page
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.footer.text).toContain('Page 1 of 2');
     });
   });
 });
