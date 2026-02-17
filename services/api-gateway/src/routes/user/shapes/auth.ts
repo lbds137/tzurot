@@ -47,11 +47,15 @@ function createStoreHandler(prisma: PrismaClient, userService: UserService) {
       return sendError(res, ErrorResponses.validationError('sessionCookie is required'));
     }
 
-    if (!sessionCookie.includes('appSession.0=') || !sessionCookie.includes('appSession.1=')) {
+    const hasSingleCookie = sessionCookie.includes('appSession=');
+    const hasChunkedCookies =
+      sessionCookie.includes('appSession.0=') && sessionCookie.includes('appSession.1=');
+
+    if (!hasSingleCookie && !hasChunkedCookies) {
       return sendError(
         res,
         ErrorResponses.validationError(
-          'Session cookie must contain both appSession.0 and appSession.1 values'
+          'Session cookie must contain appSession or both appSession.0 and appSession.1 values'
         )
       );
     }

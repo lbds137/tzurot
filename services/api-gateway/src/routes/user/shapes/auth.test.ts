@@ -131,20 +131,20 @@ describe('Shapes Auth Routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('should reject cookie missing appSession.0', async () => {
+    it('should reject cookie missing appSession prefix', async () => {
       const { res } = await callStoreHandler({
-        sessionCookie: 'appSession.1=value',
+        sessionCookie: 'randomCookie=value',
       });
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
-          message: expect.stringContaining('appSession.0'),
+          message: expect.stringContaining('appSession'),
         })
       );
     });
 
-    it('should reject cookie missing appSession.1', async () => {
+    it('should reject chunked cookie with only one part', async () => {
       const { res } = await callStoreHandler({
         sessionCookie: 'appSession.0=value',
       });
@@ -152,7 +152,7 @@ describe('Shapes Auth Routes', () => {
       expect(res.status).toHaveBeenCalledWith(400);
     });
 
-    it('should encrypt and upsert valid cookie', async () => {
+    it('should encrypt and upsert valid chunked cookie', async () => {
       const { res } = await callStoreHandler({
         sessionCookie: 'appSession.0=part0; appSession.1=part1',
       });
@@ -168,6 +168,16 @@ describe('Shapes Auth Routes', () => {
           }),
         })
       );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
+    });
+
+    it('should encrypt and upsert valid single cookie', async () => {
+      const { res } = await callStoreHandler({
+        sessionCookie: 'appSession=single-session-value',
+      });
+
+      expect(mockPrisma.userCredential.upsert).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ success: true }));
     });

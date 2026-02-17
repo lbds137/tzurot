@@ -29,20 +29,19 @@ export async function handleAuth(context: ModalCommandContext): Promise<void> {
 
   const cookiePart0 = new TextInputBuilder()
     .setCustomId('cookiePart0')
-    .setLabel('appSession.0')
+    .setLabel('appSession (or appSession.0)')
     .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Paste the value of appSession.0 from your browser cookies')
+    .setPlaceholder('Paste your appSession cookie value (or appSession.0 if you have two)')
     .setRequired(true)
     .setMinLength(10)
     .setMaxLength(4000);
 
   const cookiePart1 = new TextInputBuilder()
     .setCustomId('cookiePart1')
-    .setLabel('appSession.1')
+    .setLabel('appSession.1 (only if you have two cookies)')
     .setStyle(TextInputStyle.Paragraph)
-    .setPlaceholder('Paste the value of appSession.1 from your browser cookies')
-    .setRequired(true)
-    .setMinLength(10)
+    .setPlaceholder('Leave empty if you only have one appSession cookie')
+    .setRequired(false)
     .setMaxLength(4000);
 
   modal.addComponents(
