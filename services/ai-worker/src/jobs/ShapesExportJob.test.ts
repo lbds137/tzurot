@@ -74,9 +74,14 @@ const mockPrisma = {
   },
 };
 
-function createMockJob(overrides: Partial<ShapesExportJobData> = {}): Job<ShapesExportJobData> {
+function createMockJob(
+  overrides: Partial<ShapesExportJobData> = {},
+  jobOpts: { attemptsMade?: number; attempts?: number } = {}
+): Job<ShapesExportJobData> {
   return {
     id: 'test-job-id',
+    attemptsMade: jobOpts.attemptsMade ?? 0,
+    opts: { attempts: jobOpts.attempts ?? 3 },
     data: {
       userId: 'user-uuid-123',
       sourceSlug: 'test-shape',
@@ -181,11 +186,12 @@ describe('ShapesExportJob', () => {
     );
   });
 
-  it('should re-throw rate-limit errors for BullMQ retry without marking failed', async () => {
+  it('should re-throw rate-limit errors for BullMQ retry when attempts remain', async () => {
     const { ShapesRateLimitError } = await import('../services/shapes/ShapesDataFetcher.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesRateLimitError());
 
-    const job = createMockJob();
+    // attemptsMade=0, attempts=3 → 2 retries remain
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
     await expect(processShapesExportJob(job, { prisma: mockPrisma as never })).rejects.toThrow(
       'Rate limited'
     );
@@ -194,6 +200,24 @@ describe('ShapesExportJob', () => {
     const updateCalls = mockPrisma.exportJob.update.mock.calls;
     expect(updateCalls).toHaveLength(1);
     expect(updateCalls[0][0].data.status).toBe('in_progress');
+  });
+
+  it('should mark as failed on final rate-limit attempt to avoid stuck in_progress', async () => {
+    const { ShapesRateLimitError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesRateLimitError());
+
+    // attemptsMade=2, attempts=3 → last attempt, no retries left
+    const job = createMockJob({}, { attemptsMade: 2, attempts: 3 });
+    const result = await processShapesExportJob(job, { prisma: mockPrisma as never });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Rate limited');
+
+    // Should mark in_progress first, then failed
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
+    expect(updateCalls[1][0].data.status).toBe('failed');
   });
 
   it('should persist updated cookie after fetch', async () => {

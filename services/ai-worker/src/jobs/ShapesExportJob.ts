@@ -118,7 +118,7 @@ export async function processShapesExportJob(
 
     return result;
   } catch (error) {
-    return handleExportError({ error, prisma, exportJobId, jobId: job.id, sourceSlug });
+    return handleExportError({ error, prisma, exportJobId, jobId: job.id, sourceSlug, job });
   }
 }
 
@@ -177,6 +177,7 @@ interface HandleErrorOpts {
   exportJobId: string;
   jobId: string | undefined;
   sourceSlug: string;
+  job: Job<ShapesExportJobData>;
 }
 
 async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJobResult> {
@@ -197,10 +198,11 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
       : '[ShapesExportJob] Export failed'
   );
 
-  // Don't mark as 'failed' for rate-limit errors — BullMQ will retry the job,
-  // and the retry will find it still 'in_progress'. Marking it 'failed' would
-  // confuse the user (status flips failed → in_progress → completed on retry).
-  if (isRateLimited) {
+  // Re-throw rate-limit errors for BullMQ retry if attempts remain.
+  // On the final attempt, fall through to mark the DB record as 'failed'
+  // so users don't see a permanently stuck 'in_progress' status.
+  const maxAttempts = opts.job.opts.attempts ?? 1;
+  if (isRateLimited && opts.job.attemptsMade < maxAttempts - 1) {
     throw opts.error;
   }
 

@@ -89,6 +89,7 @@ export interface ShapesIncStory {
   id: string;
   shape_id: string;
   story_type: 'general' | 'command' | 'relationship';
+  title?: string;
   content: string;
   metadata?: Record<string, unknown>;
 }
