@@ -48,7 +48,15 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
 
     // --- Shape action buttons (import/export from selection) ---
     if (action === 'action-import' || action === 'action-export') {
-      await showShapeActionHint(interaction, parsed.slug ?? '', action === 'action-import');
+      if (parsed.slug === undefined) {
+        await interaction.update({
+          content: '❌ Invalid shape selection. Please try again.',
+          embeds: [],
+          components: [],
+        });
+        return;
+      }
+      await showShapeActionHint(interaction, parsed.slug, action === 'action-import');
       return;
     }
 
@@ -139,6 +147,8 @@ async function handleListPagination(
     return;
   }
 
+  // currentPage comes from the custom ID (set at render time) so it may be stale
+  // if the list changed. buildListPage clamps out-of-bounds pages safely.
   const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
   const { embed, components } = buildListPage(result.shapes, targetPage);
 
