@@ -48,7 +48,11 @@ const IMPORT_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
 /** Update progress in DB every N memories */
 const PROGRESS_UPDATE_INTERVAL = 25;
 
-/** Max memories to query for content-based deduplication */
+/**
+ * Max memories to query for content-based deduplication.
+ * 10k covers all known shapes.inc characters (largest observed: ~2k memories).
+ * ~1-2MB in-memory Set. Beyond this limit, a warning is logged.
+ */
 const DEDUP_QUERY_LIMIT = 10_000;
 
 interface ShapesImportJobDeps {
@@ -310,6 +314,7 @@ async function importMemories(
   const existingMemories = await prisma.memory.findMany({
     where: { personalityId },
     select: { content: true },
+    orderBy: { createdAt: 'desc' },
     take: DEDUP_QUERY_LIMIT,
   });
   const existingContentSet = new Set(existingMemories.map(m => m.content));
