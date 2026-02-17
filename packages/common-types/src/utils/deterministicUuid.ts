@@ -234,6 +234,21 @@ export function generateImportJobUuid(
 }
 
 /**
+ * Generate deterministic UUID for ExportJob
+ * Seed: export_job:{userId}:{sourceSlug}:{sourceService}
+ *
+ * Export jobs are unique per user+source slug+service combination.
+ * Re-exports for the same shape overwrite the previous ExportJob record.
+ */
+export function generateExportJobUuid(
+  userId: string,
+  sourceSlug: string,
+  sourceService: string
+): string {
+  return uuidv5(`export_job:${userId}:${sourceSlug}:${sourceService}`, TZUROT_NAMESPACE);
+}
+
+/**
  * UUID v4 format regex pattern
  * Matches standard UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
  */
