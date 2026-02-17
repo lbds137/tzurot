@@ -196,7 +196,7 @@ async function handleListPage(
       content:
         result.status === 401
           ? '❌ Session expired. Use `/shapes auth` to re-authenticate.'
-          : `❌ Failed to fetch shapes. Please try again.`,
+          : `❌ Failed to fetch shapes (error ${String(result.status)}). Please try again.`,
       embeds: [],
       components: [],
     });

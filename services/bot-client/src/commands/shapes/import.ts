@@ -17,6 +17,7 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
+import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
 
 const logger = createLogger('shapes-import');
 
@@ -186,19 +187,4 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     logger.error({ err: error, userId, slug }, '[Shapes] Unexpected error starting import');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });
   }
-}
-
-/** Map known internal error patterns to user-friendly messages */
-function sanitizeErrorForDiscord(error: string): string {
-  if (error.includes('Unique constraint') || error.includes('P2002')) {
-    return 'A duplicate import was detected. Please wait a moment and try again.';
-  }
-  if (error.includes('connect') || error.includes('ECONNREFUSED')) {
-    return 'Service temporarily unavailable. Please try again in a moment.';
-  }
-  // Avoid leaking internal details
-  if (error.length > 200 || error.includes('prisma') || error.includes('at ')) {
-    return 'Something went wrong. Please try again or contact support.';
-  }
-  return error;
 }

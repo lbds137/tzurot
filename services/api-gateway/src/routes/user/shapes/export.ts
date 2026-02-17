@@ -272,7 +272,7 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
   };
 }
 
-function isPrismaUniqueConstraintError(error: unknown): boolean {
+function isPrismaUniqueConstraintError(error: unknown): error is { code: string } {
   return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 }
 

@@ -102,8 +102,8 @@ function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
   const lines = ['## Memories', '', `*${String(memories.length)} conversation memories*`, ''];
 
   for (const memory of memories) {
-    const dt = new Date(memory.metadata.created_at * 1000);
-    const date = `${dt.toISOString().split('T')[0]} ${dt.toISOString().split('T')[1].slice(0, 5)}`;
+    const iso = new Date(memory.metadata.created_at * 1000).toISOString();
+    const date = `${iso.split('T')[0]} ${iso.split('T')[1].slice(0, 5)}`;
     const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
     lines.push(`- **${date}**${senders}: ${memory.result.trim()}`);
   }
