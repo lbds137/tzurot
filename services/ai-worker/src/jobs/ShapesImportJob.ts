@@ -317,6 +317,12 @@ async function importMemories(
       '[ShapesImportJob] Found existing memories — will deduplicate by content'
     );
   }
+  if (existingMemories.length === 10_000) {
+    logger.warn(
+      { personalityId },
+      '[ShapesImportJob] Hit 10k memory dedup limit — duplicates beyond this threshold may not be detected'
+    );
+  }
 
   let imported = 0;
   let failed = 0;

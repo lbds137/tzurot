@@ -296,6 +296,18 @@ describe('parseBirthday', () => {
     expect(parseBirthday('06-00')).toEqual({ month: null, day: null, year: null });
   });
 
+  it('should reject Feb 30', () => {
+    expect(parseBirthday('02-30')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should reject Apr 31', () => {
+    expect(parseBirthday('04-31')).toEqual({ month: null, day: null, year: null });
+  });
+
+  it('should accept Feb 29 (leap day)', () => {
+    expect(parseBirthday('02-29')).toEqual({ month: 2, day: 29, year: null });
+  });
+
   it('should return nulls for freeform text', () => {
     expect(parseBirthday('June 21st')).toEqual({ month: null, day: null, year: null });
   });
