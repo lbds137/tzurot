@@ -507,25 +507,91 @@ export const PersonaCustomIds = {
 // SHAPES COMMAND
 // ============================================================================
 
+/** Result type for ShapesCustomIds.parse */
+interface ShapesParseResult {
+  command: 'shapes';
+  action: string;
+  page?: number;
+  slug?: string;
+  importType?: string;
+  personalityId?: string;
+}
+
 export const ShapesCustomIds = {
+  // --- Auth flow ---
   /** Auth modal - two text inputs for cookie parts */
-  auth: () => `shapes::auth` as const,
+  auth: () => 'shapes::auth' as const,
+  /** Button to open auth modal */
+  authContinue: () => 'shapes::auth-continue' as const,
+  /** Cancel auth flow */
+  authCancel: () => 'shapes::auth-cancel' as const,
+
+  // --- List pagination ---
+  /** Previous page button */
+  listPrev: (page: number) => `shapes::list-prev::${String(page)}` as const,
+  /** Next page button */
+  listNext: (page: number) => `shapes::list-next::${String(page)}` as const,
+  /** Select menu for choosing a shape */
+  listSelect: (page: number) => `shapes::list-select::${String(page)}` as const,
+  /** Disabled page info button */
+  listInfo: () => 'shapes::list-info' as const,
+
+  // --- Action buttons (after selecting a shape) ---
+  /** Import button for a specific shape */
+  actionImport: (slug: string) => `shapes::action-import::${slug}` as const,
+  /** Export button for a specific shape */
+  actionExport: (slug: string) => `shapes::action-export::${slug}` as const,
+  /** Back to list button */
+  actionBack: () => 'shapes::action-back' as const,
+
+  // --- Import confirmation ---
+  /**
+   * Confirm import button — encodes slug + import type in customId
+   * Format: shapes::import-confirm::slug::importType[::personalityId]
+   */
+  importConfirm: (slug: string, importType: string, personalityId?: string) =>
+    personalityId !== undefined
+      ? (`shapes::import-confirm::${slug}::${importType}::${personalityId}` as const)
+      : (`shapes::import-confirm::${slug}::${importType}` as const),
+  /** Cancel import */
+  importCancel: () => 'shapes::import-cancel' as const,
 
   /** Parse shapes customId */
-  parse: (
-    customId: string
-  ): {
-    command: 'shapes';
-    action: string;
-  } | null => {
+  parse: (customId: string): ShapesParseResult | null => {
     const parts = customId.split(CUSTOM_ID_DELIMITER);
     if (parts[0] !== 'shapes' || parts.length < 2) {
       return null;
     }
-    return {
-      command: 'shapes',
-      action: parts[1],
-    };
+
+    const action = parts[1];
+    const result: ShapesParseResult = { command: 'shapes', action };
+
+    // Pagination: shapes::list-prev::page, shapes::list-next::page
+    if (action === 'list-prev' || action === 'list-next' || action === 'list-select') {
+      if (parts[2] !== undefined) {
+        const pageNum = parseInt(parts[2], 10);
+        if (!isNaN(pageNum)) {
+          result.page = pageNum;
+        }
+      }
+      return result;
+    }
+
+    // Action buttons: shapes::action-import::slug, shapes::action-export::slug
+    if (action === 'action-import' || action === 'action-export') {
+      result.slug = parts[2];
+      return result;
+    }
+
+    // Import confirm: shapes::import-confirm::slug::importType[::personalityId]
+    if (action === 'import-confirm') {
+      result.slug = parts[2];
+      result.importType = parts[3];
+      result.personalityId = parts[4];
+      return result;
+    }
+
+    return result;
   },
 
   /** Check if customId belongs to shapes command */

@@ -1,11 +1,14 @@
 /**
  * Tests for Shapes Auth Subcommand
+ *
+ * Auth now just shows instruction embed + buttons, then returns.
+ * Button handling (continue → modal, cancel) is in interactionHandlers.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { TextInputStyle, MessageFlags } from 'discord.js';
 import type { ChatInputCommandInteraction } from 'discord.js';
-import { handleAuth } from './auth.js';
+import { handleAuth, buildAuthModal } from './auth.js';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock common-types
@@ -24,9 +27,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
 
 describe('handleAuth', () => {
   const mockReply = vi.fn();
-  const mockShowModal = vi.fn();
-  const mockAwaitMessageComponent = vi.fn();
-  const mockEdit = vi.fn();
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -36,13 +36,9 @@ describe('handleAuth', () => {
     const mockInteraction = {
       user: { id: '123456789' },
       client: { user: { username: 'TestBot' } },
-      showModal: mockShowModal,
     } as unknown as ChatInputCommandInteraction;
 
-    mockReply.mockResolvedValue({
-      awaitMessageComponent: mockAwaitMessageComponent,
-      edit: mockEdit,
-    });
+    mockReply.mockResolvedValue(undefined);
 
     return {
       interaction: mockInteraction,
@@ -53,7 +49,7 @@ describe('handleAuth', () => {
       channelId: 'channel-123',
       guildId: null,
       commandName: 'shapes',
-      showModal: mockShowModal,
+      showModal: vi.fn(),
       reply: mockReply,
       deferReply: vi.fn(),
       getOption: vi.fn(),
@@ -64,12 +60,6 @@ describe('handleAuth', () => {
   }
 
   it('should reply with instruction embed and buttons', async () => {
-    const mockButtonInteraction = {
-      customId: 'shapes-auth-continue',
-      showModal: vi.fn(),
-    };
-    mockAwaitMessageComponent.mockResolvedValue(mockButtonInteraction);
-
     const context = createMockContext();
     await handleAuth(context);
 
@@ -86,48 +76,46 @@ describe('handleAuth', () => {
     expect(embed.data.description).toContain('Developer Tools');
     expect(embed.data.description).toContain('Application');
     expect(embed.data.description).toContain('appSession');
-
-    // Has buttons
-    expect(replyArgs.components).toHaveLength(1);
-    const buttons = replyArgs.components[0].components;
-    expect(buttons).toHaveLength(2);
   });
 
-  it('should show modal when continue button is clicked', async () => {
-    const buttonShowModal = vi.fn();
-    const mockButtonInteraction = {
-      customId: 'shapes-auth-continue',
-      showModal: buttonShowModal,
-    };
-    mockAwaitMessageComponent.mockResolvedValue(mockButtonInteraction);
-
+  it('should use correct custom IDs for buttons', async () => {
     const context = createMockContext();
     await handleAuth(context);
 
-    // Modal shown from button interaction, not from original context
-    expect(mockShowModal).not.toHaveBeenCalled();
-    expect(buttonShowModal).toHaveBeenCalledTimes(1);
+    const replyArgs = mockReply.mock.calls[0][0];
+    const buttons = replyArgs.components[0].components;
+    expect(buttons).toHaveLength(2);
 
-    const modal = buttonShowModal.mock.calls[0][0];
+    // Continue button uses shapes:: prefix
+    expect(buttons[0].data.custom_id).toBe('shapes::auth-continue');
+    // Cancel button uses shapes:: prefix
+    expect(buttons[1].data.custom_id).toBe('shapes::auth-cancel');
+  });
+
+  it('should include bot name in instruction text', async () => {
+    const context = createMockContext();
+    await handleAuth(context);
+
+    const embed = mockReply.mock.calls[0][0].embeds[0];
+    expect(embed.data.description).toContain('TestBot');
+  });
+});
+
+describe('buildAuthModal', () => {
+  it('should build modal with correct custom ID', () => {
+    const modal = buildAuthModal();
     expect(modal.data.custom_id).toBe('shapes::auth');
     expect(modal.data.title).toBe('Shapes.inc Authentication');
   });
 
-  it('should build modal with two text inputs', async () => {
-    const buttonShowModal = vi.fn();
-    mockAwaitMessageComponent.mockResolvedValue({
-      customId: 'shapes-auth-continue',
-      showModal: buttonShowModal,
-    });
-
-    const context = createMockContext();
-    await handleAuth(context);
-
-    const modal = buttonShowModal.mock.calls[0][0];
+  it('should have two text inputs for cookie parts', () => {
+    const modal = buildAuthModal();
     expect(modal.components).toHaveLength(2);
 
-    const part0 = modal.components[0].components[0];
-    const part1 = modal.components[1].components[0];
+    // Cast to access nested components — union type includes LabelBuilder without .components
+    const rows = modal.components as { components: { data: Record<string, unknown> }[] }[];
+    const part0 = rows[0].components[0];
+    const part1 = rows[1].components[0];
 
     expect(part0.data.custom_id).toBe('cookiePart0');
     expect(part0.data.style).toBe(TextInputStyle.Paragraph);
@@ -139,37 +127,5 @@ describe('handleAuth', () => {
     expect(part1.data.style).toBe(TextInputStyle.Paragraph);
     expect(part1.data.required).toBe(false);
     expect(part1.data.max_length).toBe(4000);
-  });
-
-  it('should handle cancel button', async () => {
-    const mockUpdate = vi.fn();
-    mockAwaitMessageComponent.mockResolvedValue({
-      customId: 'shapes-auth-cancel',
-      update: mockUpdate,
-    });
-
-    const context = createMockContext();
-    await handleAuth(context);
-
-    expect(mockUpdate).toHaveBeenCalledWith({
-      content: 'Authentication cancelled.',
-      embeds: [],
-      components: [],
-    });
-    expect(mockShowModal).not.toHaveBeenCalled();
-  });
-
-  it('should handle timeout', async () => {
-    mockAwaitMessageComponent.mockRejectedValue(new Error('Collector timed out'));
-
-    const context = createMockContext();
-    await handleAuth(context);
-
-    expect(mockEdit).toHaveBeenCalledWith({
-      content: 'Authentication timed out. Run `/shapes auth` again when ready.',
-      embeds: [],
-      components: [],
-    });
-    expect(mockShowModal).not.toHaveBeenCalled();
   });
 });

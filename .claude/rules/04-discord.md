@@ -58,6 +58,42 @@ new ButtonBuilder().setLabel('Back').setEmoji('◀️');
 3. Navigation (Back to List)
 4. Destructive (Delete - always last, `ButtonStyle.Danger`)
 
+## Component Interaction Routing (CRITICAL)
+
+Commands with interactive components (buttons, select menus) **MUST**:
+
+1. Export `handleButton` and/or `handleSelectMenu` from `defineCommand()`
+2. Use `command::action::id` custom ID format (`::` delimiter — never `-`)
+3. Route through CommandHandler — **NEVER** use `awaitMessageComponent` or
+   `createMessageComponentCollector` as the primary interaction handler
+
+```typescript
+// ❌ WRONG - Dies on restart, breaks multi-replica, races with CommandHandler
+const response = await context.editReply({ components: [row] });
+const click = await response.awaitMessageComponent({ time: 60_000 });
+
+// ✅ CORRECT - Stateless, restart-safe, multi-replica compatible
+export default defineCommand({
+  handleButton: async interaction => {
+    /* route by customId */
+  },
+  handleSelectMenu: async interaction => {
+    /* route by customId */
+  },
+});
+```
+
+**Why:** Inline collectors don't survive restarts, don't work in multi-replica
+deployments, and race with CommandHandler's global interaction handler.
+(See `destructiveConfirmation.ts` lines 18-19 for full rationale.)
+
+**Encode state in custom IDs** instead of closures:
+`shapes::import-confirm::slug::full` carries all state needed to process the click.
+
+**Exception:** Collectors may be used INSIDE exported handler functions as a
+secondary mechanism (e.g., memory batch delete timeout), but the initial routing
+MUST go through CommandHandler.
+
 ## Shared Utilities
 
 **ALWAYS check for existing utilities before implementing:**

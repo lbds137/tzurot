@@ -881,4 +881,141 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
 ]
 `;
 
+exports[`CommandHandler (component) > command structure snapshots > should have stable /shapes command structure > shapes-command-options 1`] = `
+[
+  {
+    "description": "Authenticate with your shapes.inc session cookie",
+    "description_localizations": undefined,
+    "name": "auth",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Remove your stored shapes.inc credentials",
+    "description_localizations": undefined,
+    "name": "logout",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Browse your owned shapes.inc characters",
+    "description_localizations": undefined,
+    "name": "list",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+  {
+    "description": "Import a shapes.inc character into Tzurot",
+    "description_localizations": undefined,
+    "name": "import",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": undefined,
+        "choices": undefined,
+        "description": "The shapes.inc character username/slug",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "slug",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "Full Character",
+            "name_localizations": undefined,
+            "value": "full",
+          },
+          {
+            "name": "Memory Only",
+            "name_localizations": undefined,
+            "value": "memory_only",
+          },
+        ],
+        "description": "Import type (default: full)",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "import_type",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+      {
+        "autocomplete": undefined,
+        "choices": undefined,
+        "description": "Target personality for memory_only import (required for Memory Only)",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "personality",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
+    "description": "Export a shapes.inc character data",
+    "description_localizations": undefined,
+    "name": "export",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": undefined,
+        "choices": undefined,
+        "description": "The shapes.inc character username/slug",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "slug",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+      {
+        "autocomplete": undefined,
+        "choices": [
+          {
+            "name": "JSON",
+            "name_localizations": undefined,
+            "value": "json",
+          },
+          {
+            "name": "Markdown",
+            "name_localizations": undefined,
+            "value": "markdown",
+          },
+        ],
+        "description": "Export format (default: json)",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "format",
+        "name_localizations": undefined,
+        "required": false,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
+  {
+    "description": "View credential status and import history",
+    "description_localizations": undefined,
+    "name": "status",
+    "name_localizations": undefined,
+    "options": [],
+    "type": 1,
+  },
+]
+`;
+
 exports[`CommandHandler (component) > command structure snapshots > should have stable command count > total-command-count 1`] = `12`;
