@@ -38,8 +38,5 @@ export const WORKER_TIMEOUT_MS = 30_000;
  */
 export const WORKER_INIT_TIMEOUT_MS = 60_000;
 
-/**
- * The HuggingFace model name for BGE-small-en-v1.5.
- * Quantized version (~30MB) for efficient inference.
- */
-export const EMBEDDING_MODEL_NAME = 'Xenova/bge-small-en-v1.5' as const;
+// Note: The embedding model name is defined in MODEL_DEFAULTS.EMBEDDING
+// (common-types/src/constants/ai.ts) as the single source of truth.
