@@ -179,13 +179,15 @@ The answer is 42.`;
   });
 
   describe('unclosed tags', () => {
-    it('should extract content from unclosed tag as fallback', () => {
+    it('should keep content visible when unclosed tag would consume entire response', () => {
+      // GLM 4.5 Air glitch / truncation: unclosed tag at start would leave empty visible content.
+      // Instead of losing the response, strip the opening tag and keep content visible.
       const content = '<think>This thinking was cut off due to truncation';
       const result = extractThinkingBlocks(content);
 
-      expect(result.thinkingContent).toBe('This thinking was cut off due to truncation');
-      expect(result.visibleContent).toBe('');
-      expect(result.blockCount).toBe(1);
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('This thinking was cut off due to truncation');
+      expect(result.blockCount).toBe(0);
     });
 
     it('should prefer complete tags over unclosed tags', () => {
@@ -198,13 +200,37 @@ The answer is 42.`;
       expect(result.blockCount).toBe(1);
     });
 
-    it('should handle unclosed <thinking> tag', () => {
+    it('should keep content visible for unclosed <thinking> tag at start', () => {
       const content = '<thinking>Truncated reasoning content';
       const result = extractThinkingBlocks(content);
 
-      expect(result.thinkingContent).toBe('Truncated reasoning content');
-      expect(result.visibleContent).toBe('');
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('Truncated reasoning content');
+      expect(result.blockCount).toBe(0);
+    });
+
+    it('should still extract unclosed tag mid-response (content exists before tag)', () => {
+      // When there's visible content before the unclosed tag, extraction is safe
+      const content = 'The answer is Paris. <think>Wait, let me reconsider...';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Wait, let me reconsider...');
+      expect(result.visibleContent).toBe('The answer is Paris.');
       expect(result.blockCount).toBe(1);
+    });
+
+    it('should handle GLM 4.5 Air glitch — unclosed tag with full response inside', () => {
+      // GLM 4.5 Air sometimes opens <think> and never closes it,
+      // putting the entire response (reasoning + answer) inside
+      const content =
+        '<think>Let me think about this...\n\nThe capital of France is Paris. It has been the capital since the 10th century.';
+      const result = extractThinkingBlocks(content);
+
+      // Should NOT consume the response as thinking — keep it visible
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toContain('The capital of France is Paris');
+      expect(result.visibleContent).not.toContain('<think>');
+      expect(result.blockCount).toBe(0);
     });
   });
 
@@ -262,26 +288,26 @@ The answer is 42.`;
       expect(result.visibleContent).toBe('Code comparison complete.');
     });
 
-    it('should handle unclosed thinking tag (extracted as fallback)', () => {
-      // Unclosed tags are now extracted as a fallback to handle truncated responses
+    it('should keep content visible for unclosed tag at start of response', () => {
+      // When unclosed tag would consume entire response, strip tag and keep content visible
       const content = '<think>This is not closed. The response continues.';
       const result = extractThinkingBlocks(content);
 
-      expect(result.thinkingContent).toBe('This is not closed. The response continues.');
-      expect(result.visibleContent).toBe('');
-      expect(result.blockCount).toBe(1);
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('This is not closed. The response continues.');
+      expect(result.blockCount).toBe(0);
     });
 
-    it('should handle malformed closing tag as unclosed', () => {
-      // Malformed closing tag (</thin> instead of </think>) is treated as unclosed
-      // The unclosed tag fallback extracts everything after the opening tag
+    it('should handle malformed closing tag as unclosed — keeps content visible', () => {
+      // Malformed closing tag (</thin> instead of </think>) makes it unclosed.
+      // Since it starts at the beginning, stripping would consume the whole response.
       const content = '<think>Content</thin>Response.';
       const result = extractThinkingBlocks(content);
 
-      // Treated as unclosed <think> tag - everything after it is extracted
-      expect(result.thinkingContent).toBe('Content</thin>Response.');
-      expect(result.visibleContent).toBe('');
-      expect(result.blockCount).toBe(1);
+      // Unclosed at start → strip opening tag, keep content visible
+      expect(result.thinkingContent).toBeNull();
+      expect(result.visibleContent).toBe('Content</thin>Response.');
+      expect(result.blockCount).toBe(0);
     });
 
     it('should strip orphan closing tags AND preceding short garbage', () => {
