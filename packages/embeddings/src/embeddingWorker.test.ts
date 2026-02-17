@@ -3,6 +3,11 @@
  *
  * Tests the worker's message handling logic: embed, health, and unknown types.
  * The HuggingFace pipeline is mocked — actual model loading is too slow for unit tests.
+ *
+ * NOTE: These tests use real timers (no vi.useFakeTimers()) because the worker's
+ * getExtractor() has a busy-wait polling loop with real setTimeout(100ms). Fake
+ * timers can't advance time inside the worker's async flow without deadlocking.
+ * We use vi.waitFor() instead, which works with real timers.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
