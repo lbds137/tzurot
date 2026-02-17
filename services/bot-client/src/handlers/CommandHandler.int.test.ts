@@ -11,9 +11,14 @@
  * copied from loaded modules (fixed in c907942c).
  */
 
+import { readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { MessageFlags } from 'discord.js';
 import { CommandHandler } from './CommandHandler.js';
+
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
 // Mock redis since character/chat.ts imports it
 vi.mock('../redis.js', () => ({
@@ -101,18 +106,23 @@ describe('CommandHandler (component)', () => {
   });
 
   describe('command loading completeness', () => {
-    it('should load all expected command groups', () => {
-      const expectedCommands = [
-        'admin',
-        'channel',
-        'character',
-        'help',
-        'history',
-        'memory',
-        'persona',
-        'preset',
-        'settings',
-      ];
+    /**
+     * Auto-discover expected commands from the filesystem.
+     * This mirrors getCommandFiles() logic: subdirectories of src/commands/
+     * containing an index.ts are command groups.
+     *
+     * Adding a new command directory automatically includes it here —
+     * no hardcoded list to forget.
+     */
+    it('should load all command groups discovered from filesystem', () => {
+      const commandsDir = join(__dirname, '../commands');
+      const expectedCommands = readdirSync(commandsDir, { withFileTypes: true })
+        .filter(d => d.isDirectory() && existsSync(join(commandsDir, d.name, 'index.ts')))
+        .map(d => d.name)
+        .sort();
+
+      // Sanity check: we should discover a reasonable number of commands
+      expect(expectedCommands.length).toBeGreaterThanOrEqual(9);
 
       for (const commandName of expectedCommands) {
         const command = handler.getCommand(commandName);
@@ -229,6 +239,19 @@ describe('CommandHandler (component)', () => {
       handleButtonSpy.mockRestore();
     });
 
+    it('should route shapes:: customId to shapes command', async () => {
+      const shapesCommand = handler.getCommand('shapes');
+      expect(shapesCommand?.handleButton).toBeDefined();
+
+      const handleButtonSpy = vi.spyOn(shapesCommand!, 'handleButton');
+
+      const interaction = createMockButtonInteraction('shapes::auth-continue');
+      await handler.handleComponentInteraction(interaction);
+
+      expect(handleButtonSpy).toHaveBeenCalledWith(interaction);
+      handleButtonSpy.mockRestore();
+    });
+
     it('should return error for unregistered prefix', async () => {
       const interaction = createMockButtonInteraction('nonexistent::action::id');
       await handler.handleComponentInteraction(interaction);
@@ -322,6 +345,7 @@ describe('CommandHandler (component)', () => {
           'persona', // Persona command - entityType matches command name
           'preset',
           'settings', // Settings command - consolidates timezone, apikey, preset
+          'shapes', // Shapes command - import/export from shapes.inc
         ])
       );
     });
@@ -368,6 +392,15 @@ describe('CommandHandler (component)', () => {
       const data = settingsCommand!.data.toJSON();
       expect(data.name).toBe('settings');
       expect(data.options).toMatchSnapshot('settings-command-options');
+    });
+
+    it('should have stable /shapes command structure', () => {
+      const shapesCommand = handler.getCommand('shapes');
+      expect(shapesCommand).toBeDefined();
+
+      const data = shapesCommand!.data.toJSON();
+      expect(data.name).toBe('shapes');
+      expect(data.options).toMatchSnapshot('shapes-command-options');
     });
 
     it('should have stable command count', () => {

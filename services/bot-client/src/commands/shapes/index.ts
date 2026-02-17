@@ -23,6 +23,7 @@ import { handleImport } from './import.js';
 import { handleExport } from './export.js';
 import { handleStatus } from './status.js';
 import { handleShapesModalSubmit } from './modal.js';
+import { handleShapesButton, handleShapesSelectMenu } from './interactionHandlers.js';
 
 const logger = createLogger('shapes-command');
 
@@ -109,5 +110,7 @@ export default defineCommand({
       subcommand.setName('status').setDescription('View credential status and import history')
     ),
   execute: shapesRouter,
+  handleButton: handleShapesButton,
+  handleSelectMenu: handleShapesSelectMenu,
   handleModal,
 });

@@ -1,9 +1,12 @@
 /**
  * Tests for Shapes Import Subcommand
+ *
+ * Import now shows confirmation embed + buttons, then returns.
+ * Button handling (confirm → startImport, cancel) is in interactionHandlers.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleImport } from './import.js';
+import { handleImport, startImport } from './import.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock common-types
@@ -32,8 +35,14 @@ describe('handleImport', () => {
   const mockGetString = vi.fn();
 
   beforeEach(() => {
-    vi.clearAllMocks();
-    mockGetString.mockReturnValue('test-character');
+    vi.resetAllMocks();
+    // Return different values based on option name
+    mockGetString.mockImplementation((name: string) => {
+      if (name === 'slug') return 'test-character';
+      if (name === 'import_type') return null;
+      if (name === 'personality') return null;
+      return null;
+    });
   });
 
   function createMockContext(): DeferredCommandContext {
@@ -86,22 +95,15 @@ describe('handleImport', () => {
     });
   });
 
-  it('should show confirmation embed with buttons when credentials exist', async () => {
+  it('should show confirmation embed with correct custom IDs', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: { hasCredentials: true, service: 'shapes_inc' },
     });
 
-    // Mock editReply to return a response with awaitMessageComponent
-    const mockAwaitMessageComponent = vi.fn().mockRejectedValue(new Error('timeout'));
-    mockEditReply.mockResolvedValue({
-      awaitMessageComponent: mockAwaitMessageComponent,
-    });
-
     const context = createMockContext();
     await handleImport(context);
 
-    // Should show confirmation embed with components (buttons)
     expect(mockEditReply).toHaveBeenCalledWith(
       expect.objectContaining({
         embeds: expect.arrayContaining([
@@ -114,6 +116,27 @@ describe('handleImport', () => {
         components: expect.arrayContaining([expect.anything()]),
       })
     );
+
+    // Verify custom IDs use shapes:: prefix
+    const replyArgs = mockEditReply.mock.calls[0][0];
+    const buttons = replyArgs.components[0].components;
+    expect(buttons[0].data.custom_id).toMatch(/^shapes::import-confirm::/);
+    expect(buttons[1].data.custom_id).toBe('shapes::import-cancel');
+  });
+
+  it('should encode slug and import type in confirm button custom ID', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { hasCredentials: true, service: 'shapes_inc' },
+    });
+
+    const context = createMockContext();
+    await handleImport(context);
+
+    const replyArgs = mockEditReply.mock.calls[0][0];
+    const confirmButton = replyArgs.components[0].components[0];
+    // Should be shapes::import-confirm::test-character::full
+    expect(confirmButton.data.custom_id).toBe('shapes::import-confirm::test-character::full');
   });
 
   it('should normalize slug to lowercase', async () => {
@@ -126,31 +149,7 @@ describe('handleImport', () => {
     const context = createMockContext();
     await handleImport(context);
 
-    // The credential check is called regardless of slug normalization
-    // Slug normalization is internal — just verify it doesn't throw
     expect(mockCallGatewayApi).toHaveBeenCalled();
-  });
-
-  it('should handle timeout on button confirmation', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: { hasCredentials: true, service: 'shapes_inc' },
-    });
-
-    const mockAwaitMessageComponent = vi.fn().mockRejectedValue(new Error('timeout'));
-    mockEditReply.mockResolvedValue({
-      awaitMessageComponent: mockAwaitMessageComponent,
-    });
-
-    const context = createMockContext();
-    await handleImport(context);
-
-    // After timeout, should show timeout message
-    expect(mockEditReply).toHaveBeenLastCalledWith({
-      content: 'Import confirmation timed out.',
-      embeds: [],
-      components: [],
-    });
   });
 
   it('should handle network errors gracefully', async () => {
@@ -162,5 +161,95 @@ describe('handleImport', () => {
     expect(mockEditReply).toHaveBeenCalledWith({
       content: expect.stringContaining('unexpected error'),
     });
+  });
+});
+
+describe('startImport', () => {
+  const mockUpdate = vi.fn();
+  const mockEditReply = vi.fn();
+
+  beforeEach(() => {
+    vi.resetAllMocks();
+  });
+
+  function createMockButtonInteraction() {
+    return {
+      user: { id: '123456789' },
+      update: mockUpdate,
+      editReply: mockEditReply,
+    } as any;
+  }
+
+  it('should call gateway import API with correct params', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { importJobId: 'job-123', sourceSlug: 'test', importType: 'full', status: 'pending' },
+    });
+
+    const interaction = createMockButtonInteraction();
+    await startImport(interaction, '123456789', {
+      slug: 'test-shape',
+      importType: 'full',
+    });
+
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/shapes/import',
+      expect.objectContaining({
+        method: 'POST',
+        userId: '123456789',
+        body: { sourceSlug: 'test-shape', importType: 'full', existingPersonalityId: undefined },
+      })
+    );
+  });
+
+  it('should show success embed on successful import', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: { importJobId: 'job-123', sourceSlug: 'test', importType: 'full', status: 'pending' },
+    });
+
+    const interaction = createMockButtonInteraction();
+    await startImport(interaction, '123456789', {
+      slug: 'test-shape',
+      importType: 'full',
+    });
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              title: expect.stringContaining('Import Started'),
+            }),
+          }),
+        ],
+      })
+    );
+  });
+
+  it('should show conflict error for 409', async () => {
+    mockCallGatewayApi.mockResolvedValue({
+      ok: false,
+      status: 409,
+      error: 'Already running',
+    });
+
+    const interaction = createMockButtonInteraction();
+    await startImport(interaction, '123456789', {
+      slug: 'test-shape',
+      importType: 'full',
+    });
+
+    expect(mockEditReply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        embeds: [
+          expect.objectContaining({
+            data: expect.objectContaining({
+              description: expect.stringContaining('already in progress'),
+            }),
+          }),
+        ],
+      })
+    );
   });
 });

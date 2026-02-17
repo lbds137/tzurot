@@ -1,8 +1,9 @@
 /**
  * Shapes Import Subcommand
  *
- * Starts a shapes.inc character import into Tzurot.
- * Checks credentials, validates the slug, then enqueues the import job.
+ * Validates import parameters and shows a confirmation embed with buttons.
+ * Button clicks (confirm/cancel) are handled by interactionHandlers.ts,
+ * which is routed through CommandHandler — not inline collectors.
  */
 
 import {
@@ -15,6 +16,7 @@ import {
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
+import { ShapesCustomIds } from '../../utils/customIds.js';
 
 const logger = createLogger('shapes-import');
 
@@ -31,14 +33,14 @@ interface ImportResponse {
   status: string;
 }
 
-interface ImportParams {
+export interface ImportParams {
   slug: string;
   importType: 'full' | 'memory_only';
   existingPersonalityId?: string;
 }
 
 /** Start the import after user confirms via button */
-async function startImport(
+export async function startImport(
   buttonInteraction: MessageComponentInteraction,
   userId: string,
   params: ImportParams
@@ -102,7 +104,8 @@ async function startImport(
 
 /**
  * Handle /shapes import <slug> subcommand
- * Checks auth, confirms with user, then starts the import
+ * Checks auth, shows confirmation embed with buttons.
+ * Button clicks are handled by interactionHandlers.ts via CommandHandler routing.
  */
 export async function handleImport(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
@@ -138,7 +141,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    // 2. Show confirmation embed
+    // 2. Show confirmation embed with buttons
     const isMemoryOnly = importType === 'memory_only';
     const confirmEmbed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.BLURPLE)
@@ -161,45 +164,19 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       .setTimestamp();
 
     const confirmButton = new ButtonBuilder()
-      .setCustomId('shapes-import-confirm')
+      .setCustomId(ShapesCustomIds.importConfirm(slug, importType, existingPersonalityId))
       .setLabel('Start Import')
       .setEmoji('📥')
       .setStyle(ButtonStyle.Primary);
 
     const cancelButton = new ButtonBuilder()
-      .setCustomId('shapes-import-cancel')
+      .setCustomId(ShapesCustomIds.importCancel())
       .setLabel('Cancel')
       .setStyle(ButtonStyle.Secondary);
 
     const row = new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton);
 
-    const response = await context.editReply({ embeds: [confirmEmbed], components: [row] });
-
-    // 3. Wait for button interaction
-    try {
-      const buttonInteraction = await response.awaitMessageComponent({
-        filter: i => i.user.id === userId,
-        time: 60_000,
-      });
-
-      if (buttonInteraction.customId === 'shapes-import-cancel') {
-        await buttonInteraction.update({
-          content: 'Import cancelled.',
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-
-      await startImport(buttonInteraction, userId, { slug, importType, existingPersonalityId });
-    } catch {
-      // Timeout waiting for button click
-      await context.editReply({
-        content: 'Import confirmation timed out.',
-        embeds: [],
-        components: [],
-      });
-    }
+    await context.editReply({ embeds: [confirmEmbed], components: [row] });
   } catch (error) {
     logger.error({ err: error, userId, slug }, '[Shapes] Unexpected error starting import');
     await context.editReply({ content: '❌ An unexpected error occurred. Please try again.' });

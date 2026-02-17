@@ -2,7 +2,10 @@
  * Shapes Auth Subcommand
  *
  * Shows instructions for extracting the shapes.inc session cookie,
- * then opens a modal for secure cookie input.
+ * then presents buttons for the user to continue to the modal or cancel.
+ *
+ * The actual modal opening and button handling is done by interactionHandlers.ts,
+ * which is routed through CommandHandler — not inline collectors.
  *
  * Security:
  * - Uses Discord Modal for cookie input (never visible in command history)
@@ -20,16 +23,12 @@ import {
   EmbedBuilder,
   MessageFlags,
 } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS } from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 
-const logger = createLogger('shapes-auth');
-
-/** Timeout for waiting on the "Continue" button (5 minutes) */
-const BUTTON_TIMEOUT_MS = 300_000;
-
-function buildAuthModal(): ModalBuilder {
+/** Build the auth modal with cookie input fields */
+export function buildAuthModal(): ModalBuilder {
   const modal = new ModalBuilder()
     .setCustomId(ShapesCustomIds.auth())
     .setTitle('Shapes.inc Authentication');
@@ -61,10 +60,10 @@ function buildAuthModal(): ModalBuilder {
 
 /**
  * Handle /shapes auth subcommand
- * Shows instructions, then opens cookie input modal
+ * Shows instructions with Continue/Cancel buttons.
+ * Button clicks are handled by interactionHandlers.ts via CommandHandler routing.
  */
 export async function handleAuth(context: ModalCommandContext): Promise<void> {
-  const userId = context.user.id;
   const botName = context.interaction.client.user.username;
 
   const instructionEmbed = new EmbedBuilder()
@@ -86,49 +85,21 @@ export async function handleAuth(context: ModalCommandContext): Promise<void> {
     );
 
   const continueButton = new ButtonBuilder()
-    .setCustomId('shapes-auth-continue')
+    .setCustomId(ShapesCustomIds.authContinue())
     .setLabel('Enter Cookie')
     .setEmoji('🔑')
     .setStyle(ButtonStyle.Primary);
 
   const cancelButton = new ButtonBuilder()
-    .setCustomId('shapes-auth-cancel')
+    .setCustomId(ShapesCustomIds.authCancel())
     .setLabel('Cancel')
     .setStyle(ButtonStyle.Secondary);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(continueButton, cancelButton);
 
-  const response = await context.reply({
+  await context.reply({
     embeds: [instructionEmbed],
     components: [row],
     flags: MessageFlags.Ephemeral,
   });
-
-  try {
-    const buttonInteraction = await response.awaitMessageComponent({
-      filter: i => i.user.id === userId,
-      time: BUTTON_TIMEOUT_MS,
-    });
-
-    if (buttonInteraction.customId === 'shapes-auth-cancel') {
-      await buttonInteraction.update({
-        content: 'Authentication cancelled.',
-        embeds: [],
-        components: [],
-      });
-      return;
-    }
-
-    // Show the modal from the button interaction
-    await buttonInteraction.showModal(buildAuthModal());
-
-    logger.info({ userId }, '[Shapes] Showing auth modal');
-  } catch {
-    // Timeout — clean up the message
-    await response.edit({
-      content: 'Authentication timed out. Run `/shapes auth` again when ready.',
-      embeds: [],
-      components: [],
-    });
-  }
 }
