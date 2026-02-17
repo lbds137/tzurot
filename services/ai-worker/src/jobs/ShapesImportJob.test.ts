@@ -121,6 +121,9 @@ const mockPrisma = {
   personalityDefaultConfig: {
     upsert: vi.fn().mockResolvedValue({}),
   },
+  personalityOwner: {
+    upsert: vi.fn().mockResolvedValue({}),
+  },
   memory: {
     count: vi.fn().mockResolvedValue(0),
     findMany: vi.fn().mockResolvedValue([]),

@@ -80,6 +80,7 @@ function createMockPrisma() {
     },
     llmConfig: { upsert: vi.fn().mockResolvedValue({}) },
     personalityDefaultConfig: { upsert: vi.fn().mockResolvedValue({}) },
+    personalityOwner: { upsert: vi.fn().mockResolvedValue({}) },
   };
 }
 
@@ -101,7 +102,7 @@ describe('createFullPersonality', () => {
     mockPrisma = createMockPrisma();
   });
 
-  it('should upsert system prompt, personality, llm config, and default config', async () => {
+  it('should upsert system prompt, personality, llm config, default config, and owner', async () => {
     const result = await createFullPersonality(
       mockPrisma as never,
       MOCK_CONFIG,
@@ -114,6 +115,7 @@ describe('createFullPersonality', () => {
     expect(mockPrisma.personality.upsert).toHaveBeenCalledTimes(1);
     expect(mockPrisma.llmConfig.upsert).toHaveBeenCalledTimes(1);
     expect(mockPrisma.personalityDefaultConfig.upsert).toHaveBeenCalledTimes(1);
+    expect(mockPrisma.personalityOwner.upsert).toHaveBeenCalledTimes(1);
   });
 
   it('should pass ownerId to personality and llmConfig', async () => {
@@ -141,6 +143,25 @@ describe('createFullPersonality', () => {
         update: { llmConfigId: 'llm-id' },
       })
     );
+  });
+
+  it('should create PersonalityOwner entry for importing user', async () => {
+    await createFullPersonality(mockPrisma as never, MOCK_CONFIG, 'test-shape', 'owner-42');
+
+    expect(mockPrisma.personalityOwner.upsert).toHaveBeenCalledWith({
+      where: {
+        personalityId_userId: {
+          personalityId: 'pers-id',
+          userId: 'owner-42',
+        },
+      },
+      create: {
+        personalityId: 'pers-id',
+        userId: 'owner-42',
+        role: 'owner',
+      },
+      update: {},
+    });
   });
 
   it('should serialize customFields as JSON for personality upsert', async () => {
