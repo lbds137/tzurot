@@ -39,6 +39,10 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
   const { action } = parsed;
 
   try {
+    // Note: 'list-info' (disabled page indicator) and 'list-select' (select menu)
+    // are intentionally absent here — list-info is disabled so Discord won't deliver
+    // clicks, and list-select routes through handleShapesSelectMenu instead.
+
     // --- List pagination ---
     if (action === 'list-prev' || action === 'list-next') {
       await handleListPagination(interaction, parsed.page ?? 0, action === 'list-prev');
@@ -97,6 +101,15 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
     });
   } catch (error) {
     logger.error({ err: error, customId: interaction.customId }, '[Shapes] Button handler error');
+    try {
+      await interaction.update({
+        content: '❌ An unexpected error occurred.',
+        embeds: [],
+        components: [],
+      });
+    } catch {
+      // Interaction already acknowledged or token expired — nothing to do
+    }
   }
 }
 
@@ -139,6 +152,15 @@ export async function handleShapesSelectMenu(
       { err: error, customId: interaction.customId },
       '[Shapes] Select menu handler error'
     );
+    try {
+      await interaction.update({
+        content: '❌ An unexpected error occurred.',
+        embeds: [],
+        components: [],
+      });
+    } catch {
+      // Interaction already acknowledged or token expired — nothing to do
+    }
   }
 }
 
