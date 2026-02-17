@@ -20,6 +20,7 @@ import {
   generateUsageLogUuid,
   generatePendingMemoryUuid,
   generateUserApiKeyUuid,
+  generateExportJobUuid,
   isUuidFormat,
 } from './deterministicUuid.js';
 
@@ -269,6 +270,26 @@ describe('Deterministic UUID Generation', () => {
     it('should generate different UUIDs for different providers', () => {
       const uuid1 = generateUserApiKeyUuid('user-1', 'openrouter');
       const uuid2 = generateUserApiKeyUuid('user-1', 'openai');
+      expect(uuid1).not.toBe(uuid2);
+    });
+  });
+
+  describe('generateExportJobUuid', () => {
+    it('should generate consistent UUIDs for the same inputs', () => {
+      const uuid1 = generateExportJobUuid('user-1', 'my-shape', 'shapes_inc', 'json');
+      const uuid2 = generateExportJobUuid('user-1', 'my-shape', 'shapes_inc', 'json');
+      expect(uuid1).toBe(uuid2);
+    });
+
+    it('should generate different UUIDs for different formats', () => {
+      const jsonId = generateExportJobUuid('user-1', 'my-shape', 'shapes_inc', 'json');
+      const mdId = generateExportJobUuid('user-1', 'my-shape', 'shapes_inc', 'markdown');
+      expect(jsonId).not.toBe(mdId);
+    });
+
+    it('should generate different UUIDs for different slugs', () => {
+      const uuid1 = generateExportJobUuid('user-1', 'shape-a', 'shapes_inc', 'json');
+      const uuid2 = generateExportJobUuid('user-1', 'shape-b', 'shapes_inc', 'json');
       expect(uuid1).not.toBe(uuid2);
     });
   });
