@@ -79,16 +79,11 @@ describe('embeddingWorker', () => {
   describe('embed message', () => {
     it('should return embedding vector on success', async () => {
       const fakeVector = new Float32Array(384).fill(0.1);
-      mockPipeline.mockResolvedValue(async () => ({
-        data: fakeVector,
-      }));
+      const mockExtractor = vi.fn().mockResolvedValue({ data: fakeVector });
+      mockPipeline.mockResolvedValue(mockExtractor);
 
       await loadWorker();
       const handler = getMessageHandler();
-
-      // Reconfigure mock for the embed call
-      const mockExtractor = vi.fn().mockResolvedValue({ data: fakeVector });
-      mockPipeline.mockResolvedValue(mockExtractor);
 
       // Reset posted messages to ignore ready signal
       postedMessages.length = 0;
