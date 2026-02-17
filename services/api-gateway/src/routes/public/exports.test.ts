@@ -101,7 +101,25 @@ describe('Public Export Download Route', () => {
     expect(res.body.status).toBe('failed');
   });
 
-  it('should return 410 when export has expired', async () => {
+  it('should return 410 when expired regardless of status', async () => {
+    // Even a failed job should return 410 if expired (expiry checked first)
+    mockPrisma.exportJob.findUnique.mockResolvedValue({
+      status: 'failed',
+      fileContent: null,
+      fileName: null,
+      fileSizeBytes: null,
+      format: 'json',
+      expiresAt: PAST_DATE,
+    });
+
+    const app = createApp();
+    const res = await request(app).get(`/${VALID_UUID}`);
+
+    expect(res.status).toBe(410);
+    expect(res.body.error).toBe('Export has expired');
+  });
+
+  it('should return 410 when completed export has expired', async () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'completed',
       fileContent: '{"data": true}',
