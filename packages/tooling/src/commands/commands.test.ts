@@ -18,18 +18,6 @@ vi.mock('../db/create-safe-migration.js', () => ({
   createSafeMigration: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../data/backup.js', () => ({
-  backupPersonalities: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../data/bulk-import.js', () => ({
-  bulkImport: vi.fn().mockResolvedValue(undefined),
-}));
-
-vi.mock('../data/import-personality.js', () => ({
-  importPersonality: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock('../deployment/deploy-dev.js', () => ({
   deployDev: vi.fn().mockResolvedValue(undefined),
 }));
@@ -115,50 +103,6 @@ describe('command handlers', () => {
 
       await vi.waitFor(() => {
         expect(createSafeMigration).toHaveBeenCalled();
-      });
-    });
-  });
-
-  describe('data commands', () => {
-    it('should call backup handler', async () => {
-      const { registerDataCommands } = await import('./data.js');
-      const { backupPersonalities } = await import('../data/backup.js');
-      const cli = cac('test');
-      registerDataCommands(cli);
-
-      cli.parse(['node', 'test', 'data:backup'], { run: true });
-
-      await vi.waitFor(() => {
-        expect(backupPersonalities).toHaveBeenCalled();
-      });
-    });
-
-    it('should call bulk-import handler', async () => {
-      const { registerDataCommands } = await import('./data.js');
-      const { bulkImport } = await import('../data/bulk-import.js');
-      const cli = cac('test');
-      registerDataCommands(cli);
-
-      cli.parse(['node', 'test', 'data:bulk-import', '--dry-run'], { run: true });
-
-      await vi.waitFor(() => {
-        expect(bulkImport).toHaveBeenCalledWith(expect.objectContaining({ dryRun: true }));
-      });
-    });
-
-    it('should call import-personality handler with name', async () => {
-      const { registerDataCommands } = await import('./data.js');
-      const { importPersonality } = await import('../data/import-personality.js');
-      const cli = cac('test');
-      registerDataCommands(cli);
-
-      cli.parse(['node', 'test', 'data:import', 'personality-name', '--dry-run'], { run: true });
-
-      await vi.waitFor(() => {
-        expect(importPersonality).toHaveBeenCalledWith(
-          'personality-name',
-          expect.objectContaining({ dryRun: true })
-        );
       });
     });
   });

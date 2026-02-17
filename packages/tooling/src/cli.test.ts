@@ -55,15 +55,6 @@ describe('CLI command registration', () => {
     expect(cli.commands.length).toBeGreaterThan(0);
   });
 
-  it('should register data commands', async () => {
-    const { registerDataCommands } = await import('./commands/data.js');
-    const cli = cac('test');
-
-    registerDataCommands(cli);
-
-    expect(cli.commands.length).toBeGreaterThan(0);
-  });
-
   it('should register deploy commands', async () => {
     const { registerDeployCommands } = await import('./commands/deploy.js');
     const cli = cac('test');
@@ -91,16 +82,6 @@ describe('command action handlers', () => {
     registerDbCommands(cli);
 
     // Each command should have an actionHandler
-    for (const cmd of cli.commands) {
-      expect(cmd.commandAction).toBeDefined();
-    }
-  });
-
-  it('data commands should have action handlers', async () => {
-    const { registerDataCommands } = await import('./commands/data.js');
-    const cli = cac('test');
-    registerDataCommands(cli);
-
     for (const cmd of cli.commands) {
       expect(cmd.commandAction).toBeDefined();
     }

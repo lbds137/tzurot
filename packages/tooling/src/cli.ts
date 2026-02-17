@@ -17,7 +17,6 @@ import { fileURLToPath } from 'node:url';
 
 // Import command modules
 import { registerDbCommands } from './commands/db.js';
-import { registerDataCommands } from './commands/data.js';
 import { registerDeployCommands } from './commands/deploy.js';
 import { registerCacheCommands } from './commands/cache.js';
 import { registerDevCommands } from './commands/dev.js';
@@ -39,7 +38,6 @@ const cli = cac('ops');
 
 // Register command groups
 registerDbCommands(cli);
-registerDataCommands(cli);
 registerDeployCommands(cli);
 registerCacheCommands(cli);
 registerDevCommands(cli);

@@ -22,10 +22,6 @@ pnpm ops db:inspect          # Inspect database state
 pnpm ops db:status --env dev # Migration status on Railway dev
 pnpm ops db:migrate --env dev # Run migrations on Railway dev
 
-# Data operations
-pnpm ops data:import <name>  # Import a personality
-pnpm ops data:bulk-import    # Bulk import all
-
 # Codebase analysis (xray)
 pnpm ops xray                # Full analysis (terminal)
 pnpm ops xray --summary      # File-level overview (no declarations)
@@ -92,12 +88,10 @@ packages/tooling/
 │   ├── cli.ts              # Main CLI entry point (cac)
 │   ├── commands/           # Command registrations
 │   │   ├── db.ts           # Database commands
-│   │   ├── data.ts         # Data import/export commands
 │   │   ├── deploy.ts       # Deployment commands
 │   │   ├── cache.ts        # Cache management commands
 │   │   └── xray.ts         # Codebase analysis commands
 │   ├── db/                 # Database utilities
-│   ├── data/               # Data import utilities
 │   ├── deployment/         # Deployment utilities
 │   ├── cache/              # Cache management utilities
 │   ├── xray/               # TypeScript AST analysis

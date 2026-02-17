@@ -11,5 +11,4 @@
 
 // Re-export command modules for programmatic use
 export { registerDbCommands } from './commands/db.js';
-export { registerDataCommands } from './commands/data.js';
 export { registerDeployCommands } from './commands/deploy.js';
