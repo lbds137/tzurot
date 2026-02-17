@@ -118,6 +118,52 @@ export interface ShapesIncUserProfile {
 // Import Job Types (BullMQ payloads)
 // ============================================================================
 
+import { z } from 'zod';
+
+const importTypeEnum = z.enum(['full', 'memory_only']);
+
+/**
+ * Shapes Import Job Data Schema
+ * SINGLE SOURCE OF TRUTH for shapes import job payloads
+ *
+ * Produced by: api-gateway (shapes/import.ts route)
+ * Consumed by: ai-worker (ShapesImportJob.ts)
+ *
+ * Note: ShapesImport jobs don't extend baseJobDataSchema because they use
+ * a separate queue and don't need requestId/responseDestination/version.
+ */
+export const shapesImportJobDataSchema = z.object({
+  /** Internal Tzurot user ID (UUID) */
+  userId: z.string().uuid(),
+  /** Discord user ID (for persona resolution) */
+  discordUserId: z.string().min(1),
+  /** Shapes.inc slug/username to import */
+  sourceSlug: z.string().min(1),
+  /** ImportJob record ID for status tracking */
+  importJobId: z.string().uuid(),
+  /** Whether this is a full import or memory-only */
+  importType: importTypeEnum,
+  /** Existing personality ID (for memory-only imports into existing personality) */
+  existingPersonalityId: z.string().uuid().optional(),
+});
+
+/**
+ * Shapes Import Result Schema
+ * SINGLE SOURCE OF TRUTH for shapes import job results
+ *
+ * Produced by: ai-worker (ShapesImportJob.ts)
+ * Consumed by: api-gateway (shapes/import.ts status queries)
+ */
+export const shapesImportResultSchema = z.object({
+  success: z.boolean(),
+  personalityId: z.string().uuid().optional(),
+  personalitySlug: z.string().optional(),
+  memoriesImported: z.number().int().nonnegative(),
+  memoriesFailed: z.number().int().nonnegative(),
+  importType: importTypeEnum,
+  error: z.string().optional(),
+});
+
 /** Data passed to the shapes import BullMQ job */
 export interface ShapesImportJobData {
   /** Internal Tzurot user ID (UUID) */
