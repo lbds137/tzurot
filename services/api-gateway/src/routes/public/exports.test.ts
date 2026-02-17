@@ -2,7 +2,7 @@
  * Tests for Public Export Download Route
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
 
@@ -23,8 +23,10 @@ import { createExportsRouter } from './exports.js';
 import type { PrismaClient } from '@tzurot/common-types';
 
 const VALID_UUID = '12345678-1234-1234-1234-123456789012';
-const FUTURE_DATE = new Date(Date.now() + 86400000);
-const PAST_DATE = new Date(Date.now() - 86400000);
+/** Fixed time for deterministic tests */
+const NOW = new Date('2026-02-17T00:00:00.000Z').getTime();
+const FUTURE_DATE = new Date(NOW + 86400000);
+const PAST_DATE = new Date(NOW - 86400000);
 
 const mockPrisma = {
   exportJob: {
@@ -40,7 +42,12 @@ function createApp() {
 
 describe('Public Export Download Route', () => {
   beforeEach(() => {
+    vi.useFakeTimers({ now: NOW });
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it('should return 400 for invalid UUID format', async () => {

@@ -79,7 +79,6 @@ function createMockJob(overrides: Partial<ShapesExportJobData> = {}): Job<Shapes
     id: 'test-job-id',
     data: {
       userId: 'user-uuid-123',
-      discordUserId: 'discord-123',
       sourceSlug: 'test-shape',
       exportJobId: 'export-job-uuid-123',
       format: 'json',
@@ -180,6 +179,21 @@ describe('ShapesExportJob', () => {
         data: expect.objectContaining({ status: 'failed' }),
       })
     );
+  });
+
+  it('should re-throw rate-limit errors for BullMQ retry without marking failed', async () => {
+    const { ShapesRateLimitError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesRateLimitError());
+
+    const job = createMockJob();
+    await expect(processShapesExportJob(job, { prisma: mockPrisma as never })).rejects.toThrow(
+      'Rate limited'
+    );
+
+    // Should mark in_progress but NOT failed (BullMQ will retry)
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
   });
 
   it('should persist updated cookie after fetch', async () => {
