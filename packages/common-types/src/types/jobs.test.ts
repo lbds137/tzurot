@@ -24,6 +24,12 @@ import {
   type LLMGenerationJobData,
   type AudioTranscriptionResult,
 } from './jobs.js';
+import {
+  shapesImportJobDataSchema,
+  shapesImportResultSchema,
+  type ShapesImportJobData,
+  type ShapesImportJobResult,
+} from './shapes-import.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
 import {
@@ -668,6 +674,142 @@ describe('BullMQ Job Contract Tests', () => {
       // - Changes to Personality, User, or Context require updating these tests
 
       expect(true).toBe(true); // This test always passes - it's just documentation
+    });
+  });
+
+  describe('Schema Validation - Shapes Import Job', () => {
+    const validJobData: ShapesImportJobData = {
+      userId: '550e8400-e29b-41d4-a716-446655440000',
+      discordUserId: '123456789012345678',
+      sourceSlug: 'test-shape',
+      importJobId: '660e8400-e29b-41d4-a716-446655440000',
+      importType: 'full',
+    };
+
+    it('should validate a valid full import job', () => {
+      const result = shapesImportJobDataSchema.safeParse(validJobData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate a memory_only import with existingPersonalityId', () => {
+      const memoryOnlyJob: ShapesImportJobData = {
+        ...validJobData,
+        importType: 'memory_only',
+        existingPersonalityId: '770e8400-e29b-41d4-a716-446655440000',
+      };
+
+      const result = shapesImportJobDataSchema.safeParse(memoryOnlyJob);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject job with invalid importType', () => {
+      const invalidJob = { ...validJobData, importType: 'partial' };
+      const result = shapesImportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject job with non-UUID userId', () => {
+      const invalidJob = { ...validJobData, userId: 'not-a-uuid' };
+      const result = shapesImportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject job missing required fields', () => {
+      const invalidJob = { userId: validJobData.userId };
+      const result = shapesImportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject job with empty sourceSlug', () => {
+      const invalidJob = { ...validJobData, sourceSlug: '' };
+      const result = shapesImportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Schema Validation - Shapes Import Result', () => {
+    it('should validate a successful import result', () => {
+      const validResult: ShapesImportJobResult = {
+        success: true,
+        personalityId: '550e8400-e29b-41d4-a716-446655440000',
+        personalitySlug: 'test-shape',
+        memoriesImported: 150,
+        memoriesFailed: 2,
+        importType: 'full',
+      };
+
+      const result = shapesImportResultSchema.safeParse(validResult);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate a failed import result', () => {
+      const failedResult: ShapesImportJobResult = {
+        success: false,
+        memoriesImported: 0,
+        memoriesFailed: 0,
+        importType: 'full',
+        error: 'No shapes.inc credentials found. Use /shapes auth first.',
+      };
+
+      const result = shapesImportResultSchema.safeParse(failedResult);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject result with negative memoriesImported', () => {
+      const invalidResult = {
+        success: true,
+        memoriesImported: -1,
+        memoriesFailed: 0,
+        importType: 'full',
+      };
+
+      const result = shapesImportResultSchema.safeParse(invalidResult);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject result missing required success field', () => {
+      const invalidResult = {
+        memoriesImported: 10,
+        memoriesFailed: 0,
+        importType: 'full',
+      };
+
+      const result = shapesImportResultSchema.safeParse(invalidResult);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Job Schema Coverage Enforcement', () => {
+    /**
+     * ENFORCEMENT: Every JobType enum value MUST have a corresponding Zod schema.
+     * This test prevents adding new job types without defining their contract schemas.
+     *
+     * If this test fails, you need to:
+     * 1. Create a Zod schema for your new job type (in jobs.ts or its own file)
+     * 2. Add it to JOB_DATA_SCHEMAS below
+     * 3. Add contract tests above
+     */
+    const JOB_DATA_SCHEMAS: Record<string, unknown> = {
+      [JobType.AudioTranscription]: audioTranscriptionJobDataSchema,
+      [JobType.ImageDescription]: imageDescriptionJobDataSchema,
+      [JobType.LLMGeneration]: llmGenerationJobDataSchema,
+      [JobType.ShapesImport]: shapesImportJobDataSchema,
+    };
+
+    it('should have a Zod data schema for every JobType enum value', () => {
+      const allJobTypes = Object.values(JobType);
+      const coveredJobTypes = Object.keys(JOB_DATA_SCHEMAS);
+
+      const missing = allJobTypes.filter(jt => !coveredJobTypes.includes(jt));
+      expect(missing).toEqual([]);
+    });
+
+    it('should not have schemas for non-existent JobType values', () => {
+      const allJobTypes = new Set(Object.values(JobType) as string[]);
+      const coveredJobTypes = Object.keys(JOB_DATA_SCHEMAS);
+
+      const extra = coveredJobTypes.filter(jt => !allJobTypes.has(jt));
+      expect(extra).toEqual([]);
     });
   });
 });
