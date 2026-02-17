@@ -103,8 +103,9 @@ class ShapesExportNotFoundError extends ShapesExportError {
 }
 
 interface MemoryPage {
-  data: ShapesIncMemory[];
-  pagination: { has_next: boolean; page: number };
+  items?: ShapesIncMemory[];
+  memories?: ShapesIncMemory[];
+  pagination?: { has_next?: boolean; page?: number };
 }
 
 async function fetchAllMemories(shapeId: string, ctx: FetchContext): Promise<ShapesIncMemory[]> {
@@ -122,7 +123,7 @@ async function fetchAllMemories(shapeId: string, ctx: FetchContext): Promise<Sha
       ctx
     );
 
-    // Handle both paginated response { data, pagination } and plain array response
+    // Handle both paginated response { items/memories, pagination } and plain array response
     if (Array.isArray(result)) {
       logger.debug(
         { shapeId, page, count: result.length },
@@ -130,14 +131,20 @@ async function fetchAllMemories(shapeId: string, ctx: FetchContext): Promise<Sha
       );
       allMemories.push(...result);
       hasNext = false; // No pagination info — assume single page
-    } else if (result !== null && typeof result === 'object' && Array.isArray(result.data)) {
-      allMemories.push(...result.data);
-      hasNext = result.pagination?.has_next === true;
+    } else if (result !== null && typeof result === 'object') {
+      // API returns memories under "items" or "memories" key
+      const pageMemories = result.items ?? result.memories ?? [];
+      if (pageMemories.length > 0 || result.pagination !== undefined) {
+        allMemories.push(...pageMemories);
+        hasNext = result.pagination?.has_next === true;
+      } else {
+        logger.warn(
+          { shapeId, page, responseKeys: Object.keys(result) },
+          '[Shapes] Unexpected memory response shape — skipping'
+        );
+        hasNext = false;
+      }
     } else {
-      logger.warn(
-        { shapeId, page, responseKeys: Object.keys(result as object) },
-        '[Shapes] Unexpected memory response shape — skipping'
-      );
       hasNext = false;
     }
 
