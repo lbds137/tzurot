@@ -30,6 +30,14 @@ Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env d
 - Dry-run check in prod with approval gate
 - CI step that validates migration state matches schema
 
+### 🏗️ [LIFT] Deduplicate `isPrismaUniqueConstraintError`
+
+The same function is defined in both `api-gateway/routes/user/shapes/export.ts` and `import.ts`. Extract to `common-types` or a shared gateway utility since it's used in 2+ files.
+
+### 🏗️ [LIFT] Deduplicate `ShapesServerError` Test Mocks
+
+`ShapesExportJob.test.ts` and `ShapesImportJob.test.ts` both redefine `ShapesServerError` inline in their `vi.mock` factories. If the class gains new properties, both mocks need updating. Consider using the real class via `importOriginal` or a shared mock factory.
+
 ### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
 
 GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty. Combined with provider 400 errors, responses fail completely.

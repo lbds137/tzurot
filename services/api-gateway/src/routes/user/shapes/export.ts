@@ -200,6 +200,9 @@ function createExportHandler(
       format,
     };
 
+    // Non-deterministic suffix: the DB-level transaction in createExportJobOrConflict
+    // prevents true duplicate jobs, but BullMQ deduplicates by jobId — a deterministic ID
+    // would cause retries of completed/failed exports to be silently ignored by BullMQ.
     const jobId = `${JOB_PREFIXES.SHAPES_EXPORT}${exportJobId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     await queue.add(JobType.ShapesExport, jobData, { jobId });
 

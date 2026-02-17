@@ -86,6 +86,9 @@ export async function importMemories(
 
   for (const memory of memories) {
     try {
+      // Empty memories are silently skipped (not counted in `skipped`) because they
+      // represent garbage data, not meaningful duplicates. The `skipped` counter tracks
+      // content-based dedup hits so users know how many real memories were already imported.
       if (memory.text.trim().length === 0) {
         continue;
       }

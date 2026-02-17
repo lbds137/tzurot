@@ -20,6 +20,14 @@ import { startImport } from './import.js';
 
 const logger = createLogger('shapes-interactions');
 
+/** Map HTTP status codes to user-friendly hints (avoids exposing raw codes) */
+function httpStatusHint(status: number): string {
+  if (status === 429) {return 'rate limited by shapes.inc';}
+  if (status === 404) {return 'shape not found';}
+  if (status >= 500) {return 'shapes.inc is temporarily unavailable';}
+  return `unexpected error (${String(status)})`;
+}
+
 /**
  * Handle all shapes button interactions
  * Routes by parsing the custom ID action
@@ -196,7 +204,7 @@ async function handleListPage(
       content:
         result.status === 401
           ? '❌ Session expired. Use `/shapes auth` to re-authenticate.'
-          : `❌ Failed to fetch shapes (error ${String(result.status)}). Please try again.`,
+          : `❌ Failed to fetch shapes — ${httpStatusHint(result.status)}. Please try again.`,
       embeds: [],
       components: [],
     });
