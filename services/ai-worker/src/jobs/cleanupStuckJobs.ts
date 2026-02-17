@@ -16,6 +16,9 @@ export interface StuckJobCleanupResult {
   durationMs: number;
 }
 
+// startedAt is nullable in Prisma's generated types (the column is optional),
+// but the findStuckJobs query filters `startedAt: { lt: cutoff }` which excludes
+// null rows at the database level. The `| null` is kept for Prisma type compatibility.
 interface StuckJob {
   id: string;
   sourceSlug: string;

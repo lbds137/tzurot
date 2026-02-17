@@ -103,7 +103,8 @@ function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
 
   for (const memory of memories) {
     const iso = new Date(memory.metadata.created_at * 1000).toISOString();
-    const date = `${iso.split('T')[0]} ${iso.split('T')[1].slice(0, 5)}`;
+    const [datePart, timePart] = iso.split('T');
+    const date = `${datePart} ${timePart.slice(0, 5)}`;
     const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
     lines.push(`- **${date}**${senders}: ${memory.result.trim()}`);
   }
