@@ -165,10 +165,17 @@ export async function downloadAndStoreAvatar(
     );
   } catch (error) {
     // Non-fatal — personality is usable without an avatar
-    logger.warn(
-      { err: error, personalityId },
-      '[ShapesImportJob] Avatar download failed — skipping'
-    );
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      logger.warn(
+        { personalityId, timeoutMs: AVATAR_TIMEOUT_MS },
+        '[ShapesImportJob] Avatar download timed out — skipping'
+      );
+    } else {
+      logger.warn(
+        { err: error, personalityId },
+        '[ShapesImportJob] Avatar download failed — skipping'
+      );
+    }
   } finally {
     clearTimeout(timeout);
   }
