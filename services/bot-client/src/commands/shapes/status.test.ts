@@ -232,6 +232,28 @@ describe('handleStatus', () => {
     });
   });
 
+  it('should show no-exports message when export job list is empty', async () => {
+    setupDefaultMocks();
+
+    const context = createMockContext();
+    await handleStatus(context);
+
+    expect(mockEditReply).toHaveBeenCalledWith({
+      embeds: [
+        expect.objectContaining({
+          data: expect.objectContaining({
+            fields: expect.arrayContaining([
+              expect.objectContaining({
+                name: 'Export History',
+                value: expect.stringContaining('No exports yet'),
+              }),
+            ]),
+          }),
+        }),
+      ],
+    });
+  });
+
   it('should handle network errors gracefully', async () => {
     mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
 

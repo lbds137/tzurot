@@ -35,6 +35,7 @@ describe('handleAuth', () => {
   function createMockContext(): ModalCommandContext {
     const mockInteraction = {
       user: { id: '123456789' },
+      client: { user: { username: 'TestBot' } },
       showModal: mockShowModal,
     } as unknown as ChatInputCommandInteraction;
 

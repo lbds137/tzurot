@@ -83,6 +83,24 @@ describe('Public Export Download Route', () => {
     expect(res.body.status).toBe('pending');
   });
 
+  it('should return 404 with error message when export failed', async () => {
+    mockPrisma.exportJob.findUnique.mockResolvedValue({
+      status: 'failed',
+      fileContent: null,
+      fileName: null,
+      fileSizeBytes: null,
+      format: 'json',
+      expiresAt: FUTURE_DATE,
+    });
+
+    const app = createApp();
+    const res = await request(app).get(`/${VALID_UUID}`);
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe('Export failed');
+    expect(res.body.status).toBe('failed');
+  });
+
   it('should return 410 when export has expired', async () => {
     mockPrisma.exportJob.findUnique.mockResolvedValue({
       status: 'completed',
