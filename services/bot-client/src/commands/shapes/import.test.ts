@@ -143,17 +143,22 @@ describe('handleImport', () => {
     expect(embed.data.footer.text).toBe('slug:test-character');
   });
 
-  it('should normalize slug to lowercase', async () => {
-    mockGetString.mockReturnValue('  Test-Character  ');
+  it('should normalize slug to lowercase and trim whitespace', async () => {
+    mockGetString.mockImplementation((name: string) => {
+      if (name === 'slug') return '  Test-Character  ';
+      return null;
+    });
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
-      data: { hasCredentials: false },
+      data: { hasCredentials: true, service: 'shapes_inc' },
     });
 
     const context = createMockContext();
     await handleImport(context);
 
-    expect(mockCallGatewayApi).toHaveBeenCalled();
+    // The slug in the embed footer should be trimmed + lowercased
+    const replyArgs = mockEditReply.mock.calls[0][0];
+    expect(replyArgs.embeds[0].data.footer.text).toBe('slug:test-character');
   });
 
   it('should handle network errors gracefully', async () => {

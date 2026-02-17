@@ -214,7 +214,12 @@ async function handleImportConfirm(
   parsed: NonNullable<ReturnType<typeof ShapesCustomIds.parse>>
 ): Promise<void> {
   const userId = interaction.user.id;
-  const importType = parsed.importType as 'full' | 'memory_only' | undefined;
+
+  const VALID_IMPORT_TYPES = ['full', 'memory_only'] as const;
+  const rawType = parsed.importType;
+  const importType = VALID_IMPORT_TYPES.includes(rawType as 'full' | 'memory_only')
+    ? (rawType as 'full' | 'memory_only')
+    : undefined;
 
   // Slug is stored in the embed footer (not the custom ID) to avoid
   // Discord's 100-char custom ID limit with long slugs
