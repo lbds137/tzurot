@@ -12,7 +12,10 @@ import {
   SHAPES_USER_AGENT,
 } from '@tzurot/common-types';
 import type { Prisma } from '@tzurot/common-types';
-import { mapShapesConfigToPersonality } from '../services/shapes/ShapesPersonalityMapper.js';
+import {
+  mapShapesConfigToPersonality,
+  type MappedPersonalityData,
+} from '../services/shapes/ShapesPersonalityMapper.js';
 
 const logger = createLogger('ShapesImportJob');
 
@@ -30,20 +33,48 @@ export async function createFullPersonality(
 ): Promise<{ personalityId: string; slug: string }> {
   const mapped = mapShapesConfigToPersonality(config, slug);
 
-  // Create system prompt
-  await prisma.systemPrompt.upsert({
-    where: { id: mapped.systemPrompt.id },
-    create: {
-      id: mapped.systemPrompt.id,
-      name: mapped.systemPrompt.name,
-      content: mapped.systemPrompt.content,
-    },
-    update: {
-      content: mapped.systemPrompt.content,
-    },
+  await upsertSystemPrompt(prisma, mapped.systemPrompt);
+  await upsertPersonality(prisma, mapped, ownerId);
+  await upsertLlmConfig(prisma, mapped.llmConfig, ownerId);
+
+  // Link as default config for this personality
+  await prisma.personalityDefaultConfig.upsert({
+    where: { personalityId: mapped.personality.id },
+    create: { personalityId: mapped.personality.id, llmConfigId: mapped.llmConfig.id },
+    update: { llmConfigId: mapped.llmConfig.id },
   });
 
-  // Create personality
+  // Record ownership in PersonalityOwner table (supplements ownerId on personality record)
+  await prisma.personalityOwner.upsert({
+    where: { personalityId_userId: { personalityId: mapped.personality.id, userId: ownerId } },
+    create: { personalityId: mapped.personality.id, userId: ownerId, role: 'owner' },
+    update: {},
+  });
+
+  logger.info(
+    { personalityId: mapped.personality.id, slug: mapped.personality.slug },
+    '[ShapesImportJob] Created/updated personality with LLM config'
+  );
+
+  return { personalityId: mapped.personality.id, slug: mapped.personality.slug };
+}
+
+async function upsertSystemPrompt(
+  prisma: PrismaClient,
+  sp: MappedPersonalityData['systemPrompt']
+): Promise<void> {
+  await prisma.systemPrompt.upsert({
+    where: { id: sp.id },
+    create: { id: sp.id, name: sp.name, content: sp.content },
+    update: { content: sp.content },
+  });
+}
+
+async function upsertPersonality(
+  prisma: PrismaClient,
+  mapped: MappedPersonalityData,
+  ownerId: string
+): Promise<void> {
   const customFieldsJson = (mapped.personality.customFields ?? undefined) as
     | Prisma.InputJsonValue
     | undefined;
@@ -73,53 +104,39 @@ export async function createFullPersonality(
       systemPromptId: mapped.systemPrompt.id,
     },
   });
+}
 
-  // Create LLM config and link as default
-  const advancedParamsJson = mapped.llmConfig.advancedParameters as Prisma.InputJsonValue;
+async function upsertLlmConfig(
+  prisma: PrismaClient,
+  llm: MappedPersonalityData['llmConfig'],
+  ownerId: string
+): Promise<void> {
+  const advancedParamsJson = llm.advancedParameters as Prisma.InputJsonValue;
   await prisma.llmConfig.upsert({
-    where: { id: mapped.llmConfig.id },
+    where: { id: llm.id },
     create: {
-      id: mapped.llmConfig.id,
-      name: mapped.llmConfig.name,
-      description: mapped.llmConfig.description,
-      model: mapped.llmConfig.model,
-      provider: mapped.llmConfig.provider,
+      id: llm.id,
+      name: llm.name,
+      description: llm.description,
+      model: llm.model,
+      provider: llm.provider,
       advancedParameters: advancedParamsJson,
-      memoryScoreThreshold: mapped.llmConfig.memoryScoreThreshold,
-      memoryLimit: mapped.llmConfig.memoryLimit,
-      contextWindowTokens: mapped.llmConfig.contextWindowTokens,
-      maxMessages: mapped.llmConfig.maxMessages,
+      memoryScoreThreshold: llm.memoryScoreThreshold,
+      memoryLimit: llm.memoryLimit,
+      contextWindowTokens: llm.contextWindowTokens,
+      maxMessages: llm.maxMessages,
       ownerId,
       isGlobal: false,
       isDefault: false,
     },
     update: {
-      model: mapped.llmConfig.model,
+      model: llm.model,
       advancedParameters: advancedParamsJson,
-      memoryScoreThreshold: mapped.llmConfig.memoryScoreThreshold,
-      memoryLimit: mapped.llmConfig.memoryLimit,
-      maxMessages: mapped.llmConfig.maxMessages,
+      memoryScoreThreshold: llm.memoryScoreThreshold,
+      memoryLimit: llm.memoryLimit,
+      maxMessages: llm.maxMessages,
     },
   });
-
-  // Link as default config for this personality
-  await prisma.personalityDefaultConfig.upsert({
-    where: { personalityId: mapped.personality.id },
-    create: {
-      personalityId: mapped.personality.id,
-      llmConfigId: mapped.llmConfig.id,
-    },
-    update: {
-      llmConfigId: mapped.llmConfig.id,
-    },
-  });
-
-  logger.info(
-    { personalityId: mapped.personality.id, slug: mapped.personality.slug },
-    '[ShapesImportJob] Created/updated personality with LLM config'
-  );
-
-  return { personalityId: mapped.personality.id, slug: mapped.personality.slug };
 }
 
 export async function downloadAndStoreAvatar(
