@@ -8,7 +8,8 @@
  * - GET    /user/shapes/list          - Fetch owned shapes from shapes.inc
  * - POST   /user/shapes/import        - Start import job
  * - GET    /user/shapes/import/jobs   - Import history
- * - POST   /user/shapes/export        - Fetch full character data as JSON
+ * - POST   /user/shapes/export        - Start async export job
+ * - GET    /user/shapes/export/jobs   - Export history
  */
 
 import { Router } from 'express';
@@ -24,10 +25,10 @@ export function createShapesRoutes(prisma: PrismaClient, queue?: Queue): Router 
 
   router.use('/auth', createShapesAuthRoutes(prisma));
   router.use('/list', createShapesListRoutes(prisma));
-  router.use('/export', createShapesExportRoutes(prisma));
 
   if (queue !== undefined) {
     router.use('/import', createShapesImportRoutes(prisma, queue));
+    router.use('/export', createShapesExportRoutes(prisma, queue));
   }
 
   return router;

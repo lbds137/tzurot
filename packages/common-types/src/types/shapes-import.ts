@@ -192,6 +192,70 @@ export interface ShapesImportJobResult {
 }
 
 // ============================================================================
+// Export Job Types (BullMQ payloads)
+// ============================================================================
+
+const exportFormatEnum = z.enum(['json', 'markdown']);
+
+/**
+ * Shapes Export Job Data Schema
+ * SINGLE SOURCE OF TRUTH for shapes export job payloads
+ *
+ * Produced by: api-gateway (shapes/export.ts route)
+ * Consumed by: ai-worker (ShapesExportJob.ts)
+ */
+export const shapesExportJobDataSchema = z.object({
+  /** Internal Tzurot user ID (UUID) */
+  userId: z.string().uuid(),
+  /** Discord user ID (for credential resolution) */
+  discordUserId: z.string().min(1),
+  /** Shapes.inc slug/username to export */
+  sourceSlug: z.string().min(1),
+  /** ExportJob record ID for status tracking */
+  exportJobId: z.string().uuid(),
+  /** Export format */
+  format: exportFormatEnum,
+});
+
+/**
+ * Shapes Export Result Schema
+ * SINGLE SOURCE OF TRUTH for shapes export job results
+ *
+ * Produced by: ai-worker (ShapesExportJob.ts)
+ * Consumed by: api-gateway (shapes/export.ts status queries)
+ */
+export const shapesExportResultSchema = z.object({
+  success: z.boolean(),
+  fileSizeBytes: z.number().int().nonnegative(),
+  memoriesCount: z.number().int().nonnegative(),
+  storiesCount: z.number().int().nonnegative(),
+  error: z.string().optional(),
+});
+
+/** Data passed to the shapes export BullMQ job */
+export interface ShapesExportJobData {
+  /** Internal Tzurot user ID (UUID) */
+  userId: string;
+  /** Discord user ID (for credential resolution) */
+  discordUserId: string;
+  /** Shapes.inc slug/username to export */
+  sourceSlug: string;
+  /** ExportJob record ID for status tracking */
+  exportJobId: string;
+  /** Export format */
+  format: 'json' | 'markdown';
+}
+
+/** Result returned by the shapes export job */
+export interface ShapesExportJobResult {
+  success: boolean;
+  fileSizeBytes: number;
+  memoriesCount: number;
+  storiesCount: number;
+  error?: string;
+}
+
+// ============================================================================
 // Data Fetcher Types
 // ============================================================================
 

@@ -39,6 +39,7 @@ import {
   createHealthRouter,
   createMetricsRouter,
   createAvatarRouter,
+  createExportsRouter,
 } from './routes/public/index.js';
 
 // Middleware
@@ -204,6 +205,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
   app.use('/health', createHealthRouter(startTime));
   app.use('/metrics', createMetricsRouter(aiQueue, startTime));
   app.use('/avatars', createAvatarRouter(prisma));
+  app.use('/exports', createExportsRouter(prisma));
 
   // Serve temporary attachments from Railway volume
   app.use(
@@ -236,6 +238,7 @@ function registerRoutes(app: Express, prisma: PrismaClient, services: ServicesCo
       redis: cacheRedis,
       modelCache,
       cascadeInvalidation,
+      aiQueue,
     })
   );
   logger.info('[Gateway] User routes registered (with personality cache invalidation, incognito)');

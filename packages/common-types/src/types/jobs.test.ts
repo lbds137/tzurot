@@ -29,6 +29,10 @@ import {
   shapesImportResultSchema,
   type ShapesImportJobData,
   type ShapesImportJobResult,
+  shapesExportJobDataSchema,
+  type ShapesExportJobData,
+  type ShapesExportJobResult,
+  shapesExportResultSchema,
 } from './shapes-import.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
@@ -779,6 +783,84 @@ describe('BullMQ Job Contract Tests', () => {
     });
   });
 
+  describe('Schema Validation - Shapes Export Job', () => {
+    const validJobData: ShapesExportJobData = {
+      userId: '550e8400-e29b-41d4-a716-446655440000',
+      discordUserId: '123456789012345678',
+      sourceSlug: 'test-shape',
+      exportJobId: '660e8400-e29b-41d4-a716-446655440000',
+      format: 'json',
+    };
+
+    it('should validate a valid json export job', () => {
+      const result = shapesExportJobDataSchema.safeParse(validJobData);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate a markdown export job', () => {
+      const mdJob: ShapesExportJobData = { ...validJobData, format: 'markdown' };
+      const result = shapesExportJobDataSchema.safeParse(mdJob);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject job with invalid format', () => {
+      const invalidJob = { ...validJobData, format: 'csv' };
+      const result = shapesExportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject job with non-UUID userId', () => {
+      const invalidJob = { ...validJobData, userId: 'not-a-uuid' };
+      const result = shapesExportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+
+    it('should reject job missing required fields', () => {
+      const invalidJob = { userId: validJobData.userId };
+      const result = shapesExportJobDataSchema.safeParse(invalidJob);
+      expect(result.success).toBe(false);
+    });
+  });
+
+  describe('Schema Validation - Shapes Export Result', () => {
+    it('should validate a successful export result', () => {
+      const validResult: ShapesExportJobResult = {
+        success: true,
+        fileSizeBytes: 1048576,
+        memoriesCount: 150,
+        storiesCount: 5,
+      };
+
+      const result = shapesExportResultSchema.safeParse(validResult);
+      expect(result.success).toBe(true);
+    });
+
+    it('should validate a failed export result', () => {
+      const failedResult: ShapesExportJobResult = {
+        success: false,
+        fileSizeBytes: 0,
+        memoriesCount: 0,
+        storiesCount: 0,
+        error: 'No shapes.inc credentials found.',
+      };
+
+      const result = shapesExportResultSchema.safeParse(failedResult);
+      expect(result.success).toBe(true);
+    });
+
+    it('should reject result with negative memoriesCount', () => {
+      const invalidResult = {
+        success: true,
+        fileSizeBytes: 0,
+        memoriesCount: -1,
+        storiesCount: 0,
+      };
+
+      const result = shapesExportResultSchema.safeParse(invalidResult);
+      expect(result.success).toBe(false);
+    });
+  });
+
   describe('Job Schema Coverage Enforcement', () => {
     /**
      * ENFORCEMENT: Every JobType enum value MUST have a corresponding Zod schema.
@@ -794,6 +876,7 @@ describe('BullMQ Job Contract Tests', () => {
       [JobType.ImageDescription]: imageDescriptionJobDataSchema,
       [JobType.LLMGeneration]: llmGenerationJobDataSchema,
       [JobType.ShapesImport]: shapesImportJobDataSchema,
+      [JobType.ShapesExport]: shapesExportJobDataSchema,
     };
 
     it('should have a Zod data schema for every JobType enum value', () => {

@@ -1,5 +1,5 @@
 /**
- * Tests for Shapes.inc Export Route
+ * Tests for Shapes.inc Export Routes (Async)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -16,7 +16,6 @@ vi.mock('@tzurot/common-types', async () => {
       warn: vi.fn(),
       error: vi.fn(),
     }),
-    decryptApiKey: vi.fn().mockReturnValue('appSession.0=abc; appSession.1=def'),
   };
 });
 
@@ -34,12 +33,39 @@ import { findRoute, getRouteHandler } from '../../../test/expressRouterUtils.js'
 
 const mockPrisma = {
   user: {
-    findFirst: vi.fn().mockResolvedValue(null),
+    findUnique: vi.fn().mockResolvedValue(null),
+    create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    upsert: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+    findFirst: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+  },
+  persona: {
+    create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }),
   },
   userCredential: {
     findFirst: vi.fn().mockResolvedValue(null),
-    updateMany: vi.fn().mockResolvedValue({ count: 1 }),
   },
+  exportJob: {
+    findFirst: vi.fn().mockResolvedValue(null),
+    upsert: vi.fn().mockResolvedValue({ id: 'export-job-123' }),
+    findMany: vi.fn().mockResolvedValue([]),
+  },
+  $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
+    const mockTx = {
+      user: {
+        create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+        update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
+      },
+      persona: { create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }) },
+    };
+    await callback(mockTx);
+  }),
+};
+
+const mockQueue = {
+  add: vi.fn().mockResolvedValue({ id: 'bullmq-job-id' }),
 };
 
 function createMockReqRes(body: Record<string, unknown> = {}) {
@@ -62,20 +88,24 @@ describe('Shapes Export Routes', () => {
   });
 
   describe('route factory', () => {
-    it('should create a router with POST route', () => {
-      const router = createShapesExportRoutes(mockPrisma as unknown as PrismaClient);
-      expect(router).toBeDefined();
+    it('should have POST / and GET /jobs routes', () => {
+      const router = createShapesExportRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockQueue as never
+      );
+
       expect(findRoute(router, 'post', '/')).toBeDefined();
+      expect(findRoute(router, 'get', '/jobs')).toBeDefined();
     });
   });
 
-  describe('POST / (export shape)', () => {
-    async function callExportHandler(
-      body: Record<string, unknown>,
-      prisma = mockPrisma
-    ): Promise<{ req: Request & { userId: string }; res: Response }> {
+  describe('POST / (create export job)', () => {
+    async function callExportHandler(body: Record<string, unknown>) {
       const { req, res } = createMockReqRes(body);
-      const router = createShapesExportRoutes(prisma as unknown as PrismaClient);
+      const router = createShapesExportRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockQueue as never
+      );
       const handler = getRouteHandler(router, 'post', '/');
       await handler(req, res);
       return { req, res };
@@ -88,74 +118,122 @@ describe('Shapes Export Routes', () => {
       expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: 'VALIDATION_ERROR' }));
     });
 
-    it('should return 403 when user not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue(null);
-      const { res } = await callExportHandler({ slug: 'test-shape' });
-
-      expect(res.status).toHaveBeenCalledWith(403);
-    });
-
-    it('should return 403 when credential not found', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
+    it('should return 403 when no credentials found', async () => {
       mockPrisma.userCredential.findFirst.mockResolvedValue(null);
       const { res } = await callExportHandler({ slug: 'test-shape' });
 
       expect(res.status).toHaveBeenCalledWith(403);
     });
 
-    it('should fetch shape data and return export payload', async () => {
-      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-uuid-123' });
-      mockPrisma.userCredential.findFirst.mockResolvedValue({
-        iv: 'iv',
-        content: 'content',
-        tag: 'tag',
+    it('should return 409 when export already in progress', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({ id: 'cred-id' });
+      mockPrisma.exportJob.findFirst.mockResolvedValueOnce({
+        id: 'existing-job',
+        status: 'in_progress',
       });
-
-      const shapeConfig = {
-        id: 'shape-uuid',
-        name: 'Test Shape',
-        username: 'test-shape',
-      };
-
-      // Mock fetch for config, memories (1 page), stories, user personalization
-      // Each mock needs a `url` property matching the request URL (redirect detection)
-      let callIndex = -1;
-      const mockFetch = vi.fn().mockImplementation((url: string) => {
-        callIndex++;
-        const responses = [
-          // Config
-          { ok: true, url, json: vi.fn().mockResolvedValue(shapeConfig) },
-          // Memories page 1 (no more pages)
-          {
-            ok: true,
-            url,
-            json: vi.fn().mockResolvedValue({
-              items: [],
-              pagination: { has_next: false, page: 1 },
-            }),
-          },
-          // Stories
-          { ok: true, url, json: vi.fn().mockResolvedValue([]) },
-          // User personalization
-          { ok: true, url, json: vi.fn().mockResolvedValue(null) },
-        ];
-        return Promise.resolve(responses[callIndex] ?? responses[0]);
-      });
-
-      vi.stubGlobal('fetch', mockFetch);
 
       const { res } = await callExportHandler({ slug: 'test-shape' });
 
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(
+      expect(res.status).toHaveBeenCalledWith(409);
+    });
+
+    it('should create export job and enqueue BullMQ job', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({ id: 'cred-id' });
+      mockPrisma.exportJob.findFirst.mockResolvedValue(null);
+
+      const { res } = await callExportHandler({ slug: 'Test-Shape' });
+
+      expect(mockPrisma.exportJob.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
-          sourceSlug: 'test-shape',
-          config: expect.objectContaining({ username: 'test-shape' }),
-          stats: expect.objectContaining({ memoriesCount: 0, storiesCount: 0 }),
+          create: expect.objectContaining({
+            sourceSlug: 'test-shape',
+            sourceService: 'shapes_inc',
+            status: 'pending',
+            format: 'json',
+          }),
         })
       );
 
-      vi.unstubAllGlobals();
+      expect(mockQueue.add).toHaveBeenCalledWith(
+        'shapes-export',
+        expect.objectContaining({
+          sourceSlug: 'test-shape',
+          format: 'json',
+        }),
+        expect.objectContaining({ jobId: expect.any(String) })
+      );
+
+      expect(res.status).toHaveBeenCalledWith(202);
+    });
+
+    it('should accept markdown format', async () => {
+      mockPrisma.userCredential.findFirst.mockResolvedValue({ id: 'cred-id' });
+      mockPrisma.exportJob.findFirst.mockResolvedValue(null);
+
+      const { res } = await callExportHandler({ slug: 'test-shape', format: 'markdown' });
+
+      expect(mockPrisma.exportJob.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          create: expect.objectContaining({
+            format: 'markdown',
+          }),
+        })
+      );
+
+      expect(res.status).toHaveBeenCalledWith(202);
+    });
+  });
+
+  describe('GET /jobs (list export history)', () => {
+    async function callListHandler() {
+      const { req, res } = createMockReqRes();
+      const router = createShapesExportRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockQueue as never
+      );
+      const handler = getRouteHandler(router, 'get', '/jobs');
+      await handler(req, res);
+      return { req, res };
+    }
+
+    it('should return empty list for unknown user', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+      const { res } = await callListHandler();
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ jobs: [] }));
+    });
+
+    it('should return export jobs with download URLs', async () => {
+      mockPrisma.exportJob.findMany.mockResolvedValueOnce([
+        {
+          id: 'job-1',
+          sourceSlug: 'test-shape',
+          status: 'completed',
+          format: 'json',
+          fileName: 'test-shape-export.json',
+          fileSizeBytes: 1024,
+          createdAt: new Date(),
+          completedAt: new Date(),
+          expiresAt: new Date(Date.now() + 86400000),
+          errorMessage: null,
+          exportMetadata: null,
+        },
+      ]);
+
+      const { res } = await callListHandler();
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          jobs: expect.arrayContaining([
+            expect.objectContaining({
+              sourceSlug: 'test-shape',
+              status: 'completed',
+              downloadUrl: expect.stringContaining('/exports/job-1'),
+            }),
+          ]),
+        })
+      );
     });
   });
 });

@@ -22,6 +22,7 @@ import {
   imageDescriptionJobDataSchema,
   llmGenerationJobDataSchema,
   shapesImportJobDataSchema,
+  shapesExportJobDataSchema,
   JobType,
 } from '@tzurot/common-types';
 import type { ZodSchema } from 'zod';
@@ -37,6 +38,7 @@ const SCHEMA_MAP: Record<JobType, ZodSchema> = {
   [JobType.ImageDescription]: imageDescriptionJobDataSchema,
   [JobType.LLMGeneration]: llmGenerationJobDataSchema,
   [JobType.ShapesImport]: shapesImportJobDataSchema,
+  [JobType.ShapesExport]: shapesExportJobDataSchema,
 };
 
 /**

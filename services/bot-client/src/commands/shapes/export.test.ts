@@ -1,5 +1,5 @@
 /**
- * Tests for Shapes Export Subcommand
+ * Tests for Shapes Export Subcommand (Async)
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -57,75 +57,42 @@ describe('handleExport', () => {
     } as unknown as DeferredCommandContext;
   }
 
-  it('should show progress message then call export endpoint', async () => {
+  it('should call async export endpoint and show confirmation', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: {
-        exportedAt: '2026-02-16T00:00:00.000Z',
+        success: true,
+        exportJobId: 'job-uuid-123',
         sourceSlug: 'test-character',
-        config: { name: 'Test', username: 'test-character' },
-        memories: [],
-        stories: [],
-        userPersonalization: null,
-        stats: { memoriesCount: 0, storiesCount: 0, hasUserPersonalization: false },
+        format: 'json',
+        status: 'pending',
+        downloadUrl: 'https://gateway.example.com/exports/job-uuid-123',
       },
     });
 
     const context = createMockContext();
     await handleExport(context);
 
-    // First call: progress embed
-    expect(mockEditReply).toHaveBeenCalledWith(
-      expect.objectContaining({
-        embeds: [
-          expect.objectContaining({
-            data: expect.objectContaining({
-              title: expect.stringContaining('Exporting'),
-            }),
-          }),
-        ],
-      })
-    );
-
-    // Gateway call
+    // Should call POST endpoint with slug and format
     expect(mockCallGatewayApi).toHaveBeenCalledWith(
       '/user/shapes/export',
       expect.objectContaining({
         method: 'POST',
         userId: '123456789',
-        body: { slug: 'test-character' },
+        body: { slug: 'test-character', format: 'json' },
       })
     );
-  });
 
-  it('should send JSON file attachment on success', async () => {
-    mockCallGatewayApi.mockResolvedValue({
-      ok: true,
-      data: {
-        exportedAt: '2026-02-16T00:00:00.000Z',
-        sourceSlug: 'test-character',
-        config: { name: 'Test', username: 'test-character' },
-        memories: [{ id: 'mem-1', result: 'test memory' }],
-        stories: [],
-        userPersonalization: null,
-        stats: { memoriesCount: 1, storiesCount: 0, hasUserPersonalization: false },
-      },
-    });
-
-    const context = createMockContext();
-    await handleExport(context);
-
-    // Second call should include files
+    // Should show "Export Started" embed
     const lastCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];
-    expect(lastCall.files).toBeDefined();
-    expect(lastCall.files).toHaveLength(1);
-    expect(lastCall.embeds[0].data.title).toContain('Export Complete');
+    expect(lastCall.embeds[0].data.title).toContain('Export Started');
+    expect(lastCall.embeds[0].data.description).toContain('/shapes status');
   });
 
   it('should show auth prompt when no credentials', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
-      status: 401,
+      status: 403,
       error: 'No credentials',
     });
 
@@ -136,18 +103,18 @@ describe('handleExport', () => {
     expect(lastCall.content).toContain('No shapes.inc credentials');
   });
 
-  it('should show not-found message for 404', async () => {
+  it('should show in-progress message for 409 conflict', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
-      status: 404,
-      error: 'Not found',
+      status: 409,
+      error: 'Already in progress',
     });
 
     const context = createMockContext();
     await handleExport(context);
 
     const lastCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];
-    expect(lastCall.content).toContain('not found');
+    expect(lastCall.content).toContain('already in progress');
   });
 
   it('should handle network errors gracefully', async () => {
