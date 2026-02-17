@@ -1,7 +1,7 @@
 /**
  * Shapes Status Subcommand
  *
- * Shows credential status and import history for shapes.inc.
+ * Shows credential status, import history, and export history for shapes.inc.
  */
 
 import { EmbedBuilder } from 'discord.js';
@@ -33,8 +33,26 @@ interface ImportJob {
   } | null;
 }
 
+interface ExportJob {
+  id: string;
+  sourceSlug: string;
+  status: string;
+  format: string;
+  fileName: string | null;
+  fileSizeBytes: number | null;
+  createdAt: string;
+  completedAt: string | null;
+  expiresAt: string;
+  errorMessage: string | null;
+  downloadUrl: string | null;
+}
+
 interface ImportJobsResponse {
   jobs: ImportJob[];
+}
+
+interface ExportJobsResponse {
+  jobs: ExportJob[];
 }
 
 const STATUS_EMOJI: Record<string, string> = {
@@ -53,7 +71,7 @@ function formatProgressDetail(job: ImportJob): string {
   return `\n   Progress: ${progress.imported}/${progress.total} memories (${pct}%)`;
 }
 
-function formatJobStatus(job: ImportJob): string {
+function formatImportJobStatus(job: ImportJob): string {
   const emoji = STATUS_EMOJI[job.status] ?? '❓';
   const date = new Date(job.createdAt).toLocaleDateString();
   let line = `${emoji} **${job.sourceSlug}** — ${job.status} (${date})`;
@@ -78,21 +96,57 @@ function formatJobStatus(job: ImportJob): string {
   return line;
 }
 
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) {
+    return `${bytes}B`;
+  }
+  if (bytes < 1024 * 1024) {
+    return `${(bytes / 1024).toFixed(1)}KB`;
+  }
+  return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+}
+
+function formatExportJobStatus(job: ExportJob): string {
+  const emoji = STATUS_EMOJI[job.status] ?? '❓';
+  const date = new Date(job.createdAt).toLocaleDateString();
+  let line = `${emoji} **${job.sourceSlug}** (${job.format}) — ${job.status} (${date})`;
+
+  if (job.status === 'completed' && job.downloadUrl !== null) {
+    const size = job.fileSizeBytes !== null ? ` (${formatFileSize(job.fileSizeBytes)})` : '';
+    const expiresAt = new Date(job.expiresAt);
+    const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000));
+    line += `\n   📥 [Download${size}](${job.downloadUrl})`;
+    line += ` — expires in ${hoursLeft}h`;
+  }
+
+  if (job.status === 'failed' && job.errorMessage !== null) {
+    const truncated =
+      job.errorMessage.length > 80 ? `${job.errorMessage.slice(0, 80)}...` : job.errorMessage;
+    line += `\n   Error: ${truncated}`;
+  }
+
+  return line;
+}
+
 /**
  * Handle /shapes status subcommand
- * Shows credential status and import history
+ * Shows credential status, import history, and export history
  */
 export async function handleStatus(context: DeferredCommandContext): Promise<void> {
   const userId = context.user.id;
 
   try {
-    // Fetch auth status and import history in parallel
-    const [authResult, jobsResult] = await Promise.all([
+    // Fetch auth status, import history, and export history in parallel
+    const [authResult, importJobsResult, exportJobsResult] = await Promise.all([
       callGatewayApi<AuthStatusResponse>('/user/shapes/auth/status', {
         userId,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
       callGatewayApi<ImportJobsResponse>('/user/shapes/import/jobs', {
+        userId,
+        timeout: GATEWAY_TIMEOUTS.DEFERRED,
+      }),
+      callGatewayApi<ExportJobsResponse>('/user/shapes/export/jobs', {
         userId,
         timeout: GATEWAY_TIMEOUTS.DEFERRED,
       }),
@@ -112,16 +166,25 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
     embed.addFields({ name: 'Credentials', value: credentialStatus });
 
     // Import history
-    if (jobsResult.ok && jobsResult.data.jobs.length > 0) {
-      const jobLines = jobsResult.data.jobs.slice(0, 10).map(formatJobStatus);
+    if (importJobsResult.ok && importJobsResult.data.jobs.length > 0) {
+      const jobLines = importJobsResult.data.jobs.slice(0, 5).map(formatImportJobStatus);
       embed.addFields({
-        name: `Import History (${jobsResult.data.jobs.length})`,
+        name: `Import History (${importJobsResult.data.jobs.length})`,
         value: jobLines.join('\n\n'),
       });
     } else {
       embed.addFields({
         name: 'Import History',
         value: 'No imports yet. Use `/shapes import <slug>` to get started.',
+      });
+    }
+
+    // Export history
+    if (exportJobsResult.ok && exportJobsResult.data.jobs.length > 0) {
+      const jobLines = exportJobsResult.data.jobs.slice(0, 5).map(formatExportJobStatus);
+      embed.addFields({
+        name: `Export History (${exportJobsResult.data.jobs.length})`,
+        value: jobLines.join('\n\n'),
       });
     }
 

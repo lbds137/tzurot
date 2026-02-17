@@ -21,10 +21,12 @@ import {
   type ImageDescriptionJobData,
   type LLMGenerationJobData,
   type ShapesImportJobData,
+  type ShapesExportJobData,
   type AudioTranscriptionResult,
   type ImageDescriptionResult,
   type LLMGenerationResult,
   type ShapesImportJobResult,
+  type ShapesExportJobResult,
   generateUsageLogUuid,
   JobType,
 } from '@tzurot/common-types';
@@ -35,8 +37,10 @@ import { processAudioTranscriptionJob } from './AudioTranscriptionJob.js';
 import { processImageDescriptionJob } from './ImageDescriptionJob.js';
 import { LLMGenerationHandler } from './handlers/LLMGenerationHandler.js';
 import { processShapesImportJob } from './ShapesImportJob.js';
+import { processShapesExportJob } from './ShapesExportJob.js';
 
 const logger = createLogger('AIJobProcessor');
+const LOG_PROCESSING_JOB = '[AIJobProcessor] Processing job';
 
 /** Options for constructing AIJobProcessor */
 interface AIJobProcessorOptions {
@@ -105,16 +109,22 @@ export class AIJobProcessor {
   /**
    * Process a single AI job - routes to appropriate handler based on job type
    */
-  async processJob(job: Job<AnyJobData>): Promise<AnyJobResult | ShapesImportJobResult> {
-    // Shapes import jobs use job.name for routing (they don't extend BaseJobData)
+  async processJob(
+    job: Job<AnyJobData>
+  ): Promise<AnyJobResult | ShapesImportJobResult | ShapesExportJobResult> {
+    // Shapes import/export jobs use job.name for routing (they don't extend BaseJobData)
     if (job.name === (JobType.ShapesImport as string)) {
-      logger.info({ jobId: job.id, jobType: job.name }, '[AIJobProcessor] Processing job');
+      logger.info({ jobId: job.id, jobType: job.name }, LOG_PROCESSING_JOB);
       return this.processShapesImportJobWrapper(job as unknown as Job<ShapesImportJobData>);
+    }
+    if (job.name === (JobType.ShapesExport as string)) {
+      logger.info({ jobId: job.id, jobType: job.name }, LOG_PROCESSING_JOB);
+      return this.processShapesExportJobWrapper(job as unknown as Job<ShapesExportJobData>);
     }
 
     const jobType = job.data.jobType;
 
-    logger.info({ jobId: job.id, jobType }, '[AIJobProcessor] Processing job');
+    logger.info({ jobId: job.id, jobType }, LOG_PROCESSING_JOB);
 
     // Route to appropriate handler based on job type
     if ((jobType as string) === 'audio-transcription') {
@@ -391,6 +401,21 @@ export class AIJobProcessor {
     return processShapesImportJob(job, {
       prisma: this.prisma,
       memoryAdapter: this.memoryManager,
+    });
+  }
+
+  /**
+   * Wrapper for shapes.inc export processing
+   *
+   * Export jobs are self-contained: they manage their own status tracking via
+   * ExportJob records and don't use Redis stream delivery. Results are stored
+   * directly in the ExportJob table as file content.
+   */
+  private async processShapesExportJobWrapper(
+    job: Job<ShapesExportJobData>
+  ): Promise<ShapesExportJobResult> {
+    return processShapesExportJob(job, {
+      prisma: this.prisma,
     });
   }
 }

@@ -32,6 +32,7 @@ model User {
   apiKeys               UserApiKey[]
   credentials           UserCredential[]
   importJobs            ImportJob[]
+  exportJobs            ExportJob[]
   usageLogs             UsageLog[]
   channelSettings       ChannelSettings[]
   adminSettingsUpdates  AdminSettings[]
@@ -647,4 +648,40 @@ model ImportJob {
   @@index([userId])
   @@index([status])
   @@map("import_jobs")
+}
+
+/// Tracks export job history for async data exports from external services.
+/// File content is stored as PostgreSQL TEXT (TOAST handles large values efficiently).
+/// Records auto-expire after 24 hours via scheduled cleanup job.
+model ExportJob {
+  id             String    @id @db.Uuid
+  userId         String    @map("user_id") @db.Uuid
+  /// Original slug/username on the source service
+  sourceSlug     String    @map("source_slug") @db.VarChar(255)
+  /// Source service identifier (e.g., 'shapes_inc')
+  sourceService  String    @map("source_service") @db.VarChar(50)
+  /// Job status: pending, in_progress, completed, failed
+  status         String    @default("pending") @db.VarChar(50)
+  /// Export format: json or markdown
+  format         String    @default("json") @db.VarChar(20)
+  /// Full export content stored as text (TOAST-compressed, supports 35MB+)
+  fileContent    String?   @map("file_content")
+  /// Generated filename for download
+  fileName       String?   @map("file_name") @db.VarChar(255)
+  /// Size of fileContent in bytes
+  fileSizeBytes  Int?      @map("file_size_bytes")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  /// When this export job expires and should be cleaned up
+  expiresAt      DateTime  @map("expires_at")
+  errorMessage   String?   @map("error_message")
+  /// Additional metadata (stats, source config snapshot, etc.)
+  exportMetadata Json?     @map("export_metadata")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([expiresAt])
+  @@map("export_jobs")
 }

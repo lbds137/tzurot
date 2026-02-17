@@ -33,6 +33,8 @@ export const JOB_PREFIXES = {
   IMAGE_DESCRIPTION: 'image-',
   /** Prefix for shapes.inc import jobs */
   SHAPES_IMPORT: 'shapes-import-',
+  /** Prefix for shapes.inc export jobs */
+  SHAPES_EXPORT: 'shapes-export-',
 } as const;
 
 /**
@@ -122,4 +124,6 @@ export enum JobType {
   LLMGeneration = 'llm-generation',
   /** Shapes.inc character import job (personality + memories) */
   ShapesImport = 'shapes-import',
+  /** Shapes.inc character data export job */
+  ShapesExport = 'shapes-export',
 }
