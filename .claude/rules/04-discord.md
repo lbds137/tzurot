@@ -87,8 +87,9 @@ export default defineCommand({
 deployments, and race with CommandHandler's global interaction handler.
 (See `destructiveConfirmation.ts` lines 18-19 for full rationale.)
 
-**Encode state in custom IDs** instead of closures:
-`shapes::import-confirm::slug::full` carries all state needed to process the click.
+**Encode state in custom IDs or embed fields** instead of closures:
+`shapes::import-confirm::full` encodes the import type; the slug is stored in
+the embed footer (`slug:my-shape`) to stay within Discord's 100-char custom ID limit.
 
 **Exception:** Collectors may be used INSIDE exported handler functions as a
 secondary mechanism (e.g., memory batch delete timeout), but the initial routing
