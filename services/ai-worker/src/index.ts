@@ -227,7 +227,7 @@ async function setupScheduledJobs(
         return cleanupDiagnosticLogs(prisma);
       }
       if (job.name === SCHEDULED_JOBS.CLEANUP_STUCK_IMPORTS) {
-        logger.debug('[Scheduled] Running stuck import job cleanup');
+        logger.info('[Scheduled] Running stuck import job cleanup');
         return cleanupStuckImportJobs(prisma);
       }
       return null;
