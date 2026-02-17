@@ -52,6 +52,14 @@ vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
       this.name = 'ShapesRateLimitError';
     }
   },
+  ShapesServerError: class ShapesServerError extends Error {
+    readonly status: number;
+    constructor(status: number, msg: string) {
+      super(msg);
+      this.name = 'ShapesServerError';
+      this.status = status;
+    }
+  },
 }));
 
 // Mock PersonalityMapper
@@ -135,9 +143,14 @@ const mockMemoryAdapter = {
   addMemory: vi.fn().mockResolvedValue(undefined),
 };
 
-function createMockJob(overrides: Partial<ShapesImportJobData> = {}): Job<ShapesImportJobData> {
+function createMockJob(
+  overrides: Partial<ShapesImportJobData> = {},
+  jobOpts: { attemptsMade?: number; attempts?: number } = {}
+): Job<ShapesImportJobData> {
   return {
     id: 'test-job-id',
+    attemptsMade: jobOpts.attemptsMade ?? 0,
+    opts: { attempts: jobOpts.attempts ?? 3 },
     data: {
       userId: 'user-uuid-123',
       discordUserId: 'discord-123',
@@ -392,5 +405,75 @@ describe('processShapesImportJob', () => {
     expect(result.success).toBe(true);
     expect(result.memoriesImported).toBe(0);
     expect(result.memoriesFailed).toBe(1);
+  });
+
+  it('should re-throw server errors for BullMQ retry when attempts remain', async () => {
+    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(502, 'Bad Gateway'));
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+      })
+    ).rejects.toThrow('Bad Gateway');
+
+    // Should mark in_progress but NOT failed
+    const updateCalls = mockPrisma.importJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
+  });
+
+  it('should re-throw rate-limit errors for BullMQ retry when attempts remain', async () => {
+    const { ShapesRateLimitError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesRateLimitError());
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 3 });
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+      })
+    ).rejects.toThrow('Rate limited');
+
+    // Should mark in_progress but NOT failed
+    const updateCalls = mockPrisma.importJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(1);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
+  });
+
+  it('should mark as failed on final server error attempt', async () => {
+    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(504, 'Gateway Timeout'));
+
+    const job = createMockJob({}, { attemptsMade: 2, attempts: 3 });
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Gateway Timeout');
+
+    const updateCalls = mockPrisma.importJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[0][0].data.status).toBe('in_progress');
+    expect(updateCalls[1][0].data.status).toBe('failed');
+  });
+
+  it('should include memoriesSkipped in result', async () => {
+    // Simulate one existing memory that will be skipped
+    mockPrisma.memory.findMany.mockResolvedValue([{ content: 'Test memory content' }]);
+
+    const job = createMockJob();
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.memoriesSkipped).toBe(1);
+    expect(result.memoriesImported).toBe(0);
   });
 });

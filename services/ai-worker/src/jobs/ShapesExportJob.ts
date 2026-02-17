@@ -25,6 +25,7 @@ import {
   ShapesAuthError,
   ShapesNotFoundError,
   ShapesRateLimitError,
+  ShapesServerError,
 } from '../services/shapes/ShapesDataFetcher.js';
 import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
 
@@ -184,6 +185,9 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
   const errorMessage = opts.error instanceof Error ? opts.error.message : String(opts.error);
 
   const isRateLimited = opts.error instanceof ShapesRateLimitError;
+  const isServerError = opts.error instanceof ShapesServerError;
+  const isRetryable = isRateLimited || isServerError;
+
   logger.error(
     {
       err: opts.error,
@@ -192,17 +196,18 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
       isAuthError: opts.error instanceof ShapesAuthError,
       isNotFound: opts.error instanceof ShapesNotFoundError,
       isRateLimited,
+      isServerError,
     },
-    isRateLimited
-      ? '[ShapesExportJob] Rate limited by shapes.inc — BullMQ will retry'
+    isRetryable
+      ? '[ShapesExportJob] Retryable error — BullMQ will retry'
       : '[ShapesExportJob] Export failed'
   );
 
-  // Re-throw rate-limit errors for BullMQ retry if attempts remain.
+  // Re-throw retryable errors (rate-limit, 5xx) for BullMQ retry if attempts remain.
   // On the final attempt, fall through to mark the DB record as 'failed'
   // so users don't see a permanently stuck 'in_progress' status.
   const maxAttempts = opts.job.opts.attempts ?? 1;
-  if (isRateLimited && opts.job.attemptsMade < maxAttempts - 1) {
+  if (isRetryable && opts.job.attemptsMade < maxAttempts - 1) {
     throw opts.error;
   }
 

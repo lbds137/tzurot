@@ -188,6 +188,7 @@ export interface ShapesImportJobResult {
   personalitySlug?: string;
   memoriesImported: number;
   memoriesFailed: number;
+  memoriesSkipped?: number;
   importType: 'full' | 'memory_only';
   error?: string;
 }
