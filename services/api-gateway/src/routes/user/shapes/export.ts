@@ -200,7 +200,7 @@ function createExportHandler(
       format,
     };
 
-    const jobId = `${JOB_PREFIXES.SHAPES_EXPORT}${exportJobId}-${Date.now()}`;
+    const jobId = `${JOB_PREFIXES.SHAPES_EXPORT}${exportJobId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     await queue.add(JobType.ShapesExport, jobData, { jobId });
 
     logger.info(

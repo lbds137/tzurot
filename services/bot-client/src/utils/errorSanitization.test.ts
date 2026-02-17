@@ -24,9 +24,19 @@ describe('sanitizeErrorForDiscord', () => {
     );
   });
 
-  it('should sanitize generic connection errors', () => {
-    expect(sanitizeErrorForDiscord('Failed to connect to database')).toBe(
+  it('should sanitize connection failure errors', () => {
+    expect(sanitizeErrorForDiscord('connect failed: ECONNREFUSED')).toBe(
       'Service temporarily unavailable. Please try again in a moment.'
+    );
+    expect(sanitizeErrorForDiscord('Could not connect — connection refused')).toBe(
+      'Service temporarily unavailable. Please try again in a moment.'
+    );
+  });
+
+  it('should not false-positive on "connect" in benign context', () => {
+    expect(sanitizeErrorForDiscord('Could not disconnect')).toBe('Could not disconnect');
+    expect(sanitizeErrorForDiscord('Failed to connect to database')).toBe(
+      'Failed to connect to database'
     );
   });
 

@@ -51,18 +51,13 @@ const mockPrisma = {
     upsert: vi.fn().mockResolvedValue({ id: 'import-job-123' }),
     findMany: vi.fn().mockResolvedValue([]),
   },
-  $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-    const mockTx = {
-      user: {
-        create: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
-        update: vi.fn().mockResolvedValue({ id: 'user-uuid-123' }),
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
-      },
-      persona: { create: vi.fn().mockResolvedValue({ id: 'persona-uuid-123' }) },
-    };
-    await callback(mockTx);
-  }),
+  // Transaction delegates to the same mocks so test setups
+  // (e.g., mockResolvedValueOnce) work inside transactions too
+  $transaction: vi
+    .fn()
+    .mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
+      callback(mockPrisma)
+    ),
 };
 
 // Mock Queue
@@ -189,6 +184,30 @@ describe('Shapes Import Routes', () => {
       });
 
       expect(res.status).toHaveBeenCalledWith(400);
+    });
+
+    it('should reject memory_only import when personality not owned by user', async () => {
+      mockPrisma.personality.findFirst.mockResolvedValueOnce(null);
+
+      const { res } = await callImportHandler({
+        sourceSlug: 'test-shape',
+        importType: 'memory_only',
+        existingPersonalityId: 'someone-elses-personality',
+      });
+
+      expect(res.status).toHaveBeenCalledWith(404);
+    });
+
+    it('should return 409 on Prisma P2002 unique constraint error', async () => {
+      // Return existing user so getOrCreateUser skips its own $transaction call
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'user-uuid-123' });
+
+      const p2002Error = Object.assign(new Error('Unique constraint'), { code: 'P2002' });
+      mockPrisma.$transaction.mockRejectedValueOnce(p2002Error);
+
+      const { res } = await callImportHandler({ sourceSlug: 'test-shape' });
+
+      expect(res.status).toHaveBeenCalledWith(409);
     });
   });
 

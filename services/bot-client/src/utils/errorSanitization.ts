@@ -13,7 +13,10 @@ export function sanitizeErrorForDiscord(error: string): string {
   if (error.includes('Unique constraint') || error.includes('P2002')) {
     return 'A duplicate request was detected. Please wait a moment and try again.';
   }
-  if (error.includes('connect') || error.includes('ECONNREFUSED')) {
+  if (
+    error.includes('ECONNREFUSED') ||
+    /\bconnect\b.*\b(?:refused|failed|timeout)\b/i.test(error)
+  ) {
     return 'Service temporarily unavailable. Please try again in a moment.';
   }
   // Avoid leaking internal details — only pass through short, non-technical messages
