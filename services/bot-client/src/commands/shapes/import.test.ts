@@ -124,7 +124,7 @@ describe('handleImport', () => {
     expect(buttons[1].data.custom_id).toBe('shapes::import-cancel');
   });
 
-  it('should encode slug and import type in confirm button custom ID', async () => {
+  it('should encode import type in custom ID and slug in embed footer', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: true,
       data: { hasCredentials: true, service: 'shapes_inc' },
@@ -135,8 +135,12 @@ describe('handleImport', () => {
 
     const replyArgs = mockEditReply.mock.calls[0][0];
     const confirmButton = replyArgs.components[0].components[0];
-    // Should be shapes::import-confirm::test-character::full
-    expect(confirmButton.data.custom_id).toBe('shapes::import-confirm::test-character::full');
+    // Slug is NOT in custom ID — it's in the embed footer to avoid 100-char limit
+    expect(confirmButton.data.custom_id).toBe('shapes::import-confirm::full');
+
+    // Slug is stored in the embed footer for extraction at click time
+    const embed = replyArgs.embeds[0];
+    expect(embed.data.footer.text).toBe('slug:test-character');
   });
 
   it('should normalize slug to lowercase', async () => {

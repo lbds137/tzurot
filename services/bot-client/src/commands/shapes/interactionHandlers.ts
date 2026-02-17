@@ -208,14 +208,18 @@ async function showShapeActionHint(
   });
 }
 
-/** Parse import state from custom ID and start the import */
+/** Parse import state from custom ID + embed and start the import */
 async function handleImportConfirm(
   interaction: ButtonInteraction,
   parsed: NonNullable<ReturnType<typeof ShapesCustomIds.parse>>
 ): Promise<void> {
   const userId = interaction.user.id;
-  const slug = parsed.slug;
   const importType = parsed.importType as 'full' | 'memory_only' | undefined;
+
+  // Slug is stored in the embed footer (not the custom ID) to avoid
+  // Discord's 100-char custom ID limit with long slugs
+  const footerText = interaction.message.embeds[0]?.footer?.text ?? '';
+  const slug = footerText.startsWith('slug:') ? footerText.slice(5) : undefined;
 
   if (slug === undefined || importType === undefined) {
     logger.warn({ customId: interaction.customId }, '[Shapes] Import confirm missing state');

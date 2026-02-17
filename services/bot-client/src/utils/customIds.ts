@@ -546,18 +546,15 @@ export const ShapesCustomIds = {
 
   // --- Import confirmation ---
   /**
-   * Confirm import button — encodes slug + import type in customId
-   * Format: shapes::import-confirm::slug::importType[::personalityId]
-   *
-   * Discord custom ID limit is 100 chars. With memory_only + UUID the
-   * overhead is ~75 chars, leaving ~25 chars for the slug. Shapes.inc
-   * slugs are short in practice but this should be guarded if slugs
-   * from other services are ever supported.
+   * Confirm import button — encodes import type and optional personalityId.
+   * The slug is NOT in the custom ID — it's extracted from the embed footer
+   * at click time, avoiding Discord's 100-char custom ID limit.
+   * Format: shapes::import-confirm::importType[::personalityId]
    */
-  importConfirm: (slug: string, importType: string, personalityId?: string) =>
+  importConfirm: (importType: string, personalityId?: string) =>
     personalityId !== undefined
-      ? (`shapes::import-confirm::${slug}::${importType}::${personalityId}` as const)
-      : (`shapes::import-confirm::${slug}::${importType}` as const),
+      ? (`shapes::import-confirm::${importType}::${personalityId}` as const)
+      : (`shapes::import-confirm::${importType}` as const),
   /** Cancel import */
   importCancel: () => 'shapes::import-cancel' as const,
 
@@ -588,11 +585,11 @@ export const ShapesCustomIds = {
       return result;
     }
 
-    // Import confirm: shapes::import-confirm::slug::importType[::personalityId]
+    // Import confirm: shapes::import-confirm::importType[::personalityId]
+    // Slug is extracted from embed footer at click time, not encoded here
     if (action === 'import-confirm') {
-      result.slug = parts[2];
-      result.importType = parts[3];
-      result.personalityId = parts[4];
+      result.importType = parts[2];
+      result.personalityId = parts[3];
       return result;
     }
 
