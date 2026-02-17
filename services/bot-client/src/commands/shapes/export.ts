@@ -15,8 +15,8 @@ const logger = createLogger('shapes-export');
 /** Discord file size limit (8MB) */
 const DISCORD_FILE_LIMIT = 8 * 1024 * 1024;
 
-/** Extended timeout for export — fetching all memories can be slow */
-const EXPORT_TIMEOUT = 120_000;
+/** Extended timeout for export — gateway paginates memories at 1s/page, can take minutes */
+const EXPORT_TIMEOUT = 300_000;
 
 interface ShapesMemory {
   result: string;
@@ -107,7 +107,7 @@ function formatMemoriesSection(memories: ShapesMemory[]): string[] {
   for (const memory of memories) {
     const date = new Date(memory.metadata.created_at * 1000).toISOString().split('T')[0];
     const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
-    lines.push(`- **${date}**${senders}: ${memory.result}`);
+    lines.push(`- **${date}**${senders}: ${memory.result.trim()}`);
   }
   lines.push('');
   return lines;
