@@ -106,11 +106,23 @@ const HARMONY_TOKEN_PATTERN = /<\|(?:start|end|channel|separator|im_start|im_end
 /** Minimum content length to extract from orphan closing tags */
 const MIN_ORPHAN_CONTENT_LENGTH = 20;
 
+/** Opening tag pattern for stripping bare tags without capturing content */
+const OPENING_TAG_PATTERN =
+  /<(think|thinking|ant_thinking|reasoning|thought|reflection|scratchpad)>/gi;
+
 /**
  * Extract content from unclosed thinking tags (model truncation fallback).
- * @returns Extracted content and cleaned visible content, or null if no match
+ *
+ * When the unclosed tag would consume the entire response (no visible content
+ * remains after extraction), this is likely a model glitch (e.g. GLM 4.5 Air
+ * forgetting to close the tag) rather than genuine truncated reasoning. In that
+ * case, we strip the opening tag and keep all content visible.
+ *
+ * @returns Object with extracted thinking and remaining visible, or null if no match
  */
-function extractUnclosedTag(visibleContent: string): { content: string; cleaned: string } | null {
+function extractUnclosedTag(
+  visibleContent: string
+): { thinkingContent: string; visibleContent: string } | null {
   UNCLOSED_TAG_PATTERN.lastIndex = 0;
   const match = UNCLOSED_TAG_PATTERN.exec(visibleContent);
   if (match === null) {
@@ -130,7 +142,21 @@ function extractUnclosedTag(visibleContent: string): { content: string; cleaned:
 
   UNCLOSED_TAG_PATTERN.lastIndex = 0;
   const cleaned = visibleContent.replace(UNCLOSED_TAG_PATTERN, '');
-  return { content, cleaned };
+
+  // If extraction would leave visible content empty, this is likely a model glitch
+  // (e.g. GLM 4.5 Air). Strip the opening tag instead and keep content visible.
+  if (cleaned.trim().length === 0) {
+    logger.warn(
+      { contentLength: content.length },
+      '[ThinkingExtraction] Unclosed tag would consume entire response — keeping content visible'
+    );
+    return {
+      thinkingContent: '',
+      visibleContent: visibleContent.replace(OPENING_TAG_PATTERN, '').trim(),
+    };
+  }
+
+  return { thinkingContent: content, visibleContent: cleaned };
 }
 
 /**
@@ -195,6 +221,30 @@ function extractFromReasoningDetail(detail: ReasoningDetail): string | null {
 }
 
 /**
+ * Try fallback extraction methods when no complete thinking tags were found.
+ * Attempts unclosed tags first, then orphan closing tags.
+ */
+function tryFallbackExtraction(thinkingParts: string[], visibleContent: string): string {
+  // Try unclosed tags (e.g. model truncation or GLM 4.5 Air glitch)
+  const unclosed = extractUnclosedTag(visibleContent);
+  if (unclosed !== null) {
+    if (unclosed.thinkingContent.length > 0) {
+      thinkingParts.push(unclosed.thinkingContent);
+    }
+    return unclosed.visibleContent;
+  }
+
+  // Try orphan closing tags (no opening tag, e.g. Kimi K2.5)
+  const orphan = extractOrphanClosingTag(visibleContent);
+  if (orphan !== null) {
+    thinkingParts.push(orphan.content);
+    return orphan.cleaned;
+  }
+
+  return visibleContent;
+}
+
+/**
  * Extract thinking blocks from AI response content.
  *
  * Models like DeepSeek R1, Qwen QwQ, GLM-4.x, and Claude with prompted thinking
@@ -236,22 +286,9 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
     visibleContent = visibleContent.replace(pattern, '');
   }
 
-  // Handle unclosed tags as fallback (only if no complete tags found)
+  // Fallback extraction (only if no complete tags found)
   if (thinkingParts.length === 0) {
-    const unclosed = extractUnclosedTag(visibleContent);
-    if (unclosed !== null) {
-      thinkingParts.push(unclosed.content);
-      visibleContent = unclosed.cleaned;
-    }
-  }
-
-  // Handle orphan closing tags as fallback (only if still no content found)
-  if (thinkingParts.length === 0) {
-    const orphan = extractOrphanClosingTag(visibleContent);
-    if (orphan !== null) {
-      thinkingParts.push(orphan.content);
-      visibleContent = orphan.cleaned;
-    }
+    visibleContent = tryFallbackExtraction(thinkingParts, visibleContent);
   }
 
   // Clean up visible content (chimera artifacts, orphan tags, whitespace)
