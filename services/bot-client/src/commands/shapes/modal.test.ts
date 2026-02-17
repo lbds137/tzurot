@@ -80,25 +80,17 @@ describe('handleShapesModalSubmit', () => {
   });
 
   describe('Cookie validation', () => {
-    it('should reject empty cookie part 0', async () => {
-      const interaction = createMockInteraction('shapes::auth', '   ', 'valid-part');
+    it('should reject empty cookie value', async () => {
+      const interaction = createMockInteraction('shapes::auth', '   ', '');
       await handleShapesModalSubmit(interaction);
 
       expect(mockDeferReply).toHaveBeenCalled();
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Both cookie parts'));
-    });
-
-    it('should reject empty cookie part 1', async () => {
-      const interaction = createMockInteraction('shapes::auth', 'valid-part', '  ');
-      await handleShapesModalSubmit(interaction);
-
-      expect(mockDeferReply).toHaveBeenCalled();
-      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('Both cookie parts'));
+      expect(mockEditReply).toHaveBeenCalledWith(expect.stringContaining('required'));
     });
   });
 
   describe('Gateway API interaction', () => {
-    it('should send combined cookie to gateway', async () => {
+    it('should send chunked cookie to gateway when both parts provided', async () => {
       mockCallGatewayApi.mockResolvedValue({ ok: true, data: { success: true } });
 
       const interaction = createMockInteraction('shapes::auth', 'part0-value', 'part1-value');
@@ -111,6 +103,22 @@ describe('handleShapesModalSubmit', () => {
           userId: '123456789',
           body: {
             sessionCookie: 'appSession.0=part0-value; appSession.1=part1-value',
+          },
+        })
+      );
+    });
+
+    it('should send single cookie to gateway when only first part provided', async () => {
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { success: true } });
+
+      const interaction = createMockInteraction('shapes::auth', 'single-cookie-value', '');
+      await handleShapesModalSubmit(interaction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/shapes/auth',
+        expect.objectContaining({
+          body: {
+            sessionCookie: 'appSession=single-cookie-value',
           },
         })
       );

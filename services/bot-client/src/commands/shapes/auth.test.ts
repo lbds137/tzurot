@@ -91,15 +91,19 @@ describe('handleAuth', () => {
     expect(part1.data.style).toBe(TextInputStyle.Paragraph);
   });
 
-  it('should require both inputs with min/max length', async () => {
+  it('should require first input and make second optional', async () => {
     const context = createMockContext();
     await handleAuth(context);
 
     const modal = mockShowModal.mock.calls[0][0];
     const part0 = modal.components[0].components[0];
+    const part1 = modal.components[1].components[0];
 
     expect(part0.data.required).toBe(true);
     expect(part0.data.min_length).toBe(10);
     expect(part0.data.max_length).toBe(4000);
+
+    expect(part1.data.required).toBe(false);
+    expect(part1.data.max_length).toBe(4000);
   });
 });

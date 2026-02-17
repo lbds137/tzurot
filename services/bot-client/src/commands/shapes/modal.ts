@@ -51,13 +51,16 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
   const cookiePart0 = interaction.fields.getTextInputValue('cookiePart0').trim();
   const cookiePart1 = interaction.fields.getTextInputValue('cookiePart1').trim();
 
-  if (cookiePart0.length === 0 || cookiePart1.length === 0) {
-    await interaction.editReply('❌ Both cookie parts are required.');
+  if (cookiePart0.length === 0) {
+    await interaction.editReply('❌ Cookie value is required.');
     return;
   }
 
-  // Combine into the full cookie string
-  const sessionCookie = `appSession.0=${cookiePart0}; appSession.1=${cookiePart1}`;
+  // Build cookie string based on whether user has one or two cookies
+  const sessionCookie =
+    cookiePart1.length > 0
+      ? `appSession.0=${cookiePart0}; appSession.1=${cookiePart1}`
+      : `appSession=${cookiePart0}`;
 
   try {
     const result = await callGatewayApi<{ success: boolean }>('/user/shapes/auth', {
