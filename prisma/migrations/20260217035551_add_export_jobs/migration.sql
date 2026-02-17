@@ -41,6 +41,9 @@ CREATE INDEX "export_jobs_status_idx" ON "export_jobs"("status");
 CREATE INDEX "export_jobs_expires_at_idx" ON "export_jobs"("expires_at");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "export_jobs_user_id_source_slug_source_service_key" ON "export_jobs"("user_id", "source_slug", "source_service");
+
+-- CreateIndex
 -- REMOVED: CREATE INDEX "memories_chunk_group_id_idx" ON "memories"("chunk_group_id");
 
 -- AddForeignKey
