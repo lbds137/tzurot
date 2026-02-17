@@ -118,31 +118,29 @@ describe('Shapes Export Routes', () => {
       };
 
       // Mock fetch for config, memories (1 page), stories, user personalization
-      const mockFetch = vi
-        .fn()
-        // Config
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue(shapeConfig),
-        })
-        // Memories page 1 (no more pages)
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue({
-            data: [],
-            pagination: { has_next: false, page: 1 },
-          }),
-        })
-        // Stories
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue([]),
-        })
-        // User personalization
-        .mockResolvedValueOnce({
-          ok: true,
-          json: vi.fn().mockResolvedValue(null),
-        });
+      // Each mock needs a `url` property matching the request URL (redirect detection)
+      let callIndex = -1;
+      const mockFetch = vi.fn().mockImplementation((url: string) => {
+        callIndex++;
+        const responses = [
+          // Config
+          { ok: true, url, json: vi.fn().mockResolvedValue(shapeConfig) },
+          // Memories page 1 (no more pages)
+          {
+            ok: true,
+            url,
+            json: vi.fn().mockResolvedValue({
+              data: [],
+              pagination: { has_next: false, page: 1 },
+            }),
+          },
+          // Stories
+          { ok: true, url, json: vi.fn().mockResolvedValue([]) },
+          // User personalization
+          { ok: true, url, json: vi.fn().mockResolvedValue(null) },
+        ];
+        return Promise.resolve(responses[callIndex] ?? responses[0]);
+      });
 
       vi.stubGlobal('fetch', mockFetch);
 

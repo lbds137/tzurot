@@ -58,8 +58,14 @@ async function shapesApiFetch<T>(url: string, ctx: FetchContext): Promise<T> {
     signal: ctx.signal,
   });
 
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
+  // Detect redirect to login page (shapes.inc may redirect instead of returning 401)
+  const wasRedirected = response.url !== url;
+
+  if (!response.ok || wasRedirected) {
+    if (wasRedirected) {
+      logger.warn({ requestedUrl: url, finalUrl: response.url }, '[Shapes] Request was redirected');
+    }
+    if (response.status === 401 || response.status === 403 || wasRedirected) {
       throw new ShapesExportAuthError('Session cookie expired');
     }
     if (response.status === 404) {
@@ -111,13 +117,30 @@ async function fetchAllMemories(shapeId: string, ctx: FetchContext): Promise<Sha
       await delay();
     }
 
-    const result = await shapesApiFetch<MemoryPage>(
+    const result = await shapesApiFetch<MemoryPage | ShapesIncMemory[]>(
       `${SHAPES_BASE_URL}/api/memory/${encodeURIComponent(shapeId)}?page=${String(page)}&limit=${String(MEMORIES_PER_PAGE)}`,
       ctx
     );
 
-    allMemories.push(...result.data);
-    hasNext = result.pagination.has_next;
+    // Handle both paginated response { data, pagination } and plain array response
+    if (Array.isArray(result)) {
+      logger.debug(
+        { shapeId, page, count: result.length },
+        '[Shapes] Memory endpoint returned array'
+      );
+      allMemories.push(...result);
+      hasNext = false; // No pagination info — assume single page
+    } else if (result !== null && typeof result === 'object' && Array.isArray(result.data)) {
+      allMemories.push(...result.data);
+      hasNext = result.pagination?.has_next === true;
+    } else {
+      logger.warn(
+        { shapeId, page, responseKeys: Object.keys(result as object) },
+        '[Shapes] Unexpected memory response shape — skipping'
+      );
+      hasNext = false;
+    }
+
     page++;
   }
 
