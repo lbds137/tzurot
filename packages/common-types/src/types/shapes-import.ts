@@ -5,6 +5,8 @@
  * Used by bot-client (command handlers), api-gateway (job creation), and ai-worker (import processing).
  */
 
+import { z } from 'zod';
+
 // ============================================================================
 // Shapes.inc API Response Types
 // ============================================================================
@@ -117,8 +119,6 @@ export interface ShapesIncUserProfile {
 // ============================================================================
 // Import Job Types (BullMQ payloads)
 // ============================================================================
-
-import { z } from 'zod';
 
 const importTypeEnum = z.enum(['full', 'memory_only']);
 
