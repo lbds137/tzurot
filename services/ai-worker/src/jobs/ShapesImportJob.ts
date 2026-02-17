@@ -48,6 +48,9 @@ const IMPORT_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
 /** Update progress in DB every N memories */
 const PROGRESS_UPDATE_INTERVAL = 25;
 
+/** Max memories to query for content-based deduplication */
+const DEDUP_QUERY_LIMIT = 10_000;
+
 interface ShapesImportJobDeps {
   prisma: PrismaClient;
   memoryAdapter: PgvectorMemoryAdapter;
@@ -307,7 +310,7 @@ async function importMemories(
   const existingMemories = await prisma.memory.findMany({
     where: { personalityId },
     select: { content: true },
-    take: 10_000,
+    take: DEDUP_QUERY_LIMIT,
   });
   const existingContentSet = new Set(existingMemories.map(m => m.content));
 
@@ -317,7 +320,7 @@ async function importMemories(
       '[ShapesImportJob] Found existing memories — will deduplicate by content'
     );
   }
-  if (existingMemories.length === 10_000) {
+  if (existingMemories.length === DEDUP_QUERY_LIMIT) {
     logger.warn(
       { personalityId },
       '[ShapesImportJob] Hit 10k memory dedup limit — duplicates beyond this threshold may not be detected'
