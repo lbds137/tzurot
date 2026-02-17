@@ -680,6 +680,9 @@ model ExportJob {
   exportMetadata Json?     @map("export_metadata")
   user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Deterministic UUID (from userId+slug+service) already prevents duplicates,
+  // but the unique constraint makes the intent explicit at the DB level.
+  @@unique([userId, sourceSlug, sourceService])
   @@index([userId])
   @@index([status])
   @@index([expiresAt])
