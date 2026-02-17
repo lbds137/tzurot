@@ -537,9 +537,14 @@ export const ShapesCustomIds = {
   listInfo: () => 'shapes::list-info' as const,
 
   // --- Action buttons (after selecting a shape) ---
-  /** Import button for a specific shape */
+  /**
+   * Import button for a specific shape.
+   * Slug is embedded in the custom ID here (not the footer) because these are
+   * intermediate action buttons, not the final confirmation. Slugs are shapes.inc
+   * usernames, typically short (≤30 chars), well within the 100-char limit.
+   */
   actionImport: (slug: string) => `shapes::action-import::${slug}` as const,
-  /** Export button for a specific shape */
+  /** Export button — same slug constraints as actionImport */
   actionExport: (slug: string) => `shapes::action-export::${slug}` as const,
   /** Back to list button */
   actionBack: () => 'shapes::action-back' as const,
