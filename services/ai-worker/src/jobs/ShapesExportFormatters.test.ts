@@ -107,10 +107,20 @@ describe('ShapesExportFormatters', () => {
       expect(result).toContain('They discussed important topics.');
     });
 
-    it('should include stories section', () => {
-      const result = formatExportAsMarkdown(basePayload);
+    it('should include stories section with title when available', () => {
+      const payloadWithTitle = {
+        ...basePayload,
+        stories: [{ ...basePayload.stories[0], title: 'My Story Title' }],
+      };
+      const result = formatExportAsMarkdown(payloadWithTitle);
       expect(result).toContain('## Knowledge Base');
+      expect(result).toContain('### My Story Title');
       expect(result).toContain('Once upon a time...');
+    });
+
+    it('should fall back to story_type when title is missing', () => {
+      const result = formatExportAsMarkdown(basePayload);
+      expect(result).toContain('### (general)');
     });
 
     it('should include stats footer', () => {
