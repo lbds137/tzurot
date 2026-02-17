@@ -46,10 +46,11 @@ interface CreateOrConflictResult {
  * Without a transaction, two concurrent requests can both pass findFirst
  * and the second upsert silently resets the first job's status.
  *
- * Note: The UUID is deterministic on (userId, slug, service), so re-exports
- * for the same shape upsert the same row — this replaces any previous
- * completed/failed export, invalidating its download URL immediately.
- * Only active (pending/in_progress) exports trigger a 409 conflict.
+ * Note: The UUID is deterministic on (userId, slug, service, format), so
+ * re-exports for the same shape+format upsert the same row — this replaces
+ * any previous completed/failed export, invalidating its download URL.
+ * Only active (pending/in_progress) exports of the same format trigger a 409.
+ * Different formats (json vs markdown) get distinct UUIDs and can run concurrently.
  */
 async function createExportJobOrConflict(
   prisma: PrismaClient,
@@ -58,7 +59,12 @@ async function createExportJobOrConflict(
   format: string,
   expiresAt: Date
 ): Promise<CreateOrConflictResult> {
-  const exportJobId = generateExportJobUuid(userId, normalizedSlug, IMPORT_SOURCES.SHAPES_INC);
+  const exportJobId = generateExportJobUuid(
+    userId,
+    normalizedSlug,
+    IMPORT_SOURCES.SHAPES_INC,
+    format
+  );
 
   const conflictStatus = await prisma.$transaction(async tx => {
     const existingJob = await tx.exportJob.findFirst({
@@ -66,6 +72,7 @@ async function createExportJobOrConflict(
         userId,
         sourceSlug: normalizedSlug,
         sourceService: IMPORT_SOURCES.SHAPES_INC,
+        format,
         status: { in: ['pending', 'in_progress'] },
       },
     });

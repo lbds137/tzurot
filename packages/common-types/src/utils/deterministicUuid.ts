@@ -235,17 +235,19 @@ export function generateImportJobUuid(
 
 /**
  * Generate deterministic UUID for ExportJob
- * Seed: export_job:{userId}:{sourceSlug}:{sourceService}
+ * Seed: export_job:{userId}:{sourceSlug}:{sourceService}:{format}
  *
- * Export jobs are unique per user+source slug+service combination.
- * Re-exports for the same shape overwrite the previous ExportJob record.
+ * Export jobs are unique per user+source slug+service+format combination.
+ * Re-exports for the same shape AND format overwrite the previous ExportJob record.
+ * Different formats (json vs markdown) get distinct UUIDs and can run concurrently.
  */
 export function generateExportJobUuid(
   userId: string,
   sourceSlug: string,
-  sourceService: string
+  sourceService: string,
+  format: string
 ): string {
-  return uuidv5(`export_job:${userId}:${sourceSlug}:${sourceService}`, TZUROT_NAMESPACE);
+  return uuidv5(`export_job:${userId}:${sourceSlug}:${sourceService}:${format}`, TZUROT_NAMESPACE);
 }
 
 /**
