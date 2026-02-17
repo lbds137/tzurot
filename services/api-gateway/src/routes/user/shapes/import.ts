@@ -38,6 +38,68 @@ async function verifyPersonalityOwnership(
   return personality !== null;
 }
 
+interface CreateOrConflictResult {
+  importJobId: string;
+  conflictStatus: string | null;
+}
+
+/**
+ * Atomically check for conflicts and create/reset the import job.
+ * Without a transaction, two concurrent requests can both pass findFirst
+ * and the second upsert silently resets the first job's status.
+ */
+async function createImportJobOrConflict(
+  prisma: PrismaClient,
+  userId: string,
+  normalizedSlug: string,
+  validImportType: string
+): Promise<CreateOrConflictResult> {
+  const importJobId = generateImportJobUuid(userId, normalizedSlug, IMPORT_SOURCES.SHAPES_INC);
+
+  const conflictStatus = await prisma.$transaction(async tx => {
+    const existingJob = await tx.importJob.findFirst({
+      where: {
+        userId,
+        sourceSlug: normalizedSlug,
+        sourceService: IMPORT_SOURCES.SHAPES_INC,
+        status: { in: ['pending', 'in_progress'] },
+      },
+    });
+
+    if (existingJob !== null) {
+      return existingJob.status;
+    }
+
+    await tx.importJob.upsert({
+      where: { id: importJobId },
+      create: {
+        id: importJobId,
+        userId,
+        sourceSlug: normalizedSlug,
+        sourceService: IMPORT_SOURCES.SHAPES_INC,
+        status: 'pending',
+        importType: validImportType,
+      },
+      update: {
+        status: 'pending',
+        errorMessage: null,
+        memoriesImported: null,
+        memoriesFailed: null,
+        startedAt: null,
+        completedAt: null,
+      },
+    });
+
+    return null;
+  });
+
+  return { importJobId, conflictStatus };
+}
+
+function isPrismaUniqueConstraintError(error: unknown): error is { code: string } {
+  return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
+}
+
 function createImportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
@@ -81,47 +143,42 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       }
     }
 
-    // Check for existing pending/in_progress import
-    const existingJob = await prisma.importJob.findFirst({
-      where: {
+    // Atomically check for conflicts and create the import job
+    let importJobId: string;
+    let conflictStatus: string | null;
+    try {
+      ({ importJobId, conflictStatus } = await createImportJobOrConflict(
+        prisma,
         userId,
-        sourceSlug: normalizedSlug,
-        sourceService: IMPORT_SOURCES.SHAPES_INC,
-        status: { in: ['pending', 'in_progress'] },
-      },
-    });
+        normalizedSlug,
+        validImportType
+      ));
+    } catch (error: unknown) {
+      // Defense-in-depth: catch Prisma P2002 (unique constraint violation)
+      // in case concurrent requests race past the transaction
+      if (isPrismaUniqueConstraintError(error)) {
+        logger.warn(
+          { discordUserId, sourceSlug: normalizedSlug },
+          '[Shapes] P2002 unique constraint — treating as conflict'
+        );
+        return sendError(
+          res,
+          ErrorResponses.conflict(
+            `An import for '${normalizedSlug}' is already in progress. Wait for it to complete.`
+          )
+        );
+      }
+      throw error;
+    }
 
-    if (existingJob !== null) {
+    if (conflictStatus !== null) {
       return sendError(
         res,
         ErrorResponses.conflict(
-          `An import for '${normalizedSlug}' is already ${existingJob.status}. Wait for it to complete.`
+          `An import for '${normalizedSlug}' is already ${conflictStatus}. Wait for it to complete.`
         )
       );
     }
-
-    // Create ImportJob record
-    const importJobId = generateImportJobUuid(userId, normalizedSlug, IMPORT_SOURCES.SHAPES_INC);
-
-    await prisma.importJob.upsert({
-      where: { id: importJobId },
-      create: {
-        id: importJobId,
-        userId,
-        sourceSlug: normalizedSlug,
-        sourceService: IMPORT_SOURCES.SHAPES_INC,
-        status: 'pending',
-        importType: validImportType,
-      },
-      update: {
-        status: 'pending',
-        errorMessage: null,
-        memoriesImported: null,
-        memoriesFailed: null,
-        startedAt: null,
-        completedAt: null,
-      },
-    });
 
     // Enqueue BullMQ job
     const jobData: ShapesImportJobData = {
@@ -133,7 +190,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       existingPersonalityId,
     };
 
-    const jobId = `${JOB_PREFIXES.SHAPES_IMPORT}${importJobId}-${Date.now()}`;
+    const jobId = `${JOB_PREFIXES.SHAPES_IMPORT}${importJobId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     await queue.add(JobType.ShapesImport, jobData, { jobId });
 
     logger.info(
