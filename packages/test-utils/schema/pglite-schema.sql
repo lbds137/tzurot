@@ -686,6 +686,9 @@ CREATE INDEX "export_jobs_status_idx" ON "export_jobs"("status");
 -- CreateIndex
 CREATE INDEX "export_jobs_expires_at_idx" ON "export_jobs"("expires_at");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "export_jobs_user_id_source_slug_source_service_key" ON "export_jobs"("user_id", "source_slug", "source_service");
+
 -- AddForeignKey
 ALTER TABLE "users" ADD CONSTRAINT "users_default_llm_config_id_fkey" FOREIGN KEY ("default_llm_config_id") REFERENCES "llm_configs"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
