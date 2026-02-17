@@ -266,6 +266,10 @@ interface ParsedBirthday {
  * - "MM-DD" → month + day, no year
  * - "YYYY-MM-DD" → month + day + year
  * Returns all nulls on parse failure (raw string kept in customFields as fallback).
+ *
+ * Note: Feb 29 is accepted even without a year, since we can't validate leap years
+ * when only MM-DD is provided. The raw string is always preserved in customFields
+ * for downstream consumers that need stricter validation.
  */
 /** Max days per month (index 0 = January). Uses 29 for Feb to allow leap years. */
 const MAX_DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
