@@ -42,4 +42,4 @@ export const WORKER_INIT_TIMEOUT_MS = 60_000;
  * The HuggingFace model name for BGE-small-en-v1.5.
  * Quantized version (~30MB) for efficient inference.
  */
-export const EMBEDDING_MODEL_NAME = 'Xenova/bge-small-en-v1.5';
+export const EMBEDDING_MODEL_NAME = 'Xenova/bge-small-en-v1.5' as const;
