@@ -28,6 +28,11 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
   const parsed = ShapesCustomIds.parse(interaction.customId);
   if (parsed === null) {
     logger.warn({ customId: interaction.customId }, '[Shapes] Unparseable button customId');
+    await interaction.update({
+      content: '❌ Something went wrong. Please try again.',
+      embeds: [],
+      components: [],
+    });
     return;
   }
 
@@ -40,9 +45,9 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
       return;
     }
 
-    // --- Back to list ---
+    // --- Back to list (always page 0) ---
     if (action === 'action-back') {
-      await handleListPagination(interaction, 0, false);
+      await handleListPage(interaction, 0);
       return;
     }
 
@@ -85,6 +90,11 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
     }
 
     logger.warn({ customId: interaction.customId, action }, '[Shapes] Unknown button action');
+    await interaction.update({
+      content: '❌ Unknown action. Please try again.',
+      embeds: [],
+      components: [],
+    });
   } catch (error) {
     logger.error({ err: error, customId: interaction.customId }, '[Shapes] Button handler error');
   }
@@ -100,6 +110,11 @@ export async function handleShapesSelectMenu(
   const parsed = ShapesCustomIds.parse(interaction.customId);
   if (parsed === null) {
     logger.warn({ customId: interaction.customId }, '[Shapes] Unparseable select customId');
+    await interaction.update({
+      content: '❌ Something went wrong. Please try again.',
+      embeds: [],
+      components: [],
+    });
     return;
   }
 
@@ -114,6 +129,11 @@ export async function handleShapesSelectMenu(
       { customId: interaction.customId, action: parsed.action },
       '[Shapes] Unknown select menu action'
     );
+    await interaction.update({
+      content: '❌ Unknown action. Please try again.',
+      embeds: [],
+      components: [],
+    });
   } catch (error) {
     logger.error(
       { err: error, customId: interaction.customId },
@@ -126,11 +146,22 @@ export async function handleShapesSelectMenu(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Re-fetch shapes list and show the requested page */
+/** Handle prev/next pagination — computes target page from current + direction */
 async function handleListPagination(
   interaction: ButtonInteraction,
   currentPage: number,
   isPrev: boolean
+): Promise<void> {
+  // currentPage comes from the custom ID (set at render time) so it may be stale
+  // if the list changed. buildListPage clamps out-of-bounds pages safely.
+  const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
+  await handleListPage(interaction, targetPage);
+}
+
+/** Re-fetch shapes list and render the specified page */
+async function handleListPage(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
+  page: number
 ): Promise<void> {
   const userId = interaction.user.id;
   const result = await fetchShapesList(userId);
@@ -147,10 +178,7 @@ async function handleListPagination(
     return;
   }
 
-  // currentPage comes from the custom ID (set at render time) so it may be stale
-  // if the list changed. buildListPage clamps out-of-bounds pages safely.
-  const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
-  const { embed, components } = buildListPage(result.shapes, targetPage);
+  const { embed, components } = buildListPage(result.shapes, page);
 
   await interaction.update({
     embeds: [embed],
