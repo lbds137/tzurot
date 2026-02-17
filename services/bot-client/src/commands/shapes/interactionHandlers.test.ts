@@ -39,13 +39,16 @@ describe('handleShapesButton', () => {
     vi.resetAllMocks();
   });
 
-  function createMockButtonInteraction(customId: string): ButtonInteraction {
+  function createMockButtonInteraction(customId: string, embedFooter?: string): ButtonInteraction {
     return {
       customId,
       user: { id: '123456789' },
       update: mockUpdate,
       editReply: mockEditReply,
       showModal: mockShowModal,
+      message: {
+        embeds: embedFooter !== undefined ? [{ footer: { text: embedFooter } }] : [],
+      },
     } as unknown as ButtonInteraction;
   }
 
@@ -84,7 +87,11 @@ describe('handleShapesButton', () => {
         },
       });
 
-      const interaction = createMockButtonInteraction('shapes::import-confirm::test-slug::full');
+      // Slug is in the embed footer, not the custom ID
+      const interaction = createMockButtonInteraction(
+        'shapes::import-confirm::full',
+        'slug:test-slug'
+      );
       await handleShapesButton(interaction);
 
       // Should have called update (starting) then editReply (success)
@@ -110,7 +117,8 @@ describe('handleShapesButton', () => {
       });
 
       const interaction = createMockButtonInteraction(
-        'shapes::import-confirm::test-slug::memory_only::personality-uuid'
+        'shapes::import-confirm::memory_only::personality-uuid',
+        'slug:test-slug'
       );
       await handleShapesButton(interaction);
 
@@ -126,7 +134,8 @@ describe('handleShapesButton', () => {
     });
 
     it('should show error on import-confirm with missing state', async () => {
-      const interaction = createMockButtonInteraction('shapes::import-confirm');
+      // No embed footer = no slug
+      const interaction = createMockButtonInteraction('shapes::import-confirm::full');
       await handleShapesButton(interaction);
 
       expect(mockUpdate).toHaveBeenCalledWith(
