@@ -267,6 +267,13 @@ interface ParsedBirthday {
  * - "YYYY-MM-DD" → month + day + year
  * Returns all nulls on parse failure (raw string kept in customFields as fallback).
  */
+/** Max days per month (index 0 = January). Uses 29 for Feb to allow leap years. */
+const MAX_DAYS_IN_MONTH = [31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function isValidMonthDay(month: number, day: number): boolean {
+  return month >= 1 && month <= 12 && day >= 1 && day <= MAX_DAYS_IN_MONTH[month - 1];
+}
+
 export function parseBirthday(value: string): ParsedBirthday {
   const nullResult: ParsedBirthday = { month: null, day: null, year: null };
 
@@ -276,7 +283,7 @@ export function parseBirthday(value: string): ParsedBirthday {
     const year = parseInt(fullMatch[1], 10);
     const month = parseInt(fullMatch[2], 10);
     const day = parseInt(fullMatch[3], 10);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    if (isValidMonthDay(month, day)) {
       return { month, day, year };
     }
     return nullResult;
@@ -287,7 +294,7 @@ export function parseBirthday(value: string): ParsedBirthday {
   if (shortMatch !== null) {
     const month = parseInt(shortMatch[1], 10);
     const day = parseInt(shortMatch[2], 10);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    if (isValidMonthDay(month, day)) {
       return { month, day, year: null };
     }
     return nullResult;
