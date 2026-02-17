@@ -142,6 +142,8 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
     }
 
     // 2. Show confirmation embed with buttons
+    // Slug is stored in the embed footer so the confirm handler can extract
+    // it at click time — keeps it out of the custom ID (100-char limit).
     const isMemoryOnly = importType === 'memory_only';
     const confirmEmbed = new EmbedBuilder()
       .setColor(DISCORD_COLORS.BLURPLE)
@@ -161,10 +163,11 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
               '• Set up the LLM configuration\n\n' +
               'The import runs in the background and may take a few minutes for characters with many memories.'
       )
+      .setFooter({ text: `slug:${slug}` })
       .setTimestamp();
 
     const confirmButton = new ButtonBuilder()
-      .setCustomId(ShapesCustomIds.importConfirm(slug, importType, existingPersonalityId))
+      .setCustomId(ShapesCustomIds.importConfirm(importType, existingPersonalityId))
       .setLabel('Start Import')
       .setEmoji('📥')
       .setStyle(ButtonStyle.Primary);
