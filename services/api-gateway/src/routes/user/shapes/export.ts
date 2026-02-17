@@ -105,7 +105,12 @@ async function createExportJobOrConflict(
   return { exportJobId, conflictStatus };
 }
 
-function createExportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
+function createExportHandler(
+  prisma: PrismaClient,
+  queue: Queue,
+  userService: UserService,
+  baseUrl: string
+) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const { slug, format: formatRaw } = req.body as { slug?: string; format?: string };
@@ -175,10 +180,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       '[Shapes] Export job created'
     );
 
-    // Build download URL for completed exports
-    const envConfig = getConfig();
-    const baseUrl = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
-    const downloadUrl = `${baseUrl}/exports/${exportJobId}`;
+    const downloadUrl = `${baseUrl}/exports/${encodeURIComponent(exportJobId)}`;
 
     sendCustomSuccess(
       res,
@@ -195,7 +197,7 @@ function createExportHandler(prisma: PrismaClient, queue: Queue, userService: Us
   };
 }
 
-function createListExportJobsHandler(prisma: PrismaClient) {
+function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
 
@@ -208,9 +210,6 @@ function createListExportJobsHandler(prisma: PrismaClient) {
       sendCustomSuccess(res, { jobs: [] });
       return;
     }
-
-    const envConfig = getConfig();
-    const baseUrl = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
 
     const jobs = await prisma.exportJob.findMany({
       where: {
@@ -237,7 +236,8 @@ function createListExportJobsHandler(prisma: PrismaClient) {
     // Add download URLs to completed jobs
     const jobsWithUrls = jobs.map(job => ({
       ...job,
-      downloadUrl: job.status === 'completed' ? `${baseUrl}/exports/${job.id}` : null,
+      downloadUrl:
+        job.status === 'completed' ? `${baseUrl}/exports/${encodeURIComponent(job.id)}` : null,
     }));
 
     sendCustomSuccess(res, { jobs: jobsWithUrls });
@@ -247,13 +247,19 @@ function createListExportJobsHandler(prisma: PrismaClient) {
 export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {
   const router = Router();
   const userService = new UserService(prisma);
+  const envConfig = getConfig();
+  const baseUrl = envConfig.PUBLIC_GATEWAY_URL ?? envConfig.GATEWAY_URL ?? '';
 
   router.post(
     '/',
     requireUserAuth(),
-    asyncHandler(createExportHandler(prisma, queue, userService))
+    asyncHandler(createExportHandler(prisma, queue, userService, baseUrl))
   );
-  router.get('/jobs', requireUserAuth(), asyncHandler(createListExportJobsHandler(prisma)));
+  router.get(
+    '/jobs',
+    requireUserAuth(),
+    asyncHandler(createListExportJobsHandler(prisma, baseUrl))
+  );
 
   return router;
 }

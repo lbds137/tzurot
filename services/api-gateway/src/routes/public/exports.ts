@@ -43,16 +43,17 @@ export function createExportsRouter(prisma: PrismaClient): Router {
         return;
       }
 
+      // Check expiry first — an expired job is gone regardless of status
+      if (job.expiresAt < new Date()) {
+        res.status(StatusCodes.GONE).json({ error: 'Export has expired' });
+        return;
+      }
+
       if (job.status !== 'completed' || job.fileContent === null) {
         res.status(StatusCodes.NOT_FOUND).json({
           error: job.status === 'failed' ? 'Export failed' : 'Export not ready yet',
           status: job.status,
         });
-        return;
-      }
-
-      if (job.expiresAt < new Date()) {
-        res.status(StatusCodes.GONE).json({ error: 'Export has expired' });
         return;
       }
 
@@ -63,15 +64,15 @@ export function createExportsRouter(prisma: PrismaClient): Router {
       const fileName = job.fileName ?? `export.${job.format === 'markdown' ? 'md' : 'json'}`;
 
       res.setHeader('Content-Type', contentType);
-      // RFC 5987: filename* for UTF-8, filename for legacy browser fallback
+      // RFC 5987: filename* for UTF-8 percent-encoding,
+      // filename= fallback with ASCII-safe chars for legacy browsers
+      const safeName = fileName.replace(/[^\w\-.]/g, '_');
       const encodedName = encodeURIComponent(fileName);
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="${encodedName}"; filename*=UTF-8''${encodedName}`
+        `attachment; filename="${safeName}"; filename*=UTF-8''${encodedName}`
       );
-      if (job.fileSizeBytes !== null) {
-        res.setHeader('Content-Length', String(job.fileSizeBytes));
-      }
+      res.setHeader('Content-Length', String(Buffer.byteLength(job.fileContent, 'utf8')));
 
       res.status(StatusCodes.OK).send(job.fileContent);
 
