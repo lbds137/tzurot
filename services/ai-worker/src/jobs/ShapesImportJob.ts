@@ -301,26 +301,36 @@ async function importMemories(
 ): Promise<{ imported: number; failed: number; skipped: number }> {
   const { memoryAdapter, prisma, memories, personalityId, importJobId } = opts;
 
-  // Check for existing memories to prevent duplicates on re-import
-  const existingCount = await prisma.memory.count({
+  // Build set of existing memory content for content-based deduplication.
+  // This handles partial re-imports: if import fails at memory 50/200, retry
+  // only imports the remaining 150 instead of skipping all or duplicating.
+  const existingMemories = await prisma.memory.findMany({
     where: { personalityId },
+    select: { content: true },
+    take: 10_000,
   });
+  const existingContentSet = new Set(existingMemories.map(m => m.content));
 
-  if (existingCount > 0) {
+  if (existingContentSet.size > 0) {
     logger.info(
-      { personalityId, existingCount },
-      '[ShapesImportJob] Personality already has memories — skipping memory import to prevent duplicates'
+      { personalityId, existingCount: existingContentSet.size },
+      '[ShapesImportJob] Found existing memories — will deduplicate by content'
     );
-    return { imported: 0, failed: 0, skipped: memories.length };
   }
 
   let imported = 0;
   let failed = 0;
+  let skipped = 0;
   const total = memories.length;
 
   for (const memory of memories) {
     try {
       if (memory.text.trim().length === 0) {
+        continue;
+      }
+
+      if (existingContentSet.has(memory.text)) {
+        skipped++;
         continue;
       }
 
@@ -343,7 +353,7 @@ async function importMemories(
             memoriesImported: imported,
             memoriesFailed: failed,
             importMetadata: {
-              progress: { imported, failed, total },
+              progress: { imported, failed, skipped, total },
             } as Prisma.InputJsonValue,
           },
         });
@@ -354,5 +364,5 @@ async function importMemories(
     }
   }
 
-  return { imported, failed, skipped: 0 };
+  return { imported, failed, skipped };
 }
