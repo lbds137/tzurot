@@ -311,6 +311,9 @@ async function importMemories(
   // Build set of existing memory content for content-based deduplication.
   // This handles partial re-imports: if import fails at memory 50/200, retry
   // only imports the remaining 150 instead of skipping all or duplicating.
+  // Trade-off: fetch all content upfront (~1-2MB for 10k memories) for O(1) dedup
+  // vs. per-memory DB existence checks (slower, lower memory). Shapes.inc datasets
+  // fit comfortably in memory; most characters have <2k memories.
   const existingMemories = await prisma.memory.findMany({
     where: { personalityId },
     select: { content: true },
