@@ -13,7 +13,8 @@
 import { parentPort } from 'node:worker_threads';
 import { pipeline, env, type FeatureExtractionPipeline } from '@huggingface/transformers';
 
-import { LOCAL_EMBEDDING_DIMENSIONS, EMBEDDING_MODEL_NAME } from './constants.js';
+import { MODEL_DEFAULTS } from '@tzurot/common-types';
+import { LOCAL_EMBEDDING_DIMENSIONS } from './constants.js';
 import type { WorkerMessage, WorkerResponse } from './types.js';
 
 // Configure transformers.js for server-side use
@@ -59,7 +60,7 @@ async function getExtractor(): Promise<FeatureExtractionPipeline> {
   try {
     // Load the model with quantization for faster inference
     // bge-small-en-v1.5 is optimized for retrieval/semantic similarity
-    extractor = await pipeline('feature-extraction', EMBEDDING_MODEL_NAME, {
+    extractor = await pipeline('feature-extraction', MODEL_DEFAULTS.EMBEDDING, {
       dtype: 'q8', // 8-bit quantization for ~4x smaller model
     });
 

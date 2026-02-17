@@ -31,6 +31,11 @@ vi.mock('node:worker_threads', () => ({
   },
 }));
 
+// Mock common-types to provide MODEL_DEFAULTS.EMBEDDING
+vi.mock('@tzurot/common-types', () => ({
+  MODEL_DEFAULTS: { EMBEDDING: 'Xenova/bge-small-en-v1.5' },
+}));
+
 // Mock the HuggingFace pipeline
 const mockPipeline = vi.fn();
 vi.mock('@huggingface/transformers', () => ({
