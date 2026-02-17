@@ -371,6 +371,17 @@ Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint
 
 Goal: every quality check that currently warns should eventually block, with a clear baseline so new violations are caught immediately.
 
+#### 🏗️ Schema-Type Unification (Zod `z.infer`)
+
+Adopt `z.infer<typeof schema>` across all job types to eliminate manual interface/schema sync. Currently each job type has both a Zod schema and a hand-written TypeScript interface that must be kept in sync manually.
+
+- [ ] Replace `ShapesImportJobData` / `ShapesImportJobResult` interfaces with `z.infer<>` derivations
+- [ ] Do the same for `AudioTranscriptionJobData`, `ImageDescriptionJobData`, `LLMGenerationJobData`
+- [ ] Consider discriminated unions for success/failure result types (compile-time enforcement that `personalityId` is required on success, `error` is required on failure)
+- [ ] Audit all Zod schemas in common-types for interface/schema drift
+
+**Context**: PR #651 added Zod schemas for shapes import jobs and an enforcement test that catches missing schemas. This follow-up eliminates the remaining duplication.
+
 #### 🧹 Ops CLI Command Migration
 
 Migrate stub commands to proper TypeScript implementations.
