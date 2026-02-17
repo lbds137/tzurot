@@ -192,6 +192,9 @@ describe('handleShapesButton', () => {
       await handleShapesButton(interaction);
 
       expect(mockUpdate).toHaveBeenCalledTimes(1);
+      // Should show page 1 (0 + 1)
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.footer.text).toContain('Page 2 of 2');
     });
 
     it('should show auth error when session expired during pagination', async () => {

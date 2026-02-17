@@ -548,6 +548,11 @@ export const ShapesCustomIds = {
   /**
    * Confirm import button — encodes slug + import type in customId
    * Format: shapes::import-confirm::slug::importType[::personalityId]
+   *
+   * Discord custom ID limit is 100 chars. With memory_only + UUID the
+   * overhead is ~75 chars, leaving ~25 chars for the slug. Shapes.inc
+   * slugs are short in practice but this should be guarded if slugs
+   * from other services are ever supported.
    */
   importConfirm: (slug: string, importType: string, personalityId?: string) =>
     personalityId !== undefined

@@ -48,7 +48,7 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
 
     // --- Shape action buttons (import/export from selection) ---
     if (action === 'action-import' || action === 'action-export') {
-      await handleShapeAction(interaction, parsed.slug ?? '', action === 'action-import');
+      await showShapeActionHint(interaction, parsed.slug ?? '', action === 'action-import');
       return;
     }
 
@@ -139,7 +139,7 @@ async function handleListPagination(
     return;
   }
 
-  const targetPage = isPrev ? currentPage - 1 : currentPage;
+  const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
   const { embed, components } = buildListPage(result.shapes, targetPage);
 
   await interaction.update({
@@ -189,7 +189,7 @@ async function showShapeActions(
 }
 
 /** Show action hint for import/export buttons */
-async function handleShapeAction(
+async function showShapeActionHint(
   interaction: ButtonInteraction,
   slug: string,
   isImport: boolean
