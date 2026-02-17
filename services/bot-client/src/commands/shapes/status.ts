@@ -186,6 +186,11 @@ export async function handleStatus(context: DeferredCommandContext): Promise<voi
         name: `Export History (${exportJobsResult.data.jobs.length})`,
         value: jobLines.join('\n\n'),
       });
+    } else {
+      embed.addFields({
+        name: 'Export History',
+        value: 'No exports yet. Use `/shapes export <slug>` to get started.',
+      });
     }
 
     await context.editReply({ embeds: [embed] });

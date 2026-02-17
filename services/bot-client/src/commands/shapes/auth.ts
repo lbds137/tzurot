@@ -65,21 +65,24 @@ function buildAuthModal(): ModalBuilder {
  */
 export async function handleAuth(context: ModalCommandContext): Promise<void> {
   const userId = context.user.id;
+  const botName = context.interaction.client.user.username;
 
   const instructionEmbed = new EmbedBuilder()
     .setColor(DISCORD_COLORS.BLURPLE)
     .setTitle('Shapes.inc Authentication')
     .setDescription(
-      'To import characters from shapes.inc, Tzurot needs your session cookie.\n\n' +
+      `To import characters from shapes.inc, ${botName} needs your session cookie.\n\n` +
         '**How to get it:**\n' +
         '1. Log in to [shapes.inc](https://shapes.inc) in your browser\n' +
-        '2. Press **F12** (or Ctrl+Shift+I) to open Developer Tools\n' +
-        '3. Click the **Application** tab (Chrome) or **Storage** tab (Firefox)\n' +
-        '4. In the left sidebar, expand **Cookies** → click `https://shapes.inc`\n' +
-        '5. Find `appSession` (or `appSession.0` and `appSession.1`)\n' +
-        '6. Double-click each **Value** cell to select it, then copy\n\n' +
-        '*Your cookie is encrypted and stored securely. ' +
-        'Tzurot never sees your shapes.inc password.*'
+        '2. Navigate to [shapes.inc/dashboard](https://shapes.inc/dashboard) ' +
+        '(this avoids the chat UI which rotates your cookie frequently)\n' +
+        '3. Press **F12** (or Ctrl+Shift+I) to open Developer Tools\n' +
+        '4. Click the **Application** tab (Chrome) or **Storage** tab (Firefox)\n' +
+        '5. In the left sidebar, expand **Cookies** → click `https://shapes.inc`\n' +
+        '6. Find `appSession` (or `appSession.0` and `appSession.1`)\n' +
+        '7. Double-click each **Value** cell to select it, then copy\n\n' +
+        `*Your cookie is encrypted and stored securely. ` +
+        `${botName} never sees your shapes.inc password.*`
     );
 
   const continueButton = new ButtonBuilder()
