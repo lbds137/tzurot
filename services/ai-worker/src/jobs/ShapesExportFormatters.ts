@@ -117,7 +117,8 @@ function formatStoriesSection(stories: ShapesIncStory[]): string[] {
 
   const lines = ['## Knowledge Base', ''];
   for (const story of stories) {
-    const title = story.content !== '' ? story.story_type : `(${story.story_type})`;
+    const hasTitle = story.title !== undefined && story.title !== '';
+    const title = hasTitle ? story.title : `(${story.story_type})`;
     lines.push(`### ${title}`, '', story.content, '');
   }
   return lines;

@@ -116,7 +116,9 @@ describe('Public Export Download Route', () => {
 
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
-    expect(res.headers['content-disposition']).toBe('attachment; filename="test-export.json"');
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="test-export.json"; filename*=UTF-8\'\'test-export.json'
+    );
     expect(res.text).toBe(content);
   });
 
