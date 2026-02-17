@@ -197,6 +197,13 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
       : '[ShapesExportJob] Export failed'
   );
 
+  // Don't mark as 'failed' for rate-limit errors — BullMQ will retry the job,
+  // and the retry will find it still 'in_progress'. Marking it 'failed' would
+  // confuse the user (status flips failed → in_progress → completed on retry).
+  if (isRateLimited) {
+    throw opts.error;
+  }
+
   await opts.prisma.exportJob.update({
     where: { id: opts.exportJobId },
     data: { status: 'failed', completedAt: new Date(), errorMessage },

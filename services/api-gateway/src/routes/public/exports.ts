@@ -63,7 +63,10 @@ export function createExportsRouter(prisma: PrismaClient): Router {
       const fileName = job.fileName ?? `export.${job.format === 'markdown' ? 'md' : 'json'}`;
 
       res.setHeader('Content-Type', contentType);
-      res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${encodeURIComponent(fileName)}"`
+      );
       if (job.fileSizeBytes !== null) {
         res.setHeader('Content-Length', String(job.fileSizeBytes));
       }

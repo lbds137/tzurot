@@ -786,7 +786,6 @@ describe('BullMQ Job Contract Tests', () => {
   describe('Schema Validation - Shapes Export Job', () => {
     const validJobData: ShapesExportJobData = {
       userId: '550e8400-e29b-41d4-a716-446655440000',
-      discordUserId: '123456789012345678',
       sourceSlug: 'test-shape',
       exportJobId: '660e8400-e29b-41d4-a716-446655440000',
       format: 'json',
