@@ -130,7 +130,7 @@ describe('Shapes Export Routes', () => {
             ok: true,
             url,
             json: vi.fn().mockResolvedValue({
-              data: [],
+              items: [],
               pagination: { has_next: false, page: 1 },
             }),
           },
