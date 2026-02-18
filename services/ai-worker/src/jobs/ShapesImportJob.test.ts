@@ -8,8 +8,9 @@ import type { ShapesImportJobData } from '@tzurot/common-types';
 import { processShapesImportJob } from './ShapesImportJob.js';
 
 // Mock common-types
-const { mockNormalizeSlugForUser } = vi.hoisted(() => ({
+const { mockNormalizeSlugForUser, mockIsBotOwner } = vi.hoisted(() => ({
   mockNormalizeSlugForUser: vi.fn((slug: string) => slug),
+  mockIsBotOwner: vi.fn().mockReturnValue(false),
 }));
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -26,6 +27,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       .fn()
       .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),
     normalizeSlugForUser: mockNormalizeSlugForUser,
+    isBotOwner: mockIsBotOwner,
   };
 });
 
@@ -229,6 +231,9 @@ describe('processShapesImportJob', () => {
     // Default: slug passthrough (no suffix)
     mockNormalizeSlugForUser.mockImplementation((slug: string) => slug);
 
+    // Default: no existing personality (ownership check passes)
+    mockPrisma.personality.findFirst.mockResolvedValue(null);
+
     // Default: no existing memories (fresh import)
     mockPrisma.memory.count.mockResolvedValue(0);
     mockPrisma.memory.findMany.mockResolvedValue([]);
@@ -324,9 +329,10 @@ describe('processShapesImportJob', () => {
   });
 
   it('should resolve personality by slug for memory_only without explicit ID', async () => {
-    mockPrisma.personality.findFirst = vi
-      .fn()
-      .mockResolvedValue({ id: 'found-pers-id', slug: 'test-shape' });
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: 'found-pers-id',
+      slug: 'test-shape',
+    });
 
     const job = createMockJob({ importType: 'memory_only' });
     const result = await processShapesImportJob(job, {
@@ -521,5 +527,53 @@ describe('processShapesImportJob', () => {
     expect(result.success).toBe(true);
     expect(result.memoriesSkipped).toBe(1);
     expect(result.memoriesImported).toBe(0);
+  });
+
+  it('should fail when user not found', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(null);
+
+    const job = createMockJob();
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('user not found');
+  });
+
+  it('should fail when user has no default persona', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({
+      username: 'testuser',
+      discordId: 'discord-123',
+      defaultPersonaId: null,
+    });
+
+    const job = createMockJob();
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('no default persona');
+  });
+
+  it('should reject full import when personality owned by another user', async () => {
+    // Existing personality owned by someone else
+    mockPrisma.personality.findFirst.mockResolvedValue({
+      id: 'existing-pers-id',
+      ownerId: 'other-user-uuid',
+    });
+    mockIsBotOwner.mockReturnValue(false);
+
+    const job = createMockJob({ importType: 'full' });
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('owned by another user');
   });
 });
