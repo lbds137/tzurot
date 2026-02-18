@@ -332,6 +332,19 @@ describe('processShapesImportJob', () => {
     );
   });
 
+  it('should fail memory_only import when personality slug not found', async () => {
+    mockPrisma.personality.findFirst.mockResolvedValue(null);
+
+    const job = createMockJob({ importType: 'memory_only' });
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('No personality found');
+  });
+
   it('should mark import as failed on error', async () => {
     mockFetchShapeData.mockRejectedValue(new Error('Network error'));
 
