@@ -82,7 +82,10 @@ export async function processShapesImportJob(
       existingPersonalityId,
     });
 
-    // 5. Download and store avatar
+    // 5. Resolve the importing user's default persona for memory ownership
+    const personaId = await resolveImportPersonaId(prisma, userId);
+
+    // 6. Download and store avatar
     let avatarDownloaded = false;
     let avatarError: string | undefined;
     if (fetchResult.config.avatar !== '' && importType !== 'memory_only') {
@@ -98,7 +101,7 @@ export async function processShapesImportJob(
       }
     }
 
-    // 6. Import memories (skips if personality already has memories — prevents duplicates on re-import)
+    // 7. Import memories (skips if personality already has memories — prevents duplicates on re-import)
     const memoryStats = await importMemories({
       memoryAdapter,
       prisma,
@@ -108,10 +111,11 @@ export async function processShapesImportJob(
         createdAt: m.metadata.created_at * 1000,
       })),
       personalityId,
+      personaId,
       importJobId,
     });
 
-    // 7. Mark completed
+    // 8. Mark completed
     await markImportCompleted({
       prisma,
       importJobId,
@@ -149,6 +153,25 @@ export async function processShapesImportJob(
 // ============================================================================
 // Helpers
 // ============================================================================
+
+/**
+ * Resolve the persona ID for memory ownership during import.
+ * Uses the importing user's default persona — memories need a valid persona FK.
+ */
+async function resolveImportPersonaId(prisma: PrismaClient, userId: string): Promise<string> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { defaultPersonaId: true },
+  });
+
+  if (user?.defaultPersonaId === null || user?.defaultPersonaId === undefined) {
+    throw new Error(
+      'Cannot import memories: user has no default persona. Use /persona create first.'
+    );
+  }
+
+  return user.defaultPersonaId;
+}
 
 async function getDecryptedCookie(prisma: PrismaClient, userId: string): Promise<string> {
   const credential = await prisma.userCredential.findFirst({

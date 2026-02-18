@@ -51,6 +51,7 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories,
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
@@ -72,6 +73,7 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories,
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
@@ -93,6 +95,7 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories,
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
@@ -119,6 +122,7 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories,
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
@@ -136,13 +140,14 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories,
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
     expect(mockMemoryAdapter.addMemory).toHaveBeenCalledWith({
       text: 'Test memory',
       metadata: {
-        personaId: '00000000-0000-0000-0000-000000000000',
+        personaId: 'persona-id',
         personalityId: 'pers-id',
         canonScope: 'global',
         createdAt: 1700000000000,
@@ -164,6 +169,7 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories,
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
@@ -185,6 +191,7 @@ describe('importMemories', () => {
       prisma: mockPrisma as never,
       memories: [],
       personalityId: 'pers-id',
+      personaId: 'persona-id',
       importJobId: 'job-id',
     });
 
