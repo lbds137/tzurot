@@ -31,6 +31,7 @@ import {
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError } from '../utils/apiErrorParser.js';
 import { recordStopSequenceActivation } from './StopSequenceTracker.js';
+import { inferNonXmlStop } from './diagnostics/DiagnosticRecorders.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,
@@ -298,19 +299,6 @@ export class LLMInvoker {
   }
 
   /**
-   * Check if the response content suggests a stop sequence fired even though
-   * the provider didn't explicitly report it. When finishReason is "stop" but
-   * the content doesn't end with </message>, a non-XML stop likely truncated it.
-   */
-  private inferStopSequence(response: BaseMessage, stopSequences: string[] | undefined): boolean {
-    if (stopSequences === undefined || stopSequences.length === 0) {
-      return false;
-    }
-    const content = typeof response.content === 'string' ? response.content : '';
-    return !content.trimEnd().endsWith('</message>');
-  }
-
-  /**
    * Log finish_reason and related metadata for completion quality diagnostics.
    *
    * This helps identify:
@@ -362,7 +350,13 @@ export class LLMInvoker {
         logContext,
         '[LLMInvoker] Stop sequence triggered - prevented potential identity bleeding or hallucination'
       );
-    } else if (isNaturalStop(finishReason) && this.inferStopSequence(response, stopSequences)) {
+    } else if (
+      inferNonXmlStop(
+        typeof response.content === 'string' ? response.content : '',
+        finishReason,
+        stopSequences
+      )
+    ) {
       recordStopSequenceActivation('inferred:non-xml-stop', modelName);
       logger.info(
         logContext,

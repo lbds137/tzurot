@@ -1255,6 +1255,35 @@ describe('LLMInvoker', () => {
 
         expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
       });
+
+      it('should treat array content as empty string for inference (no false positive)', async () => {
+        // Multimodal responses have array content — inference should fall back to ''
+        // which doesn't end with </message>, but this is expected and should still
+        // trigger inference since the model stopped mid-response with array content
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: [{ type: 'text', text: 'partial response' }],
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          stopSequences: ['</message>', '<message'],
+        });
+
+        // Array content → '' → doesn't end with </message> → inferred
+        expect(mockRecordStopSequenceActivation).toHaveBeenCalledWith(
+          'inferred:non-xml-stop',
+          'test-model'
+        );
+      });
     });
   });
 });
