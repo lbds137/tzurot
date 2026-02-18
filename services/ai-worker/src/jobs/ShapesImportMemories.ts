@@ -16,13 +16,6 @@ import type { MemoryMetadata } from '../services/PgvectorTypes.js';
 
 const logger = createLogger('ShapesImportMemories');
 
-/**
- * Sentinel persona ID for imported memories.
- * Imported memories are global knowledge (not tied to any user's persona interaction),
- * so they use the nil UUID as a system-level placeholder.
- */
-const IMPORT_PERSONA_ID = '00000000-0000-0000-0000-000000000000';
-
 /** Update progress in DB every N memories */
 const PROGRESS_UPDATE_INTERVAL = 25;
 
@@ -44,13 +37,14 @@ export interface ImportMemoriesOpts {
   prisma: PrismaClient;
   memories: MemoryToImport[];
   personalityId: string;
+  personaId: string;
   importJobId: string;
 }
 
 export async function importMemories(
   opts: ImportMemoriesOpts
 ): Promise<{ imported: number; failed: number; skipped: number }> {
-  const { memoryAdapter, prisma, memories, personalityId, importJobId } = opts;
+  const { memoryAdapter, prisma, memories, personalityId, personaId, importJobId } = opts;
 
   // Build set of existing memory content for content-based deduplication.
   // This handles partial re-imports: if import fails at memory 50/200, retry
@@ -99,7 +93,7 @@ export async function importMemories(
       }
 
       const metadata: MemoryMetadata = {
-        personaId: IMPORT_PERSONA_ID,
+        personaId,
         personalityId,
         canonScope: 'global',
         createdAt: memory.createdAt,
