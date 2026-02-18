@@ -58,8 +58,10 @@ vi.mock('@tzurot/common-types', async () => {
     },
     filterValidDiscordIds: (ids: string[]) => ids.filter(id => /^\d{17,19}$/.test(id)),
     splitTextByTokens: (...args: unknown[]) => mockSplitTextByTokens(...args),
-    // Use actual deterministic UUID generator for testing idempotency
+    // Use actual deterministic UUID generators for testing idempotency
     generateMemoryChunkGroupUuid: actual.generateMemoryChunkGroupUuid,
+    hashContent: actual.hashContent,
+    deterministicMemoryUuid: actual.deterministicMemoryUuid,
     // Mock countTextTokens for defensive validation check
     countTextTokens: () => 100, // Return safe value under limit
   };

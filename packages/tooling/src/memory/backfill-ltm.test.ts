@@ -142,6 +142,34 @@ describe('backfill-ltm', () => {
       expect(pairs).toHaveLength(0);
     });
 
+    it('should recover after mismatched context and pair subsequent valid messages', () => {
+      // [user/ch-1, assistant/ch-2, user/ch-1, assistant/ch-1]
+      // The mismatch at i=0 causes continue, but i=1 (assistant) fails role check,
+      // then i=2 (user/ch-1 + assistant/ch-1) should match correctly
+      const rows: ConversationRow[] = [
+        makeRow({ role: 'user', content: 'Q1', channel_id: 'ch-1', discord_message_id: ['u1'] }),
+        makeRow({
+          role: 'assistant',
+          content: 'A-wrong',
+          channel_id: 'ch-2',
+          discord_message_id: ['a-wrong'],
+        }),
+        makeRow({ role: 'user', content: 'Q2', channel_id: 'ch-1', discord_message_id: ['u2'] }),
+        makeRow({
+          role: 'assistant',
+          content: 'A2',
+          channel_id: 'ch-1',
+          discord_message_id: ['a2'],
+        }),
+      ];
+
+      const pairs = pairMessages(rows);
+
+      expect(pairs).toHaveLength(1);
+      expect(pairs[0].userContent).toBe('Q2');
+      expect(pairs[0].assistantContent).toBe('A2');
+    });
+
     it('should skip pairs with mismatched personality IDs', () => {
       const rows: ConversationRow[] = [
         makeRow({ role: 'user', content: 'Hello', personality_id: 'p1' }),

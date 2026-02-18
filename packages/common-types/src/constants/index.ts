@@ -112,5 +112,8 @@ export {
   type FinishReason,
 } from './finishReasons.js';
 
+// Memory constants
+export { MEMORY_NAMESPACE, hashContent, deterministicMemoryUuid } from './memory.js';
+
 // Wallet (BYOK) constants
 export { WALLET_ERROR_MESSAGES, API_KEY_FORMATS } from './wallet.js';
