@@ -17,6 +17,7 @@ import {
   createLogger,
   decryptApiKey,
   encryptApiKey,
+  isBotOwner,
   normalizeSlugForUser,
   type Prisma,
   type PrismaClient,
@@ -85,11 +86,12 @@ export async function processShapesImportJob(
       config: fetchResult.config,
       sourceSlug: normalizedSlug,
       userId,
+      discordUserId,
       importType,
       existingPersonalityId,
     });
 
-    // 6. Download and store avatar
+    // 7. Download and store avatar
     let avatarDownloaded = false;
     let avatarError: string | undefined;
     if (fetchResult.config.avatar !== '' && importType !== 'memory_only') {
@@ -105,7 +107,7 @@ export async function processShapesImportJob(
       }
     }
 
-    // 7. Import memories (skips if personality already has memories — prevents duplicates on re-import)
+    // 8. Import memories (skips if personality already has memories — prevents duplicates on re-import)
     const memoryStats = await importMemories({
       memoryAdapter,
       prisma,
@@ -120,14 +122,14 @@ export async function processShapesImportJob(
           guildId: m.metadata.discord_guild_id !== '' ? m.metadata.discord_guild_id : undefined,
           messageIds: m.metadata.msg_ids,
           summaryType: m.summary_type,
-          legacyShapesUserId: m.senders[0],
+          legacyShapesUserId: UUID_RE.test(m.senders[0] ?? '') ? m.senders[0] : undefined,
         })),
       personalityId,
       personaId,
       importJobId,
     });
 
-    // 8. Mark completed
+    // 9. Mark completed
     await markImportCompleted({
       prisma,
       importJobId,
@@ -253,12 +255,14 @@ async function updateImportJobStatus(
 }
 
 const IMPORT_TYPE_MEMORY_ONLY = 'memory_only' as const;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface ResolvePersonalityOpts {
   prisma: PrismaClient;
   config: ShapesIncPersonalityConfig;
   sourceSlug: string;
   userId: string;
+  discordUserId: string;
   importType: string;
   existingPersonalityId?: string;
 }
@@ -267,6 +271,14 @@ async function resolvePersonality(
   opts: ResolvePersonalityOpts
 ): Promise<{ personalityId: string; slug: string }> {
   if (opts.importType !== IMPORT_TYPE_MEMORY_ONLY) {
+    // Guard: don't overwrite a personality owned by another user
+    const existing = await opts.prisma.personality.findFirst({
+      where: { slug: opts.sourceSlug },
+      select: { id: true, ownerId: true },
+    });
+    if (existing !== null && existing.ownerId !== opts.userId && !isBotOwner(opts.discordUserId)) {
+      throw new Error(`Cannot import: personality "${opts.sourceSlug}" is owned by another user.`);
+    }
     return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.userId);
   }
 
