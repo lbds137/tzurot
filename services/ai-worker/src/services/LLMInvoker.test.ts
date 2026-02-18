@@ -21,11 +21,15 @@ vi.mock('./ModelFactory.js', () => ({
   }),
 }));
 
-// Mock StopSequenceTracker
+// Mock StopSequenceTracker (keep real inferNonXmlStop, mock recordStopSequenceActivation)
 const mockRecordStopSequenceActivation = vi.fn();
-vi.mock('./StopSequenceTracker.js', () => ({
-  recordStopSequenceActivation: (...args: unknown[]) => mockRecordStopSequenceActivation(...args),
-}));
+vi.mock('./StopSequenceTracker.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('./StopSequenceTracker.js')>();
+  return {
+    ...actual,
+    recordStopSequenceActivation: (...args: unknown[]) => mockRecordStopSequenceActivation(...args),
+  };
+});
 
 describe('LLMInvoker', () => {
   let invoker: LLMInvoker;

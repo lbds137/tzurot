@@ -8,6 +8,7 @@ import {
   getStopSequenceStats,
   resetStopSequenceStats,
   initStopSequenceRedis,
+  inferNonXmlStop,
   STOP_SEQUENCE_REDIS_KEYS,
 } from './StopSequenceTracker.js';
 import type { Redis } from 'ioredis';
@@ -133,6 +134,29 @@ describe('StopSequenceTracker', () => {
       expect(new Date(afterReset).getTime()).toBeGreaterThanOrEqual(
         new Date(beforeReset).getTime()
       );
+    });
+  });
+
+  describe('inferNonXmlStop', () => {
+    it('should return true when content lacks </message> with natural stop', () => {
+      expect(inferNonXmlStop('Let me respond as', 'stop', ['</message>'])).toBe(true);
+    });
+
+    it('should return false when content ends with </message>', () => {
+      expect(inferNonXmlStop('Response here</message>', 'stop', ['</message>'])).toBe(false);
+    });
+
+    it('should return false when finish reason is not a natural stop', () => {
+      expect(inferNonXmlStop('partial', 'length', ['</message>'])).toBe(false);
+    });
+
+    it('should return false when no stop sequences configured', () => {
+      expect(inferNonXmlStop('partial', 'stop', undefined)).toBe(false);
+      expect(inferNonXmlStop('partial', 'stop', [])).toBe(false);
+    });
+
+    it('should trim trailing whitespace before checking', () => {
+      expect(inferNonXmlStop('Response here</message>  \n', 'stop', ['</message>'])).toBe(false);
     });
   });
 
