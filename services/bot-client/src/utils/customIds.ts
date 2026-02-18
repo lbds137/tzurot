@@ -514,7 +514,6 @@ interface ShapesParseResult {
   page?: number;
   slug?: string;
   importType?: string;
-  personalityId?: string;
 }
 
 export const ShapesCustomIds = {
@@ -556,15 +555,12 @@ export const ShapesCustomIds = {
 
   // --- Import confirmation ---
   /**
-   * Confirm import button — encodes import type and optional personalityId.
+   * Confirm import button — encodes import type.
    * The slug is NOT in the custom ID — it's extracted from the embed footer
    * at click time, avoiding Discord's 100-char custom ID limit.
-   * Format: shapes::import-confirm::importType[::personalityId]
+   * Format: shapes::import-confirm::importType
    */
-  importConfirm: (importType: string, personalityId?: string) =>
-    personalityId !== undefined
-      ? (`shapes::import-confirm::${importType}::${personalityId}` as const)
-      : (`shapes::import-confirm::${importType}` as const),
+  importConfirm: (importType: string) => `shapes::import-confirm::${importType}` as const,
   /** Cancel import */
   importCancel: () => 'shapes::import-cancel' as const,
 
@@ -595,11 +591,10 @@ export const ShapesCustomIds = {
       return result;
     }
 
-    // Import confirm: shapes::import-confirm::importType[::personalityId]
+    // Import confirm: shapes::import-confirm::importType
     // Slug is extracted from embed footer at click time, not encoded here
     if (action === 'import-confirm') {
       result.importType = parts[2];
-      result.personalityId = parts[3];
       return result;
     }
 
