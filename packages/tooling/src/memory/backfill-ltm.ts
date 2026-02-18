@@ -21,7 +21,7 @@ import {
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
-import { deterministicMemoryUuid, type PrismaClient } from '@tzurot/common-types';
+import { deterministicMemoryUuid, Prisma, type PrismaClient } from '@tzurot/common-types';
 
 export interface BackfillOptions {
   env: Environment;
@@ -59,7 +59,7 @@ export interface MemoryPair {
   createdAt: Date;
 }
 
-interface PageQueryOptions {
+interface PageQuery {
   prisma: PrismaClient;
   from: Date;
   to: Date;
@@ -69,60 +69,26 @@ interface PageQueryOptions {
 }
 
 /** Fetch a single page of conversation history using cursor-based pagination */
-export async function queryConversationHistoryPage(
-  opts: PageQueryOptions
-): Promise<ConversationRow[]> {
+function queryPage(opts: PageQuery): Promise<ConversationRow[]> {
   const { prisma, from, to, limit, cursor, personalityId } = opts;
-
+  const conditions: Prisma.Sql[] = [
+    Prisma.sql`created_at >= ${from}`,
+    Prisma.sql`created_at < ${to}`,
+    Prisma.sql`deleted_at IS NULL`,
+  ];
   if (personalityId !== undefined) {
-    if (cursor !== null) {
-      return prisma.$queryRaw<ConversationRow[]>`
-        SELECT id, channel_id, guild_id, personality_id, persona_id,
-               role, content, discord_message_id, created_at
-        FROM conversation_history
-        WHERE created_at >= ${from}
-          AND created_at < ${to}
-          AND deleted_at IS NULL
-          AND personality_id = ${personalityId}::uuid
-          AND id > ${cursor}::uuid
-        ORDER BY id ASC
-        LIMIT ${limit}
-      `;
-    }
-    return prisma.$queryRaw<ConversationRow[]>`
-      SELECT id, channel_id, guild_id, personality_id, persona_id,
-             role, content, discord_message_id, created_at
-      FROM conversation_history
-      WHERE created_at >= ${from}
-        AND created_at < ${to}
-        AND deleted_at IS NULL
-        AND personality_id = ${personalityId}::uuid
-      ORDER BY id ASC
-      LIMIT ${limit}
-    `;
+    conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
   }
-
   if (cursor !== null) {
-    return prisma.$queryRaw<ConversationRow[]>`
-      SELECT id, channel_id, guild_id, personality_id, persona_id,
-             role, content, discord_message_id, created_at
-      FROM conversation_history
-      WHERE created_at >= ${from}
-        AND created_at < ${to}
-        AND deleted_at IS NULL
-        AND id > ${cursor}::uuid
-      ORDER BY id ASC
-      LIMIT ${limit}
-    `;
+    conditions.push(Prisma.sql`id > ${cursor}::uuid`);
   }
+  const where = Prisma.join(conditions, ' AND ');
 
   return prisma.$queryRaw<ConversationRow[]>`
     SELECT id, channel_id, guild_id, personality_id, persona_id,
            role, content, discord_message_id, created_at
     FROM conversation_history
-    WHERE created_at >= ${from}
-      AND created_at < ${to}
-      AND deleted_at IS NULL
+    WHERE ${where}
     ORDER BY id ASC
     LIMIT ${limit}
   `;
@@ -148,14 +114,7 @@ export async function queryConversationHistory(
   let cursor: string | null = null;
 
   while (true) {
-    const page = await queryConversationHistoryPage({
-      prisma,
-      from,
-      to,
-      limit: pageSize,
-      cursor,
-      personalityId,
-    });
+    const page = await queryPage({ prisma, from, to, limit: pageSize, cursor, personalityId });
     allRows.push(...page);
 
     if (page.length < pageSize) {
