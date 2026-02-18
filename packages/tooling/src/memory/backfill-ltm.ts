@@ -13,8 +13,6 @@
  * 6. Insert with ON CONFLICT DO NOTHING (idempotent)
  */
 
-import crypto from 'crypto';
-import { v5 as uuidv5 } from 'uuid';
 import chalk from 'chalk';
 import {
   type Environment,
@@ -23,24 +21,10 @@ import {
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { hashContent, deterministicMemoryUuid, type PrismaClient } from '@tzurot/common-types';
 
-// Deterministic UUID namespace (must match ai-worker/src/utils/memoryUtils.ts)
-const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
-
-export function hashContent(content: string): string {
-  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 32);
-}
-
-export function deterministicMemoryUuid(
-  personaId: string,
-  personalityId: string,
-  content: string
-): string {
-  const key = `${personaId}:${personalityId}:${hashContent(content)}`;
-  return uuidv5(key, MEMORY_NAMESPACE);
-}
+// Re-export for test access
+export { hashContent, deterministicMemoryUuid };
 
 export interface BackfillOptions {
   env: Environment;
