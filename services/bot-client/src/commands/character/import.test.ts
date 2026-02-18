@@ -9,6 +9,10 @@ import { handleImport, CHARACTER_JSON_TEMPLATE, REQUIRED_IMPORT_FIELDS } from '.
 import { DISCORD_LIMITS } from '@tzurot/common-types';
 
 // Mock dependencies
+const { mockNormalizeSlug } = vi.hoisted(() => ({
+  // Default: passthrough (bot owner behavior). Tests override for non-owner scenarios.
+  mockNormalizeSlug: vi.fn((slug: string, _userId: string, _username: string) => slug),
+}));
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -19,9 +23,8 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       warn: vi.fn(),
       debug: vi.fn(),
     }),
-    // Mock bot owner check to true so slugs remain unchanged in tests
-    // (slug normalization is tested in slugUtils.test.ts)
     isBotOwner: vi.fn().mockReturnValue(true),
+    normalizeSlugForUser: mockNormalizeSlug,
   };
 });
 
@@ -819,17 +822,16 @@ describe('handleImport', () => {
   });
 
   describe('slug normalization for non-bot-owners', () => {
-    // Import commonTypes once for spying
-    let isBotOwnerSpy: ReturnType<typeof vi.spyOn>;
-
-    beforeEach(async () => {
-      const commonTypes = await import('@tzurot/common-types');
-      isBotOwnerSpy = vi.spyOn(commonTypes, 'isBotOwner').mockReturnValue(false);
+    beforeEach(() => {
+      // Simulate non-bot-owner: normalizeSlugForUser appends username
+      mockNormalizeSlug.mockImplementation(
+        (slug: string, _userId: string, username: string) => `${slug}-${username}`
+      );
     });
 
     afterEach(() => {
-      // Restore to default mock (bot owner = true) after each test
-      isBotOwnerSpy.mockReturnValue(true);
+      // Restore passthrough (bot owner behavior)
+      mockNormalizeSlug.mockImplementation((slug: string) => slug);
     });
 
     it('should append username to slug for non-bot-owners in API payload', async () => {

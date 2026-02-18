@@ -180,3 +180,18 @@ import { formatDate } from './utils/index.js';
 ```
 
 **Exception**: Package entry points (e.g., `@tzurot/common-types`) are acceptable.
+
+**No wrapper re-export files.** Never create a local file that just re-exports from
+another package. Import directly from the source package instead.
+
+```typescript
+// ❌ BAD - Wrapper file that re-exports (slugUtils.ts just doing
+//   export { normalizeSlugForUser } from '@tzurot/common-types')
+import { normalizeSlugForUser } from '../../utils/slugUtils.js';
+
+// ✅ GOOD - Import directly from the package
+import { normalizeSlugForUser } from '@tzurot/common-types';
+```
+
+Re-export wrappers add indirection, break vitest mocking (the mock of the package
+doesn't intercept internal imports), and make dependency tracing harder.

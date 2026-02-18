@@ -16,7 +16,12 @@ import {
   MessageFlags,
 } from 'discord.js';
 import type { ModalSubmitInteraction } from 'discord.js';
-import { createLogger, type EnvConfig, DISCORD_LIMITS } from '@tzurot/common-types';
+import {
+  createLogger,
+  normalizeSlugForUser,
+  type EnvConfig,
+  DISCORD_LIMITS,
+} from '@tzurot/common-types';
 import type { ModalCommandContext } from '../../utils/commandContext/types.js';
 import {
   buildDashboardEmbed,
@@ -25,7 +30,6 @@ import {
   extractModalValues,
   getSessionManager,
 } from '../../utils/dashboard/index.js';
-import { normalizeSlugForUser } from '../../utils/slugUtils.js';
 import {
   characterDashboardConfig,
   characterSeedFields,

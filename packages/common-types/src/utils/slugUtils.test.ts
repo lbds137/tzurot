@@ -5,16 +5,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { normalizeSlugForUser } from './slugUtils.js';
 
-// Mock common-types
-vi.mock('@tzurot/common-types', async importOriginal => {
-  const actual = await importOriginal();
-  return {
-    ...(actual as Record<string, unknown>),
-    isBotOwner: vi.fn().mockReturnValue(false),
-  };
-});
+// Mock ownerMiddleware for isBotOwner control
+vi.mock('./ownerMiddleware.js', () => ({
+  isBotOwner: vi.fn().mockReturnValue(false),
+}));
 
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from './ownerMiddleware.js';
 
 describe('normalizeSlugForUser', () => {
   beforeEach(() => {

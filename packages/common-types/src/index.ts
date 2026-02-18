@@ -36,6 +36,7 @@ export {
   type TimeGapConfig,
 } from './utils/timeGap.js';
 export { isBotOwner } from './utils/ownerMiddleware.js';
+export { normalizeSlugForUser } from './utils/slugUtils.js';
 export {
   computePersonalityPermissions,
   computeLlmConfigPermissions,

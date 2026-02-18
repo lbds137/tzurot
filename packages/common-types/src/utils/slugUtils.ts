@@ -2,9 +2,11 @@
  * Slug Utilities
  *
  * Functions for normalizing and generating character slugs.
+ * Shared across services so both manual creation and imports
+ * produce consistent slug formats.
  */
 
-import { isBotOwner } from '@tzurot/common-types';
+import { isBotOwner } from './ownerMiddleware.js';
 
 /**
  * Sanitize a username for use in a slug
