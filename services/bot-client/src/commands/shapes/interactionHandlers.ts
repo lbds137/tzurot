@@ -22,9 +22,15 @@ const logger = createLogger('shapes-interactions');
 
 /** Map HTTP status codes to user-friendly hints (avoids exposing raw codes) */
 function httpStatusHint(status: number): string {
-  if (status === 429) {return 'rate limited by shapes.inc';}
-  if (status === 404) {return 'shape not found';}
-  if (status >= 500) {return 'shapes.inc is temporarily unavailable';}
+  if (status === 429) {
+    return 'rate limited by shapes.inc';
+  }
+  if (status === 404) {
+    return 'shape not found';
+  }
+  if (status >= 500) {
+    return 'shapes.inc is temporarily unavailable';
+  }
   return `unexpected error (${String(status)})`;
 }
 
@@ -310,9 +316,5 @@ async function handleImportConfirm(
     return;
   }
 
-  await startImport(interaction, userId, {
-    slug,
-    importType,
-    existingPersonalityId: parsed.personalityId,
-  });
+  await startImport(interaction, userId, { slug, importType });
 }

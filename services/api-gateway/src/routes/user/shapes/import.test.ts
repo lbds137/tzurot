@@ -162,40 +162,17 @@ describe('Shapes Import Routes', () => {
       const { res } = await callImportHandler({
         sourceSlug: 'test-shape',
         importType: 'memory_only',
-        existingPersonalityId: 'existing-pers-id',
       });
 
       expect(mockQueue.add).toHaveBeenCalledWith(
         'shapes-import',
         expect.objectContaining({
           importType: 'memory_only',
-          existingPersonalityId: 'existing-pers-id',
         }),
         expect.any(Object)
       );
 
       expect(res.status).toHaveBeenCalledWith(202);
-    });
-
-    it('should reject memory_only without existingPersonalityId', async () => {
-      const { res } = await callImportHandler({
-        sourceSlug: 'test-shape',
-        importType: 'memory_only',
-      });
-
-      expect(res.status).toHaveBeenCalledWith(400);
-    });
-
-    it('should reject memory_only import when personality not owned by user', async () => {
-      mockPrisma.personality.findFirst.mockResolvedValueOnce(null);
-
-      const { res } = await callImportHandler({
-        sourceSlug: 'test-shape',
-        importType: 'memory_only',
-        existingPersonalityId: 'someone-elses-personality',
-      });
-
-      expect(res.status).toHaveBeenCalledWith(404);
     });
 
     it('should return 409 on Prisma P2002 unique constraint error', async () => {

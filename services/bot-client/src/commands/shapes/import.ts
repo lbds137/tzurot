@@ -37,7 +37,6 @@ interface ImportResponse {
 export interface ImportParams {
   slug: string;
   importType: 'full' | 'memory_only';
-  existingPersonalityId?: string;
 }
 
 /** Start the import after user confirms via button */
@@ -46,7 +45,7 @@ export async function startImport(
   userId: string,
   params: ImportParams
 ): Promise<void> {
-  const { slug, importType, existingPersonalityId } = params;
+  const { slug, importType } = params;
 
   await buttonInteraction.update({
     embeds: [
@@ -63,7 +62,7 @@ export async function startImport(
   const importResult = await callGatewayApi<ImportResponse>('/user/shapes/import', {
     method: 'POST',
     userId,
-    body: { sourceSlug: slug, importType, existingPersonalityId },
+    body: { sourceSlug: slug, importType },
     timeout: GATEWAY_TIMEOUTS.DEFERRED,
   });
 
@@ -116,7 +115,6 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
   const importTypeRaw = context.interaction.options.getString('import_type') ?? 'full';
   const importType: 'full' | 'memory_only' =
     importTypeRaw === 'memory_only' ? 'memory_only' : 'full';
-  const existingPersonalityId = context.interaction.options.getString('personality') ?? undefined;
 
   try {
     // 1. Check credentials exist
@@ -134,16 +132,6 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       return;
     }
 
-    // Validate memory_only requires personality param
-    if (importType === 'memory_only' && existingPersonalityId === undefined) {
-      await context.editReply({
-        content:
-          '❌ `memory_only` import requires a `personality` parameter.\n\n' +
-          'Use `/shapes import slug:<slug> import_type:Memory Only personality:<name>` to import memories into an existing character.',
-      });
-      return;
-    }
-
     // 2. Show confirmation embed with buttons
     // Slug is stored in the embed footer so the confirm handler can extract
     // it at click time — keeps it out of the custom ID (100-char limit).
@@ -153,10 +141,11 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       .setTitle(isMemoryOnly ? '📥 Import Memories from Shapes.inc' : '📥 Import from Shapes.inc')
       .setDescription(
         isMemoryOnly
-          ? `Ready to import memories from **${slug}** into an existing personality.\n\n` +
+          ? `Ready to import memories from **${slug}** into the existing personality.\n\n` +
               'This will:\n' +
+              '• Look up the previously imported personality by slug\n' +
               '• Fetch all conversation memories from shapes.inc\n' +
-              '• Import them into the selected Tzurot personality\n\n' +
+              '• Import them (deduplicating against existing memories)\n\n' +
               'Existing personality config will not be changed.'
           : `Ready to import **${slug}** from shapes.inc.\n\n` +
               'This will:\n' +
@@ -170,7 +159,7 @@ export async function handleImport(context: DeferredCommandContext): Promise<voi
       .setTimestamp();
 
     const confirmButton = new ButtonBuilder()
-      .setCustomId(ShapesCustomIds.importConfirm(importType, existingPersonalityId))
+      .setCustomId(ShapesCustomIds.importConfirm(importType))
       .setLabel('Start Import')
       .setEmoji('📥')
       .setStyle(ButtonStyle.Primary);
