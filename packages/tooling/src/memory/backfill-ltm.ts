@@ -21,10 +21,7 @@ import {
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
-import { hashContent, deterministicMemoryUuid, type PrismaClient } from '@tzurot/common-types';
-
-// Re-export for test access
-export { hashContent, deterministicMemoryUuid };
+import { deterministicMemoryUuid, type PrismaClient } from '@tzurot/common-types';
 
 export interface BackfillOptions {
   env: Environment;
@@ -47,6 +44,9 @@ export interface ConversationRow {
   created_at: Date;
 }
 
+/** Default page size for conversation history queries (bounded per 03-database.md) */
+const DEFAULT_PAGE_SIZE = 10_000;
+
 export interface MemoryPair {
   personaId: string;
   personalityId: string;
@@ -59,14 +59,36 @@ export interface MemoryPair {
   createdAt: Date;
 }
 
-/** Query conversation history for the time range */
-export async function queryConversationHistory(
-  prisma: PrismaClient,
-  from: Date,
-  to: Date,
-  personalityId?: string
+interface PageQueryOptions {
+  prisma: PrismaClient;
+  from: Date;
+  to: Date;
+  limit: number;
+  cursor: string | null;
+  personalityId?: string;
+}
+
+/** Fetch a single page of conversation history using cursor-based pagination */
+export async function queryConversationHistoryPage(
+  opts: PageQueryOptions
 ): Promise<ConversationRow[]> {
+  const { prisma, from, to, limit, cursor, personalityId } = opts;
+
   if (personalityId !== undefined) {
+    if (cursor !== null) {
+      return prisma.$queryRaw<ConversationRow[]>`
+        SELECT id, channel_id, guild_id, personality_id, persona_id,
+               role, content, discord_message_id, created_at
+        FROM conversation_history
+        WHERE created_at >= ${from}
+          AND created_at < ${to}
+          AND deleted_at IS NULL
+          AND personality_id = ${personalityId}::uuid
+          AND id > ${cursor}::uuid
+        ORDER BY id ASC
+        LIMIT ${limit}
+      `;
+    }
     return prisma.$queryRaw<ConversationRow[]>`
       SELECT id, channel_id, guild_id, personality_id, persona_id,
              role, content, discord_message_id, created_at
@@ -75,7 +97,22 @@ export async function queryConversationHistory(
         AND created_at < ${to}
         AND deleted_at IS NULL
         AND personality_id = ${personalityId}::uuid
-      ORDER BY channel_id, personality_id, persona_id, created_at ASC
+      ORDER BY id ASC
+      LIMIT ${limit}
+    `;
+  }
+
+  if (cursor !== null) {
+    return prisma.$queryRaw<ConversationRow[]>`
+      SELECT id, channel_id, guild_id, personality_id, persona_id,
+             role, content, discord_message_id, created_at
+      FROM conversation_history
+      WHERE created_at >= ${from}
+        AND created_at < ${to}
+        AND deleted_at IS NULL
+        AND id > ${cursor}::uuid
+      ORDER BY id ASC
+      LIMIT ${limit}
     `;
   }
 
@@ -86,8 +123,58 @@ export async function queryConversationHistory(
     WHERE created_at >= ${from}
       AND created_at < ${to}
       AND deleted_at IS NULL
-    ORDER BY channel_id, personality_id, persona_id, created_at ASC
+    ORDER BY id ASC
+    LIMIT ${limit}
   `;
+}
+
+/** Compare strings for sort (nulls first) */
+function cmp(a: string | null, b: string | null): number {
+  if (a === b) return 0;
+  if (a === null) return -1;
+  if (b === null) return 1;
+  return a < b ? -1 : 1;
+}
+
+/** Query all conversation history for the time range using paginated fetches */
+export async function queryConversationHistory(
+  prisma: PrismaClient,
+  from: Date,
+  to: Date,
+  personalityId?: string,
+  pageSize: number = DEFAULT_PAGE_SIZE
+): Promise<ConversationRow[]> {
+  const allRows: ConversationRow[] = [];
+  let cursor: string | null = null;
+
+  while (true) {
+    const page = await queryConversationHistoryPage({
+      prisma,
+      from,
+      to,
+      limit: pageSize,
+      cursor,
+      personalityId,
+    });
+    allRows.push(...page);
+
+    if (page.length < pageSize) {
+      break;
+    }
+    cursor = page[page.length - 1].id;
+  }
+
+  // Pages are fetched by id order for cursor pagination, but pairMessages
+  // needs rows grouped by conversation context to match consecutive pairs.
+  allRows.sort(
+    (a, b) =>
+      cmp(a.channel_id, b.channel_id) ||
+      cmp(a.personality_id, b.personality_id) ||
+      cmp(a.persona_id, b.persona_id) ||
+      a.created_at.getTime() - b.created_at.getTime()
+  );
+
+  return allRows;
 }
 
 /**

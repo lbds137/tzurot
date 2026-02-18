@@ -6,9 +6,8 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { hashContent, deterministicMemoryUuid } from '@tzurot/common-types';
 import {
-  hashContent,
-  deterministicMemoryUuid,
   pairMessages,
   deduplicatePairs,
   queryConversationHistory,
@@ -351,6 +350,49 @@ describe('backfill-ltm', () => {
       const result = await queryConversationHistory(mockPrisma as never, from, to, 'some-uuid');
 
       expect(result).toEqual([]);
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
+    });
+
+    it('should paginate when results fill a page', async () => {
+      const pageSize = 2;
+      const row1 = makeRow({ id: 'aaa-1', role: 'user', content: 'Q1' });
+      const row2 = makeRow({ id: 'aaa-2', role: 'assistant', content: 'A1' });
+      const row3 = makeRow({ id: 'aaa-3', role: 'user', content: 'Q2' });
+
+      const mockPrisma = {
+        $queryRaw: vi
+          .fn()
+          .mockResolvedValueOnce([row1, row2]) // First page (full → more pages)
+          .mockResolvedValueOnce([row3]), // Second page (short → done)
+      };
+      const from = new Date('2026-02-09');
+      const to = new Date('2026-02-17');
+
+      const result = await queryConversationHistory(
+        mockPrisma as never,
+        from,
+        to,
+        undefined,
+        pageSize
+      );
+
+      expect(result).toHaveLength(3);
+      expect(result[0].id).toBe('aaa-1');
+      expect(result[2].id).toBe('aaa-3');
+      expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
+    });
+
+    it('should stop paginating when page is smaller than pageSize', async () => {
+      const row1 = makeRow({ id: 'aaa-1', role: 'user', content: 'Q1' });
+      const mockPrisma = {
+        $queryRaw: vi.fn().mockResolvedValueOnce([row1]),
+      };
+      const from = new Date('2026-02-09');
+      const to = new Date('2026-02-17');
+
+      const result = await queryConversationHistory(mockPrisma as never, from, to, undefined, 100);
+
+      expect(result).toHaveLength(1);
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(1);
     });
   });
