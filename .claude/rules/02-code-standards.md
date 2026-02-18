@@ -17,6 +17,10 @@ via the `ignores` block in `eslint.config.js`. The limits above apply to
 production code only. Do NOT split test files to satisfy max-lines — keep all
 tests for a module in one colocated file for discoverability.
 
+**To fix `max-lines`**: Extract code (functions, helpers, types) to a new module.
+**NEVER** trim, compact, or shorten comments/JSDoc to fit the line limit.
+Comments document intent — removing them to satisfy a linter is always wrong.
+
 ## Lint Suppression Standards
 
 When adding `eslint-disable` or `ts-expect-error`, every suppression MUST have a meaningful justification via `--` comment.

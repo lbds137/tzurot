@@ -3,8 +3,14 @@
  *
  * Recreates long-term memories from conversation_history for a given time range.
  * Useful when memories are lost due to infrastructure issues.
- * Pairs user/assistant messages, deduplicates via deterministic UUID,
- * generates embeddings, and inserts with ON CONFLICT DO NOTHING (idempotent).
+ *
+ * Algorithm:
+ * 1. Query conversation_history for the time range
+ * 2. Group consecutive user/assistant pairs per (channelId, personalityId, personaId)
+ * 3. Format as "{user}: <content>\n{assistant}: <content>" (matching LongTermMemoryService)
+ * 4. Deduplicate via deterministic UUID
+ * 5. Generate embeddings via LocalEmbeddingService
+ * 6. Insert with ON CONFLICT DO NOTHING (idempotent)
  */
 
 import chalk from 'chalk';
@@ -15,6 +21,7 @@ import {
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 import { getPrismaForEnv } from './prisma-env.js';
+import { parseDateRange, printDryRunPreview } from './backfill-cli-helpers.js';
 import { deterministicMemoryUuid, Prisma, type PrismaClient } from '@tzurot/common-types';
 
 export interface BackfillOptions {
@@ -101,8 +108,11 @@ function cmp(a: string | null, b: string | null): number {
   return a < b ? -1 : 1;
 }
 
-/** Query all conversation history for the time range using paginated fetches.
- * Rows accumulate in memory — use narrow --from/--to for busy guilds (100k+ rows possible). */
+/**
+ * Query all conversation history for the time range using paginated fetches.
+ * All rows are accumulated in memory — use narrow --from/--to ranges for busy guilds
+ * to avoid excessive memory usage (e.g., weeks of active data can produce 100k+ rows).
+ */
 export async function queryConversationHistory(
   prisma: PrismaClient,
   from: Date,
@@ -236,39 +246,6 @@ export async function insertMemory(
   `;
 
   return result > 0;
-}
-
-/** Validate and parse date range options */
-function parseDateRange(from: string, to: string): { fromDate: Date; toDate: Date } {
-  const fromDate = new Date(from);
-  const toDate = new Date(to);
-
-  if (isNaN(fromDate.getTime()) || isNaN(toDate.getTime())) {
-    console.error(chalk.red('Invalid date format. Use YYYY-MM-DD.'));
-    process.exit(1);
-  }
-  if (fromDate >= toDate) {
-    console.error(chalk.red('--from must be before --to'));
-    process.exit(1);
-  }
-
-  return { fromDate, toDate };
-}
-
-/** Print dry-run preview */
-const PREVIEW_LIMIT = 5;
-function printDryRunPreview(uniquePairs: Map<string, { content: string }>): void {
-  console.log(chalk.blue(`\n🔬 DRY RUN — would backfill ${uniquePairs.size} memories`));
-  let count = 0;
-  for (const [id, { content }] of uniquePairs) {
-    if (count >= PREVIEW_LIMIT) {
-      console.log(chalk.dim(`   ... and ${uniquePairs.size - PREVIEW_LIMIT} more`));
-      break;
-    }
-    const preview = content.length > 80 ? content.substring(0, 80) + '...' : content;
-    console.log(chalk.dim(`   ${id}: ${preview}`));
-    count++;
-  }
 }
 
 /**
