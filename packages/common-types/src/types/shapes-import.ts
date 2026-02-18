@@ -74,13 +74,21 @@ export interface ShapesIncMemory {
   shape_id: string;
   senders: string[];
   result: string;
+  /** Summarization type (e.g. 'automatic'). Maps to summary_type column. */
+  summary_type?: string;
+  /** Whether this memory was deleted on shapes.inc. Skip during import. */
+  deleted?: boolean;
   metadata: {
     start_ts: number;
     end_ts: number;
     created_at: number;
     senders: string[];
+    /** Discord channel ID. May be empty string in newer format — treat as null. */
     discord_channel_id?: string;
+    /** Discord guild ID. May be empty string in newer format — treat as null. */
     discord_guild_id?: string;
+    /** Message IDs that were summarized into this memory. */
+    msg_ids?: string[];
   };
 }
 

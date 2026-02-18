@@ -30,6 +30,12 @@ export interface MemoryToImport {
   text: string;
   senders: string[];
   createdAt: number; // ms timestamp
+  channelId?: string;
+  guildId?: string;
+  messageIds?: string[];
+  summaryType?: string;
+  /** Shapes.inc user UUID (first sender) for provenance tracking */
+  legacyShapesUserId?: string;
 }
 
 export interface ImportMemoriesOpts {
@@ -98,6 +104,13 @@ export async function importMemories(
         canonScope: 'global',
         createdAt: memory.createdAt,
         senders: memory.senders,
+        channelId: memory.channelId,
+        guildId: memory.guildId,
+        messageIds: memory.messageIds,
+        summaryType: memory.summaryType,
+        sourceSystem: 'shapes-inc',
+        isSummarized: true,
+        legacyShapesUserId: memory.legacyShapesUserId,
       };
 
       await memoryAdapter.addMemory({ text: memory.text, metadata });

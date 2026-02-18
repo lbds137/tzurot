@@ -605,11 +605,12 @@ describe('PgvectorMemoryAdapter', () => {
         $executeRaw: vi
           .fn()
           .mockImplementation((_strings: TemplateStringsArray, ...values: unknown[]) => {
-            // chunkGroupId is at index 15 in the VALUES (0-indexed)
+            // chunkGroupId is at index 16 in the VALUES (0-indexed)
             // Based on SQL: id, persona_id, personality_id, source_system, content, embedding,
             //               session_id, canon_scope, summary_type, channel_id, guild_id,
-            //               message_ids, senders, is_summarized, created_at, chunk_group_id, ...
-            chunkGroupIds.push(values[15] as string | null);
+            //               message_ids, senders, is_summarized, created_at,
+            //               legacy_shapes_user_id, chunk_group_id, ...
+            chunkGroupIds.push(values[16] as string | null);
             return Promise.resolve(undefined);
           }),
       };

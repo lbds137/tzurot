@@ -233,12 +233,13 @@ export class PgvectorMemoryAdapter {
           id, persona_id, personality_id, source_system, content, embedding,
           session_id, canon_scope, summary_type, channel_id, guild_id,
           message_ids, senders, is_summarized, created_at,
+          legacy_shapes_user_id,
           chunk_group_id, chunk_index, total_chunks
         ) VALUES (
           ${memoryId}::uuid,
           ${data.metadata.personaId}::uuid,
           ${data.metadata.personalityId}::uuid,
-          'tzurot-v3',
+          ${data.metadata.sourceSystem ?? 'tzurot-v3'},
           ${data.text},
           -- BGE-small-en-v1.5 local embedding (384 dimensions)
           ${`[${embedding.join(',')}]`}::vector(384),
@@ -249,8 +250,9 @@ export class PgvectorMemoryAdapter {
           ${normalized.guildId},
           ${normalized.messageIds}::text[],
           ${normalized.senders}::text[],
-          false,
+          ${data.metadata.isSummarized ?? false},
           ${normalized.createdAt}::timestamptz,
+          ${data.metadata.legacyShapesUserId ?? null}::uuid,
           ${data.metadata.chunkGroupId ?? null}::uuid,
           ${data.metadata.chunkIndex ?? null},
           ${data.metadata.totalChunks ?? null}
