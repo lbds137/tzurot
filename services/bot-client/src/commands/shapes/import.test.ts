@@ -41,7 +41,6 @@ describe('handleImport', () => {
     mockGetString.mockImplementation((name: string) => {
       if (name === 'slug') return 'test-character';
       if (name === 'import_type') return null;
-      if (name === 'personality') return null;
       return null;
     });
   });
@@ -207,7 +206,7 @@ describe('startImport', () => {
       expect.objectContaining({
         method: 'POST',
         userId: '123456789',
-        body: { sourceSlug: 'test-shape', importType: 'full', existingPersonalityId: undefined },
+        body: { sourceSlug: 'test-shape', importType: 'full' },
       })
     );
   });

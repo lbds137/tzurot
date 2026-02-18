@@ -269,10 +269,22 @@ async function resolvePersonality(
   if (opts.importType !== IMPORT_TYPE_MEMORY_ONLY) {
     return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.userId);
   }
-  if (opts.existingPersonalityId === undefined) {
-    throw new Error('existingPersonalityId is required for memory_only imports');
+
+  // memory_only: look up existing personality by slug (or explicit ID if provided)
+  if (opts.existingPersonalityId !== undefined) {
+    return { personalityId: opts.existingPersonalityId, slug: opts.sourceSlug };
   }
-  return { personalityId: opts.existingPersonalityId, slug: opts.sourceSlug };
+
+  const existing = await opts.prisma.personality.findFirst({
+    where: { slug: opts.sourceSlug },
+    select: { id: true, slug: true },
+  });
+  if (existing === null) {
+    throw new Error(
+      `No personality found with slug "${opts.sourceSlug}". Run a full import first, or provide an explicit personality ID.`
+    );
+  }
+  return { personalityId: existing.id, slug: existing.slug };
 }
 
 interface MarkCompletedOpts {

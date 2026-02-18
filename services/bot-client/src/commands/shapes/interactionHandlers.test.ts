@@ -105,7 +105,7 @@ describe('handleShapesButton', () => {
       );
     });
 
-    it('should handle import-confirm with memory_only and personalityId', async () => {
+    it('should handle import-confirm with memory_only', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
         data: {
@@ -117,7 +117,7 @@ describe('handleShapesButton', () => {
       });
 
       const interaction = createMockButtonInteraction(
-        'shapes::import-confirm::memory_only::personality-uuid',
+        'shapes::import-confirm::memory_only',
         'slug:test-slug'
       );
       await handleShapesButton(interaction);
@@ -127,7 +127,6 @@ describe('handleShapesButton', () => {
         expect.objectContaining({
           body: expect.objectContaining({
             importType: 'memory_only',
-            existingPersonalityId: 'personality-uuid',
           }),
         })
       );

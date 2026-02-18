@@ -83,11 +83,6 @@ export default defineCommand({
               { name: 'Memory Only', value: 'memory_only' }
             )
         )
-        .addStringOption(option =>
-          option
-            .setName('personality')
-            .setDescription('Target personality for memory_only import (required for Memory Only)')
-        )
     )
     .addSubcommand(subcommand =>
       subcommand

@@ -26,18 +26,6 @@ import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-import');
 
-async function verifyPersonalityOwnership(
-  prisma: PrismaClient,
-  personalityId: string,
-  userId: string
-): Promise<boolean> {
-  const personality = await prisma.personality.findFirst({
-    where: { id: personalityId, ownerId: userId },
-    select: { id: true },
-  });
-  return personality !== null;
-}
-
 interface CreateOrConflictResult {
   importJobId: string;
   conflictStatus: string | null;
@@ -122,25 +110,10 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 
     const validImportType = importType === 'memory_only' ? 'memory_only' : 'full';
 
-    if (validImportType === 'memory_only' && existingPersonalityId === undefined) {
-      return sendError(
-        res,
-        ErrorResponses.validationError('existingPersonalityId is required for memory_only imports')
-      );
-    }
-
     // Get or create internal user
     const userId = await userService.getOrCreateUser(discordUserId, discordUserId);
     if (userId === null) {
       return sendError(res, ErrorResponses.validationError('Cannot create user'));
-    }
-
-    // Verify ownership for memory_only imports
-    if (validImportType === 'memory_only' && existingPersonalityId !== undefined) {
-      const isOwner = await verifyPersonalityOwnership(prisma, existingPersonalityId, userId);
-      if (!isOwner) {
-        return sendError(res, ErrorResponses.notFound('Personality not found or not owned by you'));
-      }
     }
 
     // Atomically check for conflicts and create the import job

@@ -306,7 +306,7 @@ describe('processShapesImportJob', () => {
     );
   });
 
-  it('should handle memory_only import without creating personality', async () => {
+  it('should handle memory_only import with explicit personalityId', async () => {
     const job = createMockJob({
       importType: 'memory_only',
       existingPersonalityId: 'existing-pers-id',
@@ -320,6 +320,25 @@ describe('processShapesImportJob', () => {
     expect(result.importType).toBe('memory_only');
     // Should NOT create personality
     expect(mockPrisma.personality.upsert).not.toHaveBeenCalled();
+  });
+
+  it('should resolve personality by slug for memory_only without explicit ID', async () => {
+    mockPrisma.personality.findFirst = vi
+      .fn()
+      .mockResolvedValue({ id: 'found-pers-id', slug: 'test-shape' });
+
+    const job = createMockJob({ importType: 'memory_only' });
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(true);
+    expect(result.personalityId).toBe('found-pers-id');
+    expect(mockPrisma.personality.upsert).not.toHaveBeenCalled();
+    expect(mockPrisma.personality.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { slug: 'test-shape' } })
+    );
   });
 
   it('should mark import as failed on error', async () => {
