@@ -16,9 +16,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal();
   return {
     ...(actual as Record<string, unknown>),
-    // Mock bot owner check to true so slugs remain unchanged in tests
-    // (slug normalization is tested in slugUtils.test.ts)
     isBotOwner: vi.fn().mockReturnValue(true),
+    // Slug passthrough — normalization tested in common-types slugUtils.test.ts
+    normalizeSlugForUser: vi.fn((slug: string) => slug),
   };
 });
 

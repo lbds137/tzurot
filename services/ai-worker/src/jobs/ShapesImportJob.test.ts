@@ -8,6 +8,9 @@ import type { ShapesImportJobData } from '@tzurot/common-types';
 import { processShapesImportJob } from './ShapesImportJob.js';
 
 // Mock common-types
+const { mockNormalizeSlugForUser } = vi.hoisted(() => ({
+  mockNormalizeSlugForUser: vi.fn((slug: string) => slug),
+}));
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
@@ -22,6 +25,7 @@ vi.mock('@tzurot/common-types', async importOriginal => {
     encryptApiKey: vi
       .fn()
       .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),
+    normalizeSlugForUser: mockNormalizeSlugForUser,
   };
 });
 
@@ -133,7 +137,13 @@ const mockPrisma = {
     upsert: vi.fn().mockResolvedValue({}),
   },
   user: {
-    findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: 'default-persona-id' }),
+    findUnique: vi
+      .fn()
+      .mockResolvedValue({
+        username: 'testuser',
+        discordId: 'discord-123',
+        defaultPersonaId: 'default-persona-id',
+      }),
   },
   memory: {
     count: vi.fn().mockResolvedValue(0),
@@ -204,6 +214,16 @@ describe('processShapesImportJob', () => {
       userPersonalization: null,
       stats: { memoriesCount: 1, storiesCount: 0, pagesTraversed: 1 },
     });
+
+    // Default: user with username and default persona
+    mockPrisma.user.findUnique.mockResolvedValue({
+      username: 'testuser',
+      discordId: 'discord-123',
+      defaultPersonaId: 'default-persona-id',
+    });
+
+    // Default: slug passthrough (no suffix)
+    mockNormalizeSlugForUser.mockImplementation((slug: string) => slug);
 
     // Default: no existing memories (fresh import)
     mockPrisma.memory.count.mockResolvedValue(0);

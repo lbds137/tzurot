@@ -7,13 +7,13 @@ import { EmbedBuilder } from 'discord.js';
 import {
   createLogger,
   DISCORD_COLORS,
+  normalizeSlugForUser,
   type EnvConfig,
   characterImportOptions,
   PersonalityCreateSchema,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { normalizeSlugForUser } from '../../utils/slugUtils.js';
 import { validateJsonFile, downloadAndParseJson } from '../../utils/jsonFileUtils.js';
 import {
   VALID_IMAGE_TYPES,

@@ -152,8 +152,10 @@ function buildCustomFields(config: ShapesIncPersonalityConfig): Record<string, u
     }
   }
 
-  // Capture initial message from shape_settings (comes through [key: string]: unknown catch-all)
-  const shapeSettings = config.shape_settings as { shape_initial_message?: string } | undefined;
+  // Capture fields from shape_settings (comes through [key: string]: unknown catch-all)
+  const shapeSettings = config.shape_settings as
+    | { shape_initial_message?: string; appearance?: string }
+    | undefined;
   if (
     shapeSettings?.shape_initial_message !== undefined &&
     shapeSettings.shape_initial_message !== ''
@@ -178,6 +180,11 @@ function mapPersonality(config: ShapesIncPersonalityConfig, slug: string): Mappe
       ? parseBirthday(config.birthday)
       : { month: null, day: null, year: null };
 
+  // Appearance lives in shape_settings.appearance, not personality_appearance
+  const shapeSettings = config.shape_settings as { appearance?: string } | undefined;
+  const appearance =
+    emptyToNull(config.personality_appearance) ?? emptyToNull(shapeSettings?.appearance);
+
   return {
     id: generatePersonalityUuid(slug),
     name: config.name || config.username,
@@ -187,7 +194,7 @@ function mapPersonality(config: ShapesIncPersonalityConfig, slug: string): Mappe
     personalityTraits: config.personality_traits || '',
     personalityTone: emptyToNull(config.personality_tone),
     personalityAge: emptyToNull(config.personality_age),
-    personalityAppearance: emptyToNull(config.personality_appearance),
+    personalityAppearance: appearance,
     personalityLikes: emptyToNull(config.personality_likes),
     personalityDislikes: emptyToNull(config.personality_dislikes),
     conversationalGoals: emptyToNull(config.personality_conversational_goals),

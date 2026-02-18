@@ -17,6 +17,7 @@ import {
   createLogger,
   decryptApiKey,
   encryptApiKey,
+  normalizeSlugForUser,
   type Prisma,
   type PrismaClient,
   type ShapesImportJobData,
@@ -64,26 +65,29 @@ export async function processShapesImportJob(
   await updateImportJobStatus(prisma, importJobId, 'in_progress');
 
   try {
-    // 2. Decrypt session cookie
+    // 2. Look up user info (username for slug normalization, persona for memory ownership)
+    const { username, personaId } = await resolveImportUser(prisma, userId);
+
+    // 3. Normalize slug — non-bot-owners get username suffix to prevent collisions
+    const normalizedSlug = normalizeSlugForUser(sourceSlug, discordUserId, username);
+
+    // 4. Decrypt session cookie
     const sessionCookie = await getDecryptedCookie(prisma, userId);
 
-    // 3. Fetch data from shapes.inc
+    // 5. Fetch data from shapes.inc
     const fetcher = new ShapesDataFetcher();
     const fetchResult = await fetcher.fetchShapeData(sourceSlug, { sessionCookie });
     await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
 
-    // 4. Create or resolve personality
+    // 6. Create or resolve personality
     const { personalityId, slug: personalitySlug } = await resolvePersonality({
       prisma,
       config: fetchResult.config,
-      sourceSlug,
+      sourceSlug: normalizedSlug,
       userId,
       importType,
       existingPersonalityId,
     });
-
-    // 5. Resolve the importing user's default persona for memory ownership
-    const personaId = await resolveImportPersonaId(prisma, userId);
 
     // 6. Download and store avatar
     let avatarDownloaded = false;
@@ -155,22 +159,29 @@ export async function processShapesImportJob(
 // ============================================================================
 
 /**
- * Resolve the persona ID for memory ownership during import.
- * Uses the importing user's default persona — memories need a valid persona FK.
+ * Look up the importing user's username (for slug normalization) and
+ * default persona ID (for memory FK ownership). Both are required.
  */
-async function resolveImportPersonaId(prisma: PrismaClient, userId: string): Promise<string> {
+async function resolveImportUser(
+  prisma: PrismaClient,
+  userId: string
+): Promise<{ username: string; personaId: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { defaultPersonaId: true },
+    select: { username: true, discordId: true, defaultPersonaId: true },
   });
 
-  if (user?.defaultPersonaId === null || user?.defaultPersonaId === undefined) {
+  if (user === null) {
+    throw new Error('Cannot import: user not found.');
+  }
+
+  if (user.defaultPersonaId === null) {
     throw new Error(
       'Cannot import memories: user has no default persona. Use /persona create first.'
     );
   }
 
-  return user.defaultPersonaId;
+  return { username: user.username, personaId: user.defaultPersonaId };
 }
 
 async function getDecryptedCookie(prisma: PrismaClient, userId: string): Promise<string> {
