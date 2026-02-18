@@ -91,10 +91,9 @@ function isPrismaUniqueConstraintError(error: unknown): error is { code: string 
 function createImportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const { sourceSlug, importType, existingPersonalityId } = req.body as {
+    const { sourceSlug, importType } = req.body as {
       sourceSlug?: string;
       importType?: string;
-      existingPersonalityId?: string;
     };
 
     // Validate required fields
@@ -160,7 +159,6 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
       sourceSlug: normalizedSlug,
       importJobId,
       importType: validImportType,
-      existingPersonalityId,
     };
 
     // Non-deterministic suffix: the DB-level transaction in createImportJobOrConflict

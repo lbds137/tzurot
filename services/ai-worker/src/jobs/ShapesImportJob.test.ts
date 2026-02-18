@@ -312,23 +312,7 @@ describe('processShapesImportJob', () => {
     );
   });
 
-  it('should handle memory_only import with explicit personalityId', async () => {
-    const job = createMockJob({
-      importType: 'memory_only',
-      existingPersonalityId: 'existing-pers-id',
-    });
-    const result = await processShapesImportJob(job, {
-      prisma: mockPrisma as never,
-      memoryAdapter: mockMemoryAdapter as never,
-    });
-
-    expect(result.success).toBe(true);
-    expect(result.importType).toBe('memory_only');
-    // Should NOT create personality
-    expect(mockPrisma.personality.upsert).not.toHaveBeenCalled();
-  });
-
-  it('should resolve personality by slug for memory_only without explicit ID', async () => {
+  it('should resolve personality by slug for memory_only import', async () => {
     mockPrisma.personality.findFirst.mockResolvedValue({
       id: 'found-pers-id',
       slug: 'test-shape',
