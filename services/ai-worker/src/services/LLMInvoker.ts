@@ -350,11 +350,8 @@ export class LLMInvoker {
         '[LLMInvoker] Stop sequence triggered - prevented potential identity bleeding or hallucination'
       );
     } else if (
-      inferNonXmlStop(
-        typeof response.content === 'string' ? response.content : '',
-        finishReason,
-        stopSequences
-      )
+      typeof response.content === 'string' &&
+      inferNonXmlStop(response.content, finishReason, stopSequences)
     ) {
       recordStopSequenceActivation('inferred:non-xml-stop', modelName);
       logger.info(

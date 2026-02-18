@@ -1260,10 +1260,9 @@ describe('LLMInvoker', () => {
         expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
       });
 
-      it('should treat array content as empty string for inference (no false positive)', async () => {
-        // Multimodal responses have array content — inference should fall back to ''
-        // which doesn't end with </message>, but this is expected and should still
-        // trigger inference since the model stopped mid-response with array content
+      it('should skip inference for array content (multimodal responses)', async () => {
+        // Multimodal responses have array content — inference should be skipped
+        // entirely to avoid false positives (array content never ends with </message>)
         const mockModel = {
           invoke: vi.fn().mockResolvedValue({
             content: [{ type: 'text', text: 'partial response' }],
@@ -1282,11 +1281,8 @@ describe('LLMInvoker', () => {
           stopSequences: ['</message>', '<message'],
         });
 
-        // Array content → '' → doesn't end with </message> → inferred
-        expect(mockRecordStopSequenceActivation).toHaveBeenCalledWith(
-          'inferred:non-xml-stop',
-          'test-model'
-        );
+        // Array content → typeof check fails → falls through to isNaturalStop
+        expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
       });
     });
   });

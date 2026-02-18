@@ -131,6 +131,12 @@ export async function queryConversationHistory(
     }
     const last = page[page.length - 1];
     cursor = { createdAt: last.created_at, id: last.id };
+
+    if (allRows.length >= 50_000 && allRows.length - page.length < 50_000) {
+      console.warn(
+        chalk.yellow(`   ⚠ ${allRows.length} rows fetched — consider narrowing --from/--to range`)
+      );
+    }
   }
 
   // Pages are fetched in (created_at, id) order for stable cursor pagination,
@@ -189,6 +195,7 @@ export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
 
 /**
  * Deduplicate pairs via deterministic UUID, format as memory content.
+ * First-seen pair wins on UUID collision (subsequent identical content is skipped).
  * Format must match LongTermMemoryService.ts:58 — "{user}: ...\n{assistant}: ..."
  * If the live path changes, backfill embeddings will diverge from live memories.
  */
