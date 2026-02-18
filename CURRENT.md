@@ -1,41 +1,44 @@
 # Current
 
-> **Session**: 2026-02-16 (continued)
-> **Version**: v3.0.0-beta.76
+> **Session**: 2026-02-18
+> **Version**: v3.0.0-beta.79
 
 ---
 
 ## Session Goal
 
-_Shapes.inc character backup & import — plan finalization, implementation, and deployment._
+_PR #661 review feedback — address 4 rounds of reviewer comments and release._
 
 ## Active Task
 
-Shapes.inc import **gap fixes** — 5 verified gaps from deep verification against legacy scripts. Branch: `fix/shapes-import-gaps`.
+Complete — released as v3.0.0-beta.79.
 
 ---
 
 ## Completed This Session
 
-- [x] 🐛 **Fix 1: Partial re-import dedup** — Replaced count-based skip with content-based deduplication (query existing content → Set → skip duplicates). Partial retries now import only missing memories.
-- [x] 🐛 **Fix 2: Avatar download timeout** — Added AbortController with 30s timeout to `downloadAndStoreAvatar()` fetch call. Matches `ShapesDataFetcher.REQUEST_TIMEOUT_MS`.
-- [x] ✨ **Fix 3: Stuck import job cleanup** — New `cleanupStuckImportJobs.ts` scheduled every 15 minutes. Finds `in_progress` jobs older than 1 hour, marks them failed so users can retry.
-- [x] ✨ **Fix 4: Capture initial message** — Extract `shape_settings.shape_initial_message` into `customFields.initialMessage` in ShapesPersonalityMapper.
-- [x] ✨ **Fix 5: Parse birthday** — New `parseBirthday()` helper parses `MM-DD` and `YYYY-MM-DD` formats into `birthMonth`/`birthDay`/`birthYear` typed columns. Raw string kept in customFields as fallback.
-- [x] 🏗️ **Complexity refactor** — Extracted `buildCustomFields()` with data-driven field mapping to reduce `mapPersonality` complexity below ESLint threshold.
-- [x] 📝 **Backlog** — Added voice/image field import and training data import as future phases.
+- [x] 🐛 **Ownership guard** — Prevent full imports from overwriting personalities owned by other users (bot owner exempt)
+- [x] 🐛 **UUID validation** — Validate `legacyShapesUserId` is a valid UUID before storing
+- [x] 🏗️ **Step reordering** — Credential check before user lookup for more actionable error messages
+- [x] 🏗️ **Naming clarity** — Rename `userId` → `internalUserId` in `ResolvePersonalityOpts`
+- [x] 🏗️ **Type dedup** — Extract shared `ShapeSettings` interface in personality mapper
+- [x] 🏗️ **Dead code removal** — Remove `existingPersonalityId` from entire pipeline (common-types, gateway, worker, tests)
+- [x] 🏗️ **Custom ID cleanup** — Remove dead `personalityId` from `ShapesCustomIds.importConfirm()`
+- [x] ✅ **Test coverage** — 4 new test cases (user not found, no default persona, ownership rejection, memory_only slug not found)
+- [x] 📝 **Documentation** — Comments on memory_only ownership model, slug semantics, gateway validation tradeoff
+- [x] 🚀 **Released** v3.0.0-beta.79
 
 ## Next Steps
 
-1. Commit and create PR for `fix/shapes-import-gaps`
-2. End-to-end verification: auth → import → verify character exists → talk to it
-3. Release as beta.77
+1. Deploy to Railway dev/prod
+2. Run `pnpm ops db:migrate --env dev` and `--env prod` (no new migrations in this release, but verify)
+3. Pull next task from backlog
 
 ## Recent Highlights
 
+- **beta.79**: Shapes import review fixes — ownership guard, dead code cleanup, test coverage
+- **beta.78**: Shapes import gap fixes — slug normalization, memory metadata, appearance field
 - **beta.76**: Admin commands bundle, custom status, `<from>` tag fix, hook cleanup
-- **beta.75**: Reply-to context, `/deny view`, denylist hardening, stop sequence cleanup
-- **beta.74**: Config cascade PR feedback, prod migration catch-up
 
 ---
 

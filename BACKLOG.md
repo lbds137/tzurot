@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-16
-> **Version**: v3.0.0-beta.74
+> **Last Updated**: 2026-02-18
+> **Version**: v3.0.0-beta.79
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -29,6 +29,10 @@ Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env d
 - Pre-deploy hook with `prisma migrate deploy`
 - Dry-run check in prod with approval gate
 - CI step that validates migration state matches schema
+
+### 🐛 [FIX] `memory_only` Import Fails for Bot-Owner-Owned Personalities
+
+`normalizeSlugForUser` appends `-username` for non-bot-owners, so a regular user's `memory_only` import for a bot-owner-owned personality (slug `some-shape`) becomes `some-shape-username` — personality not found. The slug normalization should consider the _target personality's owner_, not just the importing user. Non-bot-owners should be able to import memories into bot-owner-owned personalities without suffix.
 
 ### 🏗️ [LIFT] Deduplicate `isPrismaUniqueConstraintError`
 
