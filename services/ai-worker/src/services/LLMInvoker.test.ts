@@ -21,6 +21,12 @@ vi.mock('./ModelFactory.js', () => ({
   }),
 }));
 
+// Mock StopSequenceTracker
+const mockRecordStopSequenceActivation = vi.fn();
+vi.mock('./StopSequenceTracker.js', () => ({
+  recordStopSequenceActivation: (...args: unknown[]) => mockRecordStopSequenceActivation(...args),
+}));
+
 describe('LLMInvoker', () => {
   let invoker: LLMInvoker;
 
@@ -1151,6 +1157,103 @@ describe('LLMInvoker', () => {
             stop: ['</message>', '\nUser:'],
           })
         );
+      });
+
+      it('should record stop sequence when provider reports stoppedAt with natural finish_reason', async () => {
+        // Provider returns finish_reason: "stop" with stop: "\nLilith:" — the reordered
+        // if/else ensures stoppedAt is checked before isNaturalStop
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Let me respond as',
+            response_metadata: {
+              finish_reason: 'stop',
+              stop: '\nLilith:',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          stopSequences: ['</message>', '<message', '\nLilith:'],
+        });
+
+        expect(mockRecordStopSequenceActivation).toHaveBeenCalledWith('\nLilith:', 'test-model');
+      });
+
+      it('should infer stop sequence when finish_reason is stop but content lacks </message>', async () => {
+        // Provider says "stop" but doesn't report which sequence fired.
+        // Content doesn't end with </message>, so a non-XML stop likely triggered.
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Let me respond as',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          stopSequences: ['</message>', '<message'],
+        });
+
+        expect(mockRecordStopSequenceActivation).toHaveBeenCalledWith(
+          'inferred:non-xml-stop',
+          'test-model'
+        );
+      });
+
+      it('should not infer stop sequence when content ends with </message>', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Here is my response</message>',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          stopSequences: ['</message>', '<message'],
+        });
+
+        // Natural completion — no stop sequence recorded
+        expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
+      });
+
+      it('should not infer stop sequence when no stop sequences were configured', async () => {
+        const mockModel = {
+          invoke: vi.fn().mockResolvedValue({
+            content: 'Some partial response',
+            response_metadata: {
+              finish_reason: 'stop',
+            },
+          }),
+        } as any as BaseChatModel;
+
+        const messages: BaseMessage[] = [new HumanMessage('Hello')];
+
+        await invoker.invokeWithRetry({
+          model: mockModel,
+          messages,
+          modelName: 'test-model',
+          // No stopSequences passed
+        });
+
+        expect(mockRecordStopSequenceActivation).not.toHaveBeenCalled();
       });
     });
   });

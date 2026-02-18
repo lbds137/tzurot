@@ -264,7 +264,6 @@ export interface ModelInvocationOptions {
   userMessage: string;
   processedAttachments: ProcessedAttachment[];
   context: ConversationContext;
-  participantPersonas: Map<string, ParticipantInfo>;
   referencedMessagesDescriptions: string | undefined;
   userApiKey?: string;
   /** Retry configuration for escalating duplicate detection retries */

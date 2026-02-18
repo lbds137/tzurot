@@ -15,7 +15,6 @@ import {
   type RawHistoryEntry,
 } from './RAGUtils.js';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import type { ParticipantInfo } from './ConversationalRAGTypes.js';
 
 vi.mock('./storedReferenceHydrator.js', () => ({
   hydrateStoredReferences: vi.fn().mockResolvedValue(undefined),
@@ -246,205 +245,27 @@ describe('RAGUtils', () => {
   });
 
   describe('generateStopSequences', () => {
-    /**
-     * Stop sequence structure (legacy plain-text markers removed):
-     * Priority 1: XML structure (2 slots) - </message>, <message
-     * Priority 2: Personality name (1 slot) - \n{name}:
-     * Priority 3: Participants (remaining 13 slots)
-     *
-     * Legacy plain-text markers (User:, Human:, ###, <|user|>, \nAI:, etc.)
-     * were removed because the XML prompt format makes them unnecessary, and
-     * they cause false positives with reasoning models whose chain-of-thought
-     * may contain these substrings mid-generation.
-     */
+    it('should return exactly the 2 XML stop sequences', () => {
+      const result = generateStopSequences();
 
-    it('should generate stop sequence for personality name', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>();
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      expect(result).toContain('\nLilith:');
+      expect(result).toEqual(['</message>', '<message']);
     });
 
-    it('should generate stop sequences for all participants', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        ['Alice', { content: 'User persona', isActive: true, personaId: 'persona-1' }],
-        ['Bob', { content: 'Another user', isActive: false, personaId: 'persona-2' }],
-      ]);
+    it('should not include any name-based stop sequences', () => {
+      const result = generateStopSequences();
 
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      expect(result).toContain('\nAlice:');
-      expect(result).toContain('\nBob:');
-      expect(result).toContain('\nLilith:');
+      // No personality or participant name patterns
+      const hasNamePattern = result.some(s => s.startsWith('\n') && s.endsWith(':'));
+      expect(hasNamePattern).toBe(false);
     });
 
-    it('should include essential XML tag stop sequences', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>();
+    it('should not include legacy plain-text role markers', () => {
+      const result = generateStopSequences();
 
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Only essential XML tags (2 slots)
-      expect(result).toContain('</message>');
-      expect(result).toContain('<message');
-
-      // Old XML tags should NOT be present
-      expect(result).not.toContain('<chat_log>');
-      expect(result).not.toContain('</chat_log>');
-      expect(result).not.toContain('<quoted_messages>');
-    });
-
-    it('should NOT include legacy plain-text role markers', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>();
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // These were removed — they cause false positives with reasoning models
       expect(result).not.toContain('\nUser:');
       expect(result).not.toContain('\nHuman:');
-      expect(result).not.toContain('User:');
-      expect(result).not.toContain('Human:');
       expect(result).not.toContain('###');
-      expect(result).not.toContain('\nAssistant:');
       expect(result).not.toContain('<|user|>');
-      expect(result).not.toContain('\nAI:');
-    });
-
-    it('should return stop sequences in priority order', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        ['Alice', { content: '', isActive: true, personaId: 'persona-1' }],
-        ['Bob', { content: '', isActive: true, personaId: 'persona-2' }],
-      ]);
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Priority 1: XML structure (indices 0-1)
-      expect(result[0]).toBe('</message>');
-      expect(result[1]).toBe('<message');
-
-      // Priority 2: Personality (index 2)
-      expect(result[2]).toBe('\nLilith:');
-
-      // Priority 3: Participants (indices 3+)
-      expect(result[3]).toBe('\nAlice:');
-      expect(result[4]).toBe('\nBob:');
-    });
-
-    it('should return correct total count of stop sequences', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        ['Alice', { content: 'User persona', isActive: true, personaId: 'persona-1' }],
-      ]);
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // 2 XML + 1 personality + 1 participant = 4
-      expect(result.length).toBe(4);
-    });
-
-    it('should handle empty participant map', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>();
-
-      const result = generateStopSequences('TestBot', participantPersonas);
-
-      // Should have reserved slots only: 2 XML + 1 personality = 3
-      expect(result).toContain('\nTestBot:');
-      expect(result.length).toBe(3);
-    });
-
-    it('should cap stop sequences at 16 (Google API limit)', () => {
-      // Create many participants to exceed the limit
-      // Reserved slots: 2 XML + 1 personality = 3
-      // Available for participants: 16 - 3 = 13
-      const participantPersonas = new Map<string, ParticipantInfo>();
-      for (let i = 1; i <= 15; i++) {
-        participantPersonas.set(`User${i}`, {
-          content: '',
-          isActive: true,
-          personaId: `persona-${i}`,
-        });
-      }
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Should be exactly 16 (the max allowed)
-      expect(result.length).toBe(16);
-
-      // All priority sequences should be present
-      expect(result).toContain('</message>');
-      expect(result).toContain('\nLilith:');
-
-      // First 13 participants should be present
-      expect(result).toContain('\nUser1:');
-      expect(result).toContain('\nUser13:');
-
-      // User14+ should be truncated
-      expect(result).not.toContain('\nUser14:');
-      expect(result).not.toContain('\nUser15:');
-    });
-
-    it('should not truncate when under the limit', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        ['User1', { content: '', isActive: true, personaId: 'persona-1' }],
-        ['User2', { content: '', isActive: true, personaId: 'persona-2' }],
-        ['User3', { content: '', isActive: true, personaId: 'persona-3' }],
-      ]);
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // 3 reserved + 3 participants = 6 (under limit)
-      expect(result.length).toBe(6);
-      expect(result).toContain('\nUser1:');
-      expect(result).toContain('\nUser2:');
-      expect(result).toContain('\nUser3:');
-    });
-
-    it('should not truncate when exactly at the limit (16)', () => {
-      // 13 participants + 3 reserved = exactly 16 (the limit)
-      const participantPersonas = new Map<string, ParticipantInfo>();
-      for (let i = 1; i <= 13; i++) {
-        participantPersonas.set(`User${i}`, {
-          content: '',
-          isActive: true,
-          personaId: `persona-${i}`,
-        });
-      }
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Should be exactly 16 with no truncation
-      expect(result.length).toBe(16);
-
-      // All participants should be present
-      expect(result).toContain('\nUser1:');
-      expect(result).toContain('\nUser13:');
-
-      // Personality and XML should be present
-      expect(result).toContain('\nLilith:');
-      expect(result).toContain('</message>');
-    });
-
-    it('should work with participants that have guildInfo', () => {
-      const participantPersonas = new Map<string, ParticipantInfo>([
-        [
-          'Alice',
-          {
-            content: 'Developer',
-            isActive: true,
-            personaId: 'persona-1',
-            guildInfo: {
-              roles: ['Admin', 'Developer'],
-              displayColor: '#FF00FF',
-              joinedAt: '2023-05-15T10:30:00Z',
-            },
-          },
-        ],
-      ]);
-
-      const result = generateStopSequences('Lilith', participantPersonas);
-
-      // Should still generate correct stop sequences regardless of guildInfo
-      expect(result).toContain('\nAlice:');
-      expect(result).toContain('\nLilith:');
     });
   });
 
