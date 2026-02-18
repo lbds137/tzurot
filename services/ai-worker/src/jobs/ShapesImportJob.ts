@@ -78,7 +78,8 @@ export async function processShapesImportJob(
     // 4. Normalize slug — non-bot-owners get username suffix to prevent collisions
     const normalizedSlug = normalizeSlugForUser(sourceSlug, discordUserId, username);
 
-    // 5. Fetch data from shapes.inc
+    // 5. Fetch data from shapes.inc (uses original sourceSlug — the shapes.inc API
+    //    identifier — not normalizedSlug which is the local personality slug)
     const fetcher = new ShapesDataFetcher();
     const fetchResult = await fetcher.fetchShapeData(sourceSlug, { sessionCookie });
     await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
