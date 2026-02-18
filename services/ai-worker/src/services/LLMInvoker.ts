@@ -360,7 +360,7 @@ export class LLMInvoker {
       recordStopSequenceActivation('inferred:non-xml-stop', modelName);
       logger.info(
         logContext,
-        '[LLMInvoker] Inferred stop sequence activation (content lacks </message>)'
+        '[LLMInvoker] Possible stop sequence activation — response ended without </message> (heuristic, may be a false positive)'
       );
     } else if (isNaturalStop(finishReason)) {
       logger.debug(logContext, '[LLMInvoker] Model completed naturally');
