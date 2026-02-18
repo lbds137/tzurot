@@ -2,11 +2,12 @@
  * Shapes.inc Import Job Processor
  *
  * BullMQ job handler that orchestrates the full shapes.inc import pipeline:
- * 1. Decrypt session cookie from UserCredential
- * 2. Fetch data from shapes.inc via ShapesDataFetcher
- * 3. Create Personality + SystemPrompt + LlmConfig via PersonalityMapper
- * 4. Import memories into pgvector
- * 5. Update ImportJob status with results
+ * 1. Validate credentials (fail fast before expensive operations)
+ * 2. Resolve user info + normalize slug
+ * 3. Fetch data from shapes.inc via ShapesDataFetcher
+ * 4. Create Personality + SystemPrompt + LlmConfig via PersonalityMapper
+ * 5. Import memories into pgvector
+ * 6. Update ImportJob status with results
  *
  * For 'memory_only' imports, skips personality creation and just imports
  * memories into an existing personality.
@@ -66,14 +67,14 @@ export async function processShapesImportJob(
   await updateImportJobStatus(prisma, importJobId, 'in_progress');
 
   try {
-    // 2. Look up user info (username for slug normalization, persona for memory ownership)
+    // 2. Decrypt session cookie — fail fast on expired/missing credentials
+    const sessionCookie = await getDecryptedCookie(prisma, userId);
+
+    // 3. Look up user info (username for slug normalization, persona for memory ownership)
     const { username, personaId } = await resolveImportUser(prisma, userId);
 
-    // 3. Normalize slug — non-bot-owners get username suffix to prevent collisions
+    // 4. Normalize slug — non-bot-owners get username suffix to prevent collisions
     const normalizedSlug = normalizeSlugForUser(sourceSlug, discordUserId, username);
-
-    // 4. Decrypt session cookie
-    const sessionCookie = await getDecryptedCookie(prisma, userId);
 
     // 5. Fetch data from shapes.inc
     const fetcher = new ShapesDataFetcher();
@@ -85,7 +86,7 @@ export async function processShapesImportJob(
       prisma,
       config: fetchResult.config,
       sourceSlug: normalizedSlug,
-      userId,
+      internalUserId: userId,
       discordUserId,
       importType,
       existingPersonalityId,
@@ -261,7 +262,8 @@ interface ResolvePersonalityOpts {
   prisma: PrismaClient;
   config: ShapesIncPersonalityConfig;
   sourceSlug: string;
-  userId: string;
+  /** Internal Prisma UUID — NOT the Discord snowflake */
+  internalUserId: string;
   discordUserId: string;
   importType: string;
   existingPersonalityId?: string;
@@ -276,10 +278,14 @@ async function resolvePersonality(
       where: { slug: opts.sourceSlug },
       select: { id: true, ownerId: true },
     });
-    if (existing !== null && existing.ownerId !== opts.userId && !isBotOwner(opts.discordUserId)) {
+    if (
+      existing !== null &&
+      existing.ownerId !== opts.internalUserId &&
+      !isBotOwner(opts.discordUserId)
+    ) {
       throw new Error(`Cannot import: personality "${opts.sourceSlug}" is owned by another user.`);
     }
-    return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.userId);
+    return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.internalUserId);
   }
 
   // memory_only: look up existing personality by slug (or explicit ID if provided)
