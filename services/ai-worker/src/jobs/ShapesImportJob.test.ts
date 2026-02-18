@@ -137,13 +137,11 @@ const mockPrisma = {
     upsert: vi.fn().mockResolvedValue({}),
   },
   user: {
-    findUnique: vi
-      .fn()
-      .mockResolvedValue({
-        username: 'testuser',
-        discordId: 'discord-123',
-        defaultPersonaId: 'default-persona-id',
-      }),
+    findUnique: vi.fn().mockResolvedValue({
+      username: 'testuser',
+      discordId: 'discord-123',
+      defaultPersonaId: 'default-persona-id',
+    }),
   },
   memory: {
     count: vi.fn().mockResolvedValue(0),
@@ -202,11 +200,16 @@ describe('processShapesImportJob', () => {
           shape_id: 'shape-uuid',
           senders: ['user-1'],
           result: 'Test memory content',
+          summary_type: 'automatic',
+          deleted: false,
           metadata: {
             start_ts: 1700000000,
             end_ts: 1700001000,
             created_at: 1700001000,
             senders: ['user-1'],
+            discord_channel_id: '123456',
+            discord_guild_id: '789012',
+            msg_ids: ['msg-1', 'msg-2'],
           },
         },
       ],

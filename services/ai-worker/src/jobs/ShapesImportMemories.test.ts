@@ -152,6 +152,13 @@ describe('importMemories', () => {
         canonScope: 'global',
         createdAt: 1700000000000,
         senders: ['user-1', 'user-2'],
+        channelId: undefined,
+        guildId: undefined,
+        messageIds: undefined,
+        summaryType: undefined,
+        sourceSystem: 'shapes-inc',
+        isSummarized: true,
+        legacyShapesUserId: undefined,
       },
     });
   });

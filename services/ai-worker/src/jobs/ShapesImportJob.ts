@@ -109,11 +109,19 @@ export async function processShapesImportJob(
     const memoryStats = await importMemories({
       memoryAdapter,
       prisma,
-      memories: fetchResult.memories.map(m => ({
-        text: m.result,
-        senders: m.senders,
-        createdAt: m.metadata.created_at * 1000,
-      })),
+      memories: fetchResult.memories
+        .filter(m => m.deleted !== true)
+        .map(m => ({
+          text: m.result,
+          senders: m.senders,
+          createdAt: m.metadata.created_at * 1000,
+          channelId:
+            m.metadata.discord_channel_id !== '' ? m.metadata.discord_channel_id : undefined,
+          guildId: m.metadata.discord_guild_id !== '' ? m.metadata.discord_guild_id : undefined,
+          messageIds: m.metadata.msg_ids,
+          summaryType: m.summary_type,
+          legacyShapesUserId: m.senders[0],
+        })),
       personalityId,
       personaId,
       importJobId,

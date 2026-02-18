@@ -87,6 +87,10 @@ export interface MemoryMetadata {
   serverId?: string;
   messageIds?: string[];
   senders?: string[];
+  // Import provenance fields (defaults applied in PgvectorMemoryAdapter)
+  sourceSystem?: string; // Default: 'tzurot-v3'. Set to 'shapes-inc' for shapes imports.
+  isSummarized?: boolean; // Default: false. Set to true for pre-summarized imports.
+  legacyShapesUserId?: string; // Shapes.inc user UUID for provenance tracking
   // Chunk linking fields for oversized memories
   chunkGroupId?: string; // UUID linking all chunks from same source memory
   chunkIndex?: number; // 0-based position in chunk sequence
@@ -111,6 +115,10 @@ export const MemoryMetadataSchema = z.object({
   serverId: z.string().optional(),
   messageIds: z.array(z.string()).optional(),
   senders: z.array(z.string()).optional(),
+  // Import provenance fields
+  sourceSystem: z.string().optional(),
+  isSummarized: z.boolean().optional(),
+  legacyShapesUserId: z.string().uuid().optional(),
   // Chunk linking fields
   chunkGroupId: z.string().uuid().optional(),
   chunkIndex: z.number().int().min(0).optional(),
