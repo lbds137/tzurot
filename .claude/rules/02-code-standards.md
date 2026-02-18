@@ -41,6 +41,7 @@ Rules:
 - Use `unknown` + type guards instead of `any`
 - Validate with Zod at service boundaries
 - Be explicit: `!== null`, `!== undefined` (no implicit boolean coercion)
+- **No unused parameters** — `noUnusedParameters: true` is enforced. If a function no longer uses a parameter, remove it from the signature and update callers. The `_` prefix escape hatch is for cases where you don't control the signature (callbacks, interface implementations, error params) — not for keeping dead parameters "for compatibility."
 
 ## Refactoring Patterns
 

@@ -6,7 +6,7 @@
  */
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
-import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
+import { resolveFinishReason, isNaturalStop, type LoadedPersonality } from '@tzurot/common-types';
 import type { LlmResponseData } from './DiagnosticTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
@@ -128,14 +128,29 @@ export function recordLlmResponseDiagnostic(
   collector: DiagnosticCollector,
   rawContent: string,
   modelName: string,
-  metadata: ParsedResponseMetadata
+  metadata: ParsedResponseMetadata,
+  stopSequences?: string[]
 ): void {
+  const finishReason = resolveFinishReason(
+    metadata.responseMetadata as Record<string, unknown> | undefined
+  );
+
+  // Resolve provider-reported stop sequence, or infer from content
+  let stopSequenceTriggered = resolveStopSequence(metadata.responseMetadata);
+  if (
+    stopSequenceTriggered === null &&
+    isNaturalStop(finishReason) &&
+    stopSequences !== undefined &&
+    stopSequences.length > 0 &&
+    !rawContent.trimEnd().endsWith('</message>')
+  ) {
+    stopSequenceTriggered = 'inferred:non-xml-stop';
+  }
+
   collector.recordLlmResponse({
     rawContent,
-    finishReason: resolveFinishReason(
-      metadata.responseMetadata as Record<string, unknown> | undefined
-    ),
-    stopSequenceTriggered: resolveStopSequence(metadata.responseMetadata),
+    finishReason,
+    stopSequenceTriggered,
     promptTokens: metadata.usageMetadata?.input_tokens ?? 0,
     completionTokens: metadata.usageMetadata?.output_tokens ?? 0,
     modelUsed: modelName,

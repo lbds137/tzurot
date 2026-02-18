@@ -151,7 +151,6 @@ export class ConversationalRAGService {
       userMessage,
       processedAttachments,
       context,
-      participantPersonas,
       referencedMessagesDescriptions,
       userApiKey,
       retryConfig,
@@ -207,7 +206,7 @@ export class ConversationalRAGService {
     const { imageCount, audioCount } = countMediaAttachments(context.attachments);
 
     // Generate stop sequences
-    const stopSequences = generateStopSequences(personality.name, participantPersonas);
+    const stopSequences = generateStopSequences();
 
     // Record assembled prompt and LLM config for diagnostics
     if (diagnosticCollector) {
@@ -246,7 +245,13 @@ export class ConversationalRAGService {
 
     // Record LLM response for diagnostics
     if (diagnosticCollector) {
-      recordLlmResponseDiagnostic(diagnosticCollector, rawContent, modelName, metadata);
+      recordLlmResponseDiagnostic(
+        diagnosticCollector,
+        rawContent,
+        modelName,
+        metadata,
+        stopSequences
+      );
     }
 
     // Process response: deduplicate, extract reasoning, strip artifacts, replace placeholders
@@ -421,7 +426,6 @@ export class ConversationalRAGService {
         userMessage: inputs.userMessage,
         processedAttachments: inputs.processedAttachments,
         context,
-        participantPersonas,
         referencedMessagesDescriptions: inputs.referencedMessagesDescriptions,
         userApiKey,
         retryConfig,
