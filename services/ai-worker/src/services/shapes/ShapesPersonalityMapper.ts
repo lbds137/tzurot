@@ -105,6 +105,12 @@ export function mapShapesConfigToPersonality(
   return { systemPrompt, personality, llmConfig };
 }
 
+/** Typed subset of shape_settings (comes through [key: string]: unknown catch-all) */
+interface ShapeSettings {
+  shape_initial_message?: string;
+  appearance?: string;
+}
+
 // ============================================================================
 // Private mapping functions
 // ============================================================================
@@ -152,10 +158,7 @@ function buildCustomFields(config: ShapesIncPersonalityConfig): Record<string, u
     }
   }
 
-  // Capture fields from shape_settings (comes through [key: string]: unknown catch-all)
-  const shapeSettings = config.shape_settings as
-    | { shape_initial_message?: string; appearance?: string }
-    | undefined;
+  const shapeSettings = config.shape_settings as ShapeSettings | undefined;
   if (
     shapeSettings?.shape_initial_message !== undefined &&
     shapeSettings.shape_initial_message !== ''
@@ -181,7 +184,7 @@ function mapPersonality(config: ShapesIncPersonalityConfig, slug: string): Mappe
       : { month: null, day: null, year: null };
 
   // Appearance lives in shape_settings.appearance, not personality_appearance
-  const shapeSettings = config.shape_settings as { appearance?: string } | undefined;
+  const shapeSettings = config.shape_settings as ShapeSettings | undefined;
   const appearance =
     emptyToNull(config.personality_appearance) ?? emptyToNull(shapeSettings?.appearance);
 
