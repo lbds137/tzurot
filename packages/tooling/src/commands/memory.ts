@@ -30,7 +30,7 @@ export function registerMemoryCommands(cli: CAC): void {
     .command('memory:backfill', 'Backfill LTM from conversation_history for a date range')
     .option(ENV_OPTION, ENV_OPTION_DESC, ENV_OPTION_DEFAULT)
     .option('--from <date>', 'Start date (YYYY-MM-DD, inclusive)')
-    .option('--to <date>', 'End date (YYYY-MM-DD, exclusive)')
+    .option('--to <date>', 'End date (YYYY-MM-DD, exclusive — use day after last desired date)')
     .option('--dry-run', 'Show what would be backfilled without inserting')
     .option('--personality-id <id>', 'Filter to a specific personality UUID')
     .option('--force', 'Skip production confirmation prompt')
