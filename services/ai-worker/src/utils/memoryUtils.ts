@@ -3,8 +3,6 @@
  * Pure helper functions extracted from PgvectorMemoryAdapter
  */
 
-import crypto from 'crypto';
-import { v5 as uuidv5 } from 'uuid';
 import type {
   MemoryMetadata,
   NormalizedMetadata,
@@ -20,9 +18,8 @@ import { replacePromptPlaceholders } from './promptPlaceholders.js';
  */
 export { LOCAL_EMBEDDING_DIMENSIONS as EMBEDDING_DIMENSION } from '@tzurot/embeddings';
 
-// Namespace UUID for memories (DNS namespace -> tzurot-v3-memory namespace)
-const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
-const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
+// Re-export shared memory UUID utilities from common-types (single source of truth)
+export { hashContent, deterministicMemoryUuid } from '@tzurot/common-types';
 
 /**
  * Type guard to validate a string ID is present and non-empty
@@ -35,27 +32,6 @@ const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
  */
 export function isValidId(id: string | null | undefined): id is string {
   return typeof id === 'string' && id.length > 0;
-}
-
-/**
- * Hash content using SHA-256 (truncated to 32 chars)
- * Used for deterministic memory UUID generation
- */
-export function hashContent(content: string): string {
-  return crypto.createHash('sha256').update(content).digest('hex').slice(0, 32);
-}
-
-/**
- * Generate a deterministic UUID for a memory based on persona, personality, and content
- * Ensures the same memory content always produces the same ID (for idempotent storage)
- */
-export function deterministicMemoryUuid(
-  personaId: string,
-  personalityId: string,
-  content: string
-): string {
-  const key = `${personaId}:${personalityId}:${hashContent(content)}`;
-  return uuidv5(key, MEMORY_NAMESPACE);
 }
 
 /**
