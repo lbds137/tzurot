@@ -107,7 +107,11 @@ function cmp(a: string | null, b: string | null): number {
   return a < b ? -1 : 1;
 }
 
-/** Query all conversation history for the time range using paginated fetches */
+/**
+ * Query all conversation history for the time range using paginated fetches.
+ * All rows are accumulated in memory — use narrow --from/--to ranges for busy guilds
+ * to avoid excessive memory usage (e.g., weeks of active data can produce 100k+ rows).
+ */
 export async function queryConversationHistory(
   prisma: PrismaClient,
   from: Date,
