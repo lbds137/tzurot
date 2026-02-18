@@ -94,6 +94,29 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
   });
 }
 
+/**
+ * Infer whether a non-XML stop sequence likely fired based on content.
+ *
+ * When `finishReason` is "stop" but content doesn't end with `</message>`,
+ * a stop sequence likely truncated the response before the XML envelope closed.
+ * This is a best-effort diagnostic heuristic — purely informational, never
+ * used for enforcement, retries, or filtering.
+ *
+ * Shared between LLMInvoker (runtime logging) and DiagnosticRecorders (debug JSON).
+ */
+export function inferNonXmlStop(
+  content: string,
+  finishReason: string,
+  stopSequences: string[] | undefined
+): boolean {
+  return (
+    isNaturalStop(finishReason) &&
+    stopSequences !== undefined &&
+    stopSequences.length > 0 &&
+    !content.trimEnd().endsWith('</message>')
+  );
+}
+
 /** Extract stop sequence from response metadata */
 function resolveStopSequence(meta: ParsedResponseMetadata['responseMetadata']): string | null {
   const rawStop = meta?.stop;
@@ -137,13 +160,7 @@ export function recordLlmResponseDiagnostic(
 
   // Resolve provider-reported stop sequence, or infer from content
   let stopSequenceTriggered = resolveStopSequence(metadata.responseMetadata);
-  if (
-    stopSequenceTriggered === null &&
-    isNaturalStop(finishReason) &&
-    stopSequences !== undefined &&
-    stopSequences.length > 0 &&
-    !rawContent.trimEnd().endsWith('</message>')
-  ) {
+  if (stopSequenceTriggered === null && inferNonXmlStop(rawContent, finishReason, stopSequences)) {
     stopSequenceTriggered = 'inferred:non-xml-stop';
   }
 
