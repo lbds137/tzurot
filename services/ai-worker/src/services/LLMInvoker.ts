@@ -298,22 +298,31 @@ export class LLMInvoker {
   }
 
   /**
+   * Check if the response content suggests a stop sequence fired even though
+   * the provider didn't explicitly report it. When finishReason is "stop" but
+   * the content doesn't end with </message>, a non-XML stop likely truncated it.
+   */
+  private inferStopSequence(response: BaseMessage, stopSequences: string[] | undefined): boolean {
+    if (stopSequences === undefined || stopSequences.length === 0) {
+      return false;
+    }
+    const content = typeof response.content === 'string' ? response.content : '';
+    return !content.trimEnd().endsWith('</message>');
+  }
+
+  /**
    * Log finish_reason and related metadata for completion quality diagnostics.
    *
    * This helps identify:
    * - Models that hit token limits (finish_reason: "length") - may cause truncated responses
    * - Models that naturally stopped (finish_reason: "stop") - ideal case
    * - Stop sequences that triggered (finish_reason: "stop_sequence") - our safety measures working
-   *
-   * Correlation of "length" with the double-response bug would suggest token limit issues.
    */
   private logFinishReason(
     response: BaseMessage,
     modelName: string,
     stopSequences?: string[]
   ): void {
-    // LangChain stores provider-specific metadata in response_metadata
-    // Different providers use different field names, so we check multiple
     const metadata = (response as { response_metadata?: Record<string, unknown> })
       .response_metadata;
 
@@ -323,61 +332,45 @@ export class LLMInvoker {
     }
 
     const finishReason = resolveFinishReason(metadata);
-
-    // Extract which stop sequence triggered (if any)
-    // OpenAI/OpenRouter: stop (the actual sequence that triggered)
-    // Some providers include this in the finish_reason metadata
     const stoppedAt = metadata.stop ?? metadata.stop_sequence ?? null;
-
-    // Extract token usage if available
     const usage = metadata.usage as
       | { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number }
       | undefined;
 
-    // Build log context
-    const logContext: Record<string, unknown> = {
-      modelName,
-      finishReason,
-    };
-
+    const logContext: Record<string, unknown> = { modelName, finishReason };
     if (stoppedAt !== null) {
       logContext.stoppedAt = stoppedAt;
     }
-
     if (usage !== undefined) {
       logContext.promptTokens = usage.prompt_tokens;
       logContext.completionTokens = usage.completion_tokens;
       logContext.totalTokens = usage.total_tokens;
     }
-
     if (stopSequences !== undefined && stopSequences.length > 0) {
       logContext.stopSequenceCount = stopSequences.length;
     }
 
-    // Log at different levels based on finish_reason
-    // "length" is a warning sign - model may have been cut off
     if (finishReason === FINISH_REASONS.LENGTH) {
-      // Use info level with clear WARNING prefix since we don't have an actual error object
-      // This is a diagnostic observation, not an exception
       logger.info(
         logContext,
         '[LLMInvoker] WARNING: Model hit token limit (finish_reason: length) - response may be truncated'
       );
-    } else if (isNaturalStop(finishReason)) {
-      // Natural completion - ideal case
-      logger.debug(logContext, '[LLMInvoker] Model completed naturally');
     } else if (stoppedAt !== null) {
-      // Our stop sequence triggered - safety measure worked
-      // Record in memory tracker for admin visibility
-      // stoppedAt is usually a string, but could be object from some providers
       const sequenceStr = typeof stoppedAt === 'string' ? stoppedAt : JSON.stringify(stoppedAt);
       recordStopSequenceActivation(sequenceStr, modelName);
       logger.info(
         logContext,
         '[LLMInvoker] Stop sequence triggered - prevented potential identity bleeding or hallucination'
       );
+    } else if (isNaturalStop(finishReason) && this.inferStopSequence(response, stopSequences)) {
+      recordStopSequenceActivation('inferred:non-xml-stop', modelName);
+      logger.info(
+        logContext,
+        '[LLMInvoker] Inferred stop sequence activation (content lacks </message>)'
+      );
+    } else if (isNaturalStop(finishReason)) {
+      logger.debug(logContext, '[LLMInvoker] Model completed naturally');
     } else {
-      // Unknown finish reason - log for investigation
       logger.info(logContext, '[LLMInvoker] Model completion with non-standard finish_reason');
     }
   }

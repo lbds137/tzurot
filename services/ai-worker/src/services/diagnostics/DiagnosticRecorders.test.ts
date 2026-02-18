@@ -216,5 +216,38 @@ describe('DiagnosticRecorders', () => {
       const debug = call.reasoningDebug as Record<string, unknown>;
       expect(debug.rawContentPreview).toBe('Short content');
     });
+
+    it('should infer stop sequence when finish_reason is stop but content lacks </message>', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        responseMetadata: { finish_reason: 'stop' },
+      };
+
+      recordLlmResponseDiagnostic(mockCollector as never, 'Let me respond as', 'model', metadata, [
+        '</message>',
+        '<message',
+      ]);
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.stopSequenceTriggered).toBe('inferred:non-xml-stop');
+    });
+
+    it('should not infer stop sequence when content ends with </message>', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const metadata: ParsedResponseMetadata = {
+        responseMetadata: { finish_reason: 'stop' },
+      };
+
+      recordLlmResponseDiagnostic(
+        mockCollector as never,
+        'Response here</message>',
+        'model',
+        metadata,
+        ['</message>', '<message']
+      );
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      expect(call.stopSequenceTriggered).toBeNull();
+    });
   });
 });

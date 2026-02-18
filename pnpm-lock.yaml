@@ -203,6 +203,9 @@ importers:
       '@tzurot/common-types':
         specifier: workspace:*
         version: link:../common-types
+      '@tzurot/embeddings':
+        specifier: workspace:*
+        version: link:../embeddings
       bullmq:
         specifier: ^5.69.3
         version: 5.69.3
@@ -218,6 +221,9 @@ importers:
       ts-morph:
         specifier: ^27.0.2
         version: 27.0.2
+      uuid:
+        specifier: ^13.0.0
+        version: 13.0.0
     devDependencies:
       '@types/eslint':
         specifier: ^9.6.1

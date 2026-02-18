@@ -20,10 +20,10 @@ import {
   type Environment,
   validateEnvironment,
   showEnvironmentBanner,
-  getRailwayDatabaseUrl,
   confirmProductionOperation,
 } from '../utils/env-runner.js';
 import { type PrismaClient } from '@tzurot/common-types';
+import { getPrismaForEnv } from './prisma-env.js';
 
 interface CleanupOptions {
   env: Environment;
@@ -50,47 +50,6 @@ interface DuplicateSummary {
   groups: DuplicateGroup[];
   /** True if results were truncated due to LIMIT (run again after cleanup) */
   truncated: boolean;
-}
-
-/**
- * Get Prisma client configured for the specified environment
- *
- * Creates a new PrismaClient with the PrismaPg driver adapter,
- * configured for the specified environment's database URL.
- */
-async function getPrismaForEnv(env: Environment): Promise<{
-  prisma: PrismaClient;
-  disconnect: () => Promise<void>;
-}> {
-  // Dynamically import to avoid loading Prisma until needed
-  const { PrismaClient: PrismaClientClass } = await import('@tzurot/common-types');
-  const { PrismaPg } = await import('@prisma/adapter-pg');
-
-  // Get DATABASE_URL for the environment
-  let databaseUrl: string;
-  if (env === 'local') {
-    databaseUrl = process.env.DATABASE_URL ?? '';
-    if (!databaseUrl) {
-      throw new Error('DATABASE_URL not set for local environment');
-    }
-  } else {
-    // Fetch URL from Railway
-    databaseUrl = getRailwayDatabaseUrl(env);
-  }
-
-  // Prisma 7.0: Use driver adapter for PostgreSQL
-  const adapter = new PrismaPg({ connectionString: databaseUrl });
-
-  // Create a new client instance with the adapter
-  const prisma = new PrismaClientClass({
-    adapter,
-    log: ['error'],
-  });
-
-  return {
-    prisma,
-    disconnect: () => prisma.$disconnect(),
-  };
 }
 
 /**

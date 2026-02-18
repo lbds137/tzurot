@@ -13,18 +13,10 @@ import type {
   StoredReferencedMessage,
 } from '@tzurot/common-types';
 import type { ProcessedAttachment } from './MultimodalProcessor.js';
-import type { ParticipantInfo } from './ConversationalRAGTypes.js';
 import type { InlineImageDescription } from '../jobs/utils/conversationUtils.js';
 import { hydrateStoredReferences } from './storedReferenceHydrator.js';
 
 const logger = createLogger('RAGUtils');
-
-/**
- * Maximum stop sequences allowed by Google/Gemini API.
- * Error says "from 1 (inclusive) to 17 (exclusive)", meaning max is 16.
- * We apply this limit universally since other providers have higher limits.
- */
-const MAX_STOP_SEQUENCES = 16;
 
 /**
  * Bare placeholder descriptions that should be filtered from content.
@@ -97,69 +89,14 @@ export function buildAttachmentDescriptions(
 /**
  * Generate stop sequences for LLM generation safety
  *
- * Stop sequences prevent identity bleeding (speaking as another participant)
- * and enforce XML turn structure boundaries.
- *
- * Legacy plain-text role markers (User:, Human:, ###, <|user|>, etc.) were
- * removed because our XML prompt format makes them unnecessary, and they
- * cause false positives — particularly with reasoning models whose
- * chain-of-thought may contain these substrings mid-generation.
- *
- * Priority order (with 16-slot Gemini API limit):
- * - P1: XML end tag (</message>) - signals valid turn completion
- * - P2: Personality name - prevents self-quoting in third person
- * - P3: Participant names - prevents speaking as other users
- *
- * @param personalityName - Name of the AI personality
- * @param participantPersonas - Map of participant names to their persona info
- * @returns Array of stop sequences (max 16)
+ * Only XML structure stops. Name-based stops (personality name,
+ * participant names) were removed because:
+ * 1. XML prompt format makes them redundant (turns enclosed in <message> tags)
+ * 2. Reasoning models generate these substrings mid-chain-of-thought (false positives)
+ * 3. Name stops truncate reasoning before the actual response begins
  */
-export function generateStopSequences(
-  personalityName: string,
-  participantPersonas: Map<string, ParticipantInfo>
-): string[] {
-  // Priority 1: XML structure (2 slots)
-  // </message> is the king - once generated, the turn is legally over
-  // <message catches if model tries to start a new XML turn immediately
-  const xmlStopSequences = ['</message>', '<message'];
-
-  // Priority 2: Personality name (1 slot)
-  // Prevents AI from self-quoting in third person
-  const personalityStopSequence = `\n${personalityName}:`;
-
-  // Priority 3: Participant stop sequences (remaining slots)
-  // Prevents speaking as users in the conversation
-  const participantStopSequences = Array.from(participantPersonas.keys()).map(name => `\n${name}:`);
-
-  // Calculate available slots for participants
-  // Total budget: MAX_STOP_SEQUENCES (16)
-  // Reserved: XML (2) + personality (1) = 3
-  // Available for participants: 13
-  const reservedCount = xmlStopSequences.length + 1; // +1 for personalityStopSequence
-  const availableForParticipants = MAX_STOP_SEQUENCES - reservedCount;
-
-  // Truncate participants if necessary
-  const truncatedParticipants = participantStopSequences.slice(0, availableForParticipants);
-  const participantsTruncated = participantStopSequences.length - truncatedParticipants.length;
-
-  // Combine in priority order (highest priority first)
-  const stopSequences = [...xmlStopSequences, personalityStopSequence, ...truncatedParticipants];
-
-  // Log summary
-  logger.info(
-    {
-      count: stopSequences.length,
-      maxAllowed: MAX_STOP_SEQUENCES,
-      xmlCount: xmlStopSequences.length,
-      participantCount: participantStopSequences.length,
-      participantsTruncated,
-      participants: Array.from(participantPersonas.keys()),
-      personalityName,
-    },
-    '[RAG] Generated stop sequences for identity bleeding prevention'
-  );
-
-  return stopSequences;
+export function generateStopSequences(): string[] {
+  return ['</message>', '<message'];
 }
 
 /**
