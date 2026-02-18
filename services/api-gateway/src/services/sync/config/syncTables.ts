@@ -29,6 +29,10 @@ export const EXCLUDED_TABLES: Record<string, string> = {
   llm_diagnostic_logs: 'Ephemeral debug logs (auto-deleted after 24h)',
   usage_logs: 'Environment-specific usage tracking',
   import_jobs: 'Transient import job tracking (environment-specific, retryable)',
+  export_jobs: 'Transient export job tracking (environment-specific, retryable)',
+
+  // Moderation data
+  denylisted_entities: 'Environment-specific denylist (different moderation per bot instance)',
 
   // Security-sensitive data
   user_credentials: 'Encrypted session cookies for external services (security-sensitive)',
