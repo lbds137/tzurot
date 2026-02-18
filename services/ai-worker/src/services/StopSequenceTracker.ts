@@ -11,7 +11,7 @@
  * - Stats endpoint for admin commands
  */
 
-import { createLogger } from '@tzurot/common-types';
+import { createLogger, isNaturalStop } from '@tzurot/common-types';
 import type { Redis } from 'ioredis';
 
 const logger = createLogger('StopSequenceTracker');
@@ -139,6 +139,25 @@ export function resetStopSequenceStats(): void {
         logger.warn({ err }, '[StopSequenceTracker] Failed to clear Redis stats');
       });
   }
+}
+
+/**
+ * Heuristic: infer whether a stop sequence likely fired based on content shape.
+ * Returns true when the provider reported "stop" but the content doesn't end
+ * with `</message>`, suggesting an earlier stop sequence truncated the response.
+ * This is diagnostic-only — it never affects retries or filtering.
+ */
+export function inferNonXmlStop(
+  content: string,
+  finishReason: string,
+  stopSequences: string[] | undefined
+): boolean {
+  return (
+    isNaturalStop(finishReason) &&
+    stopSequences !== undefined &&
+    stopSequences.length > 0 &&
+    !content.trimEnd().endsWith('</message>')
+  );
 }
 
 /** Exported for testing */

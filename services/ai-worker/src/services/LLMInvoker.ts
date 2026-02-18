@@ -30,8 +30,7 @@ import {
 } from './ModelFactory.js';
 import { withRetry } from '../utils/retry.js';
 import { shouldRetryError } from '../utils/apiErrorParser.js';
-import { recordStopSequenceActivation } from './StopSequenceTracker.js';
-import { inferNonXmlStop } from './diagnostics/DiagnosticRecorders.js';
+import { recordStopSequenceActivation, inferNonXmlStop } from './StopSequenceTracker.js';
 import {
   getReasoningModelConfig,
   transformMessagesForReasoningModel,

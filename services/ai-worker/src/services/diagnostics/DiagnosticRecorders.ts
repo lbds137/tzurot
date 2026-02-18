@@ -6,7 +6,8 @@
  */
 
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
-import { resolveFinishReason, isNaturalStop, type LoadedPersonality } from '@tzurot/common-types';
+import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
+import { inferNonXmlStop } from '../StopSequenceTracker.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
@@ -92,29 +93,6 @@ export function recordLlmConfigDiagnostic(opts: LlmConfigDiagnosticOptions): voi
     verbosity: personality.verbosity,
     stopSequences,
   });
-}
-
-/**
- * Infer whether a non-XML stop sequence likely fired based on content.
- *
- * When `finishReason` is "stop" but content doesn't end with `</message>`,
- * a stop sequence likely truncated the response before the XML envelope closed.
- * This is a best-effort diagnostic heuristic — purely informational, never
- * used for enforcement, retries, or filtering.
- *
- * Shared between LLMInvoker (runtime logging) and DiagnosticRecorders (debug JSON).
- */
-export function inferNonXmlStop(
-  content: string,
-  finishReason: string,
-  stopSequences: string[] | undefined
-): boolean {
-  return (
-    isNaturalStop(finishReason) &&
-    stopSequences !== undefined &&
-    stopSequences.length > 0 &&
-    !content.trimEnd().endsWith('</message>')
-  );
 }
 
 /** Extract stop sequence from response metadata */

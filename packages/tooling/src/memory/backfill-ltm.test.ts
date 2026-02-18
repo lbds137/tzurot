@@ -355,9 +355,24 @@ describe('backfill-ltm', () => {
 
     it('should paginate when results fill a page', async () => {
       const pageSize = 2;
-      const row1 = makeRow({ id: 'aaa-1', role: 'user', content: 'Q1' });
-      const row2 = makeRow({ id: 'aaa-2', role: 'assistant', content: 'A1' });
-      const row3 = makeRow({ id: 'aaa-3', role: 'user', content: 'Q2' });
+      const row1 = makeRow({
+        id: '00000000-0000-0000-0000-000000000001',
+        role: 'user',
+        content: 'Q1',
+        created_at: new Date('2026-02-10T12:00:00Z'),
+      });
+      const row2 = makeRow({
+        id: '00000000-0000-0000-0000-000000000002',
+        role: 'assistant',
+        content: 'A1',
+        created_at: new Date('2026-02-10T12:01:00Z'),
+      });
+      const row3 = makeRow({
+        id: '00000000-0000-0000-0000-000000000003',
+        role: 'user',
+        content: 'Q2',
+        created_at: new Date('2026-02-10T12:02:00Z'),
+      });
 
       const mockPrisma = {
         $queryRaw: vi
@@ -377,13 +392,17 @@ describe('backfill-ltm', () => {
       );
 
       expect(result).toHaveLength(3);
-      expect(result[0].id).toBe('aaa-1');
-      expect(result[2].id).toBe('aaa-3');
+      expect(result[0].id).toBe('00000000-0000-0000-0000-000000000001');
+      expect(result[2].id).toBe('00000000-0000-0000-0000-000000000003');
       expect(mockPrisma.$queryRaw).toHaveBeenCalledTimes(2);
     });
 
     it('should stop paginating when page is smaller than pageSize', async () => {
-      const row1 = makeRow({ id: 'aaa-1', role: 'user', content: 'Q1' });
+      const row1 = makeRow({
+        id: '00000000-0000-0000-0000-000000000001',
+        role: 'user',
+        content: 'Q1',
+      });
       const mockPrisma = {
         $queryRaw: vi.fn().mockResolvedValueOnce([row1]),
       };
