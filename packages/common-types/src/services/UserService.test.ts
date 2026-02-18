@@ -16,6 +16,7 @@ vi.mock('./prisma.js', () => ({
 }));
 
 vi.mock('../utils/deterministicUuid.js', () => ({
+  DNS_NAMESPACE: '6ba7b810-9dad-11d1-80b4-00c04fd430c8',
   generateUserUuid: mockGenerateUserUuid,
   generatePersonaUuid: mockGeneratePersonaUuid,
 }));
