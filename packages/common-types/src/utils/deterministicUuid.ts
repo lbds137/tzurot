@@ -21,9 +21,15 @@
 import { v5 as uuidv5 } from 'uuid';
 import crypto from 'crypto';
 
-// Master namespace for all Tzurot UUIDs
-// CRITICAL: Never change this or all IDs will change!
-const TZUROT_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8'; // Standard DNS namespace
+/**
+ * Standard DNS namespace UUID (RFC 4122).
+ * Used as the base namespace for all Tzurot deterministic UUIDs.
+ * CRITICAL: Never change this or all IDs will change!
+ */
+export const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+
+// Local alias for readability in existing code
+const TZUROT_NAMESPACE = DNS_NAMESPACE;
 
 /**
  * Generate deterministic UUID for a User

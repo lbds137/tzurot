@@ -10,9 +10,7 @@
 
 import crypto from 'crypto';
 import { v5 as uuidv5 } from 'uuid';
-
-/** Standard DNS namespace UUID (RFC 4122) used as the base for our memory namespace */
-const DNS_NAMESPACE = '6ba7b810-9dad-11d1-80b4-00c04fd430c8';
+import { DNS_NAMESPACE } from '../utils/deterministicUuid.js';
 
 /** Deterministic namespace for all tzurot v3 memory UUIDs */
 export const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
