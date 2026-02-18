@@ -126,6 +126,7 @@ const mockPrisma = {
   },
   personality: {
     upsert: vi.fn().mockResolvedValue({ id: 'pers-id', slug: 'test-shape' }),
+    findFirst: vi.fn().mockResolvedValue(null),
   },
   llmConfig: {
     upsert: vi.fn().mockResolvedValue({}),
