@@ -261,8 +261,7 @@ async function embedAndInsert(
   const embeddingService = new LocalEmbeddingService();
   const initialized = await embeddingService.initialize();
   if (!initialized) {
-    console.error(chalk.red('   Failed to initialize embedding service'));
-    process.exit(1);
+    throw new Error('Failed to initialize embedding service');
   }
 
   let inserted = 0;

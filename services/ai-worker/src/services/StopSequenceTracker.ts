@@ -146,14 +146,10 @@ export function resetStopSequenceStats(): void {
  * Returns true when the provider reported "stop" but the content doesn't end
  * with `</message>`, suggesting an earlier stop sequence truncated the response.
  * This is diagnostic-only — it never affects retries or filtering.
- */
-/**
- * Heuristic: infer that a stop sequence likely fired when the provider
- * didn't propagate the `stop` metadata field.
  *
  * Known false positive: a model that naturally finishes (finish_reason: "stop")
- * without emitting `</message>` will be flagged. This is diagnostic-only —
- * no retry or filtering occurs, so false positives are acceptable.
+ * without emitting `</message>` will be flagged. Since this is diagnostic-only,
+ * false positives are acceptable.
  */
 export function inferNonXmlStop(
   content: string,
