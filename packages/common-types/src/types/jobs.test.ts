@@ -695,11 +695,10 @@ describe('BullMQ Job Contract Tests', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should validate a memory_only import with existingPersonalityId', () => {
+    it('should validate a memory_only import', () => {
       const memoryOnlyJob: ShapesImportJobData = {
         ...validJobData,
         importType: 'memory_only',
-        existingPersonalityId: '770e8400-e29b-41d4-a716-446655440000',
       };
 
       const result = shapesImportJobDataSchema.safeParse(memoryOnlyJob);

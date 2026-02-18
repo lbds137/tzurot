@@ -10,7 +10,10 @@
  * 6. Update ImportJob status with results
  *
  * For 'memory_only' imports, skips personality creation and just imports
- * memories into an existing personality.
+ * memories into an existing personality resolved by slug. The gateway no
+ * longer validates memory_only preconditions at enqueue time — if the
+ * target personality doesn't exist, the job fails asynchronously. This is
+ * an intentional tradeoff for simpler UX (no explicit personality ID needed).
  */
 
 import type { Job } from 'bullmq';
@@ -55,8 +58,7 @@ export async function processShapesImportJob(
   deps: ShapesImportJobDeps
 ): Promise<ShapesImportJobResult> {
   const { prisma, memoryAdapter } = deps;
-  const { userId, discordUserId, sourceSlug, importJobId, importType, existingPersonalityId } =
-    job.data;
+  const { userId, discordUserId, sourceSlug, importJobId, importType } = job.data;
 
   logger.info(
     { jobId: job.id, sourceSlug, importType, userId: discordUserId },
@@ -89,7 +91,6 @@ export async function processShapesImportJob(
       internalUserId: userId,
       discordUserId,
       importType,
-      existingPersonalityId,
     });
 
     // 7. Download and store avatar
@@ -123,6 +124,9 @@ export async function processShapesImportJob(
           guildId: m.metadata.discord_guild_id !== '' ? m.metadata.discord_guild_id : undefined,
           messageIds: m.metadata.msg_ids,
           summaryType: m.summary_type,
+          // senders[0] is the shapes.inc user UUID by convention; validated to
+          // silently skip non-UUID values (bot names, display names) if the
+          // format ever changes
           legacyShapesUserId: UUID_RE.test(m.senders[0] ?? '') ? m.senders[0] : undefined,
         })),
       personalityId,
@@ -179,7 +183,7 @@ async function resolveImportUser(
 ): Promise<{ username: string; personaId: string }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { username: true, discordId: true, defaultPersonaId: true },
+    select: { username: true, defaultPersonaId: true },
   });
 
   if (user === null) {
@@ -266,7 +270,6 @@ interface ResolvePersonalityOpts {
   internalUserId: string;
   discordUserId: string;
   importType: string;
-  existingPersonalityId?: string;
 }
 
 async function resolvePersonality(
@@ -288,11 +291,9 @@ async function resolvePersonality(
     return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.internalUserId);
   }
 
-  // memory_only: look up existing personality by slug (or explicit ID if provided)
-  if (opts.existingPersonalityId !== undefined) {
-    return { personalityId: opts.existingPersonalityId, slug: opts.sourceSlug };
-  }
-
+  // memory_only: no ownership guard — users are allowed to add their own memories
+  // to any personality (memories are persona-scoped, not personality-scoped).
+  // Only full imports need the guard since they overwrite personality config.
   const existing = await opts.prisma.personality.findFirst({
     where: { slug: opts.sourceSlug },
     select: { id: true, slug: true },

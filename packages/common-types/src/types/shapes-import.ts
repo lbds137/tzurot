@@ -152,8 +152,6 @@ export const shapesImportJobDataSchema = z.object({
   importJobId: z.string().uuid(),
   /** Whether this is a full import or memory-only */
   importType: importTypeEnum,
-  /** Existing personality ID (for memory-only imports into existing personality) */
-  existingPersonalityId: z.string().uuid().optional(),
 });
 
 /**
@@ -185,8 +183,6 @@ export interface ShapesImportJobData {
   importJobId: string;
   /** Whether this is a full import or memory-only */
   importType: 'full' | 'memory_only';
-  /** Existing personality ID (for memory-only imports into existing personality) */
-  existingPersonalityId?: string;
 }
 
 /** Result returned by the shapes import job */
