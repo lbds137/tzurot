@@ -16,8 +16,10 @@ import { DNS_NAMESPACE } from '../utils/deterministicUuid.js';
 export const MEMORY_NAMESPACE = uuidv5('tzurot-v3-memory', DNS_NAMESPACE);
 
 /**
- * Hash content using SHA-256 (truncated to 32 chars).
+ * Hash content using SHA-256 (truncated to 32 hex chars = 128 bits).
  * Used for deterministic memory UUID generation.
+ * Collision risk at 128 bits is negligible at our scale (~10^18 items for 50% collision).
+ * If a collision did occur, ON CONFLICT DO NOTHING would silently skip the duplicate.
  */
 export function hashContent(content: string): string {
   return crypto.createHash('sha256').update(content).digest('hex').slice(0, 32);
