@@ -59,16 +59,21 @@ export interface MemoryPair {
   createdAt: Date;
 }
 
+interface PageCursor {
+  createdAt: Date;
+  id: string;
+}
+
 interface PageQuery {
   prisma: PrismaClient;
   from: Date;
   to: Date;
   limit: number;
-  cursor: string | null;
+  cursor: PageCursor | null;
   personalityId?: string;
 }
 
-/** Fetch a single page of conversation history using cursor-based pagination */
+/** Fetch a single page of conversation history using composite cursor pagination */
 function queryPage(opts: PageQuery): Promise<ConversationRow[]> {
   const { prisma, from, to, limit, cursor, personalityId } = opts;
   const conditions: Prisma.Sql[] = [
@@ -80,7 +85,7 @@ function queryPage(opts: PageQuery): Promise<ConversationRow[]> {
     conditions.push(Prisma.sql`personality_id = ${personalityId}::uuid`);
   }
   if (cursor !== null) {
-    conditions.push(Prisma.sql`id > ${cursor}::uuid`);
+    conditions.push(Prisma.sql`(created_at, id) > (${cursor.createdAt}, ${cursor.id}::uuid)`);
   }
   const where = Prisma.join(conditions, ' AND ');
 
@@ -89,7 +94,7 @@ function queryPage(opts: PageQuery): Promise<ConversationRow[]> {
            role, content, discord_message_id, created_at
     FROM conversation_history
     WHERE ${where}
-    ORDER BY id ASC
+    ORDER BY created_at ASC, id ASC
     LIMIT ${limit}
   `;
 }
@@ -111,7 +116,7 @@ export async function queryConversationHistory(
   pageSize: number = DEFAULT_PAGE_SIZE
 ): Promise<ConversationRow[]> {
   const allRows: ConversationRow[] = [];
-  let cursor: string | null = null;
+  let cursor: PageCursor | null = null;
 
   while (true) {
     const page = await queryPage({ prisma, from, to, limit: pageSize, cursor, personalityId });
@@ -120,11 +125,12 @@ export async function queryConversationHistory(
     if (page.length < pageSize) {
       break;
     }
-    cursor = page[page.length - 1].id;
+    const last = page[page.length - 1];
+    cursor = { createdAt: last.created_at, id: last.id };
   }
 
-  // Pages are fetched by id order for cursor pagination, but pairMessages
-  // needs rows grouped by conversation context to match consecutive pairs.
+  // Pages are fetched in (created_at, id) order for stable cursor pagination,
+  // but pairMessages needs rows grouped by conversation context.
   allRows.sort(
     (a, b) =>
       cmp(a.channel_id, b.channel_id) ||
@@ -171,7 +177,7 @@ export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
       createdAt: assistantRow.created_at,
     });
 
-    i++; // Skip consumed assistant row
+    i++; // Consumed assistant at i+1; loop i++ will advance to i+2
   }
 
   return pairs;
