@@ -132,7 +132,7 @@ export async function queryConversationHistory(
     const last = page[page.length - 1];
     cursor = { createdAt: last.created_at, id: last.id };
 
-    if (allRows.length >= 50_000 && allRows.length - page.length < 50_000) {
+    if (allRows.length >= 50_000 && allRows.length % 50_000 < page.length) {
       console.warn(
         chalk.yellow(`   ⚠ ${allRows.length} rows fetched — consider narrowing --from/--to range`)
       );
@@ -167,6 +167,7 @@ export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
     if (userRow.role !== 'user' || assistantRow.role !== 'assistant') {
       continue;
     }
+    // guild_id not checked: same channel always implies same guild.
     if (
       userRow.channel_id !== assistantRow.channel_id ||
       userRow.personality_id !== assistantRow.personality_id ||
