@@ -3,14 +3,8 @@
  *
  * Recreates long-term memories from conversation_history for a given time range.
  * Useful when memories are lost due to infrastructure issues.
- *
- * Algorithm:
- * 1. Query conversation_history for the time range
- * 2. Group consecutive user/assistant pairs per (channelId, personalityId, personaId)
- * 3. Format as "{user}: <content>\n{assistant}: <content>" (matching LongTermMemoryService)
- * 4. Deduplicate via deterministic UUID
- * 5. Generate embeddings via LocalEmbeddingService
- * 6. Insert with ON CONFLICT DO NOTHING (idempotent)
+ * Pairs user/assistant messages, deduplicates via deterministic UUID,
+ * generates embeddings, and inserts with ON CONFLICT DO NOTHING (idempotent).
  */
 
 import chalk from 'chalk';
@@ -107,11 +101,8 @@ function cmp(a: string | null, b: string | null): number {
   return a < b ? -1 : 1;
 }
 
-/**
- * Query all conversation history for the time range using paginated fetches.
- * All rows are accumulated in memory — use narrow --from/--to ranges for busy guilds
- * to avoid excessive memory usage (e.g., weeks of active data can produce 100k+ rows).
- */
+/** Query all conversation history for the time range using paginated fetches.
+ * Rows accumulate in memory — use narrow --from/--to for busy guilds (100k+ rows possible). */
 export async function queryConversationHistory(
   prisma: PrismaClient,
   from: Date,
@@ -132,7 +123,8 @@ export async function queryConversationHistory(
     const last = page[page.length - 1];
     cursor = { createdAt: last.created_at, id: last.id };
 
-    if (allRows.length >= 50_000 && allRows.length % 50_000 < page.length) {
+    const prevLength = allRows.length - page.length;
+    if (Math.floor(allRows.length / 50_000) > Math.floor(prevLength / 50_000)) {
       console.warn(
         chalk.yellow(`   ⚠ ${allRows.length} rows fetched — consider narrowing --from/--to range`)
       );
@@ -154,6 +146,7 @@ export async function queryConversationHistory(
 
 /**
  * Group consecutive user/assistant pairs.
+ * Assumes one row per message (conversation_history does not chunk messages).
  * Orphan messages (e.g., two assistants in a row, or a user at end-of-stream)
  * are silently skipped — this is expected for partial conversations.
  */
@@ -263,12 +256,13 @@ function parseDateRange(from: string, to: string): { fromDate: Date; toDate: Dat
 }
 
 /** Print dry-run preview */
+const PREVIEW_LIMIT = 5;
 function printDryRunPreview(uniquePairs: Map<string, { content: string }>): void {
   console.log(chalk.blue(`\n🔬 DRY RUN — would backfill ${uniquePairs.size} memories`));
   let count = 0;
   for (const [id, { content }] of uniquePairs) {
-    if (count >= 5) {
-      console.log(chalk.dim(`   ... and ${uniquePairs.size - 5} more`));
+    if (count >= PREVIEW_LIMIT) {
+      console.log(chalk.dim(`   ... and ${uniquePairs.size - PREVIEW_LIMIT} more`));
       break;
     }
     const preview = content.length > 80 ? content.substring(0, 80) + '...' : content;
@@ -277,7 +271,11 @@ function printDryRunPreview(uniquePairs: Map<string, { content: string }>): void
   }
 }
 
-/** Embed and insert all unique pairs, returning stats */
+/**
+ * Embed and insert all unique pairs, returning stats.
+ * Embeddings are generated sequentially — LocalEmbeddingService runs a
+ * single ONNX model in-process and doesn't benefit from parallel calls.
+ */
 async function embedAndInsert(
   prisma: PrismaClient,
   uniquePairs: Map<string, { pair: MemoryPair; content: string }>
