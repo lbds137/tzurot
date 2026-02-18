@@ -106,7 +106,11 @@ export async function queryConversationHistory(
   `;
 }
 
-/** Group consecutive user/assistant pairs */
+/**
+ * Group consecutive user/assistant pairs.
+ * Orphan messages (e.g., two assistants in a row, or a user at end-of-stream)
+ * are silently skipped — this is expected for partial conversations.
+ */
 export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
   const pairs: MemoryPair[] = [];
 
@@ -143,7 +147,11 @@ export function pairMessages(rows: ConversationRow[]): MemoryPair[] {
   return pairs;
 }
 
-/** Deduplicate pairs via deterministic UUID, format as memory content */
+/**
+ * Deduplicate pairs via deterministic UUID, format as memory content.
+ * Format must match LongTermMemoryService.ts:58 — "{user}: ...\n{assistant}: ..."
+ * If the live path changes, backfill embeddings will diverge from live memories.
+ */
 export function deduplicatePairs(
   pairs: MemoryPair[]
 ): Map<string, { pair: MemoryPair; content: string }> {
