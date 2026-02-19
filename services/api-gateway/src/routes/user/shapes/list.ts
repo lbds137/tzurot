@@ -83,15 +83,14 @@ function createListHandler(prisma: PrismaClient) {
       });
 
       // Detect redirect to login page (shapes.inc may redirect instead of 401)
-      const finalUrl = response.url;
-      const wasRedirected = finalUrl !== `${SHAPES_BASE_URL}/api/shapes?category=self`;
+      const wasRedirected = response.redirected;
 
       if (!response.ok || wasRedirected) {
         const bodyText = await response.text().catch(() => '(unreadable)');
         logger.warn(
           {
             status: response.status,
-            finalUrl,
+            finalUrl: response.url,
             wasRedirected,
             bodyPreview: bodyText.slice(0, 200),
             discordUserId,

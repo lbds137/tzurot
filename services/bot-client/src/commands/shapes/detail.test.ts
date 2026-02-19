@@ -84,33 +84,20 @@ describe('buildShapeDetailEmbed', () => {
     expect(embed.data.description).toContain('42 memories imported');
   });
 
-  it('should filter jobs to only the matching slug', async () => {
-    mockCallGatewayApi
-      .mockResolvedValueOnce({
-        ok: true,
-        data: {
-          jobs: [
-            {
-              id: 'job-1',
-              sourceSlug: 'other-shape',
-              status: 'completed',
-              importType: 'full',
-              memoriesImported: 100,
-              memoriesFailed: 0,
-              createdAt: '2026-01-15T00:00:00Z',
-              completedAt: '2026-01-15T00:01:00Z',
-              errorMessage: null,
-              importMetadata: null,
-            },
-          ],
-        },
-      })
-      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+  it('should pass slug query param to gateway for server-side filtering', async () => {
+    mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
 
-    const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
+    await buildShapeDetailEmbed('user-123', 'my-shape');
 
-    // Should not show the other-shape job
-    expect(embed.data.description).toContain('No imports yet');
+    // Verify slug is passed as query parameter (server-side filtering)
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/shapes/import/jobs?slug=my-shape',
+      expect.anything()
+    );
+    expect(mockCallGatewayApi).toHaveBeenCalledWith(
+      '/user/shapes/export/jobs?slug=my-shape',
+      expect.anything()
+    );
   });
 
   it('should include action buttons in two rows', async () => {

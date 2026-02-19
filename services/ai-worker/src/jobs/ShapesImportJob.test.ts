@@ -8,9 +8,8 @@ import type { ShapesImportJobData } from '@tzurot/common-types';
 import { processShapesImportJob } from './ShapesImportJob.js';
 
 // Mock common-types
-const { mockNormalizeSlugForUser, mockIsBotOwner } = vi.hoisted(() => ({
+const { mockNormalizeSlugForUser } = vi.hoisted(() => ({
   mockNormalizeSlugForUser: vi.fn((slug: string) => slug),
-  mockIsBotOwner: vi.fn().mockReturnValue(false),
 }));
 vi.mock('@tzurot/common-types', async importOriginal => {
   const actual = await importOriginal<typeof import('@tzurot/common-types')>();
@@ -27,7 +26,6 @@ vi.mock('@tzurot/common-types', async importOriginal => {
       .fn()
       .mockReturnValue({ iv: 'new-iv', content: 'new-content', tag: 'new-tag' }),
     normalizeSlugForUser: mockNormalizeSlugForUser,
-    isBotOwner: mockIsBotOwner,
   };
 });
 
@@ -36,44 +34,28 @@ const { mockFetchShapeData, mockGetUpdatedCookie } = vi.hoisted(() => ({
   mockFetchShapeData: vi.fn(),
   mockGetUpdatedCookie: vi.fn().mockReturnValue('updated-cookie'),
 }));
-vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
-  ShapesDataFetcher: vi.fn().mockImplementation(function () {
-    return { fetchShapeData: mockFetchShapeData, getUpdatedCookie: mockGetUpdatedCookie };
-  }),
-  ShapesAuthError: class ShapesAuthError extends Error {
-    constructor(msg: string) {
-      super(msg);
-      this.name = 'ShapesAuthError';
-    }
-  },
-  ShapesFetchError: class ShapesFetchError extends Error {
-    readonly status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.name = 'ShapesFetchError';
-      this.status = status;
-    }
-  },
-  ShapesNotFoundError: class ShapesNotFoundError extends Error {
-    constructor(slug: string) {
-      super(`Shape not found: ${slug}`);
-      this.name = 'ShapesNotFoundError';
-    }
-  },
-  ShapesRateLimitError: class ShapesRateLimitError extends Error {
-    constructor() {
-      super('Rate limited by shapes.inc');
-      this.name = 'ShapesRateLimitError';
-    }
-  },
-  ShapesServerError: class ShapesServerError extends Error {
-    readonly status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.name = 'ShapesServerError';
-      this.status = status;
-    }
-  },
+vi.mock('../services/shapes/ShapesDataFetcher.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../services/shapes/ShapesDataFetcher.js')>();
+  return {
+    ShapesDataFetcher: vi.fn().mockImplementation(function () {
+      return { fetchShapeData: mockFetchShapeData, getUpdatedCookie: mockGetUpdatedCookie };
+    }),
+    ShapesAuthError: actual.ShapesAuthError,
+    ShapesFetchError: actual.ShapesFetchError,
+    ShapesNotFoundError: actual.ShapesNotFoundError,
+    ShapesRateLimitError: actual.ShapesRateLimitError,
+    ShapesServerError: actual.ShapesServerError,
+  };
+});
+
+// Mock ShapesImportResolver
+const { mockResolvePersonality } = vi.hoisted(() => ({
+  mockResolvePersonality: vi
+    .fn()
+    .mockResolvedValue({ personalityId: 'pers-id', slug: 'test-shape' }),
+}));
+vi.mock('./ShapesImportResolver.js', () => ({
+  resolvePersonality: mockResolvePersonality,
 }));
 
 // Mock PersonalityMapper
@@ -280,17 +262,23 @@ describe('processShapesImportJob', () => {
     );
   });
 
-  it('should create personality with mapped data on full import', async () => {
+  it('should call resolvePersonality with correct params on full import', async () => {
     const job = createMockJob({ importType: 'full' });
     await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
     });
 
-    expect(mockPrisma.systemPrompt.upsert).toHaveBeenCalled();
-    expect(mockPrisma.personality.upsert).toHaveBeenCalled();
-    expect(mockPrisma.llmConfig.upsert).toHaveBeenCalled();
-    expect(mockPrisma.personalityDefaultConfig.upsert).toHaveBeenCalled();
+    expect(mockResolvePersonality).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sourceSlug: 'test-shape',
+        rawSourceSlug: 'test-shape',
+        shapesId: 'shape-uuid',
+        importType: 'full',
+        discordUserId: 'discord-123',
+        internalUserId: 'user-uuid-123',
+      })
+    );
   });
 
   it('should import memories via memory adapter', async () => {
@@ -320,9 +308,9 @@ describe('processShapesImportJob', () => {
     );
   });
 
-  it('should resolve personality by slug for memory_only import', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue({
-      id: 'found-pers-id',
+  it('should resolve personality for memory_only import', async () => {
+    mockResolvePersonality.mockResolvedValueOnce({
+      personalityId: 'found-pers-id',
       slug: 'test-shape',
     });
 
@@ -334,14 +322,15 @@ describe('processShapesImportJob', () => {
 
     expect(result.success).toBe(true);
     expect(result.personalityId).toBe('found-pers-id');
-    expect(mockPrisma.personality.upsert).not.toHaveBeenCalled();
-    expect(mockPrisma.personality.findFirst).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { slug: 'test-shape' } })
+    expect(mockResolvePersonality).toHaveBeenCalledWith(
+      expect.objectContaining({ importType: 'memory_only' })
     );
   });
 
-  it('should fail memory_only import when personality slug not found', async () => {
-    mockPrisma.personality.findFirst.mockResolvedValue(null);
+  it('should fail memory_only import when resolver cannot find personality', async () => {
+    mockResolvePersonality.mockRejectedValueOnce(
+      new Error('No personality found for memory_only import. Tried: slug "test-shape".')
+    );
 
     // Generic Error is retryable — final attempt to trigger failure marking
     const job = createMockJob({ importType: 'memory_only' }, { attemptsMade: 4, attempts: 5 });
@@ -568,13 +557,10 @@ describe('processShapesImportJob', () => {
     expect(result.error).toContain('no default persona');
   });
 
-  it('should reject full import when personality owned by another user', async () => {
-    // Existing personality owned by someone else
-    mockPrisma.personality.findFirst.mockResolvedValue({
-      id: 'existing-pers-id',
-      ownerId: 'other-user-uuid',
-    });
-    mockIsBotOwner.mockReturnValue(false);
+  it('should fail when resolver rejects (e.g. personality owned by another user)', async () => {
+    mockResolvePersonality.mockRejectedValueOnce(
+      new Error('Cannot import: personality "test-shape" is owned by another user.')
+    );
 
     // Generic Error is retryable — final attempt to trigger failure marking
     const job = createMockJob({ importType: 'full' }, { attemptsMade: 4, attempts: 5 });

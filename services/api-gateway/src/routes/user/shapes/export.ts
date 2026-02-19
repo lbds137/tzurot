@@ -29,6 +29,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-export');
@@ -235,6 +236,7 @@ function createExportHandler(
 function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
+    const slug = req.query.slug as string | undefined;
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
@@ -250,6 +252,7 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
       where: {
         userId: user.id,
         sourceService: IMPORT_SOURCES.SHAPES_INC,
+        ...(slug !== undefined ? { sourceSlug: slug } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
@@ -277,10 +280,6 @@ function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
 
     sendCustomSuccess(res, { jobs: jobsWithUrls });
   };
-}
-
-function isPrismaUniqueConstraintError(error: unknown): error is { code: string } {
-  return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 }
 
 export function createShapesExportRoutes(prisma: PrismaClient, queue: Queue): Router {

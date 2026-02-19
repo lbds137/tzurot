@@ -75,9 +75,10 @@ const mockQueue = {
   add: vi.fn().mockResolvedValue({ id: 'bullmq-job-id' }),
 };
 
-function createMockReqRes(body: Record<string, unknown> = {}) {
+function createMockReqRes(body: Record<string, unknown> = {}, query: Record<string, string> = {}) {
   const req = {
     body,
+    query,
     userId: 'discord-user-123',
   } as unknown as Request & { userId: string };
 
