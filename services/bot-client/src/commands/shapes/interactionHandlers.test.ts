@@ -168,6 +168,47 @@ describe('handleShapesButton', () => {
       });
     });
 
+    it('should return to detail view on import-cancel from detail flow', async () => {
+      // Detail view fetches import jobs + export jobs
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
+        .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+
+      const interaction = createMockButtonInteraction(
+        'shapes::import-cancel',
+        'slug:test-slug::detail'
+      );
+      await handleShapesButton(interaction);
+
+      // Should show detail view instead of generic cancel message
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.title).toContain('test-slug');
+      expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug');
+    });
+
+    it('should NOT overwrite error with detail view when import fails from detail flow', async () => {
+      // Import API returns 409 conflict
+      mockCallGatewayApi.mockResolvedValueOnce({
+        ok: false,
+        status: 409,
+        error: 'Import already in progress',
+      });
+
+      const interaction = createMockButtonInteraction(
+        'shapes::import-confirm::full',
+        'slug:test-slug::detail'
+      );
+      await handleShapesButton(interaction);
+
+      // startImport calls update() for "Starting..." then editReply() for error
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      expect(mockEditReply).toHaveBeenCalledTimes(1);
+      // The error embed should be visible, NOT overwritten by detail view
+      const editReplyArgs = mockEditReply.mock.calls[0][0];
+      expect(editReplyArgs.embeds[0].data.title).toContain('Import Failed');
+    });
+
     it('should show detail view after import from detail flow', async () => {
       // Import API call succeeds
       mockCallGatewayApi
