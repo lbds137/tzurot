@@ -42,6 +42,18 @@ The same function is defined in both `api-gateway/routes/user/shapes/export.ts` 
 
 `ShapesExportJob.test.ts` and `ShapesImportJob.test.ts` both redefine `ShapesServerError` inline in their `vi.mock` factories. If the class gains new properties, both mocks need updating. Consider using the real class via `importOriginal` or a shared mock factory.
 
+### 🏗️ [LIFT] Server-Side Slug Filtering for Shapes Job Endpoints
+
+`fetchJobStatusForSlug` in `detail.ts` fetches ALL import/export jobs for the user, then filters by slug in memory. As users accumulate jobs, every detail view refresh downloads the full job history. Add `?slug=` query param to the gateway job endpoints (`/user/shapes/import/jobs`, `/user/shapes/export/jobs`) with `WHERE "sourceSlug" = $slug` filtering. TODO is in `detail.ts`.
+
+### 🐛 [FIX] Shapes List Redirect Detection Uses Brittle URL Comparison
+
+`list.ts` (now used by `browse.ts`) detects auth redirects via `finalUrl !== expectedUrl` string comparison. If shapes.inc normalizes query params, adds tracking params, or changes the URL format, this produces false positives and shows an auth error for successful requests. Should use the Fetch API's `response.redirected` property instead.
+
+### ✨ [FEAT] Detail View Error Recovery — Add Navigation Buttons on Failure
+
+When import/export fails from the detail view, the user sees an error message with no buttons — they're stuck and must run `/shapes browse` again. Consider adding a "Back to Browse" or "Back to Detail" button on error states so users can recover without retyping commands.
+
 ### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
 
 GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty. Combined with provider 400 errors, responses fail completely.
@@ -210,7 +222,7 @@ Full automated import from shapes.inc via `/shapes` command group. Shipped on de
 - [x] Phase 1: Schema (UserCredential, ImportJob tables + `type` column on memories) + `/shapes auth|logout`
 - [x] Phase 2: Data fetcher service (TypeScript, split cookie handling, username lookup, memory pagination)
 - [x] Phase 3: Import pipeline (BullMQ job → personality + system prompt + LLM config + pgvector memories)
-- [x] Phase 4: `/shapes list|import|export|status` slash commands
+- [x] Phase 4: `/shapes browse|import|export|status` slash commands (UX overhaul: detail view, autocomplete, retry logic — PR #662)
 - [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
 - [ ] Phase 6 (backlogged): Voice/image field import — shapes.inc has `voice_model`, `voice_id`, `voice_stability`, `image_jailbreak`, `image_size` etc. Currently set `voiceEnabled: false`, `imageEnabled: false`. Import when Tzurot adds voice/image support.
 - [ ] Phase 7 (backlogged): Training data import — shapes.inc has training pairs (see `debug/shapes/lilith-training.json`). Tzurot has no training data schema yet. Needs: define training data schema → import from shapes.inc.
