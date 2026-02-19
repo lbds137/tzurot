@@ -106,7 +106,7 @@ export function formatExportJobStatus(job: ExportJob): string {
     const size = job.fileSizeBytes !== null ? ` (${formatFileSize(job.fileSizeBytes)})` : '';
     const expiresAt = new Date(job.expiresAt);
     const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000));
-    line += `\n   \uD83D\uDCE5 [Download${size}](${job.downloadUrl})`;
+    line += `\n   \uD83D\uDCE5 [Download${size}](${encodeURI(job.downloadUrl)})`;
     line += ` \u2014 expires in ${hoursLeft}h`;
   }
 
@@ -159,7 +159,7 @@ export function formatCompactExportStatus(job: ExportJob): string {
     const size = job.fileSizeBytes !== null ? ` (${formatFileSize(job.fileSizeBytes)})` : '';
     const expiresAt = new Date(job.expiresAt);
     const hoursLeft = Math.max(0, Math.round((expiresAt.getTime() - Date.now()) / 3600000));
-    line += `\n   \uD83D\uDCE5 [Download${size}](${job.downloadUrl}) \u2014 expires in ${hoursLeft}h`;
+    line += `\n   \uD83D\uDCE5 [Download${size}](${encodeURI(job.downloadUrl)}) \u2014 expires in ${hoursLeft}h`;
   }
 
   if (job.status === 'failed' && job.errorMessage !== null) {
