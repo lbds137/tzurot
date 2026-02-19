@@ -44,6 +44,7 @@ export async function showDetailView(
   const userId = interaction.user.id;
   const { embed, components } = await buildShapeDetailEmbed(userId, slug);
   await interaction.update({
+    content: '',
     embeds: [embed],
     components,
   });
@@ -129,11 +130,22 @@ export async function handleDetailExport(
   const success = await startExport(interaction, userId, { slug, format });
   if (success) {
     // Show detail view with updated job status
-    const { embed, components } = await buildShapeDetailEmbed(userId, slug);
-    await interaction.editReply({
-      embeds: [embed],
-      components,
-    });
+    try {
+      const { embed, components } = await buildShapeDetailEmbed(userId, slug);
+      await interaction.editReply({
+        embeds: [embed],
+        components,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId, slug }, '[Shapes] Failed to refresh detail after export');
+      // Export succeeded but detail refresh failed — show a simple success message
+      // so the user isn't stuck on the "Starting Export..." spinner with no buttons
+      await interaction.editReply({
+        content: `Export started for **${slug}**. Use the browse view to check status.`,
+        embeds: [],
+        components: [],
+      });
+    }
   }
 }
 

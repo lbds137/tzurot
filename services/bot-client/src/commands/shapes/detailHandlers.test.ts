@@ -139,6 +139,21 @@ describe('showDetailView', () => {
     const updateArgs = mockUpdate.mock.calls[0][0];
     expect(updateArgs.embeds[0].data.title).toContain('test-slug');
   });
+
+  it('should clear content text to prevent bleed-through', async () => {
+    mockCallGatewayApi
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+
+    const interaction = createMockButtonInteraction('test', 'slug:test-slug');
+    await showDetailView(
+      interaction as unknown as ButtonInteraction & StringSelectMenuInteraction,
+      'test-slug'
+    );
+
+    const updateArgs = mockUpdate.mock.calls[0][0];
+    expect(updateArgs.content).toBe('');
+  });
 });
 
 describe('handleDetailImport', () => {
@@ -185,6 +200,35 @@ describe('handleDetailExport', () => {
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
     expect(mockEditReply).toHaveBeenCalled();
+  });
+
+  it('should show fallback message when detail refresh fails after successful export', async () => {
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: { exportJobId: 'exp-1', sourceSlug: 'test-slug', format: 'json', status: 'pending' },
+      })
+      // buildShapeDetailEmbed's internal calls succeed (it catches errors internally)
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+
+    // First editReply (detail view refresh) throws, triggering fallback
+    mockEditReply
+      .mockRejectedValueOnce(new Error('Discord API error'))
+      .mockResolvedValueOnce(undefined);
+
+    const interaction = createMockButtonInteraction(
+      'shapes::detail-export::json',
+      'slug:test-slug'
+    );
+    await handleDetailExport(interaction, 'json');
+
+    // 2 editReply calls: failed detail refresh + successful fallback
+    expect(mockEditReply).toHaveBeenCalledTimes(2);
+    const fallbackArgs = mockEditReply.mock.calls[1][0];
+    expect(fallbackArgs.content).toContain('Export started');
+    expect(fallbackArgs.embeds).toEqual([]);
+    expect(fallbackArgs.components).toEqual([]);
   });
 });
 
