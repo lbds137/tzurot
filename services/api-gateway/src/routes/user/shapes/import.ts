@@ -168,7 +168,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
     await queue.add(JobType.ShapesImport, jobData, {
       jobId,
       attempts: 5,
-      backoff: { type: 'exponential', delay: 10_000 },
+      backoff: { type: 'exponential', delay: 5_000 },
     });
 
     logger.info(
