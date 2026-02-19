@@ -189,7 +189,11 @@ export async function handleImportConfirm(
     return;
   }
 
-  const success = await startImport(interaction, userId, { slug, importType });
+  const success = await startImport(interaction, userId, {
+    slug,
+    importType,
+    suppressSuccessEmbed: isFromDetail,
+  });
 
   // If triggered from detail view and import succeeded, show detail view with job status
   if (isFromDetail && success) {

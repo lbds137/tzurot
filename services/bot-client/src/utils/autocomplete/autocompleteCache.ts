@@ -183,6 +183,7 @@ export async function getCachedShapes(userId: string): Promise<ShapesSummary[]> 
   try {
     const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
       userId,
+      // Explicit: default is AUTOCOMPLETE (2500ms), fits Discord's 3s autocomplete window
     });
 
     if (!result.ok) {
