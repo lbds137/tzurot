@@ -40,6 +40,14 @@ vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
       this.name = 'ShapesAuthError';
     }
   },
+  ShapesFetchError: class ShapesFetchError extends Error {
+    readonly status: number;
+    constructor(status: number, msg: string) {
+      super(msg);
+      this.name = 'ShapesFetchError';
+      this.status = status;
+    }
+  },
   ShapesNotFoundError: class ShapesNotFoundError extends Error {
     constructor(slug: string) {
       super(`Shape not found: ${slug}`);
@@ -274,5 +282,51 @@ describe('ShapesExportJob', () => {
         }),
       })
     );
+  });
+
+  it('should persist updated cookie on fetch failure', async () => {
+    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(504, 'Gateway Timeout'));
+
+    // Final attempt so it marks failed instead of re-throwing
+    const job = createMockJob({}, { attemptsMade: 4, attempts: 5 });
+    await processShapesExportJob(job, { prisma: mockPrisma as never });
+
+    // Cookie should be persisted even though fetch failed
+    expect(mockPrisma.userCredential.updateMany).toHaveBeenCalled();
+  });
+
+  it('should re-throw timeout errors (AbortError) for BullMQ retry', async () => {
+    const abortError = new DOMException('The operation was aborted', 'AbortError');
+    mockFetchShapeData.mockRejectedValueOnce(abortError);
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });
+    await expect(processShapesExportJob(job, { prisma: mockPrisma as never })).rejects.toThrow(
+      'The operation was aborted'
+    );
+  });
+
+  it('should re-throw network errors (TypeError) for BullMQ retry', async () => {
+    mockFetchShapeData.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });
+    await expect(processShapesExportJob(job, { prisma: mockPrisma as never })).rejects.toThrow(
+      'fetch failed'
+    );
+  });
+
+  it('should mark ShapesFetchError as non-retryable (immediate failure)', async () => {
+    const { ShapesFetchError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesFetchError(400, 'Bad Request'));
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });
+    const result = await processShapesExportJob(job, { prisma: mockPrisma as never });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Bad Request');
+
+    const updateCalls = mockPrisma.exportJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[1][0].data.status).toBe('failed');
   });
 });
