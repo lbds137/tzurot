@@ -26,7 +26,12 @@ interface JobStatus {
   latestExport: ExportJob | null;
 }
 
-/** Fetch the latest import and export job for a specific slug */
+/**
+ * Fetch the latest import and export job for a specific slug.
+ *
+ * TODO: Add `?slug=` query param to the gateway jobs endpoints so we can
+ * filter server-side instead of fetching all jobs and filtering here.
+ */
 async function fetchJobStatusForSlug(userId: string, slug: string): Promise<JobStatus> {
   const [importResult, exportResult] = await Promise.all([
     callGatewayApi<ImportJobsResponse>('/user/shapes/import/jobs', {
