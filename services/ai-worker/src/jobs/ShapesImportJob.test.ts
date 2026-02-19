@@ -46,6 +46,14 @@ vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
       this.name = 'ShapesAuthError';
     }
   },
+  ShapesFetchError: class ShapesFetchError extends Error {
+    readonly status: number;
+    constructor(status: number, msg: string) {
+      super(msg);
+      this.name = 'ShapesFetchError';
+      this.status = status;
+    }
+  },
   ShapesNotFoundError: class ShapesNotFoundError extends Error {
     constructor(slug: string) {
       super(`Shape not found: ${slug}`);
@@ -335,7 +343,8 @@ describe('processShapesImportJob', () => {
   it('should fail memory_only import when personality slug not found', async () => {
     mockPrisma.personality.findFirst.mockResolvedValue(null);
 
-    const job = createMockJob({ importType: 'memory_only' });
+    // Generic Error is retryable — final attempt to trigger failure marking
+    const job = createMockJob({ importType: 'memory_only' }, { attemptsMade: 4, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
@@ -345,10 +354,11 @@ describe('processShapesImportJob', () => {
     expect(result.error).toContain('No personality found');
   });
 
-  it('should mark import as failed on error', async () => {
+  it('should mark import as failed on final attempt for retryable error', async () => {
     mockFetchShapeData.mockRejectedValue(new Error('Network error'));
 
-    const job = createMockJob();
+    // Generic errors are now retryable — set to final attempt so it marks failed
+    const job = createMockJob({}, { attemptsMade: 4, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
@@ -529,7 +539,8 @@ describe('processShapesImportJob', () => {
   it('should fail when user not found', async () => {
     mockPrisma.user.findUnique.mockResolvedValue(null);
 
-    const job = createMockJob();
+    // Generic Error is retryable — final attempt to trigger failure marking
+    const job = createMockJob({}, { attemptsMade: 4, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
@@ -546,7 +557,8 @@ describe('processShapesImportJob', () => {
       defaultPersonaId: null,
     });
 
-    const job = createMockJob();
+    // Generic Error is retryable — final attempt to trigger failure marking
+    const job = createMockJob({}, { attemptsMade: 4, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
@@ -564,7 +576,8 @@ describe('processShapesImportJob', () => {
     });
     mockIsBotOwner.mockReturnValue(false);
 
-    const job = createMockJob({ importType: 'full' });
+    // Generic Error is retryable — final attempt to trigger failure marking
+    const job = createMockJob({ importType: 'full' }, { attemptsMade: 4, attempts: 5 });
     const result = await processShapesImportJob(job, {
       prisma: mockPrisma as never,
       memoryAdapter: mockMemoryAdapter as never,
@@ -572,5 +585,63 @@ describe('processShapesImportJob', () => {
 
     expect(result.success).toBe(false);
     expect(result.error).toContain('owned by another user');
+  });
+
+  it('should persist updated cookie on fetch failure', async () => {
+    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(504, 'Gateway Timeout'));
+
+    // Final attempt so it marks failed instead of re-throwing
+    const job = createMockJob({}, { attemptsMade: 4, attempts: 5 });
+    await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    // Cookie should be persisted even though fetch failed
+    expect(mockPrisma.userCredential.updateMany).toHaveBeenCalled();
+  });
+
+  it('should re-throw timeout errors (AbortError) for BullMQ retry', async () => {
+    const abortError = new DOMException('The operation was aborted', 'AbortError');
+    mockFetchShapeData.mockRejectedValueOnce(abortError);
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+      })
+    ).rejects.toThrow('The operation was aborted');
+  });
+
+  it('should re-throw network errors (TypeError) for BullMQ retry', async () => {
+    mockFetchShapeData.mockRejectedValueOnce(new TypeError('fetch failed'));
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });
+    await expect(
+      processShapesImportJob(job, {
+        prisma: mockPrisma as never,
+        memoryAdapter: mockMemoryAdapter as never,
+      })
+    ).rejects.toThrow('fetch failed');
+  });
+
+  it('should mark ShapesFetchError as non-retryable (immediate failure)', async () => {
+    const { ShapesFetchError } = await import('../services/shapes/ShapesDataFetcher.js');
+    mockFetchShapeData.mockRejectedValueOnce(new ShapesFetchError(400, 'Bad Request'));
+
+    const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });
+    const result = await processShapesImportJob(job, {
+      prisma: mockPrisma as never,
+      memoryAdapter: mockMemoryAdapter as never,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toContain('Bad Request');
+
+    const updateCalls = mockPrisma.importJob.update.mock.calls;
+    expect(updateCalls).toHaveLength(2);
+    expect(updateCalls[1][0].data.status).toBe('failed');
   });
 });
