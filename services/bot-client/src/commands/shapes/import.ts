@@ -39,12 +39,12 @@ export interface ImportParams {
   importType: 'full' | 'memory_only';
 }
 
-/** Start the import after user confirms via button */
+/** Start the import after user confirms via button. Returns true on success. */
 export async function startImport(
   buttonInteraction: MessageComponentInteraction,
   userId: string,
   params: ImportParams
-): Promise<void> {
+): Promise<boolean> {
   const { slug, importType } = params;
 
   await buttonInteraction.update({
@@ -82,7 +82,7 @@ export async function startImport(
       ],
       components: [],
     });
-    return;
+    return false;
   }
 
   const successEmbed = new EmbedBuilder()
@@ -102,6 +102,8 @@ export async function startImport(
     { userId, slug, importJobId: importResult.data.importJobId },
     '[Shapes] Import started'
   );
+
+  return true;
 }
 
 /**
