@@ -2,7 +2,7 @@
  * Shapes.inc Import Routes
  *
  * POST /user/shapes/import - Start a shapes.inc import job
- * GET  /user/shapes/import-jobs - List import history
+ * GET  /user/shapes/import/jobs - List import history
  */
 
 import { Router, type Response } from 'express';
@@ -190,7 +190,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 function createListImportJobsHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const slug = req.query.slug as string | undefined;
+    const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
