@@ -37,6 +37,8 @@ interface ImportResponse {
 export interface ImportParams {
   slug: string;
   importType: 'full' | 'memory_only';
+  /** Skip the success embed — caller will show a detail view instead */
+  suppressSuccessEmbed?: boolean;
 }
 
 /** Start the import after user confirms via button. Returns true on success. */
@@ -45,7 +47,7 @@ export async function startImport(
   userId: string,
   params: ImportParams
 ): Promise<boolean> {
-  const { slug, importType } = params;
+  const { slug, importType, suppressSuccessEmbed = false } = params;
 
   await buttonInteraction.update({
     embeds: [
@@ -85,18 +87,22 @@ export async function startImport(
     return false;
   }
 
-  const successEmbed = new EmbedBuilder()
-    .setColor(DISCORD_COLORS.SUCCESS)
-    .setTitle('📥 Import Started')
-    .setDescription(
-      `Import for **${slug}** is now running in the background.\n\n` +
-        'Use `/shapes status` to check progress.'
-    )
-    .addFields({ name: 'Job ID', value: `\`${importResult.data.importJobId}\``, inline: true })
-    .setTimestamp();
+  // When called from the detail flow, the caller replaces this with the detail view immediately,
+  // so skip the success embed to avoid a brief flash of "Import Started!" before the detail view.
+  if (!suppressSuccessEmbed) {
+    const successEmbed = new EmbedBuilder()
+      .setColor(DISCORD_COLORS.SUCCESS)
+      .setTitle('📥 Import Started')
+      .setDescription(
+        `Import for **${slug}** is now running in the background.\n\n` +
+          'Use `/shapes status` to check progress.'
+      )
+      .addFields({ name: 'Job ID', value: `\`${importResult.data.importJobId}\``, inline: true })
+      .setTimestamp();
 
-  // update() already acknowledged the interaction; editReply() modifies the original message
-  await buttonInteraction.editReply({ embeds: [successEmbed], components: [] });
+    // update() already acknowledged the interaction; editReply() modifies the original message
+    await buttonInteraction.editReply({ embeds: [successEmbed], components: [] });
+  }
 
   logger.info(
     { userId, slug, importJobId: importResult.data.importJobId },
