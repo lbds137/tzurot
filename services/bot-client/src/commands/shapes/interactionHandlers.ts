@@ -8,19 +8,41 @@
  * Design: Pagination re-fetches the shapes list on every button click
  * instead of holding state in closures. The API call is fast (~200ms)
  * and this makes interactions fully stateless.
+ *
+ * Slug is stored in the embed footer (format: "slug:xxx") to avoid
+ * Discord's 100-char custom ID limit.
  */
 
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
-import { buildListPage, fetchShapesList } from './list.js';
+import { buildBrowsePage, fetchShapesList, shapesBrowseIds } from './browse.js';
+import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { buildAuthModal } from './auth.js';
 import { startImport } from './import.js';
+import { startExport } from './export.js';
+import { buildShapeDetailEmbed } from './detail.js';
 
 const logger = createLogger('shapes-interactions');
 
-/** Map HTTP status codes to user-friendly hints (avoids exposing raw codes) */
+const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
+const INVALID_STATE_MSG = '\u274C Invalid state. Please try again from the browse list.';
+
+/** Extract slug from embed footer (format: "slug:xxx" or "slug:xxx::detail") */
+function parseSlugFromFooter(interaction: ButtonInteraction): {
+  slug: string | undefined;
+  isFromDetail: boolean;
+} {
+  const footerText = interaction.message.embeds[0]?.footer?.text ?? '';
+  const isFromDetail = footerText.endsWith('::detail');
+  const raw = footerText.replace('::detail', '');
+  const rawSlug = raw.startsWith('slug:') ? raw.slice(5) : undefined;
+  const slug = rawSlug !== undefined && SLUG_PATTERN.test(rawSlug) ? rawSlug : undefined;
+  return { slug, isFromDetail };
+}
+
+/** Map HTTP status codes to user-friendly hints */
 function httpStatusHint(status: number): string {
   if (status === 429) {
     return 'rate limited by shapes.inc';
@@ -39,47 +61,44 @@ function httpStatusHint(status: number): string {
  * Routes by parsing the custom ID action
  */
 export async function handleShapesButton(interaction: ButtonInteraction): Promise<void> {
-  const parsed = ShapesCustomIds.parse(interaction.customId);
-  if (parsed === null) {
-    logger.warn({ customId: interaction.customId }, '[Shapes] Unparseable button customId');
-    await interaction.update({
-      content: '❌ Something went wrong. Please try again.',
-      embeds: [],
-      components: [],
-    });
-    return;
-  }
-
-  const { action } = parsed;
+  const { customId } = interaction;
 
   try {
-    // Note: 'list-info' (disabled page indicator) and 'list-select' (select menu)
-    // are intentionally absent here — list-info is disabled so Discord won't deliver
-    // clicks, and list-select routes through handleShapesSelectMenu instead.
-
-    // --- List pagination ---
-    if (action === 'list-prev' || action === 'list-next') {
-      await handleListPagination(interaction, parsed.page ?? 0, action === 'list-prev');
+    // --- Browse pagination (handled by browse helpers) ---
+    if (shapesBrowseIds.isBrowse(customId)) {
+      await handleBrowsePagination(interaction);
       return;
     }
 
-    // --- Back to list (always page 0) ---
-    if (action === 'action-back') {
-      await handleListPage(interaction, 0);
+    // --- Parse shapes-specific custom IDs ---
+    const parsed = ShapesCustomIds.parse(customId);
+    if (parsed === null) {
+      logger.warn({ customId }, '[Shapes] Unparseable button customId');
+      await interaction.update({
+        content: '\u274C Something went wrong. Please try again.',
+        embeds: [],
+        components: [],
+      });
       return;
     }
 
-    // --- Shape action buttons (import/export from selection) ---
-    if (action === 'action-import' || action === 'action-export') {
-      if (parsed.slug === undefined) {
-        await interaction.update({
-          content: '❌ Invalid shape selection. Please try again.',
-          embeds: [],
-          components: [],
-        });
-        return;
-      }
-      await showShapeActionHint(interaction, parsed.slug, action === 'action-import');
+    const { action } = parsed;
+
+    // --- Detail view actions ---
+    if (action === 'detail-import') {
+      await handleDetailImport(interaction, parsed.importType);
+      return;
+    }
+    if (action === 'detail-export') {
+      await handleDetailExport(interaction, parsed.exportFormat);
+      return;
+    }
+    if (action === 'detail-refresh') {
+      await handleDetailRefresh(interaction);
+      return;
+    }
+    if (action === 'detail-back') {
+      await handleBrowsePage(interaction, 0, 'name');
       return;
     }
 
@@ -94,8 +113,6 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
     }
 
     // --- Auth continue/cancel ---
-    // No user ownership check needed — the message is ephemeral (deferralMode: 'ephemeral'),
-    // so only the original requester can see and click these buttons.
     if (action === 'auth-continue') {
       await interaction.showModal(buildAuthModal());
       return;
@@ -109,73 +126,58 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
       return;
     }
 
-    logger.warn({ customId: interaction.customId, action }, '[Shapes] Unknown button action');
+    logger.warn({ customId, action }, '[Shapes] Unknown button action');
     await interaction.update({
-      content: '❌ Unknown action. Please try again.',
+      content: '\u274C Unknown action. Please try again.',
       embeds: [],
       components: [],
     });
   } catch (error) {
-    logger.error({ err: error, customId: interaction.customId }, '[Shapes] Button handler error');
+    logger.error({ err: error, customId }, '[Shapes] Button handler error');
     try {
       await interaction.update({
-        content: '❌ An unexpected error occurred.',
+        content: '\u274C An unexpected error occurred.',
         embeds: [],
         components: [],
       });
     } catch {
-      // Interaction already acknowledged or token expired — nothing to do
+      // Interaction already acknowledged or token expired
     }
   }
 }
 
 /**
  * Handle all shapes select menu interactions
- * Currently only list-select (choosing a shape from the list)
  */
 export async function handleShapesSelectMenu(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
-  const parsed = ShapesCustomIds.parse(interaction.customId);
-  if (parsed === null) {
-    logger.warn({ customId: interaction.customId }, '[Shapes] Unparseable select customId');
-    await interaction.update({
-      content: '❌ Something went wrong. Please try again.',
-      embeds: [],
-      components: [],
-    });
-    return;
-  }
+  const { customId } = interaction;
 
   try {
-    if (parsed.action === 'list-select') {
+    // Browse select — show detail view for the selected shape
+    if (shapesBrowseIds.isBrowseSelect(customId)) {
       const selectedSlug = interaction.values[0];
-      await showShapeActions(interaction, selectedSlug);
+      await showDetailView(interaction, selectedSlug);
       return;
     }
 
-    logger.warn(
-      { customId: interaction.customId, action: parsed.action },
-      '[Shapes] Unknown select menu action'
-    );
+    logger.warn({ customId }, '[Shapes] Unknown select menu action');
     await interaction.update({
-      content: '❌ Unknown action. Please try again.',
+      content: '\u274C Unknown action. Please try again.',
       embeds: [],
       components: [],
     });
   } catch (error) {
-    logger.error(
-      { err: error, customId: interaction.customId },
-      '[Shapes] Select menu handler error'
-    );
+    logger.error({ err: error, customId }, '[Shapes] Select menu handler error');
     try {
       await interaction.update({
-        content: '❌ An unexpected error occurred.',
+        content: '\u274C An unexpected error occurred.',
         embeds: [],
         components: [],
       });
     } catch {
-      // Interaction already acknowledged or token expired — nothing to do
+      // Interaction already acknowledged or token expired
     }
   }
 }
@@ -184,23 +186,25 @@ export async function handleShapesSelectMenu(
 // Internal helpers
 // ---------------------------------------------------------------------------
 
-/** Handle prev/next pagination — computes target page from current + direction */
-async function handleListPagination(
-  interaction: ButtonInteraction,
-  currentPage: number,
-  isPrev: boolean
-): Promise<void> {
-  // currentPage comes from the custom ID (set at render time) so it may be stale
-  // if the list changed. buildListPage clamps out-of-bounds pages safely
-  // (including negative values from prev on page 0 via safePage = Math.max(0, ...)).
-  const targetPage = isPrev ? currentPage - 1 : currentPage + 1;
-  await handleListPage(interaction, targetPage);
+/** Handle browse pagination buttons — parse page/sort from customId */
+async function handleBrowsePagination(interaction: ButtonInteraction): Promise<void> {
+  const parsed = shapesBrowseIds.parse(interaction.customId);
+  if (parsed === null) {
+    await interaction.update({
+      content: '\u274C Invalid pagination state.',
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+  await handleBrowsePage(interaction, parsed.page, parsed.sort);
 }
 
 /** Re-fetch shapes list and render the specified page */
-async function handleListPage(
+async function handleBrowsePage(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
-  page: number
+  page: number,
+  sort: BrowseSortType
 ): Promise<void> {
   const userId = interaction.user.id;
   const result = await fetchShapesList(userId);
@@ -209,80 +213,135 @@ async function handleListPage(
     await interaction.update({
       content:
         result.status === 401
-          ? '❌ Session expired. Use `/shapes auth` to re-authenticate.'
-          : `❌ Failed to fetch shapes — ${httpStatusHint(result.status)}. Please try again.`,
+          ? '\u274C Session expired. Use `/shapes auth` to re-authenticate.'
+          : `\u274C Failed to fetch shapes \u2014 ${httpStatusHint(result.status)}.`,
       embeds: [],
       components: [],
     });
     return;
   }
 
-  const { embed, components } = buildListPage(result.shapes, page);
-
+  const { embed, components } = buildBrowsePage(result.shapes, page, sort);
   await interaction.update({
     embeds: [embed],
     components: components as ActionRowBuilder<ButtonBuilder>[],
   });
 }
 
-/** Show import/export/back action buttons for a selected shape */
-async function showShapeActions(
-  interaction: StringSelectMenuInteraction,
+/** Show the detail view for a selected shape */
+async function showDetailView(
+  interaction: ButtonInteraction | StringSelectMenuInteraction,
   slug: string
 ): Promise<void> {
-  const importButton = new ButtonBuilder()
-    .setCustomId(ShapesCustomIds.actionImport(slug))
-    .setLabel('Import')
-    .setEmoji('📥')
-    .setStyle(ButtonStyle.Primary);
-
-  const exportButton = new ButtonBuilder()
-    .setCustomId(ShapesCustomIds.actionExport(slug))
-    .setLabel('Export')
-    .setEmoji('📤')
-    .setStyle(ButtonStyle.Secondary);
-
-  const backButton = new ButtonBuilder()
-    .setCustomId(ShapesCustomIds.actionBack())
-    .setLabel('Back to List')
-    .setEmoji('◀️')
-    .setStyle(ButtonStyle.Secondary);
-
-  const embed = new EmbedBuilder()
-    .setColor(DISCORD_COLORS.BLURPLE)
-    .setTitle(`🔗 ${slug}`)
-    .setDescription(
-      `What would you like to do with **${slug}**?\n\n` +
-        '**Import** — Create a Tzurot personality from this shape\n' +
-        '**Export** — Download the raw character data as JSON'
-    );
-
+  const userId = interaction.user.id;
+  const { embed, components } = await buildShapeDetailEmbed(userId, slug);
   await interaction.update({
     embeds: [embed],
-    components: [
-      new ActionRowBuilder<ButtonBuilder>().addComponents(importButton, exportButton, backButton),
-    ],
+    components,
   });
 }
 
-/** Show action hint for import/export buttons */
-async function showShapeActionHint(
+/** Handle import button from detail view — show confirmation */
+async function handleDetailImport(
   interaction: ButtonInteraction,
-  slug: string,
-  isImport: boolean
+  importType: string | undefined
 ): Promise<void> {
+  const { slug } = parseSlugFromFooter(interaction);
+  if (slug === undefined || importType === undefined) {
+    await interaction.update({
+      content: INVALID_STATE_MSG,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const isMemoryOnly = importType === 'memory_only';
+  const confirmEmbed = new EmbedBuilder()
+    .setColor(DISCORD_COLORS.BLURPLE)
+    .setTitle(
+      isMemoryOnly
+        ? '\uD83D\uDCE5 Import Memories from Shapes.inc'
+        : '\uD83D\uDCE5 Import from Shapes.inc'
+    )
+    .setDescription(
+      isMemoryOnly
+        ? `Ready to import memories from **${slug}** into the existing personality.\n\n` +
+            'This will:\n' +
+            '\u2022 Look up the previously imported personality by slug\n' +
+            '\u2022 Fetch all conversation memories from shapes.inc\n' +
+            '\u2022 Import them (deduplicating against existing memories)\n\n' +
+            'Existing personality config will not be changed.'
+        : `Ready to import **${slug}** from shapes.inc.\n\n` +
+            'This will:\n' +
+            '\u2022 Create a new personality with the character config\n' +
+            '\u2022 Download the character avatar\n' +
+            '\u2022 Import all conversation memories\n' +
+            '\u2022 Set up the LLM configuration\n\n' +
+            'The import runs in the background and may take a few minutes.'
+    )
+    .setFooter({ text: `slug:${slug}::detail` })
+    .setTimestamp();
+
+  const confirmButton = new ButtonBuilder()
+    .setCustomId(ShapesCustomIds.importConfirm(importType))
+    .setLabel('Start Import')
+    .setEmoji('\uD83D\uDCE5')
+    .setStyle(ButtonStyle.Primary);
+
+  const cancelButton = new ButtonBuilder()
+    .setCustomId(ShapesCustomIds.importCancel())
+    .setLabel('Cancel')
+    .setStyle(ButtonStyle.Secondary);
+
   await interaction.update({
-    embeds: [
-      new EmbedBuilder()
-        .setColor(DISCORD_COLORS.BLURPLE)
-        .setDescription(
-          isImport
-            ? `Use \`/shapes import slug:${slug}\` to import **${slug}** into Tzurot.`
-            : `Use \`/shapes export slug:${slug}\` to download **${slug}** as a file.`
-        ),
-    ],
-    components: [],
+    embeds: [confirmEmbed],
+    components: [new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton)],
   });
+}
+
+/** Handle export button from detail view — start export immediately */
+async function handleDetailExport(
+  interaction: ButtonInteraction,
+  exportFormat: string | undefined
+): Promise<void> {
+  const { slug } = parseSlugFromFooter(interaction);
+  if (slug === undefined || exportFormat === undefined) {
+    await interaction.update({
+      content: INVALID_STATE_MSG,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  const format: 'json' | 'markdown' = exportFormat === 'markdown' ? 'markdown' : 'json';
+  const userId = interaction.user.id;
+
+  const success = await startExport(interaction, userId, { slug, format });
+  if (success) {
+    // Show detail view with updated job status
+    const { embed, components } = await buildShapeDetailEmbed(userId, slug);
+    await interaction.editReply({
+      embeds: [embed],
+      components,
+    });
+  }
+}
+
+/** Handle refresh button — re-fetch and show detail view */
+async function handleDetailRefresh(interaction: ButtonInteraction): Promise<void> {
+  const { slug } = parseSlugFromFooter(interaction);
+  if (slug === undefined) {
+    await interaction.update({
+      content: INVALID_STATE_MSG,
+      embeds: [],
+      components: [],
+    });
+    return;
+  }
+
+  await showDetailView(interaction, slug);
 }
 
 /** Parse import state from custom ID + embed and start the import */
@@ -298,18 +357,12 @@ async function handleImportConfirm(
     ? (rawType as 'full' | 'memory_only')
     : undefined;
 
-  // Slug is stored in the embed footer (not the custom ID) to avoid
-  // Discord's 100-char custom ID limit with long slugs
-  const footerText = interaction.message.embeds[0]?.footer?.text ?? '';
-  const rawSlug = footerText.startsWith('slug:') ? footerText.slice(5) : undefined;
-  // Validate slug format — shapes.inc usernames are lowercase alphanumeric + hyphens
-  const SLUG_PATTERN = /^[a-z0-9][a-z0-9-]{0,48}[a-z0-9]$/;
-  const slug = rawSlug !== undefined && SLUG_PATTERN.test(rawSlug) ? rawSlug : undefined;
+  const { slug, isFromDetail } = parseSlugFromFooter(interaction);
 
   if (slug === undefined || importType === undefined) {
     logger.warn({ customId: interaction.customId }, '[Shapes] Import confirm missing state');
     await interaction.update({
-      content: '❌ Invalid import state. Please try `/shapes import` again.',
+      content: '\u274C Invalid import state. Please try `/shapes import` again.',
       embeds: [],
       components: [],
     });
@@ -317,4 +370,13 @@ async function handleImportConfirm(
   }
 
   await startImport(interaction, userId, { slug, importType });
+
+  // If triggered from detail view, show detail view with job status
+  if (isFromDetail) {
+    const { embed, components } = await buildShapeDetailEmbed(userId, slug);
+    await interaction.editReply({
+      embeds: [embed],
+      components,
+    });
+  }
 }

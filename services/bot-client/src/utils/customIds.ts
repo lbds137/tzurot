@@ -511,9 +511,10 @@ export const PersonaCustomIds = {
 interface ShapesParseResult {
   command: 'shapes';
   action: string;
-  page?: number;
-  slug?: string;
+  /** Import type for detail-import or import-confirm actions */
   importType?: string;
+  /** Export format for detail-export action */
+  exportFormat?: string;
 }
 
 export const ShapesCustomIds = {
@@ -525,33 +526,15 @@ export const ShapesCustomIds = {
   /** Cancel auth flow */
   authCancel: () => 'shapes::auth-cancel' as const,
 
-  // --- List pagination ---
-  /** Previous page button */
-  listPrev: (page: number) => `shapes::list-prev::${String(page)}` as const,
-  /** Next page button */
-  listNext: (page: number) => `shapes::list-next::${String(page)}` as const,
-  /**
-   * Select menu for choosing a shape.
-   * Page is encoded for consistency with other list custom IDs but currently
-   * unused — action-back always returns to page 0. Available if we later
-   * want back-navigation to return to the original page.
-   */
-  listSelect: (page: number) => `shapes::list-select::${String(page)}` as const,
-  /** Disabled page info button */
-  listInfo: () => 'shapes::list-info' as const,
-
-  // --- Action buttons (after selecting a shape) ---
-  /**
-   * Import button for a specific shape.
-   * Slug is embedded in the custom ID here (not the footer) because these are
-   * intermediate action buttons, not the final confirmation. Slugs are shapes.inc
-   * usernames, typically short (≤30 chars), well within the 100-char limit.
-   */
-  actionImport: (slug: string) => `shapes::action-import::${slug}` as const,
-  /** Export button — same slug constraints as actionImport */
-  actionExport: (slug: string) => `shapes::action-export::${slug}` as const,
-  /** Back to list button */
-  actionBack: () => 'shapes::action-back' as const,
+  // --- Detail view actions (slug is in embed footer, not custom ID) ---
+  /** Import button from detail view — encodes import type */
+  detailImport: (importType: string) => `shapes::detail-import::${importType}` as const,
+  /** Export button from detail view — encodes format */
+  detailExport: (format: string) => `shapes::detail-export::${format}` as const,
+  /** Refresh job status in detail view */
+  detailRefresh: () => 'shapes::detail-refresh' as const,
+  /** Back to browse list from detail view */
+  detailBack: () => 'shapes::detail-back' as const,
 
   // --- Import confirmation ---
   /**
@@ -574,20 +557,15 @@ export const ShapesCustomIds = {
     const action = parts[1];
     const result: ShapesParseResult = { command: 'shapes', action };
 
-    // Pagination: shapes::list-prev::page, shapes::list-next::page
-    if (action === 'list-prev' || action === 'list-next' || action === 'list-select') {
-      if (parts[2] !== undefined) {
-        const pageNum = parseInt(parts[2], 10);
-        if (!isNaN(pageNum)) {
-          result.page = pageNum;
-        }
-      }
+    // Detail import: shapes::detail-import::importType
+    if (action === 'detail-import') {
+      result.importType = parts[2];
       return result;
     }
 
-    // Action buttons: shapes::action-import::slug, shapes::action-export::slug
-    if (action === 'action-import' || action === 'action-export') {
-      result.slug = parts[2];
+    // Detail export: shapes::detail-export::format
+    if (action === 'detail-export') {
+      result.exportFormat = parts[2];
       return result;
     }
 

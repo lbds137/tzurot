@@ -25,6 +25,14 @@ export interface PersonaSummary {
 }
 
 /**
+ * Shapes summary type for autocomplete (matches gateway response)
+ */
+export interface ShapesSummary {
+  name: string;
+  username: string;
+}
+
+/**
  * Cached data structure for a user's autocomplete options
  *
  * Uses undefined to indicate "not yet fetched" vs empty array for "fetched but empty".
@@ -34,6 +42,7 @@ export interface PersonaSummary {
 interface UserAutocompleteData {
   personalities: PersonalitySummary[] | undefined;
   personas: PersonaSummary[] | undefined;
+  shapes: ShapesSummary[] | undefined;
 }
 
 /**
@@ -84,11 +93,12 @@ export async function getCachedPersonalities(userId: string): Promise<Personalit
     }
 
     // Get existing cached data or create new entry
-    // Preserve undefined for personas if not yet fetched
+    // Preserve undefined for personas/shapes if not yet fetched
     const existingData = userCache.get(userId);
     const newData: UserAutocompleteData = {
       personalities: result.data.personalities,
       personas: existingData?.personas,
+      shapes: existingData?.shapes,
     };
 
     userCache.set(userId, newData);
@@ -132,11 +142,12 @@ export async function getCachedPersonas(userId: string): Promise<PersonaSummary[
     }
 
     // Get existing cached data or create new entry
-    // Preserve undefined for personalities if not yet fetched
+    // Preserve undefined for personalities/shapes if not yet fetched
     const existingData = userCache.get(userId);
     const newData: UserAutocompleteData = {
       personalities: existingData?.personalities,
       personas: result.data.personas,
+      shapes: existingData?.shapes,
     };
 
     userCache.set(userId, newData);
@@ -148,6 +159,52 @@ export async function getCachedPersonas(userId: string): Promise<PersonaSummary[
     return result.data.personas;
   } catch (error) {
     logger.error({ err: error, userId }, '[AutocompleteCache] Error fetching personas');
+    return [];
+  }
+}
+
+/**
+ * Get cached shapes for a user, fetching from gateway if cache miss
+ *
+ * @param userId - Discord user ID
+ * @returns Array of shape summaries, or empty array on error
+ */
+export async function getCachedShapes(userId: string): Promise<ShapesSummary[]> {
+  // Check cache first - undefined means "not fetched yet"
+  const cached = userCache.get(userId);
+  if (cached?.shapes !== undefined) {
+    logger.debug({ userId }, '[AutocompleteCache] Shapes cache hit');
+    return cached.shapes;
+  }
+
+  // Cache miss - fetch from gateway
+  logger.debug({ userId }, '[AutocompleteCache] Shapes cache miss, fetching');
+
+  try {
+    const result = await callGatewayApi<{ shapes: ShapesSummary[] }>('/user/shapes/list', {
+      userId,
+    });
+
+    if (!result.ok) {
+      logger.warn({ userId, error: result.error }, '[AutocompleteCache] Failed to fetch shapes');
+      return [];
+    }
+
+    // Get existing cached data or create new entry
+    // Preserve undefined for personalities/personas if not yet fetched
+    const existingData = userCache.get(userId);
+    const newData: UserAutocompleteData = {
+      personalities: existingData?.personalities,
+      personas: existingData?.personas,
+      shapes: result.data.shapes,
+    };
+
+    userCache.set(userId, newData);
+    logger.debug({ userId, count: result.data.shapes.length }, '[AutocompleteCache] Cached shapes');
+
+    return result.data.shapes;
+  } catch (error) {
+    logger.error({ err: error, userId }, '[AutocompleteCache] Error fetching shapes');
     return [];
   }
 }
