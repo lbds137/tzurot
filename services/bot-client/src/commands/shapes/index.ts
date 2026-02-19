@@ -5,7 +5,7 @@
  *
  * - /shapes auth - Authenticate with shapes.inc session cookie
  * - /shapes logout - Remove stored credentials
- * - /shapes list - Browse owned shapes
+ * - /shapes browse - Browse owned shapes with sort and detail view
  * - /shapes import <slug> - Import character into Tzurot
  * - /shapes export <slug> - Export character data as JSON
  * - /shapes status - View credential status and import history
@@ -18,12 +18,13 @@ import { defineCommand } from '../../utils/defineCommand.js';
 import { createMixedModeSubcommandRouter } from '../../utils/mixedModeSubcommandRouter.js';
 import { handleAuth } from './auth.js';
 import { handleLogout } from './logout.js';
-import { handleList } from './list.js';
+import { handleBrowse } from './browse.js';
 import { handleImport } from './import.js';
 import { handleExport } from './export.js';
 import { handleStatus } from './status.js';
 import { handleShapesModalSubmit } from './modal.js';
 import { handleShapesButton, handleShapesSelectMenu } from './interactionHandlers.js';
+import { handleShapesSlugAutocomplete } from './autocomplete.js';
 
 const logger = createLogger('shapes-command');
 
@@ -31,7 +32,7 @@ const shapesRouter = createMixedModeSubcommandRouter(
   {
     deferred: {
       logout: handleLogout,
-      list: handleList,
+      browse: handleBrowse,
       import: handleImport,
       export: handleExport,
       status: handleStatus,
@@ -62,7 +63,7 @@ export default defineCommand({
       subcommand.setName('logout').setDescription('Remove your stored shapes.inc credentials')
     )
     .addSubcommand(subcommand =>
-      subcommand.setName('list').setDescription('Browse your owned shapes.inc characters')
+      subcommand.setName('browse').setDescription('Browse your owned shapes.inc characters')
     )
     .addSubcommand(subcommand =>
       subcommand
@@ -73,6 +74,7 @@ export default defineCommand({
             .setName('slug')
             .setDescription('The shapes.inc character username/slug')
             .setRequired(true)
+            .setAutocomplete(true)
         )
         .addStringOption(option =>
           option
@@ -93,6 +95,7 @@ export default defineCommand({
             .setName('slug')
             .setDescription('The shapes.inc character username/slug')
             .setRequired(true)
+            .setAutocomplete(true)
         )
         .addStringOption(option =>
           option
@@ -108,4 +111,7 @@ export default defineCommand({
   handleButton: handleShapesButton,
   handleSelectMenu: handleShapesSelectMenu,
   handleModal,
+  autocomplete: async interaction => {
+    await handleShapesSlugAutocomplete(interaction);
+  },
 });

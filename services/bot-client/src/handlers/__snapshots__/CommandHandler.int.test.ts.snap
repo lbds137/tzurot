@@ -902,7 +902,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
   {
     "description": "Browse your owned shapes.inc characters",
     "description_localizations": undefined,
-    "name": "list",
+    "name": "browse",
     "name_localizations": undefined,
     "options": [],
     "type": 1,
@@ -914,7 +914,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "autocomplete": undefined,
+        "autocomplete": true,
         "choices": undefined,
         "description": "The shapes.inc character username/slug",
         "description_localizations": undefined,
@@ -958,7 +958,7 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "name_localizations": undefined,
     "options": [
       {
-        "autocomplete": undefined,
+        "autocomplete": true,
         "choices": undefined,
         "description": "The shapes.inc character username/slug",
         "description_localizations": undefined,

@@ -84,7 +84,7 @@ async function handleAuthSubmit(interaction: ModalSubmitInteraction): Promise<vo
       .setTitle('✅ Shapes.inc Authenticated')
       .setDescription(
         'Your shapes.inc session cookie has been encrypted and saved.\n\n' +
-          'You can now use `/shapes list` to see your shapes and `/shapes import` to import them.'
+          'You can now use `/shapes browse` to see your shapes and `/shapes import` to import them.'
       )
       .addFields({
         name: '🔐 Security',
