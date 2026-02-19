@@ -190,8 +190,8 @@ describe('Shapes Import Routes', () => {
   });
 
   describe('GET /jobs (list import history)', () => {
-    async function callListHandler() {
-      const { req, res } = createMockReqRes();
+    async function callListHandler(query: Record<string, string> = {}) {
+      const { req, res } = createMockReqRes({}, query);
       const router = createShapesImportRoutes(
         mockPrisma as unknown as PrismaClient,
         mockQueue as never
@@ -236,6 +236,27 @@ describe('Shapes Import Routes', () => {
           ]),
         })
       );
+    });
+
+    it('should filter by slug when ?slug= query param is provided', async () => {
+      mockPrisma.importJob.findMany.mockResolvedValueOnce([]);
+
+      await callListHandler({ slug: 'my-shape' });
+
+      expect(mockPrisma.importJob.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ sourceSlug: 'my-shape' }),
+        })
+      );
+    });
+
+    it('should not filter by slug when query param is absent', async () => {
+      mockPrisma.importJob.findMany.mockResolvedValueOnce([]);
+
+      await callListHandler();
+
+      const whereClause = mockPrisma.importJob.findMany.mock.calls[0][0].where;
+      expect(whereClause).not.toHaveProperty('sourceSlug');
     });
   });
 });

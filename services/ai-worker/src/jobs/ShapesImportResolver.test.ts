@@ -6,7 +6,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { resolvePersonality } from './ShapesImportResolver.js';
+import { resolvePersonality, type ResolvePersonalityOpts } from './ShapesImportResolver.js';
 
 const { mockIsBotOwner } = vi.hoisted(() => ({
   mockIsBotOwner: vi.fn().mockReturnValue(false),
@@ -55,7 +55,7 @@ const baseConfig = {
   ltm_max_retrieved_summaries: 5,
 };
 
-function createOpts(overrides: Record<string, unknown> = {}) {
+function createOpts(overrides: Partial<ResolvePersonalityOpts> = {}): ResolvePersonalityOpts {
   return {
     prisma: mockPrisma as never,
     config: baseConfig,
