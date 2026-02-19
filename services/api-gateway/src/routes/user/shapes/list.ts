@@ -134,7 +134,9 @@ function createListHandler(prisma: PrismaClient) {
           username: s.username,
           avatar: s.avatar,
           createdAt:
-            s.created_ts !== undefined ? new Date(s.created_ts * 1000).toISOString() : null,
+            s.created_ts !== undefined && s.created_ts !== null
+              ? new Date(s.created_ts * 1000).toISOString()
+              : null,
         })),
         total: shapes.length,
       });
