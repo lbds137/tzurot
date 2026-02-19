@@ -9,6 +9,6 @@
  * Used for defense-in-depth handling when concurrent requests race
  * past transaction-level conflict checks.
  */
-export function isPrismaUniqueConstraintError(error: unknown): error is { code: string } {
+export function isPrismaUniqueConstraintError(error: unknown): error is { code: 'P2002' } {
   return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 }
