@@ -63,19 +63,39 @@ function createMockButtonInteraction(customId: string, embedFooter?: string): Bu
 }
 
 describe('parseSlugFromFooter', () => {
-  it('should parse slug from footer', () => {
+  it('should parse slug from footer without sort', () => {
     const interaction = createMockButtonInteraction('test', 'slug:my-shape');
     const result = parseSlugFromFooter(interaction);
 
     expect(result.slug).toBe('my-shape');
+    expect(result.sort).toBe('name');
     expect(result.isFromDetail).toBe(false);
   });
 
-  it('should detect ::detail marker', () => {
+  it('should parse slug and sort from footer', () => {
+    const interaction = createMockButtonInteraction('test', 'slug:my-shape|sort:date');
+    const result = parseSlugFromFooter(interaction);
+
+    expect(result.slug).toBe('my-shape');
+    expect(result.sort).toBe('date');
+    expect(result.isFromDetail).toBe(false);
+  });
+
+  it('should detect ::detail marker with sort', () => {
+    const interaction = createMockButtonInteraction('test', 'slug:my-shape|sort:date::detail');
+    const result = parseSlugFromFooter(interaction);
+
+    expect(result.slug).toBe('my-shape');
+    expect(result.sort).toBe('date');
+    expect(result.isFromDetail).toBe(true);
+  });
+
+  it('should detect ::detail marker without sort', () => {
     const interaction = createMockButtonInteraction('test', 'slug:my-shape::detail');
     const result = parseSlugFromFooter(interaction);
 
     expect(result.slug).toBe('my-shape');
+    expect(result.sort).toBe('name');
     expect(result.isFromDetail).toBe(true);
   });
 
@@ -84,6 +104,7 @@ describe('parseSlugFromFooter', () => {
     const result = parseSlugFromFooter(interaction);
 
     expect(result.slug).toBeUndefined();
+    expect(result.sort).toBe('name');
     expect(result.isFromDetail).toBe(false);
   });
 
@@ -157,17 +178,19 @@ describe('showDetailView', () => {
 });
 
 describe('handleDetailImport', () => {
-  it('should show confirmation embed with ::detail footer', async () => {
+  it('should show confirmation embed with ::detail footer preserving sort', async () => {
     const interaction = createMockButtonInteraction(
       'shapes::detail-import::full',
-      'slug:test-slug'
+      'slug:test-slug|sort:date'
     );
     await handleDetailImport(interaction, 'full');
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
     const updateArgs = mockUpdate.mock.calls[0][0];
-    expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug::detail');
+    expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug|sort:date::detail');
     expect(updateArgs.components[0].components).toHaveLength(2);
+    // Should also clear content
+    expect(updateArgs.content).toBe('');
   });
 
   it('should show error when slug is missing', async () => {

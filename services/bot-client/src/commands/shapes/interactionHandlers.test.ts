@@ -184,7 +184,7 @@ describe('handleShapesButton', () => {
       expect(mockUpdate).toHaveBeenCalledTimes(1);
       const updateArgs = mockUpdate.mock.calls[0][0];
       expect(updateArgs.embeds[0].data.title).toContain('test-slug');
-      expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug');
+      expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug|sort:name');
     });
 
     it('should NOT overwrite error with detail view when import fails from detail flow', async () => {
@@ -254,7 +254,7 @@ describe('handleShapesButton', () => {
       expect(mockEditReply).toHaveBeenCalled();
       const lastEditCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];
       expect(lastEditCall.embeds[0].data.title).toContain('test-slug');
-      expect(lastEditCall.embeds[0].data.footer.text).toBe('slug:test-slug');
+      expect(lastEditCall.embeds[0].data.footer.text).toBe('slug:test-slug|sort:name');
     });
   });
 
@@ -270,7 +270,7 @@ describe('handleShapesButton', () => {
       const updateArgs = mockUpdate.mock.calls[0][0];
       expect(updateArgs.embeds[0].data.title).toContain('Import');
       // Footer should include ::detail marker for back-navigation
-      expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug::detail');
+      expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug|sort:name::detail');
       // Should have confirm + cancel buttons
       expect(updateArgs.components[0].components).toHaveLength(2);
     });
@@ -476,7 +476,7 @@ describe('handleShapesSelectMenu', () => {
 
     // Should show detail embed with slug
     expect(updateArgs.embeds[0].data.title).toContain('test-slug');
-    expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug');
+    expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug|sort:name');
 
     // Should have action buttons
     expect(updateArgs.components).toHaveLength(2);
