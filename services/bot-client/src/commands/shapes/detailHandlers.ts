@@ -12,6 +12,7 @@ import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js'
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { ShapesCustomIds } from '../../utils/customIds.js';
+import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { startImport } from './import.js';
 import { startExport } from './export.js';
 import { buildShapeDetailEmbed } from './detail.js';
@@ -22,27 +23,47 @@ const logger = createLogger('shapes-detail-handlers');
 const SLUG_PATTERN = /^[a-z0-9]([a-z0-9-]{0,48}[a-z0-9])?$/;
 const INVALID_STATE_MSG = '\u274C Invalid state. Please try again from the browse list.';
 
-/** Extract slug from embed footer (format: "slug:xxx" or "slug:xxx::detail") */
+/**
+ * Extract slug and sort from embed footer.
+ *
+ * Footer formats:
+ * - `slug:xxx` — detail view, default sort
+ * - `slug:xxx|sort:date` — detail view with sort preserved
+ * - `slug:xxx|sort:name::detail` — confirm view (from detail flow) with sort
+ */
 export function parseSlugFromFooter(interaction: ButtonInteraction): {
   slug: string | undefined;
+  sort: BrowseSortType;
   isFromDetail: boolean;
 } {
   const footerText = interaction.message.embeds[0]?.footer?.text ?? '';
   const isFromDetail = footerText.endsWith('::detail');
   // Safe without /g flag: SLUG_PATTERN enforces [a-z0-9-] only, so "::detail" can't appear in a slug
   const raw = footerText.replace('::detail', '');
-  const rawSlug = raw.startsWith('slug:') ? raw.slice(5) : undefined;
+
+  // Extract sort from "|sort:name" or "|sort:date" suffix
+  const VALID_SORTS: BrowseSortType[] = ['name', 'date'];
+  let sort: BrowseSortType = 'name';
+  const sortMatch = /\|sort:(name|date)$/.exec(raw);
+  if (sortMatch !== null && VALID_SORTS.includes(sortMatch[1] as BrowseSortType)) {
+    sort = sortMatch[1] as BrowseSortType;
+  }
+
+  // Extract slug (before the |sort: part)
+  const withoutSort = sortMatch !== null ? raw.slice(0, sortMatch.index) : raw;
+  const rawSlug = withoutSort.startsWith('slug:') ? withoutSort.slice(5) : undefined;
   const slug = rawSlug !== undefined && SLUG_PATTERN.test(rawSlug) ? rawSlug : undefined;
-  return { slug, isFromDetail };
+  return { slug, sort, isFromDetail };
 }
 
 /** Show the detail view for a selected shape */
 export async function showDetailView(
   interaction: ButtonInteraction | StringSelectMenuInteraction,
-  slug: string
+  slug: string,
+  sort: BrowseSortType = 'name'
 ): Promise<void> {
   const userId = interaction.user.id;
-  const { embed, components } = await buildShapeDetailEmbed(userId, slug);
+  const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
   await interaction.update({
     content: '',
     embeds: [embed],
@@ -55,7 +76,7 @@ export async function handleDetailImport(
   interaction: ButtonInteraction,
   importType: string | undefined
 ): Promise<void> {
-  const { slug } = parseSlugFromFooter(interaction);
+  const { slug, sort } = parseSlugFromFooter(interaction);
   if (slug === undefined || importType === undefined) {
     await interaction.update({
       content: INVALID_STATE_MSG,
@@ -89,7 +110,7 @@ export async function handleDetailImport(
             '\u2022 Set up the LLM configuration\n\n' +
             'The import runs in the background and may take a few minutes.'
     )
-    .setFooter({ text: `slug:${slug}::detail` })
+    .setFooter({ text: `slug:${slug}|sort:${sort}::detail` })
     .setTimestamp();
 
   const confirmButton = new ButtonBuilder()
@@ -104,6 +125,7 @@ export async function handleDetailImport(
     .setStyle(ButtonStyle.Secondary);
 
   await interaction.update({
+    content: '',
     embeds: [confirmEmbed],
     components: [new ActionRowBuilder<ButtonBuilder>().addComponents(confirmButton, cancelButton)],
   });
@@ -114,7 +136,7 @@ export async function handleDetailExport(
   interaction: ButtonInteraction,
   exportFormat: string | undefined
 ): Promise<void> {
-  const { slug } = parseSlugFromFooter(interaction);
+  const { slug, sort } = parseSlugFromFooter(interaction);
   if (slug === undefined || exportFormat === undefined) {
     await interaction.update({
       content: INVALID_STATE_MSG,
@@ -131,7 +153,7 @@ export async function handleDetailExport(
   if (success) {
     // Show detail view with updated job status
     try {
-      const { embed, components } = await buildShapeDetailEmbed(userId, slug);
+      const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
       await interaction.editReply({
         embeds: [embed],
         components,
@@ -151,7 +173,7 @@ export async function handleDetailExport(
 
 /** Handle refresh button — re-fetch and show detail view */
 export async function handleDetailRefresh(interaction: ButtonInteraction): Promise<void> {
-  const { slug } = parseSlugFromFooter(interaction);
+  const { slug, sort } = parseSlugFromFooter(interaction);
   if (slug === undefined) {
     await interaction.update({
       content: INVALID_STATE_MSG,
@@ -161,15 +183,15 @@ export async function handleDetailRefresh(interaction: ButtonInteraction): Promi
     return;
   }
 
-  await showDetailView(interaction, slug);
+  await showDetailView(interaction, slug, sort);
 }
 
 /** Handle import cancel — return to detail view if triggered from there */
 export async function handleImportCancel(interaction: ButtonInteraction): Promise<void> {
-  const { slug, isFromDetail } = parseSlugFromFooter(interaction);
+  const { slug, sort, isFromDetail } = parseSlugFromFooter(interaction);
 
   if (isFromDetail && slug !== undefined) {
-    await showDetailView(interaction, slug);
+    await showDetailView(interaction, slug, sort);
     return;
   }
 
@@ -189,7 +211,7 @@ export async function handleImportConfirm(
     ? (rawType as 'full' | 'memory_only')
     : undefined;
 
-  const { slug, isFromDetail } = parseSlugFromFooter(interaction);
+  const { slug, sort, isFromDetail } = parseSlugFromFooter(interaction);
 
   if (slug === undefined || importType === undefined) {
     logger.warn({ customId: interaction.customId }, '[Shapes] Import confirm missing state');
@@ -209,7 +231,7 @@ export async function handleImportConfirm(
 
   // If triggered from detail view and import succeeded, show detail view with job status
   if (isFromDetail && success) {
-    const { embed, components } = await buildShapeDetailEmbed(userId, slug);
+    const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
     await interaction.editReply({
       embeds: [embed],
       components,

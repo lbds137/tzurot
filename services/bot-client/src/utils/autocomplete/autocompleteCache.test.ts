@@ -7,12 +7,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   getCachedPersonalities,
   getCachedPersonas,
+  getCachedShapes,
   invalidateUserCache,
   _clearCacheForTesting,
   _getCacheSizeForTesting,
 } from './autocompleteCache.js';
 import type { PersonalitySummary } from '@tzurot/common-types';
-import type { PersonaSummary } from './autocompleteCache.js';
+import type { PersonaSummary, ShapesSummary } from './autocompleteCache.js';
 
 // Mock the gateway client
 const mockCallGatewayApi = vi.fn();
@@ -233,6 +234,74 @@ describe('autocompleteCache', () => {
     });
   });
 
+  describe('getCachedShapes', () => {
+    const mockShapes: ShapesSummary[] = [
+      { name: 'My Shape', username: 'my-shape' },
+      { name: 'Other Shape', username: 'other-shape' },
+    ];
+
+    it('should fetch from gateway on cache miss', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { shapes: mockShapes },
+      });
+
+      const result = await getCachedShapes(testUserId);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/shapes/list', {
+        userId: testUserId,
+      });
+      expect(result).toEqual(mockShapes);
+    });
+
+    it('should return cached data on cache hit', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { shapes: mockShapes },
+      });
+
+      await getCachedShapes(testUserId);
+      expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+
+      const result = await getCachedShapes(testUserId);
+      expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+      expect(result).toEqual(mockShapes);
+    });
+
+    it('should cache empty shapes list (not treat as cache miss)', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { shapes: [] },
+      });
+
+      await getCachedShapes(testUserId);
+      expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+
+      const result = await getCachedShapes(testUserId);
+      expect(mockCallGatewayApi).toHaveBeenCalledTimes(1);
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array on gateway error', async () => {
+      mockCallGatewayApi.mockResolvedValue({
+        ok: false,
+        error: 'Gateway error',
+      });
+
+      const result = await getCachedShapes(testUserId);
+
+      expect(result).toEqual([]);
+    });
+
+    it('should return empty array on exception', async () => {
+      mockCallGatewayApi.mockRejectedValue(new Error('Network error'));
+
+      const result = await getCachedShapes(testUserId);
+
+      expect(result).toEqual([]);
+    });
+  });
+
   describe('invalidateUserCache', () => {
     it('should remove user from cache', async () => {
       mockCallGatewayApi.mockResolvedValue({
@@ -309,6 +378,46 @@ describe('autocompleteCache', () => {
       expect(mockCallGatewayApi).not.toHaveBeenCalled();
       expect(personalities).toEqual(mockPersonalities);
       expect(personas).toEqual(mockPersonas);
+    });
+
+    it('should preserve personalities and personas when fetching shapes', async () => {
+      const mockPersonalities: PersonalitySummary[] = [
+        {
+          id: 'p1',
+          name: 'Test',
+          displayName: null,
+          slug: 'test',
+          isPublic: true,
+          isOwned: true,
+          ownerId: 'owner-1',
+          ownerDiscordId: 'discord-123',
+          permissions: { canEdit: true, canDelete: true },
+        },
+      ];
+      const mockShapes: ShapesSummary[] = [{ name: 'Shape', username: 'shape' }];
+
+      // Fetch personalities first
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { personalities: mockPersonalities },
+      });
+      await getCachedPersonalities(testUserId);
+
+      // Then fetch shapes (should preserve personalities)
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { shapes: mockShapes },
+      });
+      await getCachedShapes(testUserId);
+
+      // Verify both are cached
+      mockCallGatewayApi.mockClear();
+      const personalities = await getCachedPersonalities(testUserId);
+      const shapes = await getCachedShapes(testUserId);
+
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+      expect(personalities).toEqual(mockPersonalities);
+      expect(shapes).toEqual(mockShapes);
     });
   });
 });

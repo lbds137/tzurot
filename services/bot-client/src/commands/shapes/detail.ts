@@ -10,6 +10,7 @@ import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'disc
 import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
+import type { BrowseSortType } from '../../utils/browse/constants.js';
 import {
   formatCompactImportStatus,
   formatCompactExportStatus,
@@ -121,11 +122,13 @@ function buildDetailButtons(): ActionRowBuilder<ButtonBuilder>[] {
  *
  * @param userId - Discord user ID for fetching job status
  * @param slug - Shape slug (stored in embed footer)
+ * @param sort - Browse sort preference to preserve across navigation
  * @returns Embed and component rows ready for interaction.update() or editReply()
  */
 export async function buildShapeDetailEmbed(
   userId: string,
-  slug: string
+  slug: string,
+  sort: BrowseSortType = 'name'
 ): Promise<{ embed: EmbedBuilder; components: ActionRowBuilder<ButtonBuilder>[] }> {
   let jobStatus: JobStatus;
   try {
@@ -153,7 +156,7 @@ export async function buildShapeDetailEmbed(
         `\uD83D\uDCE4 **Export**: ${exportLine}\n\n` +
         'Select an action below, or refresh to check job progress.'
     )
-    .setFooter({ text: `slug:${slug}` })
+    .setFooter({ text: `slug:${slug}|sort:${sort}` })
     .setTimestamp();
 
   return { embed, components: buildDetailButtons() };
