@@ -45,6 +45,7 @@ export async function startExport(
   const { slug, format } = params;
 
   await interaction.update({
+    content: '',
     embeds: [
       new EmbedBuilder()
         .setColor(DISCORD_COLORS.WARNING)
