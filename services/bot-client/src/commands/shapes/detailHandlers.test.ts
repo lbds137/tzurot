@@ -353,6 +353,46 @@ describe('handleImportConfirm', () => {
     expect(editArgs.embeds[0].data.title).toContain('Import Failed');
   });
 
+  it('should show fallback message when detail refresh fails after successful import', async () => {
+    // Import API call succeeds
+    mockCallGatewayApi
+      .mockResolvedValueOnce({
+        ok: true,
+        data: {
+          importJobId: 'job-1',
+          sourceSlug: 'test-slug',
+          importType: 'full',
+          status: 'pending',
+        },
+      })
+      // buildShapeDetailEmbed's internal calls succeed (it catches errors internally)
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+
+    // First editReply (detail view refresh) throws, triggering fallback
+    mockEditReply
+      .mockRejectedValueOnce(new Error('Discord API error'))
+      .mockResolvedValueOnce(undefined);
+
+    const interaction = createMockButtonInteraction(
+      'shapes::import-confirm::full',
+      'slug:test-slug|sort:name::detail'
+    );
+    await handleImportConfirm(interaction, {
+      command: 'shapes',
+      action: 'import-confirm',
+      importType: 'full',
+      exportFormat: undefined,
+    });
+
+    // 2 editReply calls: failed detail refresh + successful fallback
+    expect(mockEditReply).toHaveBeenCalledTimes(2);
+    const fallbackArgs = mockEditReply.mock.calls[1][0];
+    expect(fallbackArgs.content).toContain('Import started');
+    expect(fallbackArgs.embeds).toEqual([]);
+    expect(fallbackArgs.components).toEqual([]);
+  });
+
   it('should show error on missing slug', async () => {
     const interaction = createMockButtonInteraction('shapes::import-confirm::full');
     await handleImportConfirm(interaction, {

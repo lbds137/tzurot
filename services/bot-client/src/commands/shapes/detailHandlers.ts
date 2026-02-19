@@ -231,10 +231,21 @@ export async function handleImportConfirm(
 
   // If triggered from detail view and import succeeded, show detail view with job status
   if (isFromDetail && success) {
-    const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
-    await interaction.editReply({
-      embeds: [embed],
-      components,
-    });
+    try {
+      const { embed, components } = await buildShapeDetailEmbed(userId, slug, sort);
+      await interaction.editReply({
+        embeds: [embed],
+        components,
+      });
+    } catch (error) {
+      logger.error({ err: error, userId, slug }, '[Shapes] Failed to refresh detail after import');
+      // Import succeeded but detail refresh failed — show a simple success message
+      // so the user isn't stuck on the "Starting Import..." spinner with no buttons
+      await interaction.editReply({
+        content: `Import started for **${slug}**. Use the browse view to check status.`,
+        embeds: [],
+        components: [],
+      });
+    }
   }
 }
