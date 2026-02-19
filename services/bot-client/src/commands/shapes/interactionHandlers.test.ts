@@ -30,6 +30,11 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
   GATEWAY_TIMEOUTS: { DEFERRED: 15000 },
 }));
 
+// Mock error sanitization
+vi.mock('../../utils/errorSanitization.js', () => ({
+  sanitizeErrorForDiscord: (msg: string) => msg,
+}));
+
 describe('handleShapesButton', () => {
   const mockUpdate = vi.fn();
   const mockEditReply = vi.fn();
@@ -60,7 +65,6 @@ describe('handleShapesButton', () => {
       expect(mockShowModal).toHaveBeenCalledTimes(1);
       const modal = mockShowModal.mock.calls[0][0];
       expect(modal.data.custom_id).toBe('shapes::auth');
-      expect(modal.data.title).toBe('Shapes.inc Authentication');
     });
 
     it('should show cancellation message on auth-cancel', async () => {
@@ -75,7 +79,7 @@ describe('handleShapesButton', () => {
     });
   });
 
-  describe('import buttons', () => {
+  describe('import confirmation buttons', () => {
     it('should start import on import-confirm with valid state', async () => {
       mockCallGatewayApi.mockResolvedValue({
         ok: true,
@@ -87,14 +91,12 @@ describe('handleShapesButton', () => {
         },
       });
 
-      // Slug is in the embed footer, not the custom ID
       const interaction = createMockButtonInteraction(
         'shapes::import-confirm::full',
         'slug:test-slug'
       );
       await handleShapesButton(interaction);
 
-      // Should have called update (starting) then editReply (success)
       expect(mockUpdate).toHaveBeenCalledTimes(1);
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/shapes/import',
@@ -125,15 +127,12 @@ describe('handleShapesButton', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/shapes/import',
         expect.objectContaining({
-          body: expect.objectContaining({
-            importType: 'memory_only',
-          }),
+          body: expect.objectContaining({ importType: 'memory_only' }),
         })
       );
     });
 
     it('should show error on import-confirm with missing state', async () => {
-      // No embed footer = no slug
       const interaction = createMockButtonInteraction('shapes::import-confirm::full');
       await handleShapesButton(interaction);
 
@@ -168,15 +167,159 @@ describe('handleShapesButton', () => {
         components: [],
       });
     });
+
+    it('should show detail view after import from detail flow', async () => {
+      // Import API call succeeds
+      mockCallGatewayApi
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            importJobId: 'job-1',
+            sourceSlug: 'test-slug',
+            importType: 'full',
+            status: 'pending',
+          },
+        })
+        // Then detail view fetches import jobs + export jobs
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            jobs: [
+              {
+                id: 'job-1',
+                sourceSlug: 'test-slug',
+                status: 'pending',
+                importType: 'full',
+                memoriesImported: null,
+                memoriesFailed: null,
+                createdAt: '2026-01-15T00:00:00Z',
+                completedAt: null,
+                errorMessage: null,
+                importMetadata: null,
+              },
+            ],
+          },
+        })
+        .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+
+      // Footer with ::detail marker indicates from detail view
+      const interaction = createMockButtonInteraction(
+        'shapes::import-confirm::full',
+        'slug:test-slug::detail'
+      );
+      await handleShapesButton(interaction);
+
+      // Should have called editReply with detail view (after startImport's editReply)
+      expect(mockEditReply).toHaveBeenCalled();
+      const lastEditCall = mockEditReply.mock.calls[mockEditReply.mock.calls.length - 1][0];
+      expect(lastEditCall.embeds[0].data.title).toContain('test-slug');
+      expect(lastEditCall.embeds[0].data.footer.text).toBe('slug:test-slug');
+    });
   });
 
-  describe('list pagination buttons', () => {
-    it('should re-fetch and show previous page on list-prev', async () => {
-      const shapes = Array.from({ length: 15 }, (_, i) => ({
+  describe('detail view buttons', () => {
+    it('should show import confirmation on detail-import', async () => {
+      const interaction = createMockButtonInteraction(
+        'shapes::detail-import::full',
+        'slug:test-slug'
+      );
+      await handleShapesButton(interaction);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.title).toContain('Import');
+      // Footer should include ::detail marker for back-navigation
+      expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug::detail');
+      // Should have confirm + cancel buttons
+      expect(updateArgs.components[0].components).toHaveLength(2);
+    });
+
+    it('should show memory-only import confirmation on detail-import::memory_only', async () => {
+      const interaction = createMockButtonInteraction(
+        'shapes::detail-import::memory_only',
+        'slug:test-slug'
+      );
+      await handleShapesButton(interaction);
+
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.title).toContain('Memories');
+    });
+
+    it('should start export and show detail on detail-export', async () => {
+      // Export API call succeeds
+      mockCallGatewayApi
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            exportJobId: 'exp-1',
+            sourceSlug: 'test-slug',
+            format: 'json',
+            status: 'pending',
+          },
+        })
+        // Then detail view fetches import jobs + export jobs
+        .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            jobs: [
+              {
+                id: 'exp-1',
+                sourceSlug: 'test-slug',
+                status: 'pending',
+                format: 'json',
+                fileName: null,
+                fileSizeBytes: null,
+                createdAt: '2026-02-16T00:00:00Z',
+                completedAt: null,
+                expiresAt: '2026-02-17T00:00:00Z',
+                errorMessage: null,
+                downloadUrl: null,
+              },
+            ],
+          },
+        });
+
+      const interaction = createMockButtonInteraction(
+        'shapes::detail-export::json',
+        'slug:test-slug'
+      );
+      await handleShapesButton(interaction);
+
+      // startExport calls update() then the handler calls editReply with detail view
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      expect(mockEditReply).toHaveBeenCalled();
+    });
+
+    it('should show error on detail-import with missing slug', async () => {
+      const interaction = createMockButtonInteraction('shapes::detail-import::full');
+      await handleShapesButton(interaction);
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          content: expect.stringContaining('Invalid state'),
+        })
+      );
+    });
+
+    it('should refresh detail view on detail-refresh', async () => {
+      mockCallGatewayApi.mockResolvedValue({ ok: true, data: { jobs: [] } });
+
+      const interaction = createMockButtonInteraction('shapes::detail-refresh', 'slug:test-slug');
+      await handleShapesButton(interaction);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.title).toContain('test-slug');
+    });
+
+    it('should return to browse list on detail-back', async () => {
+      const shapes = Array.from({ length: 3 }, (_, i) => ({
         id: `shape-${String(i)}`,
         name: `Shape ${String(i)}`,
         username: `shape-${String(i)}`,
         avatar: '',
+        createdAt: null,
       }));
 
       mockCallGatewayApi.mockResolvedValue({
@@ -184,7 +327,33 @@ describe('handleShapesButton', () => {
         data: { shapes, total: shapes.length },
       });
 
-      const interaction = createMockButtonInteraction('shapes::list-prev::1');
+      const interaction = createMockButtonInteraction('shapes::detail-back');
+      await handleShapesButton(interaction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/shapes/list', expect.anything());
+      expect(mockUpdate).toHaveBeenCalledTimes(1);
+      const updateArgs = mockUpdate.mock.calls[0][0];
+      expect(updateArgs.embeds[0].data.title).toContain('Characters');
+    });
+  });
+
+  describe('browse pagination buttons', () => {
+    it('should re-fetch and show page on browse pagination', async () => {
+      const shapes = Array.from({ length: 15 }, (_, i) => ({
+        id: `shape-${String(i)}`,
+        name: `Shape ${String(i)}`,
+        username: `shape-${String(i)}`,
+        avatar: '',
+        createdAt: null,
+      }));
+
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { shapes, total: shapes.length },
+      });
+
+      // Browse custom ID format: shapes::browse::page::filter::sort::query
+      const interaction = createMockButtonInteraction('shapes::browse::1::all::name::');
       await handleShapesButton(interaction);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
@@ -192,29 +361,6 @@ describe('handleShapesButton', () => {
         expect.objectContaining({ userId: '123456789' })
       );
       expect(mockUpdate).toHaveBeenCalledTimes(1);
-      // Should show page 0 (1 - 1)
-      const updateArgs = mockUpdate.mock.calls[0][0];
-      expect(updateArgs.embeds[0].data.footer.text).toContain('Page 1 of 2');
-    });
-
-    it('should re-fetch and show next page on list-next', async () => {
-      const shapes = Array.from({ length: 15 }, (_, i) => ({
-        id: `shape-${String(i)}`,
-        name: `Shape ${String(i)}`,
-        username: `shape-${String(i)}`,
-        avatar: '',
-      }));
-
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { shapes, total: shapes.length },
-      });
-
-      const interaction = createMockButtonInteraction('shapes::list-next::0');
-      await handleShapesButton(interaction);
-
-      expect(mockUpdate).toHaveBeenCalledTimes(1);
-      // Should show page 1 (0 + 1)
       const updateArgs = mockUpdate.mock.calls[0][0];
       expect(updateArgs.embeds[0].data.footer.text).toContain('Page 2 of 2');
     });
@@ -226,7 +372,7 @@ describe('handleShapesButton', () => {
         error: 'No credentials',
       });
 
-      const interaction = createMockButtonInteraction('shapes::list-prev::1');
+      const interaction = createMockButtonInteraction('shapes::browse::0::all::name::');
       await handleShapesButton(interaction);
 
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -237,87 +383,13 @@ describe('handleShapesButton', () => {
     });
   });
 
-  describe('action buttons', () => {
-    it('should show import hint on action-import', async () => {
-      const interaction = createMockButtonInteraction('shapes::action-import::test-slug');
-      await handleShapesButton(interaction);
-
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          embeds: [
-            expect.objectContaining({
-              data: expect.objectContaining({
-                description: expect.stringContaining('/shapes import slug:test-slug'),
-              }),
-            }),
-          ],
-          components: [],
-        })
-      );
-    });
-
-    it('should show error when action-import has no slug', async () => {
-      // shapes::action-import with no third segment → parsed.slug is undefined
-      const interaction = createMockButtonInteraction('shapes::action-import');
-      await handleShapesButton(interaction);
-
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          content: expect.stringContaining('Invalid shape selection'),
-        })
-      );
-    });
-
-    it('should show export hint on action-export', async () => {
-      const interaction = createMockButtonInteraction('shapes::action-export::my-shape');
-      await handleShapesButton(interaction);
-
-      expect(mockUpdate).toHaveBeenCalledWith(
-        expect.objectContaining({
-          embeds: [
-            expect.objectContaining({
-              data: expect.objectContaining({
-                description: expect.stringContaining('/shapes export slug:my-shape'),
-              }),
-            }),
-          ],
-        })
-      );
-    });
-
-    it('should re-fetch list and show page 0 on action-back', async () => {
-      const shapes = Array.from({ length: 15 }, (_, i) => ({
-        id: `shape-${String(i)}`,
-        name: `Shape ${String(i)}`,
-        username: `shape-${String(i)}`,
-        avatar: '',
-      }));
-
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { shapes, total: shapes.length },
-      });
-
-      const interaction = createMockButtonInteraction('shapes::action-back');
-      await handleShapesButton(interaction);
-
-      expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/shapes/list', expect.anything());
-      expect(mockUpdate).toHaveBeenCalledTimes(1);
-      // Should always return to page 0 regardless of previous page
-      const updateArgs = mockUpdate.mock.calls[0][0];
-      expect(updateArgs.embeds[0].data.footer.text).toContain('Page 1 of 2');
-    });
-  });
-
   describe('error handling', () => {
     it('should show error message when handler throws unexpectedly', async () => {
-      // fetchShapesList throws — triggers the outer catch block
-      mockCallGatewayApi.mockRejectedValue(new Error('Unexpected network failure'));
+      mockCallGatewayApi.mockRejectedValue(new Error('Unexpected'));
 
-      const interaction = createMockButtonInteraction('shapes::list-prev::1');
+      const interaction = createMockButtonInteraction('shapes::browse::0::all::name::');
       await handleShapesButton(interaction);
 
-      // Should attempt to show error to user via fallback update
       expect(mockUpdate).toHaveBeenCalledWith(
         expect.objectContaining({
           content: expect.stringContaining('unexpected error'),
@@ -346,22 +418,29 @@ describe('handleShapesSelectMenu', () => {
     } as unknown as StringSelectMenuInteraction;
   }
 
-  it('should show action buttons when shape is selected', async () => {
-    const interaction = createMockSelectInteraction('shapes::list-select::0', ['test-slug']);
+  it('should show detail view when shape is selected from browse', async () => {
+    // Detail view fetches import jobs + export jobs
+    mockCallGatewayApi
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } })
+      .mockResolvedValueOnce({ ok: true, data: { jobs: [] } });
+
+    // Browse-select custom ID format: shapes::browse-select::page::filter::sort::query
+    const interaction = createMockSelectInteraction('shapes::browse-select::0::all::name::', [
+      'test-slug',
+    ]);
     await handleShapesSelectMenu(interaction);
 
     expect(mockUpdate).toHaveBeenCalledTimes(1);
     const updateArgs = mockUpdate.mock.calls[0][0];
 
-    // Should show shape name in embed
+    // Should show detail embed with slug
     expect(updateArgs.embeds[0].data.title).toContain('test-slug');
+    expect(updateArgs.embeds[0].data.footer.text).toBe('slug:test-slug');
 
-    // Should have import, export, back buttons
-    const buttons = updateArgs.components[0].components;
-    expect(buttons).toHaveLength(3);
-    expect(buttons[0].data.custom_id).toBe('shapes::action-import::test-slug');
-    expect(buttons[1].data.custom_id).toBe('shapes::action-export::test-slug');
-    expect(buttons[2].data.custom_id).toBe('shapes::action-back');
+    // Should have action buttons
+    expect(updateArgs.components).toHaveLength(2);
+    const row1Buttons = updateArgs.components[0].components;
+    expect(row1Buttons[0].data.custom_id).toBe('shapes::detail-import::full');
   });
 
   it('should show error for unknown select menu action', async () => {

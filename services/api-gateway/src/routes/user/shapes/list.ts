@@ -32,6 +32,7 @@ interface ShapesListItem {
   name: string;
   username: string;
   avatar: string;
+  created_ts?: number;
 }
 
 function createListHandler(prisma: PrismaClient) {
@@ -132,6 +133,8 @@ function createListHandler(prisma: PrismaClient) {
           name: s.name,
           username: s.username,
           avatar: s.avatar,
+          createdAt:
+            s.created_ts !== undefined ? new Date(s.created_ts * 1000).toISOString() : null,
         })),
         total: shapes.length,
       });

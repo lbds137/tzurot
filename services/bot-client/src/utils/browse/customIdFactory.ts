@@ -106,7 +106,7 @@ function parseCustomIdCore<TFilter extends string>(
 /**
  * Result of createBrowseCustomIdHelpers
  */
-interface BrowseCustomIdHelpers<TFilter extends string> {
+export interface BrowseCustomIdHelpers<TFilter extends string> {
   /** Build customId for browse pagination */
   build: (page: number, filter: TFilter, sort: BrowseSortType, query: string | null) => string;
   /** Build customId for browse select menu */
