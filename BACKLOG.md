@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-18
-> **Version**: v3.0.0-beta.79
+> **Last Updated**: 2026-02-19
+> **Version**: v3.0.0-beta.80
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -30,29 +30,9 @@ Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env d
 - Dry-run check in prod with approval gate
 - CI step that validates migration state matches schema
 
-### 🐛 [FIX] `memory_only` Import Fails for Bot-Owner-Owned Personalities
+### 🐛 [FIX] `memory_only` Import Ownership Gap (Strategy 2)
 
-`normalizeSlugForUser` appends `-username` for non-bot-owners, so a regular user's `memory_only` import for a bot-owner-owned personality (slug `some-shape`) becomes `some-shape-username` — personality not found. The slug normalization should consider the _target personality's owner_, not just the importing user. Non-bot-owners should be able to import memories into bot-owner-owned personalities without suffix.
-
-### 🏗️ [LIFT] Deduplicate `isPrismaUniqueConstraintError`
-
-The same function is defined in both `api-gateway/routes/user/shapes/export.ts` and `import.ts`. Extract to `common-types` or a shared gateway utility since it's used in 2+ files.
-
-### 🏗️ [LIFT] Deduplicate `ShapesServerError` Test Mocks
-
-`ShapesExportJob.test.ts` and `ShapesImportJob.test.ts` both redefine `ShapesServerError` inline in their `vi.mock` factories. If the class gains new properties, both mocks need updating. Consider using the real class via `importOriginal` or a shared mock factory.
-
-### 🏗️ [LIFT] Server-Side Slug Filtering for Shapes Job Endpoints
-
-`fetchJobStatusForSlug` in `detail.ts` fetches ALL import/export jobs for the user, then filters by slug in memory. As users accumulate jobs, every detail view refresh downloads the full job history. Add `?slug=` query param to the gateway job endpoints (`/user/shapes/import/jobs`, `/user/shapes/export/jobs`) with `WHERE "sourceSlug" = $slug` filtering. TODO is in `detail.ts`.
-
-### 🐛 [FIX] Shapes List Redirect Detection Uses Brittle URL Comparison
-
-`list.ts` (now used by `browse.ts`) detects auth redirects via `finalUrl !== expectedUrl` string comparison. If shapes.inc normalizes query params, adds tracking params, or changes the URL format, this produces false positives and shows an auth error for successful requests. Should use the Fetch API's `response.redirected` property instead.
-
-### ✨ [FEAT] Detail View Error Recovery — Add Navigation Buttons on Failure
-
-When import/export fails from the detail view, the user sees an error message with no buttons — they're stuck and must run `/shapes browse` again. Consider adding a "Back to Browse" or "Back to Detail" button on error states so users can recover without retyping commands.
+Partially fixed in beta.80 — `ShapesImportResolver` now tries raw slug (strategy 2) and shapesId UUID (strategy 3) as fallbacks. However, strategy 2 matches any personality with that slug regardless of owner. A non-bot-owner could theoretically import memories into another non-bot-owner's personality if slugs collide. Add an ownership check to strategy 2 (same guard as `resolveForFullImport`).
 
 ### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
 
@@ -507,7 +487,7 @@ _Decided not to do yet._
 | GLM 4.5 Air empty reasoning                 | Fixed in v3.0.0-beta.73 — reasoning-only responses now used as content                                                                       |
 | Denylist batch cache invalidation           | Single pubsub messages handle current scale; premature optimization for bulk ops that rarely happen                                          |
 | Deny detail view DashboardBuilder migration | Action-oriented UI (toggle/edit/delete) doesn't fit multi-section edit dashboard pattern; already uses SessionManager and DASHBOARD_MESSAGES |
-| Thread config cascade for threads           | Requires gateway-side changes to resolve parent channel overrides; low impact since few users use thread-specific config                     |
+| Thread config cascade for threads           | Fixed in beta.80 — threads inherit parent activation but explicit deactivation is respected                                                  |
 
 ---
 
