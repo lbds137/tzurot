@@ -23,9 +23,8 @@ import {
 import {
   ShapesDataFetcher,
   ShapesAuthError,
+  ShapesFetchError,
   ShapesNotFoundError,
-  ShapesRateLimitError,
-  ShapesServerError,
 } from '../services/shapes/ShapesDataFetcher.js';
 import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
 
@@ -56,12 +55,13 @@ export async function processShapesExportJob(
     data: { status: 'in_progress', startedAt: new Date() },
   });
 
+  let fetcher: ShapesDataFetcher | null = null;
   try {
     // 2. Decrypt session cookie
     const sessionCookie = await getDecryptedCookie(prisma, userId);
 
     // 3. Fetch data from shapes.inc
-    const fetcher = new ShapesDataFetcher();
+    fetcher = new ShapesDataFetcher();
     const fetchResult = await fetcher.fetchShapeData(sourceSlug, { sessionCookie });
     await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
 
@@ -119,6 +119,10 @@ export async function processShapesExportJob(
 
     return result;
   } catch (error) {
+    // Persist rotated cookie before error handling — prevents stale cookie on retry
+    if (fetcher !== null) {
+      await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
+    }
     return handleExportError({ error, prisma, exportJobId, jobId: job.id, sourceSlug, job });
   }
 }
@@ -184,29 +188,34 @@ interface HandleErrorOpts {
 async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJobResult> {
   const errorMessage = opts.error instanceof Error ? opts.error.message : String(opts.error);
 
-  const isRateLimited = opts.error instanceof ShapesRateLimitError;
-  const isServerError = opts.error instanceof ShapesServerError;
-  const isRetryable = isRateLimited || isServerError;
+  // Blacklist: only known non-retryable errors skip retry. Unknown errors
+  // (timeouts, network failures, unexpected exceptions) default to retryable
+  // so BullMQ can attempt recovery.
+  const isNonRetryable =
+    opts.error instanceof ShapesAuthError ||
+    opts.error instanceof ShapesNotFoundError ||
+    opts.error instanceof ShapesFetchError;
+  const isRetryable = !isNonRetryable;
+
+  const maxAttempts = opts.job.opts.attempts ?? 1;
 
   logger.error(
     {
       err: opts.error,
       jobId: opts.jobId,
       sourceSlug: opts.sourceSlug,
-      isAuthError: opts.error instanceof ShapesAuthError,
-      isNotFound: opts.error instanceof ShapesNotFoundError,
-      isRateLimited,
-      isServerError,
+      errorType: opts.error instanceof Error ? opts.error.constructor.name : typeof opts.error,
+      attemptsMade: opts.job.attemptsMade,
+      maxAttempts,
     },
     isRetryable
       ? '[ShapesExportJob] Retryable error — BullMQ will retry'
-      : '[ShapesExportJob] Export failed'
+      : '[ShapesExportJob] Export failed (non-retryable)'
   );
 
-  // Re-throw retryable errors (rate-limit, 5xx) for BullMQ retry if attempts remain.
+  // Re-throw retryable errors for BullMQ retry if attempts remain.
   // On the final attempt, fall through to mark the DB record as 'failed'
   // so users don't see a permanently stuck 'in_progress' status.
-  const maxAttempts = opts.job.opts.attempts ?? 1;
   if (isRetryable && opts.job.attemptsMade < maxAttempts - 1) {
     throw opts.error;
   }

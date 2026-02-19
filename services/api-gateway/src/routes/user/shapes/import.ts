@@ -165,7 +165,11 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
     // prevents true duplicate jobs, but BullMQ deduplicates by jobId — a deterministic ID
     // would cause retries of completed/failed imports to be silently ignored by BullMQ.
     const jobId = `${JOB_PREFIXES.SHAPES_IMPORT}${importJobId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    await queue.add(JobType.ShapesImport, jobData, { jobId });
+    await queue.add(JobType.ShapesImport, jobData, {
+      jobId,
+      attempts: 5,
+      backoff: { type: 'exponential', delay: 10_000 },
+    });
 
     logger.info(
       { discordUserId, sourceSlug: normalizedSlug, importType: validImportType, importJobId },

@@ -35,9 +35,8 @@ import {
 import {
   ShapesDataFetcher,
   ShapesAuthError,
+  ShapesFetchError,
   ShapesNotFoundError,
-  ShapesRateLimitError,
-  ShapesServerError,
 } from '../services/shapes/ShapesDataFetcher.js';
 import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 import { importMemories } from './ShapesImportMemories.js';
@@ -68,6 +67,7 @@ export async function processShapesImportJob(
   // 1. Mark import as in_progress
   await updateImportJobStatus(prisma, importJobId, 'in_progress');
 
+  let fetcher: ShapesDataFetcher | null = null;
   try {
     // 2. Decrypt session cookie — fail fast on expired/missing credentials
     const sessionCookie = await getDecryptedCookie(prisma, userId);
@@ -80,7 +80,7 @@ export async function processShapesImportJob(
 
     // 5. Fetch data from shapes.inc (uses original sourceSlug — the shapes.inc API
     //    identifier — not normalizedSlug which is the local personality slug)
-    const fetcher = new ShapesDataFetcher();
+    fetcher = new ShapesDataFetcher();
     const fetchResult = await fetcher.fetchShapeData(sourceSlug, { sessionCookie });
     await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
 
@@ -158,6 +158,10 @@ export async function processShapesImportJob(
     logger.info({ jobId: job.id, ...result }, '[ShapesImportJob] Import completed successfully');
     return result;
   } catch (error) {
+    // Persist rotated cookie before error handling — prevents stale cookie on retry
+    if (fetcher !== null) {
+      await persistUpdatedCookie(prisma, userId, fetcher.getUpdatedCookie());
+    }
     return handleImportError({
       error,
       prisma,
@@ -355,28 +359,33 @@ interface HandleErrorOpts {
 async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJobResult> {
   const errorMessage = opts.error instanceof Error ? opts.error.message : String(opts.error);
 
-  const isRateLimited = opts.error instanceof ShapesRateLimitError;
-  const isServerError = opts.error instanceof ShapesServerError;
-  const isRetryable = isRateLimited || isServerError;
+  // Blacklist: only known non-retryable errors skip retry. Unknown errors
+  // (timeouts, network failures, unexpected exceptions) default to retryable
+  // so BullMQ can attempt recovery.
+  const isNonRetryable =
+    opts.error instanceof ShapesAuthError ||
+    opts.error instanceof ShapesNotFoundError ||
+    opts.error instanceof ShapesFetchError;
+  const isRetryable = !isNonRetryable;
+
+  const maxAttempts = opts.job.opts.attempts ?? 1;
 
   logger.error(
     {
       err: opts.error,
       jobId: opts.jobId,
       sourceSlug: opts.sourceSlug,
-      isAuthError: opts.error instanceof ShapesAuthError,
-      isNotFound: opts.error instanceof ShapesNotFoundError,
-      isRateLimited,
-      isServerError,
+      errorType: opts.error instanceof Error ? opts.error.constructor.name : typeof opts.error,
+      attemptsMade: opts.job.attemptsMade,
+      maxAttempts,
     },
     isRetryable
       ? '[ShapesImportJob] Retryable error — BullMQ will retry'
-      : '[ShapesImportJob] Import failed'
+      : '[ShapesImportJob] Import failed (non-retryable)'
   );
 
   // Re-throw retryable errors for BullMQ retry if attempts remain.
   // On the final attempt, fall through to mark the DB record as 'failed'.
-  const maxAttempts = opts.job.opts.attempts ?? 1;
   if (isRetryable && opts.job.attemptsMade < maxAttempts - 1) {
     throw opts.error;
   }
