@@ -207,7 +207,7 @@ function createExportHandler(
     await queue.add(JobType.ShapesExport, jobData, {
       jobId,
       attempts: 5,
-      backoff: { type: 'exponential', delay: 10_000 },
+      backoff: { type: 'exponential', delay: 5_000 },
     });
 
     logger.info(

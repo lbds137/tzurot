@@ -30,6 +30,12 @@ const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
 
 // ============================================================================
 // Error Types
+//
+// Job handlers (ShapesImportJob, ShapesExportJob) use a blacklist approach:
+// only ShapesAuthError, ShapesNotFoundError, and ShapesFetchError are
+// non-retryable. Everything else — including ShapesRateLimitError (429),
+// ShapesServerError (5xx), network timeouts, and unexpected exceptions —
+// is retried by BullMQ via the default path.
 // ============================================================================
 
 export class ShapesAuthError extends Error {
