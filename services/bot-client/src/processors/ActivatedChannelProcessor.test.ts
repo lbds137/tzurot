@@ -428,6 +428,67 @@ describe('ActivatedChannelProcessor', () => {
       expect(result).toBe(false);
     });
 
+    it('should NOT fall back to parent when thread was explicitly deactivated', async () => {
+      const message = createMockMessage({ channelId: 'thread-123' });
+
+      // Thread has settings row but activation is null (explicitly deactivated)
+      mockGatewayClient.getChannelSettings.mockResolvedValueOnce({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
+          channelId: 'thread-123',
+          guildId: 'guild-123',
+          personalitySlug: null,
+          personalityName: null,
+          autoRespond: true,
+          activatedBy: null,
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      } as GetChannelSettingsResponse);
+
+      (getThreadParentId as ReturnType<typeof vi.fn>).mockReturnValue('parent-chan');
+
+      const result = await processor.process(message);
+
+      // Should only check thread — NOT fall back to parent
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledTimes(1);
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledWith('thread-123');
+      expect(result).toBe(false);
+    });
+
+    it('should fall back when thread has hasSettings=false (no record)', async () => {
+      const message = createMockMessage({ channelId: 'thread-123' });
+
+      // Thread has no settings record at all
+      mockGatewayClient.getChannelSettings.mockResolvedValueOnce({
+        hasSettings: false,
+      } as GetChannelSettingsResponse);
+
+      // Parent has activation
+      mockGatewayClient.getChannelSettings.mockResolvedValueOnce({
+        hasSettings: true,
+        settings: {
+          id: 'settings-id',
+          channelId: 'parent-chan',
+          guildId: 'guild-123',
+          personalitySlug: 'lilith',
+          personalityName: 'Lilith',
+          autoRespond: true,
+          activatedBy: 'user-uuid',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      } as GetChannelSettingsResponse);
+
+      (getThreadParentId as ReturnType<typeof vi.fn>).mockReturnValue('parent-chan');
+      mockPersonalityService.loadPersonality.mockResolvedValue(mockLilithPersonality);
+
+      const result = await processor.process(message);
+
+      // Should fall back — thread has no record, parent has activation
+      expect(mockGatewayClient.getChannelSettings).toHaveBeenCalledTimes(2);
+      expect(result).toBe(true);
+    });
+
     it('should return false when neither thread nor parent has settings', async () => {
       const message = createMockMessage({ channelId: 'thread-123' });
       mockGatewayClient.getChannelSettings
