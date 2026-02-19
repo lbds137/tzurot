@@ -36,6 +36,7 @@ function parseSlugFromFooter(interaction: ButtonInteraction): {
 } {
   const footerText = interaction.message.embeds[0]?.footer?.text ?? '';
   const isFromDetail = footerText.endsWith('::detail');
+  // Safe without /g flag: SLUG_PATTERN enforces [a-z0-9-] only, so "::detail" can't appear in a slug
   const raw = footerText.replace('::detail', '');
   const rawSlug = raw.startsWith('slug:') ? raw.slice(5) : undefined;
   const slug = rawSlug !== undefined && SLUG_PATTERN.test(rawSlug) ? rawSlug : undefined;
@@ -108,7 +109,7 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
       return;
     }
     if (action === 'import-cancel') {
-      await interaction.update({ content: 'Import cancelled.', embeds: [], components: [] });
+      await handleImportCancel(interaction);
       return;
     }
 
@@ -344,6 +345,18 @@ async function handleDetailRefresh(interaction: ButtonInteraction): Promise<void
   await showDetailView(interaction, slug);
 }
 
+/** Handle import cancel — return to detail view if triggered from there */
+async function handleImportCancel(interaction: ButtonInteraction): Promise<void> {
+  const { slug, isFromDetail } = parseSlugFromFooter(interaction);
+
+  if (isFromDetail && slug !== undefined) {
+    await showDetailView(interaction, slug);
+    return;
+  }
+
+  await interaction.update({ content: 'Import cancelled.', embeds: [], components: [] });
+}
+
 /** Parse import state from custom ID + embed and start the import */
 async function handleImportConfirm(
   interaction: ButtonInteraction,
@@ -369,10 +382,10 @@ async function handleImportConfirm(
     return;
   }
 
-  await startImport(interaction, userId, { slug, importType });
+  const success = await startImport(interaction, userId, { slug, importType });
 
-  // If triggered from detail view, show detail view with job status
-  if (isFromDetail) {
+  // If triggered from detail view and import succeeded, show detail view with job status
+  if (isFromDetail && success) {
     const { embed, components } = await buildShapeDetailEmbed(userId, slug);
     await interaction.editReply({
       embeds: [embed],
