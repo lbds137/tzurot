@@ -1,31 +1,33 @@
 # Current
 
-> **Session**: 2026-02-18
-> **Version**: v3.0.0-beta.79
+> **Session**: 2026-02-19
+> **Version**: v3.0.0-beta.80
 
 ---
 
 ## Session Goal
 
-_PR #662 review feedback — address review rounds for shapes UX overhaul and merge._
+_Shapes import final cleanup (#663), PR review fixes, thread deactivation bug fix, release beta.80._
 
 ## Active Task
 
-Complete — PR #662 merged to develop.
+Complete — v3.0.0-beta.80 released.
 
 ---
 
 ## Completed This Session
 
-- [x] 🐛 **Import confirm try/catch** — Add fallback message when `buildShapeDetailEmbed` fails after successful import
-- [x] 🐛 **Content clearing** — Add `content: ''` to `showDetailView`, `handleDetailImport`, and `startExport` to prevent text bleed-through
-- [x] 🐛 **Export detail refresh fallback** — try/catch around `handleDetailExport`'s post-success detail view refresh
-- [x] ✨ **Sort state preservation** — Store sort preference in embed footer (`slug:xxx|sort:date`), preserved across all detail view navigation
-- [x] 🏗️ **Backoff tuning** — Reduce BullMQ exponential backoff base from 10s to 5s (~75s total retry window)
-- [x] 📝 **Retry documentation** — Comment in `ShapesDataFetcher.ts` explaining which errors are retried vs non-retried
-- [x] 🐛 **Download URL encoding** — `encodeURI()` on download URLs in Discord markdown links
-- [x] ✅ **Test coverage** — getCachedShapes tests, import confirm fallback test, export fallback test, sort parsing tests
-- [x] 🚀 **PR #662 merged** — Shapes UX overhaul (browse, detail view, autocomplete, retry logic)
+- [x] 🏗️ **Multi-strategy slug resolution** — Extracted `ShapesImportResolver.ts` with 3-strategy lookup (normalized slug, raw slug, shapesId UUID) for `memory_only` imports
+- [x] 🏗️ **Deduplicate `isPrismaUniqueConstraintError`** — Shared utility in `api-gateway/utils/prismaErrors.ts` with narrowed `{ code: 'P2002' }` type predicate
+- [x] 🏗️ **Deduplicate `ShapesServerError` test mocks** — `importOriginal` pattern in both Export and Import job tests
+- [x] 🏗️ **Server-side slug filtering** — `?slug=` query param on import/export job endpoints, removed client-side `.filter()`
+- [x] 🐛 **Redirect detection fix** — `response.redirected` replaces brittle URL string comparison in `list.ts`
+- [x] ✨ **Detail view error recovery buttons** — "Back to Browse" button on import/export error states
+- [x] 🐛 **`req.query.slug` type safety** — Replace unsafe `as string` cast with `typeof` guard for Express `ParsedQs`
+- [x] 📝 **Manual SQL documentation** — `docs/reference/database/MANUAL_DATA_MIGRATIONS.md` for customFields normalization
+- [x] 🐛 **Thread deactivation override** — Fix `ActivatedChannelProcessor` to respect explicit thread deactivation over parent inheritance
+- [x] 🚀 **PR #663 merged** — Shapes import cleanup
+- [x] 🚀 **PR #664 merged** — Release v3.0.0-beta.80
 
 ## Next Steps
 
@@ -35,8 +37,8 @@ Complete — PR #662 merged to develop.
 
 ## Recent Highlights
 
-- **PR #662**: Shapes UX overhaul — browse/detail view, autocomplete, retry logic inversion, cookie persistence fix
-- **beta.79**: Shapes import review fixes — ownership guard, dead code cleanup, test coverage
+- **beta.80**: Shapes import cleanup, thread deactivation fix, multi-strategy resolver
+- **beta.79**: Shapes UX overhaul — browse/detail view, autocomplete, retry logic
 - **beta.78**: Shapes import gap fixes — slug normalization, memory metadata, appearance field
 
 ---
