@@ -236,7 +236,7 @@ function createExportHandler(
 function createListExportJobsHandler(prisma: PrismaClient, baseUrl: string) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const slug = req.query.slug as string | undefined;
+    const slug = typeof req.query.slug === 'string' ? req.query.slug : undefined;
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
