@@ -27,41 +27,22 @@ interface JobStatus {
   latestExport: ExportJob | null;
 }
 
-/**
- * Fetch the latest import and export job for a specific slug.
- *
- * TODO: Add `?slug=` query param to the gateway jobs endpoints so we can
- * filter server-side instead of fetching all jobs and filtering here.
- */
+/** Fetch the latest import and export job for a specific slug (server-side filtered). */
 async function fetchJobStatusForSlug(userId: string, slug: string): Promise<JobStatus> {
+  const slugParam = encodeURIComponent(slug);
   const [importResult, exportResult] = await Promise.all([
-    callGatewayApi<ImportJobsResponse>('/user/shapes/import/jobs', {
+    callGatewayApi<ImportJobsResponse>(`/user/shapes/import/jobs?slug=${slugParam}`, {
       userId,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
-    callGatewayApi<ExportJobsResponse>('/user/shapes/export/jobs', {
+    callGatewayApi<ExportJobsResponse>(`/user/shapes/export/jobs?slug=${slugParam}`, {
       userId,
       timeout: GATEWAY_TIMEOUTS.DEFERRED,
     }),
   ]);
 
-  let latestImport: ImportJob | null = null;
-  if (importResult.ok) {
-    const matching = importResult.data.jobs.filter(j => j.sourceSlug === slug);
-    if (matching.length > 0) {
-      // API returns jobs ordered by createdAt desc — first match is newest
-      latestImport = matching[0];
-    }
-  }
-
-  let latestExport: ExportJob | null = null;
-  if (exportResult.ok) {
-    const matching = exportResult.data.jobs.filter(j => j.sourceSlug === slug);
-    if (matching.length > 0) {
-      // API returns jobs ordered by createdAt desc — first match is newest
-      latestExport = matching[0];
-    }
-  }
+  const latestImport = importResult.ok ? (importResult.data.jobs[0] ?? null) : null;
+  const latestExport = exportResult.ok ? (exportResult.data.jobs[0] ?? null) : null;
 
   return { latestImport, latestExport };
 }

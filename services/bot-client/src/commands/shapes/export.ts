@@ -14,6 +14,7 @@ import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
+import { buildBackToBrowseRow } from './errorRecovery.js';
 
 const logger = createLogger('shapes-export');
 
@@ -71,7 +72,11 @@ export async function startExport(
     } else {
       message = `\u274C Export failed: ${sanitizeErrorForDiscord(result.error)}`;
     }
-    await interaction.editReply({ content: message, embeds: [], components: [] });
+    await interaction.editReply({
+      content: '',
+      embeds: [new EmbedBuilder().setColor(DISCORD_COLORS.ERROR).setDescription(message)],
+      components: [buildBackToBrowseRow()],
+    });
     return false;
   }
 

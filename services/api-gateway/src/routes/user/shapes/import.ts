@@ -22,6 +22,7 @@ import { requireUserAuth } from '../../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
+import { isPrismaUniqueConstraintError } from '../../../utils/prismaErrors.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('shapes-import');
@@ -82,10 +83,6 @@ async function createImportJobOrConflict(
   });
 
   return { importJobId, conflictStatus };
-}
-
-function isPrismaUniqueConstraintError(error: unknown): error is { code: string } {
-  return error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2002';
 }
 
 function createImportHandler(prisma: PrismaClient, queue: Queue, userService: UserService) {
@@ -193,6 +190,7 @@ function createImportHandler(prisma: PrismaClient, queue: Queue, userService: Us
 function createListImportJobsHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
+    const slug = req.query.slug as string | undefined;
 
     const user = await prisma.user.findFirst({
       where: { discordId: discordUserId },
@@ -208,6 +206,7 @@ function createListImportJobsHandler(prisma: PrismaClient) {
       where: {
         userId: user.id,
         sourceService: IMPORT_SOURCES.SHAPES_INC,
+        ...(slug !== undefined ? { sourceSlug: slug } : {}),
       },
       orderBy: { createdAt: 'desc' },
       take: 20,
