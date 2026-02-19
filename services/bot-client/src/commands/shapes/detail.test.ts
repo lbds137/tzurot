@@ -37,7 +37,7 @@ describe('buildShapeDetailEmbed', () => {
     const { embed } = await buildShapeDetailEmbed('user-123', 'my-shape');
 
     expect(embed.data.title).toContain('my-shape');
-    expect(embed.data.footer?.text).toBe('slug:my-shape');
+    expect(embed.data.footer?.text).toBe('slug:my-shape|sort:name');
   });
 
   it('should show "No imports yet" when no import jobs exist', async () => {

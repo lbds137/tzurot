@@ -25,6 +25,7 @@ import type { BrowseSortType } from '../../utils/browse/constants.js';
 import { buildAuthModal } from './auth.js';
 import {
   showDetailView,
+  parseSlugFromFooter,
   handleDetailImport,
   handleDetailExport,
   handleDetailRefresh,
@@ -90,7 +91,9 @@ export async function handleShapesButton(interaction: ButtonInteraction): Promis
       return;
     }
     if (action === 'detail-back') {
-      await handleBrowsePage(interaction, 0, 'name');
+      // Preserve the user's sort preference from the detail view footer
+      const { sort } = parseSlugFromFooter(interaction);
+      await handleBrowsePage(interaction, 0, sort);
       return;
     }
 
@@ -150,7 +153,10 @@ export async function handleShapesSelectMenu(
     // Browse select — show detail view for the selected shape
     if (shapesBrowseIds.isBrowseSelect(customId)) {
       const selectedSlug = interaction.values[0];
-      await showDetailView(interaction, selectedSlug);
+      // Preserve the user's sort preference from the browse select menu custom ID
+      const parsed = shapesBrowseIds.parseSelect(customId);
+      const sort = parsed?.sort ?? 'name';
+      await showDetailView(interaction, selectedSlug, sort);
       return;
     }
 
