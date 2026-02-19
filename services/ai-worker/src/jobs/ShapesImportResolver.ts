@@ -21,7 +21,7 @@ const logger = createLogger('ShapesImportResolver');
 
 const RESOLVED_MSG = 'Resolved personality';
 
-interface ResolvePersonalityOpts {
+export interface ResolvePersonalityOpts {
   prisma: PrismaClient;
   config: ShapesIncPersonalityConfig;
   /** Normalized slug (may have username suffix for non-bot-owners) */
@@ -33,7 +33,7 @@ interface ResolvePersonalityOpts {
   /** Internal Prisma UUID — NOT the Discord snowflake */
   internalUserId: string;
   discordUserId: string;
-  importType: string;
+  importType: 'full' | 'memory_only';
 }
 
 export async function resolvePersonality(
