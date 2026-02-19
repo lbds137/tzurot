@@ -43,6 +43,7 @@ async function fetchJobStatusForSlug(userId: string, slug: string): Promise<JobS
   if (importResult.ok) {
     const matching = importResult.data.jobs.filter(j => j.sourceSlug === slug);
     if (matching.length > 0) {
+      // API returns jobs ordered by createdAt desc — first match is newest
       latestImport = matching[0];
     }
   }
@@ -51,6 +52,7 @@ async function fetchJobStatusForSlug(userId: string, slug: string): Promise<JobS
   if (exportResult.ok) {
     const matching = exportResult.data.jobs.filter(j => j.sourceSlug === slug);
     if (matching.length > 0) {
+      // API returns jobs ordered by createdAt desc — first match is newest
       latestExport = matching[0];
     }
   }
