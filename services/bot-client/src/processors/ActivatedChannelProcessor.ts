@@ -41,8 +41,10 @@ export class ActivatedChannelProcessor implements IMessageProcessor {
       channelSettings?.settings?.personalitySlug !== undefined &&
       channelSettings.settings.personalitySlug !== null;
 
-    // Fall back to parent channel for threads without their own activation
-    if (!hasActivation) {
+    // Fall back to parent channel for threads without their own settings.
+    // Only fall back when the thread has NO settings record at all — if it has
+    // a record with null activation (explicitly deactivated), respect that.
+    if (!hasActivation && channelSettings?.hasSettings !== true) {
       const parentId = getThreadParentId(message.channel);
       if (parentId !== null) {
         channelSettings = await this.gatewayClient.getChannelSettings(parentId);
