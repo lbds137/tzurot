@@ -21,13 +21,11 @@ import {
   createLogger,
   decryptApiKey,
   encryptApiKey,
-  isBotOwner,
   normalizeSlugForUser,
   type Prisma,
   type PrismaClient,
   type ShapesImportJobData,
   type ShapesImportJobResult,
-  type ShapesIncPersonalityConfig,
   type ShapesDataFetchResult,
   CREDENTIAL_SERVICES,
   CREDENTIAL_TYPES,
@@ -38,8 +36,9 @@ import {
   ShapesFetchError,
   ShapesNotFoundError,
 } from '../services/shapes/ShapesDataFetcher.js';
-import { createFullPersonality, downloadAndStoreAvatar } from './ShapesImportHelpers.js';
+import { downloadAndStoreAvatar } from './ShapesImportHelpers.js';
 import { importMemories } from './ShapesImportMemories.js';
+import { resolvePersonality } from './ShapesImportResolver.js';
 import type { PgvectorMemoryAdapter } from '../services/PgvectorMemoryAdapter.js';
 
 const logger = createLogger('ShapesImportJob');
@@ -89,6 +88,8 @@ export async function processShapesImportJob(
       prisma,
       config: fetchResult.config,
       sourceSlug: normalizedSlug,
+      rawSourceSlug: sourceSlug,
+      shapesId: fetchResult.config.id,
       internalUserId: userId,
       discordUserId,
       importType,
@@ -264,52 +265,7 @@ async function updateImportJobStatus(
   });
 }
 
-const IMPORT_TYPE_MEMORY_ONLY = 'memory_only' as const;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-interface ResolvePersonalityOpts {
-  prisma: PrismaClient;
-  config: ShapesIncPersonalityConfig;
-  sourceSlug: string;
-  /** Internal Prisma UUID — NOT the Discord snowflake */
-  internalUserId: string;
-  discordUserId: string;
-  importType: string;
-}
-
-async function resolvePersonality(
-  opts: ResolvePersonalityOpts
-): Promise<{ personalityId: string; slug: string }> {
-  if (opts.importType !== IMPORT_TYPE_MEMORY_ONLY) {
-    // Guard: don't overwrite a personality owned by another user
-    const existing = await opts.prisma.personality.findFirst({
-      where: { slug: opts.sourceSlug },
-      select: { id: true, ownerId: true },
-    });
-    if (
-      existing !== null &&
-      existing.ownerId !== opts.internalUserId &&
-      !isBotOwner(opts.discordUserId)
-    ) {
-      throw new Error(`Cannot import: personality "${opts.sourceSlug}" is owned by another user.`);
-    }
-    return createFullPersonality(opts.prisma, opts.config, opts.sourceSlug, opts.internalUserId);
-  }
-
-  // memory_only: no ownership guard — users are allowed to add their own memories
-  // to any personality (memories are persona-scoped, not personality-scoped).
-  // Only full imports need the guard since they overwrite personality config.
-  const existing = await opts.prisma.personality.findFirst({
-    where: { slug: opts.sourceSlug },
-    select: { id: true, slug: true },
-  });
-  if (existing === null) {
-    throw new Error(
-      `No personality found with slug "${opts.sourceSlug}". Run a full import first, or provide an explicit personality ID.`
-    );
-  }
-  return { personalityId: existing.id, slug: existing.slug };
-}
 
 interface MarkCompletedOpts {
   prisma: PrismaClient;
@@ -350,7 +306,7 @@ interface HandleErrorOpts {
   error: unknown;
   prisma: PrismaClient;
   importJobId: string;
-  importType: 'full' | typeof IMPORT_TYPE_MEMORY_ONLY;
+  importType: 'full' | 'memory_only';
   jobId: string | undefined;
   sourceSlug: string;
   job: Job<ShapesImportJobData>;

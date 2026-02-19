@@ -30,45 +30,19 @@ const { mockFetchShapeData, mockGetUpdatedCookie } = vi.hoisted(() => ({
   mockFetchShapeData: vi.fn(),
   mockGetUpdatedCookie: vi.fn().mockReturnValue('updated-cookie'),
 }));
-vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
-  ShapesDataFetcher: vi.fn().mockImplementation(function () {
-    return { fetchShapeData: mockFetchShapeData, getUpdatedCookie: mockGetUpdatedCookie };
-  }),
-  ShapesAuthError: class ShapesAuthError extends Error {
-    constructor(msg: string) {
-      super(msg);
-      this.name = 'ShapesAuthError';
-    }
-  },
-  ShapesFetchError: class ShapesFetchError extends Error {
-    readonly status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.name = 'ShapesFetchError';
-      this.status = status;
-    }
-  },
-  ShapesNotFoundError: class ShapesNotFoundError extends Error {
-    constructor(slug: string) {
-      super(`Shape not found: ${slug}`);
-      this.name = 'ShapesNotFoundError';
-    }
-  },
-  ShapesRateLimitError: class ShapesRateLimitError extends Error {
-    constructor() {
-      super('Rate limited');
-      this.name = 'ShapesRateLimitError';
-    }
-  },
-  ShapesServerError: class ShapesServerError extends Error {
-    readonly status: number;
-    constructor(status: number, msg: string) {
-      super(msg);
-      this.name = 'ShapesServerError';
-      this.status = status;
-    }
-  },
-}));
+vi.mock('../services/shapes/ShapesDataFetcher.js', async importOriginal => {
+  const actual = await importOriginal<typeof import('../services/shapes/ShapesDataFetcher.js')>();
+  return {
+    ShapesDataFetcher: vi.fn().mockImplementation(function () {
+      return { fetchShapeData: mockFetchShapeData, getUpdatedCookie: mockGetUpdatedCookie };
+    }),
+    ShapesAuthError: actual.ShapesAuthError,
+    ShapesFetchError: actual.ShapesFetchError,
+    ShapesNotFoundError: actual.ShapesNotFoundError,
+    ShapesRateLimitError: actual.ShapesRateLimitError,
+    ShapesServerError: actual.ShapesServerError,
+  };
+});
 
 // Mock formatters
 vi.mock('./ShapesExportFormatters.js', () => ({

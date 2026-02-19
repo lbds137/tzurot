@@ -18,6 +18,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import { callGatewayApi, GATEWAY_TIMEOUTS } from '../../utils/userGatewayClient.js';
 import { ShapesCustomIds } from '../../utils/customIds.js';
 import { sanitizeErrorForDiscord } from '../../utils/errorSanitization.js';
+import { buildBackToBrowseRow } from './errorRecovery.js';
 
 const logger = createLogger('shapes-import');
 
@@ -82,7 +83,7 @@ export async function startImport(
           .setTitle('❌ Import Failed')
           .setDescription(errorMsg),
       ],
-      components: [],
+      components: [buildBackToBrowseRow()],
     });
     return false;
   }
