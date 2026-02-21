@@ -7,7 +7,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger, historyStatsOptions } from '@tzurot/common-types';
+import { createLogger, historyStatsOptions, formatDateTimeCompact } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
@@ -37,21 +37,9 @@ interface StatsResponse {
   canUndo: boolean;
 }
 
-/**
- * Format a date string for display
- */
+/** Format a date string or return 'N/A' for null */
 function formatDate(dateStr: string | null): string {
-  if (dateStr === null) {
-    return 'N/A';
-  }
-  const date = new Date(dateStr);
-  return date.toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return dateStr !== null ? formatDateTimeCompact(dateStr) : 'N/A';
 }
 
 /**

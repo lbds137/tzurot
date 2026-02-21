@@ -4,12 +4,11 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { createLogger, memoryStatsOptions } from '@tzurot/common-types';
+import { createLogger, memoryStatsOptions, formatDateTimeCompact } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
 import { resolvePersonalityId } from './autocomplete.js';
-import { formatDateTime } from './formatters.js';
 
 const logger = createLogger('memory-stats');
 
@@ -26,7 +25,7 @@ interface StatsResponse {
 
 /** Format date or return 'N/A' for null */
 function formatDateOrNA(dateStr: string | null): string {
-  return dateStr !== null ? formatDateTime(dateStr) : 'N/A';
+  return dateStr !== null ? formatDateTimeCompact(dateStr) : 'N/A';
 }
 
 /**

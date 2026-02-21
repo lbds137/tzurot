@@ -3,7 +3,6 @@
  *
  * Tests the browse UI for recent diagnostic logs:
  * - fetchRecentLogs — API call and parsing with userId filtering
- * - formatTimeAgo — relative time formatting
  * - buildBrowsePage — embed + components assembly
  * - buildEmptyBrowseEmbed — empty state
  * - handleRecentBrowse — slash command entry
@@ -16,7 +15,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { DiagnosticPayload } from '@tzurot/common-types';
 import {
   fetchRecentLogs,
-  formatTimeAgo,
   buildBrowsePage,
   buildEmptyBrowseEmbed,
   handleRecentBrowse,
@@ -144,35 +142,6 @@ function createMockDiagnosticPayload(): DiagnosticPayload {
     },
   };
 }
-
-describe('formatTimeAgo', () => {
-  beforeEach(() => vi.useFakeTimers());
-  afterEach(() => vi.useRealTimers());
-
-  it('should format seconds ago', () => {
-    vi.setSystemTime(new Date('2026-02-09T12:00:30Z'));
-    expect(formatTimeAgo('2026-02-09T12:00:00Z')).toBe('30s ago');
-  });
-
-  it('should format minutes ago', () => {
-    vi.setSystemTime(new Date('2026-02-09T12:05:00Z'));
-    expect(formatTimeAgo('2026-02-09T12:00:00Z')).toBe('5m ago');
-  });
-
-  it('should format hours ago', () => {
-    vi.setSystemTime(new Date('2026-02-09T15:00:00Z'));
-    expect(formatTimeAgo('2026-02-09T12:00:00Z')).toBe('3h ago');
-  });
-
-  it('should format days ago', () => {
-    vi.setSystemTime(new Date('2026-02-12T12:00:00Z'));
-    expect(formatTimeAgo('2026-02-09T12:00:00Z')).toBe('3d ago');
-  });
-
-  it('should handle invalid date strings', () => {
-    expect(formatTimeAgo('not-a-date')).toBe('unknown');
-  });
-});
 
 describe('fetchRecentLogs', () => {
   beforeEach(() => vi.clearAllMocks());

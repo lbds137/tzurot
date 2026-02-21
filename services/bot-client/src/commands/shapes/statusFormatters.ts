@@ -5,6 +5,8 @@
  * Used by both the /shapes status subcommand and the detail view.
  */
 
+import { formatDateShort } from '@tzurot/common-types';
+
 export interface ImportJob {
   id: string;
   sourceSlug: string;
@@ -66,7 +68,7 @@ function formatTruncatedError(errorMessage: string): string {
 
 export function formatImportJobStatus(job: ImportJob): string {
   const emoji = STATUS_EMOJI[job.status] ?? '\u2753';
-  const date = new Date(job.createdAt).toLocaleDateString();
+  const date = formatDateShort(job.createdAt);
   let line = `${emoji} **${job.sourceSlug}** \u2014 ${job.status} (${date})`;
 
   if (job.status === 'in_progress') {
@@ -99,7 +101,7 @@ export function formatFileSize(bytes: number): string {
 
 export function formatExportJobStatus(job: ExportJob): string {
   const emoji = STATUS_EMOJI[job.status] ?? '\u2753';
-  const date = new Date(job.createdAt).toLocaleDateString();
+  const date = formatDateShort(job.createdAt);
   let line = `${emoji} **${job.sourceSlug}** (${job.format}) \u2014 ${job.status} (${date})`;
 
   if (job.status === 'completed' && job.downloadUrl !== null) {
