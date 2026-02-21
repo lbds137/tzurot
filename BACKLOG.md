@@ -1,6 +1,6 @@
 # Backlog
 
-> **Last Updated**: 2026-02-19
+> **Last Updated**: 2026-02-21
 > **Version**: v3.0.0-beta.80
 
 Single source of truth for all work. Tech debt competes for the same time as features.
@@ -21,30 +21,7 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
-### 🏗️ [LIFT] Investigate Safe Auto-Migration on Railway
-
-Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env dev/prod`). This caused a P2002 bug when a migration was deployed as code but never applied. Investigate options:
-
-- Dev-only auto-migration in the Railway start command
-- Pre-deploy hook with `prisma migrate deploy`
-- Dry-run check in prod with approval gate
-- CI step that validates migration state matches schema
-
-### 🐛 [FIX] `memory_only` Import Ownership Gap (Strategy 2)
-
-Partially fixed in beta.80 — `ShapesImportResolver` now tries raw slug (strategy 2) and shapesId UUID (strategy 3) as fallbacks. However, strategy 2 matches any personality with that slug regardless of owner. A non-bot-owner could theoretically import memories into another non-bot-owner's personality if slugs collide. Add an ownership check to strategy 2 (same guard as `resolveForFullImport`).
-
-### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
-
-GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty. Combined with provider 400 errors, responses fail completely.
-
-**Debug file**: `debug/debug-compact-cc13fc44-0eeb-43e2-a881-a78e8cdafda0.json`
-
-**Fix options**:
-
-- Allowlist models that support thinking (only extract from known reasoning models)
-- Require both open AND close tags for extraction (stricter pattern)
-- Fallback: if thinking extraction leaves visible content empty, use thinking as content
+_Empty — triaged 2026-02-21._
 
 ---
 
@@ -52,14 +29,7 @@ GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay format
 
 _This week's active work. Max 3 items._
 
-_Empty — both items completed. Pull next from Quick Wins or Active Epic._
-
-**Recently completed:**
-
-- ~~✨ Admin Commands Bundle~~ (`/admin stop-sequences`, `/admin health`, `/admin presence`, depcruise graduation)
-- ~~✨ Incognito `/character chat` Poke~~ (weigh-in mode, PRs #633+)
-- ~~✨ Reply-to Context in Prompting~~ (PRs #636, #637)
-- ~~🏗️ Quick Wins Cleanup~~ (Config Cascade drop column, Denylist hardening + `/deny view`, Redis failure tests)
+_Empty — pull next from Quick Wins or Active Epic._
 
 ---
 
@@ -67,14 +37,31 @@ _Empty — both items completed. Pull next from Quick Wins or Active Epic._
 
 _Small tasks that can be done between major features. Good for momentum._
 
+### 🐛 `memory_only` Import Ownership Gap (Strategy 2)
+
+Partially fixed in beta.80 — `ShapesImportResolver` now tries raw slug (strategy 2) and shapesId UUID (strategy 3) as fallbacks. However, strategy 2 matches any personality with that slug regardless of owner. A non-bot-owner could theoretically import memories into another non-bot-owner's personality if slugs collide. Add an ownership check to strategy 2 (same guard as `resolveForFullImport`).
+
+### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
+
+GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty.
+
+**Fix options**: Allowlist known reasoning models, require both open+close tags, or fallback to thinking-as-content when visible content is empty.
+
+### ✨ Hide Model Footer (Config Cascade)
+
+User request: option to hide the model indicator line from responses. Add `showModelFooter` boolean to the config cascade (default: `true`). Configurable at all 3 tiers: admin, personality, user-personality.
+
+### ✨ Denylist Duration Support
+
+Allow `/deny` entries to have an optional expiration for temporary bans (e.g., `duration:24h`). Requires `expiresAt` column, filter check, and BullMQ cleanup job.
+
+### ✨ Transcript Spoiler Word List
+
+Admin-managed list of words to auto-spoiler in voice transcripts (`||word||`). Add `spoilerWords` string array to `AdminSettings` JSONB with case-insensitive word-boundary matching.
+
 ### ✨ Discord Emoji/Sticker Image Support
 
-Support custom Discord emoji and stickers in vision context.
-
-- [ ] Extract emoji URLs from message content (custom emoji format: `<:name:id>`)
-- [ ] Extract sticker URLs from message stickers
-- [ ] Include in vision context alongside attachments
-- [ ] Handle animated emoji/stickers (GIF vs static)
+Support custom Discord emoji and stickers in vision context. Extract emoji URLs from `<:name:id>` format, sticker URLs from message stickers, include alongside attachments.
 
 ### ✨ Free Model Quota Resilience
 
@@ -84,17 +71,38 @@ Automatic fallback to alternative free model on 402 quota errors. Track quota hi
 
 Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.
 
-- [ ] Audit browse/pagination: which commands use shared `utils/browse/` vs rolling their own?
-- [ ] Audit dashboard pattern: which commands use `utils/dashboard/` vs custom embeds?
-- [ ] Audit response patterns: ephemeral vs public consistency, error message formatting
-- [ ] Audit empty-state handling: how does each command handle zero results?
-- [ ] Audit button/select menu patterns: consistent ordering, emoji usage, customId prefixes
-- [ ] Identify commands that could benefit from richer UI (e.g., `/admin presence` → dashboard)
-- [ ] Document findings and create standardization tasks
+---
+
+## 🏗 Active Epic: CPD Clone Reduction
+
+_Focus: Reduce 149 code clones to <100. Extract shared patterns into reusable utilities._
+
+High-value extractions done (PR #599). Remaining 149 clones (~1.93%) are structural duplication across service boundaries. Doing this before package extraction clarifies shared vs service-specific code boundaries.
+
+### Phase 1: Shared Utilities
+
+- [ ] Factory files: 5+ clones of `DeepPartial`/`deepMerge` — extract shared helper to common-types
+- [ ] `dateFormatting.ts`: 4 clones of similar date formatting logic — consolidate
+- [ ] Redis setup: IORedis config duplication across services — extract factory
+
+### Phase 2: Bot-Client Patterns
+
+- [ ] Subcommand routers: 3 near-identical implementations — unify or extract base
+- [ ] Pagination/browse builders: duplicated page calculation, sort toggle, button construction
+- [ ] Error handling: repeated replied/deferred check + followUp/reply pattern in CommandHandler
+- [ ] Custom ID parsing: duplicated page/sort extraction logic
+
+### Phase 3: API Gateway / AI Worker
+
+- [ ] Personality routes: duplicate Prisma select objects, permission checks — extract route helpers
+- [ ] Dashboard handlers: session/ownership boilerplate — may already have shared utils
+- [ ] Avatar operations: duplicated file deletion and glob-based cleanup
+
+**Target**: <100 clones or <1.5%. Currently 149 clones, ~1.93%.
 
 ---
 
-## 🏗 Active Epic: Package Extraction
+## 📅 Next Epic: Package Extraction
 
 _Focus: Reduce common-types export bloat and split bot-client, the largest package._
 
@@ -108,8 +116,6 @@ _Focus: Reduce common-types export bloat and split bot-client, the largest packa
 | common-types | 99    | 16K | 607     | LOC is fine (45K "bloat" was Prisma-generated); **607 exports** is the real problem |
 | tooling      | 61    | 9K  | —       | Fine                                                                                |
 
-**Key insight**: common-types LOC is reasonable at 16K — the 61K number includes 45K of Prisma-generated code. The problem is the 607 exports (12x the 50-export threshold), not the size.
-
 ### Phase 1: Assessment
 
 - [ ] Reassess common-types export count — categorize exports by domain to identify extraction boundaries
@@ -122,10 +128,6 @@ _Focus: Reduce common-types export bloat and split bot-client, the largest packa
 - [ ] Re-evaluate whether common-types needs splitting or just export pruning
 
 **Previous work**: Architecture Health epic (PRs #593–#597) completed dead code purge, oversized file splits, 400-line max-lines limit, and circular dependency resolution (54→25, all remaining are generated Prisma code).
-
----
-
-## 📅 Next Epic: _TBD — select from Future Themes when Package Extraction completes_
 
 ---
 
@@ -260,6 +262,40 @@ Allow emoji reactions to trigger personality actions.
 
 ---
 
+### Theme: Model Configuration Overhaul
+
+_Redesign how models are configured. Bundle paid/free/vision into reusable profiles._
+
+#### ✨ LLM Config Profiles (Meta Configs)
+
+Current LlmConfig is a single model. Redesign as **profiles** that bundle paid + free models together, so the system can auto-fallback and users pick a profile rather than individual models.
+
+**Core concept**: A profile is a named container with a description/purpose (e.g., "General Purpose", "NSFW", "Coding") that holds:
+
+- Paid model config (model, temperature, max tokens, etc.)
+- Free model config (fallback when quota/billing isn't available)
+- Vision model config (bundled in — changing the global vision model should be one action, not per-LlmConfig)
+
+**Cascade integration**: Profiles apply at all 4 config cascade levels — admin global default, personality default, user global default, user-personality override. Vision model inherits from the profile by default but users can override at any tier.
+
+**User-facing**:
+
+- Admin creates global profiles (themed defaults everyone can use)
+- Users can create their own profiles (global/non-global, like personalities)
+- `/preset` system may merge into or coexist with this
+
+**Open questions**:
+
+- Relationship to existing `Preset` system — replace, merge, or layer on top?
+- How many vision profile themes are actually needed? (general, NSFW, document — or just general + NSFW)
+- Character-level free model default (does it exist today? needs investigation)
+
+#### 🏗️ Vision Model as Full LLM Config
+
+Currently vision model is just a model name string. Promote to a full `LlmConfig` reference (temperature, max tokens, system prompt, etc.) — but exclude the `visionModel` field itself (no recursive vision config). Likely folded into profiles above.
+
+---
+
 ### Theme: Next-Gen AI Capabilities
 
 _Future features: agentic behavior, multi-modality, advanced prompts._
@@ -286,35 +322,6 @@ _Beyond text: voice and images._
 
 - **Voice Synthesis** - Open-source TTS/STT for voice interactions
 - **Image Generation** - AI-generated images from personalities
-
----
-
-### Theme: CPD Clone Reduction
-
-_Focus: Reduce 149 code clones to <100. Extract shared patterns into reusable utilities._
-
-High-value extractions done (PR #599). Remaining 149 clones (~1.93%) are structural duplication across service boundaries.
-
-#### Phase 1: Shared Utilities
-
-- [ ] Factory files: 5+ clones of `DeepPartial`/`deepMerge` — extract shared helper to common-types
-- [ ] `dateFormatting.ts`: 4 clones of similar date formatting logic — consolidate
-- [ ] Redis setup: IORedis config duplication across services — extract factory
-
-#### Phase 2: Bot-Client Patterns
-
-- [ ] Subcommand routers: 3 near-identical implementations — unify or extract base
-- [ ] Pagination/browse builders: duplicated page calculation, sort toggle, button construction
-- [ ] Error handling: repeated replied/deferred check + followUp/reply pattern in CommandHandler
-- [ ] Custom ID parsing: duplicated page/sort extraction logic
-
-#### Phase 3: API Gateway / AI Worker
-
-- [ ] Personality routes: duplicate Prisma select objects, permission checks — extract route helpers
-- [ ] Dashboard handlers: session/ownership boilerplate — may already have shared utils
-- [ ] Avatar operations: duplicated file deletion and glob-based cleanup
-
-**Target**: <100 clones or <1.5%. Currently 149 clones, ~1.93%.
 
 ---
 
@@ -394,6 +401,10 @@ Adopt `z.infer<typeof schema>` across all job types to eliminate manual interfac
 - [ ] Audit all Zod schemas in common-types for interface/schema drift
 
 **Context**: PR #651 added Zod schemas for shapes import jobs and an enforcement test that catches missing schemas. This follow-up eliminates the remaining duplication.
+
+#### 🏗️ Investigate Safe Auto-Migration on Railway
+
+Prisma migrations are currently manual post-deploy (`pnpm ops db:migrate --env dev/prod`). This caused a P2002 bug when a migration was deployed as code but never applied. Investigate: dev-only auto-migration in start command, pre-deploy hook with `prisma migrate deploy`, CI step that validates migration state matches schema.
 
 #### 🧹 Ops CLI Command Migration
 
