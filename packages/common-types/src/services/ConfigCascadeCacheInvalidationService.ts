@@ -19,7 +19,7 @@
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import {
   BaseCacheInvalidationService,
-  type EventValidator,
+  createEventValidator,
 } from './BaseCacheInvalidationService.js';
 import type { Redis } from 'ioredis';
 
@@ -35,33 +35,13 @@ export type ConfigCascadeInvalidationEvent =
 /**
  * Type guard to validate ConfigCascadeInvalidationEvent structure
  */
-export const isValidConfigCascadeInvalidationEvent: EventValidator<
-  ConfigCascadeInvalidationEvent
-> = (obj: unknown): obj is ConfigCascadeInvalidationEvent => {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-
-  const event = obj as Record<string, unknown>;
-
-  if (event.type === 'all') {
-    return Object.keys(event).length === 1;
-  }
-
-  if (event.type === 'admin') {
-    return Object.keys(event).length === 1;
-  }
-
-  if (event.type === 'user') {
-    return typeof event.discordId === 'string' && Object.keys(event).length === 2;
-  }
-
-  if (event.type === 'personality') {
-    return typeof event.personalityId === 'string' && Object.keys(event).length === 2;
-  }
-
-  return false;
-};
+export const isValidConfigCascadeInvalidationEvent =
+  createEventValidator<ConfigCascadeInvalidationEvent>([
+    { type: 'user', fields: { discordId: 'string' } },
+    { type: 'personality', fields: { personalityId: 'string' } },
+    { type: 'admin' },
+    { type: 'all' },
+  ]);
 
 /**
  * Config Cascade Cache Invalidation Service
