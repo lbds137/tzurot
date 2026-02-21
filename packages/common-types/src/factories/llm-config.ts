@@ -25,15 +25,7 @@ import { z } from 'zod';
 
 type LlmConfigSummary = z.infer<typeof LlmConfigSummarySchema>;
 
-// ============================================================================
-// Type Utilities
-// ============================================================================
-
-type DeepPartial<T> = T extends object
-  ? {
-      [P in keyof T]?: DeepPartial<T[P]>;
-    }
-  : T;
+import { type DeepPartial } from './factoryUtils.js';
 
 // ============================================================================
 // Shared Defaults
