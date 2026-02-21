@@ -3,21 +3,19 @@
  */
 
 import { vi } from 'vitest';
-import type { Request, Response } from 'express';
-import type { Router } from 'express';
-import { getRouteHandler } from '../../../test/expressRouterUtils.js';
+import {
+  createMockIsBotOwner,
+  createMockCreatedAt,
+  createMockReqRes,
+  getHandler,
+  type RouteHandler,
+} from '../../../test/shared-route-test-utils.js';
+
+// Re-export shared utilities used by test files
+export { createMockReqRes, getHandler, createMockCreatedAt, type RouteHandler };
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
-export const mockIsBotOwner: ((...args: unknown[]) => boolean) & {
-  mockReturnValue: (val: boolean) => void;
-  mockReset: () => void;
-} = vi.fn().mockReturnValue(false) as ((...args: unknown[]) => boolean) & {
-  mockReturnValue: (val: boolean) => void;
-  mockReset: () => void;
-};
-
-// Mock date factories for consistent testing (factory functions avoid mutable module state)
-export const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
+export const mockIsBotOwner = createMockIsBotOwner();
 
 // Valid UUIDs for testing
 export const MOCK_USER_UUID = '550e8400-e29b-41d4-a716-446655440000';
@@ -98,9 +96,9 @@ export function createMockPrisma(): {
         user: {
           ...mockPrisma.user,
           create: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }),
-          update: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }), // For new user creation
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
+          update: vi.fn().mockResolvedValue({ id: MOCK_USER_UUID }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
         },
         persona: {
           create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
@@ -149,38 +147,6 @@ export function createMockActivation(
     },
     ...overrides,
   };
-}
-
-// Helper to create mock request/response
-export function createMockReqRes(
-  body: Record<string, unknown> = {},
-  params: Record<string, string> = {},
-  query: Record<string, string> = {}
-): { req: Request & { userId: string }; res: Response } {
-  const req = {
-    body,
-    params,
-    query,
-    userId: 'discord-user-123',
-  } as unknown as Request & { userId: string };
-
-  const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  } as unknown as Response;
-
-  return { req, res };
-}
-
-// Helper to get handler from router
-type RouteHandler = (req: Request & { userId: string }, res: Response) => Promise<void>;
-
-export function getHandler(
-  router: Router,
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
-  path: string
-): RouteHandler {
-  return getRouteHandler(router, method, path) as RouteHandler;
 }
 
 // Standard beforeEach setup for tests that need user/personality/settings state
