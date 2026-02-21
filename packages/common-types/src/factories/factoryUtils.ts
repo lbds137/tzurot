@@ -22,7 +22,7 @@ export function deepMerge<T>(base: T, overrides?: DeepPartial<T>): T {
 
   const result = { ...base } as Record<string, unknown>;
 
-  for (const key in overrides) {
+  for (const key of Object.keys(overrides)) {
     const overrideValue = overrides[key as keyof typeof overrides];
     if (overrideValue !== undefined) {
       const baseValue = result[key];
