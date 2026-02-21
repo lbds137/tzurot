@@ -12,21 +12,17 @@
 import type { Job } from 'bullmq';
 import {
   createLogger,
-  decryptApiKey,
-  encryptApiKey,
   type PrismaClient,
   type ShapesExportJobData,
   type ShapesExportJobResult,
-  CREDENTIAL_SERVICES,
-  CREDENTIAL_TYPES,
 } from '@tzurot/common-types';
-import {
-  ShapesDataFetcher,
-  ShapesAuthError,
-  ShapesFetchError,
-  ShapesNotFoundError,
-} from '../services/shapes/ShapesDataFetcher.js';
+import { ShapesDataFetcher } from '../services/shapes/ShapesDataFetcher.js';
 import { formatExportAsMarkdown, formatExportAsJson } from './ShapesExportFormatters.js';
+import {
+  getDecryptedCookie,
+  persistUpdatedCookie,
+  classifyShapesError,
+} from './shapesCredentials.js';
 
 const logger = createLogger('ShapesExportJob');
 
@@ -128,53 +124,8 @@ export async function processShapesExportJob(
 }
 
 // ============================================================================
-// Helpers
+// Error Handling
 // ============================================================================
-
-async function getDecryptedCookie(prisma: PrismaClient, userId: string): Promise<string> {
-  const credential = await prisma.userCredential.findFirst({
-    where: {
-      userId,
-      service: CREDENTIAL_SERVICES.SHAPES_INC,
-      credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
-    },
-  });
-
-  if (credential === null) {
-    throw new ShapesAuthError('No shapes.inc credentials found. Use /shapes auth first.');
-  }
-
-  return decryptApiKey({
-    iv: credential.iv,
-    content: credential.content,
-    tag: credential.tag,
-  });
-}
-
-async function persistUpdatedCookie(
-  prisma: PrismaClient,
-  userId: string,
-  updatedCookie: string
-): Promise<void> {
-  try {
-    const encrypted = encryptApiKey(updatedCookie);
-    await prisma.userCredential.updateMany({
-      where: {
-        userId,
-        service: CREDENTIAL_SERVICES.SHAPES_INC,
-        credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
-      },
-      data: {
-        iv: encrypted.iv,
-        content: encrypted.content,
-        tag: encrypted.tag,
-        lastUsedAt: new Date(),
-      },
-    });
-  } catch (error) {
-    logger.warn({ err: error }, '[ShapesExportJob] Failed to persist updated cookie');
-  }
-}
 
 interface HandleErrorOpts {
   error: unknown;
@@ -186,17 +137,7 @@ interface HandleErrorOpts {
 }
 
 async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJobResult> {
-  const errorMessage = opts.error instanceof Error ? opts.error.message : String(opts.error);
-
-  // Blacklist: only known non-retryable errors skip retry. Unknown errors
-  // (timeouts, network failures, unexpected exceptions) default to retryable
-  // so BullMQ can attempt recovery.
-  const isNonRetryable =
-    opts.error instanceof ShapesAuthError ||
-    opts.error instanceof ShapesNotFoundError ||
-    opts.error instanceof ShapesFetchError;
-  const isRetryable = !isNonRetryable;
-
+  const { isRetryable, errorMessage } = classifyShapesError(opts.error);
   const maxAttempts = opts.job.opts.attempts ?? 1;
 
   logger.error(
