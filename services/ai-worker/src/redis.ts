@@ -11,10 +11,7 @@
  */
 
 import {
-  createLogger,
-  getConfig,
-  createIORedisClient,
-  VoiceTranscriptCache,
+  initCoreRedisServices,
   VisionDescriptionCache,
   PersistentVisionCache,
   getPrismaClient,
@@ -22,24 +19,15 @@ import {
 import { RedisService } from './services/RedisService.js';
 import { modelSupportsVision } from './services/ModelCapabilityChecker.js';
 
-const logger = createLogger('Redis');
-const config = getConfig();
-
-// Get Redis connection config from environment
-if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
-  throw new Error('REDIS_URL environment variable is required');
-}
-
-// Single ioredis client for all operations
-const redis = createIORedisClient(config.REDIS_URL, 'Redis', logger);
+const { redis, voiceTranscriptCache } = initCoreRedisServices('Redis');
 
 // Export singleton RedisService instance
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: RedisService wraps ioredis client for job results and streaming. Multiple instances would create redundant connections and inconsistent state.
 export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
-// eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: VoiceTranscriptCache shares Redis connection for transcript caching. Multiple instances would cause cache misses and wasted API calls.
-export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
+ 
+export { voiceTranscriptCache };
 
 // Export singleton VisionDescriptionCache instance with L2 persistent cache
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: VisionDescriptionCache shares Redis connection with L2 PostgreSQL cache. Multiple instances would bypass cache layers and waste API calls.

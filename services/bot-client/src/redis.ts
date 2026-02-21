@@ -9,25 +9,13 @@
  * This eliminates the previous dual-client overhead (node-redis + ioredis).
  */
 
-import {
-  createLogger,
-  getConfig,
-  createIORedisClient,
-  VoiceTranscriptCache,
-} from '@tzurot/common-types';
+import { createLogger, initCoreRedisServices } from '@tzurot/common-types';
 import { RedisService } from './services/RedisService.js';
 import { initSessionManager, shutdownSessionManager } from './utils/dashboard/index.js';
 
 const logger = createLogger('Redis');
-const config = getConfig();
 
-// Get Redis connection config from environment
-if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
-  throw new Error('REDIS_URL environment variable is required');
-}
-
-// Single ioredis client for all operations
-const redis = createIORedisClient(config.REDIS_URL, 'Redis', logger);
+const { redis, voiceTranscriptCache } = initCoreRedisServices('Redis');
 
 // Export raw Redis client for direct access (e.g., pending verification messages)
 export { redis };
@@ -37,8 +25,8 @@ export { redis };
 export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
-// eslint-disable-next-line @tzurot/no-singleton-export -- Redis requires singleton pattern for connection reuse
-export const voiceTranscriptCache = new VoiceTranscriptCache(redis);
+ 
+export { voiceTranscriptCache };
 
 // Initialize Dashboard Session Manager
 // This enables Redis-backed session storage for dashboard editing sessions
