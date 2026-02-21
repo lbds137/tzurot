@@ -25,7 +25,7 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { z } from 'zod';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, formatRelativeTime } from '@tzurot/common-types';
 import {
   ITEMS_PER_PAGE,
   truncateForSelect,
@@ -97,40 +97,6 @@ export async function fetchRecentLogs(
 }
 
 // ---------------------------------------------------------------------------
-// Time formatting
-// ---------------------------------------------------------------------------
-
-/** Format a date string as a relative time label for select menu descriptions */
-export function formatTimeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-
-  if (Number.isNaN(then)) {
-    return 'unknown';
-  }
-
-  const diffMs = now - then;
-
-  const seconds = Math.floor(diffMs / 1000);
-  if (seconds < 60) {
-    return `${seconds}s ago`;
-  }
-
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) {
-    return `${minutes}m ago`;
-  }
-
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) {
-    return `${hours}h ago`;
-  }
-
-  const days = Math.floor(hours / 24);
-  return `${days}d ago`;
-}
-
-// ---------------------------------------------------------------------------
 // Embed builders
 // ---------------------------------------------------------------------------
 
@@ -185,7 +151,7 @@ function buildBrowseSelectMenu(
     const name = log.personalityName ?? 'Unknown';
     const label = truncateForSelect(`${num}. ${name} \u00b7 ${log.model}`);
     const description = truncateForDescription(
-      `${formatTimeAgo(log.createdAt)} \u00b7 ${log.durationMs.toLocaleString()}ms`
+      `${formatRelativeTime(log.createdAt)} \u00b7 ${log.durationMs.toLocaleString()}ms`
     );
     return {
       label,

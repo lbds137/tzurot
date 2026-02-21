@@ -7,6 +7,12 @@
 
 import { APP_SETTINGS } from '../constants/index.js';
 
+/** Locale used for all date formatting. */
+const LOCALE = 'en-US' as const;
+
+/** Sentinel returned when an unparseable date value is provided. */
+const INVALID = 'Invalid Date' as const;
+
 /**
  * Parse a flexible timestamp input into a Date, returning null for invalid values.
  */
@@ -41,11 +47,13 @@ function formatTimeUnit(value: number, unit: string): string {
  */
 export function formatFullDateTime(date: Date | string | number, timezone?: string): string {
   const d = parseTimestamp(date);
-  if (!d) {return 'Invalid Date';}
+  if (!d) {
+    return INVALID;
+  }
 
   const tz = resolveTimezone(timezone);
 
-  return d.toLocaleString('en-US', {
+  return d.toLocaleString(LOCALE, {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -72,13 +80,15 @@ export function formatFullDateTime(date: Date | string | number, timezone?: stri
  */
 export function formatDateOnly(date: Date | string | number, timezone?: string): string {
   const d = parseTimestamp(date);
-  if (!d) {return 'Invalid Date';}
+  if (!d) {
+    return INVALID;
+  }
 
   const tz = resolveTimezone(timezone);
 
   // Format as YYYY-MM-DD
   const parts = d
-    .toLocaleDateString('en-US', {
+    .toLocaleDateString(LOCALE, {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -108,7 +118,9 @@ export function formatDateOnly(date: Date | string | number, timezone?: string):
  */
 export function formatRelativeTime(timestamp: Date | string | number, timezone?: string): string {
   const date = parseTimestamp(timestamp);
-  if (!date) {return '';}
+  if (!date) {
+    return '';
+  }
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -152,11 +164,13 @@ export function formatMemoryTimestamp(
   timezone?: string
 ): string {
   const date = parseTimestamp(timestamp);
-  if (!date) {return '';}
+  if (!date) {
+    return '';
+  }
 
   const tz = resolveTimezone(timezone);
 
-  return date.toLocaleDateString('en-US', {
+  return date.toLocaleDateString(LOCALE, {
     weekday: 'short',
     year: 'numeric',
     month: 'short',
@@ -194,7 +208,9 @@ export function formatMemoryTimestamp(
  */
 export function formatRelativeTimeDelta(timestamp: Date | string | number): string {
   const date = parseTimestamp(timestamp);
-  if (!date) {return '';}
+  if (!date) {
+    return '';
+  }
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -317,7 +333,9 @@ export function formatPromptTimestamp(
   timezone?: string
 ): string {
   const date = parseTimestamp(timestamp);
-  if (!date) {return '';}
+  if (!date) {
+    return '';
+  }
 
   const tz = resolveTimezone(timezone);
   const now = new Date();
@@ -325,7 +343,7 @@ export function formatPromptTimestamp(
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
   // Get day of week abbreviation
-  const dayOfWeek = date.toLocaleDateString('en-US', {
+  const dayOfWeek = date.toLocaleDateString(LOCALE, {
     weekday: 'short',
     timeZone: tz,
   });
@@ -338,7 +356,7 @@ export function formatPromptTimestamp(
 
   // For recent messages (< 7 days), include time
   if (diffDays < 7) {
-    const time = date.toLocaleTimeString('en-US', {
+    const time = date.toLocaleTimeString(LOCALE, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: false,
@@ -349,4 +367,55 @@ export function formatPromptTimestamp(
 
   // For older messages, omit time (less relevant)
   return `${datePart} (${dayOfWeek}) • ${relative}`;
+}
+
+/**
+ * Format a date for compact list display (short month, short year)
+ *
+ * Example: "Jan 15, '25"
+ *
+ * Used for:
+ * - Discord embed footers
+ * - Browse list entries
+ * - Any context needing a compact human-readable date
+ *
+ * @param date - Date to format
+ * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE
+ */
+export function formatDateShort(date: Date | string | number, timezone?: string): string {
+  const d = parseTimestamp(date);
+  if (!d) {return INVALID;}
+
+  const tz = resolveTimezone(timezone);
+  const month = d.toLocaleDateString(LOCALE, { month: 'short', timeZone: tz });
+  const day = d.toLocaleDateString(LOCALE, { day: 'numeric', timeZone: tz });
+  const year = d.toLocaleDateString(LOCALE, { year: '2-digit', timeZone: tz });
+  return `${month} ${day}, '${year}`;
+}
+
+/**
+ * Format a date with month, day, year, and time (no weekday, no timezone label)
+ *
+ * Example: "Jan 15, 2025, 3:45 PM"
+ *
+ * Used for:
+ * - Memory detail views
+ * - History stats display
+ *
+ * @param date - Date to format
+ * @param timezone - Optional IANA timezone. Defaults to APP_SETTINGS.TIMEZONE
+ */
+export function formatDateTimeCompact(date: Date | string | number, timezone?: string): string {
+  const d = parseTimestamp(date);
+  if (!d) {return INVALID;}
+
+  const tz = resolveTimezone(timezone);
+  return d.toLocaleDateString(LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone: tz,
+  });
 }

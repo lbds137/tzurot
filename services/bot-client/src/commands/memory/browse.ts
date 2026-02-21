@@ -5,7 +5,12 @@
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { EmbedBuilder, escapeMarkdown, MessageFlags } from 'discord.js';
-import { createLogger, DISCORD_COLORS, memoryBrowseOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  memoryBrowseOptions,
+  formatDateShort,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { resolvePersonalityId } from './autocomplete.js';
@@ -30,7 +35,7 @@ import {
   handleCancelEditButton,
 } from './detailModals.js';
 import type { MemoryItem, ListContext } from './detailApi.js';
-import { formatDateShort, truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
+import { truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
 import {
   registerActiveCollector,
   deregisterActiveCollector,

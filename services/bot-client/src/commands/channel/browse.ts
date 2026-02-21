@@ -24,6 +24,7 @@ import {
   type ChannelSettings,
   DISCORD_COLORS,
   channelBrowseOptions,
+  formatDateShort,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
@@ -60,7 +61,7 @@ export function isChannelBrowseInteraction(customId: string): boolean {
  */
 function formatChannelSettings(settings: ChannelSettings): string {
   const channelMention = `<#${settings.channelId}>`;
-  const activatedDate = new Date(settings.createdAt).toLocaleDateString();
+  const activatedDate = formatDateShort(settings.createdAt);
   const safeName = escapeMarkdown(settings.personalityName ?? 'Unknown');
   return `${channelMention} → **${safeName}** (\`${settings.personalitySlug}\`)\n  _Activated: ${activatedDate}_`;
 }

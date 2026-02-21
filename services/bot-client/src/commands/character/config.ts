@@ -6,7 +6,7 @@
  */
 
 import { escapeMarkdown } from 'discord.js';
-import { DISCORD_COLORS, DISCORD_LIMITS } from '@tzurot/common-types';
+import { DISCORD_COLORS, DISCORD_LIMITS, formatDateShort } from '@tzurot/common-types';
 import {
   type DashboardConfig,
   type SectionDefinition,
@@ -410,8 +410,8 @@ export const characterDashboardConfig: DashboardConfig<CharacterData> = {
     },
   ],
   getFooter: (data: CharacterData) => {
-    const created = new Date(data.createdAt).toLocaleDateString();
-    const updated = new Date(data.updatedAt).toLocaleDateString();
+    const created = formatDateShort(data.createdAt);
+    const updated = formatDateShort(data.updatedAt);
     return `Created: ${created} • Updated: ${updated}`;
   },
   color: DISCORD_COLORS.BLURPLE,

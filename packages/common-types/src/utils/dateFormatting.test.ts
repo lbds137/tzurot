@@ -7,6 +7,8 @@ import {
   formatRelativeTimeDelta,
   formatTimestampWithDelta,
   formatPromptTimestamp,
+  formatDateShort,
+  formatDateTimeCompact,
 } from './dateFormatting.js';
 
 describe('dateFormatting', () => {
@@ -322,6 +324,53 @@ describe('dateFormatting', () => {
       const result = formatPromptTimestamp(date, 'America/New_York');
 
       expect(result).toContain('07:00');
+    });
+  });
+
+  describe('formatDateShort', () => {
+    it('should format as short month, day, and 2-digit year', () => {
+      const date = new Date('2025-01-15T12:00:00Z');
+      const result = formatDateShort(date, 'UTC');
+      expect(result).toBe("Jan 15, '25");
+    });
+
+    it('should handle string input', () => {
+      const result = formatDateShort('2025-06-03T00:00:00Z', 'UTC');
+      expect(result).toBe("Jun 3, '25");
+    });
+
+    it('should return Invalid Date for invalid input', () => {
+      expect(formatDateShort('not-a-date')).toBe('Invalid Date');
+    });
+
+    it('should respect timezone parameter', () => {
+      // 2025-01-01 01:00 UTC = 2024-12-31 in US Eastern
+      const date = new Date('2025-01-01T01:00:00Z');
+      const result = formatDateShort(date, 'America/New_York');
+      expect(result).toBe("Dec 31, '24");
+    });
+  });
+
+  describe('formatDateTimeCompact', () => {
+    it('should format with month, day, year, and time', () => {
+      const date = new Date('2025-01-15T15:45:00Z');
+      const result = formatDateTimeCompact(date, 'UTC');
+      expect(result).toBe('Jan 15, 2025, 3:45 PM');
+    });
+
+    it('should handle string input', () => {
+      const result = formatDateTimeCompact('2025-06-03T09:30:00Z', 'UTC');
+      expect(result).toBe('Jun 3, 2025, 9:30 AM');
+    });
+
+    it('should return Invalid Date for invalid input', () => {
+      expect(formatDateTimeCompact('not-a-date')).toBe('Invalid Date');
+    });
+
+    it('should respect timezone parameter', () => {
+      const date = new Date('2025-01-15T15:45:00Z');
+      const result = formatDateTimeCompact(date, 'America/New_York');
+      expect(result).toContain('10:45 AM');
     });
   });
 });

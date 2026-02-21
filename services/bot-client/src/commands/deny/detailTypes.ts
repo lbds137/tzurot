@@ -6,7 +6,7 @@
  */
 
 import { EmbedBuilder, ButtonBuilder, ButtonStyle, ActionRowBuilder } from 'discord.js';
-import { DISCORD_COLORS } from '@tzurot/common-types';
+import { DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
 import type { DenylistEntryResponse } from './browse.js';
 
 /** Entity type key for Redis session storage */
@@ -58,7 +58,7 @@ export function buildDetailEmbed(entry: DenylistEntryResponse): EmbedBuilder {
     .setColor(entry.mode === 'BLOCK' ? DISCORD_COLORS.ERROR : DISCORD_COLORS.WARNING)
     .addFields(fields)
     .setFooter({
-      text: `Added ${new Date(entry.addedAt).toLocaleDateString()} \u2022 ID: ${entry.id}`,
+      text: `Added ${formatDateShort(entry.addedAt)} \u2022 ID: ${entry.id}`,
     })
     .setTimestamp();
 }

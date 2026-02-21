@@ -17,33 +17,6 @@ export const DEFAULT_MAX_CONTENT_LENGTH = 200;
 export const EMBED_DESCRIPTION_SAFE_LIMIT = 3800;
 
 /**
- * Format date for compact list display (short year, no time)
- * Example: "Jan 15, '25"
- */
-export function formatDateShort(dateStr: string): string {
-  const date = new Date(dateStr);
-  const month = date.toLocaleDateString('en-US', { month: 'short' });
-  const day = date.getDate();
-  const year = date.getFullYear().toString().slice(-2);
-  return `${month} ${day}, '${year}`;
-}
-
-/**
- * Format date with full year and time for detail views
- * Example: "Jan 15, 2025, 3:45 PM"
- */
-export function formatDateTime(dateStr: string): string {
-  const date = new Date(dateStr);
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-}
-
-/**
  * Format similarity score for display
  * Returns percentage for semantic search or 'text match' for fallback
  */

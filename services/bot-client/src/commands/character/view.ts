@@ -20,6 +20,7 @@ import {
   TEXT_LIMITS,
   splitMessage,
   characterViewOptions,
+  formatDateShort,
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import type { CharacterData } from './config.js';
@@ -250,8 +251,8 @@ function buildCharacterViewPage(character: CharacterData, page: number): ViewPag
   PAGE_BUILDERS[safePage](character, embed, truncatedFields);
 
   // Add footer with timestamps
-  const created = new Date(character.createdAt).toLocaleDateString();
-  const updated = new Date(character.updatedAt).toLocaleDateString();
+  const created = formatDateShort(character.createdAt);
+  const updated = formatDateShort(character.updatedAt);
   embed.setFooter({ text: `Created: ${created} • Updated: ${updated}` });
 
   return { embed, truncatedFields };
