@@ -8,6 +8,19 @@
 import { APP_SETTINGS } from '../constants/index.js';
 
 /**
+ * Parse a flexible timestamp input into a Date, returning null for invalid values.
+ */
+function parseTimestamp(input: Date | string | number): Date | null {
+  const d = typeof input === 'object' ? input : new Date(input);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Resolve an optional timezone to a concrete IANA string. */
+function resolveTimezone(timezone?: string): string {
+  return timezone ?? APP_SETTINGS.TIMEZONE;
+}
+
+/**
  * Format a time delta with proper singular/plural form
  */
 function formatTimeUnit(value: number, unit: string): string {
@@ -27,13 +40,10 @@ function formatTimeUnit(value: number, unit: string): string {
  * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). Defaults to APP_SETTINGS.TIMEZONE
  */
 export function formatFullDateTime(date: Date | string | number, timezone?: string): string {
-  const d = typeof date === 'object' ? date : new Date(date);
+  const d = parseTimestamp(date);
+  if (!d) {return 'Invalid Date';}
 
-  if (isNaN(d.getTime())) {
-    return 'Invalid Date';
-  }
-
-  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+  const tz = resolveTimezone(timezone);
 
   return d.toLocaleString('en-US', {
     weekday: 'long',
@@ -61,13 +71,10 @@ export function formatFullDateTime(date: Date | string | number, timezone?: stri
  * @param timezone - Optional IANA timezone (e.g., 'America/New_York'). Defaults to APP_SETTINGS.TIMEZONE
  */
 export function formatDateOnly(date: Date | string | number, timezone?: string): string {
-  const d = typeof date === 'object' ? date : new Date(date);
+  const d = parseTimestamp(date);
+  if (!d) {return 'Invalid Date';}
 
-  if (isNaN(d.getTime())) {
-    return 'Invalid Date';
-  }
-
-  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+  const tz = resolveTimezone(timezone);
 
   // Format as YYYY-MM-DD
   const parts = d
@@ -100,11 +107,8 @@ export function formatDateOnly(date: Date | string | number, timezone?: string):
  * @param timezone - Optional IANA timezone for absolute date fallback. Defaults to APP_SETTINGS.TIMEZONE
  */
 export function formatRelativeTime(timestamp: Date | string | number, timezone?: string): string {
-  const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
-
-  if (isNaN(date.getTime())) {
-    return '';
-  }
+  const date = parseTimestamp(timestamp);
+  if (!date) {return '';}
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -147,13 +151,10 @@ export function formatMemoryTimestamp(
   timestamp: Date | string | number,
   timezone?: string
 ): string {
-  const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
+  const date = parseTimestamp(timestamp);
+  if (!date) {return '';}
 
-  if (isNaN(date.getTime())) {
-    return '';
-  }
-
-  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+  const tz = resolveTimezone(timezone);
 
   return date.toLocaleDateString('en-US', {
     weekday: 'short',
@@ -192,11 +193,8 @@ export function formatMemoryTimestamp(
  * @returns Human-readable relative time string
  */
 export function formatRelativeTimeDelta(timestamp: Date | string | number): string {
-  const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
-
-  if (isNaN(date.getTime())) {
-    return '';
-  }
+  const date = parseTimestamp(timestamp);
+  if (!date) {return '';}
 
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -318,13 +316,10 @@ export function formatPromptTimestamp(
   timestamp: Date | string | number,
   timezone?: string
 ): string {
-  const date = typeof timestamp === 'object' ? timestamp : new Date(timestamp);
+  const date = parseTimestamp(timestamp);
+  if (!date) {return '';}
 
-  if (isNaN(date.getTime())) {
-    return '';
-  }
-
-  const tz = timezone ?? APP_SETTINGS.TIMEZONE;
+  const tz = resolveTimezone(timezone);
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
