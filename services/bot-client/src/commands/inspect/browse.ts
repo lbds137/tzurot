@@ -25,7 +25,7 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import { z } from 'zod';
-import { createLogger, DISCORD_COLORS, formatRelativeTimeDelta } from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, formatRelativeTime } from '@tzurot/common-types';
 import {
   ITEMS_PER_PAGE,
   truncateForSelect,
@@ -151,7 +151,7 @@ function buildBrowseSelectMenu(
     const name = log.personalityName ?? 'Unknown';
     const label = truncateForSelect(`${num}. ${name} \u00b7 ${log.model}`);
     const description = truncateForDescription(
-      `${formatRelativeTimeDelta(log.createdAt)} \u00b7 ${log.durationMs.toLocaleString()}ms`
+      `${formatRelativeTime(log.createdAt)} \u00b7 ${log.durationMs.toLocaleString()}ms`
     );
     return {
       label,
