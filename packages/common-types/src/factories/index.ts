@@ -11,6 +11,9 @@
  * mock objects. This ensures your mocks match the actual API contracts.
  */
 
+// Shared factory utilities
+export { type DeepPartial, deepMerge } from './factoryUtils.js';
+
 // Persona endpoint mocks
 export * from './persona.js';
 
