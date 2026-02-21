@@ -10,6 +10,7 @@ import {
   createRedisSocketConfig,
   createBullMQRedisConfig,
   createIORedisClient,
+  initCoreRedisServices,
 } from './redis.js';
 import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
@@ -384,5 +385,51 @@ describe('createIORedisClient', () => {
 
     const opts = (client as unknown as { opts: Record<string, unknown> }).opts;
     expect(opts).not.toHaveProperty('maxRetriesPerRequest');
+  });
+});
+
+// Mock getConfig for initCoreRedisServices tests
+vi.mock('../config/index.js', () => ({
+  getConfig: vi.fn(),
+}));
+
+describe('initCoreRedisServices', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    mockOn.mockClear();
+  });
+
+  it('should return redis client and voiceTranscriptCache', async () => {
+    const { getConfig } = await import('../config/index.js');
+    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
+      REDIS_URL: 'redis://localhost:6379',
+    });
+
+    const result = initCoreRedisServices('TestService');
+
+    expect(result.redis).toBeDefined();
+    expect(result.voiceTranscriptCache).toBeDefined();
+  });
+
+  it('should throw if REDIS_URL is missing', async () => {
+    const { getConfig } = await import('../config/index.js');
+    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
+      REDIS_URL: undefined,
+    });
+
+    expect(() => initCoreRedisServices('TestService')).toThrow(
+      'REDIS_URL environment variable is required'
+    );
+  });
+
+  it('should throw if REDIS_URL is empty string', async () => {
+    const { getConfig } = await import('../config/index.js');
+    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
+      REDIS_URL: '',
+    });
+
+    expect(() => initCoreRedisServices('TestService')).toThrow(
+      'REDIS_URL environment variable is required'
+    );
   });
 });

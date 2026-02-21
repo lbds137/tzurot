@@ -21,7 +21,13 @@ export * from './types/schemas/index.js';
 // Export utilities
 export { splitMessage, truncateText, stripBotFooters, stripDmPrefix } from './utils/discord.js';
 export { createLogger } from './utils/logger.js';
-export { parseRedisUrl, createBullMQRedisConfig, createIORedisClient } from './utils/redis.js';
+export {
+  parseRedisUrl,
+  createBullMQRedisConfig,
+  createIORedisClient,
+  initCoreRedisServices,
+  type CoreRedisServices,
+} from './utils/redis.js';
 export * from './utils/dateFormatting.js';
 export * from './utils/timeout.js';
 export * from './utils/deterministicUuid.js';

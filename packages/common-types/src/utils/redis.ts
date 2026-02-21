@@ -6,6 +6,8 @@
 import { Redis as IORedis } from 'ioredis';
 import type { Logger } from 'pino';
 import { createLogger } from './logger.js';
+import { getConfig } from '../config/index.js';
+import { VoiceTranscriptCache } from '../services/VoiceTranscriptCache.js';
 import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
 const logger = createLogger('RedisUtils');
@@ -232,4 +234,37 @@ export function createIORedisClient(
   });
 
   return client;
+}
+
+/**
+ * Core Redis services shared by all services (bot-client, ai-worker).
+ * Each service wraps these with its own service-specific RedisService.
+ */
+export interface CoreRedisServices {
+  redis: IORedis;
+  voiceTranscriptCache: VoiceTranscriptCache;
+}
+
+/**
+ * Initialize the core Redis services common to all services:
+ * an IORedis client and a VoiceTranscriptCache instance.
+ *
+ * Each service adds its own extras (e.g., SessionManager, VisionDescriptionCache).
+ *
+ * @param serviceName - Label for log messages (e.g., 'Redis')
+ * @returns Core Redis services
+ * @throws Error if REDIS_URL is missing
+ */
+export function initCoreRedisServices(serviceName: string): CoreRedisServices {
+  const serviceLogger = createLogger(serviceName);
+  const config = getConfig();
+
+  if (config.REDIS_URL === undefined || config.REDIS_URL.length === 0) {
+    throw new Error('REDIS_URL environment variable is required');
+  }
+
+  const redis = createIORedisClient(config.REDIS_URL, serviceName, serviceLogger);
+  const voiceTranscriptCache = new VoiceTranscriptCache(redis);
+
+  return { redis, voiceTranscriptCache };
 }
