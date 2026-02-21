@@ -384,13 +384,19 @@ export function formatPromptTimestamp(
  */
 export function formatDateShort(date: Date | string | number, timezone?: string): string {
   const d = parseTimestamp(date);
-  if (!d) {return INVALID;}
+  if (!d) {
+    return INVALID;
+  }
 
   const tz = resolveTimezone(timezone);
-  const month = d.toLocaleDateString(LOCALE, { month: 'short', timeZone: tz });
-  const day = d.toLocaleDateString(LOCALE, { day: 'numeric', timeZone: tz });
-  const year = d.toLocaleDateString(LOCALE, { year: '2-digit', timeZone: tz });
-  return `${month} ${day}, '${year}`;
+  const parts = new Intl.DateTimeFormat(LOCALE, {
+    month: 'short',
+    day: 'numeric',
+    year: '2-digit',
+    timeZone: tz,
+  }).formatToParts(d);
+  const get = (type: string): string => parts.find(p => p.type === type)?.value ?? '';
+  return `${get('month')} ${get('day')}, '${get('year')}`;
 }
 
 /**
@@ -407,10 +413,12 @@ export function formatDateShort(date: Date | string | number, timezone?: string)
  */
 export function formatDateTimeCompact(date: Date | string | number, timezone?: string): string {
   const d = parseTimestamp(date);
-  if (!d) {return INVALID;}
+  if (!d) {
+    return INVALID;
+  }
 
   const tz = resolveTimezone(timezone);
-  return d.toLocaleDateString(LOCALE, {
+  return d.toLocaleString(LOCALE, {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
