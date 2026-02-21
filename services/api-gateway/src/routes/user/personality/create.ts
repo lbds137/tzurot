@@ -20,6 +20,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
+import { setupDefaultLlmConfig } from '../../../utils/personalityHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getOrCreateInternalUser } from './helpers.js';
 
@@ -58,29 +59,6 @@ function buildCreateData(
     voiceEnabled: false,
     imageEnabled: false,
   };
-}
-
-/**
- * Set up default LLM config for newly created personality
- * Logs errors but doesn't fail the creation
- */
-async function setupDefaultLlmConfig(prisma: PrismaClient, personalityId: string): Promise<void> {
-  try {
-    const defaultLlmConfig = await prisma.llmConfig.findFirst({
-      where: { isGlobal: true, isDefault: true },
-    });
-
-    if (defaultLlmConfig !== null) {
-      await prisma.personalityDefaultConfig.create({
-        data: {
-          personalityId,
-          llmConfigId: defaultLlmConfig.id,
-        },
-      });
-    }
-  } catch (error) {
-    logger.error({ err: error }, '[User] Failed to set default LLM config');
-  }
 }
 
 /**
