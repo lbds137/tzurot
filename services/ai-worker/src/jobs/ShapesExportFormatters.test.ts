@@ -100,11 +100,40 @@ describe('ShapesExportFormatters', () => {
       expect(result).toContain('Brave and kind');
     });
 
-    it('should include memories section', () => {
+    it('should include memories as numbered headings', () => {
       const result = formatExportAsMarkdown(basePayload);
       expect(result).toContain('## Memories');
       expect(result).toContain('1 conversation memories');
+      expect(result).toContain('### Memory #1');
       expect(result).toContain('They discussed important topics.');
+    });
+
+    it('should number multiple memories sequentially', () => {
+      const multiMemPayload: ExportPayload = {
+        ...basePayload,
+        memories: [
+          {
+            id: 'mem-1',
+            shape_id: 'shape-id',
+            senders: ['user1'],
+            result: 'First memory.',
+            metadata: { start_ts: 1000, end_ts: 2000, created_at: 1700000000, senders: ['user1'] },
+          },
+          {
+            id: 'mem-2',
+            shape_id: 'shape-id',
+            senders: ['user2'],
+            result: 'Second memory.',
+            metadata: { start_ts: 3000, end_ts: 4000, created_at: 1700100000, senders: ['user2'] },
+          },
+        ],
+        stats: { ...basePayload.stats, memoriesCount: 2 },
+      };
+      const result = formatExportAsMarkdown(multiMemPayload);
+      expect(result).toContain('### Memory #1');
+      expect(result).toContain('### Memory #2');
+      expect(result).toContain('First memory.');
+      expect(result).toContain('Second memory.');
     });
 
     it('should include stories section with title when available', () => {
