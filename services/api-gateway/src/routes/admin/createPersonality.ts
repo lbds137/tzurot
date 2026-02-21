@@ -7,7 +7,6 @@ import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   createLogger,
-  AVATAR_LIMITS,
   generatePersonalityUuid,
   type CacheInvalidationService,
   PersonalityCreateSchema,
@@ -15,59 +14,14 @@ import {
 } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
-import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
-import { ErrorResponses, type ErrorResponse } from '../../utils/errorResponses.js';
+import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
+import { processAvatarData } from '../../utils/avatarProcessor.js';
 import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('admin-create-personality');
-
-/**
- * Process avatar data if provided
- */
-async function processAvatarData(
-  avatarData: string | undefined,
-  slug: string
-): Promise<{ ok: true; buffer: Buffer | undefined } | { ok: false; error: ErrorResponse }> {
-  if (avatarData === undefined || avatarData.length === 0) {
-    return { ok: true, buffer: undefined };
-  }
-
-  try {
-    logger.info({ slug }, '[Admin] Processing avatar for personality');
-    const result = await optimizeAvatar(avatarData);
-    logger.info(
-      {
-        slug,
-        originalSizeKB: result.originalSizeKB,
-        processedSizeKB: result.processedSizeKB,
-        quality: result.quality,
-      },
-      '[Admin] Avatar optimized'
-    );
-    if (result.exceedsTarget) {
-      logger.warn(
-        {
-          slug,
-          processedSizeKB: result.processedSizeKB,
-          targetSizeKB: AVATAR_LIMITS.TARGET_SIZE_KB,
-        },
-        '[Admin] Avatar still exceeds target size after optimization'
-      );
-    }
-    return { ok: true, buffer: result.buffer };
-  } catch (error) {
-    logger.error({ err: error }, '[Admin] Failed to process avatar');
-    return {
-      ok: false,
-      error: ErrorResponses.processingError(
-        'Failed to process avatar image. Ensure it is a valid image file.'
-      ),
-    };
-  }
-}
 
 /**
  * Set up default LLM config for newly created personality
@@ -205,7 +159,7 @@ export function createCreatePersonalityRoute(
 
       // Process avatar if provided
       const avatarResult = await processAvatarData(validated.avatarData, slug);
-      if (!avatarResult.ok) {
+      if (avatarResult !== null && !avatarResult.ok) {
         return sendError(res, avatarResult.error);
       }
 
@@ -220,7 +174,7 @@ export function createCreatePersonalityRoute(
         validated,
         ownerId: adminUser.id,
         systemPromptId: defaultSystemPrompt?.id ?? null,
-        avatarBuffer: avatarResult.buffer,
+        avatarBuffer: avatarResult?.ok === true ? avatarResult.buffer : undefined,
       });
       const personality = await prisma.personality.create({ data: createData });
 
@@ -239,7 +193,7 @@ export function createCreatePersonalityRoute(
             name: personality.name,
             slug: personality.slug,
             displayName: personality.displayName,
-            hasAvatar: avatarResult.buffer !== undefined,
+            hasAvatar: avatarResult?.ok === true,
           },
           timestamp: new Date().toISOString(),
         },
