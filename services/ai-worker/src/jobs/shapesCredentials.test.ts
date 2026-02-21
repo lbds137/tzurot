@@ -10,8 +10,8 @@ import {
   ShapesNotFoundError,
 } from '../services/shapes/ShapesDataFetcher.js';
 
-const mockDecryptApiKey = vi.fn().mockReturnValue('decrypted-cookie');
-const mockEncryptApiKey = vi.fn().mockReturnValue({ iv: 'iv', content: 'ct', tag: 'tg' });
+const mockDecryptApiKey = vi.fn();
+const mockEncryptApiKey = vi.fn();
 
 vi.mock('@tzurot/common-types', async () => {
   const actual = await vi.importActual('@tzurot/common-types');
