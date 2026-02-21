@@ -16,7 +16,8 @@ import {
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createSuccessEmbed, createInfoEmbed } from '../../utils/commandHelpers.js';
-import { resolvePersonalityId, getPersonalityName } from './autocomplete.js';
+import { getPersonalityName } from './autocomplete.js';
+import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-focus');
 
@@ -51,12 +52,8 @@ export async function handleFocusStatus(context: DeferredCommandContext): Promis
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(userId, personalityInput);
-
+    const personalityId = await resolveRequiredPersonality(context, userId, personalityInput);
     if (personalityId === null) {
-      await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
-      });
       return;
     }
 
@@ -114,12 +111,8 @@ async function setFocusMode(context: DeferredCommandContext, enabled: boolean): 
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(userId, personalityInput);
-
+    const personalityId = await resolveRequiredPersonality(context, userId, personalityInput);
     if (personalityId === null) {
-      await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
-      });
       return;
     }
 

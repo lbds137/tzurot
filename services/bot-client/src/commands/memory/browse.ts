@@ -13,7 +13,7 @@ import {
 } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
-import { resolvePersonalityId } from './autocomplete.js';
+import { resolveOptionalPersonality } from './resolveHelpers.js';
 import {
   buildPaginationButtons,
   parsePaginationId,
@@ -394,16 +394,9 @@ export async function handleBrowse(context: DeferredCommandContext): Promise<voi
 
   try {
     // Resolve personality if provided
-    let personalityId: string | undefined;
-    if (personalityInput !== null && personalityInput.length > 0) {
-      const resolved = await resolvePersonalityId(userId, personalityInput);
-      if (resolved === null) {
-        await context.editReply({
-          content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
-        });
-        return;
-      }
-      personalityId = resolved;
+    const personalityId = await resolveOptionalPersonality(context, userId, personalityInput);
+    if (personalityId === null) {
+      return;
     }
 
     // Fetch first page

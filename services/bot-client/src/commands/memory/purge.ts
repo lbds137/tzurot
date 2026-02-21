@@ -20,7 +20,7 @@ import { createLogger, memoryPurgeOptions } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createDangerEmbed, createSuccessEmbed } from '../../utils/commandHelpers.js';
-import { resolvePersonalityId } from './autocomplete.js';
+import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-purge');
 
@@ -68,12 +68,8 @@ export async function handlePurge(context: DeferredCommandContext): Promise<void
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(userId, personalityInput);
-
+    const personalityId = await resolveRequiredPersonality(context, userId, personalityInput);
     if (personalityId === null) {
-      await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
-      });
       return;
     }
 
