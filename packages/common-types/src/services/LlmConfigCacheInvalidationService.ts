@@ -18,7 +18,7 @@
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import {
   BaseCacheInvalidationService,
-  type EventValidator,
+  createEventValidator,
 } from './BaseCacheInvalidationService.js';
 import type { Redis } from 'ioredis';
 
@@ -34,29 +34,11 @@ type LlmConfigInvalidationEvent =
 /**
  * Type guard to validate LlmConfigInvalidationEvent structure
  */
-export const isValidLlmConfigInvalidationEvent: EventValidator<LlmConfigInvalidationEvent> = (
-  obj: unknown
-): obj is LlmConfigInvalidationEvent => {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-
-  const event = obj as Record<string, unknown>;
-
-  if (event.type === 'all') {
-    return Object.keys(event).length === 1;
-  }
-
-  if (event.type === 'user') {
-    return typeof event.discordId === 'string' && Object.keys(event).length === 2;
-  }
-
-  if (event.type === 'config') {
-    return typeof event.configId === 'string' && Object.keys(event).length === 2;
-  }
-
-  return false;
-};
+export const isValidLlmConfigInvalidationEvent = createEventValidator<LlmConfigInvalidationEvent>([
+  { type: 'user', fields: { discordId: 'string' } },
+  { type: 'config', fields: { configId: 'string' } },
+  { type: 'all' },
+]);
 
 /**
  * LLM Config Cache Invalidation Service

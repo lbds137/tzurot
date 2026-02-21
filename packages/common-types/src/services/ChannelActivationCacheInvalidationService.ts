@@ -23,7 +23,7 @@
 import { REDIS_CHANNELS } from '../constants/queue.js';
 import {
   BaseCacheInvalidationService,
-  type EventValidator,
+  createEventValidator,
 } from './BaseCacheInvalidationService.js';
 import type { Redis } from 'ioredis';
 
@@ -37,25 +37,11 @@ export type ChannelActivationInvalidationEvent =
 /**
  * Type guard to validate ChannelActivationInvalidationEvent structure
  */
-export function isValidChannelActivationInvalidationEvent(
-  obj: unknown
-): obj is ChannelActivationInvalidationEvent {
-  if (typeof obj !== 'object' || obj === null) {
-    return false;
-  }
-
-  const event = obj as Record<string, unknown>;
-
-  if (event.type === 'all') {
-    return Object.keys(event).length === 1;
-  }
-
-  if (event.type === 'channel') {
-    return typeof event.channelId === 'string' && Object.keys(event).length === 2;
-  }
-
-  return false;
-}
+export const isValidChannelActivationInvalidationEvent =
+  createEventValidator<ChannelActivationInvalidationEvent>([
+    { type: 'channel', fields: { channelId: 'string' } },
+    { type: 'all' },
+  ]);
 
 /**
  * Channel Activation Cache Invalidation Service
@@ -69,7 +55,7 @@ export class ChannelActivationCacheInvalidationService extends BaseCacheInvalida
       redis,
       REDIS_CHANNELS.CHANNEL_ACTIVATION_CACHE_INVALIDATION,
       'ChannelActivationCacheInvalidation',
-      isValidChannelActivationInvalidationEvent as EventValidator<ChannelActivationInvalidationEvent>,
+      isValidChannelActivationInvalidationEvent,
       {
         getLogContext: event => (event.type === 'channel' ? { channelId: event.channelId } : {}),
         getEventDescription: event =>
