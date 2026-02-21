@@ -44,11 +44,11 @@ interface ImportedPresetData {
   };
 }
 
-/** Field definition for import field list */
-interface ImportFieldDef {
-  key: string;
-  label: string;
-}
+import {
+  getImportedFieldsList,
+  getMissingRequiredFields,
+  type ImportFieldDef,
+} from '../../utils/importValidation.js';
 
 // ============================================================================
 // CONSTANTS
@@ -111,9 +111,7 @@ function buildTemplateMessage(): string {
  * Validate preset data has required fields
  */
 function validatePresetData(data: Record<string, unknown>): { valid: true } | { error: string } {
-  const missingFields = REQUIRED_IMPORT_FIELDS.filter(
-    field => data[field] === undefined || data[field] === null || data[field] === ''
-  );
+  const missingFields = getMissingRequiredFields(data, REQUIRED_IMPORT_FIELDS);
 
   if (missingFields.length > 0) {
     return {
@@ -168,15 +166,6 @@ function buildImportPayload(data: ImportedPresetData): Record<string, unknown> {
   return payload;
 }
 
-/**
- * Get list of imported field labels from payload
- */
-function getImportedFieldsList(payload: Record<string, unknown>): string[] {
-  return IMPORT_FIELD_DEFS.filter(
-    ({ key }) => payload[key] !== undefined && payload[key] !== null
-  ).map(({ label }) => label);
-}
-
 // ============================================================================
 // API OPERATIONS
 // ============================================================================
@@ -221,7 +210,7 @@ function buildSuccessEmbed(payload: Record<string, unknown>, presetName: string)
     .setDescription(`Imported preset: **${escapeMarkdown(presetName)}**`)
     .setTimestamp();
 
-  const importedFields = getImportedFieldsList(payload);
+  const importedFields = getImportedFieldsList(payload, IMPORT_FIELD_DEFS);
   embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
 
   return embed;
