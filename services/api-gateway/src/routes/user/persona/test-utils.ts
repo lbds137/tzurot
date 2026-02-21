@@ -3,9 +3,15 @@
  */
 
 import { vi } from 'vitest';
-import type { Request, Response } from 'express';
-import type { Router } from 'express';
-import { getRouteHandler } from '../../../test/expressRouterUtils.js';
+import {
+  createMockReqRes,
+  getHandler,
+  createUserServiceTransactionMock,
+  type RouteHandler,
+} from '../../../test/shared-route-test-utils.js';
+
+// Re-export shared utilities used by test files
+export { createMockReqRes, getHandler, type RouteHandler };
 
 // Valid UUIDs for testing (required by route validation)
 export const MOCK_USER_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
@@ -95,56 +101,6 @@ export function createMockPrisma(): MockPrismaClient {
       update: vi.fn(),
       delete: vi.fn(),
     },
-    $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-      const mockTx = {
-        user: {
-          create: vi.fn().mockResolvedValue({ id: MOCK_USER_ID }),
-          update: vi.fn().mockResolvedValue({ id: MOCK_USER_ID }), // For new user creation
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
-        },
-        persona: {
-          create: vi.fn().mockResolvedValue({ id: MOCK_PERSONA_ID }),
-        },
-      };
-      await callback(mockTx);
-    }),
+    $transaction: createUserServiceTransactionMock(MOCK_USER_ID, MOCK_PERSONA_ID),
   };
-}
-
-/** Mock request/response type for testing */
-interface MockReqRes {
-  req: Request & { userId: string };
-  res: Response;
-}
-
-/** Create mock request/response for testing */
-export function createMockReqRes(
-  body: Record<string, unknown> = {},
-  params: Record<string, string> = {}
-): MockReqRes {
-  const req = {
-    body,
-    params,
-    userId: 'discord-user-123',
-  } as unknown as Request & { userId: string };
-
-  const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  } as unknown as Response;
-
-  return { req, res };
-}
-
-/**
- * Get handler from router by method and path.
- * Delegates to shared Express router test utility.
- */
-export function getHandler(
-  router: Router,
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
-  path: string
-): (...args: unknown[]) => unknown {
-  return getRouteHandler(router, method, path);
 }

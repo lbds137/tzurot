@@ -3,23 +3,21 @@
  */
 
 import { vi } from 'vitest';
-import type { Request, Response } from 'express';
-import type { Router } from 'express';
-import { getRouteHandler } from '../../../test/expressRouterUtils.js';
+import {
+  createMockIsBotOwner,
+  createMockCreatedAt,
+  createMockUpdatedAt,
+  createMockReqRes,
+  getHandler,
+  createUserServiceTransactionMock,
+  type RouteHandler,
+} from '../../../test/shared-route-test-utils.js';
+
+// Re-export shared utilities used by test files
+export { createMockReqRes, getHandler, type RouteHandler };
 
 // Mock isBotOwner - must be before vi.mock to be hoisted
-// Using explicit callable type to avoid TS2742 (inferred type) and TS2348 (not callable) errors
-export const mockIsBotOwner: ((...args: unknown[]) => boolean) & {
-  mockReturnValue: (val: boolean) => void;
-  mockReset: () => void;
-} = vi.fn().mockReturnValue(false) as ((...args: unknown[]) => boolean) & {
-  mockReturnValue: (val: boolean) => void;
-  mockReset: () => void;
-};
-
-// Mock date factories for consistent testing (factory functions avoid mutable module state)
-const createMockCreatedAt = (): Date => new Date('2024-01-01T00:00:00.000Z');
-const createMockUpdatedAt = (): Date => new Date('2024-01-02T00:00:00.000Z');
+export const mockIsBotOwner = createMockIsBotOwner();
 
 // Mock Prisma client with UserService dependencies
 export function createMockPrisma(): {
@@ -83,20 +81,7 @@ export function createMockPrisma(): {
     personalityDefaultConfig: {
       create: vi.fn(),
     },
-    $transaction: vi.fn().mockImplementation(async (callback: (tx: unknown) => Promise<void>) => {
-      const mockTx = {
-        user: {
-          create: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }),
-          update: vi.fn().mockResolvedValue({ id: 'test-user-uuid' }), // For new user creation
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
-          findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
-        },
-        persona: {
-          create: vi.fn().mockResolvedValue({ id: 'test-persona-uuid' }),
-        },
-      };
-      await callback(mockTx);
-    }),
+    $transaction: createUserServiceTransactionMock('test-user-uuid', 'test-persona-uuid'),
   };
 }
 
@@ -132,36 +117,6 @@ export function createMockPersonality(
     updatedAt: createMockUpdatedAt(),
     ...overrides,
   };
-}
-
-// Helper to create mock request/response
-export function createMockReqRes(
-  body: Record<string, unknown> = {},
-  params: Record<string, string> = {}
-): { req: Request & { userId: string }; res: Response } {
-  const req = {
-    body,
-    params,
-    userId: 'discord-user-123',
-  } as unknown as Request & { userId: string };
-
-  const res = {
-    status: vi.fn().mockReturnThis(),
-    json: vi.fn().mockReturnThis(),
-  } as unknown as Response;
-
-  return { req, res };
-}
-
-// Helper to get handler from router
-type RouteHandler = (req: Request & { userId: string }, res: Response) => Promise<void>;
-
-export function getHandler(
-  router: Router,
-  method: 'get' | 'post' | 'put' | 'patch' | 'delete',
-  path: string
-): RouteHandler {
-  return getRouteHandler(router, method, path) as RouteHandler;
 }
 
 // Standard beforeEach setup for tests that need user/personality state
