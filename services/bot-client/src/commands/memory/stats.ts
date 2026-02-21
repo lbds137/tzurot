@@ -8,7 +8,7 @@ import { createLogger, memoryStatsOptions, formatDateTimeCompact } from '@tzurot
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { createInfoEmbed } from '../../utils/commandHelpers.js';
-import { resolvePersonalityId } from './autocomplete.js';
+import { resolveRequiredPersonality } from './resolveHelpers.js';
 
 const logger = createLogger('memory-stats');
 
@@ -38,12 +38,8 @@ export async function handleStats(context: DeferredCommandContext): Promise<void
 
   try {
     // Resolve personality slug to ID
-    const personalityId = await resolvePersonalityId(userId, personalityInput);
-
+    const personalityId = await resolveRequiredPersonality(context, userId, personalityInput);
     if (personalityId === null) {
-      await context.editReply({
-        content: `❌ Personality "${personalityInput}" not found. Use autocomplete to select a valid personality.`,
-      });
       return;
     }
 
