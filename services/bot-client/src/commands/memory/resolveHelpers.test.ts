@@ -2,7 +2,7 @@
  * Tests for memory command personality resolution helpers
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { resolveOptionalPersonality, resolveRequiredPersonality } from './resolveHelpers.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
@@ -29,6 +29,10 @@ describe('resolveOptionalPersonality', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     context = createMockContext();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should return undefined when personalityInput is null', async () => {
@@ -69,6 +73,10 @@ describe('resolveRequiredPersonality', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     context = createMockContext();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should return resolved ID when personality is found', async () => {
