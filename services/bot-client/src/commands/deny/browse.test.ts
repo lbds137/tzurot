@@ -16,6 +16,10 @@ vi.mock('@tzurot/common-types', () => ({
   GATEWAY_TIMEOUTS: { DEFERRED: 10000 },
   getConfig: vi.fn(() => ({ BOT_OWNER_ID: 'owner-1' })),
   DISCORD_COLORS: { ERROR: 0xff0000 },
+  formatDateShort: vi.fn((date: string | Date) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+  }),
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     error: vi.fn(),
