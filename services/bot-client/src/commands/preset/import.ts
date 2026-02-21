@@ -8,6 +8,11 @@ import { createLogger, DISCORD_COLORS, presetImportOptions } from '@tzurot/commo
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { validateAndParseJsonFile } from '../../utils/jsonFileUtils.js';
+import {
+  getImportedFieldsList,
+  getMissingRequiredFields,
+  type ImportFieldDef,
+} from '../../utils/importValidation.js';
 
 const logger = createLogger('preset-import');
 
@@ -43,12 +48,6 @@ interface ImportedPresetData {
     show_thinking?: boolean;
   };
 }
-
-import {
-  getImportedFieldsList,
-  getMissingRequiredFields,
-  type ImportFieldDef,
-} from '../../utils/importValidation.js';
 
 // ============================================================================
 // CONSTANTS
