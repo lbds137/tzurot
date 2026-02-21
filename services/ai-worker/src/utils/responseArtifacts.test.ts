@@ -9,7 +9,7 @@ import { describe, it, expect } from 'vitest';
 import { stripResponseArtifacts } from './responseArtifacts.js';
 
 describe('stripResponseArtifacts', () => {
-  describe('XML trailing tag stripping', () => {
+  describe('Generic trailing closing tag stripping', () => {
     it('should strip trailing </message> tag', () => {
       expect(stripResponseArtifacts('Hello there!</message>', 'Emily')).toBe('Hello there!');
     });
@@ -20,43 +20,28 @@ describe('stripResponseArtifacts', () => {
       expect(stripResponseArtifacts('Hello!</message>\n\n', 'Emily')).toBe('Hello!');
     });
 
-    it('should strip multiple trailing </message> tags', () => {
+    it('should strip multiple trailing closing tags', () => {
       expect(stripResponseArtifacts('Hello!</message></message>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</current_turn></message>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</message></current_turn>', 'Emily')).toBe('Hello!');
     });
 
     it('should be case-insensitive for tag', () => {
       expect(stripResponseArtifacts('Hello!</MESSAGE>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</Message>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</Module>', 'Emily')).toBe('Hello!');
     });
 
-    it('should NOT strip </message> in middle of content', () => {
-      const content = 'The </message> tag is used for XML';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    it('should NOT strip closing tags in middle of content', () => {
+      expect(stripResponseArtifacts('The </message> tag is used for XML', 'Emily')).toBe(
+        'The </message> tag is used for XML'
+      );
+      expect(stripResponseArtifacts('Use </module> for sections', 'Emily')).toBe(
+        'Use </module> for sections'
+      );
     });
 
     it('should strip trailing </current_turn> tag', () => {
       expect(stripResponseArtifacts('Hello there!</current_turn>', 'Emily')).toBe('Hello there!');
-    });
-
-    it('should strip trailing </current_turn> with whitespace', () => {
-      expect(stripResponseArtifacts('Hello!</current_turn>\n', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</current_turn>  ', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</current_turn>\n\n', 'Emily')).toBe('Hello!');
-    });
-
-    it('should be case-insensitive for </current_turn> tag', () => {
-      expect(stripResponseArtifacts('Hello!</CURRENT_TURN>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</Current_Turn>', 'Emily')).toBe('Hello!');
-    });
-
-    it('should NOT strip </current_turn> in middle of content', () => {
-      const content = 'The </current_turn> tag is used for XML';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
-    });
-
-    it('should strip both </message> and </current_turn> if present', () => {
-      expect(stripResponseArtifacts('Hello!</current_turn></message>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</message></current_turn>', 'Emily')).toBe('Hello!');
     });
 
     it('should strip trailing </incoming_message> tag', () => {
@@ -65,19 +50,24 @@ describe('stripResponseArtifacts', () => {
       );
     });
 
-    it('should strip trailing </incoming_message> with whitespace', () => {
-      expect(stripResponseArtifacts('Hello!</incoming_message>\n', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</incoming_message>  ', 'Emily')).toBe('Hello!');
+    it('should strip trailing </module> tag (GLM model artifact)', () => {
+      const content =
+        "You'll have to relearn what feels good instead of just mapping old pleasure onto new geography.</module>";
+      expect(stripResponseArtifacts(content, 'House')).toBe(
+        "You'll have to relearn what feels good instead of just mapping old pleasure onto new geography."
+      );
     });
 
-    it('should be case-insensitive for </incoming_message> tag', () => {
-      expect(stripResponseArtifacts('Hello!</INCOMING_MESSAGE>', 'Emily')).toBe('Hello!');
-      expect(stripResponseArtifacts('Hello!</Incoming_Message>', 'Emily')).toBe('Hello!');
+    it('should strip any arbitrary trailing closing tag', () => {
+      expect(stripResponseArtifacts('Hello!</output>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</response>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</assistant>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</turn>', 'Emily')).toBe('Hello!');
     });
 
-    it('should NOT strip </incoming_message> in middle of content', () => {
-      const content = 'The </incoming_message> tag is used for XML';
-      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    it('should handle tags with hyphens and numbers', () => {
+      expect(stripResponseArtifacts('Hello!</my-tag>', 'Emily')).toBe('Hello!');
+      expect(stripResponseArtifacts('Hello!</section2>', 'Emily')).toBe('Hello!');
     });
   });
 

@@ -6,8 +6,7 @@
  *
  * With XML-formatted prompts, models may:
  * - Echo <from id="...">Name</from> tags (speaker identification from prompt)
- * - Append </message> tags (learning from chat_log structure)
- * - Append </current_turn> or </incoming_message> tags (from training data)
+ * - Append stray closing tags: </message>, </module>, </current_turn>, etc.
  * - Add <message speaker="Name"> prefixes
  * - Append <reactions>...</reactions> blocks (mimicking conversation history metadata)
  * - Still occasionally add "Name:" prefixes
@@ -30,12 +29,9 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
     // Trailing <reactions>...</reactions> block: LLM mimics conversation history metadata
     // Must be checked before simpler trailing tags since it's multiline
     /\s*<reactions>[\s\S]*?<\/reactions>\s*$/i,
-    // Trailing </message> tag: "Hello!</message>" → "Hello!"
-    /<\/message>\s*$/i,
-    // Trailing </current_turn> tag: "Hello!</current_turn>" → "Hello!"
-    /<\/current_turn>\s*$/i,
-    // Trailing </incoming_message> tag: "Hello!</incoming_message>" → "Hello!"
-    /<\/incoming_message>\s*$/i,
+    // Generic trailing closing tag: catches </message>, </module>, </current_turn>, etc.
+    // Models learn XML patterns from training data and append stray closing tags
+    /<\/[a-z][a-z0-9_-]*>\s*$/i,
     // XML message prefix: '<message speaker="Emily">Hello' → 'Hello'
     new RegExp(`^<message\\s+speaker=["']${escapedName}["'][^>]*>\\s*`, 'i'),
     // Simple name prefix: "Emily: Hello" → "Hello"
