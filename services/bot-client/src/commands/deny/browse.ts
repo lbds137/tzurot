@@ -19,7 +19,7 @@ import type {
   ActionRowBuilder as ActionRowBuilderType,
   ButtonBuilder,
 } from 'discord.js';
-import { createLogger, isBotOwner, DISCORD_COLORS } from '@tzurot/common-types';
+import { createLogger, isBotOwner, DISCORD_COLORS, formatDateShort } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { requireBotOwnerContext } from '../../utils/commandContext/index.js';
 import { adminFetch } from '../../utils/adminApiClient.js';
@@ -76,7 +76,7 @@ function formatEntry(entry: DenylistEntryResponse, index: number): string {
       : `\`${entry.discordId}\` (Guild)`;
   const scopeInfo = entry.scope === 'BOT' ? 'Bot-wide' : `${entry.scope}:${entry.scopeId}`;
   const modeBadge = entry.mode === 'MUTE' ? ' · **MUTE**' : '';
-  const date = new Date(entry.addedAt).toLocaleDateString();
+  const date = formatDateShort(entry.addedAt);
   const reason = entry.reason !== null ? `\n   _${escapeMarkdown(entry.reason)}_` : '';
   return `${num}. ${target}\n   ${scopeInfo}${modeBadge} · Added ${date}${reason}`;
 }

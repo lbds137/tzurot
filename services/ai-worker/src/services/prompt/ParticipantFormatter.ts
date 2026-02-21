@@ -14,7 +14,7 @@
  * Extracted from PromptBuilder for better modularity.
  */
 
-import { escapeXml } from '@tzurot/common-types';
+import { escapeXml, formatDateOnly } from '@tzurot/common-types';
 import type { ParticipantInfo } from '../ConversationalRAGTypes.js';
 
 /**
@@ -80,8 +80,7 @@ export function formatParticipantsContext(
       }
 
       if (info.guildInfo.joinedAt !== undefined && info.guildInfo.joinedAt !== '') {
-        // Format as date only (YYYY-MM-DD)
-        const dateOnly = info.guildInfo.joinedAt.split('T')[0];
+        const dateOnly = formatDateOnly(info.guildInfo.joinedAt, 'UTC');
         guildAttrs.push(`joined="${escapeXml(dateOnly)}"`);
       }
 

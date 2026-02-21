@@ -6,6 +6,7 @@
  * happens in the async job processor, not the Discord command.
  */
 
+import { formatDateOnly } from '@tzurot/common-types';
 import type {
   ShapesIncPersonalityConfig,
   ShapesIncMemory,
@@ -103,9 +104,15 @@ function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
 
   for (let i = 0; i < memories.length; i++) {
     const memory = memories[i];
-    const iso = new Date(memory.metadata.created_at * 1000).toISOString();
-    const [datePart, timePart] = iso.split('T');
-    const date = `${datePart} ${timePart.slice(0, 5)}`;
+    const memoryDate = new Date(memory.metadata.created_at * 1000);
+    const datePart = formatDateOnly(memoryDate, 'UTC');
+    const timePart = memoryDate.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'UTC',
+    });
+    const date = `${datePart} ${timePart}`;
     const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
     lines.push(`### Memory #${String(i + 1)} (${date})${senders}`, '', memory.result.trim(), '');
   }

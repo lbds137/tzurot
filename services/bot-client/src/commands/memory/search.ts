@@ -5,7 +5,12 @@
 
 import type { ChatInputCommandInteraction, ButtonInteraction } from 'discord.js';
 import { escapeMarkdown, EmbedBuilder, MessageFlags } from 'discord.js';
-import { createLogger, DISCORD_COLORS, memorySearchOptions } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  memorySearchOptions,
+  formatDateShort,
+} from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { resolvePersonalityId } from './autocomplete.js';
@@ -21,12 +26,7 @@ import {
   type ListContext,
 } from './detail.js';
 import { handleSearchDetailAction } from './searchDetailActions.js';
-import {
-  formatDateShort,
-  formatSimilarity,
-  truncateContent,
-  COLLECTOR_TIMEOUT_MS,
-} from './formatters.js';
+import { formatSimilarity, truncateContent, COLLECTOR_TIMEOUT_MS } from './formatters.js';
 import {
   registerActiveCollector,
   deregisterActiveCollector,

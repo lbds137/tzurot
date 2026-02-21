@@ -16,13 +16,18 @@ import {
   AttachmentBuilder,
 } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  formatDateShort,
+  formatDateTimeCompact,
+} from '@tzurot/common-types';
 import { CUSTOM_ID_DELIMITER } from '../../utils/customIds.js';
 import { truncateForSelect, MAX_SELECT_LABEL_LENGTH } from '../../utils/browse/index.js';
 
 import { fetchMemory, toggleMemoryLock, deleteMemory } from './detailApi.js';
 import type { MemoryItem, ListContext } from './detailApi.js';
-import { formatDateShort, formatDateTime, EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
+import { EMBED_DESCRIPTION_SAFE_LIMIT } from './formatters.js';
 
 // Re-export types from detailApi for backward compatibility
 export type { MemoryItem, ListContext } from './detailApi.js';
@@ -146,11 +151,15 @@ export function buildDetailEmbed(memory: MemoryItem): {
   embed.addFields(
     { name: 'Personality', value: escapeMarkdown(memory.personalityName), inline: true },
     { name: 'Status', value: memory.isLocked ? '🔒 Locked' : '🔓 Unlocked', inline: true },
-    { name: 'Created', value: formatDateTime(memory.createdAt), inline: true }
+    { name: 'Created', value: formatDateTimeCompact(memory.createdAt), inline: true }
   );
 
   if (memory.updatedAt !== memory.createdAt) {
-    embed.addFields({ name: 'Updated', value: formatDateTime(memory.updatedAt), inline: true });
+    embed.addFields({
+      name: 'Updated',
+      value: formatDateTimeCompact(memory.updatedAt),
+      inline: true,
+    });
   }
 
   embed.setFooter({ text: `Memory ID: ${memory.id.substring(0, 8)}...` });
@@ -387,7 +396,7 @@ export async function handleViewFullButton(
   });
 
   await interaction.editReply({
-    content: `📄 **Full Memory Content** (${memory.personalityName})\nCreated: ${formatDateTime(memory.createdAt)}`,
+    content: `📄 **Full Memory Content** (${memory.personalityName})\nCreated: ${formatDateTimeCompact(memory.createdAt)}`,
     files: [attachment],
   });
 

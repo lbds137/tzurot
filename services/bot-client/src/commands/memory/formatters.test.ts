@@ -4,8 +4,6 @@
 
 import { describe, it, expect } from 'vitest';
 import {
-  formatDateShort,
-  formatDateTime,
   formatSimilarity,
   truncateContent,
   COLLECTOR_TIMEOUT_MS,
@@ -26,34 +24,6 @@ describe('Memory Formatters', () => {
     it('should have safe embed description limit below Discord max (4096)', () => {
       expect(EMBED_DESCRIPTION_SAFE_LIMIT).toBe(3800);
       expect(EMBED_DESCRIPTION_SAFE_LIMIT).toBeLessThan(4096);
-    });
-  });
-
-  describe('formatDateShort', () => {
-    it('should format date with short year', () => {
-      const result = formatDateShort('2025-06-15T12:00:00.000Z');
-      // Format: "Jun 15, '25" (short year)
-      expect(result).toMatch(/Jun 15/);
-      expect(result).toMatch(/'?\d{2}/); // 2-digit year
-    });
-
-    it('should not include time', () => {
-      const result = formatDateShort('2025-06-15T14:30:00.000Z');
-      expect(result).not.toMatch(/14:30/);
-      expect(result).not.toMatch(/2:30/);
-    });
-  });
-
-  describe('formatDateTime', () => {
-    it('should format date with full year', () => {
-      const result = formatDateTime('2025-06-15T12:00:00.000Z');
-      expect(result).toMatch(/2025/);
-    });
-
-    it('should include time', () => {
-      const result = formatDateTime('2025-06-15T14:30:00.000Z');
-      // Should include time component
-      expect(result).toMatch(/\d{1,2}:\d{2}/);
     });
   });
 
