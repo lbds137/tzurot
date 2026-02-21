@@ -21,6 +21,11 @@ import {
   MAX_INPUT_SIZE_BYTES,
   processAvatarBuffer,
 } from './avatarUtils.js';
+import {
+  getImportedFieldsList,
+  getMissingRequiredFields,
+  type ImportFieldDef,
+} from '../../utils/importValidation.js';
 
 const logger = createLogger('character-import');
 
@@ -40,12 +45,6 @@ interface AvatarProcessingResult {
   success: true;
   data: string;
 }
-
-import {
-  getImportedFieldsList,
-  getMissingRequiredFields,
-  type ImportFieldDef,
-} from '../../utils/importValidation.js';
 
 /** Import field definitions for building success message */
 const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
