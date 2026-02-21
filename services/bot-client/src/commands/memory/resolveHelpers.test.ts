@@ -4,6 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { resolveOptionalPersonality, resolveRequiredPersonality } from './resolveHelpers.js';
+import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 
 // Mock the autocomplete module
 vi.mock('./autocomplete.js', () => ({
@@ -13,11 +14,13 @@ vi.mock('./autocomplete.js', () => ({
 import { resolvePersonalityId } from './autocomplete.js';
 const mockResolvePersonalityId = vi.mocked(resolvePersonalityId);
 
-function createMockContext() {
+const mockEditReply = vi.fn().mockResolvedValue(undefined);
+
+function createMockContext(): DeferredCommandContext {
   return {
     user: { id: 'user-123' },
-    editReply: vi.fn().mockResolvedValue(undefined),
-  } as never;
+    editReply: mockEditReply,
+  } as unknown as DeferredCommandContext;
 }
 
 describe('resolveOptionalPersonality', () => {
@@ -53,7 +56,7 @@ describe('resolveOptionalPersonality', () => {
 
     const result = await resolveOptionalPersonality(context, 'user-123', 'unknown');
     expect(result).toBeNull();
-    expect(context.editReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content:
         '❌ Personality "unknown" not found. Use autocomplete to select a valid personality.',
     });
@@ -81,7 +84,7 @@ describe('resolveRequiredPersonality', () => {
 
     const result = await resolveRequiredPersonality(context, 'user-123', 'unknown');
     expect(result).toBeNull();
-    expect(context.editReply).toHaveBeenCalledWith({
+    expect(mockEditReply).toHaveBeenCalledWith({
       content:
         '❌ Personality "unknown" not found. Use autocomplete to select a valid personality.',
     });
@@ -91,6 +94,6 @@ describe('resolveRequiredPersonality', () => {
     mockResolvePersonalityId.mockResolvedValue('personality-uuid');
 
     await resolveRequiredPersonality(context, 'user-123', 'my-persona');
-    expect(context.editReply).not.toHaveBeenCalled();
+    expect(mockEditReply).not.toHaveBeenCalled();
   });
 });
