@@ -6,70 +6,23 @@
 import { Router, type Request, type Response } from 'express';
 import {
   createLogger,
-  AVATAR_LIMITS,
   type CacheInvalidationService,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
 } from '@tzurot/common-types';
 import { type PrismaClient, Prisma } from '@tzurot/common-types';
 import { requireOwnerAuth } from '../../services/AuthMiddleware.js';
-import { optimizeAvatar } from '../../utils/imageProcessor.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
 import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import { validateSlug } from '../../utils/validators.js';
+import { processAvatarData } from '../../utils/avatarProcessor.js';
 
 const logger = createLogger('admin-update-personality');
 
 // --- Helper Functions ---
-
-async function processAvatarIfProvided(
-  avatarData: string | undefined,
-  slug: string
-): Promise<
-  { buffer: Buffer } | { error: ReturnType<typeof ErrorResponses.processingError> } | null
-> {
-  if (avatarData === undefined || avatarData.length === 0) {
-    return null;
-  }
-
-  try {
-    logger.info({ slug }, '[Admin] Processing avatar update for personality');
-    const result = await optimizeAvatar(avatarData);
-
-    logger.info(
-      {
-        slug,
-        originalSizeKB: result.originalSizeKB,
-        processedSizeKB: result.processedSizeKB,
-        quality: result.quality,
-      },
-      '[Admin] Avatar optimized'
-    );
-
-    if (result.exceedsTarget) {
-      logger.warn(
-        {
-          slug,
-          processedSizeKB: result.processedSizeKB,
-          targetSizeKB: AVATAR_LIMITS.TARGET_SIZE_KB,
-        },
-        '[Admin] Avatar still exceeds target size after optimization'
-      );
-    }
-
-    return { buffer: result.buffer };
-  } catch (error) {
-    logger.error({ err: error }, '[Admin] Failed to process avatar');
-    return {
-      error: ErrorResponses.processingError(
-        'Failed to process avatar image. Ensure it is a valid image file.'
-      ),
-    };
-  }
-}
 
 function buildUpdateData(
   validated: PersonalityUpdateInput,
@@ -197,13 +150,16 @@ export function createUpdatePersonalityRoute(
       }
 
       // Process avatar if provided
-      const avatarResult = await processAvatarIfProvided(validated.avatarData, slug);
-      if (avatarResult !== null && 'error' in avatarResult) {
+      const avatarResult = await processAvatarData(validated.avatarData, slug);
+      if (avatarResult !== null && !avatarResult.ok) {
         return sendError(res, avatarResult.error);
       }
 
       // Build and execute update
-      const updateData = buildUpdateData(validated, avatarResult?.buffer);
+      const updateData = buildUpdateData(
+        validated,
+        avatarResult?.ok === true ? avatarResult.buffer : undefined
+      );
       const personality = await prisma.personality.update({
         where: { slug },
         data: updateData,
