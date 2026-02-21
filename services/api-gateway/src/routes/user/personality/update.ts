@@ -12,6 +12,7 @@ import {
   type CacheInvalidationService,
   PersonalityUpdateSchema,
   type PersonalityUpdateInput,
+  PERSONALITY_DETAIL_SELECT,
 } from '@tzurot/common-types';
 import { Prisma } from '@tzurot/common-types';
 import { requireUserAuth } from '../../../services/AuthMiddleware.js';
@@ -25,39 +26,9 @@ import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
 import { findInternalUser, canUserEditPersonality } from './helpers.js';
+import { formatPersonalityResponse } from './formatters.js';
 
 const logger = createLogger('user-personality-update');
-
-const PERSONALITY_SELECT = {
-  id: true,
-  name: true,
-  slug: true,
-  displayName: true,
-  characterInfo: true,
-  personalityTraits: true,
-  personalityTone: true,
-  personalityAge: true,
-  personalityAppearance: true,
-  personalityLikes: true,
-  personalityDislikes: true,
-  conversationalGoals: true,
-  conversationalExamples: true,
-  errorMessage: true,
-  birthMonth: true,
-  birthDay: true,
-  birthYear: true,
-  isPublic: true,
-  voiceEnabled: true,
-  imageEnabled: true,
-  ownerId: true,
-  avatarData: true,
-  customFields: true,
-  systemPromptId: true,
-  voiceSettings: true,
-  imageSettings: true,
-  createdAt: true,
-  updatedAt: true,
-} as const;
 
 // --- Helper Functions ---
 
@@ -138,72 +109,6 @@ async function handleSlugCacheInvalidation(
       logger.warn({ err: error, personalityId }, '[User] Failed to invalidate personality cache');
     }
   }
-}
-
-type PersonalityFromDb = Prisma.PersonalityGetPayload<{ select: typeof PERSONALITY_SELECT }>;
-
-interface PersonalityResponse {
-  id: string;
-  name: string;
-  slug: string;
-  displayName: string | null;
-  characterInfo: string;
-  personalityTraits: string;
-  personalityTone: string | null;
-  personalityAge: string | null;
-  personalityAppearance: string | null;
-  personalityLikes: string | null;
-  personalityDislikes: string | null;
-  conversationalGoals: string | null;
-  conversationalExamples: string | null;
-  errorMessage: string | null;
-  birthMonth: number | null;
-  birthDay: number | null;
-  birthYear: number | null;
-  isPublic: boolean;
-  voiceEnabled: boolean;
-  imageEnabled: boolean;
-  ownerId: string;
-  hasAvatar: boolean;
-  customFields: unknown;
-  systemPromptId: string | null;
-  voiceSettings: unknown;
-  imageSettings: unknown;
-  createdAt: string;
-  updatedAt: string;
-}
-
-function formatResponse(updated: PersonalityFromDb): PersonalityResponse {
-  return {
-    id: updated.id,
-    name: updated.name,
-    slug: updated.slug,
-    displayName: updated.displayName,
-    characterInfo: updated.characterInfo,
-    personalityTraits: updated.personalityTraits,
-    personalityTone: updated.personalityTone,
-    personalityAge: updated.personalityAge,
-    personalityAppearance: updated.personalityAppearance,
-    personalityLikes: updated.personalityLikes,
-    personalityDislikes: updated.personalityDislikes,
-    conversationalGoals: updated.conversationalGoals,
-    conversationalExamples: updated.conversationalExamples,
-    errorMessage: updated.errorMessage,
-    birthMonth: updated.birthMonth,
-    birthDay: updated.birthDay,
-    birthYear: updated.birthYear,
-    isPublic: updated.isPublic,
-    voiceEnabled: updated.voiceEnabled,
-    imageEnabled: updated.imageEnabled,
-    ownerId: updated.ownerId,
-    hasAvatar: updated.avatarData !== null,
-    customFields: updated.customFields,
-    systemPromptId: updated.systemPromptId,
-    voiceSettings: updated.voiceSettings,
-    imageSettings: updated.imageSettings,
-    createdAt: updated.createdAt.toISOString(),
-    updatedAt: updated.updatedAt.toISOString(),
-  };
 }
 
 // --- Handler Factory ---
@@ -301,7 +206,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
     const updated = await prisma.personality.update({
       where: { id: personality.id },
       data: updateData,
-      select: PERSONALITY_SELECT,
+      select: PERSONALITY_DETAIL_SELECT,
     });
 
     if (avatarUpdated) {
@@ -324,7 +229,11 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       '[User] Updated personality'
     );
 
-    sendCustomSuccess(res, { success: true, personality: formatResponse(updated) }, StatusCodes.OK);
+    sendCustomSuccess(
+      res,
+      { success: true, personality: formatPersonalityResponse(updated) },
+      StatusCodes.OK
+    );
   };
 }
 
