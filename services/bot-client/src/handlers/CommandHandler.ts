@@ -46,6 +46,24 @@ export class CommandHandler {
   }
 
   /**
+   * Send an ephemeral error reply, using followUp if already replied/deferred
+   */
+  private async sendErrorReply(
+    interaction:
+      | ChatInputCommandInteraction
+      | ModalSubmitInteraction
+      | ButtonInteraction
+      | StringSelectMenuInteraction,
+    errorMessage: string
+  ): Promise<void> {
+    if (interaction.replied || interaction.deferred) {
+      await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
+    } else {
+      await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
+    }
+  }
+
+  /**
    * Register a prefix for a command with collision detection
    * @throws Error if prefix is already registered to a different command
    */
@@ -189,14 +207,7 @@ export class CommandHandler {
       await execute(interaction);
     } catch (error) {
       logger.error({ err: error }, `[CommandHandler] Error executing command: ${commandName}`);
-
-      const errorMessage = 'There was an error executing this command!';
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      } else {
-        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      }
+      await this.sendErrorReply(interaction, 'There was an error executing this command!');
     }
   }
 
@@ -240,14 +251,7 @@ export class CommandHandler {
       }
     } catch (error) {
       logger.error({ err: error, customId }, `[CommandHandler] Error in modal: ${commandName}`);
-
-      const errorMessage = 'There was an error processing this interaction!';
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      } else {
-        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      }
+      await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
     }
   }
 
@@ -338,14 +342,7 @@ export class CommandHandler {
         { err: error, customId, commandName },
         '[CommandHandler] Error in component interaction'
       );
-
-      const errorMessage = 'There was an error processing this interaction!';
-
-      if (interaction.replied || interaction.deferred) {
-        await interaction.followUp({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      } else {
-        await interaction.reply({ content: errorMessage, flags: MessageFlags.Ephemeral });
-      }
+      await this.sendErrorReply(interaction, 'There was an error processing this interaction!');
     }
   }
 
