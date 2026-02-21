@@ -20,7 +20,7 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateSlug } from '../../../utils/validators.js';
-import { optimizeAvatar } from '../../../utils/imageProcessor.js';
+import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
@@ -100,26 +100,6 @@ function buildUpdateData(
   }
 
   return updateData;
-}
-
-async function processAvatarIfProvided(
-  avatarData: string | undefined
-): Promise<
-  | { buffer: Uint8Array<ArrayBuffer> }
-  | { error: ReturnType<typeof ErrorResponses.processingError> }
-  | null
-> {
-  if (avatarData === undefined || avatarData.length === 0) {
-    return null;
-  }
-
-  try {
-    const result = await optimizeAvatar(avatarData);
-    return { buffer: new Uint8Array(result.buffer) };
-  } catch (error) {
-    logger.error({ err: error }, '[User] Failed to process avatar');
-    return { error: ErrorResponses.processingError('Failed to process avatar image.') };
-  }
 }
 
 async function handleAvatarCacheInvalidation(
@@ -308,14 +288,14 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
 
     const updateData = buildUpdateData(body, personality.name);
 
-    const avatarResult = await processAvatarIfProvided(body.avatarData);
-    if (avatarResult !== null && 'error' in avatarResult) {
+    const avatarResult = await processAvatarData(body.avatarData, slug);
+    if (avatarResult !== null && !avatarResult.ok) {
       return sendError(res, avatarResult.error);
     }
 
-    const avatarWasUpdated = avatarResult !== null;
-    if (avatarWasUpdated) {
-      updateData.avatarData = avatarResult.buffer;
+    const avatarUpdated = avatarResult?.ok === true;
+    if (avatarUpdated) {
+      updateData.avatarData = new Uint8Array(avatarResult.buffer);
     }
 
     const updated = await prisma.personality.update({
@@ -324,7 +304,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       select: PERSONALITY_SELECT,
     });
 
-    if (avatarWasUpdated) {
+    if (avatarUpdated) {
       await handleAvatarCacheInvalidation(slug, personality.id, cacheInvalidationService);
     }
 
@@ -338,7 +318,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
         discordUserId,
         slug,
         personalityId: personality.id,
-        avatarUpdated: avatarWasUpdated,
+        avatarUpdated,
         slugUpdated: slugWasUpdated,
       },
       '[User] Updated personality'
