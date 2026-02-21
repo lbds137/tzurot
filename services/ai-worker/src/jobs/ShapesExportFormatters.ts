@@ -101,14 +101,14 @@ function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
 
   const lines = ['## Memories', '', `*${String(memories.length)} conversation memories*`, ''];
 
-  for (const memory of memories) {
+  for (let i = 0; i < memories.length; i++) {
+    const memory = memories[i];
     const iso = new Date(memory.metadata.created_at * 1000).toISOString();
     const [datePart, timePart] = iso.split('T');
     const date = `${datePart} ${timePart.slice(0, 5)}`;
     const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
-    lines.push(`- **${date}**${senders}: ${memory.result.trim()}`);
+    lines.push(`### Memory #${String(i + 1)} (${date})${senders}`, '', memory.result.trim(), '');
   }
-  lines.push('');
   return lines;
 }
 
