@@ -18,7 +18,6 @@ import {
   DISCORD_COLORS,
   CHARACTER_VIEW_LIMITS,
   TEXT_LIMITS,
-  splitMessage,
   characterViewOptions,
   formatDateShort,
 } from '@tzurot/common-types';
@@ -27,6 +26,7 @@ import type { CharacterData } from './config.js';
 import { CharacterCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { VIEW_TOTAL_PAGES, VIEW_PAGE_TITLES, EXPANDABLE_FIELDS } from './viewTypes.js';
+import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 // Re-export for backward compatibility
 const logger = createLogger('character-view');
@@ -453,38 +453,12 @@ export async function handleExpandField(
       return;
     }
 
-    // Discord message limit
-    const MAX_MESSAGE_LENGTH = DISCORD_LIMITS.MESSAGE_LENGTH;
-    const header = `${fieldInfo.label}\n\n`;
-    const continuedHeader = `${fieldInfo.label} (continued)\n\n`;
-    // Use the longer header length to ensure all chunks fit
-    const maxHeaderLength = Math.max(header.length, continuedHeader.length);
-    const maxContentLength = MAX_MESSAGE_LENGTH - maxHeaderLength;
-
-    if (content.length <= maxContentLength) {
-      // Content fits in one message
-      await interaction.editReply(`${header}${content}`);
-    } else {
-      // Use smart chunking that preserves paragraphs, sentences, and code blocks
-      const contentChunks = splitMessage(content, maxContentLength);
-
-      // Add headers to each chunk
-      const messages = contentChunks.map((chunk, index) => {
-        const chunkHeader = index === 0 ? header : continuedHeader;
-        return chunkHeader + chunk;
-      });
-
-      // Send first chunk as reply
-      await interaction.editReply(messages[0]);
-
-      // Send remaining chunks as follow-ups
-      for (let i = 1; i < messages.length; i++) {
-        await interaction.followUp({
-          content: messages[i],
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-    }
+    await sendChunkedReply({
+      interaction,
+      content,
+      header: `${fieldInfo.label}\n\n`,
+      continuedHeader: `${fieldInfo.label} (continued)\n\n`,
+    });
 
     logger.info({ slug, fieldName }, 'Expanded field content shown');
   } catch (error) {
