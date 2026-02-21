@@ -19,15 +19,7 @@ import {
   type SetTimezoneResponse,
 } from '../schemas/api/timezone.js';
 
-// ============================================================================
-// Type Utilities
-// ============================================================================
-
-type DeepPartial<T> = T extends object
-  ? {
-      [P in keyof T]?: DeepPartial<T[P]>;
-    }
-  : T;
+import { type DeepPartial } from './factoryUtils.js';
 
 // ============================================================================
 // GET /user/timezone

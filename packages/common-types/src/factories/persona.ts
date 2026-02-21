@@ -41,48 +41,11 @@ import {
 const DEFAULT_PERSONALITY_ID = '11111111-1111-5111-8111-111111111111';
 const DEFAULT_PERSONA_ID = '22222222-2222-5222-8222-222222222222';
 
+import { type DeepPartial, deepMerge } from './factoryUtils.js';
+
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/** Deep partial type for nested object overrides */
-type DeepPartial<T> = T extends object
-  ? {
-      [P in keyof T]?: DeepPartial<T[P]>;
-    }
-  : T;
-
-/** Deep merge two objects (simplified for type safety) */
-function deepMerge<T>(base: T, overrides?: DeepPartial<T>): T {
-  if (!overrides) {
-    return base;
-  }
-  if (typeof base !== 'object' || base === null) {
-    return base;
-  }
-
-  const result = { ...base } as Record<string, unknown>;
-
-  for (const key in overrides) {
-    const overrideValue = overrides[key as keyof typeof overrides];
-    if (overrideValue !== undefined) {
-      const baseValue = result[key];
-      if (
-        typeof overrideValue === 'object' &&
-        overrideValue !== null &&
-        !Array.isArray(overrideValue) &&
-        typeof baseValue === 'object' &&
-        baseValue !== null
-      ) {
-        result[key] = deepMerge(baseValue, overrideValue as DeepPartial<typeof baseValue>);
-      } else {
-        result[key] = overrideValue;
-      }
-    }
-  }
-
-  return result as T;
-}
 
 /** Create a base persona details object */
 function createBasePersonaDetails(overrides?: DeepPartial<PersonaDetails>): PersonaDetails {
