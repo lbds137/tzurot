@@ -3,12 +3,13 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { Collection, MessageReferenceType } from 'discord.js';
+import type { Message, MessageSnapshot } from 'discord.js';
 import { ReferenceFormatter } from './ReferenceFormatter.js';
 import type { ReferenceMetadata } from './types.js';
 import { createMockMessage } from '../../test/mocks/Discord.mock.js';
 import type { MessageFormatter } from './MessageFormatter.js';
 import type { SnapshotFormatter } from './SnapshotFormatter.js';
-import type { Message } from 'discord.js';
 
 describe('ReferenceFormatter', () => {
   let formatter: ReferenceFormatter;
@@ -413,6 +414,52 @@ describe('ReferenceFormatter', () => {
       const result = await formatter.format('', crawledMessages, 10);
 
       expect(result.references[0].content).toBe('Short');
+    });
+
+    it('should use snapshot content for deduped forwarded messages', async () => {
+      // Forwarded messages have empty message.content — real content is in snapshots
+      const snapshotsMap = new Map();
+      snapshotsMap.set('snapshot-0', {
+        content: 'Forwarded snapshot content here',
+        attachments: new Map(),
+        embeds: [],
+      });
+      const messageSnapshots = {
+        size: snapshotsMap.size,
+        values: () => snapshotsMap.values(),
+        first: () => snapshotsMap.values().next().value,
+      } as unknown as Collection<string, MessageSnapshot>;
+
+      const forwardedMessage = createMockMessage({
+        id: 'forwarded-deduped',
+        content: '', // Empty — forwarded messages have no direct content
+        createdAt: new Date('2025-01-01T12:00:00Z'),
+        reference: { type: MessageReferenceType.Forward } as Message['reference'],
+        messageSnapshots,
+      });
+
+      const crawledMessages = new Map<string, { message: Message; metadata: ReferenceMetadata }>([
+        [
+          'forwarded-deduped',
+          {
+            message: forwardedMessage,
+            metadata: {
+              messageId: 'forwarded-deduped',
+              depth: 1,
+              timestamp: new Date('2025-01-01T12:00:00Z'),
+              isDeduplicated: true,
+            },
+          },
+        ],
+      ]);
+
+      const result = await formatter.format('', crawledMessages, 10);
+
+      expect(result.references).toHaveLength(1);
+      const ref = result.references[0];
+      expect(ref.isDeduplicated).toBe(true);
+      // Should use snapshot content, not empty message.content
+      expect(ref.content).toBe('Forwarded snapshot content here');
     });
 
     it('should replace Discord links for deduped stubs with discordUrl', async () => {
