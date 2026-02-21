@@ -27,7 +27,7 @@ describe('resolveOptionalPersonality', () => {
   let context: ReturnType<typeof createMockContext>;
 
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
     context = createMockContext();
   });
 
@@ -71,7 +71,7 @@ describe('resolveRequiredPersonality', () => {
   let context: ReturnType<typeof createMockContext>;
 
   beforeEach(() => {
-    vi.resetAllMocks();
+    vi.clearAllMocks();
     context = createMockContext();
   });
 

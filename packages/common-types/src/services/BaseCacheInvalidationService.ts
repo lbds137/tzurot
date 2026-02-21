@@ -64,19 +64,6 @@ type InvalidationCallback<TEvent> = (event: TEvent) => void;
 export type EventValidator<TEvent> = (obj: unknown) => obj is TEvent;
 
 /**
- * Create a standard validator for user/all event patterns
- * Use this when your service only needs { type: 'user', discordId } | { type: 'all' }
- */
-export function createStandardEventValidator<
-  TEvent extends StandardInvalidationEvent,
->(): EventValidator<TEvent> {
-  return createEventValidator<TEvent>([
-    { type: 'user', fields: { discordId: 'string' } },
-    { type: 'all' },
-  ]);
-}
-
-/**
  * Specification for expected fields on an event type (beyond 'type').
  * Maps field names to their expected typeof result.
  */
@@ -145,6 +132,19 @@ export function createEventValidator<TEvent extends BaseInvalidationEvent>(
 
     return false;
   };
+}
+
+/**
+ * Create a standard validator for user/all event patterns
+ * Use this when your service only needs { type: 'user', discordId } | { type: 'all' }
+ */
+export function createStandardEventValidator<
+  TEvent extends StandardInvalidationEvent,
+>(): EventValidator<TEvent> {
+  return createEventValidator<TEvent>([
+    { type: 'user', fields: { discordId: 'string' } },
+    { type: 'all' },
+  ]);
 }
 
 /**
