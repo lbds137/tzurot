@@ -86,13 +86,22 @@ describe('persistUpdatedCookie', () => {
     );
   });
 
-  it('swallows errors and resolves on failure', async () => {
+  it('swallows encryption errors and resolves', async () => {
     mockEncryptApiKey.mockImplementation(() => {
       throw new Error('encryption failed');
     });
 
     await expect(
       persistUpdatedCookie(mockPrisma as never, 'user-1', 'bad')
+    ).resolves.toBeUndefined();
+  });
+
+  it('swallows database errors and resolves', async () => {
+    mockEncryptApiKey.mockReturnValue({ iv: 'iv', content: 'ct', tag: 'tg' });
+    mockPrisma.userCredential.updateMany.mockRejectedValue(new Error('DB connection lost'));
+
+    await expect(
+      persistUpdatedCookie(mockPrisma as never, 'user-1', 'cookie')
     ).resolves.toBeUndefined();
   });
 });
