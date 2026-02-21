@@ -41,11 +41,11 @@ interface AvatarProcessingResult {
   data: string;
 }
 
-/** Field definition for import field list */
-interface ImportFieldDef {
-  key: string;
-  label: string;
-}
+import {
+  getImportedFieldsList,
+  getMissingRequiredFields,
+  type ImportFieldDef,
+} from '../../utils/importValidation.js';
 
 /** Import field definitions for building success message */
 const IMPORT_FIELD_DEFS: ImportFieldDef[] = [
@@ -117,9 +117,7 @@ function buildTemplateMessage(): string {
 function validateCharacterData(
   data: Record<string, unknown>
 ): { slug: string } | { error: string } {
-  const missingFields = REQUIRED_IMPORT_FIELDS.filter(
-    field => data[field] === undefined || data[field] === null || data[field] === ''
-  );
+  const missingFields = getMissingRequiredFields(data, REQUIRED_IMPORT_FIELDS);
   if (missingFields.length > 0) {
     return {
       error: `❌ Missing required fields: ${missingFields.join(', ')}\n\n` + buildTemplateMessage(),
@@ -289,15 +287,6 @@ function buildImportPayload(
   };
 }
 
-/**
- * Get list of imported field labels from payload
- */
-function getImportedFieldsList(payload: Record<string, unknown>): string[] {
-  return IMPORT_FIELD_DEFS.filter(
-    ({ key }) => payload[key] !== undefined && payload[key] !== null
-  ).map(({ label }) => label);
-}
-
 // ============================================================================
 // API OPERATIONS
 // ============================================================================
@@ -371,7 +360,7 @@ function buildSuccessEmbed(
     )
     .setTimestamp();
 
-  const importedFields = getImportedFieldsList(payload);
+  const importedFields = getImportedFieldsList(payload, IMPORT_FIELD_DEFS);
   embed.addFields({ name: 'Imported Fields', value: importedFields.join(', '), inline: false });
 
   return embed;
