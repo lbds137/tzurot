@@ -4,6 +4,10 @@ import { buildDetailEmbed, buildDetailButtons, ENTITY_TYPE, VALID_SCOPES } from 
 
 vi.mock('@tzurot/common-types', () => ({
   DISCORD_COLORS: { ERROR: 0xff0000, WARNING: 0xffaa00 },
+  formatDateShort: vi.fn((date: string | Date) => {
+    const d = typeof date === 'string' ? new Date(date) : date;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' });
+  }),
 }));
 
 const sampleEntry = {
