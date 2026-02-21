@@ -19,10 +19,11 @@ import {
   type MessageActionRowComponentBuilder,
 } from 'discord.js';
 import type { ButtonInteraction } from 'discord.js';
-import { createLogger, DISCORD_LIMITS, splitMessage } from '@tzurot/common-types';
+import { createLogger } from '@tzurot/common-types';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
 import { PersonaCustomIds } from '../../utils/customIds.js';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
+import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 const logger = createLogger('persona-view');
 
@@ -194,38 +195,12 @@ export async function handleExpandContent(
       return;
     }
 
-    // Discord message limit
-    const MAX_MESSAGE_LENGTH = DISCORD_LIMITS.MESSAGE_LENGTH;
-    const header = '📝 Content\n\n';
-    const continuedHeader = '📝 Content (continued)\n\n';
-    // Use the longer header length to ensure all chunks fit
-    const maxHeaderLength = Math.max(header.length, continuedHeader.length);
-    const maxContentLength = MAX_MESSAGE_LENGTH - maxHeaderLength;
-
-    if (content.length <= maxContentLength) {
-      // Content fits in one message
-      await interaction.editReply(`${header}${content}`);
-    } else {
-      // Use smart chunking that preserves paragraphs, sentences, and code blocks
-      const contentChunks = splitMessage(content, maxContentLength);
-
-      // Add headers to each chunk
-      const messages = contentChunks.map((chunk, index) => {
-        const chunkHeader = index === 0 ? header : continuedHeader;
-        return chunkHeader + chunk;
-      });
-
-      // Send first chunk as reply
-      await interaction.editReply(messages[0]);
-
-      // Send remaining chunks as follow-ups
-      for (let i = 1; i < messages.length; i++) {
-        await interaction.followUp({
-          content: messages[i],
-          flags: MessageFlags.Ephemeral,
-        });
-      }
-    }
+    await sendChunkedReply({
+      interaction,
+      content,
+      header: '📝 Content\n\n',
+      continuedHeader: '📝 Content (continued)\n\n',
+    });
 
     logger.info({ userId: discordId, personaId }, '[Persona] User expanded profile content');
   } catch (error) {
