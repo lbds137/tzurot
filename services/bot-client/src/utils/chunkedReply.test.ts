@@ -2,7 +2,7 @@
  * Tests for chunked ephemeral reply utility
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { sendChunkedReply } from './chunkedReply.js';
 import { MessageFlags } from 'discord.js';
 import { DISCORD_LIMITS } from '@tzurot/common-types';
@@ -36,6 +36,10 @@ describe('sendChunkedReply', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     interaction = createMockInteraction();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
   });
 
   it('should send single message when content fits', async () => {
