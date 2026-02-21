@@ -70,6 +70,51 @@ export type EventValidator<TEvent> = (obj: unknown) => obj is TEvent;
 export function createStandardEventValidator<
   TEvent extends StandardInvalidationEvent,
 >(): EventValidator<TEvent> {
+  return createEventValidator<TEvent>([
+    { type: 'user', fields: { discordId: 'string' } },
+    { type: 'all' },
+  ]);
+}
+
+/**
+ * Specification for expected fields on an event type (beyond 'type').
+ * Maps field names to their expected typeof result.
+ */
+export type EventFieldSpec = Record<string, 'string' | 'number' | 'boolean'>;
+
+/**
+ * Declarative spec for a single event type variant.
+ * Events with only a `type` field (e.g., 'all', 'admin') omit `fields`.
+ */
+export interface EventTypeSpec {
+  /** The event.type value this spec matches */
+  type: string;
+  /** Fields to validate beyond 'type'. Omit for type-only events. */
+  fields?: EventFieldSpec;
+}
+
+/**
+ * Create a type-safe event validator from declarative specs.
+ *
+ * Each spec defines an event.type value and its expected fields.
+ * The generated validator checks:
+ * 1. Input is a non-null object
+ * 2. event.type matches one of the specs
+ * 3. All declared fields exist with correct types
+ * 4. No extra fields are present (strict key count)
+ *
+ * @example
+ * ```typescript
+ * const validator = createEventValidator<MyEvent>([
+ *   { type: 'user', fields: { discordId: 'string' } },
+ *   { type: 'config', fields: { configId: 'string' } },
+ *   { type: 'all' },
+ * ]);
+ * ```
+ */
+export function createEventValidator<TEvent extends BaseInvalidationEvent>(
+  typeSpecs: EventTypeSpec[]
+): EventValidator<TEvent> {
   return (obj: unknown): obj is TEvent => {
     if (typeof obj !== 'object' || obj === null) {
       return false;
@@ -77,12 +122,25 @@ export function createStandardEventValidator<
 
     const event = obj as Record<string, unknown>;
 
-    if (event.type === 'all') {
-      return Object.keys(event).length === 1;
-    }
+    for (const spec of typeSpecs) {
+      if (event.type !== spec.type) {
+        continue;
+      }
 
-    if (event.type === 'user') {
-      return typeof event.discordId === 'string' && Object.keys(event).length === 2;
+      const fields = spec.fields ?? {};
+      const expectedKeyCount = Object.keys(fields).length + 1; // +1 for 'type'
+
+      if (Object.keys(event).length !== expectedKeyCount) {
+        return false;
+      }
+
+      for (const [fieldName, fieldType] of Object.entries(fields)) {
+        if (typeof event[fieldName] !== fieldType) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
     return false;

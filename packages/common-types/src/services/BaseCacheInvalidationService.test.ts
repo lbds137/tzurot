@@ -8,6 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   BaseCacheInvalidationService,
   createStandardEventValidator,
+  createEventValidator,
   type StandardInvalidationEvent,
   type EventValidator,
 } from './BaseCacheInvalidationService.js';
@@ -86,6 +87,123 @@ describe('createStandardEventValidator', () => {
       expect(validator({})).toBe(false);
       expect(validator({ discordId: '123' })).toBe(false);
     });
+  });
+});
+
+describe('createEventValidator', () => {
+  type TestEvent =
+    | { type: 'user'; discordId: string }
+    | { type: 'config'; configId: string }
+    | { type: 'admin' }
+    | { type: 'all' };
+
+  const validator = createEventValidator<TestEvent>([
+    { type: 'user', fields: { discordId: 'string' } },
+    { type: 'config', fields: { configId: 'string' } },
+    { type: 'admin' },
+    { type: 'all' },
+  ]);
+
+  describe('valid events', () => {
+    it('should validate type-only events', () => {
+      expect(validator({ type: 'all' })).toBe(true);
+      expect(validator({ type: 'admin' })).toBe(true);
+    });
+
+    it('should validate events with string fields', () => {
+      expect(validator({ type: 'user', discordId: '123456789' })).toBe(true);
+      expect(validator({ type: 'config', configId: 'cfg-1' })).toBe(true);
+    });
+
+    it('should accept empty strings for string fields', () => {
+      expect(validator({ type: 'user', discordId: '' })).toBe(true);
+    });
+  });
+
+  describe('invalid events', () => {
+    it('should reject null and undefined', () => {
+      expect(validator(null)).toBe(false);
+      expect(validator(undefined)).toBe(false);
+    });
+
+    it('should reject non-objects', () => {
+      expect(validator('string')).toBe(false);
+      expect(validator(123)).toBe(false);
+      expect(validator(true)).toBe(false);
+      expect(validator([])).toBe(false);
+    });
+
+    it('should reject unknown event types', () => {
+      expect(validator({ type: 'unknown' })).toBe(false);
+      expect(validator({ type: 'guild' })).toBe(false);
+    });
+
+    it('should reject events missing required fields', () => {
+      expect(validator({ type: 'user' })).toBe(false);
+      expect(validator({ type: 'config' })).toBe(false);
+    });
+
+    it('should reject events with wrong field types', () => {
+      expect(validator({ type: 'user', discordId: 123 })).toBe(false);
+      expect(validator({ type: 'user', discordId: null })).toBe(false);
+      expect(validator({ type: 'config', configId: true })).toBe(false);
+    });
+
+    it('should reject events with extra properties', () => {
+      expect(validator({ type: 'all', extra: 'field' })).toBe(false);
+      expect(validator({ type: 'admin', extra: 'field' })).toBe(false);
+      expect(validator({ type: 'user', discordId: '123', extra: 'field' })).toBe(false);
+    });
+
+    it('should reject objects without type property', () => {
+      expect(validator({})).toBe(false);
+      expect(validator({ discordId: '123' })).toBe(false);
+    });
+  });
+
+  describe('numeric fields', () => {
+    type NumericEvent = { type: 'threshold'; value: number } | { type: 'all' };
+    const numValidator = createEventValidator<NumericEvent>([
+      { type: 'threshold', fields: { value: 'number' } },
+      { type: 'all' },
+    ]);
+
+    it('should validate numeric fields', () => {
+      expect(numValidator({ type: 'threshold', value: 42 })).toBe(true);
+      expect(numValidator({ type: 'threshold', value: 0 })).toBe(true);
+    });
+
+    it('should reject wrong types for numeric fields', () => {
+      expect(numValidator({ type: 'threshold', value: '42' })).toBe(false);
+    });
+  });
+
+  describe('produces same results as createStandardEventValidator', () => {
+    const factoryValidator = createEventValidator<StandardInvalidationEvent>([
+      { type: 'user', fields: { discordId: 'string' } },
+      { type: 'all' },
+    ]);
+    const standardValidator = createStandardEventValidator<StandardInvalidationEvent>();
+
+    const testCases = [
+      { type: 'all' },
+      { type: 'user', discordId: '123' },
+      { type: 'user', discordId: '' },
+      { type: 'user' },
+      { type: 'user', discordId: 123 },
+      { type: 'all', extra: 'field' },
+      { type: 'user', discordId: '123', extra: 'field' },
+      { type: 'unknown' },
+      {},
+      null,
+      'string',
+    ];
+
+    for (const testCase of testCases) {
+      it(`should match standard validator for ${JSON.stringify(testCase)}`, () => {
+        expect(factoryValidator(testCase)).toBe(standardValidator(testCase));
+      });
+    }
   });
 });
 
