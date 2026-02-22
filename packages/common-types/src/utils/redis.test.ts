@@ -26,6 +26,11 @@ vi.mock('ioredis', () => {
   return { Redis: MockRedis };
 });
 
+// Mock getConfig for initCoreRedisServices tests
+vi.mock('../config/index.js', () => ({
+  getConfig: vi.fn(),
+}));
+
 describe('parseRedisUrl', () => {
   it('should parse a complete Redis URL', () => {
     const result = parseRedisUrl('redis://user:password@localhost:6379');
@@ -387,11 +392,6 @@ describe('createIORedisClient', () => {
     expect(opts).not.toHaveProperty('maxRetriesPerRequest');
   });
 });
-
-// Mock getConfig for initCoreRedisServices tests
-vi.mock('../config/index.js', () => ({
-  getConfig: vi.fn(),
-}));
 
 describe('initCoreRedisServices', () => {
   beforeEach(() => {

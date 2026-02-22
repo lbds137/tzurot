@@ -26,7 +26,6 @@ const { redis, voiceTranscriptCache } = initCoreRedisServices('Redis');
 export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
- 
 export { voiceTranscriptCache };
 
 // Export singleton VisionDescriptionCache instance with L2 persistent cache

@@ -11,7 +11,7 @@ import { getRouteHandler } from './expressRouterUtils.js';
 
 /**
  * Create a typed vi.fn mock for isBotOwner.
- * Must be called at module scope (before vi.mock) to be hoisted.
+ * Assign the result to a module-level const so the mock is available when vi.mock factories run.
  */
 export function createMockIsBotOwner(): ((...args: unknown[]) => boolean) & {
   mockReturnValue: (val: boolean) => void;
@@ -74,9 +74,9 @@ export function createUserServiceTransactionMock(
     const mockTx = {
       user: {
         create: vi.fn().mockResolvedValue({ id: mockUserId }),
-        update: vi.fn().mockResolvedValue({ id: mockUserId }),
-        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }),
+        update: vi.fn().mockResolvedValue({ id: mockUserId }), // For new user creation
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }), // Idempotent backfill
+        findUnique: vi.fn().mockResolvedValue({ defaultPersonaId: null }), // For backfill check
       },
       persona: {
         create: vi.fn().mockResolvedValue({ id: mockPersonaId }),
