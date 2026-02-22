@@ -39,7 +39,6 @@ const PACKAGES = [
   { name: 'common-types', path: 'packages/common-types/src' },
 ];
 
- 
 const SEPARATOR = chalk.cyan.bold('═══════════════════════════════════════════════════════');
 
 /** Directories to skip during file discovery */
@@ -140,15 +139,15 @@ function findTypeScriptFiles(dir: string): string[] {
   return files;
 }
 
-/** Regex patterns for exported declarations */
+// NOTE: All patterns are matched per-line. Multi-line export { } blocks are not detected.
 const EXPORT_PATTERNS: { pattern: RegExp; kind: ExportInfo['kind'] }[] = [
-  { pattern: /^export\s+(?:async\s+)?function\s+(\w+)/m, kind: 'function' },
-  { pattern: /^export\s+class\s+(\w+)/m, kind: 'class' },
-  { pattern: /^export\s+const\s+(\w+)\s*=/m, kind: 'const' },
+  { pattern: /^export\s+(?:async\s+)?function\s+(\w+)/, kind: 'function' },
+  { pattern: /^export\s+class\s+(\w+)/, kind: 'class' },
+  { pattern: /^export\s+const\s+(\w+)\s*=/, kind: 'const' },
 ];
 
-/** Regex for re-export statements: export { name1, name2 } from '...' */
-const REEXPORT_PATTERN = /^export\s*\{([^}]+)\}\s*from\s/m;
+/** Regex for single-line re-export statements: export { name1, name2 } from '...' */
+const REEXPORT_PATTERN = /^export\s*\{([^}]+)\}\s*from\s/;
 
 /**
  * Parse a single re-export name spec (e.g., "name as alias" or just "name")
