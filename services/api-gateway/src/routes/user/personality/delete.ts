@@ -18,7 +18,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { findInternalUser, canUserEditPersonality } from './helpers.js';
+import { resolvePersonalityForEdit } from './helpers.js';
 
 const logger = createLogger('user-personality-delete');
 
@@ -61,56 +61,44 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       return sendError(res, ErrorResponses.validationError('slug is required'));
     }
 
-    const user = await findInternalUser(prisma, discordUserId);
-    if (user === null) {
-      return sendError(res, ErrorResponses.unauthorized('User not found'));
-    }
-
-    const personality = await prisma.personality.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        name: true,
-        ownerId: true,
-        _count: {
-          select: {
-            conversationHistory: true,
-            memories: true,
-            channelSettings: true,
-            aliases: true,
-          },
+    const resolved = await resolvePersonalityForEdit<{
+      id: string;
+      name: string;
+      ownerId: string;
+      _count: {
+        conversationHistory: number;
+        memories: number;
+        channelSettings: number;
+        aliases: number;
+      };
+    }>(prisma, slug, discordUserId, res, {
+      id: true,
+      name: true,
+      ownerId: true,
+      _count: {
+        select: {
+          conversationHistory: true,
+          memories: true,
+          channelSettings: true,
+          aliases: true,
         },
       },
     });
-
-    if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality not found'));
+    if (resolved === null) {
+      return;
     }
-
-    const canDelete = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
-    if (!canDelete) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You do not have permission to delete this personality')
-      );
-    }
+    const { personality } = resolved;
 
     const pendingMemoryCount = await prisma.pendingMemory.count({
       where: { personalityId: personality.id },
     });
 
-    const counts = personality._count as {
-      conversationHistory: number;
-      memories: number;
-      channelSettings: number;
-      aliases: number;
-    };
     const deletedCounts = {
-      conversationHistory: counts.conversationHistory,
-      memories: counts.memories,
+      conversationHistory: personality._count.conversationHistory,
+      memories: personality._count.memories,
       pendingMemories: pendingMemoryCount,
-      channelSettings: counts.channelSettings,
-      aliases: counts.aliases,
+      channelSettings: personality._count.channelSettings,
+      aliases: personality._count.aliases,
     };
 
     logger.info(

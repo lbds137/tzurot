@@ -25,7 +25,7 @@ import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { deleteAllAvatarVersions } from '../../../utils/avatarPaths.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { findInternalUser, canUserEditPersonality } from './helpers.js';
+import { resolvePersonalityForEdit } from './helpers.js';
 import { formatPersonalityResponse } from './formatters.js';
 
 const logger = createLogger('user-personality-update');
@@ -122,27 +122,17 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       return sendError(res, ErrorResponses.validationError('slug is required'));
     }
 
-    const user = await findInternalUser(prisma, discordUserId);
-    if (user === null) {
-      return sendError(res, ErrorResponses.unauthorized('User not found'));
+    const resolved = await resolvePersonalityForEdit<{ id: string; ownerId: string; name: string }>(
+      prisma,
+      slug,
+      discordUserId,
+      res,
+      { id: true, ownerId: true, name: true }
+    );
+    if (resolved === null) {
+      return;
     }
-
-    const personality = await prisma.personality.findUnique({
-      where: { slug },
-      select: { id: true, ownerId: true, name: true },
-    });
-
-    if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality not found'));
-    }
-
-    const canEdit = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
-    if (!canEdit) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You do not have permission to edit this personality')
-      );
-    }
+    const { personality } = resolved;
 
     // Validate request body with Zod schema
     const parseResult = PersonalityUpdateSchema.safeParse(req.body);

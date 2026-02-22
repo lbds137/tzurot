@@ -13,7 +13,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import { getParam } from '../../../utils/requestParams.js';
-import { findInternalUser, canUserEditPersonality } from './helpers.js';
+import { resolvePersonalityForEdit } from './helpers.js';
 
 const logger = createLogger('user-personality-visibility');
 
@@ -25,6 +25,9 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
   const handler = asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const slug = getParam(req.params.slug);
+    if (slug === undefined || slug === '') {
+      return sendError(res, ErrorResponses.validationError('slug is required'));
+    }
 
     const parseResult = SetVisibilitySchema.safeParse(req.body);
     if (!parseResult.success) {
@@ -33,27 +36,15 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
 
     const { isPublic } = parseResult.data;
 
-    const user = await findInternalUser(prisma, discordUserId);
-    if (user === null) {
-      return sendError(res, ErrorResponses.unauthorized('User not found'));
+    const resolved = await resolvePersonalityForEdit<{
+      id: string;
+      ownerId: string;
+      isPublic: boolean;
+    }>(prisma, slug, discordUserId, res, { id: true, ownerId: true, isPublic: true });
+    if (resolved === null) {
+      return;
     }
-
-    const personality = await prisma.personality.findUnique({
-      where: { slug },
-      select: { id: true, ownerId: true, isPublic: true },
-    });
-
-    if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality not found'));
-    }
-
-    const canEdit = await canUserEditPersonality(prisma, user.id, personality.id, discordUserId);
-    if (!canEdit) {
-      return sendError(
-        res,
-        ErrorResponses.unauthorized('You do not have permission to change visibility')
-      );
-    }
+    const { personality } = resolved;
 
     // Update visibility
     const updated = await prisma.personality.update({
