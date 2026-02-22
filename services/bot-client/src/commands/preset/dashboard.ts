@@ -17,8 +17,6 @@ import type {
 } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import {
-  buildDashboardEmbed,
-  buildDashboardComponents,
   buildSectionModal,
   extractModalValues,
   getSessionManager,
@@ -26,6 +24,7 @@ import {
   isDashboardInteraction,
 } from '../../utils/dashboard/index.js';
 import { DASHBOARD_MESSAGES } from '../../utils/dashboard/messages.js';
+import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -52,24 +51,6 @@ import {
 } from './dashboardButtons.js';
 
 const logger = createLogger('preset-dashboard');
-
-/**
- * Refresh the dashboard UI with updated data (for modal submissions).
- */
-async function refreshDashboardUI(
-  interaction: ModalSubmitInteraction,
-  entityId: string,
-  flattenedData: FlattenedPresetData
-): Promise<void> {
-  const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-  const components = buildDashboardComponents(
-    PRESET_DASHBOARD_CONFIG,
-    entityId,
-    flattenedData,
-    buildPresetDashboardOptions(flattenedData)
-  );
-  await interaction.editReply({ embeds: [embed], components });
-}
 
 /**
  * Handle modal submissions for preset editing
@@ -193,7 +174,13 @@ async function handleSectionModalSubmit(
     }
 
     // Refresh dashboard
-    await refreshDashboardUI(interaction, entityId, flattenedData);
+    await refreshDashboardUI({
+      interaction,
+      entityId,
+      data: flattenedData,
+      dashboardConfig: PRESET_DASHBOARD_CONFIG,
+      buildOptions: buildPresetDashboardOptions,
+    });
 
     // Show validation warnings after successful save (if any)
     if (validationResult.warnings.length > 0) {
