@@ -28,6 +28,7 @@ import { registerReleaseCommands } from './commands/release.js';
 import { registerContextCommands } from './commands/context.js';
 import { registerInspectCommands } from './commands/inspect.js';
 import { registerXrayCommands } from './commands/xray.js';
+import { registerGuardCommands } from './commands/guard.js';
 
 // Read version from package.json dynamically
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -49,6 +50,7 @@ registerReleaseCommands(cli);
 registerContextCommands(cli);
 registerInspectCommands(cli);
 registerXrayCommands(cli);
+registerGuardCommands(cli);
 
 // Global options
 cli.help();
