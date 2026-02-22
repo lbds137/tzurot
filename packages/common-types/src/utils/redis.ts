@@ -251,11 +251,11 @@ export interface CoreRedisServices {
  *
  * Each service adds its own extras (e.g., SessionManager, VisionDescriptionCache).
  *
- * @param serviceName - Label for log messages (e.g., 'Redis')
+ * @param serviceName - Label for log messages (defaults to 'Redis')
  * @returns Core Redis services
  * @throws Error if REDIS_URL is missing
  */
-export function initCoreRedisServices(serviceName: string): CoreRedisServices {
+export function initCoreRedisServices(serviceName = 'Redis'): CoreRedisServices {
   const serviceLogger = createLogger(serviceName);
   const config = getConfig();
 

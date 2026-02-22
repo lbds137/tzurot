@@ -25,7 +25,6 @@ export { redis };
 export const redisService = new RedisService(redis);
 
 // Export singleton VoiceTranscriptCache instance
- 
 export { voiceTranscriptCache };
 
 // Initialize Dashboard Session Manager
