@@ -12,6 +12,7 @@ import {
   createIORedisClient,
   initCoreRedisServices,
 } from './redis.js';
+import { getConfig } from '../config/index.js';
 import { REDIS_CONNECTION, RETRY_CONFIG } from '../constants/index.js';
 
 // Mock ioredis - must use class so `new Redis()` works as constructor
@@ -395,15 +396,11 @@ describe('createIORedisClient', () => {
 
 describe('initCoreRedisServices', () => {
   beforeEach(() => {
-    vi.resetModules();
     mockOn.mockClear();
   });
 
-  it('should return redis client and voiceTranscriptCache', async () => {
-    const { getConfig } = await import('../config/index.js');
-    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      REDIS_URL: 'redis://localhost:6379',
-    });
+  it('should return redis client and voiceTranscriptCache', () => {
+    vi.mocked(getConfig).mockReturnValue({ REDIS_URL: 'redis://localhost:6379' } as never);
 
     const result = initCoreRedisServices('TestService');
 
@@ -411,22 +408,16 @@ describe('initCoreRedisServices', () => {
     expect(result.voiceTranscriptCache).toBeDefined();
   });
 
-  it('should throw if REDIS_URL is missing', async () => {
-    const { getConfig } = await import('../config/index.js');
-    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      REDIS_URL: undefined,
-    });
+  it('should throw if REDIS_URL is missing', () => {
+    vi.mocked(getConfig).mockReturnValue({ REDIS_URL: undefined } as never);
 
     expect(() => initCoreRedisServices('TestService')).toThrow(
       'REDIS_URL environment variable is required'
     );
   });
 
-  it('should throw if REDIS_URL is empty string', async () => {
-    const { getConfig } = await import('../config/index.js');
-    (getConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      REDIS_URL: '',
-    });
+  it('should throw if REDIS_URL is empty string', () => {
+    vi.mocked(getConfig).mockReturnValue({ REDIS_URL: '' } as never);
 
     expect(() => initCoreRedisServices('TestService')).toThrow(
       'REDIS_URL environment variable is required'
