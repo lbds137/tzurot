@@ -15,6 +15,7 @@ import {
   isEmbeddingServiceAvailable,
 } from '../../services/EmbeddingService.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-search');
 
@@ -275,8 +276,6 @@ async function executeSemanticSearchWithFallback(
 /** Handler for POST /user/memory/search */
 export async function handleSearch(
   prisma: PrismaClient,
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>,
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -302,7 +301,7 @@ export async function handleSearch(
   );
   const effectiveOffset = Math.max(0, offset ?? 0);
 
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return;
   }
