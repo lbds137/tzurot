@@ -8,6 +8,7 @@ import { StatusCodes } from 'http-status-codes';
 import { createLogger, type PrismaClient } from '@tzurot/common-types';
 import { sendCustomSuccess } from '../../utils/responseHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-list');
 
@@ -59,8 +60,6 @@ interface ListResponse {
  */
 export async function handleList(
   prisma: PrismaClient,
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>,
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -82,7 +81,7 @@ export async function handleList(
   const effectiveOrder: SortOrder = order === 'asc' ? 'asc' : 'desc';
 
   // Get user
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return;
   }

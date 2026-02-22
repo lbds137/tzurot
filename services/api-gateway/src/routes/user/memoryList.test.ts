@@ -24,7 +24,17 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+// Mock memory helpers
+vi.mock('./memoryHelpers.js', () => ({
+  getUserByDiscordId: vi.fn(),
+  getDefaultPersonaId: vi.fn(),
+}));
+
 import { handleList } from './memoryList.js';
+import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
+
+const mockGetUserByDiscordId = vi.mocked(getUserByDiscordId);
+const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
 
 // Mock Prisma
 const mockPrisma = {
@@ -33,10 +43,6 @@ const mockPrisma = {
     findMany: vi.fn(),
   },
 } as unknown as PrismaClient;
-
-// Mock injected dependencies
-const mockGetUserByDiscordId = vi.fn();
-const mockGetDefaultPersonaId = vi.fn();
 
 function createMockReqRes(query: Record<string, string> = {}) {
   const req = {
@@ -89,7 +95,7 @@ describe('handleList', () => {
   it('should return empty list when no memories exist', async () => {
     const { req, res } = createMockReqRes();
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
@@ -108,7 +114,7 @@ describe('handleList', () => {
 
     const { req, res } = createMockReqRes();
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({
@@ -134,7 +140,7 @@ describe('handleList', () => {
     (mockPrisma.memory.count as ReturnType<typeof vi.fn>).mockResolvedValue(0);
     const { req, res } = createMockReqRes({ limit: '5', offset: '10' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -147,7 +153,7 @@ describe('handleList', () => {
   it('should clamp limit to max 50', async () => {
     const { req, res } = createMockReqRes({ limit: '100' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 50 }));
   });
@@ -155,7 +161,7 @@ describe('handleList', () => {
   it('should clamp limit to min 1', async () => {
     const { req, res } = createMockReqRes({ limit: '-5' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 1 }));
   });
@@ -163,7 +169,7 @@ describe('handleList', () => {
   it('should filter by personalityId when provided', async () => {
     const { req, res } = createMockReqRes({ personalityId: 'pers-xyz' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -175,7 +181,7 @@ describe('handleList', () => {
   it('should sort by updatedAt ascending when specified', async () => {
     const { req, res } = createMockReqRes({ sort: 'updatedAt', order: 'asc' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -187,7 +193,7 @@ describe('handleList', () => {
   it('should default to createdAt desc sort', async () => {
     const { req, res } = createMockReqRes();
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -199,7 +205,7 @@ describe('handleList', () => {
   it('should ignore invalid sort field', async () => {
     const { req, res } = createMockReqRes({ sort: 'invalid' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(mockPrisma.memory.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -216,7 +222,7 @@ describe('handleList', () => {
 
     const { req, res } = createMockReqRes({ limit: '5' });
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ hasMore: true, total: 20 }));
   });
@@ -225,7 +231,7 @@ describe('handleList', () => {
     mockGetDefaultPersonaId.mockResolvedValue(null);
     const { req, res } = createMockReqRes();
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ memories: [], total: 0 }));
@@ -236,7 +242,7 @@ describe('handleList', () => {
     mockGetUserByDiscordId.mockResolvedValue(null);
     const { req, res } = createMockReqRes();
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     // getUserByDiscordId handles the error response
     expect(mockPrisma.memory.findMany).not.toHaveBeenCalled();
@@ -252,7 +258,7 @@ describe('handleList', () => {
 
     const { req, res } = createMockReqRes();
 
-    await handleList(mockPrisma, mockGetUserByDiscordId, mockGetDefaultPersonaId, req, res);
+    await handleList(mockPrisma, req, res);
 
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({

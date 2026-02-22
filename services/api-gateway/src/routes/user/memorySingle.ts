@@ -11,6 +11,7 @@ import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import { getParam } from '../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-single');
 
@@ -26,8 +27,6 @@ const PERSONALITY_INCLUDE = {
 
 interface OwnershipContext {
   prisma: PrismaClient;
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>;
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>;
   discordUserId: string;
   memoryId: string;
   res: Response;
@@ -40,9 +39,9 @@ interface OwnershipContext {
 async function verifyMemoryOwnership(
   context: OwnershipContext
 ): Promise<{ id: string; isLocked: boolean } | null> {
-  const { prisma, getUserByDiscordId, getDefaultPersonaId, discordUserId, memoryId, res } = context;
+  const { prisma, discordUserId, memoryId, res } = context;
 
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return null;
   }
@@ -108,8 +107,6 @@ function transformMemory(memory: {
  */
 export async function handleGetMemory(
   prisma: PrismaClient,
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>,
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -121,7 +118,7 @@ export async function handleGetMemory(
     return;
   }
 
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return;
   }
@@ -156,8 +153,6 @@ export async function handleGetMemory(
  */
 export async function handleUpdateMemory(
   prisma: PrismaClient,
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>,
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -179,8 +174,6 @@ export async function handleUpdateMemory(
 
   const existing = await verifyMemoryOwnership({
     prisma,
-    getUserByDiscordId,
-    getDefaultPersonaId,
     discordUserId,
     memoryId,
     res,
@@ -214,8 +207,6 @@ export async function handleUpdateMemory(
  */
 export async function handleToggleLock(
   prisma: PrismaClient,
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>,
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -229,8 +220,6 @@ export async function handleToggleLock(
 
   const existing = await verifyMemoryOwnership({
     prisma,
-    getUserByDiscordId,
-    getDefaultPersonaId,
     discordUserId,
     memoryId,
     res,
@@ -259,8 +248,6 @@ export async function handleToggleLock(
  */
 export async function handleDeleteMemory(
   prisma: PrismaClient,
-  getUserByDiscordId: (id: string, res: Response) => Promise<{ id: string } | null>,
-  getDefaultPersonaId: (prisma: PrismaClient, userId: string) => Promise<string | null>,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -274,8 +261,6 @@ export async function handleDeleteMemory(
 
   const existing = await verifyMemoryOwnership({
     prisma,
-    getUserByDiscordId,
-    getDefaultPersonaId,
     discordUserId,
     memoryId,
     res,

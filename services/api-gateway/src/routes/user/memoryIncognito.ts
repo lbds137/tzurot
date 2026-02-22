@@ -25,40 +25,9 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import type { AuthenticatedRequest } from '../../types.js';
 import { IncognitoSessionManager } from '../../services/IncognitoSessionManager.js';
+import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-incognito');
-
-/**
- * Get user's default persona ID
- */
-async function getDefaultPersonaId(prisma: PrismaClient, userId: string): Promise<string | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { defaultPersonaId: true },
-  });
-  return user?.defaultPersonaId ?? null;
-}
-
-/**
- * Validate and get user from Discord ID
- */
-async function getUserByDiscordId(
-  prisma: PrismaClient,
-  discordUserId: string,
-  res: Response
-): Promise<{ id: string } | null> {
-  const user = await prisma.user.findUnique({
-    where: { discordId: discordUserId },
-    select: { id: true },
-  });
-
-  if (!user) {
-    sendError(res, ErrorResponses.notFound('User not found'));
-    return null;
-  }
-
-  return user;
-}
 
 /**
  * Get personality name by ID
