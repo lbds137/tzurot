@@ -111,6 +111,8 @@ logger.error(error, 'Failed to process');
 4. Mock all external dependencies - Discord, Redis, Prisma, AI
 5. Use fake timers - No real delays in tests
 
+**All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
+
 ### Fake Timers (ALWAYS Use)
 
 ```typescript

@@ -144,6 +144,19 @@ CI passing != merge approval. User must explicitly request merge.
 
 One-person project. Make the cleanest change, even if breaking.
 
+### Always Leave Code Better Than You Found It
+
+**Never dismiss issues as "pre-existing" or "out of scope."** If you discover a problem while working in an area — missing tests, coverage gaps, code smells, unclear naming, stale comments — fix it. "Pre-existing" is not a reason to ignore something; it's an explanation of how it got there.
+
+This applies to:
+
+- **Missing test coverage** for modules you're modifying or extracting
+- **Code quality issues** adjacent to your changes (dead imports, unclear names)
+- **Coverage gaps** flagged in PR reviews — fix them, don't explain them away
+- **Documentation** that's stale or misleading in files you're touching
+
+The only exception: if fixing the issue would significantly expand the scope of the PR and risk introducing unrelated bugs. In that case, create a backlog item — but still fix it in a follow-up, not "someday."
+
 ### Verify Before Accepting External Feedback
 
 Automated reviewers can be wrong. Check schema/source/tests before implementing suggestions.

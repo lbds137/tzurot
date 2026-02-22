@@ -102,6 +102,21 @@ const EXCLUDE_PATTERNS = [
   /browseHelpers\.ts$/,
   // Pure type/interface definitions (no logic to test)
   /DiagnosticTypes\.ts$/,
+  // --- Tooling package exclusions ---
+  // CLI command routers (thin wrappers that register yargs/cac commands, delegate to submodules)
+  /packages\/tooling\/src\/commands\//,
+  // Deployment scripts (operational, talk to Railway/external services)
+  /packages\/tooling\/src\/deployment\//,
+  // Cache inspection/clear (operational scripts, talk to filesystem)
+  /packages\/tooling\/src\/cache\//,
+  // BullMQ connection inspector (operational, requires live Redis)
+  /packages\/tooling\/src\/inspect\//,
+  // Xray formatters (thin presentation wrappers: JSON.stringify, chalk, markdown)
+  /packages\/tooling\/src\/xray\/formatters\//,
+  // Pre-existing tooling logic files without tests (backlog: close these gaps)
+  /packages\/tooling\/src\/dev\/check-duplicate-exports\.ts$/,
+  /packages\/tooling\/src\/lint\/complexity-report\.ts$/,
+  /packages\/tooling\/src\/memory\/cleanup-duplicates\.ts$/,
 ];
 
 function shouldExclude(filePath: string): boolean {
@@ -149,6 +164,7 @@ describe('Project Structure', () => {
       'services/bot-client/src',
       'packages/common-types/src',
       'packages/embeddings/src',
+      'packages/tooling/src',
     ];
 
     const sourceFiles = findSourceFiles(dirs);

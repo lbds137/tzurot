@@ -42,6 +42,7 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
       isPublic: boolean;
     }>(prisma, slug, discordUserId, res, {
       select: { id: true, ownerId: true, isPublic: true },
+      action: 'change visibility of',
     });
     if (resolved === null) {
       return;
