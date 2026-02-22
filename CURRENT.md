@@ -1,45 +1,48 @@
 # Current
 
-> **Session**: 2026-02-19
+> **Session**: 2026-02-21
 > **Version**: v3.0.0-beta.80
 
 ---
 
 ## Session Goal
 
-_Shapes import final cleanup (#663), PR review fixes, thread deactivation bug fix, release beta.80._
+_CPD Clone Reduction Phase 3 — extract shared patterns in CommandHandler, Redis setup, and API gateway test utilities._
 
 ## Active Task
 
-Complete — v3.0.0-beta.80 released.
+Complete — PR #667 merged. Backlog updated with Phases 4-8 breakdown.
 
 ---
 
 ## Completed This Session
 
-- [x] 🏗️ **Multi-strategy slug resolution** — Extracted `ShapesImportResolver.ts` with 3-strategy lookup (normalized slug, raw slug, shapesId UUID) for `memory_only` imports
-- [x] 🏗️ **Deduplicate `isPrismaUniqueConstraintError`** — Shared utility in `api-gateway/utils/prismaErrors.ts` with narrowed `{ code: 'P2002' }` type predicate
-- [x] 🏗️ **Deduplicate `ShapesServerError` test mocks** — `importOriginal` pattern in both Export and Import job tests
-- [x] 🏗️ **Server-side slug filtering** — `?slug=` query param on import/export job endpoints, removed client-side `.filter()`
-- [x] 🐛 **Redirect detection fix** — `response.redirected` replaces brittle URL string comparison in `list.ts`
-- [x] ✨ **Detail view error recovery buttons** — "Back to Browse" button on import/export error states
-- [x] 🐛 **`req.query.slug` type safety** — Replace unsafe `as string` cast with `typeof` guard for Express `ParsedQs`
-- [x] 📝 **Manual SQL documentation** — `docs/reference/database/MANUAL_DATA_MIGRATIONS.md` for customFields normalization
-- [x] 🐛 **Thread deactivation override** — Fix `ActivatedChannelProcessor` to respect explicit thread deactivation over parent inheritance
-- [x] 🚀 **PR #663 merged** — Shapes import cleanup
-- [x] 🚀 **PR #664 merged** — Release v3.0.0-beta.80
+- [x] 🏗️ **CommandHandler error reply helper** — Extracted `sendErrorReply` private method, replaced 3 identical error-reply blocks
+- [x] 🏗️ **initCoreRedisServices factory** — Shared factory in `common-types/utils/redis.ts` for Redis client + VoiceTranscriptCache setup, used by bot-client and ai-worker
+- [x] 🏗️ **Shared route test utilities** — Extracted `shared-route-test-utils.ts` with `createMockIsBotOwner`, `createMockReqRes`, `getHandler`, `createUserServiceTransactionMock`, date factories
+- [x] 🏗️ **PR #667 merged** — CPD clone reduction Phase 3 (155 → 146 clones, -9)
+- [x] 📝 **Backlog update** — Detailed Phases 4-8 breakdown based on full CPD analysis of remaining 146 clones
+
+## CPD Epic Progress
+
+| PR   | Phase          | Clones         | Delta          |
+| ---- | -------------- | -------------- | -------------- |
+| #599 | Phase 1        | 175 → 168      | -7             |
+| #665 | Phase 2        | 168 → 155      | -13            |
+| #666 | Phase 2 (cont) | included above | —              |
+| #667 | Phase 3        | 155 → 146      | -9             |
+| —    | Target         | < 100          | -46+ remaining |
 
 ## Next Steps
 
-1. Deploy to Railway dev/prod
-2. Run `pnpm ops db:migrate --env dev` and `--env prod` (no new migrations)
-3. Pull next task from backlog
+1. Pull next CPD phase from backlog (Phase 4: API Gateway Route Boilerplate, ~22 clones)
+2. Continue reducing toward < 100 clone target
 
 ## Recent Highlights
 
+- **CPD Phase 3**: CommandHandler helper, Redis factory, shared test utils (PR #667)
 - **beta.80**: Shapes import cleanup, thread deactivation fix, multi-strategy resolver
 - **beta.79**: Shapes UX overhaul — browse/detail view, autocomplete, retry logic
-- **beta.78**: Shapes import gap fixes — slug normalization, memory metadata, appearance field
 
 ---
 
