@@ -21,7 +21,8 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import { getOrCreateInternalUser, canUserViewPersonality } from '../personality/helpers.js';
+import { getOrCreateInternalUser } from '../userHelpers.js';
+import { canUserViewPersonality } from '../personality/helpers.js';
 
 const logger = createLogger('channel-activate');
 

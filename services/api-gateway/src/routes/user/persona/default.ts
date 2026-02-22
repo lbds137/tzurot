@@ -12,7 +12,7 @@ import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import { getOrCreateInternalUser } from './helpers.js';
+import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-persona-default');
 

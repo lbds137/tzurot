@@ -27,7 +27,7 @@ import { sendZodError } from '../../../utils/zodHelpers.js';
 import { validateUuid } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import { getOrCreateInternalUser } from './helpers.js';
+import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-persona-crud');
 
@@ -71,7 +71,6 @@ async function resolveOwnedPersona(
   user: { id: string; defaultPersonaId: string | null };
   persona: { id: string };
 } | null> {
-   
   const idValidation = validateUuid(id, 'persona ID');
   if (!idValidation.valid) {
     sendError(res, idValidation.error);
@@ -120,7 +119,6 @@ function createGetHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
 
-     
     const idValidation = validateUuid(id, 'persona ID');
     if (!idValidation.valid) {
       return sendError(res, idValidation.error);

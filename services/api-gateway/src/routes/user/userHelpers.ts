@@ -1,8 +1,8 @@
 /**
  * Shared user helpers for all user route modules
  *
- * Consolidates getOrCreateInternalUser from persona/helpers.ts and
- * personality/helpers.ts into a single canonical implementation.
+ * Canonical location for getOrCreateInternalUser, used by persona,
+ * personality, channel, and other route modules.
  */
 
 import { UserService, type PrismaClient } from '@tzurot/common-types';
