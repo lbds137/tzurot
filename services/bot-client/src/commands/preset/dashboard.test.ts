@@ -121,6 +121,19 @@ vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
 }));
 
+const mockRefreshDashboardUI = vi
+  .fn()
+  .mockImplementation(
+    async (options: { interaction: { editReply: (data: unknown) => Promise<void> } }) => {
+      const embed = mockBuildDashboardEmbed();
+      const components = mockBuildDashboardComponents();
+      await options.interaction.editReply({ embeds: [embed], components });
+    }
+  );
+vi.mock('../../utils/dashboard/refreshHandler.js', () => ({
+  refreshDashboardUI: (...args: unknown[]) => mockRefreshDashboardUI(...args),
+}));
+
 const mockPresetData: PresetData = {
   id: 'preset-123',
   name: 'Test Preset',

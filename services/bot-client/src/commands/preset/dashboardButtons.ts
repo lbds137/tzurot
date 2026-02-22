@@ -13,8 +13,6 @@ import type { ButtonInteraction } from 'discord.js';
 import { createLogger, getConfig } from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import {
-  buildDashboardEmbed,
-  buildDashboardComponents,
   buildDeleteConfirmation,
   handleDashboardClose,
   getSessionManager,
@@ -24,6 +22,7 @@ import {
   DASHBOARD_MESSAGES,
   formatSessionExpiredMessage,
 } from '../../utils/dashboard/index.js';
+import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
   PRESET_DASHBOARD_CONFIG,
   type FlattenedPresetData,
@@ -86,24 +85,6 @@ export function generateClonedName(originalName: string): string {
   }
 
   return `${baseName} (Copy ${maxNum + 1})`;
-}
-
-/**
- * Refresh the dashboard UI with updated data.
- */
-async function refreshDashboardUI(
-  interaction: ButtonInteraction,
-  entityId: string,
-  flattenedData: FlattenedPresetData
-): Promise<void> {
-  const embed = buildDashboardEmbed(PRESET_DASHBOARD_CONFIG, flattenedData);
-  const components = buildDashboardComponents(
-    PRESET_DASHBOARD_CONFIG,
-    entityId,
-    flattenedData,
-    buildPresetDashboardOptions(flattenedData)
-  );
-  await interaction.editReply({ embeds: [embed], components });
 }
 
 /**
@@ -175,7 +156,13 @@ export async function handleRefreshButton(
     channelId: interaction.channelId,
   });
 
-  await refreshDashboardUI(interaction, entityId, flattenedData);
+  await refreshDashboardUI({
+    interaction,
+    entityId,
+    data: flattenedData,
+    dashboardConfig: PRESET_DASHBOARD_CONFIG,
+    buildOptions: buildPresetDashboardOptions,
+  });
 }
 
 /**
@@ -238,7 +225,13 @@ export async function handleToggleGlobalButton(
       flattenedData
     );
 
-    await refreshDashboardUI(interaction, entityId, flattenedData);
+    await refreshDashboardUI({
+      interaction,
+      entityId,
+      data: flattenedData,
+      dashboardConfig: PRESET_DASHBOARD_CONFIG,
+      buildOptions: buildPresetDashboardOptions,
+    });
 
     const statusText = newIsGlobal ? 'global (visible to everyone)' : 'private (only you)';
     logger.info({ presetId: entityId, newIsGlobal }, `Preset visibility changed to ${statusText}`);
@@ -356,7 +349,13 @@ export async function handleCancelDeleteButton(
     return;
   }
 
-  await refreshDashboardUI(interaction, entityId, session.data);
+  await refreshDashboardUI({
+    interaction,
+    entityId,
+    data: session.data,
+    dashboardConfig: PRESET_DASHBOARD_CONFIG,
+    buildOptions: buildPresetDashboardOptions,
+  });
 }
 
 /**
@@ -447,7 +446,13 @@ export async function handleCloneButton(
     await sessionManager.delete(interaction.user.id, 'preset', entityId);
 
     // Refresh dashboard to show the new cloned preset
-    await refreshDashboardUI(interaction, clonedPreset.id, flattenedData);
+    await refreshDashboardUI({
+      interaction,
+      entityId: clonedPreset.id,
+      data: flattenedData,
+      dashboardConfig: PRESET_DASHBOARD_CONFIG,
+      buildOptions: buildPresetDashboardOptions,
+    });
 
     logger.info(
       { sourcePresetId: entityId, clonedPresetId: clonedPreset.id, userId: interaction.user.id },
