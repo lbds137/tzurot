@@ -168,6 +168,8 @@ describe('memoryBatch handlers', () => {
         TEST_PERSONALITY_ID,
         expect.anything()
       );
+      // Handler should not attempt its own response after early return
+      expect(res.status).not.toHaveBeenCalled();
     });
 
     it('should return zero counts when user has no persona', async () => {
@@ -336,6 +338,8 @@ describe('memoryBatch handlers', () => {
         TEST_PERSONALITY_ID,
         expect.anything()
       );
+      // Handler should not attempt its own response after early return
+      expect(res.status).not.toHaveBeenCalled();
     });
 
     it('should return 400 when user has no persona', async () => {
@@ -536,6 +540,8 @@ describe('memoryBatch handlers', () => {
         TEST_PERSONALITY_ID,
         expect.anything()
       );
+      // Handler should not attempt its own response after early return
+      expect(res.status).not.toHaveBeenCalled();
     });
 
     it('should reject missing confirmation phrase', async () => {
