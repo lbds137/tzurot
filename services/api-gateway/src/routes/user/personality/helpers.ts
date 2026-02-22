@@ -8,9 +8,6 @@ import { Prisma, type PrismaClient, isBotOwner } from '@tzurot/common-types';
 import { sendError } from '../../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 
-// Re-export from canonical shared location
-export { getOrCreateInternalUser } from '../userHelpers.js';
-
 /**
  * Options for checking if user can view a personality
  */
