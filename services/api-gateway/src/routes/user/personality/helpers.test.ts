@@ -19,7 +19,6 @@ vi.mock('@tzurot/common-types', async () => {
 
 import type { Response } from 'express';
 import {
-  getOrCreateInternalUser,
   canUserEditPersonality,
   canUserViewPersonality,
   resolvePersonalityForEdit,
@@ -64,40 +63,7 @@ describe('personality route helpers', () => {
     mockIsBotOwner.mockReturnValue(false);
   });
 
-  describe('getOrCreateInternalUser', () => {
-    it('should return existing user when found', async () => {
-      // UserService uses findUnique, not findFirst
-      mockPrisma.user.findUnique.mockResolvedValue({
-        id: 'existing-user-id',
-        username: 'existing-username',
-        defaultPersonaId: null,
-        isSuperuser: false,
-      });
-
-      const result = await getOrCreateInternalUser(
-        mockPrisma as unknown as PrismaClient,
-        'discord-123'
-      );
-
-      // Returns { id: userId } after UserService lookup
-      expect(result).toEqual({ id: 'existing-user-id' });
-      expect(mockPrisma.user.findUnique).toHaveBeenCalled();
-    });
-
-    it('should create user when not found', async () => {
-      // User doesn't exist - UserService will create via $transaction
-      mockPrisma.user.findUnique.mockResolvedValue(null);
-
-      const result = await getOrCreateInternalUser(
-        mockPrisma as unknown as PrismaClient,
-        'discord-456'
-      );
-
-      // UserService creates user with deterministic UUID via $transaction
-      expect(result).toEqual({ id: expect.any(String) });
-      expect(mockPrisma.$transaction).toHaveBeenCalled();
-    });
-  });
+  // getOrCreateInternalUser tests are in userHelpers.test.ts (canonical location)
 
   describe('canUserEditPersonality', () => {
     it('should return true for bot owner', async () => {
