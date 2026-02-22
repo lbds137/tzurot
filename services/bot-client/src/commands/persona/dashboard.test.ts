@@ -50,6 +50,14 @@ const mockGetSessionOrExpired = vi
     return session;
   });
 
+// Mock requireDeferredSession: deferUpdate + getSessionOrExpired
+const mockRequireDeferredSession = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId, command) => {
+    await interaction.deferUpdate();
+    return mockGetSessionOrExpired(interaction, entityType, entityId, command);
+  });
+
 // Mock getSessionDataOrReply to delegate to mockSessionGet
 const mockGetSessionDataOrReply = vi
   .fn()
@@ -79,6 +87,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
       update: mockSessionUpdate,
       delete: mockSessionDelete,
     }),
+    requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     parseDashboardCustomId: vi.fn((customId: string) => {
