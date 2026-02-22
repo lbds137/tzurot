@@ -79,16 +79,6 @@ export function registerDevCommands(cli: CAC): void {
     });
 
   cli
-    .command('guard:boundaries', 'Check for architecture boundary violations')
-    .option('--verbose', 'Show detailed output')
-    .example('ops guard:boundaries')
-    .example('ops guard:boundaries --verbose')
-    .action(async (options: { verbose?: boolean }) => {
-      const { checkBoundaries } = await import('../dev/check-boundaries.js');
-      await checkBoundaries(options);
-    });
-
-  cli
     .command(
       'lint:complexity-report',
       'Report files/functions approaching ESLint complexity limits'
