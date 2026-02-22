@@ -52,12 +52,15 @@ export { handleDashboardClose } from './closeHandler.js';
 
 // Session Helpers
 export {
+  fetchOrCreateSession,
   requireDeferredSession,
   getSessionOrExpired,
   getSessionDataOrReply,
 } from './sessionHelpers.js';
 
-// Refresh Handler
+// Modal Helpers
+export { extractAndMergeSectionValues } from './modalHelpers.js';
+
 // Delete Confirmation
 export { buildDeleteConfirmation } from './deleteConfirmation.js';
 

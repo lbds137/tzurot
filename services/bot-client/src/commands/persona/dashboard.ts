@@ -19,8 +19,9 @@ import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
 import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
   buildSectionModal,
-  extractModalValues,
+  extractAndMergeSectionValues,
   getSessionManager,
+  fetchOrCreateSession,
   requireDeferredSession,
   getSessionDataOrReply,
   parseDashboardCustomId,
@@ -89,26 +90,20 @@ async function handleSectionModalSubmit(
     logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
   }
 
-  // Find the section config
-  const section = PERSONA_DASHBOARD_CONFIG.sections.find(s => s.id === sectionId);
-  if (!section) {
-    logger.error({ sectionId }, 'Unknown section');
+  // Extract and merge modal values with session data
+  const extracted = extractAndMergeSectionValues(
+    interaction,
+    PERSONA_DASHBOARD_CONFIG,
+    sectionId,
+    session?.data ?? {}
+  );
+  if (extracted === null) {
     return;
   }
 
-  // Extract values from modal
-  const values = extractModalValues(
-    interaction,
-    section.fields.map(f => f.id)
-  );
-
   try {
-    // Merge with existing session data to preserve other fields
-    const currentData = session?.data ?? {};
-    const mergedFlat = { ...currentData, ...values } as Partial<FlattenedPersonaData>;
-
     // Convert to API format
-    const updatePayload = unflattenPersonaData(mergedFlat);
+    const updatePayload = unflattenPersonaData(extracted.merged);
 
     // Update persona via API
     const updatedPersona = await updatePersona(entityId, updatePayload, interaction.user.id);
@@ -183,37 +178,21 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       return;
     }
 
-    // Get current data from session or fetch
-    const sessionManager = getSessionManager();
-    const session = await sessionManager.get<FlattenedPersonaData>(
-      interaction.user.id,
-      'persona',
-      entityId
-    );
-    let personaData: FlattenedPersonaData;
-
-    if (session !== null) {
-      personaData = session.data;
-    } else {
-      // Fetch fresh data
-      const persona = await fetchPersona(entityId, interaction.user.id);
-      if (!persona) {
-        await interaction.reply({
-          content: DASHBOARD_MESSAGES.NOT_FOUND('Persona'),
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-      personaData = flattenPersonaData(persona);
-      // Create new session
-      await sessionManager.set({
-        userId: interaction.user.id,
-        entityType: 'persona',
-        entityId,
-        data: personaData,
-        messageId: interaction.message.id,
-        channelId: interaction.channelId,
+    // Get current data from session or fetch from API
+    const result = await fetchOrCreateSession<FlattenedPersonaData>({
+      userId: interaction.user.id,
+      entityType: 'persona',
+      entityId,
+      fetchFn: () => fetchPersona(entityId, interaction.user.id),
+      transformFn: flattenPersonaData,
+      interaction,
+    });
+    if (!result.success) {
+      await interaction.reply({
+        content: DASHBOARD_MESSAGES.NOT_FOUND('Persona'),
+        flags: MessageFlags.Ephemeral,
       });
+      return;
     }
 
     // Build and show section modal
@@ -221,7 +200,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       PERSONA_DASHBOARD_CONFIG,
       section,
       entityId,
-      personaData
+      result.data
     );
     await interaction.showModal(modal);
   }

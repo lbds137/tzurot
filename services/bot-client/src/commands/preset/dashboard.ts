@@ -18,8 +18,9 @@ import type {
 import { createLogger, getConfig } from '@tzurot/common-types';
 import {
   buildSectionModal,
-  extractModalValues,
+  extractAndMergeSectionValues,
   getSessionManager,
+  fetchOrCreateSession,
   parseDashboardCustomId,
   isDashboardInteraction,
 } from '../../utils/dashboard/index.js';
@@ -107,26 +108,22 @@ async function handleSectionModalSubmit(
     logger.warn({ entityId, sectionId }, 'Session not found for modal submit');
   }
 
-  // Find the section config
-  const section = PRESET_DASHBOARD_CONFIG.sections.find(s => s.id === sectionId);
-  if (section === undefined) {
-    logger.error({ sectionId }, 'Unknown section');
+  // Extract and merge modal values with session data
+  const extracted = extractAndMergeSectionValues(
+    interaction,
+    PRESET_DASHBOARD_CONFIG,
+    sectionId,
+    session?.data ?? {}
+  );
+  if (extracted === null) {
     return;
   }
 
-  // Extract values from modal
-  const values = extractModalValues(
-    interaction,
-    section.fields.map(f => f.id)
-  );
-
   try {
-    // Merge with existing session data to preserve other fields
-    const currentData = session?.data ?? {};
-    const mergedFlat = { ...currentData, ...values } as Partial<FlattenedPresetData>;
-
     // Validate the merged configuration before saving
-    const validationResult = presetConfigValidator.validate(mergedFlat as FlattenedPresetData);
+    const validationResult = presetConfigValidator.validate(
+      extracted.merged as FlattenedPresetData
+    );
 
     // If validation has errors, show them and don't save
     if (!canProceed(validationResult)) {
@@ -145,7 +142,7 @@ async function handleSectionModalSubmit(
     }
 
     // Convert to API format
-    const updatePayload = unflattenPresetData(mergedFlat);
+    const updatePayload = unflattenPresetData(extracted.merged);
 
     // Determine if this is a global preset (from session data)
     const isGlobal = session?.data.isGlobal ?? false;
@@ -228,41 +225,25 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       return;
     }
 
-    // Get current data from session or fetch
-    const sessionManager = getSessionManager();
-    const session = await sessionManager.get<FlattenedPresetData>(
-      interaction.user.id,
-      'preset',
-      entityId
-    );
-    let presetData: FlattenedPresetData;
-
-    if (session !== null) {
-      presetData = session.data;
-    } else {
-      // Fetch fresh data
-      const preset = await fetchPreset(entityId, interaction.user.id);
-      if (preset === null) {
-        await interaction.reply({
-          content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-      presetData = flattenPresetData(preset);
-      // Create new session
-      await sessionManager.set({
-        userId: interaction.user.id,
-        entityType: 'preset',
-        entityId,
-        data: presetData,
-        messageId: interaction.message.id,
-        channelId: interaction.channelId,
+    // Get current data from session or fetch from API
+    const result = await fetchOrCreateSession<FlattenedPresetData>({
+      userId: interaction.user.id,
+      entityType: 'preset',
+      entityId,
+      fetchFn: () => fetchPreset(entityId, interaction.user.id),
+      transformFn: flattenPresetData,
+      interaction,
+    });
+    if (!result.success) {
+      await interaction.reply({
+        content: DASHBOARD_MESSAGES.NOT_FOUND('Preset'),
+        flags: MessageFlags.Ephemeral,
       });
+      return;
     }
 
     // Check if user can edit this preset (uses canEdit for admin support)
-    if (!presetData.canEdit) {
+    if (!result.data.canEdit) {
       await interaction.reply({
         content: DASHBOARD_MESSAGES.NO_PERMISSION('edit this preset'),
         flags: MessageFlags.Ephemeral,
@@ -271,7 +252,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     }
 
     // Build and show section modal
-    const modal = buildSectionModal(PRESET_DASHBOARD_CONFIG, section, entityId, presetData);
+    const modal = buildSectionModal(PRESET_DASHBOARD_CONFIG, section, entityId, result.data);
     await interaction.showModal(modal);
   }
 }
