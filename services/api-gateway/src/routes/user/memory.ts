@@ -265,7 +265,6 @@ async function handleSetFocus(
   );
 }
 
- 
 export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router {
   const router = Router();
 

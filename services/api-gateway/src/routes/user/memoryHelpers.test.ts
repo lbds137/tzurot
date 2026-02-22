@@ -40,6 +40,7 @@ describe('memoryHelpers', () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   describe('getUserByDiscordId', () => {
@@ -164,6 +165,13 @@ describe('memoryHelpers', () => {
       expect(result.error).toBeUndefined();
       expect(result.filter).not.toBeNull();
       expect(result.filter!.gte).toEqual(new Date('2026-01-01T11:00:00Z'));
+    });
+
+    it('should return error for disabled duration', () => {
+      const result = parseTimeframeFilter('off');
+
+      expect(result.filter).toBeNull();
+      expect(result.error).toBe('Timeframe cannot be disabled');
     });
 
     it('should return error for invalid timeframe format', () => {
