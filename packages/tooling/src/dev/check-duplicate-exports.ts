@@ -322,6 +322,7 @@ export async function checkDuplicateExports(options: CheckOptions = {}): Promise
     console.log(
       chalk.dim('To allowlist acceptable duplicates, edit ALLOWLIST in check-duplicate-exports.ts')
     );
+    process.exitCode = 1;
   }
 
   console.log('');

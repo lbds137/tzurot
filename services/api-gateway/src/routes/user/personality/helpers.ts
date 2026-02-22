@@ -142,13 +142,14 @@ export async function canUserViewPersonality(
  * Sends appropriate error responses and returns null if any check fails.
  *
  * Callers specify a Prisma select clause; the result personality is cast to T.
+ * The select MUST include `id` and `ownerId` — enforced at the type level.
  */
 export async function resolvePersonalityForEdit<T extends { id: string; ownerId: string }>(
   prisma: PrismaClient,
   slug: string,
   discordUserId: string,
   res: Response,
-  select: Prisma.PersonalitySelect
+  select: Prisma.PersonalitySelect & { id: true; ownerId: true }
 ): Promise<{ user: { id: string }; personality: T } | null> {
   const user = await findInternalUser(prisma, discordUserId);
   if (user === null) {
