@@ -21,7 +21,7 @@ import {
   buildSectionModal,
   extractModalValues,
   getSessionManager,
-  getSessionOrExpired,
+  requireDeferredSession,
   getSessionDataOrReply,
   parseDashboardCustomId,
   isDashboardInteraction,
@@ -328,10 +328,7 @@ async function handleCancelDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
-
-  // Get session or show expired message
-  const session = await getSessionOrExpired<FlattenedPersonaData>(
+  const session = await requireDeferredSession<FlattenedPersonaData>(
     interaction,
     'persona',
     entityId,
@@ -411,10 +408,7 @@ export async function handleButton(interaction: ButtonInteraction): Promise<void
  * Handle back button - return to browse list
  */
 async function handleBackButton(interaction: ButtonInteraction, entityId: string): Promise<void> {
-  await interaction.deferUpdate();
-
-  // Get session or show expired message
-  const session = await getSessionOrExpired<FlattenedPersonaData>(
+  const session = await requireDeferredSession<FlattenedPersonaData>(
     interaction,
     'persona',
     entityId,

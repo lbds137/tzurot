@@ -7,6 +7,7 @@ import { MessageFlags } from 'discord.js';
 import type { ButtonInteraction, StringSelectMenuInteraction } from 'discord.js';
 import {
   fetchOrCreateSession,
+  requireDeferredSession,
   getSessionOrExpired,
   getSessionDataOrReply,
 } from './sessionHelpers.js';
@@ -120,6 +121,53 @@ describe('sessionHelpers', () => {
         data: rawData,
         messageId: 'msg-123',
         channelId: 'channel-456',
+      });
+    });
+  });
+
+  describe('requireDeferredSession', () => {
+    it('should defer and return session when it exists', async () => {
+      const session = { data: { name: 'Test' } };
+      mockSessionManager.get.mockResolvedValue(session);
+      const interaction = {
+        user: { id: 'user-123' },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      const result = await requireDeferredSession(
+        interaction,
+        'persona',
+        'entity-456',
+        '/persona browse'
+      );
+
+      expect(result).toEqual(session);
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.editReply).not.toHaveBeenCalled();
+    });
+
+    it('should defer and return null when session is missing', async () => {
+      mockSessionManager.get.mockResolvedValue(null);
+      const interaction = {
+        user: { id: 'user-123' },
+        deferUpdate: vi.fn().mockResolvedValue(undefined),
+        editReply: vi.fn(),
+      } as unknown as ButtonInteraction;
+
+      const result = await requireDeferredSession(
+        interaction,
+        'persona',
+        'entity-456',
+        '/persona browse'
+      );
+
+      expect(result).toBeNull();
+      expect(interaction.deferUpdate).toHaveBeenCalled();
+      expect(interaction.editReply).toHaveBeenCalledWith({
+        content: '⏰ Session expired. Please run `/persona browse` again.',
+        embeds: [],
+        components: [],
       });
     });
   });

@@ -77,6 +77,13 @@ const mockGetSessionDataOrReply = vi
     }
     return session.data;
   });
+// Mock requireDeferredSession: deferUpdate + getSessionOrExpired
+const mockRequireDeferredSession = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId, command) => {
+    await interaction.deferUpdate();
+    return mockGetSessionOrExpired(interaction, entityType, entityId, command);
+  });
 // checkOwnership mock - track calls so tests can override behavior
 const mockCheckOwnership = vi
   .fn()
@@ -91,6 +98,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
   return {
     ...actual,
     getSessionManager: () => mockSessionManager,
+    requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),

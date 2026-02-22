@@ -51,7 +51,11 @@ export { DASHBOARD_MESSAGES, formatSessionExpiredMessage } from './messages.js';
 export { handleDashboardClose } from './closeHandler.js';
 
 // Session Helpers
-export { getSessionOrExpired, getSessionDataOrReply } from './sessionHelpers.js';
+export {
+  requireDeferredSession,
+  getSessionOrExpired,
+  getSessionDataOrReply,
+} from './sessionHelpers.js';
 
 // Refresh Handler
 // Delete Confirmation
