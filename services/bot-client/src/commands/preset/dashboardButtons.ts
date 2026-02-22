@@ -16,7 +16,7 @@ import {
   buildDeleteConfirmation,
   handleDashboardClose,
   getSessionManager,
-  getSessionOrExpired,
+  requireDeferredSession,
   getSessionDataOrReply,
   checkOwnership,
   DASHBOARD_MESSAGES,
@@ -175,10 +175,7 @@ export async function handleToggleGlobalButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
-
-  // Get session or show expired message
-  const session = await getSessionOrExpired<FlattenedPresetData>(
+  const session = await requireDeferredSession<FlattenedPresetData>(
     interaction,
     'preset',
     entityId,
@@ -336,10 +333,7 @@ export async function handleCancelDeleteButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
-
-  // Get session or show expired message
-  const session = await getSessionOrExpired<FlattenedPresetData>(
+  const session = await requireDeferredSession<FlattenedPresetData>(
     interaction,
     'preset',
     entityId,
@@ -365,10 +359,7 @@ export async function handleCloneButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
-
-  // Get session or show expired message
-  const session = await getSessionOrExpired<FlattenedPresetData>(
+  const session = await requireDeferredSession<FlattenedPresetData>(
     interaction,
     'preset',
     entityId,
@@ -474,10 +465,7 @@ export async function handleBackButton(
   interaction: ButtonInteraction,
   entityId: string
 ): Promise<void> {
-  await interaction.deferUpdate();
-
-  // Get session or show expired message
-  const session = await getSessionOrExpired<FlattenedPresetData>(
+  const session = await requireDeferredSession<FlattenedPresetData>(
     interaction,
     'preset',
     entityId,

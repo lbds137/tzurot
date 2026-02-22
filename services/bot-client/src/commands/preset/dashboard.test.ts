@@ -85,6 +85,13 @@ const mockGetSessionOrExpired = vi
     }
     return session;
   });
+// Mock requireDeferredSession: deferUpdate + getSessionOrExpired
+const mockRequireDeferredSession = vi
+  .fn()
+  .mockImplementation(async (interaction, entityType, entityId, command) => {
+    await interaction.deferUpdate();
+    return mockGetSessionOrExpired(interaction, entityType, entityId, command);
+  });
 const mockGetSessionDataOrReply = vi
   .fn()
   .mockImplementation(async (interaction, entityType, entityId) => {
@@ -111,6 +118,7 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionManager: () => mockGetSessionManager(),
     parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
     isDashboardInteraction: (...args: unknown[]) => mockIsDashboardInteraction(...args),
+    requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),
     checkOwnership: (...args: unknown[]) => mockCheckOwnership(...args),

@@ -116,6 +116,33 @@ export async function fetchOrCreateSession<T, R = T>(
 }
 
 /**
+ * Defer the interaction and get session, or show expired message.
+ * Combines the common deferUpdate + getSessionOrExpired pattern
+ * used across many dashboard button handlers.
+ *
+ * @returns Session or null if expired (interaction is deferred either way)
+ *
+ * @example
+ * ```typescript
+ * const session = await requireDeferredSession<FlattenedPresetData>(
+ *   interaction, 'preset', entityId, '/preset browse'
+ * );
+ * if (session === null) return;
+ *
+ * // Use session.data (interaction is already deferred)
+ * ```
+ */
+export async function requireDeferredSession<T>(
+  interaction: ButtonInteraction,
+  entityType: string,
+  entityId: string,
+  command: string
+): Promise<DashboardSession<T> | null> {
+  await interaction.deferUpdate();
+  return getSessionOrExpired<T>(interaction, entityType, entityId, command);
+}
+
+/**
  * Get session or reply with expired message.
  * Returns null if session is expired (and reply is sent).
  *
