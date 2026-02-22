@@ -26,6 +26,33 @@ import { getOrCreateInternalUser } from './helpers.js';
 
 const logger = createLogger('user-persona-override');
 
+/**
+ * Validate slug and look up personality. Sends error response and returns null on failure.
+ */
+async function resolvePersonalityBySlug(
+  prisma: PrismaClient,
+  slug: string | undefined,
+  res: Response
+): Promise<{ id: string; name: string; displayName: string | null } | null> {
+  const slugValidation = validateSlug(slug);
+  if (!slugValidation.valid) {
+    sendError(res, slugValidation.error);
+    return null;
+  }
+
+  const personality = await prisma.personality.findUnique({
+    where: { slug },
+    select: { id: true, name: true, displayName: true },
+  });
+
+  if (personality === null) {
+    sendError(res, ErrorResponses.notFound('Personality'));
+    return null;
+  }
+
+  return personality;
+}
+
 // --- Handler Factories ---
 
 function createListHandler(prisma: PrismaClient) {
@@ -65,20 +92,13 @@ function createListHandler(prisma: PrismaClient) {
 
 function createGetHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
-    const personalitySlug = getParam(req.params.personalitySlug);
-
-    const slugValidation = validateSlug(personalitySlug);
-    if (!slugValidation.valid) {
-      return sendError(res, slugValidation.error);
-    }
-
-    const personality = await prisma.personality.findUnique({
-      where: { slug: personalitySlug },
-      select: { id: true, name: true, displayName: true },
-    });
-
+    const personality = await resolvePersonalityBySlug(
+      prisma,
+      getParam(req.params.personalitySlug),
+      res
+    );
     if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality'));
+      return;
     }
 
     sendCustomSuccess(res, {
@@ -95,11 +115,6 @@ function createSetHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
     const personalitySlug = getParam(req.params.personalitySlug);
-
-    const slugValidation = validateSlug(personalitySlug);
-    if (!slugValidation.valid) {
-      return sendError(res, slugValidation.error);
-    }
 
     // Validate request body with Zod
     const parseResult = SetPersonaOverrideSchema.safeParse(req.body);
@@ -120,13 +135,9 @@ function createSetHandler(prisma: PrismaClient) {
       return sendError(res, ErrorResponses.notFound('Persona'));
     }
 
-    const personality = await prisma.personality.findUnique({
-      where: { slug: personalitySlug },
-      select: { id: true, name: true, displayName: true },
-    });
-
+    const personality = await resolvePersonalityBySlug(prisma, personalitySlug, res);
     if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality'));
+      return;
     }
 
     await prisma.userPersonalityConfig.upsert({
@@ -160,22 +171,16 @@ function createSetHandler(prisma: PrismaClient) {
 function createClearHandler(prisma: PrismaClient) {
   return async (req: AuthenticatedRequest, res: Response) => {
     const discordUserId = req.userId;
-    const personalitySlug = getParam(req.params.personalitySlug);
-
-    const slugValidation = validateSlug(personalitySlug);
-    if (!slugValidation.valid) {
-      return sendError(res, slugValidation.error);
-    }
 
     const user = await getOrCreateInternalUser(prisma, discordUserId);
 
-    const personality = await prisma.personality.findUnique({
-      where: { slug: personalitySlug },
-      select: { id: true, name: true, displayName: true },
-    });
-
+    const personality = await resolvePersonalityBySlug(
+      prisma,
+      getParam(req.params.personalitySlug),
+      res
+    );
     if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality'));
+      return;
     }
 
     const existing = await prisma.userPersonalityConfig.findUnique({
@@ -190,7 +195,10 @@ function createClearHandler(prisma: PrismaClient) {
     };
 
     if (!existing) {
-      logger.info({ userId: user.id, personalitySlug }, '[Persona] No override to clear');
+      logger.info(
+        { userId: user.id, personalityId: personality.id },
+        '[Persona] No override to clear'
+      );
       sendCustomSuccess(res, {
         success: true,
         personality: personalityResponse,
@@ -208,7 +216,10 @@ function createClearHandler(prisma: PrismaClient) {
       await prisma.userPersonalityConfig.delete({ where: { id: existing.id } });
     }
 
-    logger.info({ userId: user.id, personalitySlug }, '[Persona] Cleared persona override');
+    logger.info(
+      { userId: user.id, personalityId: personality.id },
+      '[Persona] Cleared persona override'
+    );
     sendCustomSuccess(res, { success: true, personality: personalityResponse, hadOverride: true });
   };
 }

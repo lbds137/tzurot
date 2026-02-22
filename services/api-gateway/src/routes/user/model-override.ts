@@ -34,6 +34,44 @@ import type { AuthenticatedRequest } from '../../types.js';
 
 const logger = createLogger('user-model-override');
 
+/**
+ * Verify that the given LLM config exists and the user can access it (global or owned).
+ * Returns the config if accessible, null otherwise.
+ */
+async function verifyConfigAccess(
+  prisma: PrismaClient,
+  configId: string,
+  userId: string
+): Promise<{ id: string; name: string } | null> {
+  return prisma.llmConfig.findFirst({
+    where: {
+      id: configId,
+      OR: [{ isGlobal: true }, { ownerId: userId }],
+    },
+    select: { id: true, name: true },
+  });
+}
+
+/**
+ * Attempt to invalidate user LLM config cache. Logs errors but does not throw.
+ */
+async function tryInvalidateUserLlmConfigCache(
+  service: LlmConfigCacheInvalidationService | undefined,
+  discordUserId: string
+): Promise<void> {
+  if (!service) {
+    return;
+  }
+
+  try {
+    await service.invalidateUserLlmConfig(discordUserId);
+    logger.debug({ discordUserId }, '[ModelDefault] Invalidated user LLM config cache');
+  } catch (err) {
+    // Log but don't fail the request - cache will expire naturally
+    logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
+  }
+}
+
 // eslint-disable-next-line max-lines-per-function -- Route factory with multiple endpoints
 export function createModelOverrideRoutes(
   prisma: PrismaClient,
@@ -126,14 +164,7 @@ export function createModelOverrideRoutes(
       }
 
       // Verify config exists and user can access it
-      const llmConfig = await prisma.llmConfig.findFirst({
-        where: {
-          id: configId,
-          OR: [{ isGlobal: true }, { ownerId: userId }],
-        },
-        select: { id: true, name: true },
-      });
-
+      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
       if (llmConfig === null) {
         return sendError(res, ErrorResponses.notFound('Config not found or not accessible'));
       }
@@ -249,14 +280,7 @@ export function createModelOverrideRoutes(
       }
 
       // Verify config exists and user can access it (global or owned)
-      const llmConfig = await prisma.llmConfig.findFirst({
-        where: {
-          id: configId,
-          OR: [{ isGlobal: true }, { ownerId: userId }],
-        },
-        select: { id: true, name: true },
-      });
-
+      const llmConfig = await verifyConfigAccess(prisma, configId, userId);
       if (llmConfig === null) {
         return sendError(res, ErrorResponses.notFound('Config not found or not accessible'));
       }
@@ -278,15 +302,7 @@ export function createModelOverrideRoutes(
       );
 
       // Invalidate user's LLM config cache so ai-worker picks up the change
-      if (llmConfigCacheInvalidation) {
-        try {
-          await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
-          logger.debug({ discordUserId }, '[ModelDefault] Invalidated user LLM config cache');
-        } catch (err) {
-          // Log but don't fail the request - cache will expire naturally
-          logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
-        }
-      }
+      await tryInvalidateUserLlmConfigCache(llmConfigCacheInvalidation, discordUserId);
 
       sendCustomSuccess(res, { default: result }, StatusCodes.OK);
     })
@@ -328,15 +344,7 @@ export function createModelOverrideRoutes(
       logger.info({ discordUserId }, '[ModelDefault] Cleared default config');
 
       // Invalidate user's LLM config cache so ai-worker picks up the change
-      if (llmConfigCacheInvalidation) {
-        try {
-          await llmConfigCacheInvalidation.invalidateUserLlmConfig(discordUserId);
-          logger.debug({ discordUserId }, '[ModelDefault] Invalidated user LLM config cache');
-        } catch (err) {
-          // Log but don't fail the request - cache will expire naturally
-          logger.error({ err, discordUserId }, '[ModelDefault] Failed to invalidate cache');
-        }
-      }
+      await tryInvalidateUserLlmConfigCache(llmConfigCacheInvalidation, discordUserId);
 
       sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
     })
