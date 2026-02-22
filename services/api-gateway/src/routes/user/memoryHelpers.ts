@@ -92,6 +92,8 @@ export function parseTimeframeFilter(timeframe: string | undefined): {
     if (cutoffDate !== null) {
       return { filter: { gte: cutoffDate } };
     }
+    // getCutoffDate() returns null only for durations that don't map to a
+    // concrete time span (e.g., "0s"). Treat as "no filter" — not an error.
     return { filter: null };
   } catch (error) {
     if (error instanceof DurationParseError) {
