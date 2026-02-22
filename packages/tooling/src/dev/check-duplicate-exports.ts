@@ -332,6 +332,6 @@ export async function checkDuplicateExports(options: CheckOptions = {}): Promise
 
   console.log('');
   console.log(SEPARATOR);
-  console.log(chalk.dim('\ud83d\udca1 Run with --verbose for per-package details'));
+  console.log(chalk.dim('\ud83d\udca1 Run with --verbose for per-package file counts'));
   console.log(SEPARATOR);
 }
