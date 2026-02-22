@@ -12,8 +12,6 @@ import {
   createLogger,
   type PrismaClient,
   Prisma,
-  Duration,
-  DurationParseError,
   BatchDeleteSchema,
   PurgeMemoriesSchema,
 } from '@tzurot/common-types';
@@ -21,24 +19,19 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
+import { getUserByDiscordId, getDefaultPersonaId, parseTimeframeFilter } from './memoryHelpers.js';
 
 const logger = createLogger('memory-batch');
 
 const PERSONALITY_NOT_FOUND = 'Personality not found';
 
-type GetUserByDiscordId = (discordUserId: string, res: Response) => Promise<{ id: string } | null>;
-
-type GetDefaultPersonaId = (prisma: PrismaClient, userId: string) => Promise<string | null>;
-
 /**
  * Handler for POST /user/memory/delete
  * Batch delete memories with filters (skips locked memories)
  */
-// eslint-disable-next-line max-lines-per-function, sonarjs/cognitive-complexity -- Procedural handler with sequential validation steps and timeframe parsing
+// eslint-disable-next-line max-lines-per-function -- Procedural handler with sequential validation steps and timeframe parsing
 export async function handleBatchDelete(
   prisma: PrismaClient,
-  getUserByDiscordId: GetUserByDiscordId,
-  getDefaultPersonaId: GetDefaultPersonaId,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -53,7 +46,7 @@ export async function handleBatchDelete(
   const { personalityId, personaId: requestedPersonaId, timeframe } = parseResult.data;
 
   // Get user
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return;
   }
@@ -100,27 +93,13 @@ export async function handleBatchDelete(
   };
 
   // Add timeframe filter if provided
-  if (timeframe !== undefined && timeframe !== '') {
-    try {
-      const duration = Duration.parse(timeframe);
-      if (!duration.isEnabled) {
-        sendError(res, ErrorResponses.validationError('Timeframe cannot be disabled'));
-        return;
-      }
-      const cutoffDate = duration.getCutoffDate();
-      if (cutoffDate !== null) {
-        where.createdAt = { gte: cutoffDate };
-      }
-    } catch (error) {
-      if (error instanceof DurationParseError) {
-        sendError(
-          res,
-          ErrorResponses.validationError('Invalid timeframe format. Use: 1h, 24h, 7d, 30d, etc.')
-        );
-        return;
-      }
-      throw error;
-    }
+  const timeframeParsed = parseTimeframeFilter(timeframe);
+  if (timeframeParsed.error !== undefined) {
+    sendError(res, ErrorResponses.validationError(timeframeParsed.error));
+    return;
+  }
+  if (timeframeParsed.filter !== null) {
+    where.createdAt = timeframeParsed.filter;
   }
 
   // Count memories that will be deleted
@@ -193,8 +172,6 @@ export async function handleBatchDelete(
  */
 export async function handlePurge(
   prisma: PrismaClient,
-  getUserByDiscordId: GetUserByDiscordId,
-  getDefaultPersonaId: GetDefaultPersonaId,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -209,7 +186,7 @@ export async function handlePurge(
   const { personalityId, confirmationPhrase } = parseResult.data;
 
   // Get user
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return;
   }
@@ -309,11 +286,8 @@ export async function handlePurge(
  * Handler for GET /user/memory/delete/preview
  * Preview what would be deleted without actually deleting
  */
-// eslint-disable-next-line sonarjs/cognitive-complexity -- Procedural handler with sequential validation and timeframe parsing
 export async function handleBatchDeletePreview(
   prisma: PrismaClient,
-  getUserByDiscordId: GetUserByDiscordId,
-  getDefaultPersonaId: GetDefaultPersonaId,
   req: AuthenticatedRequest,
   res: Response
 ): Promise<void> {
@@ -335,7 +309,7 @@ export async function handleBatchDeletePreview(
   }
 
   // Get user
-  const user = await getUserByDiscordId(discordUserId, res);
+  const user = await getUserByDiscordId(prisma, discordUserId, res);
   if (!user) {
     return;
   }
@@ -379,27 +353,13 @@ export async function handleBatchDeletePreview(
   };
 
   // Add timeframe filter if provided
-  if (timeframe !== undefined && timeframe !== '') {
-    try {
-      const duration = Duration.parse(timeframe);
-      if (!duration.isEnabled) {
-        sendError(res, ErrorResponses.validationError('Timeframe cannot be disabled'));
-        return;
-      }
-      const cutoffDate = duration.getCutoffDate();
-      if (cutoffDate !== null) {
-        where.createdAt = { gte: cutoffDate };
-      }
-    } catch (error) {
-      if (error instanceof DurationParseError) {
-        sendError(
-          res,
-          ErrorResponses.validationError('Invalid timeframe format. Use: 1h, 24h, 7d, 30d, etc.')
-        );
-        return;
-      }
-      throw error;
-    }
+  const timeframeParsed = parseTimeframeFilter(timeframe);
+  if (timeframeParsed.error !== undefined) {
+    sendError(res, ErrorResponses.validationError(timeframeParsed.error));
+    return;
+  }
+  if (timeframeParsed.filter !== null) {
+    where.createdAt = timeframeParsed.filter;
   }
 
   // Count memories that would be deleted

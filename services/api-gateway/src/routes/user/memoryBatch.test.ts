@@ -26,7 +26,19 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+// Mock memory helpers
+vi.mock('./memoryHelpers.js', () => ({
+  getUserByDiscordId: vi.fn(),
+  getDefaultPersonaId: vi.fn(),
+  parseTimeframeFilter: vi.fn(),
+}));
+
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
+import { getUserByDiscordId, getDefaultPersonaId, parseTimeframeFilter } from './memoryHelpers.js';
+
+const mockGetUserByDiscordId = vi.mocked(getUserByDiscordId);
+const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
+const mockParseTimeframeFilter = vi.mocked(parseTimeframeFilter);
 
 // Test constants
 const TEST_USER_ID = '00000000-0000-0000-0000-000000000001';
@@ -47,10 +59,6 @@ const mockPrisma = {
     findUnique: vi.fn(),
   },
 };
-
-// Mock dependencies
-const mockGetUserByDiscordId = vi.fn();
-const mockGetDefaultPersonaId = vi.fn();
 
 // Helper to create mock request with body
 function createMockBodyReq(body: Record<string, unknown> = {}) {
@@ -105,6 +113,7 @@ describe('memoryBatch handlers', () => {
     // Default successful mocks
     mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
     mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
+    mockParseTimeframeFilter.mockReturnValue({ filter: null });
     mockPrisma.personality.findUnique.mockResolvedValue(defaultPersonality);
     mockPrisma.persona.findUnique.mockResolvedValue(defaultPersona);
     mockPrisma.memory.count.mockResolvedValue(0);
@@ -115,13 +124,7 @@ describe('memoryBatch handlers', () => {
     it('should reject missing personalityId', async () => {
       const { req, res } = createMockQueryReq({});
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -135,13 +138,7 @@ describe('memoryBatch handlers', () => {
     it('should reject empty personalityId', async () => {
       const { req, res } = createMockQueryReq({ personalityId: '' });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
     });
@@ -150,13 +147,7 @@ describe('memoryBatch handlers', () => {
       mockGetUserByDiscordId.mockResolvedValue(null);
       const { req, res } = createMockQueryReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
     });
@@ -165,13 +156,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const { req, res } = createMockQueryReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
       expect(res.json).toHaveBeenCalledWith(
@@ -185,13 +170,7 @@ describe('memoryBatch handlers', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockQueryReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -203,18 +182,16 @@ describe('memoryBatch handlers', () => {
     });
 
     it('should reject invalid timeframe format', async () => {
+      mockParseTimeframeFilter.mockReturnValue({
+        filter: null,
+        error: 'Invalid timeframe format. Use: 1h, 24h, 7d, 30d, etc.',
+      });
       const { req, res } = createMockQueryReq({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: 'invalid',
       });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -231,13 +208,7 @@ describe('memoryBatch handlers', () => {
 
       const { req, res } = createMockQueryReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -252,19 +223,15 @@ describe('memoryBatch handlers', () => {
     });
 
     it('should apply timeframe filter when provided (hours)', async () => {
+      const cutoffDate = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      mockParseTimeframeFilter.mockReturnValue({ filter: { gte: cutoffDate } });
       mockPrisma.memory.count.mockResolvedValue(5);
       const { req, res } = createMockQueryReq({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '24h',
       });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.count).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -277,19 +244,15 @@ describe('memoryBatch handlers', () => {
     });
 
     it('should apply timeframe filter when provided (days)', async () => {
+      const cutoffDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      mockParseTimeframeFilter.mockReturnValue({ filter: { gte: cutoffDate } });
       mockPrisma.memory.count.mockResolvedValue(3);
       const { req, res } = createMockQueryReq({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '7d',
       });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.count).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -301,19 +264,15 @@ describe('memoryBatch handlers', () => {
     });
 
     it('should apply timeframe filter when provided (years)', async () => {
+      const cutoffDate = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      mockParseTimeframeFilter.mockReturnValue({ filter: { gte: cutoffDate } });
       mockPrisma.memory.count.mockResolvedValue(100);
       const { req, res } = createMockQueryReq({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: '1y',
       });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
     });
@@ -325,13 +284,7 @@ describe('memoryBatch handlers', () => {
         personaId: customPersonaId,
       });
 
-      await handleBatchDeletePreview(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.count).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -347,13 +300,7 @@ describe('memoryBatch handlers', () => {
     it('should reject missing personalityId', async () => {
       const { req, res } = createMockBodyReq({});
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -368,13 +315,7 @@ describe('memoryBatch handlers', () => {
       mockGetUserByDiscordId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
     });
@@ -383,13 +324,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -398,13 +333,7 @@ describe('memoryBatch handlers', () => {
       mockGetDefaultPersonaId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -424,30 +353,22 @@ describe('memoryBatch handlers', () => {
         personaId: TEST_PERSONA_ID,
       });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(403);
     });
 
     it('should reject invalid timeframe format', async () => {
+      mockParseTimeframeFilter.mockReturnValue({
+        filter: null,
+        error: 'Invalid timeframe format. Use: 1h, 24h, 7d, 30d, etc.',
+      });
       const { req, res } = createMockBodyReq({
         personalityId: TEST_PERSONALITY_ID,
         timeframe: 'invalid', // not a valid duration format
       });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -461,13 +382,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.memory.count.mockResolvedValue(0);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(
@@ -487,13 +402,7 @@ describe('memoryBatch handlers', () => {
 
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith({
         where: expect.objectContaining({
@@ -525,13 +434,7 @@ describe('memoryBatch handlers', () => {
 
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -541,6 +444,8 @@ describe('memoryBatch handlers', () => {
     });
 
     it('should apply timeframe filter in delete', async () => {
+      const cutoffDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      mockParseTimeframeFilter.mockReturnValue({ filter: { gte: cutoffDate } });
       mockPrisma.memory.count.mockResolvedValue(2);
       mockPrisma.memory.updateMany.mockResolvedValue({ count: 2 });
 
@@ -549,13 +454,7 @@ describe('memoryBatch handlers', () => {
         timeframe: '30d',
       });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -580,13 +479,7 @@ describe('memoryBatch handlers', () => {
         personaId: customPersonaId,
       });
 
-      await handleBatchDelete(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -602,13 +495,7 @@ describe('memoryBatch handlers', () => {
     it('should reject missing personalityId', async () => {
       const { req, res } = createMockBodyReq({});
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -623,13 +510,7 @@ describe('memoryBatch handlers', () => {
       mockGetUserByDiscordId.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
     });
@@ -638,13 +519,7 @@ describe('memoryBatch handlers', () => {
       mockPrisma.personality.findUnique.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
     });
@@ -652,13 +527,7 @@ describe('memoryBatch handlers', () => {
     it('should reject missing confirmation phrase', async () => {
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -674,13 +543,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'wrong phrase',
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -696,13 +559,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'delete test-personality memories', // lowercase - should still work
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       // Should succeed with lowercase phrase (case-insensitive for better UX)
       expect(res.status).toHaveBeenCalledWith(200);
@@ -715,13 +572,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
       expect(res.json).toHaveBeenCalledWith(
@@ -742,13 +593,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(mockPrisma.memory.updateMany).toHaveBeenCalledWith({
         where: {
@@ -783,13 +628,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -807,13 +646,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.json).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -831,13 +664,7 @@ describe('memoryBatch handlers', () => {
         confirmationPhrase: 'DELETE TEST-PERSONALITY MEMORIES',
       });
 
-      await handlePurge(
-        mockPrisma as unknown as PrismaClient,
-        mockGetUserByDiscordId,
-        mockGetDefaultPersonaId,
-        req,
-        res
-      );
+      await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
       expect(res.status).toHaveBeenCalledWith(200);
       expect(res.json).toHaveBeenCalledWith(

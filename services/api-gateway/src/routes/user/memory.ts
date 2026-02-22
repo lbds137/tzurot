@@ -48,61 +48,9 @@ import {
 } from './memorySingle.js';
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
 import { createIncognitoRoutes } from './memoryIncognito.js';
+import { getUserByDiscordId, getDefaultPersonaId, getPersonalityById } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory');
-
-/**
- * Get user's default persona ID
- */
-async function getDefaultPersonaId(prisma: PrismaClient, userId: string): Promise<string | null> {
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { defaultPersonaId: true },
-  });
-  return user?.defaultPersonaId ?? null;
-}
-
-/**
- * Validate and get user from Discord ID
- */
-async function getUserByDiscordId(
-  prisma: PrismaClient,
-  discordUserId: string,
-  res: Response
-): Promise<{ id: string } | null> {
-  const user = await prisma.user.findUnique({
-    where: { discordId: discordUserId },
-    select: { id: true },
-  });
-
-  if (!user) {
-    sendError(res, ErrorResponses.notFound('User not found'));
-    return null;
-  }
-
-  return user;
-}
-
-/**
- * Validate and get personality by ID
- */
-async function getPersonalityById(
-  prisma: PrismaClient,
-  personalityId: string,
-  res: Response
-): Promise<{ id: string; name: string } | null> {
-  const personality = await prisma.personality.findUnique({
-    where: { id: personalityId },
-    select: { id: true, name: true },
-  });
-
-  if (!personality) {
-    sendError(res, ErrorResponses.notFound('Personality not found'));
-    return null;
-  }
-
-  return personality;
-}
 
 /**
  * Handler for GET /user/memory/stats
@@ -317,7 +265,7 @@ async function handleSetFocus(
   );
 }
 
-// eslint-disable-next-line max-lines-per-function -- Route factory with many endpoint definitions
+ 
 export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router {
   const router = Router();
 
@@ -335,15 +283,7 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
   router.get(
     '/list',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleList(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleList(prisma, req, res))
   );
 
   router.get(
@@ -361,15 +301,7 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
   router.post(
     '/search',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleSearch(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleSearch(prisma, req, res))
   );
 
   // Batch operations - must come before /:id routes
@@ -377,99 +309,45 @@ export function createMemoryRoutes(prisma: PrismaClient, redis?: Redis): Router 
     '/delete/preview',
     requireUserAuth(),
     asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleBatchDeletePreview(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
+      handleBatchDeletePreview(prisma, req, res)
     )
   );
 
   router.post(
     '/delete',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleBatchDelete(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleBatchDelete(prisma, req, res))
   );
 
   router.post(
     '/purge',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handlePurge(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handlePurge(prisma, req, res))
   );
 
   // Single memory operations - must come after specific routes like /stats, /list, /search, /delete, /purge
   router.get(
     '/:id',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleGetMemory(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleGetMemory(prisma, req, res))
   );
 
   router.patch(
     '/:id',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleUpdateMemory(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleUpdateMemory(prisma, req, res))
   );
 
   router.delete(
     '/:id',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleDeleteMemory(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleDeleteMemory(prisma, req, res))
   );
 
   router.post(
     '/:id/lock',
     requireUserAuth(),
-    asyncHandler((req: AuthenticatedRequest, res: Response) =>
-      handleToggleLock(
-        prisma,
-        (id, r) => getUserByDiscordId(prisma, id, r),
-        getDefaultPersonaId,
-        req,
-        res
-      )
-    )
+    asyncHandler((req: AuthenticatedRequest, res: Response) => handleToggleLock(prisma, req, res))
   );
 
   return router;
