@@ -22,7 +22,7 @@ import { validateSlug } from '../../../utils/validators.js';
 import { getParam } from '../../../utils/requestParams.js';
 import type { AuthenticatedRequest } from '../../../types.js';
 import type { PersonaOverrideSummary } from './types.js';
-import { getOrCreateInternalUser } from './helpers.js';
+import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-persona-override');
 

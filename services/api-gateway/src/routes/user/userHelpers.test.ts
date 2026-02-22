@@ -66,8 +66,7 @@ describe('getOrCreateInternalUser', () => {
     expect(mockPrisma.$transaction).toHaveBeenCalled();
   });
 
-  it('should throw if UserService returns null (bot user)', async () => {
-    // UserService returns null for bot users
+  it('should return user even when defaultPersonaId is null', async () => {
     mockPrisma.user.findUnique.mockResolvedValue({
       id: 'bot-id',
       username: 'bot-user',
@@ -76,11 +75,8 @@ describe('getOrCreateInternalUser', () => {
       isBot: true,
     });
 
-    // Mock UserService.getOrCreateUser to return null
-    // UserService internally checks isBot — we can't easily mock that,
-    // so we test the contract by verifying the function works for normal users
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Test mock for Prisma client
     const result = await getOrCreateInternalUser(mockPrisma as any, 'discord-bot');
-    expect(result.id).toBe('bot-id');
+    expect(result).toEqual(expect.objectContaining({ id: 'bot-id', defaultPersonaId: null }));
   });
 });

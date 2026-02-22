@@ -11,7 +11,7 @@ import { sendCustomSuccess, sendError } from '../../../utils/responseHelpers.js'
 import { ErrorResponses } from '../../../utils/errorResponses.js';
 import { sendZodError } from '../../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import { getOrCreateInternalUser } from './helpers.js';
+import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-persona-settings');
 

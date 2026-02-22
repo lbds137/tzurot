@@ -22,7 +22,7 @@ import { validateSlug } from '../../../utils/validators.js';
 import { processAvatarData } from '../../../utils/avatarProcessor.js';
 import { setupDefaultLlmConfig } from '../../../utils/personalityHelpers.js';
 import type { AuthenticatedRequest } from '../../../types.js';
-import { getOrCreateInternalUser } from './helpers.js';
+import { getOrCreateInternalUser } from '../userHelpers.js';
 
 const logger = createLogger('user-personality-create');
 
