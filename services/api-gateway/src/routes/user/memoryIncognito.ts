@@ -110,7 +110,7 @@ async function handleEnable(
     });
 
     if (!personality) {
-      sendError(res, ErrorResponses.notFound('Personality not found'));
+      sendError(res, ErrorResponses.notFound('Personality'));
       return;
     }
   }

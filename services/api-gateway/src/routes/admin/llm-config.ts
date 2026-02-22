@@ -37,8 +37,8 @@ import {
 
 const logger = createLogger('admin-llm-config');
 
-/** Repeated error message for missing configs */
-const CONFIG_NOT_FOUND = 'Config not found';
+/** Resource name for ErrorResponses.notFound() */
+const CONFIG_RESOURCE = 'Config';
 
 // --- Handler Factories ---
 
@@ -57,7 +57,7 @@ function createGetHandler(service: LlmConfigService, modelCache?: OpenRouterMode
 
     const config = await service.getById(configId ?? '');
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
     const formatted = service.formatConfigDetail(config);
@@ -163,7 +163,7 @@ function createEditConfigHandler(
     });
 
     if (existing === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
     if (!existing.isGlobal) {
       return sendError(res, ErrorResponses.validationError('Can only edit global configs'));
@@ -206,7 +206,7 @@ function createSetDefaultHandler(service: LlmConfigService, prisma: PrismaClient
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
     if (!config.isGlobal) {
       return sendError(
@@ -232,7 +232,7 @@ function createSetFreeDefaultHandler(service: LlmConfigService, prisma: PrismaCl
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
     if (!config.isGlobal) {
       return sendError(
@@ -266,7 +266,7 @@ function createDeleteConfigHandler(service: LlmConfigService, prisma: PrismaClie
     });
 
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
     if (!config.isGlobal) {
       return sendError(res, ErrorResponses.validationError('Can only delete global configs'));

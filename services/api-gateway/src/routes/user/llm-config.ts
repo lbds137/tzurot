@@ -45,7 +45,7 @@ import {
 const logger = createLogger('user-llm-config');
 
 /** Common error message for config not found */
-const CONFIG_NOT_FOUND = 'Config not found';
+const CONFIG_RESOURCE = 'Config';
 
 // ============================================================================
 // Schemas - imported from @tzurot/common-types (single source of truth)
@@ -100,7 +100,7 @@ function createGetHandler(
     // Use service to get config
     const config = await service.getById(configId ?? '');
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
     // Get user for ownership/permission check
@@ -243,13 +243,13 @@ function createUpdateHandler(
     });
 
     if (user === null) {
-      return sendError(res, ErrorResponses.notFound('User not found'));
+      return sendError(res, ErrorResponses.notFound('User'));
     }
 
     // Get existing config using service
     const config = await service.getById(configId ?? '');
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
     // Users can only edit configs they own (including their own global presets)
@@ -314,13 +314,13 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
     });
 
     if (user === null) {
-      return sendError(res, ErrorResponses.notFound('User not found'));
+      return sendError(res, ErrorResponses.notFound('User'));
     }
 
     // Get config using service
     const config = await service.getById(configId ?? '');
     if (config === null) {
-      return sendError(res, ErrorResponses.notFound(CONFIG_NOT_FOUND));
+      return sendError(res, ErrorResponses.notFound(CONFIG_RESOURCE));
     }
 
     // Use centralized permission computation for consistency
