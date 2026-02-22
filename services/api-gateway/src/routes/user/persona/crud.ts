@@ -58,6 +58,41 @@ function toPersonaDetails(p: PersonaFromDb, isDefault: boolean): PersonaDetails 
   };
 }
 
+/**
+ * Validate UUID, look up user, and verify persona ownership.
+ * Sends error response and returns null on failure.
+ */
+async function resolveOwnedPersona(
+  prisma: PrismaClient,
+  discordUserId: string,
+  id: string | undefined,
+  res: Response
+): Promise<{
+  user: { id: string; defaultPersonaId: string | null };
+  persona: { id: string };
+} | null> {
+   
+  const idValidation = validateUuid(id, 'persona ID');
+  if (!idValidation.valid) {
+    sendError(res, idValidation.error);
+    return null;
+  }
+
+  const user = await getOrCreateInternalUser(prisma, discordUserId);
+
+  const persona = await prisma.persona.findFirst({
+    where: { id, ownerId: user.id },
+    select: { id: true },
+  });
+
+  if (persona === null) {
+    sendError(res, ErrorResponses.notFound('Persona'));
+    return null;
+  }
+
+  return { user, persona };
+}
+
 // --- Handler Factories ---
 
 function createListHandler(prisma: PrismaClient) {
@@ -85,7 +120,7 @@ function createGetHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
 
-    // eslint-disable-next-line sonarjs/no-duplicate-string -- 'persona ID' validation message shared across CRUD handlers
+     
     const idValidation = validateUuid(id, 'persona ID');
     if (!idValidation.valid) {
       return sendError(res, idValidation.error);
@@ -162,26 +197,16 @@ function createUpdateHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
 
-    const idValidation = validateUuid(id, 'persona ID');
-    if (!idValidation.valid) {
-      return sendError(res, idValidation.error);
+    const resolved = await resolveOwnedPersona(prisma, discordUserId, id, res);
+    if (resolved === null) {
+      return;
     }
+    const { user } = resolved;
 
     // Validate request body with Zod
     const parseResult = PersonaUpdateSchema.safeParse(req.body);
     if (!parseResult.success) {
       return sendZodError(res, parseResult.error);
-    }
-
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
-
-    const existing = await prisma.persona.findFirst({
-      where: { id, ownerId: user.id },
-      select: { id: true },
-    });
-
-    if (existing === null) {
-      return sendError(res, ErrorResponses.notFound('Persona'));
     }
 
     // Build update data from validated fields (only include defined values)
@@ -224,21 +249,11 @@ function createDeleteHandler(prisma: PrismaClient) {
     const discordUserId = req.userId;
     const id = getParam(req.params.id);
 
-    const idValidation = validateUuid(id, 'persona ID');
-    if (!idValidation.valid) {
-      return sendError(res, idValidation.error);
+    const resolved = await resolveOwnedPersona(prisma, discordUserId, id, res);
+    if (resolved === null) {
+      return;
     }
-
-    const user = await getOrCreateInternalUser(prisma, discordUserId);
-
-    const existing = await prisma.persona.findFirst({
-      where: { id, ownerId: user.id },
-      select: { id: true },
-    });
-
-    if (existing === null) {
-      return sendError(res, ErrorResponses.notFound('Persona'));
-    }
+    const { user } = resolved;
 
     if (user.defaultPersonaId === id) {
       return sendError(
