@@ -46,6 +46,10 @@ jobs:
         run: pnpm cpd
         continue-on-error: true
 
+      - name: Check for duplicate export names
+        run: pnpm ops guard:duplicate-exports
+        continue-on-error: true
+
       - name: Check dependency boundaries
         run: |
           pnpm depcruise 2>&1 || true
