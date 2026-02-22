@@ -137,6 +137,13 @@ export async function canUserViewPersonality(
   return ownerEntry !== null;
 }
 
+/**
+ * Options for resolvePersonalityForEdit.
+ *
+ * The generic type parameter T on the function must exactly match the shape
+ * produced by `select`. Callers are on the honor system for this — TypeScript
+ * can't infer T from a Prisma select clause, so the cast uses `as unknown as T`.
+ */
 interface ResolvePersonalityOptions {
   /** Prisma select clause — must include `id` and `ownerId` */
   select: Prisma.PersonalitySelect & { id: true; ownerId: true };

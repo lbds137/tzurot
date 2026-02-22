@@ -59,6 +59,16 @@ Allow `/deny` entries to have an optional expiration for temporary bans (e.g., `
 
 Admin-managed list of words to auto-spoiler in voice transcripts (`||word||`). Add `spoilerWords` string array to `AdminSettings` JSONB with case-insensitive word-boundary matching.
 
+### 🏗️ Tooling Package Test Coverage Gaps
+
+Three pre-existing tooling logic files need colocated tests (excluded in `structure.test.ts` as tech debt):
+
+- [ ] `packages/tooling/src/dev/check-duplicate-exports.ts` — Complex parsing/matching logic (333 lines)
+- [ ] `packages/tooling/src/lint/complexity-report.ts` — Analysis logic
+- [ ] `packages/tooling/src/memory/cleanup-duplicates.ts` — Data processing
+
+`structure.test.ts` now enforces tooling coverage — any NEW file will fail without a test.
+
 ### ✨ Discord Emoji/Sticker Image Support
 
 Support custom Discord emoji and stickers in vision context. Extract emoji URLs from `<:name:id>` format, sticker URLs from message stickers, include alongside attachments.
@@ -426,6 +436,7 @@ Pre-push hook runs CPD and depcruise in warning-only mode (non-blocking). ESLint
 
 - [x] **depcruise**: Already blocking in pre-push hook (`.husky/pre-push` line 129-135). Done.
 - [ ] **CPD**: Currently non-blocking in pre-push. Once under target (<100 clones), add threshold check that blocks push
+- [ ] **Duplicate Exports**: `guard:duplicate-exports` runs in CI with `continue-on-error: true`. Add ratchet (baseline count file + "new duplicates above baseline" check) so it blocks CI while still allowing existing allowlisted duplicates. Then drop `continue-on-error`
 - [ ] **ESLint warnings**: `max-statements`, `complexity`, `max-lines-per-function` are warn-level. Audit current violation count, set a baseline, block new violations
 - [ ] **Knip**: Dead code detection runs manually. Add to pre-push or CI as blocking check
 
