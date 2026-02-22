@@ -118,6 +118,51 @@ vi.mock('../../utils/dashboard/index.js', async () => {
     getSessionManager: () => mockGetSessionManager(),
     parseDashboardCustomId: (...args: unknown[]) => mockParseDashboardCustomId(...args),
     isDashboardInteraction: (...args: unknown[]) => mockIsDashboardInteraction(...args),
+    fetchOrCreateSession: vi
+      .fn()
+      .mockImplementation(
+        async (opts: {
+          userId: string;
+          entityType: string;
+          entityId: string;
+          fetchFn: () => Promise<unknown>;
+          transformFn: (d: unknown) => unknown;
+        }) => {
+          const session = await mockSessionManagerGet(opts.userId, opts.entityType, opts.entityId);
+          if (session !== null) {
+            return { success: true, data: session.data, fromCache: true };
+          }
+          const raw = await opts.fetchFn();
+          if (raw === null) {
+            return { success: false, error: 'not_found' };
+          }
+          const data = opts.transformFn(raw);
+          await mockSessionManagerSet({
+            userId: opts.userId,
+            entityType: opts.entityType,
+            entityId: opts.entityId,
+            data,
+            messageId: 'message-789',
+            channelId: 'channel-999',
+          });
+          return { success: true, data, fromCache: false };
+        }
+      ),
+    extractAndMergeSectionValues: vi
+      .fn()
+      .mockImplementation(
+        (
+          _interaction: unknown,
+          config: { sections: Array<{ id: string }> },
+          sectionId: string,
+          currentData: Record<string, unknown>
+        ) => {
+          const section = config.sections.find((s: { id: string }) => s.id === sectionId);
+          if (!section) return null;
+          const values = mockExtractModalValues();
+          return { section, merged: { ...currentData, ...values } };
+        }
+      ),
     requireDeferredSession: (...args: unknown[]) => mockRequireDeferredSession(...args),
     getSessionOrExpired: (...args: unknown[]) => mockGetSessionOrExpired(...args),
     getSessionDataOrReply: (...args: unknown[]) => mockGetSessionDataOrReply(...args),

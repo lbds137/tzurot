@@ -19,8 +19,9 @@ import {
   buildDashboardComponents,
   buildDashboardCustomId,
   buildSectionModal,
-  extractModalValues,
+  extractAndMergeSectionValues,
   getSessionManager,
+  fetchOrCreateSession,
   parseDashboardCustomId,
   isDashboardInteraction,
   type DashboardContext,
@@ -116,22 +117,20 @@ async function handleSectionModalSubmit(
   // Get the appropriate dashboard config based on admin status
   const dashboardConfig = getCharacterDashboardConfig(isAdmin);
 
-  // Find the section config
-  const section = dashboardConfig.sections.find(s => s.id === sectionId);
-  if (!section) {
-    logger.error({ sectionId }, 'Unknown section');
+  // Extract and merge modal values with session data
+  const extracted = extractAndMergeSectionValues(
+    interaction,
+    dashboardConfig,
+    sectionId,
+    session?.data ?? {}
+  );
+  if (extracted === null) {
     return;
   }
 
-  // Extract values from modal
-  const values = extractModalValues(
-    interaction,
-    section.fields.map(f => f.id)
-  );
-
   try {
     // Update character via API (entityId is the slug)
-    const updated = await updateCharacter(entityId, values, interaction.user.id, config);
+    const updated = await updateCharacter(entityId, extracted.merged, interaction.user.id, config);
 
     // Build session data (preserve _isAdmin flag and browseContext)
     const sessionData: CharacterSessionData = {
@@ -216,42 +215,25 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
       return;
     }
 
-    // Get current data from session or fetch
-    const sessionManager = getSessionManager();
-    const session = await sessionManager.get<CharacterSessionData>(
-      interaction.user.id,
-      'character',
-      entityId
-    );
-    let characterData: CharacterData;
-
-    if (session !== null) {
-      characterData = session.data;
-    } else {
-      // Fetch fresh data (entityId is the slug)
-      const character = await fetchCharacter(entityId, config, interaction.user.id);
-      if (!character) {
-        await interaction.reply({
-          content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
-          flags: MessageFlags.Ephemeral,
-        });
-        return;
-      }
-      characterData = character;
-      // Create new session (with admin flag)
-      const sessionData: CharacterSessionData = { ...character, _isAdmin: isAdmin };
-      await sessionManager.set({
-        userId: interaction.user.id,
-        entityType: 'character',
-        entityId,
-        data: sessionData,
-        messageId: interaction.message.id,
-        channelId: interaction.channelId,
+    // Get current data from session or fetch from API
+    const result = await fetchOrCreateSession<CharacterSessionData, CharacterData>({
+      userId: interaction.user.id,
+      entityType: 'character',
+      entityId,
+      fetchFn: () => fetchCharacter(entityId, config, interaction.user.id),
+      transformFn: (character: CharacterData) => ({ ...character, _isAdmin: isAdmin }),
+      interaction,
+    });
+    if (!result.success) {
+      await interaction.reply({
+        content: DASHBOARD_MESSAGES.NOT_FOUND('Character'),
+        flags: MessageFlags.Ephemeral,
       });
+      return;
     }
 
     // Build and show section modal (with context for field visibility)
-    const modal = buildSectionModal(dashboardConfig, section, entityId, characterData, context);
+    const modal = buildSectionModal(dashboardConfig, section, entityId, result.data, context);
     await interaction.showModal(modal);
     return;
   }
