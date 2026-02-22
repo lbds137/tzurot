@@ -319,7 +319,7 @@ describe('personality route helpers', () => {
         'test-slug',
         'discord-unknown',
         res,
-        { id: true, ownerId: true }
+        { select: { id: true, ownerId: true } }
       );
 
       expect(result).toBeNull();
@@ -336,7 +336,7 @@ describe('personality route helpers', () => {
         'nonexistent-slug',
         'discord-123',
         res,
-        { id: true, ownerId: true }
+        { select: { id: true, ownerId: true } }
       );
 
       expect(result).toBeNull();
@@ -360,13 +360,40 @@ describe('personality route helpers', () => {
         'test-slug',
         'discord-123',
         res,
-        { id: true, ownerId: true }
+        { select: { id: true, ownerId: true } }
       );
 
       expect(result).toBeNull();
       expect(res.status).toHaveBeenCalledWith(403);
       expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({ message: expect.stringContaining('permission') })
+        expect.objectContaining({
+          message: 'You do not have permission to edit this personality',
+        })
+      );
+    });
+
+    it('should use custom action verb in permission error message', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'pers-id',
+        ownerId: 'other-user-id',
+      });
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+      const res = createMockRes();
+
+      const result = await resolvePersonalityForEdit(
+        mockPrisma as unknown as PrismaClient,
+        'test-slug',
+        'discord-123',
+        res,
+        { select: { id: true, ownerId: true }, action: 'delete' }
+      );
+
+      expect(result).toBeNull();
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: 'You do not have permission to delete this personality',
+        })
       );
     });
 
@@ -384,7 +411,7 @@ describe('personality route helpers', () => {
         'test-slug',
         'discord-123',
         res,
-        { id: true, ownerId: true, name: true }
+        { select: { id: true, ownerId: true, name: true } }
       );
 
       expect(result).not.toBeNull();

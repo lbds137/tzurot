@@ -199,7 +199,7 @@ function createUpdateHandler(prisma: PrismaClient) {
     if (resolved === null) {
       return;
     }
-    const { user } = resolved;
+    const { user, persona: ownedPersona } = resolved;
 
     // Validate request body with Zod
     const parseResult = PersonaUpdateSchema.safeParse(req.body);
@@ -228,12 +228,12 @@ function createUpdateHandler(prisma: PrismaClient) {
     }
 
     const persona = await prisma.persona.update({
-      where: { id },
+      where: { id: ownedPersona.id },
       data: updateData,
       select: PERSONA_SELECT,
     });
 
-    logger.info({ userId: user.id, personaId: id }, '[Persona] Updated persona');
+    logger.info({ userId: user.id, personaId: ownedPersona.id }, '[Persona] Updated persona');
 
     sendCustomSuccess(res, {
       success: true,
@@ -251,9 +251,9 @@ function createDeleteHandler(prisma: PrismaClient) {
     if (resolved === null) {
       return;
     }
-    const { user } = resolved;
+    const { user, persona } = resolved;
 
-    if (user.defaultPersonaId === id) {
+    if (user.defaultPersonaId === persona.id) {
       return sendError(
         res,
         ErrorResponses.validationError(
@@ -262,8 +262,8 @@ function createDeleteHandler(prisma: PrismaClient) {
       );
     }
 
-    await prisma.persona.delete({ where: { id } });
-    logger.info({ userId: user.id, personaId: id }, '[Persona] Deleted persona');
+    await prisma.persona.delete({ where: { id: persona.id } });
+    logger.info({ userId: user.id, personaId: persona.id }, '[Persona] Deleted persona');
 
     sendCustomSuccess(res, { message: 'Persona deleted' });
   };

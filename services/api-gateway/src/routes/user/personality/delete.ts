@@ -72,17 +72,20 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
         aliases: number;
       };
     }>(prisma, slug, discordUserId, res, {
-      id: true,
-      name: true,
-      ownerId: true,
-      _count: {
-        select: {
-          conversationHistory: true,
-          memories: true,
-          channelSettings: true,
-          aliases: true,
+      select: {
+        id: true,
+        name: true,
+        ownerId: true,
+        _count: {
+          select: {
+            conversationHistory: true,
+            memories: true,
+            channelSettings: true,
+            aliases: true,
+          },
         },
       },
+      action: 'delete',
     });
     if (resolved === null) {
       return;
