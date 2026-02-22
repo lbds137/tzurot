@@ -16,10 +16,8 @@ import type {
 import { createLogger } from '@tzurot/common-types';
 import { buildDeleteConfirmation } from '../../utils/dashboard/deleteConfirmation.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
-import { createRefreshHandler } from '../../utils/dashboard/refreshHandler.js';
+import { createRefreshHandler, refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import {
-  buildDashboardEmbed,
-  buildDashboardComponents,
   buildSectionModal,
   extractModalValues,
   getSessionManager,
@@ -43,24 +41,6 @@ import { buildBrowseResponse } from './browse.js';
 
 const logger = createLogger('persona-dashboard');
 const BROWSE_COMMAND = '/persona browse';
-
-/**
- * Refresh the dashboard UI with updated data.
- */
-async function refreshDashboardUI(
-  interaction: ModalSubmitInteraction | ButtonInteraction,
-  entityId: string,
-  flattenedData: FlattenedPersonaData
-): Promise<void> {
-  const embed = buildDashboardEmbed(PERSONA_DASHBOARD_CONFIG, flattenedData);
-  const components = buildDashboardComponents(
-    PERSONA_DASHBOARD_CONFIG,
-    entityId,
-    flattenedData,
-    buildPersonaDashboardOptions(flattenedData)
-  );
-  await interaction.editReply({ embeds: [embed], components });
-}
 
 /**
  * Handle modal submissions for persona editing
@@ -160,7 +140,13 @@ async function handleSectionModalSubmit(
     }
 
     // Refresh dashboard
-    await refreshDashboardUI(interaction, entityId, flattenedData);
+    await refreshDashboardUI({
+      interaction,
+      entityId,
+      data: flattenedData,
+      dashboardConfig: PERSONA_DASHBOARD_CONFIG,
+      buildOptions: buildPersonaDashboardOptions,
+    });
 
     logger.info({ personaId: entityId, sectionId }, 'Persona section updated');
   } catch (error) {
@@ -356,7 +342,13 @@ async function handleCancelDeleteButton(
   }
 
   // Refresh dashboard to return from confirmation view
-  await refreshDashboardUI(interaction, entityId, session.data);
+  await refreshDashboardUI({
+    interaction,
+    entityId,
+    data: session.data,
+    dashboardConfig: PERSONA_DASHBOARD_CONFIG,
+    buildOptions: buildPersonaDashboardOptions,
+  });
 }
 
 /**

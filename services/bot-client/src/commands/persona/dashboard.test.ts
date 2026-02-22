@@ -109,8 +109,18 @@ vi.mock('../../utils/dashboard/deleteConfirmation.js', () => ({
   }),
 }));
 
+const mockRefreshDashboardUI = vi
+  .fn()
+  .mockImplementation(
+    async (options: { interaction: { editReply: (data: unknown) => Promise<void> } }) => {
+      const embed = mockBuildDashboardEmbed();
+      const components = mockBuildDashboardComponents();
+      await options.interaction.editReply({ embeds: [embed], components });
+    }
+  );
 vi.mock('../../utils/dashboard/refreshHandler.js', () => ({
   createRefreshHandler: vi.fn().mockReturnValue(vi.fn().mockResolvedValue(undefined)),
+  refreshDashboardUI: (...args: unknown[]) => mockRefreshDashboardUI(...args),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
