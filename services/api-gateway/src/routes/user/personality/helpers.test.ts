@@ -17,10 +17,12 @@ vi.mock('@tzurot/common-types', async () => {
   };
 });
 
+import type { Response } from 'express';
 import {
   getOrCreateInternalUser,
   canUserEditPersonality,
   canUserViewPersonality,
+  resolvePersonalityForEdit,
 } from './helpers.js';
 
 describe('personality route helpers', () => {
@@ -331,6 +333,98 @@ describe('personality route helpers', () => {
       });
 
       expect(result).toBe(false);
+    });
+  });
+
+  describe('resolvePersonalityForEdit', () => {
+    function createMockRes() {
+      return {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn().mockReturnThis(),
+      } as unknown as Response;
+    }
+
+    it('should return 403 when user not found', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue(null);
+      const res = createMockRes();
+
+      const result = await resolvePersonalityForEdit(
+        mockPrisma as unknown as PrismaClient,
+        'test-slug',
+        'discord-unknown',
+        res,
+        { id: true, ownerId: true }
+      );
+
+      expect(result).toBeNull();
+      expect(res.status).toHaveBeenCalledWith(403);
+    });
+
+    it('should return 404 when personality not found', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
+      mockPrisma.personality.findUnique.mockResolvedValue(null);
+      const res = createMockRes();
+
+      const result = await resolvePersonalityForEdit(
+        mockPrisma as unknown as PrismaClient,
+        'nonexistent-slug',
+        'discord-123',
+        res,
+        { id: true, ownerId: true }
+      );
+
+      expect(result).toBeNull();
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: 'Personality not found' })
+      );
+    });
+
+    it('should return 403 when user lacks edit permission', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'pers-id',
+        ownerId: 'other-user-id',
+      });
+      mockPrisma.personalityOwner.findUnique.mockResolvedValue(null);
+      const res = createMockRes();
+
+      const result = await resolvePersonalityForEdit(
+        mockPrisma as unknown as PrismaClient,
+        'test-slug',
+        'discord-123',
+        res,
+        { id: true, ownerId: true }
+      );
+
+      expect(result).toBeNull();
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ message: expect.stringContaining('permission') })
+      );
+    });
+
+    it('should return user and personality on success', async () => {
+      mockPrisma.user.findFirst.mockResolvedValue({ id: 'user-id' });
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        id: 'pers-id',
+        ownerId: 'user-id',
+        name: 'Test',
+      });
+      const res = createMockRes();
+
+      const result = await resolvePersonalityForEdit(
+        mockPrisma as unknown as PrismaClient,
+        'test-slug',
+        'discord-123',
+        res,
+        { id: true, ownerId: true, name: true }
+      );
+
+      expect(result).not.toBeNull();
+      expect(result!.user).toEqual({ id: 'user-id' });
+      expect(result!.personality).toEqual({ id: 'pers-id', ownerId: 'user-id', name: 'Test' });
+      expect(res.status).not.toHaveBeenCalled();
     });
   });
 });
