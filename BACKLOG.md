@@ -87,7 +87,7 @@ Full audit of all slash command UI patterns. Review shared utilities usage, iden
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 146 clones (1.57% duplication) across PRs #599, #665, #666, #667. Remaining 146 clones are spread across api-gateway (64), bot-client (60), common-types (10), ai-worker (6), tooling (6).
+**Progress**: 175 → 137 clones (1.47% duplication) across PRs #599, #665, #666, #667, #668.
 
 ### Completed
 
@@ -96,16 +96,14 @@ _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilit
 - [x] API gateway shared route test utilities — PR #667
 - [x] Personality response formatters — PR #666
 - [x] High-value extractions — PR #599, #665
-
-### Phase 4: API Gateway Route Boilerplate (~22 clones)
-
-Largest single cluster. Identical import blocks, user lookup preambles, and permission checks across all route files.
-
-- [ ] Extract `resolvePersonalityForEdit(prisma, req, res)` — slug validation + user lookup + permission check (5 clones across personality CRUD + admin routes)
-- [ ] Extract memory route helpers — `MemoryRouteContext` builder, shared function signatures (9 clones across memory routes)
-- [ ] Extract LLM config shared CRUD — admin vs user routes share validate + lookup + update (6 clones)
-- [ ] Extract config-overrides helpers — `withUserContext` wrapper, `resetConfigOverride` (5 clones, single file)
-- [ ] Extract history context resolver — `parseAndResolveHistoryContext` (3 clones, single file)
+- [x] Phase 4: API gateway route boilerplate — PR #668
+  - `resolvePersonalityForEdit<T>` (personality CRUD: update, delete, visibility)
+  - Memory route helpers (`getUserByDiscordId`, `getDefaultPersonaId`, `getPersonalityById`, `parseTimeframeFilter`)
+  - `resolveOwnedPersona` / `resolvePersonalityBySlug` (persona routes)
+  - `verifyConfigAccess` / `tryInvalidateUserLlmConfigCache` (model-override)
+  - `getOrCreateInternalUser` promoted to shared `userHelpers.ts`
+  - `guard:duplicate-exports` tooling command + CI integration
+  - Fixed double "not found" error messages across all routes
 
 ### Phase 5: Bot-Client Dashboard Patterns (~16 clones)
 
