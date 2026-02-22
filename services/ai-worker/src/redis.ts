@@ -19,13 +19,13 @@ import {
 import { RedisService } from './services/RedisService.js';
 import { modelSupportsVision } from './services/ModelCapabilityChecker.js';
 
-const { redis, voiceTranscriptCache } = initCoreRedisServices('Redis');
+const { redis, voiceTranscriptCache } = initCoreRedisServices('WorkerRedis');
 
 // Export singleton RedisService instance
 // eslint-disable-next-line @tzurot/no-singleton-export -- Intentional: RedisService wraps ioredis client for job results and streaming. Multiple instances would create redundant connections and inconsistent state.
 export const redisService = new RedisService(redis);
 
-// Export singleton VoiceTranscriptCache instance
+// Singleton: shares Redis connection for transcript caching — see initCoreRedisServices
 export { voiceTranscriptCache };
 
 // Export singleton VisionDescriptionCache instance with L2 persistent cache

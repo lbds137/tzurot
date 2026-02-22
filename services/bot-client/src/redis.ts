@@ -15,7 +15,7 @@ import { initSessionManager, shutdownSessionManager } from './utils/dashboard/in
 
 const logger = createLogger('Redis');
 
-const { redis, voiceTranscriptCache } = initCoreRedisServices('Redis');
+const { redis, voiceTranscriptCache } = initCoreRedisServices('BotRedis');
 
 // Export raw Redis client for direct access (e.g., pending verification messages)
 export { redis };
@@ -24,7 +24,7 @@ export { redis };
 // eslint-disable-next-line @tzurot/no-singleton-export -- Redis requires singleton pattern for connection reuse
 export const redisService = new RedisService(redis);
 
-// Export singleton VoiceTranscriptCache instance
+// Singleton: shares Redis connection for transcript caching — see initCoreRedisServices
 export { voiceTranscriptCache };
 
 // Initialize Dashboard Session Manager
