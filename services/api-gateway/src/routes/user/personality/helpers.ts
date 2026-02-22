@@ -3,7 +3,10 @@
  * Shared utility functions for personality CRUD operations
  */
 
-import { UserService, type PrismaClient, isBotOwner } from '@tzurot/common-types';
+import type { Response } from 'express';
+import { UserService, Prisma, type PrismaClient, isBotOwner } from '@tzurot/common-types';
+import { sendError } from '../../../utils/responseHelpers.js';
+import { ErrorResponses } from '../../../utils/errorResponses.js';
 
 /**
  * Options for checking if user can view a personality
@@ -153,4 +156,48 @@ export async function canUserViewPersonality(
   });
 
   return ownerEntry !== null;
+}
+
+/**
+ * Look up user, personality by slug, and verify edit permission.
+ * Sends appropriate error responses and returns null if any check fails.
+ *
+ * Callers specify a Prisma select clause; the result personality is cast to T.
+ */
+export async function resolvePersonalityForEdit<T extends { id: string; ownerId: string }>(
+  prisma: PrismaClient,
+  slug: string,
+  discordUserId: string,
+  res: Response,
+  select: Prisma.PersonalitySelect
+): Promise<{ user: { id: string }; personality: T } | null> {
+  const user = await findInternalUser(prisma, discordUserId);
+  if (user === null) {
+    sendError(res, ErrorResponses.unauthorized('User not found'));
+    return null;
+  }
+
+  const personality = await prisma.personality.findUnique({ where: { slug }, select });
+  if (personality === null) {
+    sendError(res, ErrorResponses.notFound('Personality not found'));
+    return null;
+  }
+
+  const canEdit = await canUserEditPersonality(
+    prisma,
+    user.id,
+    (personality as { id: string }).id,
+    discordUserId
+  );
+  if (!canEdit) {
+    sendError(
+      res,
+      ErrorResponses.unauthorized('You do not have permission to edit this personality')
+    );
+    return null;
+  }
+
+  // Cast through unknown: Prisma's full model type doesn't structurally overlap with T,
+  // but the select clause ensures only the requested fields are present at runtime.
+  return { user, personality: personality as unknown as T };
 }
