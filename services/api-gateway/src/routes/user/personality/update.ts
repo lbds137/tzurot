@@ -127,7 +127,7 @@ function createHandler(prisma: PrismaClient, cacheInvalidationService?: CacheInv
       slug,
       discordUserId,
       res,
-      { id: true, ownerId: true, name: true }
+      { select: { id: true, ownerId: true, name: true } }
     );
     if (resolved === null) {
       return;

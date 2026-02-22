@@ -137,6 +137,13 @@ export async function canUserViewPersonality(
   return ownerEntry !== null;
 }
 
+interface ResolvePersonalityOptions {
+  /** Prisma select clause — must include `id` and `ownerId` */
+  select: Prisma.PersonalitySelect & { id: true; ownerId: true };
+  /** Verb for the permission error message (default: 'edit') */
+  action?: string;
+}
+
 /**
  * Look up user, personality by slug, and verify edit permission.
  * Sends appropriate error responses and returns null if any check fails.
@@ -149,8 +156,10 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
   slug: string,
   discordUserId: string,
   res: Response,
-  select: Prisma.PersonalitySelect & { id: true; ownerId: true }
+  options: ResolvePersonalityOptions
 ): Promise<{ user: { id: string }; personality: T } | null> {
+  const { select, action = 'edit' } = options;
+
   const user = await findInternalUser(prisma, discordUserId);
   if (user === null) {
     sendError(res, ErrorResponses.unauthorized('User not found'));
@@ -172,7 +181,7 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
   if (!canEdit) {
     sendError(
       res,
-      ErrorResponses.unauthorized('You do not have permission to edit this personality')
+      ErrorResponses.unauthorized(`You do not have permission to ${action} this personality`)
     );
     return null;
   }

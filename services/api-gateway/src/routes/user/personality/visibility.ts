@@ -40,7 +40,9 @@ export function createVisibilityHandler(prisma: PrismaClient): RequestHandler[] 
       id: string;
       ownerId: string;
       isPublic: boolean;
-    }>(prisma, slug, discordUserId, res, { id: true, ownerId: true, isPublic: true });
+    }>(prisma, slug, discordUserId, res, {
+      select: { id: true, ownerId: true, isPublic: true },
+    });
     if (resolved === null) {
       return;
     }
