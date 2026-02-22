@@ -30,14 +30,21 @@ vi.mock('@tzurot/common-types', async () => {
 vi.mock('./memoryHelpers.js', () => ({
   getUserByDiscordId: vi.fn(),
   getDefaultPersonaId: vi.fn(),
+  getPersonalityById: vi.fn(),
   parseTimeframeFilter: vi.fn(),
 }));
 
 import { handleBatchDelete, handleBatchDeletePreview, handlePurge } from './memoryBatch.js';
-import { getUserByDiscordId, getDefaultPersonaId, parseTimeframeFilter } from './memoryHelpers.js';
+import {
+  getUserByDiscordId,
+  getDefaultPersonaId,
+  getPersonalityById,
+  parseTimeframeFilter,
+} from './memoryHelpers.js';
 
 const mockGetUserByDiscordId = vi.mocked(getUserByDiscordId);
 const mockGetDefaultPersonaId = vi.mocked(getDefaultPersonaId);
+const mockGetPersonalityById = vi.mocked(getPersonalityById);
 const mockParseTimeframeFilter = vi.mocked(parseTimeframeFilter);
 
 // Test constants
@@ -51,9 +58,6 @@ const mockPrisma = {
   memory: {
     count: vi.fn(),
     updateMany: vi.fn(),
-  },
-  personality: {
-    findUnique: vi.fn(),
   },
   persona: {
     findUnique: vi.fn(),
@@ -113,8 +117,8 @@ describe('memoryBatch handlers', () => {
     // Default successful mocks
     mockGetUserByDiscordId.mockResolvedValue({ id: TEST_USER_ID });
     mockGetDefaultPersonaId.mockResolvedValue(TEST_PERSONA_ID);
+    mockGetPersonalityById.mockResolvedValue(defaultPersonality);
     mockParseTimeframeFilter.mockReturnValue({ filter: null });
-    mockPrisma.personality.findUnique.mockResolvedValue(defaultPersonality);
     mockPrisma.persona.findUnique.mockResolvedValue(defaultPersona);
     mockPrisma.memory.count.mockResolvedValue(0);
     mockPrisma.memory.updateMany.mockResolvedValue({ count: 0 });
@@ -149,20 +153,20 @@ describe('memoryBatch handlers', () => {
 
       await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
-      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
+      expect(mockGetPersonalityById).not.toHaveBeenCalled();
     });
 
-    it('should return 404 when personality not found', async () => {
-      mockPrisma.personality.findUnique.mockResolvedValue(null);
+    it('should return early when personality not found', async () => {
+      mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockQueryReq({ personalityId: TEST_PERSONALITY_ID });
 
       await handleBatchDeletePreview(mockPrisma as unknown as PrismaClient, req, res);
 
-      expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith(
-        expect.objectContaining({
-          error: 'NOT_FOUND',
-        })
+      // getPersonalityById handles the 404 response internally
+      expect(mockGetPersonalityById).toHaveBeenCalledWith(
+        mockPrisma,
+        TEST_PERSONALITY_ID,
+        expect.anything()
       );
     });
 
@@ -317,16 +321,21 @@ describe('memoryBatch handlers', () => {
 
       await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
-      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
+      expect(mockGetPersonalityById).not.toHaveBeenCalled();
     });
 
-    it('should return 404 when personality not found', async () => {
-      mockPrisma.personality.findUnique.mockResolvedValue(null);
+    it('should return early when personality not found', async () => {
+      mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
       await handleBatchDelete(mockPrisma as unknown as PrismaClient, req, res);
 
-      expect(res.status).toHaveBeenCalledWith(404);
+      // getPersonalityById handles the 404 response internally
+      expect(mockGetPersonalityById).toHaveBeenCalledWith(
+        mockPrisma,
+        TEST_PERSONALITY_ID,
+        expect.anything()
+      );
     });
 
     it('should return 400 when user has no persona', async () => {
@@ -512,16 +521,21 @@ describe('memoryBatch handlers', () => {
 
       await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
-      expect(mockPrisma.personality.findUnique).not.toHaveBeenCalled();
+      expect(mockGetPersonalityById).not.toHaveBeenCalled();
     });
 
-    it('should return 404 when personality not found', async () => {
-      mockPrisma.personality.findUnique.mockResolvedValue(null);
+    it('should return early when personality not found', async () => {
+      mockGetPersonalityById.mockResolvedValue(null);
       const { req, res } = createMockBodyReq({ personalityId: TEST_PERSONALITY_ID });
 
       await handlePurge(mockPrisma as unknown as PrismaClient, req, res);
 
-      expect(res.status).toHaveBeenCalledWith(404);
+      // getPersonalityById handles the 404 response internally
+      expect(mockGetPersonalityById).toHaveBeenCalledWith(
+        mockPrisma,
+        TEST_PERSONALITY_ID,
+        expect.anything()
+      );
     });
 
     it('should reject missing confirmation phrase', async () => {
