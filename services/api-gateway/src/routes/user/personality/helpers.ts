@@ -179,7 +179,7 @@ export async function resolvePersonalityForEdit<T extends { id: string; ownerId:
 
   const personality = await prisma.personality.findUnique({ where: { slug }, select });
   if (personality === null) {
-    sendError(res, ErrorResponses.notFound('Personality not found'));
+    sendError(res, ErrorResponses.notFound('Personality'));
     return null;
   }
 
