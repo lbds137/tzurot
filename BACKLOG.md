@@ -75,30 +75,70 @@ Full audit of all slash command UI patterns. Review shared utilities usage, iden
 
 ## 🏗 Active Epic: CPD Clone Reduction
 
-_Focus: Reduce 149 code clones to <100. Extract shared patterns into reusable utilities._
+_Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-High-value extractions done (PR #599). Remaining 149 clones (~1.93%) are structural duplication across service boundaries. Doing this before package extraction clarifies shared vs service-specific code boundaries.
+**Progress**: 175 → 146 clones (1.57% duplication) across PRs #599, #665, #666, #667. Remaining 146 clones are spread across api-gateway (64), bot-client (60), common-types (10), ai-worker (6), tooling (6).
 
-### Phase 1: Shared Utilities
+### Completed
 
-- [ ] Factory files: 5+ clones of `DeepPartial`/`deepMerge` — extract shared helper to common-types
-- [ ] `dateFormatting.ts`: 4 clones of similar date formatting logic — consolidate
-- [ ] Redis setup: IORedis config duplication across services — extract factory
+- [x] Redis setup factory (`initCoreRedisServices` in common-types) — PR #667
+- [x] CommandHandler error reply helper (`sendErrorReply`) — PR #667
+- [x] API gateway shared route test utilities — PR #667
+- [x] Personality response formatters — PR #666
+- [x] High-value extractions — PR #599, #665
 
-### Phase 2: Bot-Client Patterns
+### Phase 4: API Gateway Route Boilerplate (~22 clones)
 
-- [ ] Subcommand routers: 3 near-identical implementations — unify or extract base
-- [ ] Pagination/browse builders: duplicated page calculation, sort toggle, button construction
-- [ ] Error handling: repeated replied/deferred check + followUp/reply pattern in CommandHandler
-- [ ] Custom ID parsing: duplicated page/sort extraction logic
+Largest single cluster. Identical import blocks, user lookup preambles, and permission checks across all route files.
 
-### Phase 3: API Gateway / AI Worker
+- [ ] Extract `resolvePersonalityForEdit(prisma, req, res)` — slug validation + user lookup + permission check (5 clones across personality CRUD + admin routes)
+- [ ] Extract memory route helpers — `MemoryRouteContext` builder, shared function signatures (9 clones across memory routes)
+- [ ] Extract LLM config shared CRUD — admin vs user routes share validate + lookup + update (6 clones)
+- [ ] Extract config-overrides helpers — `withUserContext` wrapper, `resetConfigOverride` (5 clones, single file)
+- [ ] Extract history context resolver — `parseAndResolveHistoryContext` (3 clones, single file)
 
-- [ ] Personality routes: duplicate Prisma select objects, permission checks — extract route helpers
-- [ ] Dashboard handlers: session/ownership boilerplate — may already have shared utils
-- [ ] Avatar operations: duplicated file deletion and glob-based cleanup
+### Phase 5: Bot-Client Dashboard Patterns (~16 clones)
 
-**Target**: <100 clones or <1.5%. Currently 149 clones, ~1.93%.
+Session/ownership boilerplate and modal/select handling repeated across all dashboard commands.
+
+- [ ] Standardize `requireDashboardSession` utility — session lookup + expiry + ownership check (8 clones across settings, preset, persona, deny dashboards)
+- [ ] Extract `handleDashboardModalSubmit` — section lookup + value extraction + API call + refresh (4 clones)
+- [ ] Extract `handleDashboardSelectMenu` — edit prefix parsing + section lookup (2 clones)
+- [ ] Deduplicate persona profile section config — single source of truth between `config.ts` and `profileSections.ts` (3 clones)
+
+### Phase 6: Bot-Client Command Patterns (~15 clones)
+
+Subcommand routing, browse/pagination, custom IDs, and command-specific duplication.
+
+- [ ] Consolidate subcommand routers — parameterized router with context-type generic (3 clones)
+- [ ] Migrate browse consumers to `browse/` utilities, delete `paginationBuilder.ts` (4 clones)
+- [ ] Servers command: use `createBrowseCustomIdHelpers` instead of inline parsing (4 clones)
+- [ ] Extract memory command shared helpers — `formatMemoryLine`, detail action handler (4 clones)
+
+### Phase 7: Cross-Service & Common-Types (~15 clones)
+
+Shared types, config resolver patterns, and remaining cross-service duplication.
+
+- [ ] Define `PersonalityFields` type in common-types — spans all 3 services + common-types (4 clones)
+- [ ] Extract `CacheWithTTL` base — cleanup interval + user-prefix invalidation (6 clones across config resolvers)
+- [ ] DRY personality create/update Zod schemas — use `.extend()` (2 clones)
+- [ ] Extract `sessionContextFields` Zod fragment — shared between jobs.ts and personality schemas (1 clone)
+- [ ] ResultsListener: use shared `createIORedisClient` factory (1 clone)
+
+### Phase 8: AI Worker + Tooling (~10 clones)
+
+Smaller wins in ai-worker internal patterns and tooling utilities.
+
+- [ ] Extract `createStuckJobCleanup(model, config)` factory (2 clones)
+- [ ] Extract `handleShapesJobError` shared error handler (2 clones)
+- [ ] Extract tooling `spawnWithPiping` and shared `execFileSafe` helpers (3 clones)
+- [ ] Extract migration preamble helper (`validateEnvironment` + banner + client) (2 clones)
+
+### Remaining (~10 clones)
+
+Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
+
+**Target**: <100 clones or <1.5%. Currently 146 clones, 1.57%.
 
 ---
 
