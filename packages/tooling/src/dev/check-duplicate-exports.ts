@@ -139,7 +139,12 @@ function findTypeScriptFiles(dir: string): string[] {
   return files;
 }
 
-// NOTE: All patterns are matched per-line. Multi-line export { } blocks are not detected.
+// NOTE: All patterns are matched per-line. Known limitations:
+// - Multi-line `export { ... }` blocks (spanning multiple lines) are not detected
+// - `export default function/class` declarations are not tracked (rare in this codebase)
+// - `export * from './module'` namespace re-exports are not tracked
+// These are acceptable for the intended use case (catching duplicate named exports
+// across files), but future maintainers should not assume full coverage.
 const EXPORT_PATTERNS: { pattern: RegExp; kind: ExportInfo['kind'] }[] = [
   { pattern: /^export\s+(?:async\s+)?function\s+(\w+)/, kind: 'function' },
   { pattern: /^export\s+class\s+(\w+)/, kind: 'class' },

@@ -15,7 +15,7 @@ import { getUserByDiscordId, getDefaultPersonaId } from './memoryHelpers.js';
 
 const logger = createLogger('user-memory-single');
 
-const MEMORY_NOT_FOUND = 'Memory not found';
+const MEMORY_RESOURCE = 'Memory';
 const MEMORY_ID_REQUIRED = 'Memory ID is required';
 
 /** Include clause for personality in memory queries */
@@ -48,7 +48,7 @@ async function verifyMemoryOwnership(
 
   const personaId = await getDefaultPersonaId(prisma, user.id);
   if (personaId === null) {
-    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
+    sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
     return null;
   }
 
@@ -61,7 +61,7 @@ async function verifyMemoryOwnership(
   });
 
   if (memory === null) {
-    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
+    sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
     return null;
   }
 
@@ -125,7 +125,7 @@ export async function handleGetMemory(
 
   const personaId = await getDefaultPersonaId(prisma, user.id);
   if (personaId === null) {
-    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
+    sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
     return;
   }
 
@@ -139,7 +139,7 @@ export async function handleGetMemory(
   });
 
   if (memory === null) {
-    sendError(res, ErrorResponses.notFound(MEMORY_NOT_FOUND));
+    sendError(res, ErrorResponses.notFound(MEMORY_RESOURCE));
     return;
   }
 

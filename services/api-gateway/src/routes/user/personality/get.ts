@@ -70,7 +70,7 @@ function createHandler(prisma: PrismaClient) {
     });
 
     if (personality === null) {
-      return sendError(res, ErrorResponses.notFound('Personality not found'));
+      return sendError(res, ErrorResponses.notFound('Personality'));
     }
 
     const hasAccess = await checkUserAccess(prisma, user?.id, personality, discordUserId);

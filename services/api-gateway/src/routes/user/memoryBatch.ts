@@ -19,11 +19,14 @@ import { sendError, sendCustomSuccess } from '../../utils/responseHelpers.js';
 import { ErrorResponses } from '../../utils/errorResponses.js';
 import { sendZodError } from '../../utils/zodHelpers.js';
 import type { AuthenticatedRequest } from '../../types.js';
-import { getUserByDiscordId, getDefaultPersonaId, parseTimeframeFilter } from './memoryHelpers.js';
+import {
+  getUserByDiscordId,
+  getDefaultPersonaId,
+  getPersonalityById,
+  parseTimeframeFilter,
+} from './memoryHelpers.js';
 
 const logger = createLogger('memory-batch');
-
-const PERSONALITY_NOT_FOUND = 'Personality not found';
 
 /**
  * Handler for POST /user/memory/delete
@@ -52,13 +55,8 @@ export async function handleBatchDelete(
   }
 
   // Validate personality exists
-  const personality = await prisma.personality.findUnique({
-    where: { id: personalityId },
-    select: { id: true, name: true },
-  });
-
+  const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
-    sendError(res, ErrorResponses.notFound(PERSONALITY_NOT_FOUND));
     return;
   }
 
@@ -192,13 +190,8 @@ export async function handlePurge(
   }
 
   // Validate personality exists
-  const personality = await prisma.personality.findUnique({
-    where: { id: personalityId },
-    select: { id: true, name: true },
-  });
-
+  const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
-    sendError(res, ErrorResponses.notFound(PERSONALITY_NOT_FOUND));
     return;
   }
 
@@ -315,13 +308,8 @@ export async function handleBatchDeletePreview(
   }
 
   // Validate personality exists
-  const personality = await prisma.personality.findUnique({
-    where: { id: personalityId },
-    select: { id: true, name: true },
-  });
-
+  const personality = await getPersonalityById(prisma, personalityId, res);
   if (!personality) {
-    sendError(res, ErrorResponses.notFound(PERSONALITY_NOT_FOUND));
     return;
   }
 

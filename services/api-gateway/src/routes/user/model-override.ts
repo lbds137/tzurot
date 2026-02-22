@@ -160,13 +160,13 @@ export function createModelOverrideRoutes(
       });
 
       if (personality === null) {
-        return sendError(res, ErrorResponses.notFound('Personality not found'));
+        return sendError(res, ErrorResponses.notFound('Personality'));
       }
 
       // Verify config exists and user can access it
       const llmConfig = await verifyConfigAccess(prisma, configId, userId);
       if (llmConfig === null) {
-        return sendError(res, ErrorResponses.notFound('Config not found or not accessible'));
+        return sendError(res, ErrorResponses.notFound('Config'));
       }
 
       // Upsert the UserPersonalityConfig (use deterministic UUID for cross-env sync)
@@ -282,7 +282,7 @@ export function createModelOverrideRoutes(
       // Verify config exists and user can access it (global or owned)
       const llmConfig = await verifyConfigAccess(prisma, configId, userId);
       if (llmConfig === null) {
-        return sendError(res, ErrorResponses.notFound('Config not found or not accessible'));
+        return sendError(res, ErrorResponses.notFound('Config'));
       }
 
       // Update user's default config
@@ -324,7 +324,7 @@ export function createModelOverrideRoutes(
       });
 
       if (user === null) {
-        return sendError(res, ErrorResponses.notFound('User not found'));
+        return sendError(res, ErrorResponses.notFound('User'));
       }
 
       // Idempotent: if no default config is set, return success with wasSet: false
@@ -373,7 +373,7 @@ export function createModelOverrideRoutes(
       });
 
       if (user === null) {
-        return sendError(res, ErrorResponses.notFound('User not found'));
+        return sendError(res, ErrorResponses.notFound('User'));
       }
 
       // Find the override
