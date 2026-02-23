@@ -39,7 +39,7 @@ export function addSettingsRoutes(router: Router, prisma: PrismaClient): void {
       if (user.defaultPersonaId === null) {
         sendError(
           res,
-          ErrorResponses.validationError('No default persona set. Create a profile first.')
+          ErrorResponses.validationError('No default persona set. Create a persona first.')
         );
         return;
       }
