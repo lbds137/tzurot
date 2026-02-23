@@ -109,6 +109,7 @@ export function createEventValidator<TEvent extends BaseInvalidationEvent>(
 
     const event = obj as Record<string, unknown>;
 
+    // First matching typeSpec wins if duplicate types are provided
     for (const spec of typeSpecs) {
       if (event.type !== spec.type) {
         continue;

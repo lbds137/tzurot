@@ -32,6 +32,7 @@ export async function getDecryptedCookie(prisma: PrismaClient, userId: string): 
       service: CREDENTIAL_SERVICES.SHAPES_INC,
       credentialType: CREDENTIAL_TYPES.SESSION_COOKIE,
     },
+    orderBy: { createdAt: 'desc' },
   });
 
   if (credential === null) {
