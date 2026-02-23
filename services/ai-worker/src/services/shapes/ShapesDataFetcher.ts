@@ -362,12 +362,12 @@ export class ShapesDataFetcher {
       return true;
     }
     // Node.js/undici throws TypeError('fetch failed') with an Error `cause` for
-    // network errors (ECONNRESET, ETIMEDOUT, etc.). We check message OR cause to
-    // avoid retrying programming TypeErrors (null dereference, etc.). The cause
-    // check is a fallback in case the message string changes in a future version.
+    // network errors (ECONNRESET, ETIMEDOUT, etc.). We check message OR cause with
+    // a .code property (Node syscall errors always have .code) to avoid retrying
+    // programming TypeErrors or library errors that chain causes without .code.
     if (
       error instanceof TypeError &&
-      (error.message.includes('fetch') || error.cause instanceof Error)
+      (error.message.includes('fetch') || (error.cause instanceof Error && 'code' in error.cause))
     ) {
       return true;
     }
