@@ -77,6 +77,23 @@ Support custom Discord emoji and stickers in vision context. Extract emoji URLs 
 
 Automatic fallback to alternative free model on 402 quota errors. Track quota hits per model to avoid repeated failures. Foundation shipped in PR #587.
 
+### ✨ Resolve Shapes.inc Memory Sender UUIDs to Display Names
+
+Memory exports from shapes.inc include sender UUIDs (e.g., `98a94b95-cbd0-430b-8be2-602e1c75d8b0`) instead of human-readable names. Currently senders are omitted from the Markdown export. Resolve UUIDs to display names using the shapes.inc user API.
+
+**API**: `GET https://talk.shapes.inc/api/user/{uuid}` — returns `{ displayName, username, ... }` (public, no auth required).
+
+**Implementation**:
+
+- Collect unique sender UUIDs from all memories in the export
+- Batch-resolve via the user API (one call per unique UUID, not per memory)
+- Build a `Map<uuid, displayName>` lookup
+- Include resolved names in the Markdown heading: `### Memory #1 (2025-09-03 22:28) (Kaihime, OtherUser)`
+- Graceful fallback: if API call fails or user is anonymous, omit senders for that memory (current behavior)
+- Consider caching resolved UUIDs in Redis with TTL (users don't change display names often)
+
+**Location**: `services/ai-worker/src/jobs/ShapesExportFormatters.ts` (formatting) and `services/ai-worker/src/jobs/ShapesExportJob.ts` (API calls during export)
+
 ### 🏗️ Slash Command UX Audit
 
 Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.

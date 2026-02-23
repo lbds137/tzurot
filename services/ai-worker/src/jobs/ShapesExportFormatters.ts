@@ -108,8 +108,7 @@ function formatMemoriesSection(memories: ShapesIncMemory[]): string[] {
     const datePart = formatDateOnly(memoryDate, 'UTC');
     const timePart = memoryDate.toISOString().split('T')[1].slice(0, 5);
     const date = `${datePart} ${timePart}`;
-    const senders = memory.senders.length > 0 ? ` (${memory.senders.join(', ')})` : '';
-    lines.push(`### Memory #${String(i + 1)} (${date})${senders}`, '', memory.result.trim(), '');
+    lines.push(`### Memory #${String(i + 1)} (${date})`, '', memory.result.trim(), '');
   }
   return lines;
 }
