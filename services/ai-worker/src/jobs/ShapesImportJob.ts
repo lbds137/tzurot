@@ -297,11 +297,6 @@ async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJob
     data: { status: 'failed', completedAt: new Date(), errorMessage },
   });
 
-  logger.warn(
-    { jobId: opts.jobId, sourceSlug: opts.sourceSlug },
-    '[ShapesImportJob] Import marked as failed in database'
-  );
-
   return {
     success: false,
     memoriesImported: 0,
