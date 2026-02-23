@@ -30,19 +30,11 @@ const { mockFetchShapeData, mockGetUpdatedCookie } = vi.hoisted(() => ({
   mockFetchShapeData: vi.fn(),
   mockGetUpdatedCookie: vi.fn().mockReturnValue('updated-cookie'),
 }));
-vi.mock('../services/shapes/ShapesDataFetcher.js', async importOriginal => {
-  const actual = await importOriginal<typeof import('../services/shapes/ShapesDataFetcher.js')>();
-  return {
-    ShapesDataFetcher: vi.fn().mockImplementation(function () {
-      return { fetchShapeData: mockFetchShapeData, getUpdatedCookie: mockGetUpdatedCookie };
-    }),
-    ShapesAuthError: actual.ShapesAuthError,
-    ShapesFetchError: actual.ShapesFetchError,
-    ShapesNotFoundError: actual.ShapesNotFoundError,
-    ShapesRateLimitError: actual.ShapesRateLimitError,
-    ShapesServerError: actual.ShapesServerError,
-  };
-});
+vi.mock('../services/shapes/ShapesDataFetcher.js', () => ({
+  ShapesDataFetcher: vi.fn().mockImplementation(function () {
+    return { fetchShapeData: mockFetchShapeData, getUpdatedCookie: mockGetUpdatedCookie };
+  }),
+}));
 
 // Mock formatters
 vi.mock('./ShapesExportFormatters.js', () => ({
@@ -177,7 +169,7 @@ describe('ShapesExportJob', () => {
   });
 
   it('should re-throw rate-limit errors for BullMQ retry when attempts remain', async () => {
-    const { ShapesRateLimitError } = await import('../services/shapes/ShapesDataFetcher.js');
+    const { ShapesRateLimitError } = await import('../services/shapes/shapesErrors.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesRateLimitError());
 
     // attemptsMade=0, attempts=3 → 2 retries remain
@@ -193,7 +185,7 @@ describe('ShapesExportJob', () => {
   });
 
   it('should mark as failed on final rate-limit attempt to avoid stuck in_progress', async () => {
-    const { ShapesRateLimitError } = await import('../services/shapes/ShapesDataFetcher.js');
+    const { ShapesRateLimitError } = await import('../services/shapes/shapesErrors.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesRateLimitError());
 
     // attemptsMade=2, attempts=3 → last attempt, no retries left
@@ -211,7 +203,7 @@ describe('ShapesExportJob', () => {
   });
 
   it('should re-throw server errors for BullMQ retry when attempts remain', async () => {
-    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    const { ShapesServerError } = await import('../services/shapes/shapesErrors.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(502, 'Bad Gateway'));
 
     // attemptsMade=0, attempts=3 → 2 retries remain
@@ -227,7 +219,7 @@ describe('ShapesExportJob', () => {
   });
 
   it('should mark as failed on final server error attempt', async () => {
-    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    const { ShapesServerError } = await import('../services/shapes/shapesErrors.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(504, 'Gateway Timeout'));
 
     // attemptsMade=2, attempts=3 → last attempt
@@ -259,7 +251,7 @@ describe('ShapesExportJob', () => {
   });
 
   it('should persist updated cookie on fetch failure', async () => {
-    const { ShapesServerError } = await import('../services/shapes/ShapesDataFetcher.js');
+    const { ShapesServerError } = await import('../services/shapes/shapesErrors.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesServerError(504, 'Gateway Timeout'));
 
     // Final attempt so it marks failed instead of re-throwing
@@ -290,7 +282,7 @@ describe('ShapesExportJob', () => {
   });
 
   it('should mark ShapesFetchError as non-retryable (immediate failure)', async () => {
-    const { ShapesFetchError } = await import('../services/shapes/ShapesDataFetcher.js');
+    const { ShapesFetchError } = await import('../services/shapes/shapesErrors.js');
     mockFetchShapeData.mockRejectedValueOnce(new ShapesFetchError(400, 'Bad Request'));
 
     const job = createMockJob({}, { attemptsMade: 0, attempts: 5 });

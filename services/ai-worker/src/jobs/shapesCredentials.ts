@@ -17,7 +17,7 @@ import {
   ShapesAuthError,
   ShapesFetchError,
   ShapesNotFoundError,
-} from '../services/shapes/ShapesDataFetcher.js';
+} from '../services/shapes/shapesErrors.js';
 
 const logger = createLogger('shapesCredentials');
 
