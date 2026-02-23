@@ -300,6 +300,9 @@ describe('ShapesDataFetcher', () => {
       const assertion = expect(promise).rejects.toThrow(ShapesServerError);
       await vi.advanceTimersByTimeAsync(30000);
       await assertion;
+
+      // 3 calls: initial + 2 retries
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
     it('should throw ShapesServerError on 502 after exhausting per-request retries', async () => {
@@ -314,6 +317,9 @@ describe('ShapesDataFetcher', () => {
       const assertion = expect(promise).rejects.toThrow(ShapesServerError);
       await vi.advanceTimersByTimeAsync(30000);
       await assertion;
+
+      // 3 calls: initial + 2 retries
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
 
     it('should throw ShapesFetchError on 4xx client errors (not 401/403/404/429)', async () => {
