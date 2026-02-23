@@ -115,6 +115,10 @@ export function createEventValidator<TEvent extends BaseInvalidationEvent>(
       }
 
       const fields = spec.fields ?? {};
+      // Strict key-count check: reject events with extra fields to catch
+      // partial/malformed messages from Redis. This is intentionally not
+      // forward-compatible — when adding new fields to an event type,
+      // update the spec so both publisher and subscriber stay in sync.
       const expectedKeyCount = Object.keys(fields).length + 1; // +1 for 'type'
 
       if (Object.keys(event).length !== expectedKeyCount) {

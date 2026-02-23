@@ -144,5 +144,8 @@ export function runFindDeadFiles(): void {
     console.log(`  ${file}`);
   }
   console.log('\nVerify each file: check git log and grep for dynamic imports before deleting.');
+  console.log(
+    'Note: basename-only matching may miss dead files that share names with live ones (e.g., config.ts, types.ts).'
+  );
   process.exitCode = 1;
 }
