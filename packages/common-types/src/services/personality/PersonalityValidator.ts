@@ -129,8 +129,9 @@ export interface DatabasePersonality {
   // Access control fields
   isPublic: boolean;
   ownerId: string;
-  // Timestamp for avatar cache-busting
-  updatedAt: Date;
+  // Timestamps
+  createdAt: Date;
+  updatedAt: Date; // For avatar cache-busting
   systemPrompt: {
     content: string;
   } | null;

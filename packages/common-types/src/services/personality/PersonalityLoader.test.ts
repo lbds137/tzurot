@@ -30,6 +30,9 @@ describe('PersonalityLoader', () => {
   let mockPrisma: PrismaClient;
   let loader: PersonalityLoader;
 
+  // Auto-incrementing counter for deterministic createdAt ordering in tests
+  let createdAtCounter = 0;
+
   // Helper to create a mock personality object
   const createMockPersonality = (
     overrides: Partial<{
@@ -39,6 +42,7 @@ describe('PersonalityLoader', () => {
       slug: string;
       isPublic: boolean;
       ownerId: string;
+      createdAt: Date;
     }> = {}
   ) => ({
     id: overrides.id ?? 'test-id',
@@ -47,6 +51,7 @@ describe('PersonalityLoader', () => {
     slug: overrides.slug ?? 'test-bot',
     isPublic: overrides.isPublic ?? true,
     ownerId: overrides.ownerId ?? 'default-owner-id',
+    createdAt: overrides.createdAt ?? new Date(2026, 0, 1, 0, 0, createdAtCounter++),
     updatedAt: new Date(),
     systemPrompt: { content: 'Test prompt' },
     defaultConfigLink: null,
@@ -63,6 +68,8 @@ describe('PersonalityLoader', () => {
   });
 
   beforeEach(() => {
+    createdAtCounter = 0;
+
     mockPrisma = {
       personality: {
         findFirst: vi.fn(),
@@ -449,9 +456,12 @@ describe('PersonalityLoader', () => {
         vi.mocked(configModule.getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
         } as any);
-        vi.mocked(mockPrisma.user.findUnique).mockResolvedValue({
-          id: ADMIN_DB_UUID,
-        } as any);
+        // First call succeeds; second would throw if cache misses
+        vi.mocked(mockPrisma.user.findUnique)
+          .mockResolvedValueOnce({ id: ADMIN_DB_UUID } as any)
+          .mockRejectedValueOnce(
+            new Error('Admin UUID should have been cached — unexpected second DB call')
+          );
 
         // First call — two name matches, triggers admin UUID resolution
         const match1a = createMockPersonality({
@@ -498,6 +508,83 @@ describe('PersonalityLoader', () => {
           where: { discordId: 'discord-admin-id' },
           select: { id: true },
         });
+      });
+
+      it('should fall back gracefully when admin UUID lookup fails', async () => {
+        const privateAdmin = createMockPersonality({
+          id: 'private-admin',
+          name: 'Lilith',
+          slug: 'lilith-admin',
+          isPublic: false,
+          ownerId: ADMIN_DB_UUID,
+        });
+        const publicOther = createMockPersonality({
+          id: 'public-other',
+          name: 'Lilith',
+          slug: 'lilith-other',
+          isPublic: true,
+          ownerId: OTHER_OWNER,
+        });
+
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([
+          privateAdmin,
+          publicOther,
+        ] as any);
+
+        vi.mocked(configModule.getConfig).mockReturnValue({
+          BOT_OWNER_ID: 'discord-admin-id',
+        } as any);
+        // DB error on admin lookup — should not propagate
+        vi.mocked(mockPrisma.user.findUnique).mockRejectedValueOnce(
+          new Error('Connection refused')
+        );
+
+        const result = await loader.loadFromDatabase('Lilith');
+
+        // Should still resolve — public wins on isPublic alone (admin score unknown)
+        expect(result).not.toBeNull();
+        expect(result?.id).toBe('public-other');
+      });
+
+      it('should retry admin UUID lookup after transient failure', async () => {
+        vi.mocked(configModule.getConfig).mockReturnValue({
+          BOT_OWNER_ID: 'discord-admin-id',
+        } as any);
+
+        // First call: DB error (not cached)
+        vi.mocked(mockPrisma.user.findUnique)
+          .mockRejectedValueOnce(new Error('Connection refused'))
+          .mockResolvedValueOnce({ id: ADMIN_DB_UUID } as any);
+
+        const match1a = createMockPersonality({
+          id: 'a1',
+          name: 'Lilith',
+          slug: 'lilith-a',
+          isPublic: true,
+          ownerId: ADMIN_DB_UUID,
+        });
+        const match1b = createMockPersonality({
+          id: 'a2',
+          name: 'Lilith',
+          slug: 'lilith-b',
+          isPublic: true,
+          ownerId: OTHER_OWNER,
+        });
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([match1a, match1b] as any);
+
+        // First call — admin UUID fails, no admin preference applied
+        const result1 = await loader.loadFromDatabase('Lilith');
+        // Both score 2 (public), tiebreaker: oldest (a1 created first)
+        expect(result1?.id).toBe('a1');
+
+        // Second call — admin UUID succeeds now, gets cached
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([match1a, match1b] as any);
+        const result2 = await loader.loadFromDatabase('Lilith');
+        // Admin-owned a1 now scores 3 vs a2's score 2
+        expect(result2?.id).toBe('a1');
+
+        // Admin UUID was looked up twice (not cached on error)
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(2);
       });
     });
 
