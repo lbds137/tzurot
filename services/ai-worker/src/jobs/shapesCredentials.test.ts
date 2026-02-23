@@ -120,7 +120,7 @@ describe('classifyShapesError', () => {
     const error = new ShapesNotFoundError('test-slug');
     const result = classifyShapesError(error);
     expect(result.isRetryable).toBe(false);
-    expect(result.errorMessage).toBe('Shape not found: test-slug');
+    expect(result.errorMessage).toBe('Not found: test-slug');
   });
 
   it('should classify ShapesFetchError as non-retryable', () => {
