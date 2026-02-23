@@ -79,6 +79,14 @@ export function registerDevCommands(cli: CAC): void {
     });
 
   cli
+    .command('dev:dead-files', 'Find production files only referenced by their own tests')
+    .example('ops dev:dead-files')
+    .action(async () => {
+      const { runFindDeadFiles } = await import('../dev/find-dead-files.js');
+      runFindDeadFiles();
+    });
+
+  cli
     .command(
       'lint:complexity-report',
       'Report files/functions approaching ESLint complexity limits'
