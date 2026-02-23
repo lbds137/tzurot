@@ -906,6 +906,78 @@ describe('DiagnosticCollector', () => {
     });
   });
 
+  describe('resetLlmTimingForRetry', () => {
+    it('should prevent negative timing when called between retry attempts', () => {
+      vi.useRealTimers();
+      collector = new DiagnosticCollector(defaultOptions);
+
+      // Simulate attempt 1: start → response recorded (sets both start and end)
+      collector.markLlmInvocationStart();
+      collector.recordLlmResponse({
+        rawContent: 'First attempt response',
+        finishReason: 'stop',
+        stopSequenceTriggered: null,
+        promptTokens: 10,
+        completionTokens: 5,
+        modelUsed: 'test-model',
+      });
+
+      // Simulate attempt 2: reset timing, then mark new start
+      // Without reset, the old endMs would persist and could be before the new startMs
+      collector.resetLlmTimingForRetry();
+      collector.markLlmInvocationStart();
+
+      // Simulate LLM failure on attempt 2 (no recordLlmResponse called)
+      // finalize() should NOT have negative timing
+      const payload = collector.finalize();
+
+      // With reset, llmInvocationMs should be undefined (no end was recorded)
+      // because resetLlmTimingForRetry cleared the stale end from attempt 1
+      expect(payload.timing.llmInvocationMs).toBeUndefined();
+    });
+
+    it('should allow clean timing after reset when new response is recorded', () => {
+      vi.useRealTimers();
+      collector = new DiagnosticCollector(defaultOptions);
+
+      // Attempt 1
+      collector.markLlmInvocationStart();
+      collector.recordLlmResponse({
+        rawContent: 'First',
+        finishReason: 'stop',
+        stopSequenceTriggered: null,
+        promptTokens: 10,
+        completionTokens: 5,
+        modelUsed: 'test-model',
+      });
+
+      // Attempt 2 with reset
+      collector.resetLlmTimingForRetry();
+      collector.markLlmInvocationStart();
+
+      const sleepSync = (ms: number) => {
+        const end = Date.now() + ms;
+        while (Date.now() < end) {
+          // busy wait
+        }
+      };
+      sleepSync(5);
+
+      collector.recordLlmResponse({
+        rawContent: 'Second',
+        finishReason: 'stop',
+        stopSequenceTriggered: null,
+        promptTokens: 20,
+        completionTokens: 10,
+        modelUsed: 'test-model',
+      });
+
+      const payload = collector.finalize();
+      // Timing should be positive, reflecting only attempt 2's duration
+      expect(payload.timing.llmInvocationMs).toBeGreaterThanOrEqual(5);
+    });
+  });
+
   describe('edge cases', () => {
     it('should handle memories without metadata id', () => {
       collector.recordMemoryRetrieval({

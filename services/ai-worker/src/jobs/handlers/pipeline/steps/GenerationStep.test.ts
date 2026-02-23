@@ -1114,6 +1114,111 @@ describe('GenerationStep', () => {
       });
     });
 
+    describe('fallback response on LLM failure', () => {
+      const previousBotResponseForFallback =
+        '*slow smile* I accept that victory graciously. Well played, my friend.';
+
+      it('should return duplicate as fallback when later LLM call fails', async () => {
+        // Attempt 1: valid content but detected as duplicate → stored as fallback
+        const duplicateResponse: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          modelUsed: 'test-model',
+        };
+
+        // Attempt 2: LLM invocation fails entirely (e.g., 400 from provider)
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateResponse)
+          .mockRejectedValueOnce(new Error('Provider returned 400'));
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponseForFallback },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        // Should succeed with the duplicate response as fallback
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.content).toBe(duplicateResponse.content);
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(2);
+      });
+
+      it('should propagate error when no fallback available', async () => {
+        // First and only attempt fails — no fallback to use
+        vi.mocked(mockRAGService.generateResponse).mockRejectedValue(
+          new Error('Provider returned 400')
+        );
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        // Should fail since no fallback exists (caught by outer try-catch in process())
+        expect(result.result?.success).toBe(false);
+        expect(result.result?.error).toBe('Provider returned 400');
+      });
+
+      it('should preserve thinking content from fallback response', async () => {
+        // Attempt 1: duplicate with thinking content
+        const duplicateWithThinking: RAGResponse = {
+          content: '*slow smile* I accept that victory graciously. Well played, my friend.',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          thinkingContent: 'Let me consider how to respond to this compliment...',
+          modelUsed: 'test-model',
+        };
+
+        // Attempt 2: LLM fails
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(duplicateWithThinking)
+          .mockRejectedValueOnce(new Error('Provider returned 400'));
+
+        const contextWithHistory: PreparedContext = {
+          ...basePreparedContext,
+          rawConversationHistory: [
+            { role: 'user', content: 'Previous message' },
+            { role: 'assistant', content: previousBotResponseForFallback },
+          ],
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: contextWithHistory,
+        };
+
+        const result = await step.process(context);
+
+        expect(result.result?.success).toBe(true);
+        expect(result.result?.metadata?.thinkingContent).toBe(
+          'Let me consider how to respond to this compliment...'
+        );
+      });
+    });
+
     describe('deferred memory storage', () => {
       const basePreparedContextForMemory: PreparedContext = {
         conversationHistory: [],

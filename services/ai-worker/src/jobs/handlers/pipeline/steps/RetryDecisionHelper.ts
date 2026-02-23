@@ -13,6 +13,93 @@ const logger = createLogger('RetryDecisionHelper');
 /** Return type for retry decisions */
 type RetryAction = 'retry' | 'return' | 'continue';
 
+/** A rejected-but-valid response preserved as a fallback in case later attempts fail entirely */
+export interface FallbackResponse {
+  response: RAGResponse;
+  reason: 'empty' | 'duplicate';
+  attempt: number;
+}
+
+/**
+ * Select the better fallback between existing and candidate.
+ * Prefers 'duplicate' over 'empty' since duplicates have actual content.
+ * Returns the candidate if no existing fallback, or the better of the two.
+ */
+export function selectBetterFallback(
+  existing: FallbackResponse | undefined,
+  candidate: FallbackResponse
+): FallbackResponse {
+  if (existing === undefined) {
+    return candidate;
+  }
+  // Prefer duplicate over empty (duplicate has content the user can see)
+  if (existing.reason === 'duplicate' && candidate.reason === 'empty') {
+    return existing;
+  }
+  if (existing.reason === 'empty' && candidate.reason === 'duplicate') {
+    return candidate;
+  }
+  // Same reason: prefer the more recent attempt (later attempt had escalated params)
+  return candidate;
+}
+
+/**
+ * Log when a fallback response is used after a later LLM invocation failed.
+ */
+export function logFallbackUsed(fallback: FallbackResponse, jobId: string | undefined): void {
+  logger.warn(
+    {
+      jobId,
+      fallbackReason: fallback.reason,
+      fallbackAttempt: fallback.attempt,
+      modelUsed: fallback.response.modelUsed,
+    },
+    '[RetryDecisionHelper] Using fallback response from earlier attempt after LLM failure'
+  );
+}
+
+/** Retry config shape (subset needed for logging) */
+interface RetryConfigForLog {
+  temperatureOverride?: number;
+  frequencyPenaltyOverride?: number;
+  historyReductionPercent?: number;
+}
+
+/** Log escalating retry parameters when attempt > 1 */
+export function logRetryEscalation(
+  jobId: string | undefined,
+  attempt: number,
+  retryConfig: RetryConfigForLog
+): void {
+  if (attempt <= 1) {
+    return;
+  }
+  logger.info(
+    {
+      jobId,
+      attempt,
+      temperatureOverride: retryConfig.temperatureOverride,
+      frequencyPenaltyOverride: retryConfig.frequencyPenaltyOverride,
+      historyReductionPercent: retryConfig.historyReductionPercent,
+    },
+    '[RetryDecisionHelper] Escalating retry parameters'
+  );
+}
+
+/** Log when a retry succeeds after previous failures */
+export function logRetrySuccess(
+  jobId: string | undefined,
+  modelUsed: string | undefined,
+  attempt: number,
+  duplicateRetries: number,
+  emptyRetries: number
+): void {
+  logger.info(
+    { jobId, modelUsed, attempt, duplicateRetries, emptyRetries },
+    '[RetryDecisionHelper] Retry succeeded - got valid unique response'
+  );
+}
+
 /** Options for empty response check */
 interface EmptyResponseCheckOptions {
   response: RAGResponse;

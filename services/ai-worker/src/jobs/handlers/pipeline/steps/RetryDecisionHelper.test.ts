@@ -3,7 +3,15 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { shouldRetryEmptyResponse, logDuplicateDetection } from './RetryDecisionHelper.js';
+import {
+  shouldRetryEmptyResponse,
+  logDuplicateDetection,
+  logRetryEscalation,
+  logRetrySuccess,
+  selectBetterFallback,
+  logFallbackUsed,
+  type FallbackResponse,
+} from './RetryDecisionHelper.js';
 import type { RAGResponse } from '../../../../services/ConversationalRAGTypes.js';
 
 // Mock common-types
@@ -159,5 +167,100 @@ describe('logDuplicateDetection', () => {
       isGuestMode: false,
     });
     expect(result).toBe('retry');
+  });
+});
+
+describe('selectBetterFallback', () => {
+  function createFallback(
+    reason: 'empty' | 'duplicate',
+    attempt: number,
+    content = 'fallback content'
+  ): FallbackResponse {
+    return {
+      response: createMockResponse(content),
+      reason,
+      attempt,
+    };
+  }
+
+  it('should return candidate when no existing fallback', () => {
+    const candidate = createFallback('duplicate', 1);
+    const result = selectBetterFallback(undefined, candidate);
+    expect(result).toBe(candidate);
+  });
+
+  it('should prefer duplicate over empty (duplicate has content)', () => {
+    const existing = createFallback('duplicate', 1, 'I have real content');
+    const candidate = createFallback('empty', 2, '');
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(existing);
+  });
+
+  it('should upgrade from empty to duplicate', () => {
+    const existing = createFallback('empty', 1, '');
+    const candidate = createFallback('duplicate', 2, 'Duplicate content');
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(candidate);
+  });
+
+  it('should prefer later attempt when same reason (both duplicate)', () => {
+    const existing = createFallback('duplicate', 1, 'First duplicate');
+    const candidate = createFallback('duplicate', 2, 'Second duplicate');
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(candidate);
+  });
+
+  it('should prefer later attempt when same reason (both empty)', () => {
+    const existing = createFallback('empty', 1);
+    const candidate = createFallback('empty', 2);
+    const result = selectBetterFallback(existing, candidate);
+    expect(result).toBe(candidate);
+  });
+});
+
+describe('logRetryEscalation', () => {
+  it('should not throw on attempt > 1', () => {
+    expect(() =>
+      logRetryEscalation('job-1', 2, {
+        temperatureOverride: 0.9,
+        frequencyPenaltyOverride: 0.3,
+        historyReductionPercent: 50,
+      })
+    ).not.toThrow();
+  });
+
+  it('should be a no-op on attempt 1', () => {
+    // Should not throw and should not log (first attempt, no escalation)
+    expect(() => logRetryEscalation('job-1', 1, {})).not.toThrow();
+  });
+});
+
+describe('logRetrySuccess', () => {
+  it('should not throw when called with valid args', () => {
+    expect(() => logRetrySuccess('job-1', 'test-model', 2, 1, 0)).not.toThrow();
+  });
+
+  it('should not throw with undefined jobId and modelUsed', () => {
+    expect(() => logRetrySuccess(undefined, undefined, 3, 2, 1)).not.toThrow();
+  });
+});
+
+describe('logFallbackUsed', () => {
+  it('should not throw when called with valid fallback', () => {
+    const fallback: FallbackResponse = {
+      response: createMockResponse('Fallback content'),
+      reason: 'duplicate',
+      attempt: 1,
+    };
+    expect(() => logFallbackUsed(fallback, 'job-123')).not.toThrow();
+  });
+
+  it('should not throw when jobId is undefined', () => {
+    const fallback: FallbackResponse = {
+      response: createMockResponse('Fallback content'),
+      reason: 'empty',
+      attempt: 2,
+    };
+    expect(() => logFallbackUsed(fallback, undefined)).not.toThrow();
   });
 });
