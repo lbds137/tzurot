@@ -29,20 +29,12 @@ import {
   ShapesServerError,
 } from './shapesErrors.js';
 
-export {
-  ShapesAuthError,
-  ShapesFetchError,
-  ShapesNotFoundError,
-  ShapesRateLimitError,
-  ShapesServerError,
-} from './shapesErrors.js';
-
 const logger = createLogger('ShapesDataFetcher');
 const REQUEST_TIMEOUT_MS = 30_000;
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
 const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
-const REQUEST_MAX_RETRIES = 2; // 3 total attempts per HTTP request
+const REQUEST_RETRY_COUNT = 2;
 const RETRY_BASE_DELAY_MS = 2000;
 
 // ============================================================================
@@ -249,21 +241,27 @@ export class ShapesDataFetcher {
   /**
    * Make an authenticated request with per-request retry.
    *
-   * Retries on transient errors (429, 5xx, network timeout, fetch failure)
-   * with exponential backoff. Non-retryable errors (401, 403, 404, other 4xx)
-   * are thrown immediately. This prevents a single transient failure from
-   * restarting the entire BullMQ job (which would re-fetch all pages).
+   * Retries up to REQUEST_RETRY_COUNT times (3 total attempts) on transient
+   * errors (429, 5xx, network timeout, fetch failure) with exponential backoff.
+   * Non-retryable errors (401, 403, 404, other 4xx) are thrown immediately.
+   * This prevents a single transient failure from restarting the entire BullMQ
+   * job (which would re-fetch all pages).
    */
   private async makeRequest<T>(url: string, externalSignal?: AbortSignal): Promise<T> {
     for (let attempt = 0; ; attempt++) {
+      // Respect external cancellation across retries
+      if (externalSignal?.aborted === true) {
+        throw externalSignal.reason;
+      }
       try {
         return await this.executeSingleRequest<T>(url, externalSignal);
       } catch (error) {
         const retryable =
           error instanceof ShapesRateLimitError ||
           error instanceof ShapesServerError ||
-          (error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError'));
-        if (!retryable || attempt >= REQUEST_MAX_RETRIES) {
+          (error instanceof Error && error.name === 'AbortError') ||
+          (error instanceof TypeError && error.message.includes('fetch'));
+        if (!retryable || attempt >= REQUEST_RETRY_COUNT) {
           throw error;
         }
         const backoff = RETRY_BASE_DELAY_MS * 2 ** attempt;

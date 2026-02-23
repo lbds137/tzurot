@@ -172,11 +172,6 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
     data: { status: 'failed', completedAt: new Date(), errorMessage },
   });
 
-  logger.warn(
-    { jobId: opts.jobId, sourceSlug: opts.sourceSlug },
-    '[ShapesExportJob] Export marked as failed in database'
-  );
-
   return {
     success: false,
     fileSizeBytes: 0,
