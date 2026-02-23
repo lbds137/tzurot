@@ -474,6 +474,43 @@ describe('ShapesDataFetcher', () => {
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
 
+    it('should retry fetch TypeError and succeed on next attempt', async () => {
+      mockFetch
+        // Config: fetch network error then success
+        .mockRejectedValueOnce(new TypeError('fetch failed'))
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_CONFIG))
+        // Memories
+        .mockResolvedValueOnce(
+          createMockResponse(200, { items: [], pagination: { has_next: false } })
+        )
+        // Stories
+        .mockResolvedValueOnce(createMockResponse(200, []))
+        // User personalization
+        .mockResolvedValueOnce(createMockResponse(200, {}));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      await vi.advanceTimersByTimeAsync(30000);
+      const result = await promise;
+
+      expect(result.config.id).toBe('shape-uuid-123');
+    });
+
+    it('should NOT retry non-fetch TypeError (programming error)', async () => {
+      mockFetch.mockRejectedValueOnce(new TypeError('Cannot read properties of undefined'));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(TypeError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+
+      // Only 1 fetch call — non-fetch TypeError is not retried
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
     it('should exhaust all retries then throw on persistent 429', async () => {
       mockFetch
         .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }))
@@ -489,6 +526,30 @@ describe('ShapesDataFetcher', () => {
 
       // 3 calls: initial + 2 retries
       expect(mockFetch).toHaveBeenCalledTimes(3);
+    });
+
+    it('should respect external AbortSignal across retries', async () => {
+      const abortController = new AbortController();
+
+      // First attempt: transient 500 error
+      mockFetch.mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+        signal: abortController.signal,
+      });
+      // Attach rejection handler FIRST to prevent unhandled rejection
+      const assertion = expect(promise).rejects.toThrow('Job cancelled');
+
+      // Advance past first attempt, then abort before retry delay completes
+      await vi.advanceTimersByTimeAsync(100);
+      abortController.abort(new Error('Job cancelled'));
+      await vi.advanceTimersByTimeAsync(30000);
+
+      await assertion;
+
+      // Only 1 fetch call — retry was short-circuited by abort
+      expect(mockFetch).toHaveBeenCalledTimes(1);
     });
   });
 
