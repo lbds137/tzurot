@@ -260,14 +260,18 @@ export class ShapesDataFetcher {
       try {
         return await this.executeSingleRequest<T>(url, externalSignal);
       } catch (error) {
-        // Node.js/undici throws TypeError('fetch failed') for network errors.
-        // We check the message to avoid retrying programming TypeErrors
-        // (null dereference, etc.) which should fail fast.
+        // Node.js/undici throws TypeError('fetch failed') with a `cause`
+        // for network errors. We check message OR cause to avoid retrying
+        // programming TypeErrors (null dereference, etc.) which should
+        // fail fast. The cause check is a fallback in case the message
+        // string changes in a future Node.js/undici version.
+        const isNetworkTypeError =
+          error instanceof TypeError && (error.message.includes('fetch') || 'cause' in error);
         const retryable =
           error instanceof ShapesRateLimitError ||
           error instanceof ShapesServerError ||
           (error instanceof Error && error.name === 'AbortError') ||
-          (error instanceof TypeError && error.message.includes('fetch'));
+          isNetworkTypeError;
         if (!retryable || attempt >= REQUEST_RETRY_COUNT) {
           throw error;
         }

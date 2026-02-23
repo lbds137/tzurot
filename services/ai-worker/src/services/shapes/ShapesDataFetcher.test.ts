@@ -503,6 +503,31 @@ describe('ShapesDataFetcher', () => {
       expect(result.config.id).toBe('shape-uuid-123');
     });
 
+    it('should retry TypeError with cause (undici network error fallback)', async () => {
+      // undici attaches a cause to network TypeErrors — this is a fallback
+      // for detection if the message string ever changes
+      const networkError = new TypeError('undici changed this message', {
+        cause: new Error('ECONNRESET'),
+      });
+      mockFetch
+        .mockRejectedValueOnce(networkError)
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_CONFIG))
+        .mockResolvedValueOnce(
+          createMockResponse(200, { items: [], pagination: { has_next: false } })
+        )
+        .mockResolvedValueOnce(createMockResponse(200, []))
+        .mockResolvedValueOnce(createMockResponse(200, {}));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      await vi.advanceTimersByTimeAsync(30000);
+      const result = await promise;
+
+      expect(result.config.id).toBe('shape-uuid-123');
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+    });
+
     it('should NOT retry non-fetch TypeError (programming error)', async () => {
       mockFetch.mockRejectedValueOnce(new TypeError('Cannot read properties of undefined'));
 
