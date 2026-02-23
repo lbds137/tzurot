@@ -178,6 +178,24 @@ describe('find-dead-files', () => {
       expect(result).toBe(false);
     });
 
+    it('should handle .tsx files correctly', async () => {
+      const { hasNonTestImporters } = await import('./find-dead-files.js');
+
+      mockExecFileSync.mockReturnValue('services/bot-client/src/App.ts\n');
+
+      const result = hasNonTestImporters('services/bot-client/src/components/Foo.tsx', [
+        'services/',
+        'packages/',
+      ]);
+
+      expect(result).toBe(true);
+      expect(mockExecFileSync).toHaveBeenCalledWith(
+        'grep',
+        expect.arrayContaining(['/Foo\\.js[\'"]', 'services/', 'packages/']),
+        expect.anything()
+      );
+    });
+
     it('should return true when other files import it (excluding self)', async () => {
       const { hasNonTestImporters } = await import('./find-dead-files.js');
 

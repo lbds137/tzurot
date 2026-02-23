@@ -48,9 +48,14 @@ export function filterFalsePositives(files: string[]): string[] {
  * Check if a file has any non-test importers using grep.
  * Returns true if the file is imported by at least one non-test file
  * (other than itself).
+ *
+ * NOTE: Uses basename-only matching, so files sharing a basename
+ * (e.g., multiple `types.ts` or `config.ts`) can mask each other.
+ * This is acceptable for an advisory tool — the output message
+ * already warns users to verify before deleting.
  */
 export function hasNonTestImporters(filePath: string, searchDirs: string[]): boolean {
-  const name = basename(filePath, '.ts');
+  const name = basename(filePath.replace(/\.tsx?$/, ''));
 
   try {
     const result = execFileSync(
