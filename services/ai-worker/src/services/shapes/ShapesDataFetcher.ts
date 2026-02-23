@@ -256,7 +256,7 @@ export class ShapesDataFetcher {
     for (let attempt = 0; ; attempt++) {
       // Respect external cancellation across retries
       if (externalSignal?.aborted === true) {
-        throw externalSignal.reason;
+        throw externalSignal.reason ?? new DOMException('Aborted', 'AbortError');
       }
       try {
         return await this.executeSingleRequest<T>(url, externalSignal);
@@ -265,7 +265,7 @@ export class ShapesDataFetcher {
         // @ts-expect-error -- TS narrows .aborted to false|undefined from the pre-try check,
         // but the signal can become aborted asynchronously during executeSingleRequest.
         if (externalSignal?.aborted === true) {
-          throw externalSignal.reason;
+          throw externalSignal.reason ?? new DOMException('Aborted', 'AbortError');
         }
         if (!this.isRetryableError(error) || attempt >= REQUEST_RETRY_COUNT) {
           throw error;
@@ -280,7 +280,7 @@ export class ShapesDataFetcher {
           },
           '[ShapesDataFetcher] Request failed, retrying'
         );
-        await this.delay(backoff);
+        await this.delay(backoff, externalSignal);
       }
     }
   }
@@ -371,7 +371,24 @@ export class ShapesDataFetcher {
     return false;
   }
 
-  private delay(ms = DELAY_BETWEEN_REQUESTS_MS): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  private delay(ms = DELAY_BETWEEN_REQUESTS_MS, signal?: AbortSignal): Promise<void> {
+    if (signal === undefined) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+    return new Promise((resolve, reject) => {
+      const onAbort = (): void => {
+        clearTimeout(timer);
+        const reason =
+          signal.reason instanceof Error
+            ? signal.reason
+            : new DOMException('Aborted', 'AbortError');
+        reject(reason);
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
   }
 }
