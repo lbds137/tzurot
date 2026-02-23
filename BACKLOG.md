@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-21
-> **Version**: v3.0.0-beta.80
+> **Last Updated**: 2026-02-23
+> **Version**: v3.0.0-beta.81
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -37,10 +37,6 @@ _Empty — pull next from Quick Wins or Active Epic._
 
 _Small tasks that can be done between major features. Good for momentum._
 
-### 🐛 `memory_only` Import Ownership Gap (Strategy 2)
-
-Partially fixed in beta.80 — `ShapesImportResolver` now tries raw slug (strategy 2) and shapesId UUID (strategy 3) as fallbacks. However, strategy 2 matches any personality with that slug regardless of owner. A non-bot-owner could theoretically import memories into another non-bot-owner's personality if slugs collide. Add an ownership check to strategy 2 (same guard as `resolveForFullImport`).
-
 ### 🐛 GLM 4.5 Air Unclosed `<think>` Tag
 
 GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay formatting without a closing tag. The `UNCLOSED_TAG_PATTERN` in `thinkingExtraction.ts` captures all content as thinking, leaving `visibleContent` empty.
@@ -67,18 +63,6 @@ Retry threshold: score ≥ 0.5. Max 1 content retry (these failures are slow). R
 
 **Reference**: `debug/debug-compact-736e6c99-*.json` (the "N" response).
 
-### ✨ Hide Model Footer (Config Cascade)
-
-User request: option to hide the model indicator line from responses. Add `showModelFooter` boolean to the config cascade (default: `true`). Configurable at all 3 tiers: admin, personality, user-personality.
-
-### ✨ Denylist Duration Support
-
-Allow `/deny` entries to have an optional expiration for temporary bans (e.g., `duration:24h`). Requires `expiresAt` column, filter check, and BullMQ cleanup job.
-
-### ✨ Transcript Spoiler Word List
-
-Admin-managed list of words to auto-spoiler in voice transcripts (`||word||`). Add `spoilerWords` string array to `AdminSettings` JSONB with case-insensitive word-boundary matching.
-
 ### 🏗️ Tooling Package Test Coverage Gaps
 
 Three pre-existing tooling logic files need colocated tests (excluded in `structure.test.ts` as tech debt):
@@ -89,55 +73,13 @@ Three pre-existing tooling logic files need colocated tests (excluded in `struct
 
 `structure.test.ts` now enforces tooling coverage — any NEW file will fail without a test.
 
-### ✨ Discord Emoji/Sticker Image Support
-
-Support custom Discord emoji and stickers in vision context. Extract emoji URLs from `<:name:id>` format, sticker URLs from message stickers, include alongside attachments.
-
-### ✨ Free Model Quota Resilience
-
-Automatic fallback to alternative free model on 402 quota errors. Track quota hits per model to avoid repeated failures. Foundation shipped in PR #587.
-
-### ✨ Resolve Shapes.inc Memory Sender UUIDs to Display Names
-
-Memory exports from shapes.inc include sender UUIDs (e.g., `98a94b95-cbd0-430b-8be2-602e1c75d8b0`) instead of human-readable names. Currently senders are omitted from the Markdown export. Resolve UUIDs to display names using the shapes.inc user API.
-
-**API**: `GET https://talk.shapes.inc/api/user/{uuid}` — returns `{ displayName, username, ... }` (public, no auth required).
-
-**Implementation**:
-
-- Collect unique sender UUIDs from all memories in the export
-- Batch-resolve via the user API (one call per unique UUID, not per memory)
-- Build a `Map<uuid, displayName>` lookup
-- Include resolved names in the Markdown heading: `### Memory #1 (2025-09-03 22:28) (Kaihime, OtherUser)`
-- Graceful fallback: if API call fails or user is anonymous, omit senders for that memory (current behavior)
-- Consider caching resolved UUIDs in Redis with TTL (users don't change display names often)
-
-**Location**: `services/ai-worker/src/jobs/ShapesExportFormatters.ts` (formatting) and `services/ai-worker/src/jobs/ShapesExportJob.ts` (API calls during export)
-
-### ✨ Configurable Shapes.inc Export Sections
-
-Let users choose which sections to include in their shapes.inc export. Currently all sections are always included (config, memories, stories, user personalization). Add options to `/shapes export` so users can pick and choose.
-
-**Options** (all default to true):
-
-- `include_config` — Character config / system prompt / personality traits
-- `include_memories` — Conversation memories
-- `include_stories` — Knowledge base stories
-- `include_personalization` — User personalization / backstory
-
-**Implementation**: Add optional boolean options to the `/shapes export` slash command. Pass through to the export job payload. `formatExportAsMarkdown` and `formatExportAsJson` conditionally skip sections based on flags. Stats footer should reflect what was actually included.
-
-### 🏗️ Slash Command UX Audit
-
-Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.
-
 ---
 
 ## 🏗 Active Epic: CPD Clone Reduction
 
 _Focus: Reduce code clones to <100. Extract shared patterns into reusable utilities._
 
-**Progress**: 175 → 137 clones (1.47% duplication) across PRs #599, #665, #666, #667, #668.
+**Progress**: 175 → 127 clones across PRs #599, #665, #666, #667, #668.
 
 ### Completed
 
@@ -196,7 +138,7 @@ Smaller wins in ai-worker internal patterns and tooling utilities.
 
 Small, localized duplication (1-2 clones each) across deny commands, shapes formatters, preset import types, autocomplete error handling, avatar file ops. Fix opportunistically.
 
-**Target**: <100 clones or <1.5%. Currently 146 clones, 1.57%.
+**Target**: <100 clones or <1.5%. Currently 127 clones.
 
 ---
 
@@ -306,6 +248,8 @@ Full automated import from shapes.inc via `/shapes` command group. Shipped on de
 - [ ] Phase 5 (backlogged): Sidecar prompt injection — data preserved in customFields, proper system-prompt injection is "User System Prompts" feature
 - [ ] Phase 6 (backlogged): Voice/image field import — shapes.inc has `voice_model`, `voice_id`, `voice_stability`, `image_jailbreak`, `image_size` etc. Currently set `voiceEnabled: false`, `imageEnabled: false`. Import when Tzurot adds voice/image support.
 - [ ] Phase 7 (backlogged): Training data import — shapes.inc has training pairs (see `debug/shapes/lilith-training.json`). Tzurot has no training data schema yet. Needs: define training data schema → import from shapes.inc.
+- [ ] Phase 8 (backlogged): Resolve memory sender UUIDs to display names — memories include sender UUIDs instead of human-readable names. Resolve via `GET https://talk.shapes.inc/api/user/{uuid}` (public, no auth). Batch-resolve unique UUIDs, build `Map<uuid, displayName>`, include in Markdown export headings. Graceful fallback if API fails.
+- [ ] Phase 9 (backlogged): Configurable export sections — let users choose which sections to include (`include_config`, `include_memories`, `include_stories`, `include_personalization`). Add optional boolean options to `/shapes export` slash command, pass through to job payload, conditionally skip sections in formatters.
 
 ---
 
@@ -358,6 +302,22 @@ Allow emoji reactions to trigger personality actions.
 - [ ] Hook into reaction events (reactionAdd handler)
 - [ ] Action dispatch based on emoji → action mapping
 
+#### ✨ Hide Model Footer (Config Cascade)
+
+User request: option to hide the model indicator line from responses. Add `showModelFooter` boolean to the config cascade (default: `true`). Configurable at all 3 tiers: admin, personality, user-personality. Requires schema migration.
+
+#### ✨ Denylist Duration Support
+
+Allow `/deny` entries to have an optional expiration for temporary bans (e.g., `duration:24h`). Requires `expiresAt` column, filter check, and BullMQ cleanup job.
+
+#### ✨ Transcript Spoiler Word List
+
+Admin-managed list of words to auto-spoiler in voice transcripts (`||word||`). Add `spoilerWords` string array to `AdminSettings` JSONB with case-insensitive word-boundary matching.
+
+#### ✨ Discord Emoji/Sticker Image Support
+
+Support custom Discord emoji and stickers in vision context. Extract emoji URLs from `<:name:id>` format, sticker URLs from message stickers, include alongside attachments.
+
 ---
 
 ### Theme: Model Configuration Overhaul
@@ -387,6 +347,10 @@ Current LlmConfig is a single model. Redesign as **profiles** that bundle paid +
 - Relationship to existing `Preset` system — replace, merge, or layer on top?
 - How many vision profile themes are actually needed? (general, NSFW, document — or just general + NSFW)
 - Character-level free model default (does it exist today? needs investigation)
+
+#### ✨ Free Model Quota Resilience
+
+Automatic fallback to alternative free model on 402 quota errors. Track quota hits per model to avoid repeated failures. Foundation shipped in PR #587.
 
 #### 🏗️ Vision Model as Full LLM Config
 
@@ -587,6 +551,10 @@ Low priority quality-of-life improvements.
 
 Fetch OpenRouter model list dynamically instead of hardcoded options.
 
+#### 🏗️ Slash Command UX Audit
+
+Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.
+
 #### 🧹 Free-Tier Model Strategy
 
 Define free-tier model allowlist, usage quotas, upgrade prompts.
@@ -605,11 +573,9 @@ _Decided not to do yet._
 | BYOK `lastUsedAt` tracking                  | Nice-to-have, not breaking                                                                                                                   |
 | Handler factory generator                   | Add when creating many new routes                                                                                                            |
 | Scaling preparation (timers)                | Single-instance sufficient for now                                                                                                           |
-| Vision failure JIT repair                   | Negative cache now skipped during retries (PR #617); TTL expiry handles cross-request dedup                                                  |
-| GLM 4.5 Air empty reasoning                 | Fixed in v3.0.0-beta.73 — reasoning-only responses now used as content                                                                       |
 | Denylist batch cache invalidation           | Single pubsub messages handle current scale; premature optimization for bulk ops that rarely happen                                          |
 | Deny detail view DashboardBuilder migration | Action-oriented UI (toggle/edit/delete) doesn't fit multi-section edit dashboard pattern; already uses SessionManager and DASHBOARD_MESSAGES |
-| Thread config cascade for threads           | Fixed in beta.80 — threads inherit parent activation but explicit deactivation is respected                                                  |
+| `memory_only` import ownership check        | Not a bug — memory_only imports should work across personality owners since memories belong to the importing user, not the personality owner |
 
 ---
 
