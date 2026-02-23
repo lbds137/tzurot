@@ -270,7 +270,7 @@ function tryFallbackExtraction(thinkingParts: string[], visibleContent: string):
 export function extractThinkingBlocks(content: string): ThinkingExtraction {
   const thinkingParts: string[] = [];
 
-  // Normalize XML namespace prefixes (e.g. GLM-4.5-Air outputs <thought> instead of <thought>)
+  // Normalize XML namespace prefixes (e.g. GLM-4.5-Air outputs namespace-prefixed tags like <ns:thought>)
   const normalized = content.replace(/<(\/?)(antml:)/gi, '<$1');
   let visibleContent = normalized;
 

@@ -132,7 +132,8 @@ The answer is 42.`;
     });
 
     it('should be case-insensitive for namespace prefix', () => {
-      const content = `<think>Uppercase prefix.</think>Result.`;
+      const ns = 'ANTML';
+      const content = `<${ns}:think>Uppercase prefix.</${ns}:think>Result.`;
       const result = extractThinkingBlocks(content);
 
       expect(result.thinkingContent).toBe('Uppercase prefix.');
