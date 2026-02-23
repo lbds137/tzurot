@@ -290,6 +290,16 @@ export class DiagnosticCollector {
   }
 
   /**
+   * Reset LLM timing markers for a new retry iteration.
+   * Prevents stale end timestamps from a prior attempt mixing with a new start,
+   * which would produce negative llmInvocationMs values in diagnostics.
+   */
+  resetLlmTimingForRetry(): void {
+    this.llmInvocationStartMs = null;
+    this.llmInvocationEndMs = null;
+  }
+
+  /**
    * Mark the start of LLM invocation for timing
    */
   markLlmInvocationStart(): void {

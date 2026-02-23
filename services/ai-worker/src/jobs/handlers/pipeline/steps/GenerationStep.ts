@@ -19,12 +19,7 @@ import type {
   RAGResponse,
   ConversationContext,
 } from '../../../../services/ConversationalRAGTypes.js';
-import type {
-  IPipelineStep,
-  GenerationContext,
-  PreparedContext,
-  PreprocessingResults,
-} from '../types.js';
+import type { IPipelineStep, GenerationContext } from '../types.js';
 import { parseApiError, getErrorLogContext } from '../../../../utils/apiErrorParser.js';
 import { RetryError } from '../../../../utils/retry.js';
 import {
@@ -34,11 +29,19 @@ import {
 import { isRecentDuplicateAsync } from '../../../../utils/crossTurnDetection.js';
 import { getRecentAssistantMessages } from '../../../../utils/conversationHistoryUtils.js';
 import { DiagnosticCollector } from '../../../../services/DiagnosticCollector.js';
-import type { LLMGenerationJobData } from '@tzurot/common-types';
-import { shouldRetryEmptyResponse, logDuplicateDetection } from './RetryDecisionHelper.js';
+import {
+  shouldRetryEmptyResponse,
+  logDuplicateDetection,
+  logRetryEscalation,
+  logRetrySuccess,
+  selectBetterFallback,
+  logFallbackUsed,
+  type FallbackResponse,
+} from './RetryDecisionHelper.js';
 import { storeDiagnosticLog } from './diagnosticStorage.js';
 import { cloneContextForRetry } from './contextCloner.js';
 import { logDuplicateDetectionSetup } from './duplicateDetectionDiagnostics.js';
+import { buildConversationContext } from './conversationContextBuilder.js';
 
 const logger = createLogger('GenerationStep');
 
@@ -53,47 +56,6 @@ function validatePrerequisites(context: GenerationContext): void {
   if (!context.preparedContext) {
     throw new Error('[GenerationStep] ContextStep must run before GenerationStep');
   }
-}
-
-/** Build the conversation context for RAG service */
-function buildConversationContext(
-  jobContext: LLMGenerationJobData['context'],
-  preparedContext: PreparedContext,
-  preprocessing: PreprocessingResults | undefined
-): ConversationContext {
-  return {
-    userId: jobContext.userId,
-    userName: jobContext.userName,
-    userTimezone: jobContext.userTimezone,
-    channelId: jobContext.channelId,
-    serverId: jobContext.serverId,
-    sessionId: jobContext.sessionId,
-    isProxyMessage: jobContext.isProxyMessage,
-    isWeighIn: jobContext.isWeighIn,
-    activePersonaId: jobContext.activePersonaId,
-    activePersonaName: jobContext.activePersonaName,
-    // Guild-specific info for participants (roles, color, join date)
-    activePersonaGuildInfo: jobContext.activePersonaGuildInfo,
-    participantGuildInfo: jobContext.participantGuildInfo,
-    conversationHistory: preparedContext.conversationHistory,
-    rawConversationHistory: preparedContext.rawConversationHistory,
-    oldestHistoryTimestamp: preparedContext.oldestHistoryTimestamp,
-    participants: preparedContext.participants,
-    attachments: jobContext.attachments,
-    preprocessedAttachments:
-      preprocessing && preprocessing.processedAttachments.length > 0
-        ? preprocessing.processedAttachments
-        : undefined,
-    preprocessedReferenceAttachments:
-      preprocessing && Object.keys(preprocessing.referenceAttachments).length > 0
-        ? preprocessing.referenceAttachments
-        : undefined,
-    extendedContextAttachments: jobContext.extendedContextAttachments,
-    preprocessedExtendedContextAttachments: preprocessing?.extendedContextAttachments,
-    environment: jobContext.environment,
-    referencedMessages: jobContext.referencedMessages,
-    referencedChannels: jobContext.referencedChannels,
-  };
 }
 
 export class GenerationStep implements IPipelineStep {
@@ -148,28 +110,19 @@ export class GenerationStep implements IPipelineStep {
       configOverrides,
     } = opts;
 
-    let duplicateRetries = 0;
-    let emptyRetries = 0;
-    let preservedThinking: string | undefined;
+    let duplicateRetries = 0,
+      emptyRetries = 0;
+    let preservedThinking: string | undefined, fallback: FallbackResponse | undefined;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      // Reset diagnostic timing to prevent stale end timestamps from a prior
+      // attempt producing negative llmInvocationMs values
+      diagnosticCollector?.resetLlmTimingForRetry();
+
       // Build escalating retry config based on attempt number
       const retryConfig = buildRetryConfig(attempt);
-
-      // Log escalation on retries
-      if (attempt > 1) {
-        logger.info(
-          {
-            jobId,
-            attempt,
-            temperatureOverride: retryConfig.temperatureOverride,
-            frequencyPenaltyOverride: retryConfig.frequencyPenaltyOverride,
-            historyReductionPercent: retryConfig.historyReductionPercent,
-          },
-          '[GenerationStep] Escalating retry parameters'
-        );
-      }
+      logRetryEscalation(jobId, attempt, retryConfig);
 
       // Clone context for each attempt to prevent mutation bleeding across retries.
       // The RAG service mutates rawConversationHistory (injectImageDescriptions),
@@ -181,19 +134,32 @@ export class GenerationStep implements IPipelineStep {
       // IMPORTANT: skipMemoryStorage=true prevents storing memory on every retry attempt.
       // Memory is stored ONCE after the retry loop completes (see process method).
       // diagnosticCollector captures data from each attempt - overwrites with final attempt's data
-      const response = await this.ragService.generateResponse(
-        personality,
-        message,
-        attemptContext,
-        {
+      let response: RAGResponse;
+      try {
+        response = await this.ragService.generateResponse(personality, message, attemptContext, {
           userApiKey: apiKey,
           isGuestMode,
           retryConfig: { attempt, ...retryConfig },
           skipMemoryStorage: true,
           diagnosticCollector,
           configOverrides,
+        });
+      } catch (error) {
+        // LLM invocation failed entirely. If we have a fallback from a prior
+        // attempt (rejected as duplicate/empty but with content), return it
+        // instead of propagating the error and losing valid content.
+        if (fallback !== undefined) {
+          logFallbackUsed(fallback, jobId);
+          this.restoreThinking(fallback.response, preservedThinking);
+          return {
+            response: fallback.response,
+            duplicateRetries,
+            emptyRetries,
+          };
         }
-      );
+        // No fallback available - rethrow to preserve existing error behavior
+        throw error;
+      }
 
       // Preserve reasoning from any attempt (even failed/retried ones)
       // Some models don't reliably produce reasoning at escalated temperature,
@@ -206,6 +172,7 @@ export class GenerationStep implements IPipelineStep {
       const emptyAction = shouldRetryEmptyResponse({ response, attempt, maxAttempts, jobId });
       if (emptyAction === 'retry') {
         emptyRetries++;
+        fallback = selectBetterFallback(fallback, { response, reason: 'empty', attempt });
         continue;
       }
       if (emptyAction === 'return') {
@@ -224,10 +191,7 @@ export class GenerationStep implements IPipelineStep {
 
       if (!isDuplicate) {
         if (duplicateRetries > 0 || emptyRetries > 0) {
-          logger.info(
-            { jobId, modelUsed: response.modelUsed, attempt, duplicateRetries, emptyRetries },
-            '[GenerationStep] Retry succeeded - got valid unique response'
-          );
+          logRetrySuccess(jobId, response.modelUsed, attempt, duplicateRetries, emptyRetries);
         }
         this.restoreThinking(response, preservedThinking);
         return { response, duplicateRetries, emptyRetries };
@@ -235,6 +199,7 @@ export class GenerationStep implements IPipelineStep {
 
       // Duplicate detected - log and determine action
       duplicateRetries++;
+      fallback = selectBetterFallback(fallback, { response, reason: 'duplicate', attempt });
       const dupAction = logDuplicateDetection({
         response,
         attempt,
