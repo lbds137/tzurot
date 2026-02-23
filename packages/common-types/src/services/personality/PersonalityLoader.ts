@@ -6,6 +6,7 @@
 import type { PrismaClient } from '../prisma.js';
 import { createLogger } from '../../utils/logger.js';
 import { isBotOwner } from '../../utils/ownerMiddleware.js';
+import { getConfig } from '../../config/index.js';
 import { isValidUUID, SYNC_LIMITS } from '../../constants/index.js';
 import type { DatabasePersonality } from './PersonalityValidator.js';
 import { LLM_CONFIG_SELECT, mapLlmConfigFromDb, type MappedLlmConfig } from '../LlmConfigMapper.js';
@@ -50,6 +51,9 @@ const PERSONALITY_SELECT = {
 };
 
 export class PersonalityLoader {
+  /** Bot admin's database UUID. undefined = not yet resolved, null = no admin configured or not found */
+  private botAdminUuid: string | null | undefined;
+
   constructor(private prisma: PrismaClient) {}
 
   /**
@@ -195,9 +199,16 @@ export class PersonalityLoader {
 
       // Prioritize in-memory: Name match takes priority over slug match
       // This prevents slug "lilith" from overriding a personality actually named "Lilith"
-      const nameMatch = candidates.find(c => c.name.toLowerCase() === searchLower);
-      if (nameMatch) {
-        return nameMatch as DatabasePersonality;
+      const nameMatches = candidates.filter(c => c.name.toLowerCase() === searchLower);
+
+      if (nameMatches.length === 1) {
+        return nameMatches[0] as DatabasePersonality;
+      }
+
+      if (nameMatches.length > 1) {
+        // Multiple personalities share the same name — pick by priority:
+        // public > private, admin-owned > others, tiebreaker: oldest (from DB ordering)
+        return (await this.pickBestCandidate(nameMatches)) as DatabasePersonality;
       }
 
       const slugMatch = candidates.find(c => c.slug === searchLower);
@@ -250,6 +261,48 @@ export class PersonalityLoader {
       logger.error({ err: error }, `Failed to load personality from database: ${nameOrId}`);
       return null;
     }
+  }
+
+  /**
+   * Pick the best candidate when multiple personalities share the same name.
+   *
+   * Scoring: +2 for public, +1 for admin-owned.
+   * Tiebreaker: oldest (createdAt ascending), preserved from DB ordering.
+   */
+  private async pickBestCandidate<T extends { isPublic: boolean; ownerId: string }>(
+    matches: T[]
+  ): Promise<T> {
+    const adminUuid = await this.resolveBotAdminUuid();
+
+    return [...matches].sort((a, b) => {
+      const scoreA = (a.isPublic ? 2 : 0) + (a.ownerId === adminUuid ? 1 : 0);
+      const scoreB = (b.isPublic ? 2 : 0) + (b.ownerId === adminUuid ? 1 : 0);
+      return scoreB - scoreA;
+    })[0];
+  }
+
+  /**
+   * Lazily resolve and cache the bot admin's database UUID.
+   * At most 1 DB query per PersonalityLoader instance lifetime,
+   * only triggered when a name collision actually occurs.
+   */
+  private async resolveBotAdminUuid(): Promise<string | null> {
+    if (this.botAdminUuid !== undefined) {
+      return this.botAdminUuid;
+    }
+
+    const config = getConfig();
+    if (config.BOT_OWNER_ID === undefined || config.BOT_OWNER_ID === '') {
+      this.botAdminUuid = null;
+      return null;
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { discordId: config.BOT_OWNER_ID },
+      select: { id: true },
+    });
+    this.botAdminUuid = user?.id ?? null;
+    return this.botAdminUuid;
   }
 
   /**
