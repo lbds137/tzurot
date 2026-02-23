@@ -28,6 +28,7 @@ import {
   ShapesRateLimitError,
   ShapesServerError,
 } from './shapesErrors.js';
+import { updateCookieFromResponse } from './shapesCookieParser.js';
 
 const logger = createLogger('ShapesDataFetcher');
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -260,19 +261,13 @@ export class ShapesDataFetcher {
       try {
         return await this.executeSingleRequest<T>(url, externalSignal);
       } catch (error) {
-        // Node.js/undici throws TypeError('fetch failed') with a `cause`
-        // for network errors. We check message OR cause to avoid retrying
-        // programming TypeErrors (null dereference, etc.) which should
-        // fail fast. The cause check is a fallback in case the message
-        // string changes in a future Node.js/undici version.
-        const isNetworkTypeError =
-          error instanceof TypeError && (error.message.includes('fetch') || 'cause' in error);
-        const retryable =
-          error instanceof ShapesRateLimitError ||
-          error instanceof ShapesServerError ||
-          (error instanceof Error && error.name === 'AbortError') ||
-          isNetworkTypeError;
-        if (!retryable || attempt >= REQUEST_RETRY_COUNT) {
+        // External cancel takes priority — throw immediately, no retry delay.
+        // @ts-expect-error -- TS narrows .aborted to false|undefined from the pre-try check,
+        // but the signal can become aborted asynchronously during executeSingleRequest.
+        if (externalSignal?.aborted === true) {
+          throw externalSignal.reason;
+        }
+        if (!this.isRetryableError(error) || attempt >= REQUEST_RETRY_COUNT) {
           throw error;
         }
         const backoff = RETRY_BASE_DELAY_MS * 2 ** attempt;
@@ -315,7 +310,7 @@ export class ShapesDataFetcher {
       });
 
       // Update cookie from response headers
-      this.updateCookieFromResponse(response);
+      this.currentCookie = updateCookieFromResponse(this.currentCookie, response);
 
       if (response.ok) {
         return (await response.json()) as T;
@@ -353,43 +348,27 @@ export class ShapesDataFetcher {
   }
 
   /**
-   * Parse set-cookie headers and update the cookie jar with fresh session values.
-   * Shapes.inc rotates the appSession cookie on every API call.
+   * Classify whether an error is transient and should be retried.
+   *
+   * Retryable: 429 (rate limit), 5xx (server), AbortError (timeout),
+   * network TypeError (fetch failure with `cause` or 'fetch' in message).
+   * Non-retryable: 401/403 (auth), 404 (not found), other 4xx, programming errors.
    */
-  private updateCookieFromResponse(response: Response): void {
-    const setCookieHeaders = response.headers.getSetCookie();
-    if (setCookieHeaders.length === 0) {
-      return;
+  private isRetryableError(error: unknown): boolean {
+    if (error instanceof ShapesRateLimitError || error instanceof ShapesServerError) {
+      return true;
     }
-
-    // Parse current cookies into a map
-    const cookieMap = new Map<string, string>();
-    for (const part of this.currentCookie.split(';')) {
-      const trimmed = part.trim();
-      const eqIdx = trimmed.indexOf('=');
-      if (eqIdx > 0) {
-        cookieMap.set(trimmed.substring(0, eqIdx), trimmed.substring(eqIdx + 1));
-      }
+    if (error instanceof Error && error.name === 'AbortError') {
+      return true;
     }
-
-    // Update with new cookies from response
-    for (const header of setCookieHeaders) {
-      // set-cookie: name=value; Path=/; ...
-      const cookiePart = header.split(';')[0].trim();
-      const eqIdx = cookiePart.indexOf('=');
-      if (eqIdx > 0) {
-        const name = cookiePart.substring(0, eqIdx);
-        const value = cookiePart.substring(eqIdx + 1);
-        cookieMap.set(name, value);
-      }
+    // Node.js/undici throws TypeError('fetch failed') with a `cause` for network
+    // errors. We check message OR cause to avoid retrying programming TypeErrors
+    // (null dereference, etc.). The cause check is a fallback in case the message
+    // string changes in a future Node.js/undici version.
+    if (error instanceof TypeError && (error.message.includes('fetch') || 'cause' in error)) {
+      return true;
     }
-
-    // Rebuild cookie string
-    const parts: string[] = [];
-    for (const [name, value] of cookieMap) {
-      parts.push(`${name}=${value}`);
-    }
-    this.currentCookie = parts.join('; ');
+    return false;
   }
 
   private delay(ms = DELAY_BETWEEN_REQUESTS_MS): Promise<void> {
