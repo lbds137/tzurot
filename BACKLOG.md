@@ -418,6 +418,10 @@ During the GLM-5 empty response investigation, `err` serialized as `{_nonErrorOb
 - [ ] Codebase-wide scan for `{ err: ... }` patterns that produce useless output
 - [ ] Goal: every `{ err: ... }` log shows message + stack, never `raw: "{}"`
 
+#### 🏗️ Per-Attempt Diagnostic Tracking in Retry Loop
+
+When the fallback response path is used (PR #672), the diagnostic payload has data from attempt 1 (token counts, model, raw content) but `llmInvocationMs: undefined` because timing was reset for attempt 2 which failed. Add a `diagnosticAttempt` field or per-attempt timing array so the payload is internally consistent about which attempt's data it contains.
+
 #### 🧹 Logging Verbosity Audit
 
 Some operations log at INFO when they should be DEBUG. Noisy logs obscure real issues in production.
