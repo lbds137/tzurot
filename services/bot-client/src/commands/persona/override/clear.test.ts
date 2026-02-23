@@ -71,7 +71,7 @@ describe('handleOverrideClear', () => {
       method: 'DELETE',
     });
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile override cleared'),
+      content: expect.stringContaining('Persona override cleared'),
     });
   });
 
@@ -88,7 +88,7 @@ describe('handleOverrideClear', () => {
     await handleOverrideClear(createMockContext('lilith'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a profile override"),
+      content: expect.stringContaining("don't have a persona override"),
     });
   });
 
