@@ -33,6 +33,7 @@ import {
   unflattenPresetData,
   buildPresetDashboardOptions,
 } from './config.js';
+import type { PresetData } from './types.js';
 import { fetchPreset, updatePreset, updateGlobalPreset } from './api.js';
 import { handleSeedModalSubmit } from './create.js';
 import { PresetCustomIds } from '../../utils/customIds.js';
@@ -226,7 +227,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     }
 
     // Get current data from session or fetch from API
-    const result = await fetchOrCreateSession<FlattenedPresetData>({
+    const result = await fetchOrCreateSession<FlattenedPresetData, PresetData>({
       userId: interaction.user.id,
       entityType: 'preset',
       entityId,
