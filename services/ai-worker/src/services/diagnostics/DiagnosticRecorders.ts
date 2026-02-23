@@ -8,6 +8,7 @@
 import type { DiagnosticCollector } from '../DiagnosticCollector.js';
 import { resolveFinishReason, type LoadedPersonality } from '@tzurot/common-types';
 import { inferNonXmlStop } from '../StopSequenceTracker.js';
+import { hasThinkingBlocks } from '../../utils/thinkingExtraction.js';
 import type { LlmResponseData } from './DiagnosticTypes.js';
 
 /** Parsed response metadata from LangChain's AIMessage */
@@ -119,7 +120,7 @@ function buildReasoningDebug(
       typeof additionalKwargs?.reasoning === 'string' ? additionalKwargs.reasoning.length : 0,
     responseMetadataKeys: responseMetadata !== undefined ? Object.keys(responseMetadata) : [],
     hasReasoningDetails: Array.isArray(responseMetadata?.reasoning_details),
-    hasReasoningTagsInContent: rawContent.includes('<reasoning>'),
+    hasReasoningTagsInContent: hasThinkingBlocks(rawContent),
     rawContentPreview: rawContent.substring(0, 200),
   };
 }

@@ -23,6 +23,9 @@ function buildArtifactPatterns(personalityName: string): RegExp[] {
   const escapedName = personalityName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
   return [
+    // Leading <last_message> block: model echoes prompt structure (learned from training data)
+    // '<last_message>User: hello</last_message>\n\nResponse' → 'Response'
+    /^<last_message>[\s\S]*?<\/last_message>\s*/i,
     // Leading <from> tag: model echoes speaker identification from prompt
     // '<from id="abc">Kevbear</from>\n\nHello' → 'Hello'
     /^<from\b[^>]*>[^<]*<\/from>\s*/i,

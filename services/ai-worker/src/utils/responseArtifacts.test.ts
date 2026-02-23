@@ -71,6 +71,34 @@ describe('stripResponseArtifacts', () => {
     });
   });
 
+  describe('<last_message> block stripping', () => {
+    it('should strip leading <last_message> block', () => {
+      const content = '<last_message>User: hello</last_message>\n\nHere is my response.';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Here is my response.');
+    });
+
+    it('should strip <last_message> block with multi-line content', () => {
+      const content =
+        '<last_message>User: hello\nAssistant: hi there</last_message>\n\nActual response.';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Actual response.');
+    });
+
+    it('should be case-insensitive', () => {
+      const content = '<LAST_MESSAGE>User: hello</LAST_MESSAGE>\n\nResponse.';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Response.');
+    });
+
+    it('should NOT strip <last_message> in middle of content', () => {
+      const content = 'The <last_message> tag echoes the prompt.';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe(content);
+    });
+
+    it('should handle <last_message> combined with trailing </message>', () => {
+      const content = '<last_message>User: hi</last_message>\n\nHello!</message>';
+      expect(stripResponseArtifacts(content, 'Emily')).toBe('Hello!');
+    });
+  });
+
   describe('<from> tag stripping', () => {
     it('should strip leading <from> tag with id', () => {
       const content =

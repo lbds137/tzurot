@@ -206,6 +206,30 @@ describe('DiagnosticRecorders', () => {
       expect(debug.hasReasoningTagsInContent).toBe(true);
     });
 
+    it('should detect <thought> tags via hasThinkingBlocks (DRY fix)', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const content = '<thought>Analyzing request.</thought>\nHere is the answer.';
+
+      recordLlmResponseDiagnostic(mockCollector as never, content, 'model', {});
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      // Previously this returned false because only '<reasoning>' was hardcoded
+      expect(debug.hasReasoningTagsInContent).toBe(true);
+    });
+
+    it('should detect namespace-prefixed thinking tags', () => {
+      const mockCollector = { recordLlmResponse: vi.fn() };
+      const NS = 'antml';
+      const content = `<${NS}:thought>Internal processing.</${NS}:thought>\nResponse.`;
+
+      recordLlmResponseDiagnostic(mockCollector as never, content, 'model', {});
+
+      const call = mockCollector.recordLlmResponse.mock.calls[0][0] as Record<string, unknown>;
+      const debug = call.reasoningDebug as Record<string, unknown>;
+      expect(debug.hasReasoningTagsInContent).toBe(true);
+    });
+
     it('should include raw content preview in debug info', () => {
       const mockCollector = { recordLlmResponse: vi.fn() };
       const content = 'Short content';
