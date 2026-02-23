@@ -27,6 +27,7 @@ const PERSONALITY_SELECT = {
   slug: true,
   isPublic: true,
   ownerId: true,
+  createdAt: true,
   updatedAt: true, // For avatar cache-busting
   characterInfo: true,
   personalityTraits: true,
@@ -266,19 +267,34 @@ export class PersonalityLoader {
   /**
    * Pick the best candidate when multiple personalities share the same name.
    *
-   * Scoring: +2 for public, +1 for admin-owned.
-   * Tiebreaker: oldest (createdAt ascending), preserved from DB ordering.
+   * | Public? | Admin-owned? | Score | Example                              |
+   * |---------|-------------|-------|--------------------------------------|
+   * | Yes     | Yes         | 3     | Admin's public character — always wins |
+   * | Yes     | No          | 2     | Another user's public character       |
+   * | No      | Yes         | 1     | Admin's private character              |
+   * | No      | No          | 0     | Another user's private character       |
+   *
+   * Tiebreaker within same score: oldest (createdAt ascending).
    */
-  private async pickBestCandidate<T extends { isPublic: boolean; ownerId: string }>(
-    matches: T[]
-  ): Promise<T> {
+  private async pickBestCandidate(
+    matches: { isPublic: boolean; ownerId: string; createdAt: Date }[]
+  ): Promise<(typeof matches)[number]> {
     const adminUuid = await this.resolveBotAdminUuid();
 
-    return [...matches].sort((a, b) => {
-      const scoreA = (a.isPublic ? 2 : 0) + (a.ownerId === adminUuid ? 1 : 0);
-      const scoreB = (b.isPublic ? 2 : 0) + (b.ownerId === adminUuid ? 1 : 0);
-      return scoreB - scoreA;
-    })[0];
+    const score = (c: (typeof matches)[number]): number =>
+      (c.isPublic ? 2 : 0) + (c.ownerId === adminUuid ? 1 : 0);
+
+    return matches.reduce((best, current) => {
+      const diff = score(current) - score(best);
+      if (diff > 0) {
+        return current;
+      }
+      if (diff < 0) {
+        return best;
+      }
+      // Same score — oldest wins
+      return current.createdAt < best.createdAt ? current : best;
+    });
   }
 
   /**
@@ -297,12 +313,21 @@ export class PersonalityLoader {
       return null;
     }
 
-    const user = await this.prisma.user.findUnique({
-      where: { discordId: config.BOT_OWNER_ID },
-      select: { id: true },
-    });
-    this.botAdminUuid = user?.id ?? null;
-    return this.botAdminUuid;
+    try {
+      const user = await this.prisma.user.findUnique({
+        where: { discordId: config.BOT_OWNER_ID },
+        select: { id: true },
+      });
+      this.botAdminUuid = user?.id ?? null;
+      return this.botAdminUuid;
+    } catch (err) {
+      logger.warn(
+        { err },
+        '[PersonalityLoader] Failed to resolve bot admin UUID, skipping admin preference'
+      );
+      // Don't cache — allow retry on next collision
+      return null;
+    }
   }
 
   /**
