@@ -299,8 +299,9 @@ export class PersonalityLoader {
 
   /**
    * Lazily resolve and cache the bot admin's database UUID.
-   * At most 1 DB query per PersonalityLoader instance lifetime,
+   * Typically 1 DB query per PersonalityLoader instance lifetime,
    * only triggered when a name collision actually occurs.
+   * Not cached when admin isn't found (may register later) or on error.
    */
   private async resolveBotAdminUuid(): Promise<string | null> {
     if (this.botAdminUuid !== undefined) {
@@ -318,8 +319,11 @@ export class PersonalityLoader {
         where: { discordId: config.BOT_OWNER_ID },
         select: { id: true },
       });
-      this.botAdminUuid = user?.id ?? null;
-      return this.botAdminUuid;
+      // Only cache when admin is found — they may not have registered yet
+      if (user !== null) {
+        this.botAdminUuid = user.id;
+      }
+      return user?.id ?? null;
     } catch (err) {
       logger.warn(
         { err },
