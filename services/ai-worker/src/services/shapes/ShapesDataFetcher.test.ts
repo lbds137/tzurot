@@ -504,10 +504,11 @@ describe('ShapesDataFetcher', () => {
     });
 
     it('should retry TypeError with cause (undici network error fallback)', async () => {
-      // undici attaches a cause to network TypeErrors — this is a fallback
-      // for detection if the message string ever changes
+      // undici attaches a cause with .code to network TypeErrors — this is a
+      // fallback for detection if the message string ever changes
+      const syscallError = Object.assign(new Error('ECONNRESET'), { code: 'ECONNRESET' });
       const networkError = new TypeError('undici changed this message', {
-        cause: new Error('ECONNRESET'),
+        cause: syscallError,
       });
       mockFetch
         .mockRejectedValueOnce(networkError)

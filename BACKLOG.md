@@ -533,6 +533,10 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 ### Code Quality
 
+#### 🏗️ Unify Shapes Job Error Handlers
+
+`handleExportError` (ShapesExportJob.ts) and `handleImportError` (ShapesImportJob.ts) are near-identical: `willRetry` computation, three-way log message, re-throw or mark DB as failed. Extract to a shared helper in `shapesCredentials.ts` or a new `shapesJobHelpers.ts`.
+
 #### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention.
