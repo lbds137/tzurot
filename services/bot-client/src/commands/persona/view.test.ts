@@ -1,5 +1,5 @@
 /**
- * Tests for Profile View Handler
+ * Tests for Persona View Handler
  * Tests gateway API calls and response rendering.
  *
  * Note: deferReply is handled by top-level interactionCreate handler,
@@ -53,7 +53,7 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a profile"),
+      content: expect.stringContaining("don't have a persona"),
     });
   });
 
@@ -69,11 +69,11 @@ describe('handleViewPersona', () => {
     await handleViewPersona(createMockContext());
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a default profile"),
+      content: expect.stringContaining("don't have a default persona"),
     });
   });
 
-  it('should display profile with all fields', async () => {
+  it('should display persona with all fields', async () => {
     // First call returns persona list
     mockCallGatewayApi.mockResolvedValueOnce({
       ok: true,
@@ -100,7 +100,7 @@ describe('handleViewPersona', () => {
       embeds: [
         expect.objectContaining({
           data: expect.objectContaining({
-            title: '🎭 Your Profile',
+            title: '🎭 Your Persona',
           }),
         }),
       ],

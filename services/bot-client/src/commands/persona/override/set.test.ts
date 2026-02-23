@@ -85,7 +85,7 @@ describe('handleOverrideSet', () => {
       body: { personaId: 'persona-123' },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile override set'),
+      content: expect.stringContaining('Persona override set'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -145,7 +145,7 @@ describe('handleOverrideSet', () => {
     await handleOverrideSet(createMockContext('lilith', 'other-persona'));
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile not found'),
+      content: expect.stringContaining('Persona not found'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -226,7 +226,7 @@ describe('handleOverrideCreateModalSubmit', () => {
       }
     );
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile "Lilith Persona" created'),
+      content: expect.stringContaining('Persona "Lilith Persona" created'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -244,7 +244,7 @@ describe('handleOverrideCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile name is required'),
+      content: expect.stringContaining('Persona name is required'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();

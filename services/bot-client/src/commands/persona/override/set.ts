@@ -75,8 +75,8 @@ function mapOverrideError(error: string | undefined, personalitySlug: string): s
     return null;
   }
   // Check specific errors first before generic 'not found'
-  if (error.includes('Profile not found') || error.includes('Persona not found')) {
-    return '❌ Profile not found. Use `/persona browse` to see your personas.';
+  if (error.includes('Persona not found')) {
+    return '❌ Persona not found. Use `/persona browse` to see your personas.';
   }
   if (error.includes('Personality not found') || error.includes('personality not found')) {
     return `❌ Personality "${personalitySlug}" not found.`;
@@ -171,7 +171,7 @@ async function setExistingOverride(
   );
 
   await context.reply({
-    content: `✅ **Profile override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis persona will be used when talking to ${personalityName} instead of your default persona.`,
+    content: `✅ **Persona override set for ${personalityName}!**\n\n📋 Using: **${displayName}**\n\nThis persona will be used when talking to ${personalityName} instead of your default persona.`,
     flags: MessageFlags.Ephemeral,
   });
 }
@@ -221,7 +221,7 @@ export async function handleOverrideCreateModalSubmit(
     // Persona name is required
     if (personaName.length === 0) {
       await interaction.reply({
-        content: '❌ Profile name is required.',
+        content: '❌ Persona name is required.',
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -274,7 +274,7 @@ export async function handleOverrideCreateModalSubmit(
 
     await interaction.reply({
       content:
-        `✅ **Profile "${personaName}" created and set as override for ${personalityName}!**\n\n` +
+        `✅ **Persona "${personaName}" created and set as override for ${personalityName}!**\n\n` +
         `This persona will be used when talking to ${personalityName}.\n\n` +
         `Use \`/persona browse\` to see all your personas.`,
       flags: MessageFlags.Ephemeral,

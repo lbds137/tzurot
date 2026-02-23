@@ -1,5 +1,5 @@
 /**
- * Tests for Profile Settings Handler
+ * Tests for Persona Settings Handler
  * Tests gateway API calls for settings management.
  *
  * Note: This command uses editReply() because interactions are deferred
@@ -64,7 +64,7 @@ describe('handleShareLtmSetting', () => {
     });
   });
 
-  it('should show error when user has no profile', async () => {
+  it('should show error when user has no persona', async () => {
     mockCallGatewayApi.mockResolvedValue({
       ok: false,
       error: 'No default persona',
@@ -73,7 +73,7 @@ describe('handleShareLtmSetting', () => {
     await handleShareLtmSetting(createMockContext('enable'));
 
     expect(mockEditReply).toHaveBeenCalledWith({
-      content: expect.stringContaining("don't have a profile"),
+      content: expect.stringContaining("don't have a persona"),
     });
   });
 

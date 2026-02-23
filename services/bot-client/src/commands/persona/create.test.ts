@@ -1,6 +1,6 @@
 /**
- * Tests for Profile Create Handler
- * Tests modal display and gateway API calls for profile creation.
+ * Tests for Persona Create Handler
+ * Tests modal display and gateway API calls for persona creation.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -118,7 +118,7 @@ describe('handleCreateModalSubmit', () => {
       },
     });
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile "Work Persona" created'),
+      content: expect.stringContaining('Persona "Work Persona" created'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -154,7 +154,7 @@ describe('handleCreateModalSubmit', () => {
     });
   });
 
-  it('should require profile name', async () => {
+  it('should require persona name', async () => {
     await handleCreateModalSubmit(
       createMockModalInteraction({
         personaName: '',
@@ -166,7 +166,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Profile name is required'),
+      content: expect.stringContaining('Persona name is required'),
       flags: MessageFlags.Ephemeral,
     });
     expect(mockCallGatewayApi).not.toHaveBeenCalled();
@@ -267,7 +267,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create profile'),
+      content: expect.stringContaining('Failed to create persona'),
       flags: MessageFlags.Ephemeral,
     });
   });
@@ -286,7 +286,7 @@ describe('handleCreateModalSubmit', () => {
     );
 
     expect(mockReply).toHaveBeenCalledWith({
-      content: expect.stringContaining('Failed to create profile'),
+      content: expect.stringContaining('Failed to create persona'),
       flags: MessageFlags.Ephemeral,
     });
   });
