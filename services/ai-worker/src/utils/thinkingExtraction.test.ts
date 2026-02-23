@@ -90,6 +90,56 @@ The answer is 42.`;
     });
   });
 
+  describe('XML namespace prefix normalization', () => {
+    // Build namespace-prefixed strings dynamically to avoid XML parser confusion
+    const NS = 'antml';
+
+    it('should extract namespace-prefixed <thought> tags (GLM-4.5-Air format)', () => {
+      const content = `<${NS}:thought>Internal processing.</${NS}:thought>Here is the answer.`;
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Internal processing.');
+      expect(result.visibleContent).toBe('Here is the answer.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract namespace-prefixed <thinking> tags', () => {
+      const content = `<${NS}:thinking>Claude reasoning here.</${NS}:thinking>The response.`;
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Claude reasoning here.');
+      expect(result.visibleContent).toBe('The response.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should extract namespace-prefixed <think> tags', () => {
+      const content = `<${NS}:think>Let me analyze.</${NS}:think>The answer is 42.`;
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Let me analyze.');
+      expect(result.visibleContent).toBe('The answer is 42.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should handle mixed namespace-prefixed and plain tags', () => {
+      const content = `<${NS}:thought>First thought.</${NS}:thought>Middle.<thinking>Second thought.</thinking>End.`;
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toContain('First thought.');
+      expect(result.thinkingContent).toContain('Second thought.');
+      expect(result.visibleContent).toBe('Middle.End.');
+      expect(result.blockCount).toBe(2);
+    });
+
+    it('should be case-insensitive for namespace prefix', () => {
+      const content = `<think>Uppercase prefix.</think>Result.`;
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Uppercase prefix.');
+      expect(result.visibleContent).toBe('Result.');
+    });
+  });
+
   describe('alternative patterns', () => {
     it('should extract <thinking> tags (Claude format)', () => {
       const content = '<thinking>Claude reasoning here.</thinking>The response.';
@@ -515,6 +565,13 @@ describe('hasThinkingBlocks', () => {
 
   it('should be case insensitive', () => {
     expect(hasThinkingBlocks('<THINK>content</THINK>response')).toBe(true);
+  });
+
+  it('should detect namespace-prefixed tags', () => {
+    const NS = 'antml';
+    expect(hasThinkingBlocks(`<${NS}:thought>content</${NS}:thought>response`)).toBe(true);
+    expect(hasThinkingBlocks(`<${NS}:thinking>content</${NS}:thinking>response`)).toBe(true);
+    expect(hasThinkingBlocks(`<${NS}:think>content</${NS}:think>response`)).toBe(true);
   });
 });
 

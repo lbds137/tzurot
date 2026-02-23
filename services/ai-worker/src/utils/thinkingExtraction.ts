@@ -269,13 +269,16 @@ function tryFallbackExtraction(thinkingParts: string[], visibleContent: string):
  */
 export function extractThinkingBlocks(content: string): ThinkingExtraction {
   const thinkingParts: string[] = [];
-  let visibleContent = content;
+
+  // Normalize XML namespace prefixes (e.g. GLM-4.5-Air outputs <thought> instead of <thought>)
+  const normalized = content.replace(/<(\/?)(antml:)/gi, '<$1');
+  let visibleContent = normalized;
 
   // Extract thinking content from ALL patterns and ALWAYS remove from visible content
   // This prevents tag leakage when responses contain multiple tag types
   for (const pattern of THINKING_PATTERNS) {
     pattern.lastIndex = 0;
-    const matches = content.matchAll(pattern);
+    const matches = normalized.matchAll(pattern);
     for (const match of matches) {
       const thinkContent = match[1].trim();
       if (thinkContent.length > 0) {
@@ -318,16 +321,18 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
  * @returns true if any thinking blocks are present
  */
 export function hasThinkingBlocks(content: string): boolean {
+  // Normalize XML namespace prefixes (e.g. GLM-4.5-Air's antml: prefix)
+  const normalized = content.replace(/<(\/?)(antml:)/gi, '<$1');
   for (const pattern of THINKING_PATTERNS) {
     pattern.lastIndex = 0; // Reset regex state
-    if (pattern.test(content)) {
+    if (pattern.test(normalized)) {
       return true;
     }
   }
 
   // Also check for unclosed tags
   UNCLOSED_TAG_PATTERN.lastIndex = 0;
-  if (UNCLOSED_TAG_PATTERN.test(content)) {
+  if (UNCLOSED_TAG_PATTERN.test(normalized)) {
     return true;
   }
 
