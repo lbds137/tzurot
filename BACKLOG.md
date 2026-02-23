@@ -47,6 +47,26 @@ GLM 4.5 Air (`z-ai/glm-4.5-air:free`) uses `<think>` as creative roleplay format
 
 **Fix options**: Allowlist known reasoning models, require both open+close tags, or fallback to thinking-as-content when visible content is empty.
 
+### 🐛 Detect and Retry Inadequate LLM Responses
+
+LLMs occasionally return a 200 OK with garbage content — e.g., glm-5 returned just `"N"` (1 token, `finishReason: "unknown"`, 160s duration). The current retry system only handles HTTP errors, not content-quality failures.
+
+**Approach**: Compound scoring heuristic (multiple signals must converge to trigger retry):
+
+| Signal                                         | Weight      | Rationale                                                     |
+| ---------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| `finishReason` is `"unknown"` or `"error"`     | +0.40/+0.50 | Strongest single signal — legit short responses have `"stop"` |
+| `completionTokens` ≤ 1 / ≤ 5                   | +0.30/+0.15 | Very low output for conversational context                    |
+| No stop sequence triggered + short response    | +0.20       | Model didn't complete its thought                             |
+| Extreme ms-per-token ratio (>10s/token)        | +0.20       | Model was stuck/spinning                                      |
+| Content empty or ≤ 2 chars after tag stripping | +0.30/+0.15 | Nothing meaningful generated                                  |
+
+Retry threshold: score ≥ 0.5. Max 1 content retry (these failures are slow). Return last response if retry also fails (bad response > no response; inspect UI already flags low tokens).
+
+**Integration point**: After successful HTTP response in the AI pipeline, before returning to user. Log all assessments for tuning.
+
+**Reference**: `debug/debug-compact-736e6c99-*.json` (the "N" response).
+
 ### ✨ Hide Model Footer (Config Cascade)
 
 User request: option to hide the model indicator line from responses. Add `showModelFooter` boolean to the config cascade (default: `true`). Configurable at all 3 tiers: admin, personality, user-personality.
