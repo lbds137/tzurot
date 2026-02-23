@@ -66,7 +66,7 @@ function configString(config: Record<string, unknown>, key: string): string | un
 
 function formatConfigSection(config: ShapesIncPersonalityConfig, sourceSlug: string): string[] {
   // ShapesIncPersonalityConfig has [key: string]: unknown, so Record access is safe
-  const rec = config as unknown as Record<string, unknown>;
+  const rec = config as Record<string, unknown>;
   const lines: string[] = [];
   const name = configString(rec, 'name') ?? sourceSlug;
   lines.push(`# ${name}`, '');
