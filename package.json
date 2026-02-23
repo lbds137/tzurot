@@ -104,6 +104,10 @@
       "allowedVersions": {
         "eslint-plugin-sonarjs>eslint": "10"
       }
+    },
+    "overrides": {
+      "undici": "~6.23.0",
+      "qs": ">=6.14.2"
     }
   }
 }
