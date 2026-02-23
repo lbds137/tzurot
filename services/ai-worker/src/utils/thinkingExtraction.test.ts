@@ -138,6 +138,25 @@ The answer is 42.`;
 
       expect(result.thinkingContent).toBe('Uppercase prefix.');
       expect(result.visibleContent).toBe('Result.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should handle arbitrary namespace prefixes on known tags', () => {
+      const content = '<claude:thinking>Future-proofed.</claude:thinking>Response.';
+      const result = extractThinkingBlocks(content);
+
+      expect(result.thinkingContent).toBe('Future-proofed.');
+      expect(result.visibleContent).toBe('Response.');
+      expect(result.blockCount).toBe(1);
+    });
+
+    it('should NOT strip namespace prefix from non-thinking tags', () => {
+      const content = '<xml:div>Some content</xml:div>';
+      const result = extractThinkingBlocks(content);
+
+      // Non-thinking tags should pass through unchanged
+      expect(result.visibleContent).toContain('<xml:div>');
+      expect(result.thinkingContent).toBeNull();
     });
   });
 
@@ -573,6 +592,15 @@ describe('hasThinkingBlocks', () => {
     expect(hasThinkingBlocks(`<${NS}:thought>content</${NS}:thought>response`)).toBe(true);
     expect(hasThinkingBlocks(`<${NS}:thinking>content</${NS}:thinking>response`)).toBe(true);
     expect(hasThinkingBlocks(`<${NS}:think>content</${NS}:think>response`)).toBe(true);
+  });
+
+  it('should detect arbitrary namespace prefixes on known tags', () => {
+    expect(hasThinkingBlocks('<claude:thinking>content</claude:thinking>response')).toBe(true);
+    expect(hasThinkingBlocks('<foo:reasoning>content</foo:reasoning>response')).toBe(true);
+  });
+
+  it('should NOT detect namespace-prefixed non-thinking tags', () => {
+    expect(hasThinkingBlocks('<xml:div>content</xml:div>')).toBe(false);
   });
 });
 
