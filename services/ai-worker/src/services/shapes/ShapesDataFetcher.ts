@@ -34,6 +34,10 @@ const REQUEST_TIMEOUT_MS = 30_000;
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
 const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
+// 3 total attempts per request. Worst-case per request with retries:
+// 30s timeout + 2s backoff + 30s timeout + 4s backoff + 30s timeout = 96s.
+// This is intentional — better to wait 96s for one request than restart
+// a 461-page job from page 1.
 const REQUEST_RETRY_COUNT = 2;
 const RETRY_BASE_DELAY_MS = 2000;
 
@@ -256,6 +260,9 @@ export class ShapesDataFetcher {
       try {
         return await this.executeSingleRequest<T>(url, externalSignal);
       } catch (error) {
+        // Node.js/undici throws TypeError('fetch failed') for network errors.
+        // We check the message to avoid retrying programming TypeErrors
+        // (null dereference, etc.) which should fail fast.
         const retryable =
           error instanceof ShapesRateLimitError ||
           error instanceof ShapesServerError ||
