@@ -546,6 +546,46 @@ describe('PersonalityLoader', () => {
         expect(result?.id).toBe('public-other');
       });
 
+      it('should not cache null when admin has not registered yet', async () => {
+        vi.mocked(configModule.getConfig).mockReturnValue({
+          BOT_OWNER_ID: 'discord-admin-id',
+        } as any);
+
+        // First call: admin not in DB yet (returns null, should NOT cache)
+        // Second call: admin has registered
+        vi.mocked(mockPrisma.user.findUnique)
+          .mockResolvedValueOnce(null)
+          .mockResolvedValueOnce({ id: ADMIN_DB_UUID } as any);
+
+        const matchA = createMockPersonality({
+          id: 'admin-char',
+          name: 'Lilith',
+          slug: 'lilith-admin',
+          isPublic: true,
+          ownerId: ADMIN_DB_UUID,
+        });
+        const matchB = createMockPersonality({
+          id: 'other-char',
+          name: 'Lilith',
+          slug: 'lilith-other',
+          isPublic: true,
+          ownerId: OTHER_OWNER,
+        });
+
+        // First collision — admin not found, no admin preference, tiebreaker: oldest
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchA, matchB] as any);
+        const result1 = await loader.loadFromDatabase('Lilith');
+        expect(result1?.id).toBe('admin-char'); // oldest wins (same score)
+
+        // Second collision — admin now registered, should re-query and apply preference
+        vi.mocked(mockPrisma.personality.findMany).mockResolvedValueOnce([matchA, matchB] as any);
+        const result2 = await loader.loadFromDatabase('Lilith');
+        expect(result2?.id).toBe('admin-char'); // wins by score 3 now
+
+        // Key assertion: user.findUnique called TWICE (null was not cached)
+        expect(vi.mocked(mockPrisma.user.findUnique)).toHaveBeenCalledTimes(2);
+      });
+
       it('should retry admin UUID lookup after transient failure', async () => {
         vi.mocked(configModule.getConfig).mockReturnValue({
           BOT_OWNER_ID: 'discord-admin-id',
