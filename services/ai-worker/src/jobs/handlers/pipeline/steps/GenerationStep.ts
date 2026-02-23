@@ -110,9 +110,10 @@ export class GenerationStep implements IPipelineStep {
       configOverrides,
     } = opts;
 
-    let duplicateRetries = 0,
-      emptyRetries = 0;
-    let preservedThinking: string | undefined, fallback: FallbackResponse | undefined;
+    let duplicateRetries = 0;
+    let emptyRetries = 0;
+    let preservedThinking: string | undefined;
+    let fallback: FallbackResponse | undefined;
     const maxAttempts = RETRY_CONFIG.MAX_ATTEMPTS; // 3 = 1 initial + 2 retries
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
