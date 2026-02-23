@@ -5,14 +5,14 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { ShapesDataFetcher } from './ShapesDataFetcher.js';
 import {
-  ShapesDataFetcher,
   ShapesAuthError,
   ShapesNotFoundError,
   ShapesRateLimitError,
   ShapesServerError,
   ShapesFetchError,
-} from './ShapesDataFetcher.js';
+} from './shapesErrors.js';
 
 // Mock common-types
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -273,36 +273,46 @@ describe('ShapesDataFetcher', () => {
       await assertion;
     });
 
-    it('should throw ShapesRateLimitError on 429', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }));
+    it('should throw ShapesRateLimitError on 429 after exhausting per-request retries', async () => {
+      // 3 attempts (1 initial + 2 retries) before throwing
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }))
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }))
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
         sessionCookie: 'appSession.0=abc; appSession.1=def',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesRateLimitError);
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(30000);
       await assertion;
     });
 
-    it('should throw ShapesServerError on 500', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
+    it('should throw ShapesServerError on 500 after exhausting per-request retries', async () => {
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }))
+        .mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }))
+        .mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
         sessionCookie: 'appSession.0=abc; appSession.1=def',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesServerError);
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(30000);
       await assertion;
     });
 
-    it('should throw ShapesServerError on 502', async () => {
-      mockFetch.mockResolvedValueOnce(createMockResponse(502, { error: 'Bad Gateway' }));
+    it('should throw ShapesServerError on 502 after exhausting per-request retries', async () => {
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse(502, { error: 'Bad Gateway' }))
+        .mockResolvedValueOnce(createMockResponse(502, { error: 'Bad Gateway' }))
+        .mockResolvedValueOnce(createMockResponse(502, { error: 'Bad Gateway' }));
 
       const promise = fetcher.fetchShapeData('test-shape', {
         sessionCookie: 'appSession.0=abc; appSession.1=def',
       });
       const assertion = expect(promise).rejects.toThrow(ShapesServerError);
-      await vi.advanceTimersByTimeAsync(5000);
+      await vi.advanceTimersByTimeAsync(30000);
       await assertion;
     });
 
@@ -349,6 +359,136 @@ describe('ShapesDataFetcher', () => {
       const result = await promise;
 
       expect(result.stories).toHaveLength(0);
+    });
+  });
+
+  describe('per-request retry', () => {
+    it('should retry 429 and succeed on next attempt', async () => {
+      mockFetch
+        // Config: 429 then success
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }))
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_CONFIG))
+        // Memories
+        .mockResolvedValueOnce(
+          createMockResponse(200, { items: [], pagination: { has_next: false } })
+        )
+        // Stories
+        .mockResolvedValueOnce(createMockResponse(200, []))
+        // User personalization
+        .mockResolvedValueOnce(createMockResponse(200, {}));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      await vi.advanceTimersByTimeAsync(30000);
+      const result = await promise;
+
+      expect(result.config.id).toBe('shape-uuid-123');
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+    });
+
+    it('should retry 500 and succeed on next attempt', async () => {
+      mockFetch
+        // Config: 500 then success
+        .mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }))
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_CONFIG))
+        // Memories
+        .mockResolvedValueOnce(
+          createMockResponse(200, { items: [], pagination: { has_next: false } })
+        )
+        // Stories
+        .mockResolvedValueOnce(createMockResponse(200, []))
+        // User personalization
+        .mockResolvedValueOnce(createMockResponse(200, {}));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      await vi.advanceTimersByTimeAsync(30000);
+      const result = await promise;
+
+      expect(result.config.id).toBe('shape-uuid-123');
+      expect(mockFetch).toHaveBeenCalledTimes(5);
+    });
+
+    it('should retry network timeout (AbortError) and succeed', async () => {
+      mockFetch
+        // Config: timeout then success
+        .mockRejectedValueOnce(new DOMException('The operation was aborted', 'AbortError'))
+        .mockResolvedValueOnce(createMockResponse(200, SAMPLE_CONFIG))
+        // Memories
+        .mockResolvedValueOnce(
+          createMockResponse(200, { items: [], pagination: { has_next: false } })
+        )
+        // Stories
+        .mockResolvedValueOnce(createMockResponse(200, []))
+        // User personalization
+        .mockResolvedValueOnce(createMockResponse(200, {}));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      await vi.advanceTimersByTimeAsync(30000);
+      const result = await promise;
+
+      expect(result.config.id).toBe('shape-uuid-123');
+    });
+
+    it('should NOT retry 401 (immediate throw, no retry)', async () => {
+      mockFetch.mockResolvedValueOnce(createMockResponse(401, { error: 'Unauthorized' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(ShapesAuthError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+
+      // Only 1 fetch call — no retries for auth errors
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT retry 404 (immediate throw, no retry)', async () => {
+      mockFetch.mockResolvedValueOnce(createMockResponse(404, { error: 'Not found' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(ShapesNotFoundError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should NOT retry 422 (immediate throw, no retry)', async () => {
+      mockFetch.mockResolvedValueOnce(createMockResponse(422, { error: 'Unprocessable' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(ShapesFetchError);
+      await vi.advanceTimersByTimeAsync(5000);
+      await assertion;
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('should exhaust all retries then throw on persistent 429', async () => {
+      mockFetch
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }))
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }))
+        .mockResolvedValueOnce(createMockResponse(429, { error: 'Rate limited' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+      });
+      const assertion = expect(promise).rejects.toThrow(ShapesRateLimitError);
+      await vi.advanceTimersByTimeAsync(30000);
+      await assertion;
+
+      // 3 calls: initial + 2 retries
+      expect(mockFetch).toHaveBeenCalledTimes(3);
     });
   });
 
