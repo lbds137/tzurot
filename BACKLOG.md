@@ -521,10 +521,6 @@ Status command fires up to 100 parallel API calls. Have API return names with se
 
 `handleExportError` (ShapesExportJob.ts) and `handleImportError` (ShapesImportJob.ts) are near-identical: `willRetry` computation, three-way log message, re-throw or mark DB as failed. Extract to a shared helper in `shapesCredentials.ts` or a new `shapesJobHelpers.ts`.
 
-#### 🧹 Clean Up AbortSignal Listener in executeSingleRequest
-
-`executeSingleRequest` adds a `{ once: true }` listener to `externalSignal` but doesn't remove it on successful completion. For large jobs (461+ pages), hundreds of consumed-but-never-fired listeners accumulate on the signal until GC. Store the handler ref and call `removeEventListener` in the `finally` block.
-
 #### 🧹 Audit Existing Tests for Type Violations
 
 Review all `*.test.ts` files to ensure they match their naming convention.

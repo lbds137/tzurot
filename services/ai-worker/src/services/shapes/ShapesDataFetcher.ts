@@ -295,8 +295,9 @@ export class ShapesDataFetcher {
     // Combine external signal with timeout
     const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
+    const onAbort = (): void => controller.abort();
     if (externalSignal !== undefined) {
-      externalSignal.addEventListener('abort', () => controller.abort(), { once: true });
+      externalSignal.addEventListener('abort', onAbort, { once: true });
     }
 
     try {
@@ -344,6 +345,7 @@ export class ShapesDataFetcher {
       );
     } finally {
       clearTimeout(timeout);
+      externalSignal?.removeEventListener('abort', onAbort);
     }
   }
 

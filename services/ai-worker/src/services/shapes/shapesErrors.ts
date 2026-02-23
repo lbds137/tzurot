@@ -25,8 +25,8 @@ export class ShapesAuthError extends Error {
 }
 
 export class ShapesNotFoundError extends Error {
-  constructor(slug: string) {
-    super(`Shape not found: ${slug}`);
+  constructor(resource: string) {
+    super(`Not found: ${resource}`);
     this.name = 'ShapesNotFoundError';
   }
 }

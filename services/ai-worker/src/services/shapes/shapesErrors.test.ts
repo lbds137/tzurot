@@ -17,11 +17,17 @@ describe('ShapesAuthError', () => {
 });
 
 describe('ShapesNotFoundError', () => {
-  it('should set name and format message with slug', () => {
+  it('should set name and format message with resource identifier', () => {
     const error = new ShapesNotFoundError('test-slug');
     expect(error.name).toBe('ShapesNotFoundError');
-    expect(error.message).toBe('Shape not found: test-slug');
+    expect(error.message).toBe('Not found: test-slug');
     expect(error).toBeInstanceOf(Error);
+  });
+
+  it('should work with full URL as resource', () => {
+    const url = 'https://talk.shapes.inc/api/shapes/username/test-shape';
+    const error = new ShapesNotFoundError(url);
+    expect(error.message).toBe(`Not found: ${url}`);
   });
 });
 
