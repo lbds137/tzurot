@@ -270,8 +270,12 @@ function tryFallbackExtraction(thinkingParts: string[], visibleContent: string):
 export function extractThinkingBlocks(content: string): ThinkingExtraction {
   const thinkingParts: string[] = [];
 
-  // Normalize XML namespace prefixes (e.g. GLM-4.5-Air outputs namespace-prefixed tags like <ns:thought>)
-  const normalized = content.replace(/<(\/?)(antml:)/gi, '<$1');
+  // Strip any XML namespace prefix from known thinking tag names — GLM-4.5-Air leaks Anthropic's
+  // training data namespace into generated tags. Restrict to known tags to avoid side effects.
+  const normalized = content.replace(
+    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking)\b/gi,
+    '<$1$2'
+  );
   let visibleContent = normalized;
 
   // Extract thinking content from ALL patterns and ALWAYS remove from visible content
@@ -321,8 +325,11 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
  * @returns true if any thinking blocks are present
  */
 export function hasThinkingBlocks(content: string): boolean {
-  // Normalize XML namespace prefixes (e.g. GLM-4.5-Air's antml: prefix)
-  const normalized = content.replace(/<(\/?)(antml:)/gi, '<$1');
+  // Strip any XML namespace prefix from known thinking tag names (see extractThinkingBlocks)
+  const normalized = content.replace(
+    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking)\b/gi,
+    '<$1$2'
+  );
   for (const pattern of THINKING_PATTERNS) {
     pattern.lastIndex = 0; // Reset regex state
     if (pattern.test(normalized)) {
