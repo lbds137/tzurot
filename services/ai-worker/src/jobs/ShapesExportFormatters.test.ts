@@ -100,12 +100,15 @@ describe('ShapesExportFormatters', () => {
       expect(result).toContain('Brave and kind');
     });
 
-    it('should include memories as numbered headings', () => {
+    it('should include memories as numbered headings without senders', () => {
       const result = formatExportAsMarkdown(basePayload);
       expect(result).toContain('## Memories');
       expect(result).toContain('1 conversation memories');
       expect(result).toContain('### Memory #1');
       expect(result).toContain('They discussed important topics.');
+      // Senders are raw UUIDs from shapes.inc — omitted until display name resolution is implemented
+      expect(result).not.toContain('user1');
+      expect(result).not.toContain('user2');
     });
 
     it('should number multiple memories sequentially', () => {
