@@ -1,15 +1,20 @@
 /**
  * Shapes.inc Error Types
  *
- * Job handlers (ShapesImportJob, ShapesExportJob) use a blacklist approach:
- * only ShapesAuthError, ShapesNotFoundError, and ShapesFetchError are
- * non-retryable. Everything else — including ShapesRateLimitError (429),
- * ShapesServerError (5xx), network timeouts, and unexpected exceptions —
- * is retried by BullMQ via the default path.
+ * Two-tier retry system:
  *
- * At the per-request level (ShapesDataFetcher.makeRequest), ShapesRateLimitError
- * and ShapesServerError are also retried with exponential backoff before
- * propagating to the job handler.
+ * **Tier 1 — Per-request (ShapesDataFetcher.makeRequest):**
+ * ShapesRateLimitError (429), ShapesServerError (5xx), AbortError (timeout),
+ * and fetch TypeError (network failure) are retried up to 3 total attempts
+ * with exponential backoff. This prevents a single transient failure from
+ * restarting the entire BullMQ job.
+ *
+ * **Tier 2 — Per-job (BullMQ via ShapesExportJob/ShapesImportJob):**
+ * If all per-request retries are exhausted, the error propagates to the job
+ * handler. Only ShapesAuthError, ShapesNotFoundError, and ShapesFetchError
+ * are non-retryable (immediate failure). Everything else — including
+ * ShapesRateLimitError and ShapesServerError that survived per-request
+ * retries — triggers a BullMQ job-level retry (restarts from page 1).
  */
 
 export class ShapesAuthError extends Error {
