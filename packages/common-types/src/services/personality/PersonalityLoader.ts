@@ -262,10 +262,10 @@ export class PersonalityLoader {
         }
       }
 
-      logger.debug(`Personality not found: ${nameOrId}`);
+      logger.debug({ nameOrId }, 'Personality not found');
       return null;
     } catch (error) {
-      logger.error({ err: error }, `Failed to load personality from database: ${nameOrId}`);
+      logger.error({ err: error, nameOrId }, 'Failed to load personality from database');
       return null;
     }
   }
