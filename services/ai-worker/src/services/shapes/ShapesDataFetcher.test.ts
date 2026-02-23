@@ -582,6 +582,26 @@ describe('ShapesDataFetcher', () => {
       // Only 1 fetch call — retry was short-circuited by abort
       expect(mockFetch).toHaveBeenCalledTimes(1);
     });
+
+    it('should throw DOMException when abort() is called without a reason', async () => {
+      const abortController = new AbortController();
+
+      // First attempt: transient 500 error
+      mockFetch.mockResolvedValueOnce(createMockResponse(500, { error: 'Server error' }));
+
+      const promise = fetcher.fetchShapeData('test-shape', {
+        sessionCookie: 'appSession.0=abc; appSession.1=def',
+        signal: abortController.signal,
+      });
+      // Node.js auto-sets reason to DOMException('This operation was aborted', 'AbortError')
+      const assertion = expect(promise).rejects.toThrow('This operation was aborted');
+
+      await vi.advanceTimersByTimeAsync(100);
+      abortController.abort(); // No reason provided — Node sets default DOMException
+      await vi.advanceTimersByTimeAsync(30000);
+
+      await assertion;
+    });
   });
 
   describe('cookie rotation', () => {
