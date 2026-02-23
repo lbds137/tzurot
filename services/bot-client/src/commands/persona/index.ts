@@ -1,7 +1,7 @@
 /**
  * Persona Command Group
  *
- * Manage your AI personas - your customizable profiles for interacting with AI.
+ * Manage your AI personas - your customizable personas for interacting with AI.
  *
  * Commands:
  * - /persona view - View your current persona

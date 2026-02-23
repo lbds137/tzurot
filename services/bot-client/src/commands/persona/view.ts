@@ -1,7 +1,7 @@
 /**
  * Persona View Handler
  *
- * Displays the user's current profile information including:
+ * Displays the user's current persona information including:
  * - Preferred name
  * - Pronouns
  * - Content/description
@@ -27,7 +27,7 @@ import { sendChunkedReply } from '../../utils/chunkedReply.js';
 
 const logger = createLogger('persona-view');
 
-const PROFILE_FETCH_ERROR = '❌ Failed to retrieve your profile. Please try again later.';
+const PERSONA_FETCH_ERROR = '❌ Failed to retrieve your persona. Please try again later.';
 const CONTENT_FIELD_NAME = '📝 Content';
 
 /** Response type for persona list */
@@ -49,12 +49,12 @@ interface PersonaDetails extends PersonaSummary {
 /** Maximum content length to show in embed before truncating */
 const CONTENT_PREVIEW_LENGTH = 1000;
 
-/** Build embed and action row for profile view */
-function buildProfileEmbed(personaDetails: PersonaDetails): {
+/** Build embed and action row for persona view */
+function buildPersonaEmbed(personaDetails: PersonaDetails): {
   embed: EmbedBuilder;
   components: ActionRowBuilder<MessageActionRowComponentBuilder>[];
 } {
-  const embed = new EmbedBuilder().setTitle('🎭 Your Profile').setColor(0x5865f2).setTimestamp();
+  const embed = new EmbedBuilder().setTitle('🎭 Your Persona').setColor(0x5865f2).setTimestamp();
 
   if (personaDetails.preferredName !== null && personaDetails.preferredName.length > 0) {
     embed.addFields({
@@ -120,7 +120,7 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (!result.ok) {
       logger.warn({ userId: discordId, error: result.error }, '[Persona] Failed to fetch personas');
       await context.editReply({
-        content: PROFILE_FETCH_ERROR,
+        content: PERSONA_FETCH_ERROR,
       });
       return;
     }
@@ -129,8 +129,8 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
     if (persona === undefined) {
       const message =
         result.data.personas.length === 0
-          ? "❌ You don't have a profile set up yet. Use `/persona edit` to create one!"
-          : "❌ You don't have a default profile set. Use `/persona default` to set one!";
+          ? "❌ You don't have a persona set up yet. Use `/persona edit` to create one!"
+          : "❌ You don't have a default persona set. Use `/persona default` to set one!";
       await context.editReply({ content: message });
       return;
     }
@@ -146,18 +146,18 @@ export async function handleViewPersona(context: DeferredCommandContext): Promis
         '[Persona] Failed to fetch persona details'
       );
       await context.editReply({
-        content: PROFILE_FETCH_ERROR,
+        content: PERSONA_FETCH_ERROR,
       });
       return;
     }
 
-    const { embed, components } = buildProfileEmbed(detailsResult.data.persona);
+    const { embed, components } = buildPersonaEmbed(detailsResult.data.persona);
     await context.editReply({ embeds: [embed], components });
-    logger.info({ userId: discordId }, '[Persona] User viewed their profile');
+    logger.info({ userId: discordId }, '[Persona] User viewed their persona');
   } catch (error) {
-    logger.error({ err: error, userId: discordId }, '[Persona] Failed to view profile');
+    logger.error({ err: error, userId: discordId }, '[Persona] Failed to view persona');
     await context.editReply({
-      content: PROFILE_FETCH_ERROR,
+      content: PERSONA_FETCH_ERROR,
     });
   }
 }
@@ -185,7 +185,7 @@ export async function handleExpandContent(
         { userId: discordId, personaId, error: result.error },
         '[Persona] Failed to fetch persona for expand'
       );
-      await interaction.editReply('❌ Profile not found or access denied.');
+      await interaction.editReply('❌ Persona not found or access denied.');
       return;
     }
 
@@ -202,9 +202,9 @@ export async function handleExpandContent(
       continuedHeader: '📝 Content (continued)\n\n',
     });
 
-    logger.info({ userId: discordId, personaId }, '[Persona] User expanded profile content');
+    logger.info({ userId: discordId, personaId }, '[Persona] User expanded persona content');
   } catch (error) {
-    logger.error({ err: error, personaId }, '[Persona] Failed to expand profile content');
+    logger.error({ err: error, personaId }, '[Persona] Failed to expand persona content');
     await interaction.editReply('❌ Failed to load content. Please try again.');
   }
 }

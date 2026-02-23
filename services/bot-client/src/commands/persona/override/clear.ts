@@ -74,7 +74,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
 
     if (!hadOverride) {
       await context.editReply({
-        content: `ℹ️ You don't have a profile override set for ${personalityName}.`,
+        content: `ℹ️ You don't have a persona override set for ${personalityName}.`,
       });
       return;
     }
@@ -85,7 +85,7 @@ export async function handleOverrideClear(context: DeferredCommandContext): Prom
     );
 
     await context.editReply({
-      content: `✅ **Profile override cleared for ${personalityName}!**\n\nYour default persona will now be used when talking to ${personalityName}.`,
+      content: `✅ **Persona override cleared for ${personalityName}!**\n\nYour default persona will now be used when talking to ${personalityName}.`,
     });
   } catch (error) {
     logger.error({ err: error, userId: discordId }, '[Persona] Failed to clear override');
