@@ -52,7 +52,13 @@ const PERSONALITY_SELECT = {
 };
 
 export class PersonalityLoader {
-  /** Bot admin's database UUID. undefined = not yet resolved, null = no admin configured or not found */
+  /**
+   * Bot admin's database UUID.
+   * - undefined: not yet resolved
+   * - null (cached): BOT_OWNER_ID not configured — permanent for instance lifetime
+   * - string (cached): resolved admin UUID — permanent for instance lifetime
+   * Note: when admin exists in config but not in DB, null is returned but NOT cached (retry on next collision)
+   */
   private botAdminUuid: string | null | undefined;
 
   constructor(private prisma: PrismaClient) {}
@@ -278,10 +284,10 @@ export class PersonalityLoader {
    */
   private async pickBestCandidate(
     matches: { isPublic: boolean; ownerId: string; createdAt: Date }[]
-  ): Promise<(typeof matches)[number]> {
+  ): Promise<{ isPublic: boolean; ownerId: string; createdAt: Date }> {
     const adminUuid = await this.resolveBotAdminUuid();
 
-    const score = (c: (typeof matches)[number]): number =>
+    const score = (c: { isPublic: boolean; ownerId: string }): number =>
       (c.isPublic ? 2 : 0) + (c.ownerId === adminUuid ? 1 : 0);
 
     return matches.reduce((best, current) => {
