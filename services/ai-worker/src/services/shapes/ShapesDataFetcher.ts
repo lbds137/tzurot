@@ -39,7 +39,7 @@ const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
 // 30s timeout + 2s backoff + 30s timeout + 4s backoff + 30s timeout = 96s.
 // This is intentional — better to wait 96s for one request than restart
 // a 461-page job from page 1.
-const REQUEST_RETRY_COUNT = 2;
+const REQUEST_MAX_RETRIES = 2;
 const RETRY_BASE_DELAY_MS = 2000;
 
 // ============================================================================
@@ -92,17 +92,17 @@ export class ShapesDataFetcher {
       '[ShapesDataFetcher] Config fetched, starting data collection'
     );
 
-    await this.delay();
+    await this.delay(undefined, options.signal);
 
     // 2. Fetch memories (paginated)
     const { memories, pagesTraversed } = await this.fetchAllMemories(shapeId, options.signal);
 
-    await this.delay();
+    await this.delay(undefined, options.signal);
 
     // 3. Fetch stories/knowledge
     const stories = await this.fetchStories(shapeId, options.signal);
 
-    await this.delay();
+    await this.delay(undefined, options.signal);
 
     // 4. Fetch user personalization
     const userPersonalization = await this.fetchUserPersonalization(shapeId, options.signal);
@@ -187,7 +187,7 @@ export class ShapesDataFetcher {
 
       if (hasNext) {
         page++;
-        await this.delay();
+        await this.delay(undefined, signal);
       }
     }
 
@@ -246,7 +246,7 @@ export class ShapesDataFetcher {
   /**
    * Make an authenticated request with per-request retry.
    *
-   * Retries up to REQUEST_RETRY_COUNT times (3 total attempts) on transient
+   * Retries up to REQUEST_MAX_RETRIES times (3 total attempts) on transient
    * errors (429, 5xx, network timeout, fetch failure) with exponential backoff.
    * Non-retryable errors (401, 403, 404, other 4xx) are thrown immediately.
    * This prevents a single transient failure from restarting the entire BullMQ
@@ -267,7 +267,7 @@ export class ShapesDataFetcher {
         if (externalSignal?.aborted === true) {
           throw externalSignal.reason ?? new DOMException('Aborted', 'AbortError');
         }
-        if (!this.isRetryableError(error) || attempt >= REQUEST_RETRY_COUNT) {
+        if (!this.isRetryableError(error) || attempt >= REQUEST_MAX_RETRIES) {
           throw error;
         }
         const backoff = RETRY_BASE_DELAY_MS * 2 ** attempt;
