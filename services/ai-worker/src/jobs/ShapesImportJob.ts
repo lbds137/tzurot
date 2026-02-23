@@ -265,6 +265,13 @@ interface HandleErrorOpts {
 async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJobResult> {
   const { isRetryable, errorMessage } = classifyShapesError(opts.error);
   const maxAttempts = opts.job.opts.attempts ?? 1;
+  const willRetry = isRetryable && opts.job.attemptsMade < maxAttempts - 1;
+
+  const logMessage = willRetry
+    ? '[ShapesImportJob] Retryable error — BullMQ will retry'
+    : isRetryable
+      ? '[ShapesImportJob] Retries exhausted — marking as failed'
+      : '[ShapesImportJob] Import failed (non-retryable)';
 
   logger.error(
     {
@@ -274,15 +281,14 @@ async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJob
       errorType: opts.error instanceof Error ? opts.error.constructor.name : typeof opts.error,
       attemptsMade: opts.job.attemptsMade,
       maxAttempts,
+      willRetry,
     },
-    isRetryable
-      ? '[ShapesImportJob] Retryable error — BullMQ will retry'
-      : '[ShapesImportJob] Import failed (non-retryable)'
+    logMessage
   );
 
   // Re-throw retryable errors for BullMQ retry if attempts remain.
   // On the final attempt, fall through to mark the DB record as 'failed'.
-  if (isRetryable && opts.job.attemptsMade < maxAttempts - 1) {
+  if (willRetry) {
     throw opts.error;
   }
 
@@ -290,6 +296,11 @@ async function handleImportError(opts: HandleErrorOpts): Promise<ShapesImportJob
     where: { id: opts.importJobId },
     data: { status: 'failed', completedAt: new Date(), errorMessage },
   });
+
+  logger.warn(
+    { jobId: opts.jobId, sourceSlug: opts.sourceSlug },
+    '[ShapesImportJob] Import marked as failed in database'
+  );
 
   return {
     success: false,

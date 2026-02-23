@@ -8,7 +8,7 @@ import {
   ShapesAuthError,
   ShapesFetchError,
   ShapesNotFoundError,
-} from '../services/shapes/ShapesDataFetcher.js';
+} from '../services/shapes/shapesErrors.js';
 
 const mockDecryptApiKey = vi.fn();
 const mockEncryptApiKey = vi.fn();

@@ -139,6 +139,13 @@ interface HandleErrorOpts {
 async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJobResult> {
   const { isRetryable, errorMessage } = classifyShapesError(opts.error);
   const maxAttempts = opts.job.opts.attempts ?? 1;
+  const willRetry = isRetryable && opts.job.attemptsMade < maxAttempts - 1;
+
+  const logMessage = willRetry
+    ? '[ShapesExportJob] Retryable error — BullMQ will retry'
+    : isRetryable
+      ? '[ShapesExportJob] Retries exhausted — marking as failed'
+      : '[ShapesExportJob] Export failed (non-retryable)';
 
   logger.error(
     {
@@ -148,16 +155,15 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
       errorType: opts.error instanceof Error ? opts.error.constructor.name : typeof opts.error,
       attemptsMade: opts.job.attemptsMade,
       maxAttempts,
+      willRetry,
     },
-    isRetryable
-      ? '[ShapesExportJob] Retryable error — BullMQ will retry'
-      : '[ShapesExportJob] Export failed (non-retryable)'
+    logMessage
   );
 
   // Re-throw retryable errors for BullMQ retry if attempts remain.
   // On the final attempt, fall through to mark the DB record as 'failed'
   // so users don't see a permanently stuck 'in_progress' status.
-  if (isRetryable && opts.job.attemptsMade < maxAttempts - 1) {
+  if (willRetry) {
     throw opts.error;
   }
 
@@ -165,6 +171,11 @@ async function handleExportError(opts: HandleErrorOpts): Promise<ShapesExportJob
     where: { id: opts.exportJobId },
     data: { status: 'failed', completedAt: new Date(), errorMessage },
   });
+
+  logger.warn(
+    { jobId: opts.jobId, sourceSlug: opts.sourceSlug },
+    '[ShapesExportJob] Export marked as failed in database'
+  );
 
   return {
     success: false,

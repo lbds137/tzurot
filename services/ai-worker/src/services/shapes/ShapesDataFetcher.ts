@@ -7,7 +7,7 @@
  * Key behaviors:
  * - Stateful cookie management (shapes.inc rotates cookies on each request)
  * - Rate-limited requests (1s delay between calls)
- * - Structured error types for auth, not-found, and rate-limit failures
+ * - Per-request retry with exponential backoff (429, 5xx, network errors)
  * - AbortController timeouts per request
  */
 
@@ -21,61 +21,29 @@ import {
   type ShapesIncUserPersonalization,
   type ShapesDataFetchResult,
 } from '@tzurot/common-types';
+import {
+  ShapesAuthError,
+  ShapesFetchError,
+  ShapesNotFoundError,
+  ShapesRateLimitError,
+  ShapesServerError,
+} from './shapesErrors.js';
+
+export {
+  ShapesAuthError,
+  ShapesFetchError,
+  ShapesNotFoundError,
+  ShapesRateLimitError,
+  ShapesServerError,
+} from './shapesErrors.js';
 
 const logger = createLogger('ShapesDataFetcher');
 const REQUEST_TIMEOUT_MS = 30_000;
 const DELAY_BETWEEN_REQUESTS_MS = 1000;
 const MEMORIES_PER_PAGE = 20;
 const MAX_MEMORY_PAGES = 500; // Safety cap: 10,000 memories at 20/page
-
-// ============================================================================
-// Error Types
-//
-// Job handlers (ShapesImportJob, ShapesExportJob) use a blacklist approach:
-// only ShapesAuthError, ShapesNotFoundError, and ShapesFetchError are
-// non-retryable. Everything else — including ShapesRateLimitError (429),
-// ShapesServerError (5xx), network timeouts, and unexpected exceptions —
-// is retried by BullMQ via the default path.
-// ============================================================================
-
-export class ShapesAuthError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ShapesAuthError';
-  }
-}
-
-export class ShapesNotFoundError extends Error {
-  constructor(slug: string) {
-    super(`Shape not found: ${slug}`);
-    this.name = 'ShapesNotFoundError';
-  }
-}
-
-export class ShapesRateLimitError extends Error {
-  constructor() {
-    super('Rate limited by shapes.inc');
-    this.name = 'ShapesRateLimitError';
-  }
-}
-
-export class ShapesServerError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'ShapesServerError';
-    this.status = status;
-  }
-}
-
-export class ShapesFetchError extends Error {
-  readonly status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = 'ShapesFetchError';
-    this.status = status;
-  }
-}
+const REQUEST_MAX_RETRIES = 2; // 3 total attempts per HTTP request
+const RETRY_BASE_DELAY_MS = 2000;
 
 // ============================================================================
 // Types
@@ -279,10 +247,45 @@ export class ShapesDataFetcher {
   // ==========================================================================
 
   /**
-   * Make an authenticated request to shapes.inc.
-   * Updates the cookie jar from set-cookie response headers.
+   * Make an authenticated request with per-request retry.
+   *
+   * Retries on transient errors (429, 5xx, network timeout, fetch failure)
+   * with exponential backoff. Non-retryable errors (401, 403, 404, other 4xx)
+   * are thrown immediately. This prevents a single transient failure from
+   * restarting the entire BullMQ job (which would re-fetch all pages).
    */
   private async makeRequest<T>(url: string, externalSignal?: AbortSignal): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await this.executeSingleRequest<T>(url, externalSignal);
+      } catch (error) {
+        const retryable =
+          error instanceof ShapesRateLimitError ||
+          error instanceof ShapesServerError ||
+          (error instanceof Error && (error.name === 'AbortError' || error.name === 'TypeError'));
+        if (!retryable || attempt >= REQUEST_MAX_RETRIES) {
+          throw error;
+        }
+        const backoff = RETRY_BASE_DELAY_MS * 2 ** attempt;
+        logger.warn(
+          {
+            url,
+            attempt,
+            backoff,
+            errorType: error instanceof Error ? error.constructor.name : 'unknown',
+          },
+          '[ShapesDataFetcher] Request failed, retrying'
+        );
+        await this.delay(backoff);
+      }
+    }
+  }
+
+  /**
+   * Execute a single authenticated HTTP request to shapes.inc.
+   * Updates the cookie jar from set-cookie response headers.
+   */
+  private async executeSingleRequest<T>(url: string, externalSignal?: AbortSignal): Promise<T> {
     const controller = new AbortController();
 
     // Combine external signal with timeout
@@ -380,7 +383,7 @@ export class ShapesDataFetcher {
     this.currentCookie = parts.join('; ');
   }
 
-  private delay(): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, DELAY_BETWEEN_REQUESTS_MS));
+  private delay(ms = DELAY_BETWEEN_REQUESTS_MS): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
