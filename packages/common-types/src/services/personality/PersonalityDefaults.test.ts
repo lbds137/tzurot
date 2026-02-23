@@ -22,6 +22,7 @@ function createMockDatabasePersonality(
     slug: 'test-bot',
     isPublic: true,
     ownerId: 'owner-123',
+    createdAt: new Date('2024-01-21T12:00:00.000Z'),
     updatedAt: new Date('2024-01-21T12:00:00.000Z'),
     systemPrompt: null,
     defaultConfigLink: null,
