@@ -94,6 +94,19 @@ Memory exports from shapes.inc include sender UUIDs (e.g., `98a94b95-cbd0-430b-8
 
 **Location**: `services/ai-worker/src/jobs/ShapesExportFormatters.ts` (formatting) and `services/ai-worker/src/jobs/ShapesExportJob.ts` (API calls during export)
 
+### ✨ Configurable Shapes.inc Export Sections
+
+Let users choose which sections to include in their shapes.inc export. Currently all sections are always included (config, memories, stories, user personalization). Add options to `/shapes export` so users can pick and choose.
+
+**Options** (all default to true):
+
+- `include_config` — Character config / system prompt / personality traits
+- `include_memories` — Conversation memories
+- `include_stories` — Knowledge base stories
+- `include_personalization` — User personalization / backstory
+
+**Implementation**: Add optional boolean options to the `/shapes export` slash command. Pass through to the export job payload. `formatExportAsMarkdown` and `formatExportAsJson` conditionally skip sections based on flags. Stats footer should reflect what was actually included.
+
 ### 🏗️ Slash Command UX Audit
 
 Full audit of all slash command UI patterns. Review shared utilities usage, identify gaps/inconsistencies, standardize patterns.
