@@ -31,7 +31,7 @@
     "depcruise:graph": "depcruise services/ packages/ --config .dependency-cruiser.cjs --output-type dot | dot -T svg > reports/dependency-graph.svg",
     "knip": "knip",
     "knip:fix": "knip --fix",
-    "knip:dead": "bash scripts/find-dead-files.sh",
+    "knip:dead": "tsx packages/tooling/src/cli.ts dev:dead-files",
     "quality": "pnpm lint && pnpm cpd && pnpm depcruise && pnpm typecheck && pnpm typecheck:spec",
     "focus:lint": "pnpm ops dev:lint",
     "focus:test": "pnpm ops dev:test",

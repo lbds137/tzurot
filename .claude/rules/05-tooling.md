@@ -14,6 +14,7 @@ pnpm lint:errors      # Show only errors
 # Static Analysis
 pnpm depcruise        # Check architecture boundaries
 pnpm knip             # Find unused code/exports/deps
+pnpm knip:dead        # Find dead files (only imported by own tests)
 
 # Focused (changed packages only)
 pnpm focus:lint       # Lint changed packages
@@ -147,6 +148,25 @@ tzurot/
 │   └── tooling/            # CLI commands (pnpm ops)
 └── prisma/                 # Database schema
 ```
+
+## No Standalone Scripts
+
+**All tooling must live in `packages/tooling/`** as TypeScript, not as standalone
+bash/shell scripts. This ensures:
+
+- Consistent patterns (options objects, typed interfaces)
+- Unit testability (colocated `.test.ts` files with mocked child_process)
+- Discoverability via `pnpm ops --help`
+
+When adding a new dev tool, follow the existing pattern:
+
+1. Implementation in `packages/tooling/src/dev/<name>.ts`
+2. Tests in `packages/tooling/src/dev/<name>.test.ts`
+3. Command registration in `packages/tooling/src/commands/dev.ts`
+4. Shortcut in root `package.json` if frequently used (e.g., `"knip:dead"`)
+
+**Exception:** `scripts/` may contain one-off data migration or codegen scripts
+that run once and are deleted. Persistent tooling goes in the tooling package.
 
 ## References
 
