@@ -908,11 +908,14 @@ describe('DiagnosticCollector', () => {
 
   describe('resetLlmTimingForRetry', () => {
     it('should prevent negative timing when called between retry attempts', () => {
-      vi.useRealTimers();
+      const base = 1_000_000;
+      vi.setSystemTime(base);
       collector = new DiagnosticCollector(defaultOptions);
 
       // Simulate attempt 1: start → response recorded (sets both start and end)
+      vi.setSystemTime(base + 10);
       collector.markLlmInvocationStart();
+      vi.setSystemTime(base + 50);
       collector.recordLlmResponse({
         rawContent: 'First attempt response',
         finishReason: 'stop',
@@ -925,6 +928,7 @@ describe('DiagnosticCollector', () => {
       // Simulate attempt 2: reset timing, then mark new start
       // Without reset, the old endMs would persist and could be before the new startMs
       collector.resetLlmTimingForRetry();
+      vi.setSystemTime(base + 100);
       collector.markLlmInvocationStart();
 
       // Simulate LLM failure on attempt 2 (no recordLlmResponse called)
@@ -937,11 +941,14 @@ describe('DiagnosticCollector', () => {
     });
 
     it('should allow clean timing after reset when new response is recorded', () => {
-      vi.useRealTimers();
+      const base = 1_000_000;
+      vi.setSystemTime(base);
       collector = new DiagnosticCollector(defaultOptions);
 
       // Attempt 1
+      vi.setSystemTime(base + 10);
       collector.markLlmInvocationStart();
+      vi.setSystemTime(base + 50);
       collector.recordLlmResponse({
         rawContent: 'First',
         finishReason: 'stop',
@@ -953,16 +960,9 @@ describe('DiagnosticCollector', () => {
 
       // Attempt 2 with reset
       collector.resetLlmTimingForRetry();
+      vi.setSystemTime(base + 100);
       collector.markLlmInvocationStart();
-
-      const sleepSync = (ms: number) => {
-        const end = Date.now() + ms;
-        while (Date.now() < end) {
-          // busy wait
-        }
-      };
-      sleepSync(5);
-
+      vi.setSystemTime(base + 115);
       collector.recordLlmResponse({
         rawContent: 'Second',
         finishReason: 'stop',
@@ -973,8 +973,8 @@ describe('DiagnosticCollector', () => {
       });
 
       const payload = collector.finalize();
-      // Timing should be positive, reflecting only attempt 2's duration
-      expect(payload.timing.llmInvocationMs).toBeGreaterThanOrEqual(5);
+      // Timing should reflect only attempt 2's duration (115 - 100 = 15ms)
+      expect(payload.timing.llmInvocationMs).toBe(15);
     });
   });
 

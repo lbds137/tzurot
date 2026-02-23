@@ -1178,6 +1178,44 @@ describe('GenerationStep', () => {
         expect(result.result?.error).toBe('Provider returned 400');
       });
 
+      it('should return empty response as fallback when later LLM call fails', async () => {
+        // Attempt 1: empty content (e.g., model produced only thinking blocks)
+        // → stored as fallback with reason 'empty'
+        const emptyResponse: RAGResponse = {
+          content: '',
+          retrievedMemories: 2,
+          tokensIn: 100,
+          tokensOut: 50,
+          thinkingContent: 'I was thinking deeply but produced no visible output...',
+          modelUsed: 'test-model',
+        };
+
+        // Attempt 2: also empty → stored as fallback
+        // Attempt 3: LLM fails entirely
+        vi.mocked(mockRAGService.generateResponse)
+          .mockResolvedValueOnce(emptyResponse)
+          .mockResolvedValueOnce(emptyResponse)
+          .mockRejectedValueOnce(new Error('Provider returned 400'));
+
+        const context: GenerationContext = {
+          job: createMockJob(),
+          startTime: Date.now(),
+          config: baseConfig,
+          auth: baseAuth,
+          preparedContext: basePreparedContext,
+        };
+
+        const result = await step.process(context);
+
+        // Should succeed with the empty fallback — the empty response handling
+        // in process() will then report it as EMPTY_RESPONSE, but the key is
+        // that we didn't propagate the 400 error
+        expect(result.result).toBeDefined();
+        // The empty content triggers the "all retries empty" path in process()
+        expect(result.result?.error).toContain('empty response');
+        expect(mockRAGService.generateResponse).toHaveBeenCalledTimes(3);
+      });
+
       it('should preserve thinking content from fallback response', async () => {
         // Attempt 1: duplicate with thinking content
         const duplicateWithThinking: RAGResponse = {
