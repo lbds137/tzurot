@@ -16,6 +16,7 @@ import {
   generateClonedName,
 } from './dashboardButtons.js';
 import { handleDashboardClose } from '../../utils/dashboard/closeHandler.js';
+import { refreshDashboardUI } from '../../utils/dashboard/refreshHandler.js';
 import type { FlattenedPresetData } from './config.js';
 
 // Mock dependencies
@@ -107,6 +108,10 @@ vi.mock('../../utils/dashboard/index.js', async () => {
 
 vi.mock('../../utils/dashboard/closeHandler.js', () => ({
   handleDashboardClose: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../../utils/dashboard/refreshHandler.js', () => ({
+  refreshDashboardUI: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@tzurot/common-types', async () => {
@@ -548,7 +553,12 @@ describe('Preset Dashboard Buttons', () => {
       await handleCancelDeleteButton(mockInteraction, 'preset-123');
 
       expect(mockInteraction.deferUpdate).toHaveBeenCalled();
-      expect(mockInteraction.editReply).toHaveBeenCalled();
+      expect(refreshDashboardUI).toHaveBeenCalledWith(
+        expect.objectContaining({
+          interaction: mockInteraction,
+          entityId: 'preset-123',
+        })
+      );
     });
 
     it('should show error if session expired', async () => {
