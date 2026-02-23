@@ -36,6 +36,7 @@ import {
   unflattenPersonaData,
   buildPersonaDashboardOptions,
 } from './config.js';
+import type { PersonaDetails } from './types.js';
 import { fetchPersona, updatePersona, deletePersona, isDefaultPersona } from './api.js';
 import { PersonaCustomIds, type PersonaBrowseSortType } from '../../utils/customIds.js';
 import { buildBrowseResponse } from './browse.js';
@@ -179,7 +180,7 @@ export async function handleSelectMenu(interaction: StringSelectMenuInteraction)
     }
 
     // Get current data from session or fetch from API
-    const result = await fetchOrCreateSession<FlattenedPersonaData>({
+    const result = await fetchOrCreateSession<FlattenedPersonaData, PersonaDetails>({
       userId: interaction.user.id,
       entityType: 'persona',
       entityId,
