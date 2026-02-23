@@ -140,7 +140,7 @@ function buildTextSearchQuery(
   offset: number
 ): Prisma.Sql {
   const conditions = buildSearchConditions(filters);
-  conditions.push(Prisma.sql`m.content ILIKE ${`%${searchTerm}%`}`);
+  conditions.push(Prisma.sql`m.content ILIKE ${'%' + searchTerm + '%'}`);
   const whereClause = Prisma.join(conditions, ' AND ');
   return Prisma.sql`
     SELECT m.id, m.content, m.created_at, m.updated_at, m.is_locked, m.personality_id,
