@@ -4,12 +4,7 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// We need to reset module state between tests
-let initVerificationCleanupService: typeof import('./VerificationCleanupService.js').initVerificationCleanupService;
-let getVerificationCleanupService: typeof import('./VerificationCleanupService.js').getVerificationCleanupService;
-let cleanupVerificationMessagesForUser: typeof import('./VerificationCleanupService.js').cleanupVerificationMessagesForUser;
-
-// Mock dependencies
+// Mock dependencies before static imports
 vi.mock('../redis.js', () => ({
   redis: {
     rpush: vi.fn(),
@@ -32,15 +27,17 @@ vi.mock('./VerificationMessageCleanup.js', () => ({
   },
 }));
 
+import {
+  initVerificationCleanupService,
+  getVerificationCleanupService,
+  cleanupVerificationMessagesForUser,
+  resetForTesting,
+} from './VerificationCleanupService.js';
+
 describe('verificationCleanupService', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     vi.clearAllMocks();
-    // Reset the module to clear singleton state
-    vi.resetModules();
-    const module = await import('./VerificationCleanupService.js');
-    initVerificationCleanupService = module.initVerificationCleanupService;
-    getVerificationCleanupService = module.getVerificationCleanupService;
-    cleanupVerificationMessagesForUser = module.cleanupVerificationMessagesForUser;
+    resetForTesting();
   });
 
   describe('initVerificationCleanupService', () => {

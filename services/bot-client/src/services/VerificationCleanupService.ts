@@ -51,3 +51,11 @@ export async function cleanupVerificationMessagesForUser(userId: string): Promis
 
   await cleanupService.cleanupForUser(userId);
 }
+
+/**
+ * Reset singleton state for testing
+ * Matches the serviceRegistry.resetServices() pattern
+ */
+export function resetForTesting(): void {
+  cleanupService = null;
+}
