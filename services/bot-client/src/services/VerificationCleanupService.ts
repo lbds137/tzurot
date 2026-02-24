@@ -56,6 +56,6 @@ export async function cleanupVerificationMessagesForUser(userId: string): Promis
  * Reset singleton state for testing
  * Matches the serviceRegistry.resetServices() pattern
  */
-export function resetForTesting(): void {
+export function __resetForTesting(): void {
   cleanupService = null;
 }

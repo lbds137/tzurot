@@ -31,13 +31,13 @@ import {
   initVerificationCleanupService,
   getVerificationCleanupService,
   cleanupVerificationMessagesForUser,
-  resetForTesting,
+  __resetForTesting,
 } from './VerificationCleanupService.js';
 
 describe('verificationCleanupService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    resetForTesting();
+    __resetForTesting();
   });
 
   describe('initVerificationCleanupService', () => {

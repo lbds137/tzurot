@@ -82,7 +82,7 @@ const THRESHOLD_PERCENT = 0.8;
 
 // Actual ESLint limits from eslint.config.js
 const ACTUAL_LIMITS = {
-  'max-lines': 500,
+  'max-lines': 400,
   'max-lines-per-function': 100,
   complexity: 20,
   'max-statements': 50,
