@@ -61,7 +61,7 @@ export async function waterfallMemoryQuery(
       {
         original: options.channelIds.length,
         valid: validChannelIds.length,
-        filtered: options.channelIds.filter(id => !validChannelIds.includes(id)),
+        filteredCount: options.channelIds.length - validChannelIds.length,
       },
       'Some channel IDs filtered out as invalid'
     );

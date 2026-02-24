@@ -27,7 +27,7 @@ import {
 import { expandWithSiblings } from './PgvectorSiblingExpander.js';
 import { waterfallMemoryQuery } from './PgvectorChannelScoping.js';
 
-// Re-export types for backward compatibility (18 files import from this module)
+// Re-export types for backward compatibility (15 files import from this module)
 export {
   MemoryQueryOptions,
   MemoryDocument,
