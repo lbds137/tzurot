@@ -17,12 +17,12 @@ function makeFinding(overrides: Partial<Finding> = {}): Finding {
   return {
     file: '/home/user/project/services/bot-client/src/SomeService.ts',
     rule: 'max-lines',
-    message: 'File has too many lines (450). Maximum allowed is 400.',
+    message: 'File has too many lines (350). Maximum allowed is 400.',
     line: 1,
-    currentValue: 450,
-    threshold: 400,
-    limit: 500,
-    percentOfLimit: 90,
+    currentValue: 350,
+    threshold: 320,
+    limit: 400,
+    percentOfLimit: 87.5,
     ...overrides,
   };
 }
@@ -148,15 +148,15 @@ describe('formatFinding', () => {
 
   it('contains percentage and current/limit values', () => {
     const finding = makeFinding({
-      currentValue: 450,
-      limit: 500,
-      percentOfLimit: 90,
+      currentValue: 350,
+      limit: 400,
+      percentOfLimit: 87.5,
     });
 
     const output = formatFinding(finding, rootDir);
 
-    expect(output).toContain('90%');
-    expect(output).toContain('450/500');
+    expect(output).toContain('88%');
+    expect(output).toContain('350/400');
   });
 
   it('clamps progress bar at 10 filled blocks for values over 100%', () => {
@@ -209,8 +209,8 @@ describe('extractFindings', () => {
       file: '/project/services/bot-client/src/Big.ts',
       rule: 'max-lines',
       currentValue: 450,
-      threshold: 400,
-      limit: 500,
+      threshold: 320,
+      limit: 400,
     });
   });
 
@@ -388,7 +388,7 @@ describe('buildJSONOutput', () => {
     const output = buildJSONOutput(findings, byRule);
 
     expect(output.thresholds.thresholdPercent).toBe(80);
-    expect(output.thresholds.rules['max-lines']).toEqual({ threshold: 400, limit: 500 });
+    expect(output.thresholds.rules['max-lines']).toEqual({ threshold: 320, limit: 400 });
     expect(output.thresholds.rules['max-lines-per-function']).toEqual({
       threshold: 80,
       limit: 100,
