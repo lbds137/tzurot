@@ -466,9 +466,16 @@ describe('cleanup-duplicates', () => {
   });
 
   describe('printAuditLog', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
     it('should log environment, timestamp, and counts', () => {
-      const fakeNow = new Date('2026-02-23T15:00:00Z');
-      vi.setSystemTime(fakeNow);
+      vi.setSystemTime(new Date('2026-02-23T15:00:00Z'));
 
       printAuditLog('dev', 42, 10);
 
@@ -478,8 +485,6 @@ describe('cleanup-duplicates', () => {
       expect(output).toContain('42');
       expect(output).toContain('10');
       expect(output).toContain('2026-02-23T15:00:00.000Z');
-
-      vi.useRealTimers();
     });
 
     it('should log prod environment correctly', () => {
