@@ -64,6 +64,18 @@ const THINKING_PATTERNS = [
 ] as const;
 
 /**
+ * Strip any XML namespace prefix from known thinking tag names. GLM-4.5-Air leaks Anthropic's
+ * training data namespace into generated tags. Restrict to known tags to avoid side effects.
+ * The \b anchor prevents false matches on hypothetical tags like <thinker>.
+ */
+function normalizeThinkingTagNamespaces(content: string): string {
+  return content.replace(
+    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking)\b/gi,
+    '<$1$2'
+  );
+}
+
+/**
  * Pattern to match unclosed thinking tags (model truncation or errors).
  * Matches opening tag followed by content until end of string.
  * Only used as a fallback when no complete tags are found.
@@ -270,12 +282,7 @@ function tryFallbackExtraction(thinkingParts: string[], visibleContent: string):
 export function extractThinkingBlocks(content: string): ThinkingExtraction {
   const thinkingParts: string[] = [];
 
-  // Strip any XML namespace prefix from known thinking tag names — GLM-4.5-Air leaks Anthropic's
-  // training data namespace into generated tags. Restrict to known tags to avoid side effects.
-  const normalized = content.replace(
-    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking)\b/gi,
-    '<$1$2'
-  );
+  const normalized = normalizeThinkingTagNamespaces(content);
   let visibleContent = normalized;
 
   // Extract thinking content from ALL patterns and ALWAYS remove from visible content
@@ -325,11 +332,7 @@ export function extractThinkingBlocks(content: string): ThinkingExtraction {
  * @returns true if any thinking blocks are present
  */
 export function hasThinkingBlocks(content: string): boolean {
-  // Strip any XML namespace prefix from known thinking tag names (see extractThinkingBlocks)
-  const normalized = content.replace(
-    /<(\/?)[a-z][a-z0-9]*:(think|thinking|thought|reasoning|reflection|scratchpad|ant_thinking)\b/gi,
-    '<$1$2'
-  );
+  const normalized = normalizeThinkingTagNamespaces(content);
   for (const pattern of THINKING_PATTERNS) {
     pattern.lastIndex = 0; // Reset regex state
     if (pattern.test(normalized)) {
