@@ -70,9 +70,7 @@ describe('parseReExportName', () => {
     expect(parseReExportName('  foo as bar  ')).toBe('bar');
   });
 
-  it('strips leading type keyword from non-prefixed type re-exports', () => {
-    // The function does trimmed.startsWith('type ') check first,
-    // then also does .replace(/^type\s+/, '') on the result
+  it('returns null for type-prefixed re-exports', () => {
     expect(parseReExportName('type SomeType')).toBeNull();
   });
 });
