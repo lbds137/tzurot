@@ -113,10 +113,6 @@ const EXCLUDE_PATTERNS = [
   /packages\/tooling\/src\/inspect\//,
   // Xray formatters (thin presentation wrappers: JSON.stringify, chalk, markdown)
   /packages\/tooling\/src\/xray\/formatters\//,
-  // Pre-existing tooling logic files without tests (backlog: close these gaps)
-  /packages\/tooling\/src\/dev\/check-duplicate-exports\.ts$/,
-  /packages\/tooling\/src\/lint\/complexity-report\.ts$/,
-  /packages\/tooling\/src\/memory\/cleanup-duplicates\.ts$/,
 ];
 
 function shouldExclude(filePath: string): boolean {

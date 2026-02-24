@@ -14,7 +14,8 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import chalk from 'chalk';
 
-interface ExportInfo {
+/** @internal Exported for testing */
+export interface ExportInfo {
   name: string;
   file: string;
   line: number;
@@ -93,14 +94,16 @@ const ALLOWLIST: Record<string, Set<string>> = {
   ]),
 };
 
-function isAllowed(name: string, packageName: string): boolean {
+/** @internal Exported for testing */
+export function isAllowed(name: string, packageName: string): boolean {
   return (ALLOWLIST['*']?.has(name) ?? false) || (ALLOWLIST[packageName]?.has(name) ?? false);
 }
 
 /**
  * Check if a file entry should be included in the scan
  */
-function isSourceFile(entry: string): boolean {
+/** @internal Exported for testing */
+export function isSourceFile(entry: string): boolean {
   return (
     entry.endsWith('.ts') &&
     !entry.endsWith('.test.ts') &&
@@ -157,7 +160,8 @@ const REEXPORT_PATTERN = /^export\s*\{([^}]+)\}\s*from\s/;
 /**
  * Parse a single re-export name spec (e.g., "name as alias" or just "name")
  */
-function parseReExportName(nameSpec: string): string | null {
+/** @internal Exported for testing */
+export function parseReExportName(nameSpec: string): string | null {
   const trimmed = nameSpec.trim();
   if (trimmed.startsWith('type ')) {
     return null;
@@ -170,7 +174,8 @@ function parseReExportName(nameSpec: string): string | null {
 /**
  * Extract declaration exports from a single line
  */
-function matchDeclarations(line: string, filePath: string, lineNum: number): ExportInfo[] {
+/** @internal Exported for testing */
+export function matchDeclarations(line: string, filePath: string, lineNum: number): ExportInfo[] {
   const results: ExportInfo[] = [];
   for (const { pattern, kind } of EXPORT_PATTERNS) {
     const match = line.match(pattern);
@@ -184,7 +189,8 @@ function matchDeclarations(line: string, filePath: string, lineNum: number): Exp
 /**
  * Extract re-exports from a single line
  */
-function matchReExports(line: string, filePath: string, lineNum: number): ExportInfo[] {
+/** @internal Exported for testing */
+export function matchReExports(line: string, filePath: string, lineNum: number): ExportInfo[] {
   const reexportMatch = REEXPORT_PATTERN.exec(line);
   if (reexportMatch === null) {
     return [];
@@ -202,7 +208,8 @@ function matchReExports(line: string, filePath: string, lineNum: number): Export
 /**
  * Extract exported names from a TypeScript file
  */
-function extractExports(filePath: string): ExportInfo[] {
+/** @internal Exported for testing */
+export function extractExports(filePath: string): ExportInfo[] {
   const results: ExportInfo[] = [];
   const lines = readFileSync(filePath, 'utf-8').split('\n');
 
@@ -223,7 +230,8 @@ function extractExports(filePath: string): ExportInfo[] {
  * Find duplicate export names within a package, filtering out allowlisted
  * names and cases where one definition has re-exports (intentional pattern).
  */
-function findDuplicates(allExports: ExportInfo[], packageName: string): DuplicateGroup[] {
+/** @internal Exported for testing */
+export function findDuplicates(allExports: ExportInfo[], packageName: string): DuplicateGroup[] {
   const byName = new Map<string, ExportInfo[]>();
   for (const exp of allExports) {
     const existing = byName.get(exp.name) ?? [];

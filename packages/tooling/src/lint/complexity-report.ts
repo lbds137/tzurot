@@ -100,7 +100,8 @@ const WARNING_THRESHOLDS = {
 
 type RuleId = keyof typeof WARNING_THRESHOLDS;
 
-interface Finding {
+/** @internal Exported for testing */
+export interface Finding {
   file: string;
   rule: RuleId;
   message: string;
@@ -119,7 +120,8 @@ const RULE_NAMES: Record<RuleId, string> = {
   'max-depth': 'Nesting Depth',
 };
 
-function parseValueFromMessage(message: string): number {
+/** @internal Exported for testing */
+export function parseValueFromMessage(message: string): number {
   // Extract numeric value from ESLint messages like:
   // "File has too many lines (450). Maximum allowed is 400."
   // "Function has too many statements (42). Maximum allowed is 40."
@@ -131,7 +133,8 @@ function parseValueFromMessage(message: string): number {
   return 0;
 }
 
-function categorizeFindings(findings: Finding[]): Map<RuleId, Finding[]> {
+/** @internal Exported for testing */
+export function categorizeFindings(findings: Finding[]): Map<RuleId, Finding[]> {
   const byRule = new Map<RuleId, Finding[]>();
 
   for (const finding of findings) {
@@ -151,7 +154,8 @@ function categorizeFindings(findings: Finding[]): Map<RuleId, Finding[]> {
   return byRule;
 }
 
-function formatFinding(finding: Finding, rootDir: string): string {
+/** @internal Exported for testing */
+export function formatFinding(finding: Finding, rootDir: string): string {
   const relPath = relative(rootDir, finding.file);
   const percent = Math.round(finding.percentOfLimit);
   // Clamp bar to max 10 blocks (100%)
@@ -226,7 +230,8 @@ function runEslint(rootDir: string): ESLintResult[] {
   }
 }
 
-function extractFindings(results: ESLintResult[]): Finding[] {
+/** @internal Exported for testing */
+export function extractFindings(results: ESLintResult[]): Finding[] {
   const findings: Finding[] = [];
   const relevantRules = new Set(Object.keys(WARNING_THRESHOLDS));
 
@@ -293,7 +298,8 @@ function printSummary(byRule: Map<RuleId, Finding[]>, findings: Finding[], noFai
   console.log('\n💡 Consider refactoring items above 80% before they hit the limit.');
 }
 
-function buildJSONOutput(
+/** @internal Exported for testing */
+export function buildJSONOutput(
   findings: Finding[],
   byRule: Map<RuleId, Finding[]>
 ): ComplexityReportJSON {

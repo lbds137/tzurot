@@ -32,7 +32,8 @@ interface CleanupOptions {
   verbose?: boolean;
 }
 
-interface DuplicateGroup {
+/** @internal Exported for testing */
+export interface DuplicateGroup {
   persona_id: string;
   personality_id: string;
   user_msg_prefix: string;
@@ -42,7 +43,8 @@ interface DuplicateGroup {
   ids_to_delete: string[];
 }
 
-interface DuplicateSummary {
+/** @internal Exported for testing */
+export interface DuplicateSummary {
   totalGroups: number;
   totalDuplicates: number;
   earliestDuplicate: Date | null;
@@ -55,7 +57,8 @@ interface DuplicateSummary {
 /**
  * Find duplicate memory groups
  */
-async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
+/** @internal Exported for testing */
+export async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
   // Use raw SQL for the complex duplicate detection query.
   // The 60-second window is chosen because:
   // 1. Retry loops complete in seconds (typically 3 attempts max with exponential backoff)
@@ -149,7 +152,11 @@ async function findDuplicates(prisma: PrismaClient): Promise<DuplicateSummary> {
  * Delete duplicate memories by their IDs
  * Uses Prisma's deleteMany for type-safe, injection-proof deletion.
  */
-async function deleteDuplicates(prisma: PrismaClient, idsToDelete: string[]): Promise<number> {
+/** @internal Exported for testing */
+export async function deleteDuplicates(
+  prisma: PrismaClient,
+  idsToDelete: string[]
+): Promise<number> {
   if (idsToDelete.length === 0) {
     return 0;
   }
@@ -170,7 +177,8 @@ async function deleteDuplicates(prisma: PrismaClient, idsToDelete: string[]): Pr
 }
 
 /** Display the duplicate memory analysis summary */
-function displaySummary(summary: DuplicateSummary, verbose: boolean): void {
+/** @internal Exported for testing */
+export function displaySummary(summary: DuplicateSummary, verbose: boolean): void {
   console.log(chalk.yellow('📊 Duplicate Memory Analysis'));
   console.log(chalk.yellow('─'.repeat(50)));
   console.log(`   Groups with duplicates: ${chalk.bold(summary.totalGroups)}`);
@@ -225,7 +233,8 @@ async function promptNonProdConfirmation(deleteCount: number): Promise<boolean> 
 }
 
 /** Print deletion audit log */
-function printAuditLog(env: Environment, deletedCount: number, groupCount: number): void {
+/** @internal Exported for testing */
+export function printAuditLog(env: Environment, deletedCount: number, groupCount: number): void {
   console.log(chalk.dim(`\nAudit log:`));
   console.log(chalk.dim(`  Environment: ${env}`));
   console.log(chalk.dim(`  Timestamp: ${new Date().toISOString()}`));
