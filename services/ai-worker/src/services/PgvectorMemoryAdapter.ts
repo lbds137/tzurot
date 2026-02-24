@@ -7,7 +7,6 @@ import { type PrismaClient } from '@tzurot/common-types';
 import {
   createLogger,
   AI_DEFAULTS,
-  filterValidDiscordIds,
   splitTextByTokens,
   generateMemoryChunkGroupUuid,
   countTextTokens,
@@ -19,14 +18,14 @@ import {
   deterministicMemoryUuid,
   normalizeMetadata,
   mapQueryResultToDocument,
-  extractChunkGroups,
-  mergeSiblings,
 } from '../utils/memoryUtils.js';
 import {
   buildWhereConditions,
   buildSimilaritySearchQuery,
   parseQueryOptions,
 } from './PgvectorQueryBuilder.js';
+import { expandWithSiblings } from './PgvectorSiblingExpander.js';
+import { waterfallMemoryQuery } from './PgvectorChannelScoping.js';
 
 // Re-export types for backward compatibility (18 files import from this module)
 export {
@@ -107,7 +106,7 @@ export class PgvectorMemoryAdapter {
 
       // Expand results with sibling chunks (default: true for complete memory retrieval)
       if (options.includeSiblings !== false && documents.length > 0) {
-        documents = await this.expandWithSiblings(documents, options.personaId);
+        documents = await expandWithSiblings(this.prisma, documents, options.personaId);
       }
 
       logger.debug(
@@ -307,203 +306,14 @@ export class PgvectorMemoryAdapter {
   }
 
   /**
-   * Fetch all chunks in a chunk group, ordered by chunkIndex
-   * @internal
-   */
-  private async fetchChunkSiblings(
-    chunkGroupId: string,
-    personaId: string
-  ): Promise<MemoryDocument[]> {
-    const memories = await this.prisma.$queryRaw<MemoryQueryResult[]>`
-      SELECT m.id, m.content, m.persona_id, m.personality_id, m.session_id,
-             m.canon_scope, m.summary_type, m.channel_id, m.guild_id,
-             m.message_ids, m.senders, m.created_at,
-             m.chunk_group_id, m.chunk_index, m.total_chunks,
-             0::float8 as distance,
-             COALESCE(persona.preferred_name, persona.name) as persona_name,
-             owner.username as owner_username,
-             COALESCE(personality.display_name, personality.name) as personality_name
-      FROM memories m
-      JOIN personas persona ON m.persona_id = persona.id
-      JOIN users owner ON persona.owner_id = owner.id
-      JOIN personalities personality ON m.personality_id = personality.id
-      WHERE m.persona_id = ${personaId}::uuid
-        AND m.chunk_group_id = ${chunkGroupId}::uuid
-      ORDER BY m.chunk_index ASC
-    `;
-
-    // SQL sets distance=0 for siblings, mapQueryResultToDocument handles score calculation
-    return memories.map(mapQueryResultToDocument);
-  }
-
-  /**
-   * Expand memory results to include sibling chunks
-   * - Finds all chunk groups in results
-   * - Fetches missing siblings for each group
-   * - Returns deduplicated results
-   * @internal
-   */
-  private async expandWithSiblings(
-    documents: MemoryDocument[],
-    personaId: string
-  ): Promise<MemoryDocument[]> {
-    const { chunkGroups, seenIds } = extractChunkGroups(documents);
-    if (chunkGroups.size === 0) {
-      return documents;
-    }
-
-    logger.debug(
-      { chunkGroupCount: chunkGroups.size, originalDocCount: documents.length },
-      '[PgvectorMemoryAdapter] Expanding results with sibling chunks'
-    );
-
-    let allDocs = [...documents];
-    for (const groupId of chunkGroups) {
-      try {
-        const siblings = await this.fetchChunkSiblings(groupId, personaId);
-        allDocs = mergeSiblings(allDocs, siblings, seenIds);
-      } catch (error) {
-        logger.error(
-          { err: error, chunkGroupId: groupId },
-          '[PgvectorMemoryAdapter] Failed to fetch chunk siblings'
-        );
-      }
-    }
-
-    logger.debug(
-      { expandedDocCount: allDocs.length, addedSiblings: allDocs.length - documents.length },
-      '[PgvectorMemoryAdapter] Sibling expansion complete'
-    );
-    return allDocs;
-  }
-
-  /**
    * Query memories with channel scoping using the "waterfall" method
-   *
-   * When channelIds are provided, this method:
-   * 1. First queries memories from the specified channels (up to channelBudgetRatio of limit)
-   * 2. Then backfills with global semantic search (excluding already-found IDs)
-   * 3. Returns combined results with channel-scoped memories first
-   *
-   * This ensures users get relevant channel-specific context when they reference
-   * channels (e.g., "remember what we talked about in #gaming") while still
-   * including semantically relevant memories from other contexts.
-   *
-   * @param query - The search query text
-   * @param options - Query options including channelIds for scoping
-   * @returns Combined memories from channel-scoped and global searches
+   * Delegates to waterfallMemoryQuery with this.queryMemories as the query function
    */
   async queryMemoriesWithChannelScoping(
     query: string,
     options: MemoryQueryOptions
   ): Promise<MemoryDocument[]> {
-    const totalLimit = options.limit ?? 10;
-    // Clamp channelBudgetRatio to valid 0-1 range to prevent invalid budget calculations
-    const rawRatio = options.channelBudgetRatio ?? AI_DEFAULTS.CHANNEL_MEMORY_BUDGET_RATIO;
-    const channelBudgetRatio = Math.max(0, Math.min(1, rawRatio));
-
-    // If no channels specified, just do a normal query
-    if (!options.channelIds || options.channelIds.length === 0) {
-      return this.queryMemories(query, options);
-    }
-
-    // Validate channel IDs to prevent SQL injection (Discord snowflakes are 17-19 digit strings)
-    const validChannelIds = filterValidDiscordIds(options.channelIds);
-    if (validChannelIds.length === 0) {
-      logger.warn(
-        { originalChannelIds: options.channelIds },
-        '[PgvectorMemoryAdapter] No valid Discord channel IDs provided, falling back to global query'
-      );
-      return this.queryMemories(query, { ...options, channelIds: undefined });
-    }
-
-    if (validChannelIds.length < options.channelIds.length) {
-      logger.warn(
-        {
-          original: options.channelIds.length,
-          valid: validChannelIds.length,
-          filtered: options.channelIds.filter(id => !validChannelIds.includes(id)),
-        },
-        '[PgvectorMemoryAdapter] Some channel IDs filtered out as invalid'
-      );
-    }
-
-    // Ensure at least 1 channel-scoped memory when channels are specified
-    // (prevents edge case where totalLimit=1, ratio=0.5 → channelBudget=0)
-    const channelBudget = Math.max(1, Math.floor(totalLimit * channelBudgetRatio));
-
-    logger.debug(
-      {
-        channelIds: validChannelIds,
-        totalLimit,
-        channelBudget,
-        channelBudgetRatio,
-      },
-      '[PgvectorMemoryAdapter] Starting waterfall query with channel scoping'
-    );
-
-    // Step 1: Query channel-scoped memories first
-    let channelResults: MemoryDocument[] = [];
-    try {
-      channelResults = await this.queryMemories(query, {
-        ...options,
-        channelIds: validChannelIds,
-        limit: channelBudget,
-      });
-
-      logger.debug(
-        { channelResultCount: channelResults.length, channelBudget },
-        '[PgvectorMemoryAdapter] Channel-scoped query complete'
-      );
-    } catch (error) {
-      logger.error(
-        { err: error, channelIds: validChannelIds },
-        '[PgvectorMemoryAdapter] Channel-scoped query failed, continuing with global only'
-      );
-      // Continue to global query - better to return some results than none
-    }
-
-    // Step 2: Calculate remaining budget and get IDs to exclude
-    const remainingBudget = totalLimit - channelResults.length;
-    const excludeIds = channelResults
-      .map(r => r.metadata?.id as string | null | undefined)
-      .filter((id): id is string => id !== undefined && id !== null);
-
-    // Step 3: Global semantic query with exclusion (no channel filter)
-    let globalResults: MemoryDocument[] = [];
-    if (remainingBudget > 0) {
-      try {
-        globalResults = await this.queryMemories(query, {
-          ...options,
-          channelIds: undefined, // Remove channel filter for global search
-          limit: remainingBudget,
-          excludeIds: excludeIds.length > 0 ? excludeIds : undefined,
-        });
-
-        logger.debug(
-          { globalResultCount: globalResults.length, remainingBudget },
-          '[PgvectorMemoryAdapter] Global backfill query complete'
-        );
-      } catch (error) {
-        logger.error({ err: error }, '[PgvectorMemoryAdapter] Global backfill query failed');
-        // Return channel results only if global fails
-      }
-    }
-
-    // Step 4: Combine results (channel-scoped first for prominence)
-    const combinedResults = [...channelResults, ...globalResults];
-
-    logger.info(
-      {
-        totalResults: combinedResults.length,
-        channelScoped: channelResults.length,
-        globalBackfill: globalResults.length,
-        channelIds: validChannelIds,
-      },
-      '[PgvectorMemoryAdapter] Waterfall query complete'
-    );
-
-    return combinedResults;
+    return waterfallMemoryQuery((q, o) => this.queryMemories(q, o), query, options);
   }
 
   /**
