@@ -62,7 +62,7 @@ export async function expandWithSiblings(
 
   logger.debug(
     { chunkGroupCount: chunkGroups.size, originalDocCount: documents.length },
-    '[PgvectorSiblingExpander] Expanding results with sibling chunks'
+    'Expanding results with sibling chunks'
   );
 
   let allDocs = [...documents];
@@ -71,16 +71,13 @@ export async function expandWithSiblings(
       const siblings = await fetchChunkSiblings(prisma, groupId, personaId);
       allDocs = mergeSiblings(allDocs, siblings, seenIds);
     } catch (error) {
-      logger.error(
-        { err: error, chunkGroupId: groupId },
-        '[PgvectorSiblingExpander] Failed to fetch chunk siblings'
-      );
+      logger.error({ err: error, chunkGroupId: groupId }, 'Failed to fetch chunk siblings');
     }
   }
 
   logger.debug(
     { expandedDocCount: allDocs.length, addedSiblings: allDocs.length - documents.length },
-    '[PgvectorSiblingExpander] Sibling expansion complete'
+    'Sibling expansion complete'
   );
   return allDocs;
 }

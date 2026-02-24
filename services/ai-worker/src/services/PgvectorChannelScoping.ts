@@ -51,7 +51,7 @@ export async function waterfallMemoryQuery(
   if (validChannelIds.length === 0) {
     logger.warn(
       { originalChannelIds: options.channelIds },
-      '[PgvectorChannelScoping] No valid Discord channel IDs provided, falling back to global query'
+      'No valid Discord channel IDs provided, falling back to global query'
     );
     return queryFn(query, { ...options, channelIds: undefined });
   }
@@ -63,7 +63,7 @@ export async function waterfallMemoryQuery(
         valid: validChannelIds.length,
         filtered: options.channelIds.filter(id => !validChannelIds.includes(id)),
       },
-      '[PgvectorChannelScoping] Some channel IDs filtered out as invalid'
+      'Some channel IDs filtered out as invalid'
     );
   }
 
@@ -78,7 +78,7 @@ export async function waterfallMemoryQuery(
       channelBudget,
       channelBudgetRatio,
     },
-    '[PgvectorChannelScoping] Starting waterfall query with channel scoping'
+    'Starting waterfall query with channel scoping'
   );
 
   // Step 1: Query channel-scoped memories first
@@ -92,12 +92,12 @@ export async function waterfallMemoryQuery(
 
     logger.debug(
       { channelResultCount: channelResults.length, channelBudget },
-      '[PgvectorChannelScoping] Channel-scoped query complete'
+      'Channel-scoped query complete'
     );
   } catch (error) {
     logger.error(
       { err: error, channelIds: validChannelIds },
-      '[PgvectorChannelScoping] Channel-scoped query failed, continuing with global only'
+      'Channel-scoped query failed, continuing with global only'
     );
     // Continue to global query - better to return some results than none
   }
@@ -121,10 +121,10 @@ export async function waterfallMemoryQuery(
 
       logger.debug(
         { globalResultCount: globalResults.length, remainingBudget },
-        '[PgvectorChannelScoping] Global backfill query complete'
+        'Global backfill query complete'
       );
     } catch (error) {
-      logger.error({ err: error }, '[PgvectorChannelScoping] Global backfill query failed');
+      logger.error({ err: error }, 'Global backfill query failed');
       // Return channel results only if global fails
     }
   }
@@ -139,7 +139,7 @@ export async function waterfallMemoryQuery(
       globalBackfill: globalResults.length,
       channelIds: validChannelIds,
     },
-    '[PgvectorChannelScoping] Waterfall query complete'
+    'Waterfall query complete'
   );
 
   return combinedResults;
