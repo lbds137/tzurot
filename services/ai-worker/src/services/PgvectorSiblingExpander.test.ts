@@ -191,7 +191,10 @@ describe('PgvectorSiblingExpander', () => {
       const expanded = await expandWithSiblings(mockPrisma as never, initialResult, 'persona-123');
 
       // Should have expanded to include all 3 chunks
-      expect(expanded.length).toBeGreaterThanOrEqual(1);
+      expect(expanded).toHaveLength(3);
+      expect(expanded[0].pageContent).toBe('Chunk 1 content');
+      expect(expanded[1].pageContent).toBe('Chunk 2 content');
+      expect(expanded[2].pageContent).toBe('Chunk 3 content');
     });
 
     it('should not duplicate chunks when multiple chunks from same group match', async () => {

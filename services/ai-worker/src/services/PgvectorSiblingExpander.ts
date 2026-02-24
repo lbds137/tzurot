@@ -15,6 +15,7 @@ const logger = createLogger('PgvectorSiblingExpander');
 
 /**
  * Fetch all chunks in a chunk group, ordered by chunkIndex
+ * @internal Exported for testing
  */
 export async function fetchChunkSiblings(
   prisma: PrismaClient,
