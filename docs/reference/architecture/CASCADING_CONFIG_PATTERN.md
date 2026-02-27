@@ -64,11 +64,11 @@ const resolver = new PersonaResolver(prismaClient);
 // Full resolution with all persona details
 const result = await resolver.resolve(discordUserId, personalityId);
 // result.source: 'context-override' | 'user-default' | 'system-default'
-// result.config: { personaId, preferredName, pronouns, content, shareLtmAcrossPersonalities }
+// result.config: { personaId, preferredName, pronouns, content }
 
 // Lightweight resolution for memory queries
 const memoryInfo = await resolver.resolveForMemory(discordUserId, personalityId);
-// memoryInfo: { personaId, shareLtmAcrossPersonalities } | null
+// memoryInfo: { personaId, focusModeEnabled } | null
 
 // Get formatted persona content for prompts
 const content = await resolver.getPersonaContentForPrompt(personaId);

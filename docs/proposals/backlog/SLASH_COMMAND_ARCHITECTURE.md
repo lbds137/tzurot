@@ -480,14 +480,14 @@ Action: optional verb for non-CRUD operations
 
 These are features that exist in schema/code but aren't fully wired up:
 
-| Feature                 | Current State                                      | What's Missing                                  |
-| ----------------------- | -------------------------------------------------- | ----------------------------------------------- |
-| **Memory scope**        | Schema has `canonScope`, `sessionId` fields        | Not used in queries, no UI                      |
-| **Advanced LLM params** | `AdvancedParamsSchema` exists, JSONB column exists | No API routes, no UI, legacy columns still used |
-| **Persona share LTM**   | `shareLtmAcrossPersonalities` field exists         | Logic not implemented                           |
-| **Voice settings**      | `voiceSettings` JSONB exists                       | No structured schema, no UI                     |
-| **Image settings**      | `imageSettings` JSONB exists                       | No structured schema, no UI                     |
-| **Custom fields**       | `customFields` JSONB on Personality                | Never used                                      |
+| Feature                 | Current State                                                                 | What's Missing                                  |
+| ----------------------- | ----------------------------------------------------------------------------- | ----------------------------------------------- |
+| **Memory scope**        | Schema has `canonScope`, `sessionId` fields                                   | Not used in queries, no UI                      |
+| **Advanced LLM params** | `AdvancedParamsSchema` exists, JSONB column exists                            | No API routes, no UI, legacy columns still used |
+| **Persona share LTM**   | Migrated to config cascade (`shareLtmAcrossPersonalities` in ConfigOverrides) | Available via settings dashboard                |
+| **Voice settings**      | `voiceSettings` JSONB exists                                                  | No structured schema, no UI                     |
+| **Image settings**      | `imageSettings` JSONB exists                                                  | No structured schema, no UI                     |
+| **Custom fields**       | `customFields` JSONB on Personality                                           | Never used                                      |
 
 **Strategy**: Address these incrementally as part of Sprint 7 phases, not all at once.
 

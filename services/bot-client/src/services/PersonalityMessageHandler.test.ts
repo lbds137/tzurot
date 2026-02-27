@@ -353,6 +353,8 @@ describe('PersonalityMessageHandler', () => {
             memoryScoreThreshold: 0.8,
             memoryLimit: 15,
             focusModeEnabled: false,
+            crossChannelHistoryEnabled: false,
+            shareLtmAcrossPersonalities: false,
             sources: {
               maxMessages: 'user-personality',
               maxAge: 'admin',
@@ -360,6 +362,8 @@ describe('PersonalityMessageHandler', () => {
               memoryScoreThreshold: 'hardcoded',
               memoryLimit: 'user-default',
               focusModeEnabled: 'hardcoded',
+              crossChannelHistoryEnabled: 'hardcoded',
+              shareLtmAcrossPersonalities: 'hardcoded',
             },
           },
         },

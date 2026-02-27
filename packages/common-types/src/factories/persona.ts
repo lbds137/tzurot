@@ -19,7 +19,6 @@ import {
   GetPersonaResponseSchema,
   CreatePersonaResponseSchema,
   SetDefaultPersonaResponseSchema,
-  UpdatePersonaSettingsResponseSchema,
   OverrideInfoResponseSchema,
   SetOverrideResponseSchema,
   ClearOverrideResponseSchema,
@@ -28,7 +27,6 @@ import {
   type GetPersonaResponse,
   type CreatePersonaResponse,
   type SetDefaultPersonaResponse,
-  type UpdatePersonaSettingsResponse,
   type OverrideInfoResponse,
   type SetOverrideResponse,
   type ClearOverrideResponse,
@@ -58,7 +56,6 @@ function createBasePersonaDetails(overrides?: DeepPartial<PersonaDetails>): Pers
     pronouns: 'they/them',
     content: 'Test content',
     isDefault: false,
-    shareLtmAcrossPersonalities: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -76,7 +73,6 @@ function createBasePersonaSummary(overrides?: DeepPartial<PersonaSummary>): Pers
     pronouns: 'they/them',
     content: 'Test content',
     isDefault: false,
-    shareLtmAcrossPersonalities: false,
     createdAt: now,
     updatedAt: now,
   };
@@ -158,24 +154,6 @@ export function mockSetDefaultPersonaResponse(
     alreadyDefault: false,
   };
   return SetDefaultPersonaResponseSchema.parse(deepMerge(base, overrides));
-}
-
-// ============================================================================
-// Update Settings (PATCH /user/persona/settings)
-// ============================================================================
-
-/**
- * Create a validated mock for PATCH /user/persona/settings
- * @throws ZodError if the resulting mock doesn't match the schema
- */
-export function mockUpdatePersonaSettingsResponse(
-  overrides?: DeepPartial<UpdatePersonaSettingsResponse>
-): UpdatePersonaSettingsResponse {
-  const base: UpdatePersonaSettingsResponse = {
-    success: true,
-    unchanged: false,
-  };
-  return UpdatePersonaSettingsResponseSchema.parse(deepMerge(base, overrides));
 }
 
 // ============================================================================

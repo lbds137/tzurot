@@ -35,6 +35,8 @@ describe('SettingsSessionStorage', () => {
       maxMessages: { localValue: 50, effectiveValue: 50, source: 'global' },
       maxAge: { localValue: null, effectiveValue: null, source: 'default' },
       maxImages: { localValue: 5, effectiveValue: 5, source: 'global' },
+      crossChannelHistoryEnabled: { localValue: null, effectiveValue: false, source: 'default' },
+      shareLtmAcrossPersonalities: { localValue: null, effectiveValue: false, source: 'default' },
     },
     view: 'overview' as never,
     userId: 'user-123',

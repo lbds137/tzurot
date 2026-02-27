@@ -67,17 +67,6 @@ describe('createPersonaRoutes', () => {
     expect(overrideRoute).toBeDefined();
   });
 
-  it('should have settings route registered', () => {
-    const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
-
-    const settingsRoute = (
-      router.stack as unknown as Array<{
-        route?: { path?: string; methods?: { patch?: boolean } };
-      }>
-    ).find(layer => layer.route?.path === '/settings' && layer.route?.methods?.patch);
-    expect(settingsRoute).toBeDefined();
-  });
-
   it('should have default route registered', () => {
     const router = createPersonaRoutes(mockPrisma as unknown as PrismaClient);
 

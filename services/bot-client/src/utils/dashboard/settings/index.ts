@@ -11,12 +11,13 @@ export {
   type SettingsDashboardSession,
   type SettingsDashboardConfig,
   type SettingUpdateResult,
+  type SettingValue,
   parseSettingsCustomId,
   isSettingsInteraction,
 } from './types.js';
 
 // Configuration
-export { EXTENDED_CONTEXT_SETTINGS } from './settingsConfig.js';
+export { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS } from './settingsConfig.js';
 
 // Dashboard Builder
 // Modal Factory

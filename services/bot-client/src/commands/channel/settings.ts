@@ -38,6 +38,7 @@ import {
   isSettingsInteraction,
   parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
+  MEMORY_SETTINGS,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-context');
@@ -57,7 +58,7 @@ const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Channel',
   color: DISCORD_COLORS.BLURPLE,
-  settings: EXTENDED_CONTEXT_SETTINGS,
+  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
 };
 
 /**
@@ -228,6 +229,16 @@ function convertToSettingsData(
     maxImages: {
       localValue: null,
       effectiveValue: 0,
+      source: 'default',
+    },
+    crossChannelHistoryEnabled: {
+      localValue: null,
+      effectiveValue: false,
+      source: 'default',
+    },
+    shareLtmAcrossPersonalities: {
+      localValue: null,
+      effectiveValue: false,
       source: 'default',
     },
   };

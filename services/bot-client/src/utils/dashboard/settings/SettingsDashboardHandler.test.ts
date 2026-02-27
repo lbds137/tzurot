@@ -60,6 +60,16 @@ const createTestData = (): SettingsData => ({
     effectiveValue: 10,
     source: 'global',
   },
+  crossChannelHistoryEnabled: {
+    localValue: null,
+    effectiveValue: false,
+    source: 'default',
+  },
+  shareLtmAcrossPersonalities: {
+    localValue: null,
+    effectiveValue: false,
+    source: 'default',
+  },
 });
 
 const createMockInteraction = (overrides = {}) => ({
@@ -372,6 +382,8 @@ describe('SettingsDashboardHandler', () => {
         maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
         maxAge: { localValue: null, effectiveValue: null, source: 'global' },
         maxImages: { localValue: null, effectiveValue: 0, source: 'global' },
+        crossChannelHistoryEnabled: { localValue: null, effectiveValue: false, source: 'default' },
+        shareLtmAcrossPersonalities: { localValue: null, effectiveValue: false, source: 'default' },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();
@@ -394,6 +406,8 @@ describe('SettingsDashboardHandler', () => {
         maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
         maxAge: { localValue: 3600, effectiveValue: 3600, source: 'channel' },
         maxImages: { localValue: 5, effectiveValue: 5, source: 'channel' },
+        crossChannelHistoryEnabled: { localValue: null, effectiveValue: false, source: 'default' },
+        shareLtmAcrossPersonalities: { localValue: null, effectiveValue: false, source: 'default' },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();

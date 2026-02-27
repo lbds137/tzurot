@@ -86,7 +86,6 @@ describe('MentionResolver', () => {
         preferredName: 'Test Persona',
         pronouns: null,
         content: '',
-        shareLtmAcrossPersonalities: false,
       },
       source: 'user-default',
     });
@@ -206,7 +205,6 @@ describe('MentionResolver', () => {
             preferredName: 'AlicePersona',
             pronouns: null,
             content: '',
-            shareLtmAcrossPersonalities: false,
           },
           source: 'user-default',
         })
@@ -216,7 +214,6 @@ describe('MentionResolver', () => {
             preferredName: 'BobPersona',
             pronouns: null,
             content: '',
-            shareLtmAcrossPersonalities: false,
           },
           source: 'user-default',
         });
@@ -243,7 +240,6 @@ describe('MentionResolver', () => {
           preferredName: 'ExistingPersona',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });
@@ -294,7 +290,6 @@ describe('MentionResolver', () => {
           preferredName: null,
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });
@@ -360,7 +355,6 @@ describe('MentionResolver', () => {
           preferredName: 'AlicePersona',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });
@@ -389,7 +383,6 @@ describe('MentionResolver', () => {
           preferredName: null,
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });
@@ -446,7 +439,6 @@ describe('MentionResolver', () => {
           preferredName: `Persona${discordId}`,
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default' as const,
       }));
@@ -693,7 +685,6 @@ describe('MentionResolver', () => {
           preferredName: 'AlicePersona',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });

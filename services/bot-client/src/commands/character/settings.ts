@@ -36,6 +36,7 @@ import {
   isSettingsInteraction,
   parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
+  MEMORY_SETTINGS,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('character-settings');
@@ -58,7 +59,7 @@ const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Character',
   color: DISCORD_COLORS.BLURPLE,
-  settings: EXTENDED_CONTEXT_SETTINGS,
+  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
 };
 
 /**
@@ -285,6 +286,22 @@ function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData 
       effectiveValue: resolved.maxImages,
       source: mapSource(resolved.sources.maxImages),
     },
+    crossChannelHistoryEnabled: {
+      localValue:
+        resolved.sources.crossChannelHistoryEnabled === USER_PERSONALITY_SOURCE
+          ? resolved.crossChannelHistoryEnabled
+          : null,
+      effectiveValue: resolved.crossChannelHistoryEnabled,
+      source: mapSource(resolved.sources.crossChannelHistoryEnabled),
+    },
+    shareLtmAcrossPersonalities: {
+      localValue:
+        resolved.sources.shareLtmAcrossPersonalities === USER_PERSONALITY_SOURCE
+          ? resolved.shareLtmAcrossPersonalities
+          : null,
+      effectiveValue: resolved.shareLtmAcrossPersonalities,
+      source: mapSource(resolved.sources.shareLtmAcrossPersonalities),
+    },
   };
 }
 
@@ -394,6 +411,12 @@ function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string
     case 'maxImages':
       // null means auto (inherit from lower tier)
       return { maxImages: value };
+
+    case 'crossChannelHistoryEnabled':
+      return { crossChannelHistoryEnabled: value };
+
+    case 'shareLtmAcrossPersonalities':
+      return { shareLtmAcrossPersonalities: value };
 
     default:
       return null;
