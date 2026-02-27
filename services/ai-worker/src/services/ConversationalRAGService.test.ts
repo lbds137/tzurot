@@ -244,7 +244,7 @@ describe('ConversationalRAGService', () => {
     it('should store interaction to LTM when persona exists', async () => {
       getMemoryRetrieverMock().getUserPersonaForPersonality.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -272,10 +272,10 @@ describe('ConversationalRAGService', () => {
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
     });
 
-    it('should store LTM with shareLtmAcrossPersonalities enabled', async () => {
+    it('should store LTM with different persona', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-456',
-        shareLtmAcrossPersonalities: true,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -308,7 +308,7 @@ describe('ConversationalRAGService', () => {
 
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -337,7 +337,7 @@ describe('ConversationalRAGService', () => {
     it('should defer memory storage when skipMemoryStorage is true', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -360,7 +360,7 @@ describe('ConversationalRAGService', () => {
     it('should store memory immediately when skipMemoryStorage is false (default)', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -392,7 +392,7 @@ describe('ConversationalRAGService', () => {
     it('should not return deferredMemoryData when isWeighIn is true', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -413,7 +413,7 @@ describe('ConversationalRAGService', () => {
 
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();
@@ -1178,7 +1178,7 @@ describe('ConversationalRAGService', () => {
 
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
+        focusModeEnabled: false,
       });
 
       const personality = createMockPersonality();

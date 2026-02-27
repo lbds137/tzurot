@@ -9,7 +9,6 @@
  * - /persona create - Create a new persona
  * - /persona browse - Browse all your personas
  * - /persona default <persona> - Set a persona as your default
- * - /persona share-ltm <enabled> - Toggle LTM sharing across personalities
  * - /persona override set <personality> <persona> - Override persona for personality
  * - /persona override clear <personality> - Clear persona override
  *
@@ -39,7 +38,6 @@ import { PersonaCustomIds } from '../../utils/customIds.js';
 import { handleViewPersona, handleExpandContent } from './view.js';
 import { handleCreatePersona, handleCreateModalSubmit } from './create.js';
 import { handleSetDefaultPersona } from './default.js';
-import { handleShareLtmSetting } from './share-ltm.js';
 import { handleOverrideSet, handleOverrideCreateModalSubmit } from './override/set.js';
 import { handleOverrideClear } from './override/clear.js';
 import { handlePersonalityAutocomplete, handlePersonaAutocomplete } from './autocomplete.js';
@@ -73,7 +71,6 @@ const mainRouter = createMixedModeSubcommandRouter(
     deferred: {
       view: handleViewPersona,
       browse: handleBrowse,
-      'share-ltm': handleShareLtmSetting,
     },
     modal: {
       create: handleCreatePersona,
@@ -115,7 +112,7 @@ async function execute(context: SafeCommandContext): Promise<void> {
     // Default needs the persona ID (deferred command)
     await handleSetDefaultPersona(context as DeferredCommandContext);
   } else {
-    // view, create, browse, share-ltm use main router
+    // view, create, browse use main router
     await mainRouter(context);
   }
 }
@@ -275,21 +272,6 @@ export default defineCommand({
             .setDescription('The persona to set as default')
             .setRequired(true)
             .setAutocomplete(true)
-        )
-    )
-    .addSubcommand(subcommand =>
-      subcommand
-        .setName('share-ltm')
-        .setDescription('Enable/disable sharing memories across all personalities')
-        .addStringOption(option =>
-          option
-            .setName('enabled')
-            .setDescription('Enable or disable LTM sharing')
-            .setRequired(true)
-            .addChoices(
-              { name: 'Enable - Share memories with all personalities', value: 'enable' },
-              { name: 'Disable - Keep memories per personality (default)', value: 'disable' }
-            )
         )
     )
     .addSubcommandGroup(group =>

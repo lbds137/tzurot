@@ -117,7 +117,6 @@ model Persona {
   content                     String
   preferredName               String?                    @map("preferred_name") @db.VarChar(255)
   pronouns                    String?                    @db.VarChar(100)
-  shareLtmAcrossPersonalities Boolean                    @default(false) @map("share_ltm_across_personalities")
   ownerId                     String                     @map("owner_id") @db.Uuid
   createdAt                   DateTime                   @default(now()) @map("created_at")
   updatedAt                   DateTime                   @updatedAt @map("updated_at")

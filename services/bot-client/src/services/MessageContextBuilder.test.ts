@@ -140,7 +140,6 @@ describe('MessageContextBuilder', () => {
         preferredName: 'Test Persona',
         pronouns: null,
         content: '',
-        shareLtmAcrossPersonalities: false,
       },
       source: 'user-default',
     });
@@ -307,7 +306,6 @@ describe('MessageContextBuilder', () => {
           preferredName: null,
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });

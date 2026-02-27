@@ -32,7 +32,6 @@ const defaultMockPersona = {
   description: 'A test persona',
   content: 'I am a test persona for unit tests.',
   pronouns: 'they/them',
-  shareLtmAcrossPersonalities: false,
   createdAt: new Date('2025-01-01T00:00:00.000Z'),
   updatedAt: new Date('2025-01-02T00:00:00.000Z'),
 };

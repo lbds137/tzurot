@@ -77,7 +77,6 @@ describe('ReferenceEnrichmentService', () => {
         preferredName: 'Test Persona',
         pronouns: null,
         content: '',
-        shareLtmAcrossPersonalities: false,
       },
       source: 'user-default',
     });
@@ -146,7 +145,6 @@ describe('ReferenceEnrichmentService', () => {
           preferredName: 'Resolved Name',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });
@@ -255,7 +253,6 @@ describe('ReferenceEnrichmentService', () => {
             preferredName: 'Alicia',
             pronouns: null,
             content: '',
-            shareLtmAcrossPersonalities: false,
           },
           source: 'user-default',
         })
@@ -265,7 +262,6 @@ describe('ReferenceEnrichmentService', () => {
             preferredName: 'Bobby',
             pronouns: null,
             content: '',
-            shareLtmAcrossPersonalities: false,
           },
           source: 'user-default',
         });
@@ -409,7 +405,6 @@ describe('ReferenceEnrichmentService', () => {
           preferredName: 'Johnny',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'user-default',
       });

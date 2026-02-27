@@ -71,7 +71,6 @@ CREATE TABLE "personas" (
     "content" TEXT NOT NULL,
     "preferred_name" VARCHAR(255),
     "pronouns" VARCHAR(100),
-    "share_ltm_across_personalities" BOOLEAN NOT NULL DEFAULT false,
     "owner_id" UUID NOT NULL,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

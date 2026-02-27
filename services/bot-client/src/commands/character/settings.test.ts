@@ -66,6 +66,8 @@ describe('Character Settings Dashboard', () => {
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
     focusModeEnabled: false,
+    crossChannelHistoryEnabled: false,
+    shareLtmAcrossPersonalities: false,
     sources: {
       maxMessages: 'personality',
       maxAge: 'personality',
@@ -73,6 +75,8 @@ describe('Character Settings Dashboard', () => {
       memoryScoreThreshold: 'personality',
       memoryLimit: 'personality',
       focusModeEnabled: 'personality',
+      crossChannelHistoryEnabled: 'personality',
+      shareLtmAcrossPersonalities: 'personality',
     },
   };
 
@@ -221,7 +225,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 3 settings fields', async () => {
+    it('should include all 5 settings fields', async () => {
       const context = createMockContext();
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true, data: mockPersonality })
@@ -232,7 +236,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(3);
+      expect(embedJson.fields).toHaveLength(5);
     });
 
     it('should handle character not found', async () => {

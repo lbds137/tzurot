@@ -33,6 +33,10 @@ export const ConfigOverridesSchema = z
     memoryLimit: z.number().int().min(0).optional(),
     /** Focus mode: disable LTM retrieval (memories still saved) */
     focusModeEnabled: z.boolean().optional(),
+    /** Fill unused context budget with history from other channels */
+    crossChannelHistoryEnabled: z.boolean().optional(),
+    /** Share long-term memories across all personalities (migrated from Persona column) */
+    shareLtmAcrossPersonalities: z.boolean().optional(),
   })
   .strict();
 
@@ -54,6 +58,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   readonly memoryScoreThreshold: 0.5;
   readonly memoryLimit: 20;
   readonly focusModeEnabled: false;
+  readonly crossChannelHistoryEnabled: false;
+  readonly shareLtmAcrossPersonalities: false;
 } = {
   maxMessages: 50,
   maxAge: null,
@@ -61,6 +67,8 @@ export const HARDCODED_CONFIG_DEFAULTS: {
   memoryScoreThreshold: 0.5,
   memoryLimit: 20,
   focusModeEnabled: false,
+  crossChannelHistoryEnabled: false,
+  shareLtmAcrossPersonalities: false,
 };
 
 // ============================================================================
@@ -90,6 +98,8 @@ export interface ResolvedConfigOverrides {
   memoryScoreThreshold: number;
   memoryLimit: number;
   focusModeEnabled: boolean;
+  crossChannelHistoryEnabled: boolean;
+  shareLtmAcrossPersonalities: boolean;
 
   /** Per-field source tracking: which tier provided each value */
   sources: Record<keyof ConfigOverrides, ConfigOverrideSource>;

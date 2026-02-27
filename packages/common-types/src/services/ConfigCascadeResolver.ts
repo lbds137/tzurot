@@ -245,6 +245,8 @@ export class ConfigCascadeResolver {
       memoryScoreThreshold: values.memoryScoreThreshold as number,
       memoryLimit: values.memoryLimit as number,
       focusModeEnabled: values.focusModeEnabled as boolean,
+      crossChannelHistoryEnabled: values.crossChannelHistoryEnabled as boolean,
+      shareLtmAcrossPersonalities: values.shareLtmAcrossPersonalities as boolean,
       sources,
     };
   }

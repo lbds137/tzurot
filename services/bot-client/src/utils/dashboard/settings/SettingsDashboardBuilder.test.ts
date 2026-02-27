@@ -64,6 +64,16 @@ const createTestSession = (
       effectiveValue: 10,
       source: 'global',
     },
+    crossChannelHistoryEnabled: {
+      localValue: null,
+      effectiveValue: false,
+      source: 'default',
+    },
+    shareLtmAcrossPersonalities: {
+      localValue: null,
+      effectiveValue: false,
+      source: 'default',
+    },
     ...dataOverrides,
   },
 });

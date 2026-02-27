@@ -16,6 +16,8 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
     focusModeEnabled: false,
+    crossChannelHistoryEnabled: false,
+    shareLtmAcrossPersonalities: false,
     sources: {
       maxMessages: 'hardcoded' as const,
       maxAge: 'hardcoded' as const,
@@ -23,6 +25,8 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
       memoryScoreThreshold: 'hardcoded' as const,
       memoryLimit: 'hardcoded' as const,
       focusModeEnabled: 'hardcoded' as const,
+      crossChannelHistoryEnabled: 'hardcoded' as const,
+      shareLtmAcrossPersonalities: 'hardcoded' as const,
     },
   }),
   mockResolveConfig: vi.fn().mockResolvedValue({

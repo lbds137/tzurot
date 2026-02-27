@@ -189,7 +189,7 @@ describe('Admin Settings Dashboard', () => {
       expect(embedJson.title).toBe('Global Settings');
     });
 
-    it('should include all 3 settings fields', async () => {
+    it('should include all 5 settings fields', async () => {
       const context = createMockContext();
       mockAdminFetch.mockResolvedValue({
         ok: true,
@@ -201,12 +201,14 @@ describe('Admin Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(3);
+      expect(embedJson.fields).toHaveLength(5);
       expect(embedJson.fields.map((f: { name: string }) => f.name)).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
           expect.stringContaining('Max Age'),
           expect.stringContaining('Max Images'),
+          expect.stringContaining('Cross-Channel History'),
+          expect.stringContaining('Share Memories'),
         ])
       );
     });

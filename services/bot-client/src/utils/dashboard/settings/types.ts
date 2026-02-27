@@ -67,6 +67,8 @@ export interface SettingsData {
   maxMessages: SettingValue<number>;
   maxAge: SettingValue<number | null>; // null = disabled
   maxImages: SettingValue<number>;
+  crossChannelHistoryEnabled: SettingValue<boolean>;
+  shareLtmAcrossPersonalities: SettingValue<boolean>;
 }
 
 /**

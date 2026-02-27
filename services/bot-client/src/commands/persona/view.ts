@@ -37,7 +37,6 @@ interface PersonaSummary {
   preferredName: string | null;
   description: string | null;
   isDefault: boolean;
-  shareLtmAcrossPersonalities: boolean;
 }
 
 /** Response type for persona details */
@@ -67,11 +66,6 @@ function buildPersonaEmbed(personaDetails: PersonaDetails): {
   if (personaDetails.pronouns !== null && personaDetails.pronouns.length > 0) {
     embed.addFields({ name: '🏷️ Pronouns', value: personaDetails.pronouns, inline: true });
   }
-
-  const ltmStatus = personaDetails.shareLtmAcrossPersonalities
-    ? '✅ Enabled - Memories shared across all personalities'
-    : '❌ Disabled - Memories kept per personality';
-  embed.addFields({ name: '🔗 LTM Sharing', value: ltmStatus, inline: false });
 
   const components: ActionRowBuilder<MessageActionRowComponentBuilder>[] = [];
   const contentText = personaDetails.content;

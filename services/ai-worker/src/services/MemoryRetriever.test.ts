@@ -84,7 +84,6 @@ describe('MemoryRetriever', () => {
     it('should delegate to PersonaResolver.resolveForMemory', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
 
@@ -96,7 +95,6 @@ describe('MemoryRetriever', () => {
       );
       expect(result).toEqual({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
     });
@@ -495,7 +493,6 @@ describe('MemoryRetriever', () => {
     it('should return empty array when focus mode is enabled', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: true, // Focus mode enabled!
       });
 
@@ -513,7 +510,6 @@ describe('MemoryRetriever', () => {
     it('should query memories normally when focus mode is disabled', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false, // Focus mode disabled
       });
 
@@ -539,7 +535,6 @@ describe('MemoryRetriever', () => {
 
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
 
@@ -555,7 +550,6 @@ describe('MemoryRetriever', () => {
     it('should query memories with correct parameters', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
 
@@ -600,7 +594,6 @@ describe('MemoryRetriever', () => {
     it('should apply STM/LTM deduplication buffer', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
 
@@ -625,7 +618,6 @@ describe('MemoryRetriever', () => {
     it('should use session context if provided', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
 
@@ -644,24 +636,6 @@ describe('MemoryRetriever', () => {
       );
     });
 
-    it('should exclude personalityId when shareLtmAcrossPersonalities is true', async () => {
-      mockPersonaResolver.resolveForMemory.mockResolvedValue({
-        personaId: 'persona-123',
-        shareLtmAcrossPersonalities: true,
-        focusModeEnabled: false,
-      });
-
-      await retriever.retrieveRelevantMemories(mockPersonality, 'test', context);
-
-      expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
-        'test',
-        expect.objectContaining({
-          personaId: 'persona-123',
-          personalityId: undefined, // Not filtered by personality when sharing
-        })
-      );
-    });
-
     describe('with configOverrides', () => {
       const cascadeOverrides: ResolvedConfigOverrides = {
         maxMessages: 30,
@@ -670,6 +644,8 @@ describe('MemoryRetriever', () => {
         memoryScoreThreshold: 0.8,
         memoryLimit: 10,
         focusModeEnabled: false,
+        crossChannelHistoryEnabled: false,
+        shareLtmAcrossPersonalities: false,
         sources: {
           maxMessages: 'user-personality',
           maxAge: 'hardcoded',
@@ -677,13 +653,41 @@ describe('MemoryRetriever', () => {
           memoryScoreThreshold: 'admin',
           memoryLimit: 'user-default',
           focusModeEnabled: 'hardcoded',
+          crossChannelHistoryEnabled: 'hardcoded' as const,
+          shareLtmAcrossPersonalities: 'hardcoded' as const,
         },
       };
+
+      it('should exclude personalityId when shareLtmAcrossPersonalities is true in configOverrides', async () => {
+        mockPersonaResolver.resolveForMemory.mockResolvedValue({
+          personaId: 'persona-123',
+          focusModeEnabled: false,
+        });
+
+        const shareLtmOverrides: ResolvedConfigOverrides = {
+          ...cascadeOverrides,
+          shareLtmAcrossPersonalities: true,
+        };
+
+        await retriever.retrieveRelevantMemories(
+          mockPersonality,
+          'test',
+          context,
+          shareLtmOverrides
+        );
+
+        expect(mockMemoryManager.queryMemories).toHaveBeenCalledWith(
+          'test',
+          expect.objectContaining({
+            personaId: 'persona-123',
+            personalityId: undefined, // Not filtered by personality when sharing
+          })
+        );
+      });
 
       it('should use cascade memoryLimit and memoryScoreThreshold over personality values', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          shareLtmAcrossPersonalities: false,
           focusModeEnabled: false,
         });
 
@@ -706,7 +710,6 @@ describe('MemoryRetriever', () => {
       it('should use cascade focusModeEnabled over DB column value', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          shareLtmAcrossPersonalities: false,
           focusModeEnabled: false, // DB says disabled
         });
 
@@ -729,7 +732,6 @@ describe('MemoryRetriever', () => {
       it('should fall back to DB focusModeEnabled when cascade says false and DB says true', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          shareLtmAcrossPersonalities: false,
           focusModeEnabled: true, // DB says enabled
         });
 
@@ -749,7 +751,6 @@ describe('MemoryRetriever', () => {
       it('should fall back to personality values when configOverrides is undefined', async () => {
         mockPersonaResolver.resolveForMemory.mockResolvedValue({
           personaId: 'persona-123',
-          shareLtmAcrossPersonalities: false,
           focusModeEnabled: false,
         });
 
@@ -773,7 +774,6 @@ describe('MemoryRetriever', () => {
     it('should use channel-scoped retrieval when channels are referenced', async () => {
       mockPersonaResolver.resolveForMemory.mockResolvedValue({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
 

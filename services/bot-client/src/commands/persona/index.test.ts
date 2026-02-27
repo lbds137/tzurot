@@ -28,10 +28,6 @@ vi.mock('./default.js', () => ({
   handleSetDefaultPersona: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./share-ltm.js', () => ({
-  handleShareLtmSetting: vi.fn().mockResolvedValue(undefined),
-}));
-
 vi.mock('./override/set.js', () => ({
   handleOverrideSet: vi.fn().mockResolvedValue(undefined),
   handleOverrideCreateModalSubmit: vi.fn().mockResolvedValue(undefined),
@@ -117,7 +113,6 @@ describe('Persona Command Index', () => {
       expect(subcommandNames).toContain('create');
       expect(subcommandNames).toContain('browse');
       expect(subcommandNames).toContain('default');
-      expect(subcommandNames).toContain('share-ltm');
     });
 
     it('should have override subcommand group with set and clear', () => {
@@ -223,15 +218,6 @@ describe('Persona Command Index', () => {
       await execute(context);
 
       expect(handleSetDefaultPersona).toHaveBeenCalledWith(context);
-    });
-
-    it('should route to share-ltm handler for /persona share-ltm', async () => {
-      const { handleShareLtmSetting } = await import('./share-ltm.js');
-      const context = createMockContext('share-ltm');
-
-      await execute(context);
-
-      expect(handleShareLtmSetting).toHaveBeenCalledWith(context);
     });
 
     it('should route to override set handler for /persona override set', async () => {

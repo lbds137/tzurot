@@ -366,6 +366,8 @@ describe('ConfigStep', () => {
           memoryScoreThreshold: 0.5,
           memoryLimit: 20,
           focusModeEnabled: false,
+          crossChannelHistoryEnabled: false,
+          shareLtmAcrossPersonalities: false,
           sources: {
             maxMessages: 'hardcoded' as const,
             maxAge: 'hardcoded' as const,
@@ -373,6 +375,8 @@ describe('ConfigStep', () => {
             memoryScoreThreshold: 'hardcoded' as const,
             memoryLimit: 'hardcoded' as const,
             focusModeEnabled: 'hardcoded' as const,
+            crossChannelHistoryEnabled: 'hardcoded' as const,
+            shareLtmAcrossPersonalities: 'hardcoded' as const,
           },
         };
         vi.mocked(mockCascade.resolveOverrides).mockResolvedValue(mockOverrides);

@@ -23,6 +23,8 @@ const { mockGetOrCreateUser, mockResolveOverrides } = vi.hoisted(() => ({
     memoryScoreThreshold: 0.5,
     memoryLimit: 20,
     focusModeEnabled: false,
+    crossChannelHistoryEnabled: false,
+    shareLtmAcrossPersonalities: false,
     sources: {
       maxMessages: 'hardcoded',
       maxAge: 'hardcoded',
@@ -30,6 +32,8 @@ const { mockGetOrCreateUser, mockResolveOverrides } = vi.hoisted(() => ({
       memoryScoreThreshold: 'hardcoded',
       memoryLimit: 'hardcoded',
       focusModeEnabled: 'hardcoded',
+      crossChannelHistoryEnabled: 'hardcoded',
+      shareLtmAcrossPersonalities: 'hardcoded',
     },
   }),
 }));

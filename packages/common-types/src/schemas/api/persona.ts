@@ -42,7 +42,6 @@ const PersonaFullSchema = PersonaRefSchema.extend({
 /** Persona details (full data with metadata) */
 export const PersonaDetailsSchema = PersonaFullSchema.extend({
   isDefault: z.boolean(),
-  shareLtmAcrossPersonalities: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -57,7 +56,6 @@ export const PersonaSummarySchema = z.object({
   pronouns: z.string().nullable(),
   content: z.string().nullable(),
   isDefault: z.boolean(),
-  shareLtmAcrossPersonalities: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -106,17 +104,6 @@ export const SetDefaultPersonaResponseSchema = z.object({
   alreadyDefault: z.boolean(),
 });
 export type SetDefaultPersonaResponse = z.infer<typeof SetDefaultPersonaResponseSchema>;
-
-// ============================================================================
-// PATCH /user/persona/settings
-// Updates persona settings (share-ltm)
-// ============================================================================
-
-export const UpdatePersonaSettingsResponseSchema = z.object({
-  success: z.literal(true),
-  unchanged: z.boolean(),
-});
-export type UpdatePersonaSettingsResponse = z.infer<typeof UpdatePersonaSettingsResponseSchema>;
 
 // ============================================================================
 // GET /user/persona/override/:personalitySlug
@@ -215,14 +202,6 @@ export const SetPersonaOverrideSchema = z.object({
 });
 export type SetPersonaOverrideInput = z.infer<typeof SetPersonaOverrideSchema>;
 
-/**
- * Schema for persona settings update (share-ltm toggle).
- */
-export const PersonaSettingsSchema = z.object({
-  shareLtmAcrossPersonalities: z.boolean(),
-});
-export type PersonaSettingsInput = z.infer<typeof PersonaSettingsSchema>;
-
 // ============================================================================
 // Database Constants
 // ============================================================================
@@ -235,7 +214,6 @@ export const PERSONA_SELECT = {
   description: true,
   content: true,
   pronouns: true,
-  shareLtmAcrossPersonalities: true,
   createdAt: true,
   updatedAt: true,
 } as const;

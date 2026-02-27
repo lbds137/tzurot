@@ -89,7 +89,6 @@ describe('handleViewPersona', () => {
           pronouns: 'they/them',
           content: 'I am a test user who loves programming',
           description: 'Test description',
-          shareLtmAcrossPersonalities: false,
         },
       }),
     });
@@ -106,38 +105,6 @@ describe('handleViewPersona', () => {
       ],
       components: [], // No expand button for short content
     });
-  });
-
-  it('should show LTM sharing enabled when flag is true', async () => {
-    // First call returns persona list
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockListPersonasResponse([{ name: 'Test Profile', isDefault: true }]),
-    });
-    // Second call returns persona details
-    mockCallGatewayApi.mockResolvedValueOnce({
-      ok: true,
-      data: mockGetPersonaResponse({
-        persona: {
-          name: 'Test Profile',
-          preferredName: null,
-          pronouns: null,
-          content: '',
-          description: null,
-          shareLtmAcrossPersonalities: true,
-        },
-      }),
-    });
-
-    await handleViewPersona(createMockContext());
-
-    expect(mockEditReply).toHaveBeenCalled();
-    const call = mockEditReply.mock.calls[0][0];
-    const embed = call.embeds[0];
-    const fields = embed.data.fields;
-    const ltmField = fields.find((f: { name: string }) => f.name.includes('LTM'));
-
-    expect(ltmField?.value).toContain('Enabled');
   });
 
   it('should handle gateway API errors gracefully', async () => {
@@ -180,7 +147,6 @@ describe('handleViewPersona', () => {
           pronouns: null,
           content: longContent,
           description: null,
-          shareLtmAcrossPersonalities: false,
         },
       }),
     });
@@ -282,7 +248,6 @@ describe('handleExpandContent', () => {
           pronouns: null,
           description: null,
           isDefault: false,
-          shareLtmAcrossPersonalities: false,
         },
       },
     });

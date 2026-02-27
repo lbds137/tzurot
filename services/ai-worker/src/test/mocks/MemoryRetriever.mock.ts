@@ -38,7 +38,7 @@ let mockInstance: MockMemoryRetrieverInstance | null = null;
  * **Default Behaviors:**
  * - `retrieveRelevantMemories()` → Resolves to `{ memories: [], focusModeEnabled: false }` (empty memories - tests can add via override)
  * - `getAllParticipantPersonas()` → Resolves to empty `Map()` (no participants)
- * - `resolvePersonaForMemory()` → Resolves to `{ personaId: 'persona-123', shareLtmAcrossPersonalities: false }`
+ * - `resolvePersonaForMemory()` → Resolves to `{ personaId: 'persona-123', focusModeEnabled: false }`
  * - `getUserPersonaForPersonality()` → Same as resolvePersonaForMemory
  *
  * Override in tests: `getMemoryRetrieverMock().retrieveRelevantMemories.mockResolvedValue({ memories: [...], focusModeEnabled: false })`
@@ -49,11 +49,11 @@ function createMockFunctions(): MockMemoryRetrieverInstance {
     getAllParticipantPersonas: vi.fn().mockResolvedValue(new Map()),
     resolvePersonaForMemory: vi.fn().mockResolvedValue({
       personaId: 'persona-123',
-      shareLtmAcrossPersonalities: false,
+      focusModeEnabled: false,
     }),
     getUserPersonaForPersonality: vi.fn().mockResolvedValue({
       personaId: 'persona-123',
-      shareLtmAcrossPersonalities: false,
+      focusModeEnabled: false,
     }),
   };
 }
