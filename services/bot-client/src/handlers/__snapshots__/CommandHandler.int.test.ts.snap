@@ -543,38 +543,6 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     "type": 1,
   },
   {
-    "description": "Enable/disable sharing memories across all personalities",
-    "description_localizations": undefined,
-    "name": "share-ltm",
-    "name_localizations": undefined,
-    "options": [
-      {
-        "autocomplete": undefined,
-        "choices": [
-          {
-            "name": "Enable - Share memories with all personalities",
-            "name_localizations": undefined,
-            "value": "enable",
-          },
-          {
-            "name": "Disable - Keep memories per personality (default)",
-            "name_localizations": undefined,
-            "value": "disable",
-          },
-        ],
-        "description": "Enable or disable LTM sharing",
-        "description_localizations": undefined,
-        "max_length": undefined,
-        "min_length": undefined,
-        "name": "enabled",
-        "name_localizations": undefined,
-        "required": true,
-        "type": 3,
-      },
-    ],
-    "type": 1,
-  },
-  {
     "description": "Set different personas for specific personalities",
     "description_localizations": undefined,
     "name": "override",

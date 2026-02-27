@@ -1,8 +1,12 @@
 /**
  * Settings Configuration
  *
- * Defines the available settings for the extended context dashboard.
+ * Defines the available settings for the settings dashboard.
  * Shared across /admin settings, /channel context, and /character settings.
+ *
+ * Settings are grouped by category:
+ * - EXTENDED_CONTEXT_SETTINGS: Message count, age, image limits
+ * - MEMORY_SETTINGS: LTM and cross-channel history behavior
  */
 
 import { SettingType, type SettingDefinition } from './types.js';
@@ -47,5 +51,29 @@ export const EXTENDED_CONTEXT_SETTINGS: SettingDefinition[] = [
     max: 20,
     placeholder: 'Enter a number (0-20) or "auto"',
     helpText: '0 = lazy mode (process on reference), higher values = proactive processing',
+  },
+];
+
+/**
+ * Memory and cross-channel settings definitions
+ */
+export const MEMORY_SETTINGS: SettingDefinition[] = [
+  {
+    id: 'crossChannelHistoryEnabled',
+    label: 'Cross-Channel History',
+    emoji: '🔀',
+    description:
+      'Fill unused context budget with conversation history from other channels. ' +
+      'When enabled, personalities remember conversations from other channels with you.',
+    type: SettingType.TRI_STATE,
+  },
+  {
+    id: 'shareLtmAcrossPersonalities',
+    label: 'Share Memories',
+    emoji: '🧠',
+    description:
+      'Share long-term memories across all personalities. ' +
+      'When enabled, what you tell one personality is remembered by all others.',
+    type: SettingType.TRI_STATE,
   },
 ];

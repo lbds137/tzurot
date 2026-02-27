@@ -56,6 +56,12 @@ describe('ConfigCascadeResolver', () => {
       expect(result.memoryScoreThreshold).toBe(HARDCODED_CONFIG_DEFAULTS.memoryScoreThreshold);
       expect(result.memoryLimit).toBe(HARDCODED_CONFIG_DEFAULTS.memoryLimit);
       expect(result.focusModeEnabled).toBe(HARDCODED_CONFIG_DEFAULTS.focusModeEnabled);
+      expect(result.crossChannelHistoryEnabled).toBe(
+        HARDCODED_CONFIG_DEFAULTS.crossChannelHistoryEnabled
+      );
+      expect(result.shareLtmAcrossPersonalities).toBe(
+        HARDCODED_CONFIG_DEFAULTS.shareLtmAcrossPersonalities
+      );
 
       // All sources should be 'hardcoded'
       for (const source of Object.values(result.sources)) {

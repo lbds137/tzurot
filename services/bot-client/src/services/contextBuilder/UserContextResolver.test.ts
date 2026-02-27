@@ -110,7 +110,6 @@ describe('UserContextResolver', () => {
             preferredName: 'Alice',
             pronouns: null,
             content: '',
-            shareLtmAcrossPersonalities: false,
           },
           source: 'system-default',
         }),
@@ -207,7 +206,6 @@ describe('UserContextResolver', () => {
           preferredName: null,
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         source: 'system-default',
       });

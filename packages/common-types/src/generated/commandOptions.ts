@@ -307,13 +307,6 @@ export const personaDefaultOptions = defineTypedOptions({
   persona: { type: 'string', required: true },
 });
 
-/**
- * /persona share-ltm <enabled>
- */
-export const personaShareLtmOptions = defineTypedOptions({
-  enabled: { type: 'string', required: true },
-});
-
 // =============================================================================
 // PRESET COMMAND
 // =============================================================================

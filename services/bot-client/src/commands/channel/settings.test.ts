@@ -222,7 +222,7 @@ describe('Channel Context Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 3 settings fields', async () => {
+    it('should include all 5 settings fields', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
       mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
@@ -232,7 +232,7 @@ describe('Channel Context Dashboard', () => {
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(3);
+      expect(embedJson.fields).toHaveLength(5);
     });
 
     it('should handle admin settings fetch failure', async () => {

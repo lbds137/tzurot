@@ -146,7 +146,10 @@ export class MemoryRetriever {
       return { memories: [], focusModeEnabled: false };
     }
 
-    const { personaId, shareLtmAcrossPersonalities } = personaResult;
+    const { personaId } = personaResult;
+
+    // Read shareLtmAcrossPersonalities from cascade (fully resolved, always boolean)
+    const shareLtmAcrossPersonalities = configOverrides?.shareLtmAcrossPersonalities ?? false;
 
     // Determine focusModeEnabled: cascade overrides > DB column (from persona resolver)
     const focusModeEnabled = configOverrides?.focusModeEnabled ?? personaResult.focusModeEnabled;
@@ -365,12 +368,12 @@ export class MemoryRetriever {
    *
    * @param discordUserId - The user's Discord ID (snowflake)
    * @param personalityId - The personality UUID
-   * @returns Object with personaId and shareLtmAcrossPersonalities flag, or null if not found
+   * @returns Object with personaId and focusModeEnabled flag, or null if not found
    */
   async resolvePersonaForMemory(
     discordUserId: string,
     personalityId: string
-  ): Promise<{ personaId: string; shareLtmAcrossPersonalities: boolean } | null> {
+  ): Promise<{ personaId: string; focusModeEnabled: boolean } | null> {
     return this.personaResolver.resolveForMemory(discordUserId, personalityId);
   }
 }

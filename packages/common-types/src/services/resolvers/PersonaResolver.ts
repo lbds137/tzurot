@@ -41,17 +41,17 @@ export interface ResolvedPersona {
   pronouns: string | null;
   /** Persona content/description */
   content: string;
-  /** Whether to share LTM across all personalities */
-  shareLtmAcrossPersonalities: boolean;
 }
 
 /**
- * Lightweight persona info (just ID and LTM flag) for memory queries
+ * Lightweight persona info (just ID and focus mode) for memory queries
  * @public used in PersonaResolver public method signatures
+ *
+ * Note: shareLtmAcrossPersonalities was migrated to the config cascade
+ * and is now read from ResolvedConfigOverrides instead of the persona.
  */
 export interface PersonaMemoryInfo {
   personaId: string;
-  shareLtmAcrossPersonalities: boolean;
   /** Whether focus mode is enabled (disables LTM retrieval) */
   focusModeEnabled: boolean;
 }
@@ -78,7 +78,6 @@ const SYSTEM_DEFAULT_PERSONA: ResolvedPersona = {
   preferredName: null,
   pronouns: null,
   content: '',
-  shareLtmAcrossPersonalities: false,
 };
 
 /**
@@ -112,7 +111,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
 
     return {
       personaId: result.config.personaId,
-      shareLtmAcrossPersonalities: result.config.shareLtmAcrossPersonalities,
       focusModeEnabled,
     };
   }
@@ -176,7 +174,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
             preferredName: true,
             pronouns: true,
             content: true,
-            shareLtmAcrossPersonalities: true,
           },
         },
         ownedPersonas: {
@@ -186,7 +183,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
             preferredName: true,
             pronouns: true,
             content: true,
-            shareLtmAcrossPersonalities: true,
           },
           orderBy: { createdAt: 'asc' },
           take: 1, // Only need first for auto-default
@@ -215,7 +211,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
               preferredName: true,
               pronouns: true,
               content: true,
-              shareLtmAcrossPersonalities: true,
             },
           },
         },
@@ -294,7 +289,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
     preferredName: string | null;
     pronouns: string | null;
     content: string;
-    shareLtmAcrossPersonalities: boolean;
   }): ResolvedPersona {
     return {
       personaId: persona.id,
@@ -302,7 +296,6 @@ export class PersonaResolver extends BaseConfigResolver<ResolvedPersona> {
       preferredName: persona.preferredName,
       pronouns: persona.pronouns,
       content: persona.content,
-      shareLtmAcrossPersonalities: persona.shareLtmAcrossPersonalities,
     };
   }
 

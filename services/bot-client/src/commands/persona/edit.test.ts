@@ -77,7 +77,6 @@ describe('handleEditPersona', () => {
             pronouns: 'they/them',
             content: 'Test content',
             description: 'Test description',
-            shareLtmAcrossPersonalities: false,
           },
         }),
       });
@@ -133,7 +132,6 @@ describe('handleEditPersona', () => {
             pronouns: null,
             content: '',
             description: null,
-            shareLtmAcrossPersonalities: false,
           },
         }),
       });
