@@ -86,7 +86,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Override Name',
           pronouns: 'they/them',
           content: 'Override content',
-          shareLtmAcrossPersonalities: true,
         },
       });
 
@@ -95,7 +94,6 @@ describe('PersonaResolver', () => {
       expect(result.source).toBe('context-override');
       expect(result.config.personaId).toBe('override-persona-123');
       expect(result.config.preferredName).toBe('Override Name');
-      expect(result.config.shareLtmAcrossPersonalities).toBe(true);
     });
 
     it('should return user default when no personality override exists', async () => {
@@ -107,7 +105,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Default Name',
           pronouns: 'she/her',
           content: 'Default content',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -132,7 +129,6 @@ describe('PersonaResolver', () => {
             preferredName: 'First Owned',
             pronouns: 'he/him',
             content: 'First owned content',
-            shareLtmAcrossPersonalities: false,
           },
         ],
       });
@@ -178,7 +174,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Default Name',
           pronouns: null,
           content: 'Content',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -201,7 +196,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Cached',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -224,7 +218,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Original',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -262,7 +255,6 @@ describe('PersonaResolver', () => {
             preferredName: 'Name',
             pronouns: 'they/them',
             content: 'Content',
-            shareLtmAcrossPersonalities: true,
           },
           ownedPersonas: [],
         })
@@ -277,7 +269,6 @@ describe('PersonaResolver', () => {
 
       expect(result).toEqual({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: true,
         focusModeEnabled: false,
       });
     });
@@ -292,7 +283,6 @@ describe('PersonaResolver', () => {
             preferredName: 'Name',
             pronouns: 'they/them',
             content: 'Content',
-            shareLtmAcrossPersonalities: false,
           },
           ownedPersonas: [],
         })
@@ -306,7 +296,6 @@ describe('PersonaResolver', () => {
 
       expect(result).toEqual({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: true,
       });
     });
@@ -321,7 +310,6 @@ describe('PersonaResolver', () => {
             preferredName: 'Name',
             pronouns: null,
             content: 'Content',
-            shareLtmAcrossPersonalities: false,
           },
           ownedPersonas: [],
         })
@@ -346,7 +334,6 @@ describe('PersonaResolver', () => {
             preferredName: 'Name',
             pronouns: null,
             content: 'Content',
-            shareLtmAcrossPersonalities: false,
           },
           ownedPersonas: [],
         })
@@ -392,7 +379,6 @@ describe('PersonaResolver', () => {
             preferredName: 'Name',
             pronouns: null,
             content: 'Content',
-            shareLtmAcrossPersonalities: false,
           },
           ownedPersonas: [],
         })
@@ -405,7 +391,6 @@ describe('PersonaResolver', () => {
       // Should still return valid result with focusModeEnabled defaulting to false
       expect(result).toEqual({
         personaId: 'persona-123',
-        shareLtmAcrossPersonalities: false,
         focusModeEnabled: false,
       });
     });
@@ -508,7 +493,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Test User',
           pronouns: null,
           content: 'User content',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -561,7 +545,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Default',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -572,7 +555,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Override',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
       });
 
@@ -594,7 +576,6 @@ describe('PersonaResolver', () => {
             preferredName: 'First',
             pronouns: null,
             content: '',
-            shareLtmAcrossPersonalities: false,
           },
         ],
       });
@@ -620,7 +601,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Test',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });
@@ -675,7 +655,6 @@ describe('PersonaResolver', () => {
           preferredName: 'Test',
           pronouns: null,
           content: '',
-          shareLtmAcrossPersonalities: false,
         },
         ownedPersonas: [],
       });

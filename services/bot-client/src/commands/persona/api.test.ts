@@ -147,7 +147,6 @@ describe('updatePersona', () => {
           description: null,
           content: 'About me',
           isDefault: false,
-          shareLtmAcrossPersonalities: false,
         },
       },
     });

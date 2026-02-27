@@ -38,7 +38,6 @@ interface PersonaFromDb {
   description: string | null;
   content: string;
   pronouns: string | null;
-  shareLtmAcrossPersonalities: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -52,7 +51,6 @@ function toPersonaDetails(p: PersonaFromDb, isDefault: boolean): PersonaDetails 
     content: p.content,
     pronouns: p.pronouns,
     isDefault,
-    shareLtmAcrossPersonalities: p.shareLtmAcrossPersonalities,
     createdAt: p.createdAt.toISOString(),
     updatedAt: p.updatedAt.toISOString(),
   };

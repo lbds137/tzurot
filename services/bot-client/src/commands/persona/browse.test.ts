@@ -206,7 +206,6 @@ describe('handleBrowseSelect', () => {
           pronouns: null,
           content: '',
           description: null,
-          shareLtmAcrossPersonalities: false,
         },
       }),
     });

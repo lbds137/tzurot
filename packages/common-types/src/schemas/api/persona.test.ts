@@ -14,7 +14,6 @@ import {
   GetPersonaResponseSchema,
   CreatePersonaResponseSchema,
   SetDefaultPersonaResponseSchema,
-  UpdatePersonaSettingsResponseSchema,
   OverrideInfoResponseSchema,
   SetOverrideResponseSchema,
   ClearOverrideResponseSchema,
@@ -22,7 +21,6 @@ import {
   PersonaCreateSchema,
   PersonaUpdateSchema,
   SetPersonaOverrideSchema,
-  PersonaSettingsSchema,
 } from './persona.js';
 
 /** Helper to create valid persona details */
@@ -35,7 +33,6 @@ function createValidPersonaDetails(overrides = {}) {
     pronouns: 'they/them',
     content: 'Custom persona content',
     isDefault: true,
-    shareLtmAcrossPersonalities: false,
     createdAt: '2025-01-15T12:00:00.000Z',
     updatedAt: '2025-01-20T15:30:00.000Z',
     ...overrides,
@@ -102,12 +99,6 @@ describe('Persona API Contract Tests', () => {
 
     it('should accept non-default persona', () => {
       const data = createValidPersonaDetails({ isDefault: false });
-      const result = PersonaSummarySchema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('should accept persona with shared LTM enabled', () => {
-      const data = createValidPersonaDetails({ shareLtmAcrossPersonalities: true });
       const result = PersonaSummarySchema.safeParse(data);
       expect(result.success).toBe(true);
     });
@@ -215,26 +206,6 @@ describe('Persona API Contract Tests', () => {
       };
       const result = SetDefaultPersonaResponseSchema.safeParse(data);
       expect(result.success).toBe(true);
-    });
-  });
-
-  describe('UpdatePersonaSettingsResponseSchema', () => {
-    it('should accept response with changes', () => {
-      const data = { success: true as const, unchanged: false };
-      const result = UpdatePersonaSettingsResponseSchema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('should accept response with no changes', () => {
-      const data = { success: true as const, unchanged: true };
-      const result = UpdatePersonaSettingsResponseSchema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject success=false', () => {
-      const data = { success: false, unchanged: false };
-      const result = UpdatePersonaSettingsResponseSchema.safeParse(data);
-      expect(result.success).toBe(false);
     });
   });
 
@@ -519,31 +490,6 @@ describe('Persona API Contract Tests', () => {
 
     it('should reject missing personaId', () => {
       const result = SetPersonaOverrideSchema.safeParse({});
-      expect(result.success).toBe(false);
-    });
-  });
-
-  describe('PersonaSettingsSchema', () => {
-    it('should accept true', () => {
-      const data = { shareLtmAcrossPersonalities: true };
-      const result = PersonaSettingsSchema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('should accept false', () => {
-      const data = { shareLtmAcrossPersonalities: false };
-      const result = PersonaSettingsSchema.safeParse(data);
-      expect(result.success).toBe(true);
-    });
-
-    it('should reject non-boolean value', () => {
-      const data = { shareLtmAcrossPersonalities: 'true' };
-      const result = PersonaSettingsSchema.safeParse(data);
-      expect(result.success).toBe(false);
-    });
-
-    it('should reject missing field', () => {
-      const result = PersonaSettingsSchema.safeParse({});
       expect(result.success).toBe(false);
     });
   });

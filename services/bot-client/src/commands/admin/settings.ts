@@ -34,12 +34,14 @@ import {
   type SettingsDashboardSession,
   type SettingsData,
   type SettingUpdateResult,
+  type SettingValue,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
   handleSettingsModal,
   isSettingsInteraction,
   EXTENDED_CONTEXT_SETTINGS,
+  MEMORY_SETTINGS,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('admin-settings');
@@ -59,7 +61,7 @@ const ADMIN_SETTINGS_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Global',
   color: DISCORD_COLORS.BLURPLE,
-  settings: EXTENDED_CONTEXT_SETTINGS,
+  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
 };
 
 /**
@@ -166,29 +168,49 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
   return (await response.json()) as GetAdminSettingsResponse;
 }
 
+/** Config override field names that map to SettingsData keys */
+const SETTING_FIELDS = [
+  'maxMessages',
+  'maxAge',
+  'maxImages',
+  'crossChannelHistoryEnabled',
+  'shareLtmAcrossPersonalities',
+] as const;
+
+/** Build a SettingValue for an admin config field */
+function buildAdminSettingValue<T>(
+  defaults: Record<string, unknown> | undefined,
+  field: string
+): SettingValue<T> {
+  const localValue = (defaults?.[field] ?? null) as T | null;
+  const hardcodedDefault =
+    HARDCODED_CONFIG_DEFAULTS[field as keyof typeof HARDCODED_CONFIG_DEFAULTS];
+  return {
+    localValue,
+    effectiveValue: (localValue ?? hardcodedDefault) as T,
+    source: defaults?.[field] !== undefined ? 'global' : 'default',
+  };
+}
+
 /**
  * Convert API response to dashboard SettingsData format.
  * Reads from configDefaults JSONB (config cascade admin tier).
  */
 function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData {
-  const defaults = settings.configDefaults;
+  const defaults = settings.configDefaults as Record<string, unknown> | undefined;
 
   return {
-    maxMessages: {
-      localValue: defaults?.maxMessages ?? null,
-      effectiveValue: defaults?.maxMessages ?? HARDCODED_CONFIG_DEFAULTS.maxMessages,
-      source: defaults?.maxMessages !== undefined ? 'global' : 'default',
-    },
-    maxAge: {
-      localValue: defaults?.maxAge ?? null,
-      effectiveValue: defaults?.maxAge ?? HARDCODED_CONFIG_DEFAULTS.maxAge,
-      source: defaults?.maxAge !== undefined ? 'global' : 'default',
-    },
-    maxImages: {
-      localValue: defaults?.maxImages ?? null,
-      effectiveValue: defaults?.maxImages ?? HARDCODED_CONFIG_DEFAULTS.maxImages,
-      source: defaults?.maxImages !== undefined ? 'global' : 'default',
-    },
+    maxMessages: buildAdminSettingValue<number>(defaults, 'maxMessages'),
+    maxAge: buildAdminSettingValue<number | null>(defaults, 'maxAge'),
+    maxImages: buildAdminSettingValue<number>(defaults, 'maxImages'),
+    crossChannelHistoryEnabled: buildAdminSettingValue<boolean>(
+      defaults,
+      'crossChannelHistoryEnabled'
+    ),
+    shareLtmAcrossPersonalities: buildAdminSettingValue<boolean>(
+      defaults,
+      'shareLtmAcrossPersonalities'
+    ),
   };
 }
 
@@ -243,31 +265,21 @@ async function handleSettingUpdate(
  * Sending null for a field value removes it from configDefaults.
  */
 function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
-  switch (settingId) {
-    case 'maxMessages':
-      // null means clear override (use hardcoded default)
-      return { configDefaults: { maxMessages: value ?? undefined } };
-
-    case 'maxAge': {
-      // value can be:
-      // - null: clear override (use hardcoded default)
-      // - -1: "off" (disabled, store as null in DB)
-      // - number: seconds
-      if (value === null) {
-        return { configDefaults: { maxAge: undefined } };
-      }
-      if (value === -1) {
-        // "off" means disabled — store as null in JSONB
-        return { configDefaults: { maxAge: null } };
-      }
-      return { configDefaults: { maxAge: value } };
+  // maxAge has special semantics: -1 means "off" (store as null in JSONB)
+  if (settingId === 'maxAge') {
+    if (value === null) {
+      return { configDefaults: { maxAge: undefined } };
     }
-
-    case 'maxImages':
-      // null means clear override (use hardcoded default)
-      return { configDefaults: { maxImages: value ?? undefined } };
-
-    default:
-      return null;
+    if (value === -1) {
+      return { configDefaults: { maxAge: null } };
+    }
+    return { configDefaults: { maxAge: value } };
   }
+
+  // All other settings: null clears override, otherwise set the value
+  if (SETTING_FIELDS.includes(settingId as (typeof SETTING_FIELDS)[number])) {
+    return { configDefaults: { [settingId]: value ?? undefined } };
+  }
+
+  return null;
 }
