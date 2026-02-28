@@ -829,6 +829,33 @@ describe('ConversationHistoryService Component Test', () => {
       expect(result[0].messages[2].content).toBe('Cross-channel message 4');
     });
 
+    it('should exclude older channels when limit is smaller than total messages', async () => {
+      // Channel 2 already has messages from prior tests.
+      // Add 3 more recent messages to channel 3 so they dominate the limit.
+      for (let i = 0; i < 3; i++) {
+        await service.addMessage({
+          channelId: testChannelId3,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Channel 3 recent ${i}`,
+          guildId: testGuildId,
+        });
+      }
+
+      // Limit = 3: all 3 most recent are from channel 3, so channel 2 is absent
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        3
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].channelId).toBe(testChannelId3);
+      // Channel 2 is silently excluded because all 3 slots went to channel 3
+    });
+
     it('should order groups by most recent activity', async () => {
       // Add older message to channel 2
       await service.addMessage({
