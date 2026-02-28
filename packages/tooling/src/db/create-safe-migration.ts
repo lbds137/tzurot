@@ -24,6 +24,7 @@ import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'n
 import { join, basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
+import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
 import {
   type Environment,
   validateEnvironment,
@@ -240,41 +241,18 @@ async function reconcileMigrationChecksum(
   sanitizedContent: string
 ): Promise<void> {
   const migrationName = basename(migrationDir);
-
-  // Validate format before embedding in SQL (defense in depth)
-  if (!/^\d{14}_[\w]+$/.test(migrationName)) {
-    console.log(
-      chalk.dim('   (Unexpected migration name format — skipping checksum reconciliation)')
-    );
-    return;
-  }
-
   const checksum = computeFileChecksum(sanitizedContent);
 
-  // Use prisma db execute to update the checksum.
-  // The WHERE clause ensures we only update already-applied migrations.
-  const sql = `UPDATE _prisma_migrations SET checksum = '${checksum}' WHERE migration_name = '${migrationName}' AND finished_at IS NOT NULL`;
-
   try {
-    const result = await new Promise<{ exitCode: number }>((resolve, reject) => {
-      const proc = spawn('npx', ['prisma', 'db', 'execute', '--stdin'], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        shell: false,
-        env: cleanEnvForNpx(),
-      });
-
-      proc.stdin.write(sql);
-      proc.stdin.end();
-
-      proc.on('close', code => {
-        resolve({ exitCode: code ?? 0 });
-      });
-      proc.on('error', reject);
-    });
-
-    if (result.exitCode === 0) {
-      console.log(chalk.dim('   Checksum reconciled with local database'));
-    }
+    const prisma = getPrismaClient();
+    await prisma.$executeRaw`
+      UPDATE _prisma_migrations
+      SET checksum = ${checksum}
+      WHERE migration_name = ${migrationName}
+      AND finished_at IS NOT NULL
+    `;
+    await disconnectPrisma();
+    console.log(chalk.dim('   Checksum reconciled with local database'));
   } catch {
     // Non-fatal: checksum reconciliation is a convenience, not a requirement.
     // The migration file is correct; the user can manually fix the checksum
