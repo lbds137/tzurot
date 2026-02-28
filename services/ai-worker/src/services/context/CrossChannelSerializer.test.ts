@@ -147,6 +147,36 @@ describe('serializeCrossChannelHistory', () => {
     expect(result.messagesIncluded).toBe(0);
   });
 
+  it('should skip high-overhead group but not retry with later groups', () => {
+    // Group 1: large messages that don't fit → skipped permanently
+    const expensiveGroup = createGroup({
+      channelEnvironment: {
+        type: 'guild',
+        guild: { id: 'guild-1', name: 'Test Server' },
+        channel: { id: 'channel-1', name: 'expensive', type: 'text' },
+      },
+      messages: [{ id: 'msg-1', role: MessageRole.User, content: 'Huge message', tokenCount: 300 }],
+    });
+    // Group 2: small messages that would fit if budget were available
+    const cheapGroup = createGroup({
+      channelEnvironment: {
+        type: 'guild',
+        guild: { id: 'guild-1', name: 'Test Server' },
+        channel: { id: 'channel-2', name: 'cheap', type: 'text' },
+      },
+      messages: [{ id: 'msg-2', role: MessageRole.User, content: 'Tiny', tokenCount: 5 }],
+    });
+
+    // Budget fits cheap group but not expensive group.
+    // Group 1 (expensive) is skipped, group 2 (cheap) still gets included since
+    // the loop continues to lower-priority groups when budget remains.
+    const result = serializeCrossChannelHistory([expensiveGroup, cheapGroup], 'TestAI', 150);
+    expect(result.xml).not.toContain('expensive');
+    expect(result.xml).toContain('cheap');
+    expect(result.xml).toContain('Tiny');
+    expect(result.messagesIncluded).toBe(1);
+  });
+
   it('should serialize multiple groups', () => {
     const group1 = createGroup();
     const group2 = createGroup({

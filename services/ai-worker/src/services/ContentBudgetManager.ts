@@ -54,8 +54,13 @@ export class ContentBudgetManager {
     );
 
     // Select history within budget
-    const { serializedHistory, historyTokensUsed, messagesDropped, crossChannelMessagesIncluded } =
-      this.selectHistory(opts, relevantMemories, contextWindowTokens, currentMessageTokens);
+    const {
+      serializedHistory,
+      historyTokensUsed,
+      historyBudget,
+      messagesDropped,
+      crossChannelMessagesIncluded,
+    } = this.selectHistory(opts, relevantMemories, contextWindowTokens, currentMessageTokens);
 
     // Build final system prompt
     // Note: Image descriptions are now inline in serializedHistory (via injectImageDescriptions)
@@ -70,10 +75,9 @@ export class ContentBudgetManager {
 
     this.logAllocation({
       contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens,
       memoryTokensUsed,
       retrievedMemories: opts.retrievedMemories,
+      historyBudget,
       historyTokensUsed,
       messagesDropped,
       crossChannelMessagesIncluded,
@@ -183,6 +187,7 @@ export class ContentBudgetManager {
   ): {
     serializedHistory: string;
     historyTokensUsed: number;
+    historyBudget: number;
     messagesDropped: number;
     crossChannelMessagesIncluded: number;
   } {
@@ -234,34 +239,37 @@ export class ContentBudgetManager {
         crossChannelGroups
       );
 
-    return { serializedHistory, historyTokensUsed, messagesDropped, crossChannelMessagesIncluded };
+    return {
+      serializedHistory,
+      historyTokensUsed,
+      historyBudget,
+      messagesDropped,
+      crossChannelMessagesIncluded,
+    };
   }
 
   private logAllocation(opts: {
     contextWindowTokens: number;
-    systemPromptBaseTokens: number;
-    currentMessageTokens: number;
     memoryTokensUsed: number;
     retrievedMemories: MemoryDocument[];
+    historyBudget: number;
     historyTokensUsed: number;
     messagesDropped: number;
     crossChannelMessagesIncluded: number;
   }): void {
     const {
       contextWindowTokens,
-      systemPromptBaseTokens,
-      currentMessageTokens,
       memoryTokensUsed,
       retrievedMemories,
+      historyBudget,
       historyTokensUsed,
       messagesDropped,
       crossChannelMessagesIncluded,
     } = opts;
-    const historyBudget = contextWindowTokens - systemPromptBaseTokens - currentMessageTokens;
     const crossChannelSuffix =
       crossChannelMessagesIncluded > 0 ? `, crossChannel=${crossChannelMessagesIncluded}` : '';
     logger.info(
-      `[Budget] Token allocation: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${this.countMemoryTokensSafe(retrievedMemories)}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}${crossChannelSuffix}`
+      `[Budget] Token allocation: total=${contextWindowTokens}, memories=${memoryTokensUsed}/${this.countMemoryTokensSafe(retrievedMemories)}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}${crossChannelSuffix}`
     );
     if (messagesDropped > 0) {
       logger.debug(`[Budget] Dropped ${messagesDropped} history messages due to token budget`);
