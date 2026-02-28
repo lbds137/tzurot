@@ -534,5 +534,16 @@ describe('SettingsDashboardBuilder', () => {
       expect(getSettingById('maxAge')).toBeDefined();
       expect(getSettingById('maxImages')).toBeDefined();
     });
+
+    it('should find all memory settings', () => {
+      expect(getSettingById('crossChannelHistoryEnabled')).toBeDefined();
+      expect(getSettingById('shareLtmAcrossPersonalities')).toBeDefined();
+
+      const crossChannel = getSettingById('crossChannelHistoryEnabled');
+      expect(crossChannel?.type).toBe(SettingType.TRI_STATE);
+
+      const shareLtm = getSettingById('shareLtmAcrossPersonalities');
+      expect(shareLtm?.type).toBe(SettingType.TRI_STATE);
+    });
   });
 });
