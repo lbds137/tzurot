@@ -21,7 +21,9 @@ import type { RawHistoryEntry } from '../../jobs/utils/conversationUtils.js';
 import {
   formatConversationHistoryAsXml,
   getFormattedMessageCharLength,
+  type CrossChannelGroup,
 } from '../../jobs/utils/conversationUtils.js';
+import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MemoryBudgetManager, type MemorySelectionResult } from './MemoryBudgetManager.js';
 
 const logger = createLogger('ContextWindowManager');
@@ -247,7 +249,8 @@ export class ContextWindowManager {
   selectAndSerializeHistory(
     rawHistory: RawHistoryEntry[] | undefined,
     personalityName: string,
-    historyBudget: number
+    historyBudget: number,
+    crossChannelGroups?: CrossChannelGroup[]
   ): {
     serializedHistory: string;
     historyTokensUsed: number;
@@ -290,12 +293,38 @@ export class ContextWindowManager {
     }
 
     // Serialize the selected entries as XML
-    const serializedHistory = formatConversationHistoryAsXml(selectedEntries, personalityName);
-    const actualTokens = countTextTokens(serializedHistory) + wrapperOverhead;
+    const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, personalityName);
+    let actualTokens = countTextTokens(currentChannelXml) + wrapperOverhead;
 
     logger.info(
       `[CWM] Selected ${selectedEntries.length}/${rawHistory.length} history messages (${actualTokens} tokens, budget: ${historyBudget})`
     );
+
+    // Serialize cross-channel history if available and budget remains
+    let crossChannelXml = '';
+    if (
+      crossChannelGroups !== undefined &&
+      crossChannelGroups.length > 0 &&
+      actualTokens < historyBudget
+    ) {
+      crossChannelXml = serializeCrossChannelHistory(
+        crossChannelGroups,
+        personalityName,
+        historyBudget - actualTokens
+      );
+
+      if (crossChannelXml.length > 0) {
+        const crossTokens = countTextTokens(crossChannelXml);
+        actualTokens += crossTokens;
+        logger.info(
+          `[CWM] Added cross-channel history (${crossTokens} tokens, ${crossChannelGroups.length} channels)`
+        );
+      }
+    }
+
+    // Prepend cross-channel before current channel (older context first)
+    const serializedHistory =
+      crossChannelXml.length > 0 ? `${crossChannelXml}\n${currentChannelXml}` : currentChannelXml;
 
     return {
       serializedHistory,

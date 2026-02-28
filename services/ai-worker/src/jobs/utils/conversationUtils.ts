@@ -17,7 +17,9 @@ import {
   shouldShowGap,
   calculateTimeGap,
   formatTimeGapMarker,
+  formatLocationAsXml,
   type TimeGapConfig,
+  type DiscordEnvironment,
 } from '@tzurot/common-types';
 import { formatForwardedQuote } from '../../services/prompt/QuoteFormatter.js';
 
@@ -317,4 +319,47 @@ export function formatConversationHistoryAsXml(
   }
 
   return messages.join('\n');
+}
+
+/**
+ * A cross-channel history group with channel environment and messages
+ */
+export interface CrossChannelGroup {
+  channelEnvironment: DiscordEnvironment;
+  messages: RawHistoryEntry[];
+}
+
+/**
+ * Format cross-channel conversation history as XML for inclusion in chat_log.
+ *
+ * Wraps all groups in `<prior_conversations>`, with each channel group in
+ * `<channel_history>` containing a `<location>` block and formatted messages.
+ *
+ * @param groups - Cross-channel history groups (ordered by most recent channel first)
+ * @param personalityName - Name of the AI personality (for message formatting)
+ * @returns Formatted XML string, or empty string if no groups
+ */
+export function formatCrossChannelHistoryAsXml(
+  groups: CrossChannelGroup[],
+  personalityName: string
+): string {
+  if (groups.length === 0) {
+    return '';
+  }
+
+  const parts: string[] = [];
+  parts.push('<prior_conversations>');
+
+  for (const group of groups) {
+    parts.push('<channel_history>');
+    parts.push(formatLocationAsXml(group.channelEnvironment));
+    const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName);
+    if (messagesXml.length > 0) {
+      parts.push(messagesXml);
+    }
+    parts.push('</channel_history>');
+  }
+
+  parts.push('</prior_conversations>');
+  return parts.join('\n');
 }
