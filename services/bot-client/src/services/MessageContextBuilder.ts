@@ -419,8 +419,9 @@ export class MessageContextBuilder {
     const crossChannelGroups = await fetchCrossChannelIfEnabled({
       enabled: options.crossChannelHistoryEnabled === true,
       channelId: message.channel.id,
+      personaId,
       personality,
-      currentHistory: history,
+      currentHistoryLength: history.length,
       dbLimit,
       discordClient: message.client,
       conversationHistoryService: this.conversationHistory,

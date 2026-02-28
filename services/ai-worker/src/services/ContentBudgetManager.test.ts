@@ -280,5 +280,38 @@ describe('ContentBudgetManager', () => {
 
       expect(result.messagesDropped).toBe(2);
     });
+
+    it('should pass cross-channel history to selectAndSerializeHistory', () => {
+      const options = createBaseOptions();
+      (options.context as unknown as Record<string, unknown>).crossChannelHistory = [
+        {
+          channelEnvironment: {
+            type: 'guild' as const,
+            guild: { id: 'g-1', name: 'Server' },
+            channel: { id: 'ch-1', name: 'general', type: 'text' },
+          },
+          messages: [
+            {
+              id: 'msg-1',
+              role: 'user',
+              content: 'Cross-channel msg',
+              createdAt: '2026-02-26T10:00:00Z',
+              tokenCount: 10,
+              personaName: 'Alice',
+            },
+          ],
+        },
+      ];
+
+      budgetManager.allocate(options);
+
+      // Verify cross-channel groups were passed as 4th arg
+      const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
+      expect(call).toBeDefined();
+      expect(call[3]).toBeDefined(); // 4th arg = crossChannelGroups
+      expect(call[3]).toHaveLength(1);
+      expect(call[3]![0].channelEnvironment.type).toBe('guild');
+      expect(call[3]![0].messages[0].content).toBe('Cross-channel msg');
+    });
   });
 });

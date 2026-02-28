@@ -88,4 +88,26 @@ describe('buildConversationContext', () => {
       displayColor: '#FF0000',
     });
   });
+
+  it('should map cross-channel history from prepared context', () => {
+    const jobContext = createMinimalJobContext();
+    const prepared = createMinimalPreparedContext();
+    prepared.crossChannelHistory = [
+      {
+        channelEnvironment: {
+          type: 'dm' as const,
+          channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+        },
+        messages: [
+          { id: 'msg-1', role: 'user', content: 'DM message', createdAt: '2026-02-26T10:00:00Z' },
+        ],
+      },
+    ];
+
+    const result = buildConversationContext(jobContext, prepared, undefined);
+
+    expect(result.crossChannelHistory).toHaveLength(1);
+    expect(result.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
+    expect(result.crossChannelHistory?.[0].messages[0].content).toBe('DM message');
+  });
 });

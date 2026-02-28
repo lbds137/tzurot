@@ -84,7 +84,7 @@ describe('serializeCrossChannelHistory', () => {
     expect(result).toContain('Direct Message');
   });
 
-  it('should respect token budget by excluding messages that exceed it', () => {
+  it('should include messages within budget and exclude those that exceed it', () => {
     const group = createGroup({
       messages: [
         { id: 'msg-1', role: 'user', content: 'Short', tokenCount: 5 },
@@ -98,13 +98,21 @@ describe('serializeCrossChannelHistory', () => {
       ],
     });
 
-    // Budget that fits first two messages but not the third
-    const result = serializeCrossChannelHistory([group], 'TestAI', 100);
-    // With very tight budget, it may include only some messages or none
-    if (result.length > 0) {
-      expect(result).toContain('Short');
-      expect(result).not.toContain('This is a very long message');
-    }
+    // Large enough budget to fit short messages but not the 500-token message
+    const result = serializeCrossChannelHistory([group], 'TestAI', 200);
+    expect(result).toContain('Short');
+    expect(result).toContain('Also short');
+    expect(result).not.toContain('This is a very long message');
+  });
+
+  it('should return empty string when budget is too tight for any messages', () => {
+    const group = createGroup({
+      messages: [{ id: 'msg-1', role: 'user', content: 'Hello world', tokenCount: 100 }],
+    });
+
+    // Budget of 5 is too small for even the wrapper overhead + location block + one message
+    const result = serializeCrossChannelHistory([group], 'TestAI', 5);
+    expect(result).toBe('');
   });
 
   it('should serialize multiple groups', () => {

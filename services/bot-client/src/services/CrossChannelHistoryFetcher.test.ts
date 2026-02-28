@@ -9,11 +9,7 @@ import {
   fetchCrossChannelIfEnabled,
   mapCrossChannelToApiFormat,
 } from './CrossChannelHistoryFetcher.js';
-import type {
-  CrossChannelHistoryGroup,
-  ConversationMessage,
-  LoadedPersonality,
-} from '@tzurot/common-types';
+import type { CrossChannelHistoryGroup, LoadedPersonality } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
 
 // Mock common-types logger
@@ -286,8 +282,9 @@ describe('fetchCrossChannelIfEnabled', () => {
     const result = await fetchCrossChannelIfEnabled({
       enabled: false,
       channelId: 'channel-1',
+      personaId: 'persona-1',
       personality: { id: 'p-1' } as LoadedPersonality,
-      currentHistory: [],
+      currentHistoryLength: 0,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(),
@@ -296,35 +293,12 @@ describe('fetchCrossChannelIfEnabled', () => {
   });
 
   it('should return undefined when no budget remaining', async () => {
-    const history = Array.from({ length: 50 }, (_, i) => ({
-      id: `msg-${i}`,
-      role: MessageRole.User,
-      content: `Msg ${i}`,
+    const result = await fetchCrossChannelIfEnabled({
+      enabled: true,
+      channelId: 'channel-1',
       personaId: 'persona-1',
-    })) as unknown as ConversationMessage[];
-
-    const result = await fetchCrossChannelIfEnabled({
-      enabled: true,
-      channelId: 'channel-1',
       personality: { id: 'p-1' } as LoadedPersonality,
-      currentHistory: history,
-      dbLimit: 50,
-      discordClient: createMockDiscordClient(),
-      conversationHistoryService: createMockConversationHistoryService(),
-    });
-    expect(result).toBeUndefined();
-  });
-
-  it('should return undefined when no personaId in history', async () => {
-    const history = [
-      { id: 'msg-1', role: MessageRole.User, content: 'Hello' },
-    ] as unknown as ConversationMessage[];
-
-    const result = await fetchCrossChannelIfEnabled({
-      enabled: true,
-      channelId: 'channel-1',
-      personality: { id: 'p-1' } as LoadedPersonality,
-      currentHistory: history,
+      currentHistoryLength: 50,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(),
@@ -333,10 +307,6 @@ describe('fetchCrossChannelIfEnabled', () => {
   });
 
   it('should fetch cross-channel history when enabled with budget', async () => {
-    const history = [
-      { id: 'msg-1', role: MessageRole.User, content: 'Hello', personaId: 'persona-1' },
-    ] as unknown as ConversationMessage[];
-
     const groups: CrossChannelHistoryGroup[] = [
       { channelId: 'channel-2', guildId: null, messages: [createMockMessage()] },
     ];
@@ -344,14 +314,29 @@ describe('fetchCrossChannelIfEnabled', () => {
     const result = await fetchCrossChannelIfEnabled({
       enabled: true,
       channelId: 'channel-1',
+      personaId: 'persona-1',
       personality: { id: 'p-1' } as LoadedPersonality,
-      currentHistory: history,
+      currentHistoryLength: 1,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
 
     expect(result).toHaveLength(1);
+  });
+
+  it('should return undefined when cross-channel returns empty', async () => {
+    const result = await fetchCrossChannelIfEnabled({
+      enabled: true,
+      channelId: 'channel-1',
+      personaId: 'persona-1',
+      personality: { id: 'p-1' } as LoadedPersonality,
+      currentHistoryLength: 1,
+      dbLimit: 50,
+      discordClient: createMockDiscordClient(),
+      conversationHistoryService: createMockConversationHistoryService([]),
+    });
+    expect(result).toBeUndefined();
   });
 });
 

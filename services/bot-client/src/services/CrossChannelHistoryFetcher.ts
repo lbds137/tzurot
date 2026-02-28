@@ -11,7 +11,6 @@ import { ChannelType } from 'discord.js';
 import {
   ConversationHistoryService,
   createLogger,
-  type ConversationMessage,
   type CrossChannelHistoryGroup,
   type DiscordEnvironment,
   type LoadedPersonality,
@@ -218,8 +217,9 @@ export async function fetchCrossChannelHistory(
 export async function fetchCrossChannelIfEnabled(opts: {
   enabled: boolean;
   channelId: string;
+  personaId: string;
   personality: LoadedPersonality;
-  currentHistory: ConversationMessage[];
+  currentHistoryLength: number;
   dbLimit: number;
   discordClient: Client;
   conversationHistoryService: ConversationHistoryService;
@@ -228,12 +228,12 @@ export async function fetchCrossChannelIfEnabled(opts: {
     return undefined;
   }
 
-  const remainingBudget = opts.dbLimit - opts.currentHistory.length;
+  const remainingBudget = opts.dbLimit - opts.currentHistoryLength;
   if (remainingBudget <= 0) {
     logger.debug(
       {
         channelId: opts.channelId,
-        currentHistoryLength: opts.currentHistory.length,
+        currentHistoryLength: opts.currentHistoryLength,
         dbLimit: opts.dbLimit,
       },
       '[CrossChannelHistoryFetcher] No remaining budget for cross-channel history'
@@ -241,16 +241,8 @@ export async function fetchCrossChannelIfEnabled(opts: {
     return undefined;
   }
 
-  const personaId = opts.currentHistory.find(msg => msg.personaId !== undefined)?.personaId;
-  if (personaId === undefined) {
-    logger.debug(
-      '[CrossChannelHistoryFetcher] No personaId found in current history, skipping cross-channel'
-    );
-    return undefined;
-  }
-
   const groups = await fetchCrossChannelHistory({
-    personaId,
+    personaId: opts.personaId,
     personalityId: opts.personality.id,
     currentChannelId: opts.channelId,
     remainingBudget,
