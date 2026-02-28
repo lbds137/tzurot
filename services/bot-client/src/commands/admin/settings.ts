@@ -271,7 +271,7 @@ function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string
       return { configDefaults: { maxAge: null } };
     }
     if (value === -1) {
-      // "off" → store null in JSONB (meaning no age limit)
+      // "off" → clear override (inherits hardcoded default of null = no age limit)
       return { configDefaults: { maxAge: null } };
     }
     return { configDefaults: { maxAge: value } };

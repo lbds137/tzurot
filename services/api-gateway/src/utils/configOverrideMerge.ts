@@ -10,6 +10,12 @@ import { ConfigOverridesSchema } from '@tzurot/common-types';
  * Validates input against ConfigOverridesSchema.partial(), merges with existing,
  * and strips null/undefined fields to keep JSONB clean.
  *
+ * **Limitation**: Explicit null values cannot be stored — null is treated as "clear
+ * this override" (key removed from JSONB). This affects `maxAge` where null semantically
+ * means "no age limit". Currently unobservable because the hardcoded default is also null,
+ * so clearing the key produces the same resolved value. If the default changes, this will
+ * need revisiting. Tracked in BACKLOG under "Unify Config Cascade API Endpoints".
+ *
  * @param existing - Current JSONB value from the database (may be null, non-object, etc.)
  * @param input - Partial config overrides to merge in
  * @returns Merged object, null if empty after merge, or 'invalid' if input fails validation
