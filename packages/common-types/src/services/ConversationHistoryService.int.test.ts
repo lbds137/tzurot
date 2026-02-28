@@ -830,8 +830,19 @@ describe('ConversationHistoryService Component Test', () => {
     });
 
     it('should exclude older channels when limit is smaller than total messages', async () => {
-      // Channel 2 already has messages from prior tests.
-      // Add 3 more recent messages to channel 3 so they dominate the limit.
+      // Add 2 older messages to channel 2
+      for (let i = 0; i < 2; i++) {
+        await service.addMessage({
+          channelId: testChannelId2,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Channel 2 older ${i}`,
+          guildId: testGuildId,
+        });
+      }
+
+      // Add 3 newer messages to channel 3
       for (let i = 0; i < 3; i++) {
         await service.addMessage({
           channelId: testChannelId3,
@@ -853,7 +864,7 @@ describe('ConversationHistoryService Component Test', () => {
 
       expect(result).toHaveLength(1);
       expect(result[0].channelId).toBe(testChannelId3);
-      // Channel 2 is silently excluded because all 3 slots went to channel 3
+      // Channel 2 exists but is excluded because all 3 limit slots went to channel 3
     });
 
     it('should order groups by most recent activity', async () => {

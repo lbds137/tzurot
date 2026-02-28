@@ -1,9 +1,17 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   sanitizeMigrationSql,
   generateMigrationTimestamp,
   computeFileChecksum,
+  reconcileMigrationChecksum,
 } from './create-safe-migration.js';
+import { getPrismaClient, disconnectPrisma } from '@tzurot/common-types';
+
+// Mock common-types for reconcileMigrationChecksum tests
+vi.mock('@tzurot/common-types', () => ({
+  getPrismaClient: vi.fn(),
+  disconnectPrisma: vi.fn(),
+}));
 
 /**
  * Tests for create-safe-migration
@@ -273,5 +281,71 @@ describe('computeFileChecksum', () => {
     const original = computeFileChecksum('DROP INDEX "idx_memories_embedding";');
     const sanitized = computeFileChecksum('-- REMOVED: DROP INDEX "idx_memories_embedding";');
     expect(original).not.toBe(sanitized);
+  });
+});
+
+describe('reconcileMigrationChecksum', () => {
+  let mockExecuteRaw: ReturnType<typeof vi.fn>;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockExecuteRaw = vi.fn();
+    vi.mocked(getPrismaClient).mockReturnValue({ $executeRaw: mockExecuteRaw } as never);
+    vi.mocked(disconnectPrisma).mockResolvedValue(undefined as never);
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    consoleLogSpy.mockRestore();
+  });
+
+  it('should update checksum via $executeRaw when migration exists', async () => {
+    mockExecuteRaw.mockResolvedValue(1);
+
+    await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'sanitized SQL');
+
+    expect(getPrismaClient).toHaveBeenCalled();
+    expect(mockExecuteRaw).toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Checksum reconciled'));
+  });
+
+  it('should be a no-op when no matching row exists (migration not yet applied)', async () => {
+    mockExecuteRaw.mockResolvedValue(0); // No rows updated
+
+    await reconcileMigrationChecksum('/migrations/20260228015810_new_migration', 'SQL content');
+
+    expect(mockExecuteRaw).toHaveBeenCalled();
+    // Still logs success — the UPDATE ran fine, just matched 0 rows
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Checksum reconciled'));
+  });
+
+  it('should handle DB errors non-fatally', async () => {
+    mockExecuteRaw.mockRejectedValue(new Error('Connection refused'));
+
+    await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'SQL content');
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(
+      expect.stringContaining('Could not reconcile checksum')
+    );
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Connection refused'));
+  });
+
+  it('should disconnect in finally block even after error', async () => {
+    mockExecuteRaw.mockRejectedValue(new Error('DB error'));
+
+    await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'SQL content');
+
+    expect(disconnectPrisma).toHaveBeenCalled();
+  });
+
+  it('should handle disconnectPrisma failure silently', async () => {
+    mockExecuteRaw.mockResolvedValue(1);
+    vi.mocked(disconnectPrisma).mockRejectedValue(new Error('Already disconnected'));
+
+    // Should not throw
+    await reconcileMigrationChecksum('/migrations/20260228015810_test_migration', 'SQL content');
+
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Checksum reconciled'));
   });
 });

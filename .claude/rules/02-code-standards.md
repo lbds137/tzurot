@@ -110,6 +110,7 @@ logger.error(error, 'Failed to process');
 3. **When extracting code to a new file, extract/create the `.test.ts` file too** - Do NOT add `structure.test.ts` exclusions for modules with logic
 4. Mock all external dependencies - Discord, Redis, Prisma, AI
 5. Use fake timers - No real delays in tests
+6. **Tests must be self-contained** - Each `it()` block sets up its own data; never depend on side effects from prior tests. Use `beforeAll`/`beforeEach` in a sub-describe for shared fixtures.
 
 **All packages are enforced by `structure.test.ts`** — services, common-types, embeddings, AND tooling. Adding a new `.ts` file without a colocated `.test.ts` will fail the test suite unless the file matches an exclusion pattern (types, constants, thin CLI wrappers, etc.).
 
