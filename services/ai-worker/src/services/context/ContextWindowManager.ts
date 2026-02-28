@@ -166,7 +166,8 @@ export class ContextWindowManager {
     //
     // Design decision: we accept the overrun rather than trimming because:
     // 1. The serializer's own budget check (chars/4) is conservative for ASCII/English,
-    //    so overruns only occur with non-ASCII-heavy content and are typically small.
+    //    so overruns only occur with non-ASCII-heavy content and are typically small
+    //    (typically <50 tokens for ASCII; CJK-heavy content may be higher).
     // 2. Trimming would require re-serializing all groups (the XML is already built).
     // 3. The model's context limit has a separate safety margin — historyBudget is the
     //    *history slice* of a larger window, not the hard model limit.
