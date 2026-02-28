@@ -222,22 +222,8 @@ export class ContentBudgetManager {
       historyBudget = reducedBudget;
     }
 
-    // Map cross-channel history to CrossChannelGroup format for CWM
-    const crossChannelGroups = context.crossChannelHistory?.map(group => ({
-      channelEnvironment: group.channelEnvironment,
-      messages: group.messages.map(msg => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        tokenCount: msg.tokenCount,
-        createdAt: msg.createdAt,
-        personaId: msg.personaId,
-        personaName: msg.personaName,
-        discordUsername: msg.discordUsername,
-        personalityId: msg.personalityId,
-        personalityName: msg.personalityName,
-      })),
-    }));
+    // Pass cross-channel history through to CWM (structurally compatible with CrossChannelGroup)
+    const crossChannelGroups = context.crossChannelHistory;
 
     const { serializedHistory, historyTokensUsed, messagesDropped } =
       this.contextWindowManager.selectAndSerializeHistory(

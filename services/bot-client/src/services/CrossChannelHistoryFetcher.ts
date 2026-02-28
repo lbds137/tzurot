@@ -30,7 +30,8 @@ interface FetchOptions {
   personaId: string;
   personalityId: string;
   currentChannelId: string;
-  remainingBudget: number;
+  /** Maximum number of messages to fetch across all channels */
+  remainingMessageBudget: number;
   discordClient: Client;
   conversationHistoryService: ConversationHistoryService;
 }
@@ -123,6 +124,7 @@ function buildFallbackEnvironment(channelId: string, guildId: string | null): Di
   }
   return {
     type: 'guild',
+    guild: { id: guildId, name: 'unknown-server' },
     channel: { id: channelId, name: 'unknown-channel', type: 'text' },
   };
 }
@@ -157,12 +159,12 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingBudget,
+    remainingMessageBudget,
     discordClient,
     conversationHistoryService,
   } = opts;
 
-  if (remainingBudget <= 0) {
+  if (remainingMessageBudget <= 0) {
     return [];
   }
 
@@ -170,7 +172,7 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingBudget
+    remainingMessageBudget
   );
 
   if (groups.length === 0) {
@@ -228,15 +230,15 @@ export async function fetchCrossChannelIfEnabled(opts: {
     return undefined;
   }
 
-  const remainingBudget = opts.dbLimit - opts.currentHistoryLength;
-  if (remainingBudget <= 0) {
+  const remainingMessageBudget = opts.dbLimit - opts.currentHistoryLength;
+  if (remainingMessageBudget <= 0) {
     logger.debug(
       {
         channelId: opts.channelId,
         currentHistoryLength: opts.currentHistoryLength,
         dbLimit: opts.dbLimit,
       },
-      '[CrossChannelHistoryFetcher] No remaining budget for cross-channel history'
+      '[CrossChannelHistoryFetcher] No remaining message budget for cross-channel history'
     );
     return undefined;
   }
@@ -245,7 +247,7 @@ export async function fetchCrossChannelIfEnabled(opts: {
     personaId: opts.personaId,
     personalityId: opts.personality.id,
     currentChannelId: opts.channelId,
-    remainingBudget,
+    remainingMessageBudget,
     discordClient: opts.discordClient,
     conversationHistoryService: opts.conversationHistoryService,
   });
@@ -253,8 +255,8 @@ export async function fetchCrossChannelIfEnabled(opts: {
   return groups.length > 0 ? groups : undefined;
 }
 
-/** Map resolved cross-channel groups to the API format expected by MessageContext */
-export function mapCrossChannelToApiFormat(groups: ResolvedCrossChannelGroup[]): {
+/** Cross-channel group mapped to the API/job payload format */
+export interface ApiCrossChannelGroup {
   channelEnvironment: DiscordEnvironment;
   messages: {
     id: string;
@@ -268,7 +270,12 @@ export function mapCrossChannelToApiFormat(groups: ResolvedCrossChannelGroup[]):
     personalityId?: string;
     personalityName?: string;
   }[];
-}[] {
+}
+
+/** Map resolved cross-channel groups to the API format expected by MessageContext */
+export function mapCrossChannelToApiFormat(
+  groups: ResolvedCrossChannelGroup[]
+): ApiCrossChannelGroup[] {
   return groups.map(group => ({
     channelEnvironment: group.channelEnvironment,
     messages: group.messages.map(msg => ({
