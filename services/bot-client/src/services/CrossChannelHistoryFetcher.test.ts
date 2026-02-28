@@ -352,6 +352,79 @@ describe('fetchCrossChannelHistory', () => {
     expect(result[0].messages).toHaveLength(1);
     expect(result[1].messages).toHaveLength(2);
   });
+
+  it('should detect category parent for guild channels', async () => {
+    const groups: CrossChannelHistoryGroup[] = [
+      {
+        channelId: 'channel-2',
+        guildId: 'guild-1',
+        messages: [createMockMessage()],
+      },
+    ];
+
+    const discordClient = createMockDiscordClient({
+      'channel-2': {
+        type: ChannelType.GuildText,
+        name: 'general',
+        id: 'channel-2',
+        guild: { id: 'guild-1', name: 'Test Server' },
+        isThread: () => false,
+        parent: {
+          id: 'cat-1',
+          name: 'Text Channels',
+          type: ChannelType.GuildCategory,
+        },
+      } as never,
+    });
+
+    const result = await fetchCrossChannelHistory({
+      personaId: 'persona-1',
+      personalityId: 'personality-1',
+      currentChannelId: 'channel-1',
+      remainingMessageBudget: 50,
+      discordClient,
+      conversationHistoryService: createMockConversationHistoryService(groups),
+    });
+
+    expect(result).toHaveLength(1);
+    const env = result[0].channelEnvironment;
+    expect(env.type).toBe('guild');
+    expect(env.category).toEqual({ id: 'cat-1', name: 'Text Channels' });
+    expect(env.channel.name).toBe('general');
+  });
+
+  it('should use "unknown" for unmapped channel types', async () => {
+    const groups: CrossChannelHistoryGroup[] = [
+      {
+        channelId: 'channel-2',
+        guildId: 'guild-1',
+        messages: [createMockMessage()],
+      },
+    ];
+
+    const discordClient = createMockDiscordClient({
+      'channel-2': {
+        type: ChannelType.GuildStageVoice,
+        name: 'stage-channel',
+        id: 'channel-2',
+        guild: { id: 'guild-1', name: 'Test Server' },
+        isThread: () => false,
+        parent: null,
+      } as never,
+    });
+
+    const result = await fetchCrossChannelHistory({
+      personaId: 'persona-1',
+      personalityId: 'personality-1',
+      currentChannelId: 'channel-1',
+      remainingMessageBudget: 50,
+      discordClient,
+      conversationHistoryService: createMockConversationHistoryService(groups),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].channelEnvironment.channel.type).toBe('unknown');
+  });
 });
 
 describe('fetchCrossChannelIfEnabled', () => {
