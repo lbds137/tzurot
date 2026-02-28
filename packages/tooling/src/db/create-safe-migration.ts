@@ -236,7 +236,7 @@ export function computeFileChecksum(content: string): string {
  *
  * No-op if the migration hasn't been applied yet (no matching row).
  */
-async function reconcileMigrationChecksum(
+export async function reconcileMigrationChecksum(
   migrationDir: string,
   sanitizedContent: string
 ): Promise<void> {
