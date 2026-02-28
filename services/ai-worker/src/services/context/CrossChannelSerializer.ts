@@ -96,7 +96,7 @@ export function serializeCrossChannelHistory(
 
   const messagesIncluded = selectedGroups.reduce((sum, g) => sum + g.messages.length, 0);
   const xml = formatCrossChannelHistoryAsXml(selectedGroups, personalityName);
-  logger.info(
+  logger.debug(
     { groupCount: selectedGroups.length, messagesIncluded, tokensUsed, budget: tokenBudget },
     '[CrossChannelSerializer] Serialized channel groups'
   );
