@@ -136,12 +136,7 @@ export class ContextWindowManager {
     };
   }
 
-  /**
-   * Select history messages that fit within token budget
-   *
-   * Uses recency-based strategy: work backwards from newest message,
-   * adding messages until budget is exhausted.
-   */
+  /** Select history messages within budget (recency-based: newest first). */
   private selectHistoryWithinBudget(
     conversationHistory: BaseMessage[],
     rawHistory: { role: string; content: string; tokenCount?: number }[] | undefined,
@@ -273,10 +268,13 @@ export class ContextWindowManager {
       );
 
       if (crossChannelXml.length > 0) {
+        // Re-measure actual tokens; may slightly exceed historyBudget due to char/4
+        // approximation in serializeCrossChannelHistory, but overrun is bounded (XML overhead only).
         const crossTokens = countTextTokens(crossChannelXml);
         actualTokens += crossTokens;
         logger.info(
-          `[CWM] Added cross-channel history (${crossTokens} tokens, ${crossChannelGroups.length} channels)`
+          { crossTokens, channelCount: crossChannelGroups.length },
+          '[CWM] Added cross-channel history'
         );
       }
     }
@@ -315,7 +313,8 @@ export class ContextWindowManager {
 
       if (estimatedTokens + entryTokens > budgetRemaining) {
         logger.debug(
-          `[CWM] Stopping history selection: would exceed budget (${estimatedTokens + entryTokens} > ${budgetRemaining})`
+          { wouldUse: estimatedTokens + entryTokens, budgetRemaining },
+          '[CWM] Stopping history selection: would exceed budget'
         );
         break;
       }
@@ -328,7 +327,13 @@ export class ContextWindowManager {
     const tokensUsed = countTextTokens(currentChannelXml) + wrapperOverhead;
 
     logger.info(
-      `[CWM] Selected ${selectedEntries.length}/${rawHistory.length} history messages (${tokensUsed} tokens, budget: ${historyBudget})`
+      {
+        selected: selectedEntries.length,
+        total: rawHistory.length,
+        tokensUsed,
+        budget: historyBudget,
+      },
+      '[CWM] Selected history messages'
     );
 
     return { selectedEntries, currentChannelXml, tokensUsed };
