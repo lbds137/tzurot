@@ -398,7 +398,9 @@ export class ConversationHistoryService {
    * @param personaId User's persona ID
    * @param personalityId AI personality ID
    * @param excludeChannelId Channel to exclude (the current channel)
-   * @param limit Maximum total messages to fetch across all channels (capped at 100)
+   * @param limit Maximum total messages to fetch across all channels (capped at 100).
+   *   The limit applies globally, not per-channel. If the N most recent messages
+   *   all come from one channel, older channels will be entirely absent from results.
    */
   async getCrossChannelHistory(
     personaId: string,
@@ -462,7 +464,7 @@ export class ConversationHistoryService {
 
       return groups;
     } catch (error) {
-      logger.error({ err: error }, `Failed to get cross-channel conversation history`);
+      logger.error({ err: error }, 'Failed to get cross-channel conversation history');
       return [];
     }
   }
