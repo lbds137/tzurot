@@ -102,6 +102,14 @@ vi.mock('./DiscordChannelFetcher.js', () => ({
   },
 }));
 
+// Mock for CrossChannelHistoryFetcher
+const mockFetchCrossChannelIfEnabled = vi.fn().mockResolvedValue(undefined);
+
+vi.mock('./CrossChannelHistoryFetcher.js', () => ({
+  fetchCrossChannelIfEnabled: (...args: unknown[]) => mockFetchCrossChannelIfEnabled(...args),
+  mapCrossChannelToApiFormat: vi.fn(() => []),
+}));
+
 // Import after mocks
 import { ConversationHistoryService, UserService } from '@tzurot/common-types';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
@@ -1115,6 +1123,31 @@ describe('MessageContextBuilder', () => {
       // Old keys should be gone
       expect(result.context.participantGuildInfo?.['discord:user-alice']).toBeUndefined();
       expect(result.context.participantGuildInfo?.['discord:user-bob']).toBeUndefined();
+    });
+
+    it('should suppress cross-channel history when isWeighInMode is true', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+
+      await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        crossChannelHistoryEnabled: true,
+        isWeighInMode: true,
+      });
+
+      // Cross-channel should be called with enabled: false due to weigh-in mode
+      expect(mockFetchCrossChannelIfEnabled).toHaveBeenCalledWith(
+        expect.objectContaining({ enabled: false })
+      );
     });
   });
 });
