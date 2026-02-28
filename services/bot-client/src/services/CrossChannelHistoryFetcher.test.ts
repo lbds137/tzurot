@@ -225,6 +225,33 @@ describe('fetchCrossChannelHistory', () => {
     expect(result[0].channelEnvironment.type).toBe('dm');
   });
 
+  it('should use fallback environment when channel fetch returns null', async () => {
+    const groups: CrossChannelHistoryGroup[] = [
+      {
+        channelId: 'deleted-channel',
+        guildId: 'guild-1',
+        messages: [createMockMessage()],
+      },
+    ];
+
+    // channels.fetch resolves to null for deleted/unavailable channels
+    const discordClient = createMockDiscordClient({ 'deleted-channel': null });
+
+    const result = await fetchCrossChannelHistory({
+      personaId: 'persona-1',
+      personalityId: 'personality-1',
+      currentChannelId: 'channel-1',
+      remainingMessageBudget: 50,
+      discordClient,
+      conversationHistoryService: createMockConversationHistoryService(groups),
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].channelEnvironment.type).toBe('guild');
+    expect(result[0].channelEnvironment.guild).toEqual({ id: 'guild-1', name: 'unknown-server' });
+    expect(result[0].channelEnvironment.channel.name).toBe('unknown-channel');
+  });
+
   it('should use fallback environment when channel fetch fails', async () => {
     const groups: CrossChannelHistoryGroup[] = [
       {
