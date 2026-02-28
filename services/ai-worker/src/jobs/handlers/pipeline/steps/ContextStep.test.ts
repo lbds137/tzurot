@@ -565,6 +565,52 @@ describe('ContextStep', () => {
         );
       });
 
+      it('should set oldestHistoryTimestamp from cross-channel alone when no current history', () => {
+        const crossChannelHistory = [
+          {
+            channelEnvironment: {
+              type: 'guild' as const,
+              guild: { id: 'g-1', name: 'Server' },
+              channel: { id: 'ch-other', name: 'general', type: 'text' },
+            },
+            messages: [
+              {
+                id: 'msg-cross-1',
+                role: MessageRole.User,
+                content: 'Old cross-channel message',
+                createdAt: '2024-01-05T08:00:00Z',
+              },
+              {
+                id: 'msg-cross-2',
+                role: MessageRole.Assistant,
+                content: 'Response',
+                createdAt: '2024-01-10T12:00:00Z',
+              },
+            ],
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', crossChannelHistory },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Cross-channel timestamps should be the sole source for oldestHistoryTimestamp
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-05T08:00:00Z').getTime()
+        );
+      });
+
       it('should map cross-channel history to pipeline format', () => {
         const crossChannelHistory = [
           {
