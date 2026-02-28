@@ -416,8 +416,11 @@ export class MessageContextBuilder {
     const participantGuildInfo = extendedContext.participantGuildInfo;
 
     // Step 4b: Fetch cross-channel history (if enabled and there's remaining budget)
+    // Disabled in weigh-in mode: weigh-in is an anonymous poke that skips LTM and history
+    // from other channels. Cross-channel history would surface prior conversations,
+    // contradicting the "fresh perspective" intent of weigh-in.
     const crossChannelGroups = await fetchCrossChannelIfEnabled({
-      enabled: options.crossChannelHistoryEnabled === true,
+      enabled: options.crossChannelHistoryEnabled === true && options.isWeighInMode !== true,
       channelId: message.channel.id,
       personaId,
       personality,
