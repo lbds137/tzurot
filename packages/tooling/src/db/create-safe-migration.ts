@@ -240,6 +240,15 @@ async function reconcileMigrationChecksum(
   sanitizedContent: string
 ): Promise<void> {
   const migrationName = basename(migrationDir);
+
+  // Validate format before embedding in SQL (defense in depth)
+  if (!/^\d{14}_[\w]+$/.test(migrationName)) {
+    console.log(
+      chalk.dim('   (Unexpected migration name format — skipping checksum reconciliation)')
+    );
+    return;
+  }
+
   const checksum = computeFileChecksum(sanitizedContent);
 
   // Use prisma db execute to update the checksum.
