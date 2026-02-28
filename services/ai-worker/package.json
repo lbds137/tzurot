@@ -26,7 +26,7 @@
     "@tzurot/common-types": "workspace:*",
     "@tzurot/embeddings": "workspace:*",
     "bullmq": "^5.70.1",
-    "fast-xml-parser": "^5.3.7",
+    "fast-xml-parser": "^5.3.8",
     "ioredis": "^5.9.3",
     "langchain": "^1.2.25",
     "onnxruntime-node": "^1.24.2",
