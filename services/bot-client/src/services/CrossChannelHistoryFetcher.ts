@@ -64,7 +64,7 @@ async function resolveChannelEnvironment(
 
     return buildFallbackEnvironment(channelId, guildId);
   } catch (error) {
-    logger.debug(
+    logger.warn(
       { err: error, channelId },
       '[CrossChannelHistoryFetcher] Failed to fetch channel, using fallback environment'
     );

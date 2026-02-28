@@ -425,8 +425,50 @@ describe('mapCrossChannelToApiFormat', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].channelEnvironment.type).toBe('dm');
-    expect(result[0].messages[0].role).toBe(MessageRole.User);
-    expect(result[0].messages[0].createdAt).toBe('2026-02-26T10:00:00.000Z');
-    expect(result[0].messages[0].id).toBe('msg-1');
+    const msg = result[0].messages[0];
+    expect(msg.id).toBe('msg-1');
+    expect(msg.role).toBe(MessageRole.User);
+    expect(msg.content).toBe('Hello');
+    expect(msg.tokenCount).toBe(5);
+    expect(msg.createdAt).toBe('2026-02-26T10:00:00.000Z');
+    expect(msg.personaId).toBe('p-1');
+    expect(msg.personaName).toBe('User');
+  });
+
+  it('should pass through optional disambiguation fields', () => {
+    const date = new Date('2026-02-26T10:00:00Z');
+    const groups = [
+      {
+        channelEnvironment: {
+          type: 'guild' as const,
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [
+          {
+            id: 'msg-2',
+            role: MessageRole.Assistant,
+            content: 'Response',
+            tokenCount: 10,
+            createdAt: date,
+            personaId: 'p-1',
+            personaName: 'User',
+            discordUsername: 'alice#1234',
+            personalityId: 'pers-1',
+            personalityName: 'TestBot',
+            channelId: 'ch-1',
+            guildId: 'g-1',
+            discordMessageId: ['d-2'],
+          } as CrossChannelHistoryGroup['messages'][0],
+        ],
+      },
+    ];
+
+    const result = mapCrossChannelToApiFormat(groups);
+
+    const msg = result[0].messages[0];
+    expect(msg.discordUsername).toBe('alice#1234');
+    expect(msg.personalityId).toBe('pers-1');
+    expect(msg.personalityName).toBe('TestBot');
   });
 });

@@ -59,6 +59,9 @@ export function serializeCrossChannelHistory(
       // Use cached tokenCount when available, fall back to chars/4 approximation
       const msgTokens =
         msg.tokenCount ?? Math.ceil(getFormattedMessageCharLength(msg, personalityName) / 4);
+      // Messages are in chronological order (oldest first) as returned by
+      // getCrossChannelHistory. Breaking here skips remaining (newer) messages
+      // in this group — acceptable since we prioritize fitting whole groups.
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
         break;
       }
