@@ -204,6 +204,8 @@ describe('PersonalityMessageHandler', () => {
           personaName: 'Alicia',
           createdAt: new Date(),
           discordMessageId: [],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 

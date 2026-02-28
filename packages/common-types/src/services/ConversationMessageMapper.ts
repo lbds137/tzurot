@@ -28,9 +28,9 @@ export interface ConversationMessage {
   // AI personality info (for multi-AI channel attribution)
   personalityId?: string; // The AI personality this message belongs to
   personalityName?: string; // The AI personality's display name (for assistant messages)
-  // Channel info (populated for cross-channel history results)
-  channelId?: string; // Discord channel ID
-  guildId?: string | null; // Discord guild ID (null for DMs)
+  // Channel info (always populated — used for cross-channel history grouping)
+  channelId: string; // Discord channel ID
+  guildId: string | null; // Discord guild ID (null for DMs)
 }
 
 /**

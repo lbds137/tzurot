@@ -26,6 +26,8 @@ function createMessage(partial: Partial<ConversationMessage>): ConversationMessa
     createdAt: partial.createdAt ?? new Date(),
     personaId: partial.personaId ?? 'test-persona',
     discordMessageId: partial.discordMessageId ?? ['test-discord-id'],
+    channelId: 'test-channel',
+    guildId: 'test-guild',
     ...partial,
   };
 }
