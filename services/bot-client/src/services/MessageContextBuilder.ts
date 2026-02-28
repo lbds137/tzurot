@@ -423,7 +423,10 @@ export class MessageContextBuilder {
       discordClient: message.client,
       conversationHistoryService: this.conversationHistory,
     }).catch((err: unknown) => {
-      logger.warn({ err }, '[MCB] Cross-channel fetch failed, continuing without');
+      logger.warn(
+        { err, personaId, personalityId: personality.id, channelId: message.channel.id },
+        '[MCB] Cross-channel fetch failed, continuing without'
+      );
       return undefined;
     });
 
