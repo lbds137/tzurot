@@ -146,6 +146,52 @@ describe('fetchCrossChannelHistory', () => {
     expect(result[0].messages).toHaveLength(1);
   });
 
+  it('should resolve thread channels with parent swap', async () => {
+    const groups: CrossChannelHistoryGroup[] = [
+      {
+        channelId: 'thread-1',
+        guildId: 'guild-1',
+        messages: [createMockMessage()],
+      },
+    ];
+
+    const discordClient = createMockDiscordClient({
+      'thread-1': {
+        type: ChannelType.PublicThread,
+        name: 'my-thread',
+        id: 'thread-1',
+        guild: { id: 'guild-1', name: 'Test Server' },
+        isThread: () => true,
+        parent: {
+          id: 'parent-channel',
+          name: 'general',
+          type: ChannelType.GuildText,
+        },
+      } as never,
+    });
+
+    const result = await fetchCrossChannelHistory({
+      personaId: 'persona-1',
+      personalityId: 'personality-1',
+      currentChannelId: 'channel-1',
+      remainingMessageBudget: 50,
+      discordClient,
+      conversationHistoryService: createMockConversationHistoryService(groups),
+    });
+
+    expect(result).toHaveLength(1);
+    const env = result[0].channelEnvironment;
+    expect(env.type).toBe('guild');
+    // Channel should be swapped to parent
+    expect(env.channel.id).toBe('parent-channel');
+    expect(env.channel.name).toBe('general');
+    // Thread info should be set
+    expect(env.thread).toBeDefined();
+    expect(env.thread?.id).toBe('thread-1');
+    expect(env.thread?.name).toBe('my-thread');
+    expect(env.thread?.parentChannel?.id).toBe('parent-channel');
+  });
+
   it('should resolve DM channel environments', async () => {
     const groups: CrossChannelHistoryGroup[] = [
       {

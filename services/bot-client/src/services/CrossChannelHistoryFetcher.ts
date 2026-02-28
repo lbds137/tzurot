@@ -12,9 +12,9 @@ import {
   ConversationHistoryService,
   createLogger,
   type CrossChannelHistoryGroup,
+  type CrossChannelHistoryGroupEntry,
   type DiscordEnvironment,
   type LoadedPersonality,
-  type MessageRole,
 } from '@tzurot/common-types';
 
 const logger = createLogger('CrossChannelHistoryFetcher');
@@ -257,27 +257,10 @@ export async function fetchCrossChannelIfEnabled(opts: {
   return groups.length > 0 ? groups : undefined;
 }
 
-/** Cross-channel group mapped to the API/job payload format */
-export interface ApiCrossChannelGroup {
-  channelEnvironment: DiscordEnvironment;
-  messages: {
-    id: string;
-    role: MessageRole;
-    content: string;
-    tokenCount?: number;
-    createdAt: string;
-    personaId?: string;
-    personaName?: string;
-    discordUsername?: string;
-    personalityId?: string;
-    personalityName?: string;
-  }[];
-}
-
-/** Map resolved cross-channel groups to the API format expected by MessageContext */
+/** Map resolved cross-channel groups to the API/job payload format (Date→string serialization) */
 export function mapCrossChannelToApiFormat(
   groups: ResolvedCrossChannelGroup[]
-): ApiCrossChannelGroup[] {
+): CrossChannelHistoryGroupEntry[] {
   return groups.map(group => ({
     channelEnvironment: group.channelEnvironment,
     messages: group.messages.map(msg => ({
