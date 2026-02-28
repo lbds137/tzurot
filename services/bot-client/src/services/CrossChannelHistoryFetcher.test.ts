@@ -9,7 +9,7 @@ import {
   fetchCrossChannelIfEnabled,
   mapCrossChannelToApiFormat,
 } from './CrossChannelHistoryFetcher.js';
-import type { CrossChannelHistoryGroup, LoadedPersonality } from '@tzurot/common-types';
+import type { CrossChannelHistoryGroup } from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
 
 // Mock common-types logger
@@ -361,7 +361,7 @@ describe('fetchCrossChannelIfEnabled', () => {
       enabled: false,
       channelId: 'channel-1',
       personaId: 'persona-1',
-      personality: { id: 'p-1' } as LoadedPersonality,
+      personalityId: 'p-1',
       currentHistoryLength: 0,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
@@ -375,7 +375,7 @@ describe('fetchCrossChannelIfEnabled', () => {
       enabled: true,
       channelId: 'channel-1',
       personaId: 'persona-1',
-      personality: { id: 'p-1' } as LoadedPersonality,
+      personalityId: 'p-1',
       currentHistoryLength: 50,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
@@ -393,7 +393,7 @@ describe('fetchCrossChannelIfEnabled', () => {
       enabled: true,
       channelId: 'channel-1',
       personaId: 'persona-1',
-      personality: { id: 'p-1' } as LoadedPersonality,
+      personalityId: 'p-1',
       currentHistoryLength: 1,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),
@@ -408,7 +408,7 @@ describe('fetchCrossChannelIfEnabled', () => {
       enabled: true,
       channelId: 'channel-1',
       personaId: 'persona-1',
-      personality: { id: 'p-1' } as LoadedPersonality,
+      personalityId: 'p-1',
       currentHistoryLength: 1,
       dbLimit: 50,
       discordClient: createMockDiscordClient(),

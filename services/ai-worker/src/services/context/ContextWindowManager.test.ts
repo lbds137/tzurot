@@ -9,6 +9,22 @@ describe('ContextWindowManager', () => {
     manager = new ContextWindowManager();
   });
 
+  describe('calculateHistoryBudget', () => {
+    it('should calculate correct budget breakdown', () => {
+      // 1000 total - 200 system - 100 current - 50 memory = 650 history budget
+      const budget = manager.calculateHistoryBudget(1000, 200, 100, 50);
+
+      expect(budget).toBe(650);
+    });
+
+    it('should clamp to zero when components exceed context window', () => {
+      // 100 total - 500 system - 300 current - 0 memory = -700, clamped to 0
+      const budget = manager.calculateHistoryBudget(100, 500, 300, 0);
+
+      expect(budget).toBe(0);
+    });
+  });
+
   describe('selectAndSerializeHistory', () => {
     it('should serialize current channel history as XML', () => {
       const rawHistory = [

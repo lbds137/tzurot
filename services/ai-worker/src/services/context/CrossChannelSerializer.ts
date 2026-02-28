@@ -55,17 +55,20 @@ export function serializeCrossChannelHistory(
     const selectedMessages: typeof group.messages = [];
     let groupTokens = channelOverhead;
 
-    for (const msg of group.messages) {
+    // Recency strategy: iterate newest-first to prioritize recent messages when
+    // budget is tight (matching current-channel selection in selectCurrentChannelEntries).
+    // Messages arrive in chronological order (oldest first) from getCrossChannelHistory,
+    // so we iterate in reverse and then restore chronological order for XML output.
+    const messages = group.messages;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const msg = messages[i];
       // Use cached tokenCount when available, fall back to chars/4 approximation
       const msgTokens =
         msg.tokenCount ?? Math.ceil(getFormattedMessageCharLength(msg, personalityName) / 4);
-      // Messages are in chronological order (oldest first) — getCrossChannelHistory
-      // fetches newest-first from DB then .toReversed() per group. Breaking here
-      // skips remaining (newer) messages in the group.
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
         break;
       }
-      selectedMessages.push(msg);
+      selectedMessages.unshift(msg); // Restore chronological order
       groupTokens += msgTokens;
     }
 

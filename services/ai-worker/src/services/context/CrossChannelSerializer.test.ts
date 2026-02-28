@@ -89,7 +89,27 @@ describe('serializeCrossChannelHistory', () => {
     expect(result.xml).toContain('Direct Message');
   });
 
-  it('should include messages within budget and exclude those that exceed it', () => {
+  it('should use recency strategy: keep newest messages when budget is tight', () => {
+    const group = createGroup({
+      messages: [
+        { id: 'msg-1', role: MessageRole.User, content: 'Oldest message', tokenCount: 50 },
+        { id: 'msg-2', role: MessageRole.Assistant, content: 'Second message', tokenCount: 50 },
+        { id: 'msg-3', role: MessageRole.User, content: 'Third message', tokenCount: 50 },
+        { id: 'msg-4', role: MessageRole.Assistant, content: 'Newest message', tokenCount: 50 },
+      ],
+    });
+
+    // Budget fits ~2 messages plus overhead, not all 4
+    const result = serializeCrossChannelHistory([group], 'TestAI', 150);
+    // Recency: should keep newest (msg-4, msg-3), drop oldest (msg-1, msg-2)
+    expect(result.xml).toContain('Newest message');
+    expect(result.xml).toContain('Third message');
+    expect(result.xml).not.toContain('Oldest message');
+    expect(result.xml).not.toContain('Second message');
+    expect(result.messagesIncluded).toBe(2);
+  });
+
+  it('should skip entire group when newest message exceeds budget (contiguous tail)', () => {
     const group = createGroup({
       messages: [
         { id: 'msg-1', role: MessageRole.User, content: 'Short', tokenCount: 5 },
@@ -103,12 +123,10 @@ describe('serializeCrossChannelHistory', () => {
       ],
     });
 
-    // Large enough budget to fit short messages but not the 500-token message
+    // Budget can't fit msg-3 (newest), so contiguous-tail strategy skips entire group
     const result = serializeCrossChannelHistory([group], 'TestAI', 200);
-    expect(result.xml).toContain('Short');
-    expect(result.xml).toContain('Also short');
-    expect(result.xml).not.toContain('This is a very long message');
-    expect(result.messagesIncluded).toBe(2);
+    expect(result.xml).toBe('');
+    expect(result.messagesIncluded).toBe(0);
   });
 
   it('should return empty when budget is too tight for any messages', () => {
