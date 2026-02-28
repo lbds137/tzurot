@@ -28,6 +28,8 @@ describe('ConversationMessageMapper', () => {
       expect(conversationHistorySelect.createdAt).toBe(true);
       expect(conversationHistorySelect.personaId).toBe(true);
       expect(conversationHistorySelect.personalityId).toBe(true);
+      expect(conversationHistorySelect.channelId).toBe(true);
+      expect(conversationHistorySelect.guildId).toBe(true);
       expect(conversationHistorySelect.discordMessageId).toBe(true);
       expect(conversationHistorySelect.messageMetadata).toBe(true);
     });
@@ -116,6 +118,8 @@ describe('ConversationMessageMapper', () => {
       createdAt: new Date('2024-01-15T10:30:00Z'),
       personaId: 'persona-uuid-456',
       personalityId: 'personality-uuid-789',
+      channelId: '123456789012345678',
+      guildId: '987654321098765432',
       discordMessageId: ['discord-123'],
       messageMetadata: null,
       persona: {
@@ -254,6 +258,30 @@ describe('ConversationMessageMapper', () => {
 
       expect(result.isForwarded).toBeUndefined();
     });
+
+    it('maps channelId and guildId for cross-channel history', () => {
+      const record = createMockRecord({
+        channelId: '111222333444555666',
+        guildId: '999888777666555444',
+      });
+
+      const result = mapToConversationMessage(record);
+
+      expect(result.channelId).toBe('111222333444555666');
+      expect(result.guildId).toBe('999888777666555444');
+    });
+
+    it('maps null guildId for DM channels', () => {
+      const record = createMockRecord({
+        channelId: '111222333444555666',
+        guildId: null,
+      });
+
+      const result = mapToConversationMessage(record);
+
+      expect(result.channelId).toBe('111222333444555666');
+      expect(result.guildId).toBeNull();
+    });
   });
 
   describe('mapToConversationMessages', () => {
@@ -273,6 +301,8 @@ describe('ConversationMessageMapper', () => {
           createdAt: new Date('2024-01-15T10:00:00Z'),
           personaId: 'persona-1',
           personalityId: 'personality-1',
+          channelId: '123456789012345678',
+          guildId: '987654321098765432',
           discordMessageId: ['d-1'],
           messageMetadata: null,
           persona: {
@@ -290,6 +320,8 @@ describe('ConversationMessageMapper', () => {
           createdAt: new Date('2024-01-15T10:01:00Z'),
           personaId: 'persona-2',
           personalityId: 'personality-1',
+          channelId: '123456789012345678',
+          guildId: '987654321098765432',
           discordMessageId: ['d-2'],
           messageMetadata: null,
           persona: {
@@ -320,6 +352,8 @@ describe('ConversationMessageMapper', () => {
           createdAt: new Date(),
           personaId: 'p1',
           personalityId: 'personality-1',
+          channelId: '123456789012345678',
+          guildId: null,
           discordMessageId: [],
           messageMetadata: null,
           persona: { name: 'N', preferredName: null, owner: { username: 'u' } },
@@ -333,6 +367,8 @@ describe('ConversationMessageMapper', () => {
           createdAt: new Date(),
           personaId: 'p2',
           personalityId: 'personality-1',
+          channelId: '123456789012345678',
+          guildId: null,
           discordMessageId: [],
           messageMetadata: null,
           persona: { name: 'N', preferredName: null, owner: { username: 'u' } },
