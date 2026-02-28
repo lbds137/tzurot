@@ -445,13 +445,19 @@ export class ConversationHistoryService {
         groups.push({
           channelId,
           guildId: channelMessages[0].guildId,
-          messages: mapToConversationMessages(channelMessages.reverse()),
+          messages: mapToConversationMessages(channelMessages.toReversed()),
         });
       }
 
       logger.debug(
-        `Retrieved ${messages.length} cross-channel messages in ${groups.length} channel(s) ` +
-          `(persona: ${personaId.substring(0, 8)}..., personality: ${personalityId.substring(0, 8)}..., excluded: ${excludeChannelId})`
+        {
+          messageCount: messages.length,
+          groupCount: groups.length,
+          personaId: personaId.substring(0, 8),
+          personalityId: personalityId.substring(0, 8),
+          excludeChannelId,
+        },
+        'Retrieved cross-channel messages'
       );
 
       return groups;
