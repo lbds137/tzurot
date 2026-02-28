@@ -501,7 +501,7 @@ export class MessageContextBuilder {
       mentionedPersonas,
       referencedChannels,
       crossChannelHistory:
-        crossChannelGroups !== undefined && crossChannelGroups.length > 0
+        crossChannelGroups !== undefined
           ? mapCrossChannelToApiFormat(crossChannelGroups)
           : undefined,
     };

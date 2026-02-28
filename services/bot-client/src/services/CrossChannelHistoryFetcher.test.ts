@@ -279,6 +279,10 @@ describe('fetchCrossChannelHistory', () => {
 });
 
 describe('fetchCrossChannelIfEnabled', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should return undefined when not enabled', async () => {
     const result = await fetchCrossChannelIfEnabled({
       enabled: false,
@@ -342,6 +346,10 @@ describe('fetchCrossChannelIfEnabled', () => {
 });
 
 describe('mapCrossChannelToApiFormat', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should map groups to API format with ISO date strings', () => {
     const date = new Date('2026-02-26T10:00:00Z');
     const groups = [

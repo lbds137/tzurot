@@ -370,5 +370,42 @@ describe('ContextWindowManager', () => {
       expect(result.messagesIncluded).toBe(1);
       expect(result.serializedHistory).not.toContain('DM message');
     });
+
+    it('should include cross-channel history even when rawHistory is empty (fresh channel)', () => {
+      const crossChannelGroups = [
+        {
+          channelEnvironment: {
+            type: 'guild' as const,
+            guild: { id: 'g-1', name: 'Server' },
+            channel: { id: 'ch-other', name: 'general', type: 'text' },
+          },
+          messages: [
+            {
+              role: MessageRole.User,
+              content: 'Previous conversation in another channel',
+              createdAt: '2026-02-26T10:00:00Z',
+              personaName: 'TestUser',
+              tokenCount: 15,
+            },
+          ],
+        },
+      ];
+
+      // rawHistory is empty (first message in new channel), but cross-channel exists
+      const result = manager.selectAndSerializeHistory([], 'TestAI', 5000, crossChannelGroups);
+
+      expect(result.serializedHistory).toContain('Previous conversation in another channel');
+      expect(result.serializedHistory).toContain('<prior_conversations>');
+      expect(result.historyTokensUsed).toBeGreaterThan(0);
+      expect(result.messagesIncluded).toBe(0); // No current-channel messages
+      expect(result.messagesDropped).toBe(0);
+    });
+
+    it('should return empty when rawHistory is empty and no cross-channel groups', () => {
+      const result = manager.selectAndSerializeHistory([], 'TestAI', 5000);
+
+      expect(result.serializedHistory).toBe('');
+      expect(result.historyTokensUsed).toBe(0);
+    });
   });
 });
