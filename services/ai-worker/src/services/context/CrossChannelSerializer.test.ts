@@ -147,8 +147,8 @@ describe('serializeCrossChannelHistory', () => {
     expect(result.messagesIncluded).toBe(0);
   });
 
-  it('should skip high-overhead group but not retry with later groups', () => {
-    // Group 1: large messages that don't fit → skipped permanently
+  it('should skip group that does not fit but continue to later groups', () => {
+    // Group 1: large messages that don't fit → skipped
     const expensiveGroup = createGroup({
       channelEnvironment: {
         type: 'guild',

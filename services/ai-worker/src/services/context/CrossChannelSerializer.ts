@@ -75,8 +75,8 @@ export function serializeCrossChannelHistory(
     }
 
     // Groups where no messages fit (e.g., overhead alone exceeds remaining budget) are
-    // skipped permanently — we don't retry later groups since they are lower priority
-    // (ordered most-recent-channel first).
+    // skipped, but the loop continues — a later group with smaller messages may still
+    // fit within the remaining budget.
     if (selectedMessages.length > 0) {
       selectedGroups.push({
         channelEnvironment: group.channelEnvironment,
