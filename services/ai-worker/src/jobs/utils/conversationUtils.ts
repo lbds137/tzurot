@@ -355,6 +355,11 @@ export function formatCrossChannelHistoryAsXml(
     parts.push('</channel_history>');
   }
 
+  // All groups had empty messages — return empty string instead of bare wrapper tags
+  if (parts.length === 1) {
+    return '';
+  }
+
   parts.push('</prior_conversations>');
   return parts.join('\n');
 }
