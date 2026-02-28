@@ -209,9 +209,13 @@ export class PersonalityMessageHandler {
       // Pass extended context settings to enable Discord channel message fetching
       // Get bot user ID from the message's client (available after login)
       const botUserId = message.client.user?.id;
+      const crossChannelHistoryEnabled =
+        resolvedConfig.overrides?.crossChannelHistoryEnabled ?? false;
+
       const buildResult = await this.contextBuilder.buildContext(message, personality, content, {
         extendedContext: extendedContextSettings,
         botUserId,
+        crossChannelHistoryEnabled,
       });
       const { context, personaId, messageContent, referencedMessages, conversationHistory } =
         buildResult;
