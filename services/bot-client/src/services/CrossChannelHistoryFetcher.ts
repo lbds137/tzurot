@@ -142,7 +142,14 @@ function getChannelTypeName(type: ChannelType): string {
     [ChannelType.GuildForum]: 'forum',
     [ChannelType.GuildAnnouncement]: 'announcement',
   };
-  return typeNames[type] ?? 'unknown';
+  const name = typeNames[type];
+  if (name === undefined) {
+    logger.debug(
+      { channelType: type },
+      '[CrossChannelHistoryFetcher] Unmapped Discord channel type'
+    );
+  }
+  return name ?? 'unknown';
 }
 
 /**
