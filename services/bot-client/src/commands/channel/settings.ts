@@ -38,7 +38,6 @@ import {
   isSettingsInteraction,
   parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
-  MEMORY_SETTINGS,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-context');
@@ -58,7 +57,10 @@ const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
   entityType: ENTITY_TYPE,
   titlePrefix: 'Channel',
   color: DISCORD_COLORS.BLURPLE,
-  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
+  // Only include extended context settings — memory settings (crossChannelHistoryEnabled,
+  // shareLtmAcrossPersonalities) are not yet wirable at the channel tier, so they're
+  // excluded to avoid showing uneditable toggles.
+  settings: [...EXTENDED_CONTEXT_SETTINGS],
 };
 
 /**
@@ -231,6 +233,8 @@ function convertToSettingsData(
       effectiveValue: 0,
       source: 'default',
     },
+    // Memory settings are not displayed in the channel dashboard (not in settings config),
+    // but required by SettingsData type. Provide defaults for type satisfaction.
     crossChannelHistoryEnabled: {
       localValue: null,
       effectiveValue: false,
