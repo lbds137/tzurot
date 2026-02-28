@@ -238,6 +238,7 @@ export class ContextWindowManager {
     historyTokensUsed: number;
     messagesIncluded: number;
     messagesDropped: number;
+    crossChannelMessagesIncluded: number;
   } {
     const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
     const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
@@ -248,6 +249,7 @@ export class ContextWindowManager {
         historyTokensUsed: 0,
         messagesIncluded: 0,
         messagesDropped: rawHistory?.length ?? 0,
+        crossChannelMessagesIncluded: 0,
       };
     }
 
@@ -260,12 +262,15 @@ export class ContextWindowManager {
 
     // Serialize cross-channel history if available and budget remains
     let crossChannelXml = '';
+    let crossChannelMessagesIncluded = 0;
     if (hasCrossChannel && actualTokens < historyBudget) {
-      crossChannelXml = serializeCrossChannelHistory(
+      const crossResult = serializeCrossChannelHistory(
         crossChannelGroups,
         personalityName,
         historyBudget - actualTokens
       );
+      crossChannelXml = crossResult.xml;
+      crossChannelMessagesIncluded = crossResult.messagesIncluded;
 
       if (crossChannelXml.length > 0) {
         // Re-measure actual tokens; may slightly exceed historyBudget due to char/4
@@ -273,7 +278,7 @@ export class ContextWindowManager {
         const crossTokens = countTextTokens(crossChannelXml);
         actualTokens += crossTokens;
         logger.info(
-          { crossTokens, channelCount: crossChannelGroups.length },
+          { crossTokens, crossChannelMessagesIncluded, channelCount: crossChannelGroups.length },
           '[CWM] Added cross-channel history'
         );
       }
@@ -292,6 +297,7 @@ export class ContextWindowManager {
       historyTokensUsed: actualTokens,
       messagesIncluded: selectedEntries.length,
       messagesDropped: (rawHistory?.length ?? 0) - selectedEntries.length,
+      crossChannelMessagesIncluded,
     };
   }
 

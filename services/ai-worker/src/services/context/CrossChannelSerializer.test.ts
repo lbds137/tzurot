@@ -51,26 +51,29 @@ function createGroup(
 }
 
 describe('serializeCrossChannelHistory', () => {
-  it('should return empty string for empty groups', () => {
+  it('should return empty for empty groups', () => {
     const result = serializeCrossChannelHistory([], 'TestAI', 1000);
-    expect(result).toBe('');
+    expect(result.xml).toBe('');
+    expect(result.messagesIncluded).toBe(0);
   });
 
-  it('should return empty string when budget is 0', () => {
+  it('should return empty when budget is 0', () => {
     const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 0);
-    expect(result).toBe('');
+    expect(result.xml).toBe('');
+    expect(result.messagesIncluded).toBe(0);
   });
 
   it('should serialize a single group with location block', () => {
     const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 5000);
-    expect(result).toContain('<prior_conversations>');
-    expect(result).toContain('</prior_conversations>');
-    expect(result).toContain('<channel_history>');
-    expect(result).toContain('</channel_history>');
-    expect(result).toContain('<location type="guild">');
-    expect(result).toContain('<server name="Test Server"/>');
-    expect(result).toContain('<channel name="general" type="text"/>');
-    expect(result).toContain('Hello from another channel');
+    expect(result.xml).toContain('<prior_conversations>');
+    expect(result.xml).toContain('</prior_conversations>');
+    expect(result.xml).toContain('<channel_history>');
+    expect(result.xml).toContain('</channel_history>');
+    expect(result.xml).toContain('<location type="guild">');
+    expect(result.xml).toContain('<server name="Test Server"/>');
+    expect(result.xml).toContain('<channel name="general" type="text"/>');
+    expect(result.xml).toContain('Hello from another channel');
+    expect(result.messagesIncluded).toBe(2);
   });
 
   it('should serialize DM groups correctly', () => {
@@ -82,8 +85,8 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     const result = serializeCrossChannelHistory([dmGroup], 'TestAI', 5000);
-    expect(result).toContain('<location type="dm">');
-    expect(result).toContain('Direct Message');
+    expect(result.xml).toContain('<location type="dm">');
+    expect(result.xml).toContain('Direct Message');
   });
 
   it('should include messages within budget and exclude those that exceed it', () => {
@@ -102,19 +105,21 @@ describe('serializeCrossChannelHistory', () => {
 
     // Large enough budget to fit short messages but not the 500-token message
     const result = serializeCrossChannelHistory([group], 'TestAI', 200);
-    expect(result).toContain('Short');
-    expect(result).toContain('Also short');
-    expect(result).not.toContain('This is a very long message');
+    expect(result.xml).toContain('Short');
+    expect(result.xml).toContain('Also short');
+    expect(result.xml).not.toContain('This is a very long message');
+    expect(result.messagesIncluded).toBe(2);
   });
 
-  it('should return empty string when budget is too tight for any messages', () => {
+  it('should return empty when budget is too tight for any messages', () => {
     const group = createGroup({
       messages: [{ id: 'msg-1', role: MessageRole.User, content: 'Hello world', tokenCount: 100 }],
     });
 
     // Budget of 5 is too small for even the wrapper overhead + location block + one message
     const result = serializeCrossChannelHistory([group], 'TestAI', 5);
-    expect(result).toBe('');
+    expect(result.xml).toBe('');
+    expect(result.messagesIncluded).toBe(0);
   });
 
   it('should serialize multiple groups', () => {
@@ -136,8 +141,9 @@ describe('serializeCrossChannelHistory', () => {
     });
 
     const result = serializeCrossChannelHistory([group1, group2], 'TestAI', 5000);
-    expect(result).toContain('general');
-    expect(result).toContain('random');
-    expect(result).toContain('In the random channel');
+    expect(result.xml).toContain('general');
+    expect(result.xml).toContain('random');
+    expect(result.xml).toContain('In the random channel');
+    expect(result.messagesIncluded).toBe(3);
   });
 });

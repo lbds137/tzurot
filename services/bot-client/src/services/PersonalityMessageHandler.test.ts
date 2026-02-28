@@ -414,6 +414,67 @@ describe('PersonalityMessageHandler', () => {
       );
     });
 
+    it('should pass crossChannelHistoryEnabled: true when cascade override is true', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      vi.mocked(callGatewayApi).mockResolvedValueOnce({
+        ok: true,
+        data: {
+          config: { model: 'test-model', maxMessages: 50, maxAge: null, maxImages: 10 },
+          source: 'personality',
+          overrides: {
+            maxMessages: 50,
+            maxAge: null,
+            maxImages: 10,
+            memoryScoreThreshold: 0.7,
+            memoryLimit: 10,
+            focusModeEnabled: false,
+            crossChannelHistoryEnabled: true,
+            shareLtmAcrossPersonalities: false,
+            sources: {
+              maxMessages: 'hardcoded',
+              maxAge: 'hardcoded',
+              maxImages: 'hardcoded',
+              memoryScoreThreshold: 'hardcoded',
+              memoryLimit: 'hardcoded',
+              focusModeEnabled: 'hardcoded',
+              crossChannelHistoryEnabled: 'admin',
+              shareLtmAcrossPersonalities: 'hardcoded',
+            },
+          },
+        },
+      });
+
+      const mockContext = {
+        userMessage: 'Test cross-channel',
+        conversationHistory: [],
+        attachments: [],
+        referencedMessages: [],
+        environment: {},
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue({
+        context: mockContext,
+        personaId: 'persona-123',
+        messageContent: 'Test cross-channel',
+        referencedMessages: [],
+        conversationHistory: [],
+      });
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Test cross-channel');
+
+      expect(mockContextBuilder.buildContext).toHaveBeenCalledWith(
+        mockMessage,
+        mockPersonality,
+        'Test cross-channel',
+        expect.objectContaining({
+          crossChannelHistoryEnabled: true,
+        })
+      );
+    });
+
     it('should handle voice transcript content', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();

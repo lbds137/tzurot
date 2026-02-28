@@ -57,6 +57,7 @@ describe('ContentBudgetManager', () => {
         historyTokensUsed: 0,
         messagesIncluded: 0,
         messagesDropped: 0,
+        crossChannelMessagesIncluded: 0,
       }),
     } as unknown as ContextWindowManager;
 
@@ -162,6 +163,7 @@ describe('ContentBudgetManager', () => {
         historyTokensUsed: 150,
         messagesIncluded: 2,
         messagesDropped: 0,
+        crossChannelMessagesIncluded: 0,
       });
 
       const result = budgetManager.allocate(options);
@@ -274,6 +276,7 @@ describe('ContentBudgetManager', () => {
         historyTokensUsed: 100,
         messagesIncluded: 2,
         messagesDropped: 2,
+        crossChannelMessagesIncluded: 0,
       });
 
       const result = budgetManager.allocate(options);
