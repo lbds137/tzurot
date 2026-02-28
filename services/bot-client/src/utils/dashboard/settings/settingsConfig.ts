@@ -77,3 +77,6 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
     type: SettingType.TRI_STATE,
   },
 ];
+
+/** All known settings across all groups. Single source of truth for setting lookups. */
+export const ALL_SETTINGS: SettingDefinition[] = [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS];

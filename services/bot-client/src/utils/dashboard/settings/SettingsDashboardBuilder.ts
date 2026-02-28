@@ -23,7 +23,7 @@ import {
   SettingType,
   buildSettingsCustomId,
 } from './types.js';
-import { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS } from './settingsConfig.js';
+import { ALL_SETTINGS } from './settingsConfig.js';
 
 /**
  * Format a setting value for display
@@ -386,11 +386,9 @@ export function buildSettingMessage(
 }
 
 /**
- * Get setting definition by ID
+ * Get setting definition by ID.
+ * Searches ALL_SETTINGS (all groups) from settingsConfig.ts.
  */
-/** All known settings across all groups */
-const ALL_SETTINGS = [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS];
-
 export function getSettingById(settingId: string): SettingDefinition | undefined {
   return ALL_SETTINGS.find(s => s.id === settingId);
 }

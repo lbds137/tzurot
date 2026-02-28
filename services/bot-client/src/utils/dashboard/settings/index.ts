@@ -18,7 +18,7 @@ export {
 } from './types.js';
 
 // Configuration
-export { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS } from './settingsConfig.js';
+export { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS, ALL_SETTINGS } from './settingsConfig.js';
 
 // Dashboard Builder
 // Modal Factory
