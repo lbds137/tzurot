@@ -2545,6 +2545,28 @@ describe('formatCrossChannelHistoryAsXml', () => {
     expect(formatCrossChannelHistoryAsXml([], 'TestAI')).toBe('');
   });
 
+  it('should return empty string when all groups have empty messages', () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [],
+      },
+      {
+        channelEnvironment: {
+          type: 'dm',
+          channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+        },
+        messages: [],
+      },
+    ];
+
+    expect(formatCrossChannelHistoryAsXml(groups, 'TestAI')).toBe('');
+  });
+
   it('should skip groups with empty messages array', () => {
     const groups: CrossChannelHistoryGroupEntry[] = [
       {
