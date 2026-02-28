@@ -55,6 +55,7 @@ function createMockFunctions(): MockContextWindowManagerInstance {
       historyTokensUsed: 50,
       messagesIncluded: 1,
       messagesDropped: 0,
+      crossChannelMessagesIncluded: 0,
     }),
     countHistoryTokens: vi.fn().mockReturnValue(100),
     calculateMemoryBudget: vi.fn().mockReturnValue(32000), // 25% of 128k

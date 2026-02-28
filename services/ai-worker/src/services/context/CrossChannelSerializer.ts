@@ -32,9 +32,9 @@ export function serializeCrossChannelHistory(
   groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
   tokenBudget: number
-): string {
+): { xml: string; messagesIncluded: number } {
   if (groups.length === 0 || tokenBudget <= 0) {
-    return '';
+    return { xml: '', messagesIncluded: 0 };
   }
 
   const selectedGroups: CrossChannelHistoryGroupEntry[] = [];
@@ -45,7 +45,7 @@ export function serializeCrossChannelHistory(
   const availableBudget = tokenBudget - wrapperOverhead;
 
   if (availableBudget <= 0) {
-    return '';
+    return { xml: '', messagesIncluded: 0 };
   }
 
   for (const group of groups) {
@@ -83,15 +83,16 @@ export function serializeCrossChannelHistory(
   }
 
   if (selectedGroups.length === 0) {
-    return '';
+    return { xml: '', messagesIncluded: 0 };
   }
 
-  const result = formatCrossChannelHistoryAsXml(selectedGroups, personalityName);
+  const messagesIncluded = selectedGroups.reduce((sum, g) => sum + g.messages.length, 0);
+  const xml = formatCrossChannelHistoryAsXml(selectedGroups, personalityName);
   logger.info(
-    { groupCount: selectedGroups.length, tokensUsed, budget: tokenBudget },
+    { groupCount: selectedGroups.length, messagesIncluded, tokensUsed, budget: tokenBudget },
     '[CrossChannelSerializer] Serialized channel groups'
   );
-  return result;
+  return { xml, messagesIncluded };
 }
 
 /**
