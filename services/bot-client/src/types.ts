@@ -37,6 +37,21 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
     personaName?: string; // Persona's name for context
     discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
   }[];
+  crossChannelHistory?: {
+    channelEnvironment: import('@tzurot/common-types').DiscordEnvironment;
+    messages: {
+      id?: string;
+      role: MessageRole;
+      content: string;
+      tokenCount?: number;
+      createdAt?: string;
+      personaId?: string;
+      personaName?: string;
+      discordUsername?: string;
+      personalityId?: string;
+      personalityName?: string;
+    }[];
+  }[];
 }
 
 /**

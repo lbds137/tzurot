@@ -99,6 +99,22 @@ export interface JobContext {
   referencedChannels?: ReferencedChannel[];
   /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage */
   isWeighIn?: boolean;
+  /** Cross-channel conversation history (grouped by channel, for cross-channel context) */
+  crossChannelHistory?: {
+    channelEnvironment: DiscordEnvironment;
+    messages: {
+      id?: string;
+      role: MessageRole;
+      content: string;
+      tokenCount?: number;
+      createdAt?: string;
+      personaId?: string;
+      personaName?: string;
+      discordUsername?: string;
+      personalityId?: string;
+      personalityName?: string;
+    }[];
+  }[];
 }
 
 /**
@@ -320,6 +336,27 @@ const jobContextSchema = z.object({
   referencedMessages: z.array(referencedMessageSchema).optional(),
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   referencedChannels: z.array(referencedChannelSchema).optional(),
+  crossChannelHistory: z
+    .array(
+      z.object({
+        channelEnvironment: discordEnvironmentSchema,
+        messages: z.array(
+          z.object({
+            id: z.string().optional(),
+            role: z.nativeEnum(MessageRole),
+            content: z.string(),
+            tokenCount: z.number().optional(),
+            createdAt: z.string().optional(),
+            personaId: z.string().optional(),
+            personaName: z.string().optional(),
+            discordUsername: z.string().optional(),
+            personalityId: z.string().optional(),
+            personalityName: z.string().optional(),
+          })
+        ),
+      })
+    )
+    .optional(),
 });
 
 /**

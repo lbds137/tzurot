@@ -109,6 +109,24 @@ export interface PreprocessingResults {
 }
 
 /**
+ * Cross-channel history group for the pipeline (mirrors JobContext shape)
+ */
+export interface CrossChannelHistoryGroup {
+  channelEnvironment: {
+    type: 'dm' | 'guild';
+    guild?: { id: string; name: string };
+    category?: { id: string; name: string };
+    channel: { id: string; name: string; type: string; topic?: string };
+    thread?: {
+      id: string;
+      name: string;
+      parentChannel: { id: string; name: string; type: string };
+    };
+  };
+  messages: ConversationHistoryEntry[];
+}
+
+/**
  * Prepared context for RAG generation
  */
 export interface PreparedContext {
@@ -120,6 +138,8 @@ export interface PreparedContext {
   oldestHistoryTimestamp?: number;
   /** All participants in the conversation */
   participants: Participant[];
+  /** Cross-channel conversation history groups (from other channels with same personality) */
+  crossChannelHistory?: CrossChannelHistoryGroup[];
 }
 
 /**

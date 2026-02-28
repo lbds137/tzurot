@@ -90,6 +90,16 @@ export class ContextStep implements IPipelineStep {
       allTimestamps.push(...refTimestamps);
     }
 
+    // Timestamps from cross-channel history (also excluded from LTM deduplication)
+    if (jobContext.crossChannelHistory && jobContext.crossChannelHistory.length > 0) {
+      for (const group of jobContext.crossChannelHistory) {
+        const crossTimestamps = group.messages
+          .map(msg => extractTimestamp(msg.createdAt as string | Date | undefined))
+          .filter((t): t is number => t !== null);
+        allTimestamps.push(...crossTimestamps);
+      }
+    }
+
     if (allTimestamps.length > 0) {
       // Use reduce() instead of spread to avoid potential stack overflow with large arrays
       oldestHistoryTimestamp = allTimestamps.reduce((min, ts) => Math.min(min, ts), Infinity);
@@ -115,11 +125,29 @@ export class ContextStep implements IPipelineStep {
       personality.name
     );
 
+    // Map cross-channel history to pipeline format
+    const crossChannelHistory = jobContext.crossChannelHistory?.map(group => ({
+      channelEnvironment: group.channelEnvironment,
+      messages: group.messages.map(msg => ({
+        id: msg.id,
+        role: msg.role,
+        content: msg.content,
+        tokenCount: msg.tokenCount,
+        createdAt: msg.createdAt,
+        personaId: msg.personaId,
+        personaName: msg.personaName,
+        discordUsername: msg.discordUsername,
+        personalityId: msg.personalityId,
+        personalityName: msg.personalityName,
+      })),
+    }));
+
     const preparedContext: PreparedContext = {
       conversationHistory,
       rawConversationHistory: jobContext.conversationHistory ?? [],
       oldestHistoryTimestamp,
       participants: allParticipants,
+      crossChannelHistory,
     };
 
     logger.debug(

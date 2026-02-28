@@ -148,6 +148,7 @@ describe('PersonalityMessageHandler', () => {
             },
           },
           botUserId: 'bot-123',
+          crossChannelHistoryEnabled: false,
         }
       );
 
@@ -329,6 +330,7 @@ describe('PersonalityMessageHandler', () => {
             },
           },
           botUserId: 'bot-123',
+          crossChannelHistoryEnabled: false,
         }
       );
     });
@@ -407,6 +409,7 @@ describe('PersonalityMessageHandler', () => {
             },
           },
           botUserId: 'bot-123',
+          crossChannelHistoryEnabled: false,
         }
       );
     });
