@@ -2545,6 +2545,38 @@ describe('formatCrossChannelHistoryAsXml', () => {
     expect(formatCrossChannelHistoryAsXml([], 'TestAI')).toBe('');
   });
 
+  it('should skip groups with empty messages array', () => {
+    const groups: CrossChannelHistoryGroupEntry[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [],
+      },
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-2', name: 'random', type: 'text' },
+        },
+        messages: [
+          { role: MessageRole.User, content: 'Has content', createdAt: '2026-02-26T10:00:00Z' },
+        ],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    expect(result).toContain('random');
+    expect(result).toContain('Has content');
+    // Empty group's channel should not appear
+    expect(result).not.toContain('general');
+    // Only one channel_history block
+    const channelHistoryCount = (result.match(/<channel_history>/g) ?? []).length;
+    expect(channelHistoryCount).toBe(1);
+  });
+
   it('should format a guild channel group with location block', () => {
     const groups: CrossChannelHistoryGroupEntry[] = [
       {

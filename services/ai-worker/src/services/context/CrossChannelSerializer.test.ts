@@ -2,7 +2,7 @@
  * Tests for CrossChannelSerializer
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MessageRole, type CrossChannelHistoryGroupEntry } from '@tzurot/common-types';
 
@@ -51,6 +51,13 @@ function createGroup(
 }
 
 describe('serializeCrossChannelHistory', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('should return empty for empty groups', () => {
     const result = serializeCrossChannelHistory([], 'TestAI', 1000);
     expect(result.xml).toBe('');
