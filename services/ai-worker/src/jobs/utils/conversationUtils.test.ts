@@ -12,7 +12,9 @@ import {
   extractParticipants,
   convertConversationHistory,
   formatConversationHistoryAsXml,
+  formatCrossChannelHistoryAsXml,
   getFormattedMessageCharLength,
+  type CrossChannelGroup,
   type RawHistoryEntry,
 } from './conversationUtils.js';
 import { MessageRole, type StoredReferencedMessage } from '@tzurot/common-types';
@@ -2532,5 +2534,94 @@ describe('Conversation Utilities', () => {
       // Length should be different because "Lila | תשב" is longer than "COLD"
       expect(lengthOtherAI).toBeGreaterThan(lengthSelf);
     });
+  });
+});
+
+describe('formatCrossChannelHistoryAsXml', () => {
+  it('should return empty string for empty groups', () => {
+    expect(formatCrossChannelHistoryAsXml([], 'TestAI')).toBe('');
+  });
+
+  it('should format a guild channel group with location block', () => {
+    const groups: CrossChannelGroup[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'guild-1', name: 'My Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [
+          {
+            role: 'user',
+            content: 'Hello from another channel',
+            createdAt: '2026-02-26T10:00:00Z',
+            personaName: 'Alice',
+          },
+        ],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    expect(result).toContain('<prior_conversations>');
+    expect(result).toContain('</prior_conversations>');
+    expect(result).toContain('<channel_history>');
+    expect(result).toContain('</channel_history>');
+    expect(result).toContain('<location type="guild">');
+    expect(result).toContain('<server name="My Server"/>');
+    expect(result).toContain('<channel name="general" type="text"/>');
+    expect(result).toContain('Hello from another channel');
+  });
+
+  it('should format a DM channel group', () => {
+    const groups: CrossChannelGroup[] = [
+      {
+        channelEnvironment: {
+          type: 'dm',
+          channel: { id: 'dm-1', name: 'Direct Message', type: 'dm' },
+        },
+        messages: [
+          {
+            role: 'user',
+            content: 'Private conversation',
+            createdAt: '2026-02-26T10:00:00Z',
+            personaName: 'Bob',
+          },
+        ],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    expect(result).toContain('<location type="dm">');
+    expect(result).toContain('Private conversation');
+  });
+
+  it('should format multiple groups in order', () => {
+    const groups: CrossChannelGroup[] = [
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-1', name: 'general', type: 'text' },
+        },
+        messages: [{ role: 'user', content: 'First channel', createdAt: '2026-02-26T09:00:00Z' }],
+      },
+      {
+        channelEnvironment: {
+          type: 'guild',
+          guild: { id: 'g-1', name: 'Server' },
+          channel: { id: 'ch-2', name: 'random', type: 'text' },
+        },
+        messages: [{ role: 'user', content: 'Second channel', createdAt: '2026-02-26T10:00:00Z' }],
+      },
+    ];
+
+    const result = formatCrossChannelHistoryAsXml(groups, 'TestAI');
+    const firstIdx = result.indexOf('First channel');
+    const secondIdx = result.indexOf('Second channel');
+    expect(firstIdx).toBeGreaterThan(-1);
+    expect(secondIdx).toBeGreaterThan(firstIdx);
+    // Both channel names present
+    expect(result).toContain('general');
+    expect(result).toContain('random');
   });
 });

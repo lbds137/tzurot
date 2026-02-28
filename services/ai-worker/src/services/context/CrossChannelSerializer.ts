@@ -6,7 +6,7 @@
  * max-lines limit.
  */
 
-import { countTextTokens, createLogger } from '@tzurot/common-types';
+import { countTextTokens, createLogger, formatLocationAsXml } from '@tzurot/common-types';
 import {
   formatCrossChannelHistoryAsXml,
   getFormattedMessageCharLength,
@@ -46,7 +46,7 @@ export function serializeCrossChannelHistory(
 
   for (const group of groups) {
     // Estimate per-channel overhead (location block + channel_history tags)
-    const channelOverhead = estimateChannelOverhead(group, personalityName);
+    const channelOverhead = estimateChannelOverhead(group);
 
     const selectedMessages: typeof group.messages = [];
     let groupTokens = channelOverhead;
@@ -80,20 +80,19 @@ export function serializeCrossChannelHistory(
 
   const result = formatCrossChannelHistoryAsXml(selectedGroups, personalityName);
   logger.info(
-    `[CrossChannelSerializer] Serialized ${selectedGroups.length} channel groups (${tokensUsed} estimated tokens, budget: ${tokenBudget})`
+    { groupCount: selectedGroups.length, tokensUsed, budget: tokenBudget },
+    '[CrossChannelSerializer] Serialized channel groups'
   );
   return result;
 }
 
 /**
  * Estimate the token overhead for a channel's wrapper (location block + tags).
- * Uses a fast heuristic: chars / 4 for the location block.
+ * Only counts `<channel_history>` + `<location>` tags — NOT the `<prior_conversations>` wrapper,
+ * which is already accounted for by `wrapperOverhead` in the caller.
  */
-function estimateChannelOverhead(group: CrossChannelGroup, personalityName: string): number {
-  // Format just the location block to estimate overhead
-  const emptyGroupXml = formatCrossChannelHistoryAsXml(
-    [{ channelEnvironment: group.channelEnvironment, messages: [] }],
-    personalityName
-  );
-  return Math.ceil(emptyGroupXml.length / 4);
+function estimateChannelOverhead(group: CrossChannelGroup): number {
+  const locationXml = formatLocationAsXml(group.channelEnvironment);
+  const channelTags = '<channel_history>\n</channel_history>';
+  return Math.ceil((locationXml.length + channelTags.length) / 4);
 }
