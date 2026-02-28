@@ -87,6 +87,8 @@ function buildGuildEnvironment(
     },
   };
 
+  // Threads always have parents in normal Discord state; parent === null would only occur
+  // during deletion race conditions. In that case, the thread appears as a regular channel.
   if (channel.isThread() && channel.parent !== null) {
     env.thread = {
       id: channel.id,

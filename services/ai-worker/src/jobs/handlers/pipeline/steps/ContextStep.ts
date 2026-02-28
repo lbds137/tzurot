@@ -94,7 +94,7 @@ export class ContextStep implements IPipelineStep {
     if (jobContext.crossChannelHistory && jobContext.crossChannelHistory.length > 0) {
       for (const group of jobContext.crossChannelHistory) {
         const crossTimestamps = group.messages
-          .map(msg => extractTimestamp(msg.createdAt as string | Date | undefined))
+          .map(msg => extractTimestamp(msg.createdAt))
           .filter((t): t is number => t !== null);
         allTimestamps.push(...crossTimestamps);
       }
