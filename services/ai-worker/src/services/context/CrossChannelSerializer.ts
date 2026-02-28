@@ -66,6 +66,8 @@ export function serializeCrossChannelHistory(
       const msgTokens =
         msg.tokenCount ?? Math.ceil(getFormattedMessageCharLength(msg, personalityName) / 4);
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
+        // Contiguous tail: once we hit a message that doesn't fit, stop selecting from
+        // this group entirely. Skipping to older messages would create narrative gaps.
         break;
       }
       selectedMessages.unshift(msg); // Restore chronological order
