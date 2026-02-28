@@ -32,6 +32,9 @@ describe('ConversationHistoryService Component Test', () => {
   const testPersonalityId = '00000000-0000-0000-0000-000000000003';
   const testChannelId = '123456789012345678';
   const testGuildId = '987654321098765432';
+  // Additional IDs for cross-channel tests
+  const testChannelId2 = '223456789012345678';
+  const testChannelId3 = '323456789012345678';
 
   beforeAll(async () => {
     // Set up PGlite (in-memory Postgres via WASM) with pgvector extension
@@ -722,6 +725,225 @@ describe('ConversationHistoryService Component Test', () => {
       expect(filteredStats.totalMessages).toBe(1);
       expect(filteredStats.userMessages).toBe(1);
       expect(filteredStats.assistantMessages).toBe(0);
+    });
+  });
+
+  describe('getCrossChannelHistory', () => {
+    it('should return messages from other channels, excluding specified channel', async () => {
+      // Add messages to 3 channels
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Current channel message',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Other channel message',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId3,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Third channel message',
+        guildId: testGuildId,
+      });
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId, // exclude current channel
+        50
+      );
+
+      // Should get messages from channel 2 and 3, but NOT channel 1
+      expect(result).toHaveLength(2);
+      const allChannelIds = result.map(g => g.channelId);
+      expect(allChannelIds).toContain(testChannelId2);
+      expect(allChannelIds).toContain(testChannelId3);
+      expect(allChannelIds).not.toContain(testChannelId);
+    });
+
+    it('should exclude soft-deleted messages', async () => {
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Active message',
+        guildId: testGuildId,
+      });
+
+      // Insert a soft-deleted message directly
+      const deletedMsgId = '00000000-0000-0000-0000-000000000098';
+      await prisma.$executeRawUnsafe(`
+        INSERT INTO conversation_history
+        (id, channel_id, guild_id, personality_id, persona_id, role, content, deleted_at, created_at)
+        VALUES ('${deletedMsgId}', '${testChannelId2}', '${testGuildId}', '${testPersonalityId}', '${testPersonaId}', 'user', 'Deleted message', NOW(), NOW())
+      `);
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        50
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].messages).toHaveLength(1);
+      expect(result[0].messages[0].content).toBe('Active message');
+    });
+
+    it('should respect limit parameter', async () => {
+      // Add 5 messages to channel 2
+      for (let i = 0; i < 5; i++) {
+        await service.addMessage({
+          channelId: testChannelId2,
+          personalityId: testPersonalityId,
+          personaId: testPersonaId,
+          role: MessageRole.User,
+          content: `Cross-channel message ${i}`,
+          guildId: testGuildId,
+        });
+      }
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        3 // Only get 3 messages
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].messages).toHaveLength(3);
+      // Should get the 3 most recent messages (reversed to chronological)
+      expect(result[0].messages[0].content).toBe('Cross-channel message 2');
+      expect(result[0].messages[1].content).toBe('Cross-channel message 3');
+      expect(result[0].messages[2].content).toBe('Cross-channel message 4');
+    });
+
+    it('should order groups by most recent activity', async () => {
+      // Add older message to channel 2
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Older channel 2 message',
+        guildId: testGuildId,
+      });
+
+      // Add newer message to channel 3
+      await service.addMessage({
+        channelId: testChannelId3,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Newer channel 3 message',
+        guildId: testGuildId,
+      });
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        50
+      );
+
+      expect(result).toHaveLength(2);
+      // Channel 3 has more recent activity, so it appears first
+      expect(result[0].channelId).toBe(testChannelId3);
+      expect(result[1].channelId).toBe(testChannelId2);
+    });
+
+    it('should return messages in chronological order within groups', async () => {
+      // Add messages to channel 2 in sequence
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'First',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.Assistant,
+        content: 'Second',
+        guildId: testGuildId,
+      });
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Third',
+        guildId: testGuildId,
+      });
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        50
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].messages).toHaveLength(3);
+      expect(result[0].messages[0].content).toBe('First');
+      expect(result[0].messages[1].content).toBe('Second');
+      expect(result[0].messages[2].content).toBe('Third');
+    });
+
+    it('should handle DM channels with null guildId', async () => {
+      await service.addMessage({
+        channelId: testChannelId2,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'DM message',
+        guildId: null, // DM
+      });
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        50
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].channelId).toBe(testChannelId2);
+      expect(result[0].guildId).toBeNull();
+    });
+
+    it('should return empty when all messages are in excluded channel', async () => {
+      await service.addMessage({
+        channelId: testChannelId,
+        personalityId: testPersonalityId,
+        personaId: testPersonaId,
+        role: MessageRole.User,
+        content: 'Only in current channel',
+        guildId: testGuildId,
+      });
+
+      const result = await service.getCrossChannelHistory(
+        testPersonaId,
+        testPersonalityId,
+        testChannelId,
+        50
+      );
+
+      expect(result).toEqual([]);
     });
   });
 
