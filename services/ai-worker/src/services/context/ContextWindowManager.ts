@@ -324,7 +324,9 @@ export class ContextWindowManager {
     }
 
     const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, personalityName);
-    const tokensUsed = countTextTokens(currentChannelXml) + wrapperOverhead;
+    // Only count wrapper overhead when we actually have content to wrap
+    const tokensUsed =
+      selectedEntries.length > 0 ? countTextTokens(currentChannelXml) + wrapperOverhead : 0;
 
     logger.info(
       {

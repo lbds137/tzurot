@@ -401,6 +401,43 @@ describe('ContextWindowManager', () => {
       expect(result.messagesDropped).toBe(0);
     });
 
+    it('should not count wrapper overhead when no current-channel messages fit budget', () => {
+      const crossChannelGroups = [
+        {
+          channelEnvironment: {
+            type: 'dm' as const,
+            channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+          },
+          messages: [
+            {
+              role: MessageRole.User,
+              content: 'DM message',
+              createdAt: '2026-02-26T10:00:00Z',
+              personaName: 'User',
+              tokenCount: 5,
+            },
+          ],
+        },
+      ];
+
+      // Budget is too small for the rawHistory entry but enough for cross-channel
+      const rawHistory = [{ role: 'user', content: 'A'.repeat(4000), tokenCount: 2000 }];
+
+      const budget = 100;
+      const result = manager.selectAndSerializeHistory(
+        rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
+        'TestAI',
+        budget,
+        crossChannelGroups
+      );
+
+      // No current-channel messages fit, so no wrapper overhead should be counted
+      // Cross-channel should still be included (gets the full budget)
+      expect(result.messagesIncluded).toBe(0);
+      expect(result.serializedHistory).toContain('DM message');
+      expect(result.serializedHistory).not.toContain('<chat_log>');
+    });
+
     it('should return empty when rawHistory is empty and no cross-channel groups', () => {
       const result = manager.selectAndSerializeHistory([], 'TestAI', 5000);
 
