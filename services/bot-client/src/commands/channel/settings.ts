@@ -60,7 +60,7 @@ const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
   // Only include extended context settings — memory settings (crossChannelHistoryEnabled,
   // shareLtmAcrossPersonalities) are not yet wirable at the channel tier, so they're
   // excluded to avoid showing uneditable toggles.
-  settings: [...EXTENDED_CONTEXT_SETTINGS],
+  settings: EXTENDED_CONTEXT_SETTINGS,
 };
 
 /**
