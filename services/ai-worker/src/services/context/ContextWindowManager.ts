@@ -80,7 +80,9 @@ export class ContextWindowManager {
 
       if (crossChannelXml.length > 0) {
         // Re-measure actual tokens; may slightly exceed historyBudget due to char/4
-        // approximation in serializeCrossChannelHistory, but overrun is bounded (XML overhead only).
+        // approximation in serializeCrossChannelHistory (non-ASCII content like CJK or
+        // emoji server names can widen the gap). Overrun is bounded since the final
+        // actualTokens here is always the accurate count.
         const crossTokens = countTextTokens(crossChannelXml);
         actualTokens += crossTokens;
         logger.info(

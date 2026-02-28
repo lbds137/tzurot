@@ -2,7 +2,7 @@
  * Tests for CrossChannelHistoryFetcher
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ChannelType } from 'discord.js';
 import {
   fetchCrossChannelHistory,
@@ -74,6 +74,9 @@ function createMockDiscordClient(
 
 describe('fetchCrossChannelHistory', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
@@ -353,6 +356,9 @@ describe('fetchCrossChannelHistory', () => {
 
 describe('fetchCrossChannelIfEnabled', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 
@@ -420,6 +426,9 @@ describe('fetchCrossChannelIfEnabled', () => {
 
 describe('mapCrossChannelToApiFormat', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
     vi.restoreAllMocks();
   });
 

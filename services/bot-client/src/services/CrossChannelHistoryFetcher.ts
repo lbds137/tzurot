@@ -65,7 +65,7 @@ async function resolveChannelEnvironment(
   } catch (error) {
     logger.warn(
       { err: error, channelId },
-      '[CrossChannelHistoryFetcher] Failed to fetch channel, using fallback environment'
+      '[CCHF] Failed to fetch channel, using fallback environment'
     );
     return buildFallbackEnvironment(channelId, guildId);
   }
@@ -143,10 +143,7 @@ function getChannelTypeName(type: ChannelType): string {
   };
   const name = typeNames[type];
   if (name === undefined) {
-    logger.debug(
-      { channelType: type },
-      '[CrossChannelHistoryFetcher] Unmapped Discord channel type'
-    );
+    logger.debug({ channelType: type }, '[CCHF] Unmapped Discord channel type');
   }
   return name ?? 'unknown';
 }
@@ -184,10 +181,7 @@ export async function fetchCrossChannelHistory(
   );
 
   if (groups.length === 0) {
-    logger.debug(
-      { personaId, personalityId },
-      '[CrossChannelHistoryFetcher] No cross-channel history found'
-    );
+    logger.debug({ personaId, personalityId }, '[CCHF] No cross-channel history found');
     return [];
   }
 
@@ -214,7 +208,7 @@ export async function fetchCrossChannelHistory(
       groupCount: resolvedGroups.length,
       totalMessages,
     },
-    '[CrossChannelHistoryFetcher] Fetched cross-channel history'
+    '[CCHF] Fetched cross-channel history'
   );
 
   return resolvedGroups;
@@ -246,7 +240,7 @@ export async function fetchCrossChannelIfEnabled(opts: {
         currentHistoryLength: opts.currentHistoryLength,
         dbLimit: opts.dbLimit,
       },
-      '[CrossChannelHistoryFetcher] No remaining message budget for cross-channel history'
+      '[CCHF] No remaining message budget for cross-channel history'
     );
     return undefined;
   }
