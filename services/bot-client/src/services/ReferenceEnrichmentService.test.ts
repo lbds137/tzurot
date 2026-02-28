@@ -109,6 +109,8 @@ describe('ReferenceEnrichmentService', () => {
           personaName: 'Johnny',
           createdAt: new Date(),
           discordMessageId: [],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -229,6 +231,8 @@ describe('ReferenceEnrichmentService', () => {
           personaName: 'Alicia',
           createdAt: new Date(),
           discordMessageId: [],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
         {
           id: 'conv-2',
@@ -238,6 +242,8 @@ describe('ReferenceEnrichmentService', () => {
           personaName: 'Bobby',
           createdAt: new Date(),
           discordMessageId: [],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -384,6 +390,8 @@ describe('ReferenceEnrichmentService', () => {
           personaName: 'Johnny',
           createdAt: new Date(),
           discordMessageId: [],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
         {
           id: 'conv-2',
@@ -393,6 +401,8 @@ describe('ReferenceEnrichmentService', () => {
           personaName: undefined, // Missing persona name
           createdAt: new Date(),
           discordMessageId: [],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 

@@ -409,6 +409,8 @@ export class DiscordChannelFetcher {
       messageMetadata,
       personalityName:
         role === MessageRole.Assistant ? extractPersonalityName(authorName) : undefined,
+      channelId: msg.channelId,
+      guildId: msg.guildId,
     };
 
     return { message, attachments };
