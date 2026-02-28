@@ -455,8 +455,8 @@ export class ConversationHistoryService {
         {
           messageCount: messages.length,
           groupCount: groups.length,
-          personaId: personaId.substring(0, 8),
-          personalityId: personalityId.substring(0, 8),
+          personaId,
+          personalityId,
           excludeChannelId,
         },
         'Retrieved cross-channel messages'
