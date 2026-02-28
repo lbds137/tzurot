@@ -232,6 +232,8 @@ export async function fetchCrossChannelIfEnabled(opts: {
     return undefined;
   }
 
+  // currentHistoryLength is the DB row count from getChannelHistory (before any Discord
+  // extension), so this subtraction gives the correct remaining DB-level message budget.
   const remainingMessageCount = opts.dbLimit - opts.currentHistoryLength;
   if (remainingMessageCount <= 0) {
     logger.debug(
