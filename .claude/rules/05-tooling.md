@@ -21,6 +21,23 @@ pnpm focus:lint       # Lint changed packages
 pnpm focus:test       # Test changed packages
 ```
 
+## Resource Constraints (CRITICAL)
+
+**NEVER run `pnpm test` and `pnpm quality` in parallel.** The Steam Deck has
+limited RAM, and running both simultaneously causes OOM kills that crash the IDE
+and Claude Code. Always run them **sequentially**:
+
+```bash
+# ✅ CORRECT - Sequential
+pnpm test && pnpm quality
+
+# ❌ WRONG - Parallel (crashes Steam Deck)
+# Running both as background tasks simultaneously
+```
+
+This applies to all heavy commands: `pnpm test`, `pnpm test:int`, `pnpm quality`,
+`pnpm typecheck`. Run one at a time, wait for completion, then run the next.
+
 ## Ops CLI (`pnpm ops`)
 
 ### Database

@@ -19,8 +19,9 @@
  */
 
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, basename } from 'node:path';
 import { createInterface } from 'node:readline';
 import chalk from 'chalk';
 import {
@@ -214,6 +215,62 @@ function reportSanitizationResults(
     console.log(chalk.green('\n✅ Migration sanitized and saved'));
   } else {
     console.log(chalk.green('\n✅ No dangerous patterns found'));
+  }
+}
+
+/**
+ * Compute SHA-256 checksum of file contents (matches Prisma's checksum format)
+ */
+export function computeFileChecksum(content: string): string {
+  return createHash('sha256').update(content, 'utf-8').digest('hex');
+}
+
+/**
+ * Reconcile migration checksum in local DB after sanitization.
+ *
+ * When db:safe-migrate modifies a migration file (removing drift patterns),
+ * the checksum in _prisma_migrations may no longer match. This updates the
+ * stored checksum to match the sanitized file, preventing "modified after
+ * applied" errors on subsequent Prisma commands.
+ *
+ * No-op if the migration hasn't been applied yet (no matching row).
+ */
+async function reconcileMigrationChecksum(
+  migrationDir: string,
+  sanitizedContent: string
+): Promise<void> {
+  const migrationName = basename(migrationDir);
+  const checksum = computeFileChecksum(sanitizedContent);
+
+  // Use prisma db execute to update the checksum.
+  // The WHERE clause ensures we only update already-applied migrations.
+  const sql = `UPDATE _prisma_migrations SET checksum = '${checksum}' WHERE migration_name = '${migrationName}' AND finished_at IS NOT NULL`;
+
+  try {
+    const result = await new Promise<{ exitCode: number }>((resolve, reject) => {
+      const proc = spawn('npx', ['prisma', 'db', 'execute', '--stdin'], {
+        stdio: ['pipe', 'pipe', 'pipe'],
+        shell: false,
+        env: cleanEnvForNpx(),
+      });
+
+      proc.stdin.write(sql);
+      proc.stdin.end();
+
+      proc.on('close', code => {
+        resolve({ exitCode: code ?? 0 });
+      });
+      proc.on('error', reject);
+    });
+
+    if (result.exitCode === 0) {
+      console.log(chalk.dim('   Checksum reconciled with local database'));
+    }
+  } catch {
+    // Non-fatal: checksum reconciliation is a convenience, not a requirement.
+    // The migration file is correct; the user can manually fix the checksum
+    // or reset the DB if needed.
+    console.log(chalk.dim('   (Could not reconcile checksum — apply migration to record it)'));
   }
 }
 
@@ -435,6 +492,11 @@ export async function createSafeMigration(options: CreateSafeMigrationOptions = 
 
   // Report and save results
   reportSanitizationResults(removed, sanitized, migrationSqlPath);
+
+  // Reconcile checksum if the migration was already applied (e.g., from a different branch)
+  if (removed.length > 0) {
+    await reconcileMigrationChecksum(migrationDir, sanitized);
+  }
 
   // Show migration summary
   console.log(chalk.cyan('\n📄 Migration created:'));

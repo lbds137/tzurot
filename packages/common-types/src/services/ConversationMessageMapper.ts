@@ -28,6 +28,20 @@ export interface ConversationMessage {
   // AI personality info (for multi-AI channel attribution)
   personalityId?: string; // The AI personality this message belongs to
   personalityName?: string; // The AI personality's display name (for assistant messages)
+  // Channel info (populated for cross-channel history results)
+  channelId?: string; // Discord channel ID
+  guildId?: string | null; // Discord guild ID (null for DMs)
+}
+
+/**
+ * A group of messages from a single channel, used for cross-channel history results.
+ * Groups are ordered by most recent activity (most recent channel first).
+ * Messages within each group are in chronological order (oldest first).
+ */
+export interface CrossChannelHistoryGroup {
+  channelId: string;
+  guildId: string | null;
+  messages: ConversationMessage[];
 }
 
 /**
@@ -42,6 +56,8 @@ export const conversationHistorySelect = {
   createdAt: true,
   personaId: true,
   personalityId: true,
+  channelId: true,
+  guildId: true,
   discordMessageId: true,
   messageMetadata: true,
   persona: {
@@ -113,6 +129,9 @@ export function mapToConversationMessage(
     // AI personality info for multi-AI channel attribution
     personalityId: record.personalityId,
     personalityName: record.personality.displayName ?? record.personality.name,
+    // Channel info for cross-channel history
+    channelId: record.channelId,
+    guildId: record.guildId,
   };
 }
 

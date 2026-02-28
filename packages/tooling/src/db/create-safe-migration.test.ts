@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { sanitizeMigrationSql, generateMigrationTimestamp } from './create-safe-migration.js';
+import {
+  sanitizeMigrationSql,
+  generateMigrationTimestamp,
+  computeFileChecksum,
+} from './create-safe-migration.js';
 
 /**
  * Tests for create-safe-migration
@@ -250,5 +254,24 @@ describe('generateMigrationTimestamp', () => {
     expect(ts).toHaveLength(14);
     // Every component should be zero-padded (no single digits in output)
     expect(ts).toMatch(/^\d{14}$/);
+  });
+});
+
+describe('computeFileChecksum', () => {
+  it('should produce a 64-character hex SHA-256 digest', () => {
+    const checksum = computeFileChecksum('test content');
+    expect(checksum).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('should produce deterministic output for the same input', () => {
+    const a = computeFileChecksum('migration SQL content');
+    const b = computeFileChecksum('migration SQL content');
+    expect(a).toBe(b);
+  });
+
+  it('should produce different output for different input', () => {
+    const original = computeFileChecksum('DROP INDEX "idx_memories_embedding";');
+    const sanitized = computeFileChecksum('-- REMOVED: DROP INDEX "idx_memories_embedding";');
+    expect(original).not.toBe(sanitized);
   });
 });

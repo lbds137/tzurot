@@ -536,7 +536,7 @@ CREATE UNIQUE INDEX "user_persona_history_configs_user_id_personality_id_persona
 CREATE INDEX "conversation_history_channel_id_personality_id_created_at_idx" ON "conversation_history"("channel_id", "personality_id", "created_at" DESC);
 
 -- CreateIndex
-CREATE INDEX "conversation_history_persona_id_idx" ON "conversation_history"("persona_id");
+CREATE INDEX "conversation_history_persona_id_personality_id_created_at_idx" ON "conversation_history"("persona_id", "personality_id", "created_at" DESC);
 
 -- CreateIndex
 CREATE INDEX "conversation_history_discord_message_id_idx" ON "conversation_history"("discord_message_id");

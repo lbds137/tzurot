@@ -991,6 +991,8 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date('2025-01-01T01:00:00Z'),
           personaId: 'persona-1',
           personalityId: 'personality-456',
+          channelId: 'channel-123',
+          guildId: 'guild-456',
           persona: {
             name: 'User',
             preferredName: 'User Persona',
@@ -1008,6 +1010,8 @@ describe('ConversationHistoryService - Token Count Caching', () => {
           createdAt: new Date('2025-01-01T00:00:00Z'),
           personaId: 'persona-1',
           personalityId: 'personality-456',
+          channelId: 'channel-123',
+          guildId: 'guild-456',
           persona: {
             name: 'User',
             preferredName: 'User Persona',
@@ -1056,6 +1060,185 @@ describe('ConversationHistoryService - Token Count Caching', () => {
       const result = await service.getChannelHistory('channel-123', 20);
 
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('getCrossChannelHistory', () => {
+    it('should query with correct WHERE clause', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel', 50);
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            personaId: 'persona-1',
+            personalityId: 'personality-1',
+            channelId: { not: 'current-channel' },
+            deletedAt: null,
+          },
+          orderBy: { createdAt: 'desc' },
+          take: 50,
+          select: expect.objectContaining({
+            channelId: true,
+            guildId: true,
+          }),
+        })
+      );
+    });
+
+    it('should cap limit at 100', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel', 200);
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 100,
+        })
+      );
+    });
+
+    it('should return empty array when no messages found', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      const result = await service.getCrossChannelHistory(
+        'persona-1',
+        'personality-1',
+        'current-channel'
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('should group messages by channelId', async () => {
+      const mockMessages = [
+        {
+          id: 'msg-3',
+          role: MessageRole.Assistant,
+          content: 'Reply in channel A',
+          tokenCount: 5,
+          createdAt: new Date('2025-01-03T00:00:00Z'),
+          personaId: 'persona-1',
+          personalityId: 'personality-1',
+          channelId: 'channel-a',
+          guildId: 'guild-1',
+          discordMessageId: ['d-3'],
+          messageMetadata: null,
+          persona: { name: 'User', preferredName: null, owner: { username: 'user1' } },
+          personality: { name: 'TestBot', displayName: 'Test Bot' },
+        },
+        {
+          id: 'msg-2',
+          role: MessageRole.User,
+          content: 'Hello in channel B',
+          tokenCount: 4,
+          createdAt: new Date('2025-01-02T00:00:00Z'),
+          personaId: 'persona-1',
+          personalityId: 'personality-1',
+          channelId: 'channel-b',
+          guildId: 'guild-1',
+          discordMessageId: ['d-2'],
+          messageMetadata: null,
+          persona: { name: 'User', preferredName: null, owner: { username: 'user1' } },
+          personality: { name: 'TestBot', displayName: 'Test Bot' },
+        },
+        {
+          id: 'msg-1',
+          role: MessageRole.User,
+          content: 'Hello in channel A',
+          tokenCount: 3,
+          createdAt: new Date('2025-01-01T00:00:00Z'),
+          personaId: 'persona-1',
+          personalityId: 'personality-1',
+          channelId: 'channel-a',
+          guildId: 'guild-1',
+          discordMessageId: ['d-1'],
+          messageMetadata: null,
+          persona: { name: 'User', preferredName: null, owner: { username: 'user1' } },
+          personality: { name: 'TestBot', displayName: 'Test Bot' },
+        },
+      ];
+
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
+
+      const result = await service.getCrossChannelHistory(
+        'persona-1',
+        'personality-1',
+        'current-channel'
+      );
+
+      expect(result).toHaveLength(2);
+      // Channel A appears first (has most recent message: msg-3)
+      expect(result[0].channelId).toBe('channel-a');
+      expect(result[0].guildId).toBe('guild-1');
+      expect(result[0].messages).toHaveLength(2);
+      // Messages within group are chronological (oldest first)
+      expect(result[0].messages[0].id).toBe('msg-1');
+      expect(result[0].messages[1].id).toBe('msg-3');
+
+      // Channel B appears second
+      expect(result[1].channelId).toBe('channel-b');
+      expect(result[1].messages).toHaveLength(1);
+      expect(result[1].messages[0].id).toBe('msg-2');
+    });
+
+    it('should handle DM channels with null guildId', async () => {
+      const mockMessages = [
+        {
+          id: 'msg-1',
+          role: MessageRole.User,
+          content: 'DM message',
+          tokenCount: 3,
+          createdAt: new Date('2025-01-01T00:00:00Z'),
+          personaId: 'persona-1',
+          personalityId: 'personality-1',
+          channelId: 'dm-channel',
+          guildId: null,
+          discordMessageId: ['d-1'],
+          messageMetadata: null,
+          persona: { name: 'User', preferredName: null, owner: { username: 'user1' } },
+          personality: { name: 'TestBot', displayName: 'Test Bot' },
+        },
+      ];
+
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue(mockMessages);
+
+      const result = await service.getCrossChannelHistory(
+        'persona-1',
+        'personality-1',
+        'current-channel'
+      );
+
+      expect(result).toHaveLength(1);
+      expect(result[0].channelId).toBe('dm-channel');
+      expect(result[0].guildId).toBeNull();
+    });
+
+    it('should return empty array on error', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockRejectedValue(
+        new Error('Database query failed')
+      );
+
+      const result = await service.getCrossChannelHistory(
+        'persona-1',
+        'personality-1',
+        'current-channel'
+      );
+
+      expect(result).toEqual([]);
+    });
+
+    it('should use default limit of 50', async () => {
+      mockPrismaClient.conversationHistory.findMany.mockResolvedValue([]);
+
+      await service.getCrossChannelHistory('persona-1', 'personality-1', 'current-channel');
+
+      expect(mockPrismaClient.conversationHistory.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          take: 50,
+        })
+      );
     });
   });
 
