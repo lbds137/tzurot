@@ -148,7 +148,8 @@ export class MemoryRetriever {
 
     const { personaId } = personaResult;
 
-    // Read shareLtmAcrossPersonalities from cascade (fully resolved, always boolean)
+    // Read shareLtmAcrossPersonalities from cascade (fully resolved, always boolean).
+    // configOverrides is always provided when cascade is active; fallback for legacy/test callers.
     const shareLtmAcrossPersonalities = configOverrides?.shareLtmAcrossPersonalities ?? false;
 
     // Determine focusModeEnabled: cascade overrides > DB column (from persona resolver)

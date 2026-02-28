@@ -338,6 +338,104 @@ describe('Character Settings Dashboard', () => {
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
 
+    it('should update crossChannelHistoryEnabled via set button', async () => {
+      const interaction = {
+        customId:
+          'character-settings::set::aurora--personality-123::crossChannelHistoryEnabled:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'aurora--personality-123',
+          data: {
+            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
+            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
+            crossChannelHistoryEnabled: {
+              localValue: null,
+              effectiveValue: false,
+              source: 'default',
+            },
+            shareLtmAcrossPersonalities: {
+              localValue: null,
+              effectiveValue: false,
+              source: 'default',
+            },
+          },
+          view: 'setting',
+          activeSetting: 'crossChannelHistoryEnabled',
+        },
+      });
+
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+
+      await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/config-overrides/personality-123',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { crossChannelHistoryEnabled: true },
+        })
+      );
+    });
+
+    it('should update shareLtmAcrossPersonalities via set button', async () => {
+      const interaction = {
+        customId:
+          'character-settings::set::aurora--personality-123::shareLtmAcrossPersonalities:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'aurora--personality-123',
+          data: {
+            maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
+            maxAge: { localValue: null, effectiveValue: 7200, source: 'global' },
+            maxImages: { localValue: null, effectiveValue: 5, source: 'global' },
+            crossChannelHistoryEnabled: {
+              localValue: null,
+              effectiveValue: false,
+              source: 'default',
+            },
+            shareLtmAcrossPersonalities: {
+              localValue: null,
+              effectiveValue: false,
+              source: 'default',
+            },
+          },
+          view: 'setting',
+          activeSetting: 'shareLtmAcrossPersonalities',
+        },
+      });
+
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true }) // PATCH config-overrides
+        .mockResolvedValueOnce({ ok: true, data: mockResolvedOverrides }); // GET resolve
+
+      await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
+
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/config-overrides/personality-123',
+        expect.objectContaining({
+          method: 'PATCH',
+          body: { shareLtmAcrossPersonalities: true },
+        })
+      );
+    });
+
     it('should handle permission denied (401) response', async () => {
       // Entity ID now uses slug::personalityId format
       const interaction = {

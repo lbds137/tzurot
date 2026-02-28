@@ -168,10 +168,9 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
   return (await response.json()) as GetAdminSettingsResponse;
 }
 
-/** Config override field names that map to SettingsData keys */
+/** Config override field names that map to SettingsData keys (excluding maxAge which has special handling) */
 const SETTING_FIELDS = [
   'maxMessages',
-  'maxAge',
   'maxImages',
   'crossChannelHistoryEnabled',
   'shareLtmAcrossPersonalities',
