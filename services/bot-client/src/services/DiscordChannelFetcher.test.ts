@@ -537,6 +537,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'discord:user1',
           personaName: 'Alice',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
         {
           id: 'msg2',
@@ -546,6 +548,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'discord:user2',
           personaName: 'Bob',
           discordMessageId: ['discord2'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -558,6 +562,8 @@ describe('DiscordChannelFetcher', () => {
           createdAt: new Date('2024-01-01T12:00:00Z'),
           personaId: 'persona1',
           discordMessageId: ['discord1'], // Same as first extended message
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -584,6 +590,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'discord:user3',
           personaName: 'Charlie',
           discordMessageId: ['discord3'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -596,6 +604,8 @@ describe('DiscordChannelFetcher', () => {
           createdAt: new Date('2024-01-01T12:00:00Z'),
           personaId: 'persona1',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
         {
           id: 'db2',
@@ -604,6 +614,8 @@ describe('DiscordChannelFetcher', () => {
           createdAt: new Date('2024-01-01T12:02:00Z'),
           personaId: 'persona2',
           discordMessageId: ['discord2'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -624,6 +636,8 @@ describe('DiscordChannelFetcher', () => {
           createdAt: new Date('2024-01-01T12:00:00Z'),
           personaId: 'persona1',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -644,6 +658,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'discord:user1',
           personaName: 'Alice',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 
@@ -664,6 +680,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'discord:user1',
           personaName: 'Alice',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
           messageMetadata: {
             reactions: [
               {
@@ -686,6 +704,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'persona1',
           personaName: 'Alice',
           discordMessageId: ['discord1'], // Same as extended message
+          channelId: 'test-channel',
+          guildId: 'test-guild',
           // No messageMetadata - reactions not stored in DB
         },
       ];
@@ -711,6 +731,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'discord:user1',
           personaName: 'Alice',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
           messageMetadata: {
             embedsXml: ['<embed>Link Preview</embed>'],
           },
@@ -727,6 +749,8 @@ describe('DiscordChannelFetcher', () => {
           personaId: 'persona1',
           personaName: 'Alice',
           discordMessageId: ['discord1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
 

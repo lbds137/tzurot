@@ -234,6 +234,8 @@ describe('MessageContextBuilder', () => {
           personaName: 'Test Persona',
           discordUsername: 'prevuser', // Discord username for collision detection
           discordMessageId: ['prev-msg-123'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -397,6 +399,8 @@ describe('MessageContextBuilder', () => {
           personaId: 'persona-123',
           personaName: 'Test Persona',
           discordMessageId: ['discord-msg-1', 'discord-msg-2'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
         {
           id: 'history-2',
@@ -406,6 +410,8 @@ describe('MessageContextBuilder', () => {
           personaId: 'persona-123',
           personaName: 'Test Persona',
           discordMessageId: ['discord-msg-3'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -533,6 +539,8 @@ describe('MessageContextBuilder', () => {
           personaId: 'persona-123',
           personaName: 'Test Persona',
           discordMessageId: ['reply-to-msg'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ]);
       mockExtractReferencesWithReplacement.mockResolvedValue({
@@ -731,6 +739,8 @@ describe('MessageContextBuilder', () => {
           personaId: 'persona-123',
           personaName: 'Test Persona',
           discordMessageId: ['discord-1'],
+          channelId: 'test-channel',
+          guildId: 'test-guild',
         },
       ];
       vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue(dbHistory);
