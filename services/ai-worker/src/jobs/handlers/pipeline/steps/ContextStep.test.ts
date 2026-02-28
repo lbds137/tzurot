@@ -611,6 +611,52 @@ describe('ContextStep', () => {
         );
       });
 
+      it('should handle cross-channel messages with undefined createdAt', () => {
+        const crossChannelHistory = [
+          {
+            channelEnvironment: {
+              type: 'guild' as const,
+              guild: { id: 'g-1', name: 'Server' },
+              channel: { id: 'ch-other', name: 'general', type: 'text' },
+            },
+            messages: [
+              {
+                id: 'msg-cross-1',
+                role: MessageRole.User,
+                content: 'No timestamp',
+                // createdAt intentionally omitted
+              },
+              {
+                id: 'msg-cross-2',
+                role: MessageRole.Assistant,
+                content: 'Has timestamp',
+                createdAt: '2024-01-10T12:00:00Z',
+              },
+            ],
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', crossChannelHistory },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Should use the valid timestamp, ignoring the undefined one
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-10T12:00:00Z').getTime()
+        );
+      });
+
       it('should map cross-channel history to pipeline format', () => {
         const crossChannelHistory = [
           {
