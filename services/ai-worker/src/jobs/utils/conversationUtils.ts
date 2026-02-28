@@ -355,7 +355,7 @@ export function formatCrossChannelHistoryAsXml(
     parts.push('</channel_history>');
   }
 
-  // All groups had empty messages — return empty string instead of bare wrapper tags
+  // parts[0] is only the opening tag — no channel blocks were added (all groups empty)
   if (parts.length === 1) {
     return '';
   }

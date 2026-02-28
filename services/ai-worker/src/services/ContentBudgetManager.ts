@@ -75,6 +75,8 @@ export class ContentBudgetManager {
 
     this.logAllocation({
       contextWindowTokens,
+      systemPromptBaseTokens,
+      currentMessageTokens,
       memoryTokensUsed,
       retrievedMemories: opts.retrievedMemories,
       historyBudget,
@@ -250,6 +252,8 @@ export class ContentBudgetManager {
 
   private logAllocation(opts: {
     contextWindowTokens: number;
+    systemPromptBaseTokens: number;
+    currentMessageTokens: number;
     memoryTokensUsed: number;
     retrievedMemories: MemoryDocument[];
     historyBudget: number;
@@ -259,6 +263,8 @@ export class ContentBudgetManager {
   }): void {
     const {
       contextWindowTokens,
+      systemPromptBaseTokens,
+      currentMessageTokens,
       memoryTokensUsed,
       retrievedMemories,
       historyBudget,
@@ -269,7 +275,7 @@ export class ContentBudgetManager {
     const crossChannelSuffix =
       crossChannelMessagesIncluded > 0 ? `, crossChannel=${crossChannelMessagesIncluded}` : '';
     logger.info(
-      `[Budget] Token allocation: total=${contextWindowTokens}, memories=${memoryTokensUsed}/${this.countMemoryTokensSafe(retrievedMemories)}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}${crossChannelSuffix}`
+      `[Budget] Token allocation: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${this.countMemoryTokensSafe(retrievedMemories)}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}${crossChannelSuffix}`
     );
     if (messagesDropped > 0) {
       logger.debug(`[Budget] Dropped ${messagesDropped} history messages due to token budget`);

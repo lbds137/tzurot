@@ -64,39 +64,12 @@ export class ContextWindowManager {
       ? this.selectCurrentChannelEntries(rawHistory, personalityName, historyBudget)
       : { selectedEntries: [] as RawHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
 
-    let actualTokens = tokensUsed;
-
     // Serialize cross-channel history if available and budget remains
-    let crossChannelXml = '';
-    let crossChannelMessagesIncluded = 0;
-    if (hasCrossChannel && actualTokens < historyBudget) {
-      const crossResult = serializeCrossChannelHistory(
-        crossChannelGroups,
-        personalityName,
-        historyBudget - actualTokens
-      );
-      crossChannelXml = crossResult.xml;
-      crossChannelMessagesIncluded = crossResult.messagesIncluded;
+    const { crossChannelXml, crossChannelMessagesIncluded, crossTokens } = hasCrossChannel
+      ? this.serializeCrossChannel(crossChannelGroups, personalityName, historyBudget, tokensUsed)
+      : { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
 
-      if (crossChannelXml.length > 0) {
-        // Re-measure actual tokens; may slightly exceed historyBudget due to char/4
-        // approximation in serializeCrossChannelHistory (non-ASCII content like CJK or
-        // emoji server names can widen the gap). Overrun is bounded since the final
-        // actualTokens here is always the accurate count.
-        const crossTokens = countTextTokens(crossChannelXml);
-        actualTokens += crossTokens;
-        logger.info(
-          { crossTokens, crossChannelMessagesIncluded, channelCount: crossChannelGroups.length },
-          '[CWM] Added cross-channel history'
-        );
-        if (actualTokens > historyBudget) {
-          logger.debug(
-            { actualTokens, historyBudget, overrun: actualTokens - historyBudget },
-            '[CWM] Cross-channel re-measurement exceeded budget estimate (bounded overrun)'
-          );
-        }
-      }
-    }
+    const actualTokens = tokensUsed + crossTokens;
 
     // Combine: cross-channel before current channel (older context first)
     let serializedHistory: string;
@@ -164,6 +137,61 @@ export class ContextWindowManager {
     );
 
     return { selectedEntries, currentChannelXml, tokensUsed };
+  }
+
+  /** Serialize cross-channel groups within remaining budget, re-measuring actual tokens. */
+  private serializeCrossChannel(
+    groups: CrossChannelHistoryGroupEntry[],
+    personalityName: string,
+    historyBudget: number,
+    currentChannelTokensUsed: number
+  ): { crossChannelXml: string; crossChannelMessagesIncluded: number; crossTokens: number } {
+    if (currentChannelTokensUsed >= historyBudget) {
+      return { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
+    }
+
+    const crossResult = serializeCrossChannelHistory(
+      groups,
+      personalityName,
+      historyBudget - currentChannelTokensUsed
+    );
+
+    if (crossResult.xml.length === 0) {
+      return { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
+    }
+
+    // Re-measure actual tokens; may slightly exceed historyBudget due to char/4
+    // approximation in serializeCrossChannelHistory (non-ASCII content like CJK or
+    // emoji server names can widen the gap). Overrun is bounded since the final
+    // token count here is always the accurate measure.
+    const crossTokens = countTextTokens(crossResult.xml);
+    const totalTokens = currentChannelTokensUsed + crossTokens;
+    logger.info(
+      {
+        crossTokens,
+        crossChannelMessagesIncluded: crossResult.messagesIncluded,
+        channelCount: groups.length,
+      },
+      '[CWM] Added cross-channel history'
+    );
+
+    if (totalTokens > historyBudget) {
+      const overrun = totalTokens - historyBudget;
+      const overrunPercent = historyBudget > 0 ? overrun / historyBudget : 0;
+      const logData = { actualTokens: totalTokens, historyBudget, overrun };
+      // Log at info when overrun >5% for production visibility; debug otherwise
+      const logLevel = overrunPercent > 0.05 ? 'info' : 'debug';
+      logger[logLevel](
+        logData,
+        '[CWM] Cross-channel re-measurement exceeded budget estimate (bounded overrun)'
+      );
+    }
+
+    return {
+      crossChannelXml: crossResult.xml,
+      crossChannelMessagesIncluded: crossResult.messagesIncluded,
+      crossTokens,
+    };
   }
 
   /**
