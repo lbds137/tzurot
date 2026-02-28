@@ -143,7 +143,10 @@ function getChannelTypeName(type: ChannelType): string {
   };
   const name = typeNames[type];
   if (name === undefined) {
-    logger.debug({ channelType: type }, '[CCHF] Unmapped Discord channel type');
+    logger.warn(
+      { channelType: type },
+      '[CCHF] Unmapped Discord channel type — may need explicit handling'
+    );
   }
   return name ?? 'unknown';
 }
