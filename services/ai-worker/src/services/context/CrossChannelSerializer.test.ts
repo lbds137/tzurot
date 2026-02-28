@@ -4,7 +4,7 @@
 
 import { describe, it, expect, vi } from 'vitest';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
-import type { CrossChannelGroup } from '../../jobs/utils/conversationUtils.js';
+import { MessageRole, type CrossChannelHistoryGroupEntry } from '@tzurot/common-types';
 
 // Mock logger
 vi.mock('@tzurot/common-types', async importOriginal => {
@@ -20,7 +20,9 @@ vi.mock('@tzurot/common-types', async importOriginal => {
   };
 });
 
-function createGroup(overrides: Partial<CrossChannelGroup> = {}): CrossChannelGroup {
+function createGroup(
+  overrides: Partial<CrossChannelHistoryGroupEntry> = {}
+): CrossChannelHistoryGroupEntry {
   return {
     channelEnvironment: {
       type: 'guild',
@@ -30,7 +32,7 @@ function createGroup(overrides: Partial<CrossChannelGroup> = {}): CrossChannelGr
     messages: [
       {
         id: 'msg-1',
-        role: 'user',
+        role: MessageRole.User,
         content: 'Hello from another channel',
         createdAt: '2026-02-26T10:00:00Z',
         personaName: 'TestUser',
@@ -38,7 +40,7 @@ function createGroup(overrides: Partial<CrossChannelGroup> = {}): CrossChannelGr
       },
       {
         id: 'msg-2',
-        role: 'assistant',
+        role: MessageRole.Assistant,
         content: 'Hi there!',
         createdAt: '2026-02-26T10:01:00Z',
         tokenCount: 5,
@@ -87,11 +89,11 @@ describe('serializeCrossChannelHistory', () => {
   it('should include messages within budget and exclude those that exceed it', () => {
     const group = createGroup({
       messages: [
-        { id: 'msg-1', role: 'user', content: 'Short', tokenCount: 5 },
-        { id: 'msg-2', role: 'assistant', content: 'Also short', tokenCount: 5 },
+        { id: 'msg-1', role: MessageRole.User, content: 'Short', tokenCount: 5 },
+        { id: 'msg-2', role: MessageRole.Assistant, content: 'Also short', tokenCount: 5 },
         {
           id: 'msg-3',
-          role: 'user',
+          role: MessageRole.User,
           content: 'This is a very long message '.repeat(50),
           tokenCount: 500,
         },
@@ -107,7 +109,7 @@ describe('serializeCrossChannelHistory', () => {
 
   it('should return empty string when budget is too tight for any messages', () => {
     const group = createGroup({
-      messages: [{ id: 'msg-1', role: 'user', content: 'Hello world', tokenCount: 100 }],
+      messages: [{ id: 'msg-1', role: MessageRole.User, content: 'Hello world', tokenCount: 100 }],
     });
 
     // Budget of 5 is too small for even the wrapper overhead + location block + one message
@@ -126,7 +128,7 @@ describe('serializeCrossChannelHistory', () => {
       messages: [
         {
           id: 'msg-3',
-          role: 'user',
+          role: MessageRole.User,
           content: 'In the random channel',
           tokenCount: 8,
         },

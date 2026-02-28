@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ContextWindowManager } from './ContextWindowManager.js';
 import { HumanMessage, AIMessage, SystemMessage } from '@langchain/core/messages';
+import { MessageRole } from '@tzurot/common-types';
 import type { ContextWindowInput } from './ContextWindowManager.js';
 import type { MemoryDocument } from './PromptContext.js';
 
@@ -307,7 +308,7 @@ describe('ContextWindowManager', () => {
           },
           messages: [
             {
-              role: 'user',
+              role: MessageRole.User,
               content: 'Cross-channel message',
               createdAt: '2026-02-26T10:00:00Z',
               personaName: 'TestUser',
@@ -349,7 +350,7 @@ describe('ContextWindowManager', () => {
           },
           messages: [
             {
-              role: 'user',
+              role: MessageRole.User,
               content: 'DM message',
               createdAt: '2026-02-26T10:00:00Z',
               tokenCount: 500,

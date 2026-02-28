@@ -7,6 +7,7 @@
 
 import type { BaseMessage } from '@langchain/core/messages';
 import type {
+  CrossChannelHistoryGroupEntry,
   LoadedPersonality,
   AttachmentMetadata,
   ReferencedMessage,
@@ -125,21 +126,7 @@ export interface ConversationContext {
   referencedMessages?: ReferencedMessage[];
   referencedChannels?: { channelId: string; channelName: string }[];
   /** Cross-channel conversation history groups (from other channels with same personality) */
-  crossChannelHistory?: {
-    channelEnvironment: DiscordEnvironment;
-    messages: {
-      id?: string;
-      role: string;
-      content: string;
-      tokenCount?: number;
-      personaId?: string;
-      personaName?: string;
-      discordUsername?: string;
-      personalityId?: string;
-      personalityName?: string;
-      createdAt?: string;
-    }[];
-  }[];
+  crossChannelHistory?: CrossChannelHistoryGroupEntry[];
 }
 
 export interface RAGResponse {
