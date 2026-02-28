@@ -418,7 +418,7 @@ export class MessageContextBuilder {
       channelId: message.channel.id,
       personaId,
       personalityId: personality.id,
-      currentHistoryLength: history.length,
+      currentHistoryLength: dbHistory.length, // DB row count, not merged DB+Discord count
       dbLimit,
       discordClient: message.client,
       conversationHistoryService: this.conversationHistory,
