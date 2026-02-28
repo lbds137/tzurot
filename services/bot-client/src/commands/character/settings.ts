@@ -252,7 +252,10 @@ function parseEntityId(entityId: string): [string | null, string | null] {
 function mapSource(source: string): 'personality' | 'global' | 'channel' | 'default' {
   switch (source) {
     case USER_PERSONALITY_SOURCE:
-      return 'channel'; // "Your override" — closest match in existing type
+      // Maps to 'channel' because SettingSource doesn't have a 'user-personality' token.
+      // 'channel' displays as "Your override" which is the correct UX label.
+      // TODO: Add proper 'user-personality' source type to SettingSource if needed.
+      return 'channel';
     case 'user-default':
       return 'global';
     case 'personality':
