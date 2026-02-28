@@ -125,22 +125,8 @@ export class ContextStep implements IPipelineStep {
       personality.name
     );
 
-    // Map cross-channel history to pipeline format
-    const crossChannelHistory = jobContext.crossChannelHistory?.map(group => ({
-      channelEnvironment: group.channelEnvironment,
-      messages: group.messages.map(msg => ({
-        id: msg.id,
-        role: msg.role,
-        content: msg.content,
-        tokenCount: msg.tokenCount,
-        createdAt: msg.createdAt,
-        personaId: msg.personaId,
-        personaName: msg.personaName,
-        discordUsername: msg.discordUsername,
-        personalityId: msg.personalityId,
-        personalityName: msg.personalityName,
-      })),
-    }));
+    // Pass cross-channel history through to pipeline (structurally compatible)
+    const crossChannelHistory = jobContext.crossChannelHistory;
 
     const preparedContext: PreparedContext = {
       conversationHistory,

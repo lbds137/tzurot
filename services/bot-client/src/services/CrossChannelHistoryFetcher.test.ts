@@ -77,12 +77,12 @@ describe('fetchCrossChannelHistory', () => {
     vi.restoreAllMocks();
   });
 
-  it('should return empty array when remainingBudget is 0', async () => {
+  it('should return empty array when remainingMessageBudget is zero', async () => {
     const result = await fetchCrossChannelHistory({
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 0,
+      remainingMessageBudget: 0,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(),
     });
@@ -97,7 +97,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 50,
+      remainingMessageBudget: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: service,
     });
@@ -135,7 +135,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 50,
+      remainingMessageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -170,7 +170,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 50,
+      remainingMessageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -194,14 +194,15 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 50,
+      remainingMessageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
 
     expect(result).toHaveLength(1);
-    // Falls back to guild with unknown-channel
+    // Falls back to guild with unknown-channel and guild info from guildId
     expect(result[0].channelEnvironment.type).toBe('guild');
+    expect(result[0].channelEnvironment.guild).toEqual({ id: 'guild-1', name: 'unknown-server' });
     expect(result[0].channelEnvironment.channel.name).toBe('unknown-channel');
   });
 
@@ -220,7 +221,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 50,
+      remainingMessageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -266,7 +267,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingBudget: 50,
+      remainingMessageBudget: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });

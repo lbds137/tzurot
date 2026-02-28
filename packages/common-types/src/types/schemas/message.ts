@@ -7,7 +7,7 @@
 
 import { z } from 'zod';
 import { MessageRole } from '../../constants/index.js';
-import { attachmentMetadataSchema } from './discord.js';
+import { attachmentMetadataSchema, discordEnvironmentSchema } from './discord.js';
 
 /**
  * API conversation message schema
@@ -141,9 +141,37 @@ export const messageMetadataSchema = z.object({
   // Future expansion: sentiment, mood, topic tags, etc.
 });
 
+/**
+ * Cross-channel message schema
+ * A message from cross-channel conversation history (subset of apiConversationMessageSchema)
+ */
+export const crossChannelMessageSchema = z.object({
+  id: z.string().optional(),
+  role: z.nativeEnum(MessageRole),
+  content: z.string(),
+  tokenCount: z.number().optional(),
+  createdAt: z.string().optional(),
+  personaId: z.string().optional(),
+  personaName: z.string().optional(),
+  discordUsername: z.string().optional(),
+  personalityId: z.string().optional(),
+  personalityName: z.string().optional(),
+});
+
+/**
+ * Cross-channel history group schema
+ * A group of messages from a single channel, used in cross-channel context
+ */
+export const crossChannelHistoryGroupSchema = z.object({
+  channelEnvironment: discordEnvironmentSchema,
+  messages: z.array(crossChannelMessageSchema),
+});
+
 // Infer TypeScript types from schemas
 export type ReferencedMessage = z.infer<typeof referencedMessageSchema>;
 export type StoredReferencedMessage = z.infer<typeof storedReferencedMessageSchema>;
 export type ReactionReactor = z.infer<typeof reactionReactorSchema>;
 export type MessageReaction = z.infer<typeof messageReactionSchema>;
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
+export type CrossChannelMessage = z.infer<typeof crossChannelMessageSchema>;
+export type CrossChannelHistoryGroupEntry = z.infer<typeof crossChannelHistoryGroupSchema>;

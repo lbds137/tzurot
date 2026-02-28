@@ -47,9 +47,6 @@ export function buildConversationContext(
     environment: jobContext.environment,
     referencedMessages: jobContext.referencedMessages,
     referencedChannels: jobContext.referencedChannels,
-    crossChannelHistory: preparedContext.crossChannelHistory?.map(group => ({
-      channelEnvironment: group.channelEnvironment,
-      messages: group.messages,
-    })),
+    crossChannelHistory: preparedContext.crossChannelHistory,
   };
 }

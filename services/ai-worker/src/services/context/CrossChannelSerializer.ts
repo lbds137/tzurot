@@ -52,6 +52,7 @@ export function serializeCrossChannelHistory(
     let groupTokens = channelOverhead;
 
     for (const msg of group.messages) {
+      // Use cached tokenCount when available, fall back to chars/4 approximation
       const msgTokens =
         msg.tokenCount ?? Math.ceil(getFormattedMessageCharLength(msg, personalityName) / 4);
       if (tokensUsed + groupTokens + msgTokens > availableBudget) {
@@ -94,5 +95,6 @@ export function serializeCrossChannelHistory(
 function estimateChannelOverhead(group: CrossChannelGroup): number {
   const locationXml = formatLocationAsXml(group.channelEnvironment);
   const channelTags = '<channel_history>\n</channel_history>';
+  // chars/4 approximation: ~1 token per 4 chars for XML/English text (conservative estimate)
   return Math.ceil((locationXml.length + channelTags.length) / 4);
 }
