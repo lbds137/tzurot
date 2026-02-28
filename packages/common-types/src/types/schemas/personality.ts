@@ -6,9 +6,12 @@
  */
 
 import { z } from 'zod';
-import { MessageRole } from '../../constants/index.js';
 import { discordEnvironmentSchema, attachmentMetadataSchema } from './discord.js';
-import { apiConversationMessageSchema, referencedMessageSchema } from './message.js';
+import {
+  apiConversationMessageSchema,
+  crossChannelHistoryGroupSchema,
+  referencedMessageSchema,
+} from './message.js';
 
 /**
  * Custom Fields Schema
@@ -185,27 +188,7 @@ export const requestContextSchema = z.object({
   // Weigh-in mode flag (anonymous poke - skip LTM retrieval and storage)
   isWeighIn: z.boolean().optional(),
   // Cross-channel conversation history (grouped by channel)
-  crossChannelHistory: z
-    .array(
-      z.object({
-        channelEnvironment: discordEnvironmentSchema,
-        messages: z.array(
-          z.object({
-            id: z.string().optional(),
-            role: z.nativeEnum(MessageRole),
-            content: z.string(),
-            tokenCount: z.number().optional(),
-            createdAt: z.string().optional(),
-            personaId: z.string().optional(),
-            personaName: z.string().optional(),
-            discordUsername: z.string().optional(),
-            personalityId: z.string().optional(),
-            personalityName: z.string().optional(),
-          })
-        ),
-      })
-    )
-    .optional(),
+  crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
 });
 
 // Infer TypeScript types from schemas
