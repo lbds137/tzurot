@@ -51,6 +51,25 @@ describe('mergeConfigOverrides', () => {
     expect(result).toEqual({ maxImages: 3 });
   });
 
+  it('should treat null input values as "clear override" (removes key from merged result)', () => {
+    const existing = { maxMessages: 50, crossChannelHistoryEnabled: true };
+    const result = mergeConfigOverrides(existing, { crossChannelHistoryEnabled: null });
+    // null → undefined → stripped from merged result
+    expect(result).toEqual({ maxMessages: 50 });
+  });
+
+  it('should clear boolean override back to inherited when null is sent', () => {
+    const existing = { shareLtmAcrossPersonalities: true, maxImages: 5 };
+    const result = mergeConfigOverrides(existing, { shareLtmAcrossPersonalities: null });
+    expect(result).toEqual({ maxImages: 5 });
+  });
+
+  it('should return null when clearing the only existing override', () => {
+    const existing = { crossChannelHistoryEnabled: true };
+    const result = mergeConfigOverrides(existing, { crossChannelHistoryEnabled: null });
+    expect(result).toBeNull();
+  });
+
   it('should handle multiple fields', () => {
     const existing = { maxMessages: 50, memoryLimit: 20 };
     const result = mergeConfigOverrides(existing, {
