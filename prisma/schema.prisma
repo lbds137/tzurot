@@ -353,7 +353,7 @@ model ConversationHistory {
   pendingMemory    PendingMemory?
 
   @@index([channelId, personalityId, createdAt(sort: Desc)])
-  @@index([personaId])
+  @@index([personaId, personalityId, createdAt(sort: Desc)])
   @@index([discordMessageId])
   @@index([messageMetadata], map: "conversation_history_message_metadata_idx", type: Gin)
   @@index([deletedAt]) // For cleanup queries and filtering soft-deleted messages

@@ -18,11 +18,12 @@ import {
   mapToConversationMessage,
   mapToConversationMessages,
   type ConversationMessage,
+  type CrossChannelHistoryGroup,
 } from './ConversationMessageMapper.js';
 import { generateConversationHistoryUuid } from '../utils/deterministicUuid.js';
 
-// Re-export ConversationMessage for consumers that import from this module
-export type { ConversationMessage } from './ConversationMessageMapper.js';
+// Re-export types for consumers that import from this module
+export type { ConversationMessage, CrossChannelHistoryGroup } from './ConversationMessageMapper.js';
 
 const logger = createLogger('ConversationHistoryService');
 
@@ -382,6 +383,80 @@ export class ConversationHistoryService {
       return history;
     } catch (error) {
       logger.error({ err: error }, `Failed to get channel conversation history`);
+      return [];
+    }
+  }
+
+  /**
+   * Get a user's conversation history with a personality from OTHER channels.
+   * Returns messages grouped by channel, ordered by most recent activity.
+   * Messages within each group are in chronological order (oldest first).
+   *
+   * Used to fill unused context budget with cross-channel history when
+   * crossChannelHistoryEnabled is true.
+   *
+   * @param personaId User's persona ID
+   * @param personalityId AI personality ID
+   * @param excludeChannelId Channel to exclude (the current channel)
+   * @param limit Maximum total messages to fetch across all channels (capped at 100)
+   */
+  async getCrossChannelHistory(
+    personaId: string,
+    personalityId: string,
+    excludeChannelId: string,
+    limit = 50
+  ): Promise<CrossChannelHistoryGroup[]> {
+    try {
+      const safeLimit = Math.min(limit, 100);
+
+      const messages = await this.prisma.conversationHistory.findMany({
+        where: {
+          personaId,
+          personalityId,
+          channelId: { not: excludeChannelId },
+          deletedAt: null,
+        },
+        orderBy: {
+          createdAt: 'desc',
+        },
+        take: safeLimit,
+        select: conversationHistorySelect,
+      });
+
+      if (messages.length === 0) {
+        return [];
+      }
+
+      // Group by channelId using Map (preserves insertion order = most recent channel first)
+      const channelGroups = new Map<string, typeof messages>();
+      for (const message of messages) {
+        const group = channelGroups.get(message.channelId);
+        if (group !== undefined) {
+          group.push(message);
+        } else {
+          channelGroups.set(message.channelId, [message]);
+        }
+      }
+
+      // Convert to CrossChannelHistoryGroup[], reversing messages within each group
+      // to chronological order (oldest first)
+      const groups: CrossChannelHistoryGroup[] = [];
+      for (const [channelId, channelMessages] of channelGroups) {
+        groups.push({
+          channelId,
+          guildId: channelMessages[0].guildId,
+          messages: mapToConversationMessages(channelMessages.reverse()),
+        });
+      }
+
+      logger.debug(
+        `Retrieved ${messages.length} cross-channel messages in ${groups.length} channel(s) ` +
+          `(persona: ${personaId.substring(0, 8)}..., personality: ${personalityId.substring(0, 8)}..., excluded: ${excludeChannelId})`
+      );
+
+      return groups;
+    } catch (error) {
+      logger.error({ err: error }, `Failed to get cross-channel conversation history`);
       return [];
     }
   }
