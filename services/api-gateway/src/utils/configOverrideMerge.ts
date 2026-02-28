@@ -18,7 +18,16 @@ export function mergeConfigOverrides(
   existing: unknown,
   input: Record<string, unknown>
 ): Record<string, unknown> | null | 'invalid' {
-  const parseResult = ConfigOverridesSchema.partial().safeParse(input);
+  // Convert null values to undefined before validation.
+  // Dashboard "auto" buttons send null to mean "clear this override" — Zod's .optional()
+  // accepts undefined but not null, so we normalize here. The cleanup loop below then
+  // removes undefined keys from the merged result, effectively clearing the override.
+  const sanitized: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(input)) {
+    sanitized[key] = value === null ? undefined : value;
+  }
+
+  const parseResult = ConfigOverridesSchema.partial().safeParse(sanitized);
   if (!parseResult.success) {
     return 'invalid';
   }

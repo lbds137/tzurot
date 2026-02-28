@@ -21,7 +21,25 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
-_Empty — triaged 2026-02-21._
+### 🏗️ Unify Config Cascade API Endpoints
+
+Each cascade tier uses a different API shape for the same operation (merging partial config overrides into JSONB):
+
+| Tier      | Endpoint                                   | Body Shape                             | Why Different                                       |
+| --------- | ------------------------------------------ | -------------------------------------- | --------------------------------------------------- |
+| Admin     | `PATCH /admin/settings`                    | `{ configDefaults: { field: value } }` | General-purpose endpoint, wraps in `configDefaults` |
+| Character | `PATCH /user/config-overrides/:id`         | `{ field: value }`                     | Cascade-specific endpoint, direct fields            |
+| Channel   | `PATCH /user/channel/:id/extended-context` | `{ extendedContextField: value }`      | Pre-cascade legacy, different field names entirely  |
+
+The asymmetry caused a real bug (admin null handling diverged from character) and forces each dashboard to implement its own `mapSettingToApiUpdate` with subtly different semantics.
+
+**Goal**: All cascade tiers accept `Partial<ConfigOverrides>` directly through `mergeConfigOverrides`. Specific changes:
+
+- Add `/admin/config-defaults` sub-endpoint (or refactor existing PATCH to accept direct fields)
+- Migrate channel settings from legacy `extendedContext*` fields to config cascade
+- Move `mapSettingToApiUpdate` into the dashboard settings framework (only the API URL varies per tier)
+
+**Discovered during**: PR #684 review (cross-channel history config cascade work)
 
 ---
 

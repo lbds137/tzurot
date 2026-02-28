@@ -267,17 +267,21 @@ function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string
   // maxAge has special semantics: -1 means "off" (store as null in JSONB)
   if (settingId === 'maxAge') {
     if (value === null) {
-      return { configDefaults: { maxAge: undefined } };
+      // "auto" → send null to clear override (mergeConfigOverrides strips null keys)
+      return { configDefaults: { maxAge: null } };
     }
     if (value === -1) {
+      // "off" → store null in JSONB (meaning no age limit)
       return { configDefaults: { maxAge: null } };
     }
     return { configDefaults: { maxAge: value } };
   }
 
-  // All other settings: null clears override, otherwise set the value
+  // All other settings: null = clear override (auto/inherit), otherwise set the value.
+  // JSON.stringify preserves null (unlike undefined), so mergeConfigOverrides receives
+  // the null and strips the key from the merged result.
   if (SETTING_FIELDS.includes(settingId as (typeof SETTING_FIELDS)[number])) {
-    return { configDefaults: { [settingId]: value ?? undefined } };
+    return { configDefaults: { [settingId]: value } };
   }
 
   return null;

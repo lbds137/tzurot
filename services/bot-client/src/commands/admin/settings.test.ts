@@ -494,9 +494,11 @@ describe('Admin Settings Dashboard', () => {
       await handleAdminSettingsModal(interaction as never);
 
       // For global settings, auto means clear the override (use hardcoded default)
+      // null is preserved through JSON.stringify (unlike undefined which gets stripped),
+      // so mergeConfigOverrides receives and sanitizes it to clear the override
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { configDefaults: { maxAge: undefined } },
+        { configDefaults: { maxAge: null } },
         'user-456'
       );
     });
@@ -539,7 +541,7 @@ describe('Admin Settings Dashboard', () => {
       // For global settings, auto means clear the override
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { configDefaults: { maxImages: undefined } },
+        { configDefaults: { maxImages: null } },
         'user-456'
       );
     });
@@ -558,10 +560,11 @@ describe('Admin Settings Dashboard', () => {
 
       await handleAdminSettingsModal(interaction as never);
 
-      // For global settings, auto means clear the override
+      // For global settings, auto means clear the override.
+      // null is sent (not undefined) because JSON.stringify preserves null.
       expect(mockAdminPatchJson).toHaveBeenCalledWith(
         '/admin/settings',
-        { configDefaults: { maxMessages: undefined } },
+        { configDefaults: { maxMessages: null } },
         'user-456'
       );
     });
