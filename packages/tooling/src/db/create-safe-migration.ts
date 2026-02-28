@@ -252,11 +252,11 @@ async function reconcileMigrationChecksum(
       AND finished_at IS NOT NULL
     `;
     console.log(chalk.dim('   Checksum reconciled with local database'));
-  } catch {
+  } catch (error) {
     // Non-fatal: checksum reconciliation is a convenience, not a requirement.
     // The migration file is correct; the user can manually fix the checksum
     // or reset the DB if needed.
-    console.log(chalk.dim('   (Could not reconcile checksum — apply migration to record it)'));
+    console.log(chalk.dim(`   (Could not reconcile checksum: ${String(error)})`));
   } finally {
     // Best-effort disconnect — may already be disconnected
     await disconnectPrisma().catch(() => undefined);
