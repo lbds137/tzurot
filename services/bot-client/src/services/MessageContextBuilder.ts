@@ -8,9 +8,12 @@
 import type {
   PrismaClient,
   PersonaResolver,
-  ResolvedExtendedContextSettings,
+  LoadedPersonality,
+  ReferencedMessage,
+  ConversationMessage,
+  AttachmentMetadata,
 } from '@tzurot/common-types';
-import type { Message, User } from 'discord.js';
+import type { Message } from 'discord.js';
 import {
   ConversationHistoryService,
   ConversationSyncService,
@@ -19,13 +22,6 @@ import {
   MESSAGE_LIMITS,
   isTypingChannel,
 } from '@tzurot/common-types';
-import type {
-  LoadedPersonality,
-  ReferencedMessage,
-  ConversationMessage,
-  AttachmentMetadata,
-} from '@tzurot/common-types';
-import type { GuildMember } from 'discord.js';
 import type { MessageContext } from '../types.js';
 import { extractDiscordEnvironment } from '../utils/discordContext.js';
 import { buildMessageContent } from '../utils/MessageContentBuilder.js';
@@ -40,46 +36,17 @@ import {
   resolveEffectiveMember,
   resolveUserContext,
 } from './contextBuilder/index.js';
+import type { ContextBuildOptions } from './contextBuilder/ContextBuildOptions.js';
 import {
   extractReferencesAndMentions,
   type ReferencesAndMentionsResult,
 } from './contextBuilder/ReferenceExtractor.js';
+import {
+  fetchCrossChannelIfEnabled,
+  mapCrossChannelToApiFormat,
+} from './CrossChannelHistoryFetcher.js';
 
 const logger = createLogger('MessageContextBuilder');
-
-/**
- * Options for building message context
- */
-interface ContextBuildOptions {
-  /**
-   * Extended context settings: resolved limits for fetching recent Discord messages.
-   * Includes maxMessages, maxAge, and maxImages limits.
-   * When provided, merges Discord messages with DB conversation history.
-   */
-  extendedContext?: ResolvedExtendedContextSettings;
-  /**
-   * Bot's Discord user ID (required for extended context to identify assistant messages)
-   */
-  botUserId?: string;
-  /**
-   * Override user for context building (slash commands).
-   * When provided, this user is used for userId, persona resolution, and BYOK lookup
-   * instead of message.author. Required when the anchor message isn't from the invoking user.
-   */
-  overrideUser?: User;
-  /**
-   * Override guild member for context building (slash commands).
-   * When provided, this member is used for display name and guild info extraction.
-   * If overrideUser is set but overrideMember is not, we'll try to fetch the member.
-   */
-  overrideMember?: GuildMember | null;
-  /**
-   * Weigh-in mode flag (slash commands without message).
-   * When true, the content parameter is the weigh-in prompt, not the anchor message content.
-   * This prevents link replacements from the anchor message being applied to the prompt.
-   */
-  isWeighInMode?: boolean;
-}
 
 /**
  * Result of building message context
@@ -101,17 +68,16 @@ interface ContextBuildResult {
   conversationHistory: ConversationMessage[];
 }
 
+type ParticipantGuildInfo = Record<
+  string,
+  { roles: string[]; displayColor?: string; joinedAt?: string }
+>;
+
 /** Result of fetching extended context from Discord */
 interface ExtendedContextResult {
-  /** Merged conversation history (DB + Discord messages) */
   history: ConversationMessage[];
-  /** Image attachments from extended context for proactive processing */
   attachments?: AttachmentMetadata[];
-  /** Guild info for participants in extended context */
-  participantGuildInfo?: Record<
-    string,
-    { roles: string[]; displayColor?: string; joinedAt?: string }
-  >;
+  participantGuildInfo?: ParticipantGuildInfo;
 }
 
 /** Parameters for extended context fetching */
@@ -449,6 +415,17 @@ export class MessageContextBuilder {
     const extendedContextAttachments = extendedContext.attachments;
     const participantGuildInfo = extendedContext.participantGuildInfo;
 
+    // Step 4b: Fetch cross-channel history (if enabled and there's remaining budget)
+    const crossChannelGroups = await fetchCrossChannelIfEnabled({
+      enabled: options.crossChannelHistoryEnabled === true,
+      channelId: message.channel.id,
+      personality,
+      currentHistory: history,
+      dbLimit,
+      discordClient: message.client,
+      conversationHistoryService: this.conversationHistory,
+    });
+
     // Step 5: Extract references and resolve mentions
     // maxReferences shares the same budget as maxMessages (no additive surprise)
     const refsAndMentions = await this.extractRefsAndMentions({
@@ -522,6 +499,10 @@ export class MessageContextBuilder {
       referencedMessages: referencedMessages.length > 0 ? referencedMessages : undefined,
       mentionedPersonas,
       referencedChannels,
+      crossChannelHistory:
+        crossChannelGroups !== undefined && crossChannelGroups.length > 0
+          ? mapCrossChannelToApiFormat(crossChannelGroups)
+          : undefined,
     };
 
     logger.debug(
