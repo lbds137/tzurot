@@ -1125,6 +1125,30 @@ describe('MessageContextBuilder', () => {
       expect(result.context.participantGuildInfo?.['discord:user-bob']).toBeUndefined();
     });
 
+    it('should continue without cross-channel history when fetch throws', async () => {
+      vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
+      vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
+      vi.mocked(mockHistoryService.getChannelHistory).mockResolvedValue([]);
+      mockExtractReferencesWithReplacement.mockResolvedValue({
+        references: [],
+        updatedContent: 'Hello',
+      });
+      mockResolveAllMentions.mockResolvedValue({
+        processedContent: 'Hello',
+        mentionedUsers: [],
+        mentionedChannels: [],
+      });
+      mockFetchCrossChannelIfEnabled.mockRejectedValue(new Error('DB connection lost'));
+
+      const result = await builder.buildContext(mockMessage, mockPersonality, 'Hello', {
+        crossChannelHistoryEnabled: true,
+      });
+
+      // Should succeed despite cross-channel failure
+      expect(result).toBeDefined();
+      expect(result.context.crossChannelHistory).toBeUndefined();
+    });
+
     it('should suppress cross-channel history when isWeighInMode is true', async () => {
       vi.mocked(mockUserService.getOrCreateUser).mockResolvedValue('user-uuid-123');
       vi.mocked(mockUserService.getUserTimezone).mockResolvedValue('UTC');
