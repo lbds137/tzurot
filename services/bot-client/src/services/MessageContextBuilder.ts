@@ -127,7 +127,6 @@ export class MessageContextBuilder {
    */
   private async fetchDbHistory(
     channelId: string,
-    _personalityId: string,
     contextEpoch: Date | undefined,
     limit: number = MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES
   ): Promise<ConversationMessage[]> {
@@ -396,12 +395,7 @@ export class MessageContextBuilder {
       options.extendedContext?.maxMessages ?? MESSAGE_LIMITS.DEFAULT_MAX_MESSAGES,
       MESSAGE_LIMITS.MAX_EXTENDED_CONTEXT
     );
-    const dbHistory = await this.fetchDbHistory(
-      message.channel.id,
-      personality.id,
-      contextEpoch,
-      dbLimit
-    );
+    const dbHistory = await this.fetchDbHistory(message.channel.id, contextEpoch, dbLimit);
 
     // Step 4: Fetch extended context from Discord (if enabled) and merge with DB history
     const extendedContext = await this.fetchExtendedContext({
