@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildConversationContext } from './conversationContextBuilder.js';
-import { AttachmentType, type LLMGenerationJobData } from '@tzurot/common-types';
+import { AttachmentType, MessageRole, type LLMGenerationJobData } from '@tzurot/common-types';
 import type { PreparedContext, PreprocessingResults } from '../types.js';
 
 function createMinimalJobContext(): LLMGenerationJobData['context'] {
@@ -99,7 +99,12 @@ describe('buildConversationContext', () => {
           channel: { id: 'dm-1', name: 'DM', type: 'dm' },
         },
         messages: [
-          { id: 'msg-1', role: 'user', content: 'DM message', createdAt: '2026-02-26T10:00:00Z' },
+          {
+            id: 'msg-1',
+            role: MessageRole.User,
+            content: 'DM message',
+            createdAt: '2026-02-26T10:00:00Z',
+          },
         ],
       },
     ];

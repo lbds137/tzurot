@@ -14,7 +14,12 @@ import type {
   SlashCommandSubcommandsOnlyBuilder,
   SlashCommandOptionsOnlyBuilder,
 } from 'discord.js';
-import type { GenerateResponse, LoadedPersonality, RequestContext } from '@tzurot/common-types';
+import type {
+  CrossChannelHistoryGroupEntry,
+  GenerateResponse,
+  LoadedPersonality,
+  RequestContext,
+} from '@tzurot/common-types';
 import { MessageRole } from '@tzurot/common-types';
 import type { DeferralMode, SafeCommandContext } from './utils/commandContext/index.js';
 
@@ -37,21 +42,7 @@ export interface MessageContext extends Omit<RequestContext, 'conversationHistor
     personaName?: string; // Persona's name for context
     discordUsername?: string; // Discord username for disambiguation when persona name matches personality name
   }[];
-  crossChannelHistory?: {
-    channelEnvironment: import('@tzurot/common-types').DiscordEnvironment;
-    messages: {
-      id?: string;
-      role: MessageRole;
-      content: string;
-      tokenCount?: number;
-      createdAt?: string;
-      personaId?: string;
-      personaName?: string;
-      discordUsername?: string;
-      personalityId?: string;
-      personalityName?: string;
-    }[];
-  }[];
+  crossChannelHistory?: CrossChannelHistoryGroupEntry[];
 }
 
 /**

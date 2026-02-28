@@ -19,7 +19,7 @@ import {
   formatTimeGapMarker,
   formatLocationAsXml,
   type TimeGapConfig,
-  type DiscordEnvironment,
+  type CrossChannelHistoryGroupEntry,
 } from '@tzurot/common-types';
 import { formatForwardedQuote } from '../../services/prompt/QuoteFormatter.js';
 
@@ -322,14 +322,6 @@ export function formatConversationHistoryAsXml(
 }
 
 /**
- * A cross-channel history group with channel environment and messages
- */
-export interface CrossChannelGroup {
-  channelEnvironment: DiscordEnvironment;
-  messages: RawHistoryEntry[];
-}
-
-/**
  * Format cross-channel conversation history as XML for inclusion in chat_log.
  *
  * Wraps all groups in `<prior_conversations>`, with each channel group in
@@ -340,7 +332,7 @@ export interface CrossChannelGroup {
  * @returns Formatted XML string, or empty string if no groups
  */
 export function formatCrossChannelHistoryAsXml(
-  groups: CrossChannelGroup[],
+  groups: CrossChannelHistoryGroupEntry[],
   personalityName: string
 ): string {
   if (groups.length === 0) {

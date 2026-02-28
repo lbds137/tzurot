@@ -222,7 +222,6 @@ export class ContentBudgetManager {
       historyBudget = reducedBudget;
     }
 
-    // Pass cross-channel history through to CWM (structurally compatible with CrossChannelGroup)
     const crossChannelGroups = context.crossChannelHistory;
 
     const { serializedHistory, historyTokensUsed, messagesDropped } =

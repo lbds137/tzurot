@@ -8,7 +8,7 @@
 
 import type { Job } from 'bullmq';
 import type {
-  DiscordEnvironment,
+  CrossChannelHistoryGroupEntry,
   LLMGenerationJobData,
   LLMGenerationResult,
   ResolvedConfigOverrides,
@@ -110,16 +110,6 @@ export interface PreprocessingResults {
 }
 
 /**
- * Cross-channel history group for the pipeline (mirrors JobContext shape).
- * Named "Pipeline" to distinguish from the DB-level CrossChannelHistoryGroup
- * in ConversationMessageMapper which uses channelId/guildId + ConversationMessage[].
- */
-export interface PipelineCrossChannelGroup {
-  channelEnvironment: DiscordEnvironment;
-  messages: ConversationHistoryEntry[];
-}
-
-/**
  * Prepared context for RAG generation
  */
 export interface PreparedContext {
@@ -132,7 +122,7 @@ export interface PreparedContext {
   /** All participants in the conversation */
   participants: Participant[];
   /** Cross-channel conversation history groups (from other channels with same personality) */
-  crossChannelHistory?: PipelineCrossChannelGroup[];
+  crossChannelHistory?: CrossChannelHistoryGroupEntry[];
 }
 
 /**

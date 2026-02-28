@@ -17,11 +17,11 @@ import type { BaseMessage } from '@langchain/core/messages';
 import { countTextTokens, createLogger } from '@tzurot/common-types';
 import type { PromptContext, MemoryDocument, TokenBudget } from './PromptContext.js';
 import { formatSingleMemory } from '../prompt/MemoryFormatter.js';
+import type { CrossChannelHistoryGroupEntry } from '@tzurot/common-types';
 import type { RawHistoryEntry } from '../../jobs/utils/conversationUtils.js';
 import {
   formatConversationHistoryAsXml,
   getFormattedMessageCharLength,
-  type CrossChannelGroup,
 } from '../../jobs/utils/conversationUtils.js';
 import { serializeCrossChannelHistory } from './CrossChannelSerializer.js';
 import { MemoryBudgetManager, type MemorySelectionResult } from './MemoryBudgetManager.js';
@@ -250,7 +250,7 @@ export class ContextWindowManager {
     rawHistory: RawHistoryEntry[] | undefined,
     personalityName: string,
     historyBudget: number,
-    crossChannelGroups?: CrossChannelGroup[]
+    crossChannelGroups?: CrossChannelHistoryGroupEntry[]
   ): {
     serializedHistory: string;
     historyTokensUsed: number;

@@ -6,11 +6,15 @@
  * max-lines limit.
  */
 
-import { countTextTokens, createLogger, formatLocationAsXml } from '@tzurot/common-types';
+import {
+  countTextTokens,
+  createLogger,
+  formatLocationAsXml,
+  type CrossChannelHistoryGroupEntry,
+} from '@tzurot/common-types';
 import {
   formatCrossChannelHistoryAsXml,
   getFormattedMessageCharLength,
-  type CrossChannelGroup,
 } from '../../jobs/utils/conversationUtils.js';
 
 const logger = createLogger('CrossChannelSerializer');
@@ -25,7 +29,7 @@ const logger = createLogger('CrossChannelSerializer');
  * @returns Serialized XML string, or empty string if nothing fits
  */
 export function serializeCrossChannelHistory(
-  groups: CrossChannelGroup[],
+  groups: CrossChannelHistoryGroupEntry[],
   personalityName: string,
   tokenBudget: number
 ): string {
@@ -33,7 +37,7 @@ export function serializeCrossChannelHistory(
     return '';
   }
 
-  const selectedGroups: CrossChannelGroup[] = [];
+  const selectedGroups: CrossChannelHistoryGroupEntry[] = [];
   let tokensUsed = 0;
 
   // Account for <prior_conversations> wrapper overhead
@@ -92,9 +96,11 @@ export function serializeCrossChannelHistory(
  * Only counts `<channel_history>` + `<location>` tags — NOT the `<prior_conversations>` wrapper,
  * which is already accounted for by `wrapperOverhead` in the caller.
  */
-function estimateChannelOverhead(group: CrossChannelGroup): number {
+function estimateChannelOverhead(group: CrossChannelHistoryGroupEntry): number {
   const locationXml = formatLocationAsXml(group.channelEnvironment);
   const channelTags = '<channel_history>\n</channel_history>';
-  // chars/4 approximation: ~1 token per 4 chars for XML/English text (conservative estimate)
+  // Speed tradeoff: chars/4 approximation here (called per-group) vs countTextTokens
+  // for wrapperOverhead (called once). The ~1 token per 4 chars estimate is conservative
+  // for XML/English text — slight overcount is fine since the final output is re-measured.
   return Math.ceil((locationXml.length + channelTags.length) / 4);
 }
