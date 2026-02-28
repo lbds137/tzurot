@@ -343,6 +343,9 @@ export function formatCrossChannelHistoryAsXml(
   parts.push('<prior_conversations>');
 
   for (const group of groups) {
+    if (group.messages.length === 0) {
+      continue;
+    }
     parts.push('<channel_history>');
     parts.push(formatLocationAsXml(group.channelEnvironment));
     const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName);
