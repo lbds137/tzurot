@@ -428,6 +428,9 @@ export class MessageContextBuilder {
       dbLimit,
       discordClient: message.client,
       conversationHistoryService: this.conversationHistory,
+    }).catch((err: unknown) => {
+      logger.warn({ err }, '[MCB] Cross-channel fetch failed, continuing without');
+      return undefined;
     });
 
     // Step 5: Extract references and resolve mentions
