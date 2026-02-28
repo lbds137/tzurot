@@ -105,7 +105,7 @@ export class ContextStep implements IPipelineStep {
       oldestHistoryTimestamp = allTimestamps.reduce((min, ts) => Math.min(min, ts), Infinity);
       logger.debug(
         { jobId: job.id, oldestTimestamp: new Date(oldestHistoryTimestamp).toISOString() },
-        '[ContextStep] Oldest timestamp (includes referenced messages)'
+        '[ContextStep] Oldest timestamp (includes referenced and cross-channel messages)'
       );
     }
 

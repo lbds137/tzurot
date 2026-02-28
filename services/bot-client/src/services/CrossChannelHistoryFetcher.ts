@@ -29,8 +29,8 @@ interface FetchOptions {
   personaId: string;
   personalityId: string;
   currentChannelId: string;
-  /** Maximum number of messages to fetch across all channels */
-  remainingMessageBudget: number;
+  /** Maximum number of messages to fetch across all channels (DB row limit, not token budget) */
+  remainingMessageCount: number;
   discordClient: Client;
   conversationHistoryService: ConversationHistoryService;
 }
@@ -164,12 +164,12 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingMessageBudget,
+    remainingMessageCount,
     discordClient,
     conversationHistoryService,
   } = opts;
 
-  if (remainingMessageBudget <= 0) {
+  if (remainingMessageCount <= 0) {
     return [];
   }
 
@@ -177,7 +177,7 @@ export async function fetchCrossChannelHistory(
     personaId,
     personalityId,
     currentChannelId,
-    remainingMessageBudget
+    remainingMessageCount
   );
 
   if (groups.length === 0) {
@@ -232,15 +232,15 @@ export async function fetchCrossChannelIfEnabled(opts: {
     return undefined;
   }
 
-  const remainingMessageBudget = opts.dbLimit - opts.currentHistoryLength;
-  if (remainingMessageBudget <= 0) {
+  const remainingMessageCount = opts.dbLimit - opts.currentHistoryLength;
+  if (remainingMessageCount <= 0) {
     logger.debug(
       {
         channelId: opts.channelId,
         currentHistoryLength: opts.currentHistoryLength,
         dbLimit: opts.dbLimit,
       },
-      '[CCHF] No remaining message budget for cross-channel history'
+      '[CCHF] No remaining message count for cross-channel history'
     );
     return undefined;
   }
@@ -249,7 +249,7 @@ export async function fetchCrossChannelIfEnabled(opts: {
     personaId: opts.personaId,
     personalityId: opts.personalityId,
     currentChannelId: opts.channelId,
-    remainingMessageBudget,
+    remainingMessageCount,
     discordClient: opts.discordClient,
     conversationHistoryService: opts.conversationHistoryService,
   });
@@ -257,7 +257,11 @@ export async function fetchCrossChannelIfEnabled(opts: {
   return groups.length > 0 ? groups : undefined;
 }
 
-/** Map resolved cross-channel groups to the API/job payload format (Date→string serialization) */
+/**
+ * Map resolved cross-channel groups to the API/job payload format (Date→string serialization).
+ * Note: `discordMessageId` is intentionally omitted — it's only used for current-channel
+ * quote deduplication and is not relevant for cross-channel historical context.
+ */
 export function mapCrossChannelToApiFormat(
   groups: ResolvedCrossChannelGroup[]
 ): CrossChannelHistoryGroupEntry[] {

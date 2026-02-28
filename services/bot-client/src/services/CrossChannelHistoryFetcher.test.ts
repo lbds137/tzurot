@@ -80,12 +80,12 @@ describe('fetchCrossChannelHistory', () => {
     vi.restoreAllMocks();
   });
 
-  it('should return empty array when remainingMessageBudget is zero', async () => {
+  it('should return empty array when remainingMessageCount is zero', async () => {
     const result = await fetchCrossChannelHistory({
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 0,
+      remainingMessageCount: 0,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: createMockConversationHistoryService(),
     });
@@ -100,7 +100,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient: createMockDiscordClient(),
       conversationHistoryService: service,
     });
@@ -138,7 +138,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -177,7 +177,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -219,7 +219,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -244,7 +244,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -270,7 +270,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -297,7 +297,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -343,7 +343,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -381,7 +381,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
@@ -417,7 +417,7 @@ describe('fetchCrossChannelHistory', () => {
       personaId: 'persona-1',
       personalityId: 'personality-1',
       currentChannelId: 'channel-1',
-      remainingMessageBudget: 50,
+      remainingMessageCount: 50,
       discordClient,
       conversationHistoryService: createMockConversationHistoryService(groups),
     });
