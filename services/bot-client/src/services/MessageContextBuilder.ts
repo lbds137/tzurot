@@ -423,7 +423,7 @@ export class MessageContextBuilder {
       enabled: options.crossChannelHistoryEnabled === true && options.isWeighInMode !== true,
       channelId: message.channel.id,
       personaId,
-      personality,
+      personalityId: personality.id,
       currentHistoryLength: history.length,
       dbLimit,
       discordClient: message.client,

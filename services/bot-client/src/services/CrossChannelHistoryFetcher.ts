@@ -14,7 +14,6 @@ import {
   type CrossChannelHistoryGroup,
   type CrossChannelHistoryGroupEntry,
   type DiscordEnvironment,
-  type LoadedPersonality,
 } from '@tzurot/common-types';
 
 const logger = createLogger('CrossChannelHistoryFetcher');
@@ -229,7 +228,7 @@ export async function fetchCrossChannelIfEnabled(opts: {
   enabled: boolean;
   channelId: string;
   personaId: string;
-  personality: LoadedPersonality;
+  personalityId: string;
   currentHistoryLength: number;
   dbLimit: number;
   discordClient: Client;
@@ -254,7 +253,7 @@ export async function fetchCrossChannelIfEnabled(opts: {
 
   const groups = await fetchCrossChannelHistory({
     personaId: opts.personaId,
-    personalityId: opts.personality.id,
+    personalityId: opts.personalityId,
     currentChannelId: opts.channelId,
     remainingMessageBudget,
     discordClient: opts.discordClient,
