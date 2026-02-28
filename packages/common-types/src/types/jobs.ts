@@ -28,6 +28,7 @@ import {
   referencedMessageSchema,
   discordEnvironmentSchema,
   guildMemberInfoSchema,
+  crossChannelHistoryGroupSchema,
 } from './schemas/index.js';
 import { JobType, JobStatus } from '../constants/queue.js';
 import { MessageRole } from '../constants/message.js';
@@ -336,27 +337,7 @@ const jobContextSchema = z.object({
   referencedMessages: z.array(referencedMessageSchema).optional(),
   mentionedPersonas: z.array(mentionedPersonaSchema).optional(),
   referencedChannels: z.array(referencedChannelSchema).optional(),
-  crossChannelHistory: z
-    .array(
-      z.object({
-        channelEnvironment: discordEnvironmentSchema,
-        messages: z.array(
-          z.object({
-            id: z.string().optional(),
-            role: z.nativeEnum(MessageRole),
-            content: z.string(),
-            tokenCount: z.number().optional(),
-            createdAt: z.string().optional(),
-            personaId: z.string().optional(),
-            personaName: z.string().optional(),
-            discordUsername: z.string().optional(),
-            personalityId: z.string().optional(),
-            personalityName: z.string().optional(),
-          })
-        ),
-      })
-    )
-    .optional(),
+  crossChannelHistory: z.array(crossChannelHistoryGroupSchema).optional(),
 });
 
 /**

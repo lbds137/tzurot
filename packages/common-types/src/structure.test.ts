@@ -101,8 +101,8 @@ const EXCLUDE_PATTERNS = [
   // Browse helpers (UI helpers tested via command tests)
   /browseHelpers\.ts$/,
   // Pure type/interface definitions (no logic to test)
-  /DiagnosticTypes\.ts$/,
-  /ContextBuildOptions\.ts$/,
+  /DiagnosticTypes\.ts$/, // ai-worker diagnostic types
+  /ContextBuildOptions\.ts$/, // bot-client context builder options interface
   // --- Tooling package exclusions ---
   // CLI command routers (thin wrappers that register yargs/cac commands, delegate to submodules)
   /packages\/tooling\/src\/commands\//,
