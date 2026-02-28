@@ -520,6 +520,92 @@ describe('ContextStep', () => {
           new Date('2024-01-01T12:00:00Z').getTime()
         );
       });
+
+      it('should include cross-channel timestamps in oldest calculation', () => {
+        const conversationHistory = [
+          { role: MessageRole.User, content: 'Current channel', createdAt: '2024-01-15T12:00:00Z' },
+        ];
+
+        const crossChannelHistory = [
+          {
+            channelEnvironment: {
+              type: 'guild' as const,
+              guild: { id: 'g-1', name: 'Server' },
+              channel: { id: 'ch-other', name: 'general', type: 'text' },
+            },
+            messages: [
+              {
+                id: 'msg-1',
+                role: MessageRole.User,
+                content: 'Older cross-channel msg',
+                createdAt: '2024-01-01T08:00:00Z',
+              },
+            ],
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', conversationHistory, crossChannelHistory },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        // Should use the older cross-channel timestamp
+        expect(result.preparedContext?.oldestHistoryTimestamp).toBe(
+          new Date('2024-01-01T08:00:00Z').getTime()
+        );
+      });
+
+      it('should map cross-channel history to pipeline format', () => {
+        const crossChannelHistory = [
+          {
+            channelEnvironment: {
+              type: 'dm' as const,
+              channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+            },
+            messages: [
+              {
+                id: 'msg-cross-1',
+                role: MessageRole.User,
+                content: 'DM message',
+                createdAt: '2024-01-01T08:00:00Z',
+                personaName: 'Alice',
+                tokenCount: 5,
+              },
+            ],
+          },
+        ];
+
+        const config: ResolvedConfig = {
+          effectivePersonality: TEST_PERSONALITY,
+          configSource: 'personality',
+        };
+
+        const context: GenerationContext = {
+          job: createMockJob({
+            context: { userId: 'user-456', crossChannelHistory },
+          }),
+          startTime: Date.now(),
+          config,
+        };
+
+        const result = step.process(context);
+
+        expect(result.preparedContext?.crossChannelHistory).toHaveLength(1);
+        expect(result.preparedContext?.crossChannelHistory?.[0].channelEnvironment.type).toBe('dm');
+        expect(result.preparedContext?.crossChannelHistory?.[0].messages[0].content).toBe(
+          'DM message'
+        );
+      });
     });
   });
 });
