@@ -41,6 +41,8 @@ function createMockMessage(overrides: {
     createdAt: overrides.createdAt ?? new Date('2024-01-01T12:00:00Z'),
     personaId: overrides.personaId ?? 'persona-123',
     personaName: overrides.personaName ?? 'TestUser',
+    channelId: 'test-channel',
+    guildId: 'test-guild',
     messageMetadata: overrides.messageMetadata,
   };
 }
