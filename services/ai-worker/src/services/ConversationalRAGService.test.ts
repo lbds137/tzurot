@@ -272,7 +272,7 @@ describe('ConversationalRAGService', () => {
       expect(getLongTermMemoryServiceMock().storeInteraction).not.toHaveBeenCalled();
     });
 
-    it('should store LTM with different persona', async () => {
+    it('should store LTM to resolved persona when configOverrides specifies shared memories', async () => {
       getMemoryRetrieverMock().resolvePersonaForMemory.mockResolvedValue({
         personaId: 'persona-456',
         focusModeEnabled: false,

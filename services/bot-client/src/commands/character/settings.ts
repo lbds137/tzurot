@@ -28,6 +28,7 @@ import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingsData,
+  type SettingSource,
   type SettingUpdateResult,
   createSettingsDashboard,
   handleSettingsSelectMenu,
@@ -249,13 +250,10 @@ function parseEntityId(entityId: string): [string | null, string | null] {
 /**
  * Map cascade source to dashboard SettingSource
  */
-function mapSource(source: string): 'personality' | 'global' | 'channel' | 'default' {
+function mapSource(source: string): SettingSource {
   switch (source) {
     case USER_PERSONALITY_SOURCE:
-      // Maps to 'channel' because SettingSource doesn't have a 'user-personality' token.
-      // 'channel' displays as "Your override" which is the correct UX label.
-      // TODO: Add proper 'user-personality' source type to SettingSource if needed.
-      return 'channel';
+      return 'user-personality';
     case 'user-default':
       return 'global';
     case 'personality':

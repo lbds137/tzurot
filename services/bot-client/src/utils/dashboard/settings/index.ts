@@ -10,6 +10,7 @@ export {
   type SettingsData,
   type SettingsDashboardSession,
   type SettingsDashboardConfig,
+  type SettingSource,
   type SettingUpdateResult,
   type SettingValue,
   parseSettingsCustomId,

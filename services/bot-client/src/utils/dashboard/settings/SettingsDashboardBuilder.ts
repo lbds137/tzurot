@@ -36,7 +36,12 @@ function formatSettingValue(
 
   // Determine if this level has an override
   const isOverridden = localValue !== null;
-  const sourceLabel = source === 'default' ? 'default' : `from ${source}`;
+  const sourceLabel =
+    source === 'default'
+      ? 'default'
+      : source === 'user-personality'
+        ? 'your override'
+        : `from ${source}`;
 
   let display: string;
   let status: string;
