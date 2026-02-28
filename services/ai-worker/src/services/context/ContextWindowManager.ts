@@ -120,18 +120,23 @@ export class ContextWindowManager {
     historyBudget: number
   ): { selectedEntries: RawHistoryEntry[]; currentChannelXml: string; tokensUsed: number } {
     const wrapperOverhead = countTextTokens('<chat_log>\n</chat_log>');
-    const budgetRemaining = historyBudget - wrapperOverhead;
+    const budgetAfterOverhead = historyBudget - wrapperOverhead;
+
+    if (budgetAfterOverhead <= 0) {
+      return { selectedEntries: [], currentChannelXml: '', tokensUsed: 0 };
+    }
+
     const selectedEntries: RawHistoryEntry[] = [];
     let estimatedTokens = 0;
 
-    for (let i = rawHistory.length - 1; i >= 0 && budgetRemaining > 0; i--) {
+    for (let i = rawHistory.length - 1; i >= 0; i--) {
       const entry = rawHistory[i];
       const entryTokens =
         entry.tokenCount ?? Math.ceil(getFormattedMessageCharLength(entry, personalityName) / 4);
 
-      if (estimatedTokens + entryTokens > budgetRemaining) {
+      if (estimatedTokens + entryTokens > budgetAfterOverhead) {
         logger.debug(
-          { wouldUse: estimatedTokens + entryTokens, budgetRemaining },
+          { wouldUse: estimatedTokens + entryTokens, budgetAfterOverhead },
           '[CWM] Stopping history selection: would exceed budget'
         );
         break;
