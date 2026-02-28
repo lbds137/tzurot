@@ -15,6 +15,7 @@ import type {
   ReferencedChannel,
   ReferencedMessage,
   AttachmentMetadata,
+  CrossChannelHistoryGroupEntry,
   DiscordEnvironment,
   LLMGenerationResult,
   GuildMemberInfo,
@@ -101,21 +102,7 @@ export interface JobContext {
   /** Weigh-in mode: anonymous poke, skip LTM retrieval and storage */
   isWeighIn?: boolean;
   /** Cross-channel conversation history (grouped by channel, for cross-channel context) */
-  crossChannelHistory?: {
-    channelEnvironment: DiscordEnvironment;
-    messages: {
-      id?: string;
-      role: MessageRole;
-      content: string;
-      tokenCount?: number;
-      createdAt?: string;
-      personaId?: string;
-      personaName?: string;
-      discordUsername?: string;
-      personalityId?: string;
-      personalityName?: string;
-    }[];
-  }[];
+  crossChannelHistory?: CrossChannelHistoryGroupEntry[];
 }
 
 /**

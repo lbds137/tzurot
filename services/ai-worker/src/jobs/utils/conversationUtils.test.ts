@@ -14,10 +14,13 @@ import {
   formatConversationHistoryAsXml,
   formatCrossChannelHistoryAsXml,
   getFormattedMessageCharLength,
-  type CrossChannelGroup,
   type RawHistoryEntry,
 } from './conversationUtils.js';
-import { MessageRole, type StoredReferencedMessage } from '@tzurot/common-types';
+import {
+  MessageRole,
+  type CrossChannelHistoryGroupEntry,
+  type StoredReferencedMessage,
+} from '@tzurot/common-types';
 
 // Mock common-types - use importOriginal to get actual implementations
 // but override logger and timestamp formatters for test isolation
@@ -2543,7 +2546,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
   });
 
   it('should format a guild channel group with location block', () => {
-    const groups: CrossChannelGroup[] = [
+    const groups: CrossChannelHistoryGroupEntry[] = [
       {
         channelEnvironment: {
           type: 'guild',
@@ -2552,7 +2555,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
         },
         messages: [
           {
-            role: 'user',
+            role: MessageRole.User,
             content: 'Hello from another channel',
             createdAt: '2026-02-26T10:00:00Z',
             personaName: 'Alice',
@@ -2573,7 +2576,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
   });
 
   it('should format a DM channel group', () => {
-    const groups: CrossChannelGroup[] = [
+    const groups: CrossChannelHistoryGroupEntry[] = [
       {
         channelEnvironment: {
           type: 'dm',
@@ -2581,7 +2584,7 @@ describe('formatCrossChannelHistoryAsXml', () => {
         },
         messages: [
           {
-            role: 'user',
+            role: MessageRole.User,
             content: 'Private conversation',
             createdAt: '2026-02-26T10:00:00Z',
             personaName: 'Bob',
@@ -2596,14 +2599,16 @@ describe('formatCrossChannelHistoryAsXml', () => {
   });
 
   it('should format multiple groups in order', () => {
-    const groups: CrossChannelGroup[] = [
+    const groups: CrossChannelHistoryGroupEntry[] = [
       {
         channelEnvironment: {
           type: 'guild',
           guild: { id: 'g-1', name: 'Server' },
           channel: { id: 'ch-1', name: 'general', type: 'text' },
         },
-        messages: [{ role: 'user', content: 'First channel', createdAt: '2026-02-26T09:00:00Z' }],
+        messages: [
+          { role: MessageRole.User, content: 'First channel', createdAt: '2026-02-26T09:00:00Z' },
+        ],
       },
       {
         channelEnvironment: {
@@ -2611,7 +2616,9 @@ describe('formatCrossChannelHistoryAsXml', () => {
           guild: { id: 'g-1', name: 'Server' },
           channel: { id: 'ch-2', name: 'random', type: 'text' },
         },
-        messages: [{ role: 'user', content: 'Second channel', createdAt: '2026-02-26T10:00:00Z' }],
+        messages: [
+          { role: MessageRole.User, content: 'Second channel', createdAt: '2026-02-26T10:00:00Z' },
+        ],
       },
     ];
 
