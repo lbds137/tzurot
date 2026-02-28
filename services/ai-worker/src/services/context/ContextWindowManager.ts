@@ -162,8 +162,15 @@ export class ContextWindowManager {
 
     // Re-measure actual tokens; may slightly exceed historyBudget due to char/4
     // approximation in serializeCrossChannelHistory (non-ASCII content like CJK or
-    // emoji server names can widen the gap). Overrun is bounded since the final
-    // token count here is always the accurate measure.
+    // emoji server names can widen the gap).
+    //
+    // Design decision: we accept the overrun rather than trimming because:
+    // 1. The serializer's own budget check (chars/4) is conservative for ASCII/English,
+    //    so overruns only occur with non-ASCII-heavy content and are typically small.
+    // 2. Trimming would require re-serializing all groups (the XML is already built).
+    // 3. The model's context limit has a separate safety margin — historyBudget is the
+    //    *history slice* of a larger window, not the hard model limit.
+    // The >5% info log below provides production visibility for monitoring.
     const crossTokens = countTextTokens(crossResult.xml);
     const totalTokens = currentChannelTokensUsed + crossTokens;
     logger.info(
