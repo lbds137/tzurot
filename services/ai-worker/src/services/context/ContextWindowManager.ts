@@ -2,15 +2,8 @@
  * Context Window Manager
  *
  * Manages token budgets and selects conversation history that fits within context window.
- * Extracted from ConversationalRAGService for better separation of concerns.
- *
- * Responsibilities:
- * - Calculate token budgets for all prompt components
- * - Select history messages within budget (recency-based strategy)
- * - Provide detailed token allocation metadata for debugging
- *
- * NEW ARCHITECTURE (2025-12): History is now serialized as XML inside the system prompt,
- * not as separate LangChain messages. This prevents identity bleeding.
+ * History is serialized as XML inside the system prompt to prevent identity bleeding.
+ * Cross-channel history from other channels is included when budget permits.
  */
 
 import type { BaseMessage } from '@langchain/core/messages';
@@ -236,15 +229,9 @@ export class ContextWindowManager {
   }
 
   /**
-   * Select and serialize conversation history as XML
-   *
-   * NEW ARCHITECTURE (2025-12): History is serialized inside the system prompt
-   * rather than as separate LangChain messages. This prevents identity bleeding.
-   *
-   * @param rawHistory - Raw conversation history entries
-   * @param personalityName - Name of the AI personality (for marking its messages)
-   * @param historyBudget - Maximum tokens to use for history
-   * @returns Serialized XML string and metadata about selection
+   * Select and serialize conversation history as XML within token budget.
+   * History is serialized inside the system prompt to prevent identity bleeding.
+   * Cross-channel history is included when available and budget permits.
    */
   selectAndSerializeHistory(
     rawHistory: RawHistoryEntry[] | undefined,
@@ -257,7 +244,10 @@ export class ContextWindowManager {
     messagesIncluded: number;
     messagesDropped: number;
   } {
-    if (rawHistory === undefined || rawHistory.length === 0 || historyBudget <= 0) {
+    const hasCurrentChannel = rawHistory !== undefined && rawHistory.length > 0;
+    const hasCrossChannel = crossChannelGroups !== undefined && crossChannelGroups.length > 0;
+
+    if ((!hasCurrentChannel && !hasCrossChannel) || historyBudget <= 0) {
       return {
         serializedHistory: '',
         historyTokensUsed: 0,
@@ -266,47 +256,16 @@ export class ContextWindowManager {
       };
     }
 
-    // Work backwards from newest message, selecting messages that fit in budget
-    const selectedEntries: RawHistoryEntry[] = [];
-    let estimatedTokens = 0;
+    // Select current-channel messages within budget
+    const { selectedEntries, currentChannelXml, tokensUsed } = hasCurrentChannel
+      ? this.selectCurrentChannelEntries(rawHistory, personalityName, historyBudget)
+      : { selectedEntries: [] as RawHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
 
-    // Account for <chat_log> wrapper overhead
-    const wrapperOverhead = countTextTokens('<chat_log>\n</chat_log>');
-    const budgetRemaining = historyBudget - wrapperOverhead;
-
-    for (let i = rawHistory.length - 1; i >= 0 && budgetRemaining > 0; i--) {
-      const entry = rawHistory[i];
-
-      // Use cached token count if available, otherwise estimate from formatted length
-      const entryTokens =
-        entry.tokenCount ?? Math.ceil(getFormattedMessageCharLength(entry, personalityName) / 4);
-
-      if (estimatedTokens + entryTokens > budgetRemaining) {
-        logger.debug(
-          `[CWM] Stopping history selection: would exceed budget (${estimatedTokens + entryTokens} > ${budgetRemaining})`
-        );
-        break;
-      }
-
-      selectedEntries.unshift(entry); // Add to front to maintain chronological order
-      estimatedTokens += entryTokens;
-    }
-
-    // Serialize the selected entries as XML
-    const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, personalityName);
-    let actualTokens = countTextTokens(currentChannelXml) + wrapperOverhead;
-
-    logger.info(
-      `[CWM] Selected ${selectedEntries.length}/${rawHistory.length} history messages (${actualTokens} tokens, budget: ${historyBudget})`
-    );
+    let actualTokens = tokensUsed;
 
     // Serialize cross-channel history if available and budget remains
     let crossChannelXml = '';
-    if (
-      crossChannelGroups !== undefined &&
-      crossChannelGroups.length > 0 &&
-      actualTokens < historyBudget
-    ) {
+    if (hasCrossChannel && actualTokens < historyBudget) {
       crossChannelXml = serializeCrossChannelHistory(
         crossChannelGroups,
         personalityName,
@@ -322,28 +281,62 @@ export class ContextWindowManager {
       }
     }
 
-    // Prepend cross-channel before current channel (older context first)
-    const serializedHistory =
-      crossChannelXml.length > 0 ? `${crossChannelXml}\n${currentChannelXml}` : currentChannelXml;
+    // Combine: cross-channel before current channel (older context first)
+    let serializedHistory: string;
+    if (crossChannelXml.length > 0 && currentChannelXml.length > 0) {
+      serializedHistory = `${crossChannelXml}\n${currentChannelXml}`;
+    } else {
+      serializedHistory = crossChannelXml || currentChannelXml;
+    }
 
     return {
       serializedHistory,
       historyTokensUsed: actualTokens,
       messagesIncluded: selectedEntries.length,
-      messagesDropped: rawHistory.length - selectedEntries.length,
+      messagesDropped: (rawHistory?.length ?? 0) - selectedEntries.length,
     };
   }
 
+  /** Select current-channel entries within budget using recency-based strategy. */
+  private selectCurrentChannelEntries(
+    rawHistory: RawHistoryEntry[],
+    personalityName: string,
+    historyBudget: number
+  ): { selectedEntries: RawHistoryEntry[]; currentChannelXml: string; tokensUsed: number } {
+    const wrapperOverhead = countTextTokens('<chat_log>\n</chat_log>');
+    const budgetRemaining = historyBudget - wrapperOverhead;
+    const selectedEntries: RawHistoryEntry[] = [];
+    let estimatedTokens = 0;
+
+    for (let i = rawHistory.length - 1; i >= 0 && budgetRemaining > 0; i--) {
+      const entry = rawHistory[i];
+      const entryTokens =
+        entry.tokenCount ?? Math.ceil(getFormattedMessageCharLength(entry, personalityName) / 4);
+
+      if (estimatedTokens + entryTokens > budgetRemaining) {
+        logger.debug(
+          `[CWM] Stopping history selection: would exceed budget (${estimatedTokens + entryTokens} > ${budgetRemaining})`
+        );
+        break;
+      }
+
+      selectedEntries.unshift(entry);
+      estimatedTokens += entryTokens;
+    }
+
+    const currentChannelXml = formatConversationHistoryAsXml(selectedEntries, personalityName);
+    const tokensUsed = countTextTokens(currentChannelXml) + wrapperOverhead;
+
+    logger.info(
+      `[CWM] Selected ${selectedEntries.length}/${rawHistory.length} history messages (${tokensUsed} tokens, budget: ${historyBudget})`
+    );
+
+    return { selectedEntries, currentChannelXml, tokensUsed };
+  }
+
   /**
-   * Calculate history token budget
-   *
-   * Returns the number of tokens available for conversation history
-   * after accounting for system prompt base, current message, and memories.
-   *
-   * @param contextWindowTokens - Total context window size
-   * @param systemPromptBaseTokens - Tokens for system prompt WITHOUT history
-   * @param currentMessageTokens - Tokens for current user message
-   * @param memoryTokens - Tokens for relevant memories
+   * Calculate history token budget: remaining tokens after system prompt, current message,
+   * and memories are subtracted from the context window.
    */
   calculateHistoryBudget(
     contextWindowTokens: number,
