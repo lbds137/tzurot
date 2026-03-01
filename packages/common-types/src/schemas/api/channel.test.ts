@@ -19,6 +19,7 @@ function createValidChannelSettings(overrides = {}) {
     id: '550e8400-e29b-41d4-a716-446655440000',
     channelId: '123456789012345678',
     guildId: '987654321098765432',
+    activatedPersonalityId: '550e8400-e29b-41d4-a716-446655440099',
     personalitySlug: 'lilith',
     personalityName: 'Lilith',
     autoRespond: true,

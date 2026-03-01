@@ -42,6 +42,7 @@ import {
   isSettingsInteraction,
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
+  mapSettingToApiUpdate,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('admin-settings');
@@ -168,14 +169,6 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
   return (await response.json()) as GetAdminSettingsResponse;
 }
 
-/** Config override field names that map to SettingsData keys (excluding maxAge which has special handling) */
-const SETTING_FIELDS = [
-  'maxMessages',
-  'maxImages',
-  'crossChannelHistoryEnabled',
-  'shareLtmAcrossPersonalities',
-] as const;
-
 /** Build a SettingValue for an admin config field */
 function buildAdminSettingValue<T>(
   defaults: Record<string, unknown> | undefined,
@@ -214,7 +207,9 @@ function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData
 }
 
 /**
- * Handle setting updates from the dashboard
+ * Handle setting updates from the dashboard.
+ * Uses the /admin/settings/config-defaults sub-route which accepts
+ * flat Partial<ConfigOverrides> — same body shape as all other tiers.
  */
 async function handleSettingUpdate(
   interaction: ButtonInteraction | ModalSubmitInteraction,
@@ -227,15 +222,15 @@ async function handleSettingUpdate(
   logger.debug({ settingId, newValue, userId }, '[Admin Settings] Updating setting');
 
   try {
-    // Map setting ID to API field name
-    const updates = mapSettingToApiUpdate(settingId, newValue);
+    // Map setting ID to API body using shared utility
+    const body = mapSettingToApiUpdate(settingId, newValue);
 
-    if (updates === null) {
+    if (body === null) {
       return { success: false, error: 'Unknown setting' };
     }
 
-    // Send update to API gateway
-    const response = await adminPatchJson('/admin/settings', updates, userId);
+    // Send update to admin config-defaults sub-route (flat body shape)
+    const response = await adminPatchJson('/admin/settings/config-defaults', body, userId);
 
     if (!response.ok) {
       const errorText = await response.text();
@@ -254,35 +249,4 @@ async function handleSettingUpdate(
     logger.error({ err: error, settingId }, '[Admin Settings] Error updating setting');
     return { success: false, error: 'Failed to update setting' };
   }
-}
-
-/**
- * Map dashboard setting ID to API PATCH body.
- * Writes to configDefaults JSONB (config cascade admin tier).
- *
- * The API uses merge semantics — we send only the field being updated.
- * Sending null for a field value removes it from configDefaults.
- */
-function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
-  // maxAge has special semantics: -1 means "off" (store as null in JSONB)
-  if (settingId === 'maxAge') {
-    if (value === null) {
-      // "auto" → send null to clear override (mergeConfigOverrides strips null keys)
-      return { configDefaults: { maxAge: null } };
-    }
-    if (value === -1) {
-      // "off" → clear override (inherits hardcoded default of null = no age limit)
-      return { configDefaults: { maxAge: null } };
-    }
-    return { configDefaults: { maxAge: value } };
-  }
-
-  // All other settings: null = clear override (auto/inherit), otherwise set the value.
-  // JSON.stringify preserves null (unlike undefined), so mergeConfigOverrides receives
-  // the null and strips the key from the merged result.
-  if (SETTING_FIELDS.includes(settingId as (typeof SETTING_FIELDS)[number])) {
-    return { configDefaults: { [settingId]: value } };
-  }
-
-  return null;
 }

@@ -96,11 +96,13 @@ const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000003';
 
 function createMockReqRes(
   body: Record<string, unknown> | null = {},
-  params: Record<string, string> = {}
+  params: Record<string, string> = {},
+  query: Record<string, string> = {}
 ) {
   const req = {
     body,
     params,
+    query,
     userId: TEST_DISCORD_USER_ID,
   } as unknown as Request & { userId: string };
 
@@ -266,6 +268,38 @@ describe('/user/config-overrides routes', () => {
             maxMessages: 'hardcoded',
           }),
         })
+      );
+    });
+
+    it('should pass channelId query param to resolver', async () => {
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve/:personalityId');
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: TEST_PERSONALITY_ID },
+        { channelId: 'channel-123' }
+      );
+
+      await handler(req, res);
+
+      expect(mockResolveOverrides).toHaveBeenCalledWith(
+        TEST_DISCORD_USER_ID,
+        TEST_PERSONALITY_ID,
+        'channel-123'
+      );
+    });
+
+    it('should pass undefined channelId when query param not provided', async () => {
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve/:personalityId');
+      const { req, res } = createMockReqRes({}, { personalityId: TEST_PERSONALITY_ID });
+
+      await handler(req, res);
+
+      expect(mockResolveOverrides).toHaveBeenCalledWith(
+        TEST_DISCORD_USER_ID,
+        TEST_PERSONALITY_ID,
+        undefined
       );
     });
   });

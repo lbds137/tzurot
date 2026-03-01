@@ -263,6 +263,7 @@ CREATE TABLE "channel_settings" (
     "guild_id" VARCHAR(20),
     "activated_personality_id" UUID,
     "auto_respond" BOOLEAN NOT NULL DEFAULT true,
+    "config_overrides" JSONB,
     "created_by" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,

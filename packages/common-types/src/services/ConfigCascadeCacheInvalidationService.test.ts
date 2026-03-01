@@ -94,6 +94,22 @@ describe('ConfigCascadeCacheInvalidationService', () => {
       expect(isValidConfigCascadeInvalidationEvent({ type: 'user' })).toBe(false);
     });
 
+    it('should validate "channel" event with channelId', () => {
+      expect(isValidConfigCascadeInvalidationEvent({ type: 'channel', channelId: 'ch-123' })).toBe(
+        true
+      );
+    });
+
+    it('should reject "channel" event without channelId', () => {
+      expect(isValidConfigCascadeInvalidationEvent({ type: 'channel' })).toBe(false);
+    });
+
+    it('should reject "channel" event with wrong channelId type', () => {
+      expect(isValidConfigCascadeInvalidationEvent({ type: 'channel', channelId: 123 })).toBe(
+        false
+      );
+    });
+
     it('should reject "personality" event without personalityId', () => {
       expect(isValidConfigCascadeInvalidationEvent({ type: 'personality' })).toBe(false);
     });
@@ -196,6 +212,17 @@ describe('ConfigCascadeCacheInvalidationService', () => {
       expect(mockRedis.publish).toHaveBeenCalledWith(
         REDIS_CHANNELS.CONFIG_CASCADE_CACHE_INVALIDATION,
         JSON.stringify({ type: 'admin' })
+      );
+    });
+
+    it('invalidateChannel should publish channel event', async () => {
+      const service = new ConfigCascadeCacheInvalidationService(mockRedis as any);
+
+      await service.invalidateChannel('ch-123');
+
+      expect(mockRedis.publish).toHaveBeenCalledWith(
+        REDIS_CHANNELS.CONFIG_CASCADE_CACHE_INVALIDATION,
+        JSON.stringify({ type: 'channel', channelId: 'ch-123' })
       );
     });
 
