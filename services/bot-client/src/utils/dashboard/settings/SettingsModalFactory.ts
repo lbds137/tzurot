@@ -97,8 +97,8 @@ export function parseNumericInput(
     return { type: 'auto' };
   }
 
-  // Parse as number
-  const num = parseInt(trimmed, 10);
+  // Number() supports decimals (e.g. memoryScoreThreshold 0-1) and rejects mixed input like '50abc'
+  const num = Number(trimmed);
   if (Number.isNaN(num)) {
     return { type: 'error', message: `Invalid number: "${input}"` };
   }

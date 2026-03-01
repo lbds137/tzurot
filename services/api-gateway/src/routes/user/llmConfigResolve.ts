@@ -34,6 +34,7 @@ interface ResolveConfigBody {
   channelId?: string;
 }
 
+/** @internal Exported for testing only */
 export const resolveConfigBodySchema = z.object({
   personalityId: z.string().min(1),
   personalityConfig: z
