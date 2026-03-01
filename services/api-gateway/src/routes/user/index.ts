@@ -70,6 +70,7 @@ import { createMemoryRoutes } from './memory.js';
 import { createNsfwRoutes } from './nsfw.js';
 import { createConversationLookupRoutes } from './conversationLookup.js';
 import { createConfigOverrideRoutes } from './config-overrides.js';
+import { createPersonalityConfigOverrideRoutes } from './personality-config-overrides.js';
 import { createShapesRoutes } from './shapes/index.js';
 
 /** Dependencies for creating the user router */
@@ -130,6 +131,10 @@ export function createUserRouter(opts: UserRouterOptions): Router {
 
   // Config override routes (cascade overrides for context/memory settings)
   router.use('/config-overrides', createConfigOverrideRoutes(prisma, cascadeInvalidation));
+  router.use(
+    '/config-overrides',
+    createPersonalityConfigOverrideRoutes(prisma, cascadeInvalidation)
+  );
 
   // Conversation lookup routes (internal service-to-service, no user auth)
   router.use('/conversation', createConversationLookupRoutes(prisma));

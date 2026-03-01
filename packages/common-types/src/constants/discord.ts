@@ -83,9 +83,9 @@ export const GATEWAY_TIMEOUTS = {
   /** Timeout for autocomplete handlers (Discord 3s limit) */
   AUTOCOMPLETE: 2500,
   /** Timeout for deferred operations (post-deferReply).
-   *  25s gives headroom for cold-start Prisma connection establishment
-   *  on Railway redeploys — still well within Discord's 15-minute window. */
-  DEFERRED: 25000,
+   *  10s is generous for warmed DB connections — the api-gateway now calls
+   *  prisma.$connect() at startup to eliminate cold-start latency. */
+  DEFERRED: 10000,
 } as const;
 
 /**

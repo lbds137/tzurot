@@ -6,7 +6,12 @@
 
 import { describe, it, expect } from 'vitest';
 import { HARDCODED_CONFIG_DEFAULTS, type ResolvedConfigOverrides } from '@tzurot/common-types';
-import { buildCascadeSettingsData, buildFallbackSettingsData } from './settingsDataBuilder.js';
+import {
+  buildCascadeSettingsData,
+  buildFallbackSettingsData,
+  convertResolveDefaultsResponse,
+  type ResolveDefaultsResponse,
+} from './settingsDataBuilder.js';
 
 describe('buildCascadeSettingsData', () => {
   it('should use resolved values and sources when resolved data is provided', () => {
@@ -162,6 +167,68 @@ describe('buildCascadeSettingsData', () => {
       expect(result[field as keyof typeof result]).toHaveProperty('effectiveValue');
       expect(result[field as keyof typeof result]).toHaveProperty('source');
     }
+  });
+});
+
+describe('convertResolveDefaultsResponse', () => {
+  it('should convert flat resolve-defaults response to ResolvedConfigOverrides', () => {
+    const response: ResolveDefaultsResponse = {
+      maxMessages: 75,
+      maxAge: null,
+      maxImages: 10,
+      focusModeEnabled: false,
+      crossChannelHistoryEnabled: false,
+      shareLtmAcrossPersonalities: false,
+      memoryScoreThreshold: 0.5,
+      memoryLimit: 20,
+      sources: {
+        maxMessages: 'admin',
+        maxAge: 'hardcoded',
+        maxImages: 'hardcoded',
+        focusModeEnabled: 'hardcoded',
+        crossChannelHistoryEnabled: 'hardcoded',
+        shareLtmAcrossPersonalities: 'hardcoded',
+        memoryScoreThreshold: 'hardcoded',
+        memoryLimit: 'hardcoded',
+      },
+      userOverrides: { maxMessages: 30 },
+    };
+
+    const { resolved, userOverrides } = convertResolveDefaultsResponse(response);
+
+    expect(resolved.maxMessages).toBe(75);
+    expect(resolved.maxAge).toBeNull();
+    expect(resolved.sources.maxMessages).toBe('admin');
+    expect(resolved.sources.maxAge).toBe('hardcoded');
+    expect(userOverrides).toEqual({ maxMessages: 30 });
+  });
+
+  it('should return null userOverrides when response has null', () => {
+    const response: ResolveDefaultsResponse = {
+      maxMessages: HARDCODED_CONFIG_DEFAULTS.maxMessages,
+      maxAge: HARDCODED_CONFIG_DEFAULTS.maxAge,
+      maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
+      focusModeEnabled: false,
+      crossChannelHistoryEnabled: false,
+      shareLtmAcrossPersonalities: false,
+      memoryScoreThreshold: 0.5,
+      memoryLimit: 20,
+      sources: {
+        maxMessages: 'hardcoded',
+        maxAge: 'hardcoded',
+        maxImages: 'hardcoded',
+        focusModeEnabled: 'hardcoded',
+        crossChannelHistoryEnabled: 'hardcoded',
+        shareLtmAcrossPersonalities: 'hardcoded',
+        memoryScoreThreshold: 'hardcoded',
+        memoryLimit: 'hardcoded',
+      },
+      userOverrides: null,
+    };
+
+    const { userOverrides } = convertResolveDefaultsResponse(response);
+
+    expect(userOverrides).toBeNull();
   });
 });
 

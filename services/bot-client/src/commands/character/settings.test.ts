@@ -182,12 +182,12 @@ describe('Character Settings Dashboard', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
         method: 'GET',
         userId: 'user-456',
-        timeout: 25000,
+        timeout: 10000,
       });
-      // Second call: resolve cascade overrides
+      // Second call: resolve 3-tier cascade (hardcoded → admin → personality)
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/resolve/personality-123',
-        { method: 'GET', userId: 'user-456', timeout: 25000 }
+        '/user/config-overrides/resolve-personality/personality-123',
+        { method: 'GET', userId: 'user-456', timeout: 10000 }
       );
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -240,19 +240,19 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.fields).toHaveLength(8);
     });
 
-    it('should extract user-personality overrides as local values', async () => {
+    it('should extract personality-tier overrides as local values', async () => {
       const context = createMockContext();
-      const resolvedWithUserOverride: ResolvedConfigOverrides = {
+      const resolvedWithPersonalityOverride: ResolvedConfigOverrides = {
         ...mockResolvedOverrides,
         maxMessages: 75,
         sources: {
           ...mockResolvedOverrides.sources,
-          maxMessages: 'user-personality',
+          maxMessages: 'personality',
         },
       };
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true, data: mockPersonality })
-        .mockResolvedValueOnce({ ok: true, data: resolvedWithUserOverride });
+        .mockResolvedValueOnce({ ok: true, data: resolvedWithPersonalityOverride });
 
       await handleSettings(context, mockConfig);
 
@@ -262,7 +262,7 @@ describe('Character Settings Dashboard', () => {
         f.name?.includes('Max Messages')
       );
 
-      // user-personality source should show as Override (localValue extracted)
+      // personality source should show as Override (localValue extracted)
       expect(maxMessagesField?.value).toContain('Override');
     });
 
@@ -406,7 +406,7 @@ describe('Character Settings Dashboard', () => {
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { crossChannelHistoryEnabled: true },
@@ -455,7 +455,7 @@ describe('Character Settings Dashboard', () => {
       await handleCharacterSettingsButton(interaction as unknown as ButtonInteraction);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { shareLtmAcrossPersonalities: true },
@@ -610,7 +610,7 @@ describe('Character Settings Dashboard', () => {
 
       // Should call PATCH on cascade endpoint with correct field
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { maxMessages: 75 },
@@ -632,7 +632,7 @@ describe('Character Settings Dashboard', () => {
       await handleCharacterSettingsModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { maxAge: 7200 },
@@ -655,7 +655,7 @@ describe('Character Settings Dashboard', () => {
 
       // "off" maps to null in cascade config overrides
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { maxAge: null },
@@ -678,7 +678,7 @@ describe('Character Settings Dashboard', () => {
 
       // "auto" means inherit (null) — inherit from lower cascade tier
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { maxAge: null },
@@ -700,7 +700,7 @@ describe('Character Settings Dashboard', () => {
       await handleCharacterSettingsModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/config-overrides/personality-123',
+        '/user/config-overrides/personality/personality-123',
         expect.objectContaining({
           method: 'PATCH',
           body: { maxImages: 10 },

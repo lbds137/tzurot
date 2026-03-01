@@ -33,6 +33,7 @@ import {
   type SettingsDashboardSession,
   type SettingsData,
   type SettingUpdateResult,
+  type ResolveDefaultsResponse,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -43,6 +44,7 @@ import {
   MEMORY_SETTINGS,
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
+  convertResolveDefaultsResponse,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-context');
@@ -95,14 +97,14 @@ export async function handleContext(context: DeferredCommandContext): Promise<vo
     // Fetch resolved config with channel tier
     const data = await fetchAndConvertSettingsData(userId, personalityId, channelId);
 
-    // When no personality is activated, the resolve endpoint can't be called so
-    // effective values fall back to hardcoded defaults (admin/personality tiers missing).
+    // When no personality is activated, resolve-defaults is used as fallback,
+    // so admin and user-default overrides are visible. Only personality-tier is missing.
     const config =
       personalityId === undefined
         ? {
             ...CHANNEL_CONTEXT_CONFIG,
             descriptionNote:
-              '⚠️ No personality activated — effective values shown without full cascade context.',
+              'ℹ️ No personality activated — personality-level defaults not included in cascade.',
           }
         : CHANNEL_CONTEXT_CONFIG;
 
@@ -221,6 +223,9 @@ function extractChannelId(customId: string): string | null {
  *
  * Gets the channel's own overrides (localValue) and the fully resolved values
  * (effectiveValue) with source tracking from the config cascade.
+ *
+ * When no personality is activated, falls back to resolve-defaults (hardcoded →
+ * admin → user-default) so admin overrides are still visible.
  */
 async function fetchAndConvertSettingsData(
   userId: string,
@@ -228,14 +233,18 @@ async function fetchAndConvertSettingsData(
   channelId: string
 ): Promise<SettingsData> {
   // Fetch channel's local overrides and resolved cascade in parallel.
-  // When no personality is activated, resolve is skipped (returns null).
+  // When no personality is activated, use resolve-defaults for admin/user cascade.
   const resolvePromise =
     personalityId !== undefined
       ? callGatewayApi<ResolvedConfigOverrides>(
           `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}?channelId=${encodeURIComponent(channelId)}`,
           { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
         )
-      : Promise.resolve(null);
+      : callGatewayApi<ResolveDefaultsResponse>('/user/config-overrides/resolve-defaults', {
+          method: 'GET',
+          userId,
+          timeout: GATEWAY_TIMEOUTS.DEFERRED,
+        });
 
   const [channelOverridesResult, resolvedResult] = await Promise.all([
     callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
@@ -249,7 +258,20 @@ async function fetchAndConvertSettingsData(
     ? (channelOverridesResult.data.configOverrides as Partial<ConfigOverrides> | null)
     : null;
 
-  const resolved = resolvedResult?.ok === true ? resolvedResult.data : null;
+  // Convert the resolved result to ResolvedConfigOverrides format
+  let resolved: ResolvedConfigOverrides | null = null;
+  if (resolvedResult.ok) {
+    if (personalityId !== undefined) {
+      // Full cascade response — already in ResolvedConfigOverrides format
+      resolved = resolvedResult.data;
+    } else {
+      // resolve-defaults response — flat format with reserved metadata keys
+      const { resolved: convertedResolved } = convertResolveDefaultsResponse(
+        resolvedResult.data as ResolveDefaultsResponse
+      );
+      resolved = convertedResolved;
+    }
+  }
 
   return buildCascadeSettingsData(resolved, channelOverrides, 'channel');
 }

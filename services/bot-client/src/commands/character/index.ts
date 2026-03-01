@@ -49,6 +49,13 @@ import {
   isCharacterSettingsInteraction,
 } from './settings.js';
 import {
+  handleOverrides,
+  handleCharacterOverridesSelectMenu,
+  handleCharacterOverridesButton,
+  handleCharacterOverridesModal,
+  isCharacterOverridesInteraction,
+} from './overrides.js';
+import {
   handleModalSubmit,
   handleSelectMenu as handleDashboardSelectMenu,
   handleButton as handleDashboardButton,
@@ -82,6 +89,7 @@ function createCharacterRouter(): (context: SafeCommandContext) => Promise<void>
         template: (ctx: DeferredCommandContext) => handleTemplate(ctx, config),
         chat: (ctx: DeferredCommandContext) => handleChat(ctx, config),
         settings: (ctx: DeferredCommandContext) => handleSettings(ctx, config),
+        overrides: (ctx: DeferredCommandContext) => handleOverrides(ctx, config),
       },
     },
     { logger, logPrefix: '[Character]' }
@@ -122,6 +130,12 @@ async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promi
     return;
   }
 
+  // Check if it's an overrides dashboard interaction
+  if (isCharacterOverridesInteraction(interaction.customId)) {
+    await handleCharacterOverridesSelectMenu(interaction);
+    return;
+  }
+
   // Otherwise route to character edit dashboard
   await handleDashboardSelectMenu(interaction);
 }
@@ -145,6 +159,12 @@ async function handleButton(interaction: ButtonInteraction): Promise<void> {
     return;
   }
 
+  // Check if it's an overrides dashboard interaction
+  if (isCharacterOverridesInteraction(interaction.customId)) {
+    await handleCharacterOverridesButton(interaction);
+    return;
+  }
+
   // Otherwise route to character edit dashboard
   await handleDashboardButton(interaction);
 }
@@ -159,6 +179,12 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   // Check if it's a settings dashboard modal
   if (isCharacterSettingsInteraction(interaction.customId)) {
     await handleCharacterSettingsModal(interaction);
+    return;
+  }
+
+  // Check if it's an overrides dashboard modal
+  if (isCharacterOverridesInteraction(interaction.customId)) {
+    await handleCharacterOverridesModal(interaction);
     return;
   }
 
@@ -311,11 +337,23 @@ export default defineCommand({
             .setRequired(true)
             .setAutocomplete(true)
         )
+    )
+    .addSubcommand(subcommand =>
+      subcommand
+        .setName('overrides')
+        .setDescription('Manage your personal overrides for a character')
+        .addStringOption(option =>
+          option
+            .setName('character')
+            .setDescription('Character to override settings for')
+            .setRequired(true)
+            .setAutocomplete(true)
+        )
     ),
   execute,
   autocomplete,
   handleSelectMenu,
   handleButton,
   handleModal,
-  componentPrefixes: ['character-settings'],
+  componentPrefixes: ['character-settings', 'character-overrides'],
 });
