@@ -331,6 +331,8 @@ async function main(): Promise<void> {
   // Create Express app with base middleware
   const app = express();
   const prisma = getPrismaClient();
+  await prisma.$connect();
+  logger.info('[Gateway] Database connection established');
   app.use(express.json({ limit: '10mb' }));
   // eslint-disable-next-line @typescript-eslint/no-unsafe-call -- pino-http is imported via CommonJS require() and has 'any' type. Functionally correct, just lacks type definitions.
   app.use(pinoHttp({ logger }));

@@ -24,7 +24,12 @@ export { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS, ALL_SETTINGS } from './sett
 export { mapSettingToApiUpdate } from './settingsUpdate.js';
 
 // Shared data builder
-export { buildCascadeSettingsData, buildFallbackSettingsData } from './settingsDataBuilder.js';
+export {
+  buildCascadeSettingsData,
+  buildFallbackSettingsData,
+  convertResolveDefaultsResponse,
+  type ResolveDefaultsResponse,
+} from './settingsDataBuilder.js';
 
 // Dashboard Builder
 // Modal Factory

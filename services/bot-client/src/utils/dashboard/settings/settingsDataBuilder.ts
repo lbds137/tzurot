@@ -49,6 +49,44 @@ export function buildCascadeSettingsData(
   return result as unknown as SettingsData;
 }
 
+/** Response shape from GET /user/config-overrides/resolve-defaults */
+export interface ResolveDefaultsResponse {
+  maxMessages: number;
+  maxAge: number | null;
+  maxImages: number;
+  focusModeEnabled: boolean;
+  crossChannelHistoryEnabled: boolean;
+  shareLtmAcrossPersonalities: boolean;
+  memoryScoreThreshold: number;
+  memoryLimit: number;
+  sources: Record<string, ConfigOverrideSource>;
+  userOverrides: Record<string, unknown> | null;
+}
+
+/**
+ * Convert a flat resolve-defaults API response to ResolvedConfigOverrides format.
+ * The resolve-defaults endpoint returns config values, sources, and userOverrides
+ * as reserved metadata keys in the same flat object.
+ */
+export function convertResolveDefaultsResponse(response: ResolveDefaultsResponse): {
+  resolved: ResolvedConfigOverrides;
+  userOverrides: Partial<ConfigOverrides> | null;
+} {
+  const resolved: ResolvedConfigOverrides = {
+    maxMessages: response.maxMessages,
+    maxAge: response.maxAge,
+    maxImages: response.maxImages,
+    focusModeEnabled: response.focusModeEnabled,
+    crossChannelHistoryEnabled: response.crossChannelHistoryEnabled,
+    shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
+    memoryScoreThreshold: response.memoryScoreThreshold,
+    memoryLimit: response.memoryLimit,
+    sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
+  };
+  const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;
+  return { resolved, userOverrides };
+}
+
 /**
  * Build fallback SettingsData when API calls fail.
  * Returns all hardcoded defaults with 'hardcoded' source and null localValue.

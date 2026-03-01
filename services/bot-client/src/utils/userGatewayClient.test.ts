@@ -282,8 +282,8 @@ describe('userGatewayClient', () => {
       expect(GATEWAY_TIMEOUTS.AUTOCOMPLETE).toBe(2500);
     });
 
-    it('should have DEFERRED timeout of 25000ms', () => {
-      expect(GATEWAY_TIMEOUTS.DEFERRED).toBe(25000);
+    it('should have DEFERRED timeout of 10000ms', () => {
+      expect(GATEWAY_TIMEOUTS.DEFERRED).toBe(10000);
     });
 
     it('should have DEFERRED longer than AUTOCOMPLETE', () => {
