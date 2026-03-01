@@ -132,6 +132,17 @@ describe('/user/config-overrides personality routes', () => {
       expect(mockResolveOverrides).toHaveBeenCalledWith(undefined, TEST_PERSONALITY_ID, undefined);
       expect(res.status).toHaveBeenCalledWith(200);
     });
+
+    it('should reject non-UUID personalityId', async () => {
+      const router = createPersonalityConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve-personality/:personalityId');
+      const { req, res } = createMockReqRes({}, { personalityId: 'not-a-uuid' });
+
+      await handler(req, res);
+
+      expect(mockResolveOverrides).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+    });
   });
 
   describe('PATCH /personality/:personalityId', () => {
