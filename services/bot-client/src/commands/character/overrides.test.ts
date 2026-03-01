@@ -339,6 +339,15 @@ describe('Character Overrides Dashboard', () => {
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
     });
 
+    it('should return early when entityId is missing from custom ID', async () => {
+      // A custom ID that passes isSettingsInteraction but parseSettingsCustomId returns no entityId
+      const interaction = createMockButtonInteraction('character-overrides::set');
+
+      await handleCharacterOverridesButton(interaction);
+
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    });
+
     it('should update setting via user-personality cascade endpoint', async () => {
       const interaction = {
         customId:
@@ -388,6 +397,37 @@ describe('Character Overrides Dashboard', () => {
         })
       );
     });
+
+    it('should handle missing personalityId when entityId has no -- separator', async () => {
+      const interaction = {
+        customId: 'character-overrides::set::aurora::crossChannelHistoryEnabled:true',
+        user: { id: 'user-456' },
+        reply: vi.fn(),
+        update: vi.fn(),
+        showModal: vi.fn(),
+      };
+
+      mockSessionManager.get.mockReturnValue({
+        data: {
+          userId: 'user-456',
+          entityId: 'aurora',
+          data: {
+            crossChannelHistoryEnabled: {
+              localValue: null,
+              effectiveValue: false,
+              source: 'hardcoded',
+            },
+          },
+          view: 'setting',
+          activeSetting: 'crossChannelHistoryEnabled',
+        },
+      });
+
+      await handleCharacterOverridesButton(interaction as unknown as ButtonInteraction);
+
+      // Should not make any API calls since personalityId is null
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
+    });
   });
 
   describe('handleCharacterOverridesSelectMenu', () => {
@@ -400,6 +440,17 @@ describe('Character Overrides Dashboard', () => {
       await handleCharacterOverridesSelectMenu(interaction);
 
       expect(interaction.deferUpdate).not.toHaveBeenCalled();
+    });
+
+    it('should return early when entityId is missing from custom ID', async () => {
+      const interaction = createMockSelectMenuInteraction(
+        'character-overrides::select',
+        'maxMessages'
+      );
+
+      await handleCharacterOverridesSelectMenu(interaction);
+
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
   });
 
@@ -439,6 +490,14 @@ describe('Character Overrides Dashboard', () => {
       await handleCharacterOverridesModal(interaction as never);
 
       expect(interaction.reply).not.toHaveBeenCalled();
+    });
+
+    it('should return early when entityId is missing from custom ID', async () => {
+      const interaction = createMockModalInteraction('character-overrides::modal', '50');
+
+      await handleCharacterOverridesModal(interaction as never);
+
+      expect(mockCallGatewayApi).not.toHaveBeenCalled();
     });
 
     it('should update maxMessages setting via user-personality cascade endpoint', async () => {
