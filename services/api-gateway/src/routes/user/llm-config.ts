@@ -12,22 +12,17 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
-import { z } from 'zod';
 import {
   createLogger,
   UserService,
-  LlmConfigResolver,
-  ConfigCascadeResolver,
   isBotOwner,
   type PrismaClient,
   type LlmConfigSummary,
   type LlmConfigCacheInvalidationService,
-  type LoadedPersonality,
   computeLlmConfigPermissions,
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
-  DISCORD_SNOWFLAKE,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -42,6 +37,7 @@ import {
   validateModelAndContextWindow,
   enrichWithModelContext,
 } from '../../utils/modelValidation.js';
+import { createResolveHandler } from './llmConfigResolve.js';
 
 const logger = createLogger('user-llm-config');
 
@@ -345,75 +341,6 @@ function createDeleteHandler(service: LlmConfigService, prisma: PrismaClient) {
 
     logger.info({ discordUserId, configId, name: config.name }, '[LlmConfig] Deleted config');
     sendCustomSuccess(res, { deleted: true }, StatusCodes.OK);
-  };
-}
-
-// --- Resolve Handler ---
-
-/**
- * Request body for resolving config
- * Bot-client sends this to get resolved config before context building
- */
-interface ResolveConfigBody {
-  personalityId: string;
-  personalityConfig: LoadedPersonality;
-  channelId?: string;
-}
-
-const resolveConfigBodySchema = z.object({
-  personalityId: z.string().min(1),
-  personalityConfig: z
-    .object({
-      id: z.string(),
-      name: z.string(),
-      model: z.string(),
-    })
-    .passthrough(), // Allow additional LoadedPersonality fields
-  channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, 'Invalid channelId format').optional(),
-});
-
-/**
- * Create resolve handler
- * POST /user/llm-config/resolve
- *
- * Resolves the effective LLM config for a user+personality combination.
- * Used by bot-client to get context settings (maxMessages, maxAge, maxImages)
- * before building conversation context.
- */
-function createResolveHandler(prisma: PrismaClient) {
-  // Create resolvers with cleanup disabled (short-lived request handler)
-  const resolver = new LlmConfigResolver(prisma, { enableCleanup: false });
-  const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
-
-  return async (req: AuthenticatedRequest, res: Response) => {
-    const discordUserId = req.userId;
-
-    const parseResult = resolveConfigBodySchema.safeParse(req.body);
-    if (!parseResult.success) {
-      return sendError(res, ErrorResponses.validationError(parseResult.error.message));
-    }
-
-    const { personalityId, personalityConfig, channelId } = parseResult.data as ResolveConfigBody;
-
-    try {
-      const [result, overrides] = await Promise.all([
-        resolver.resolveConfig(discordUserId, personalityId, personalityConfig),
-        cascadeResolver.resolveOverrides(discordUserId, personalityId, channelId),
-      ]);
-
-      logger.debug(
-        { discordUserId, personalityId, source: result.source },
-        '[LlmConfig] Config resolved'
-      );
-
-      sendCustomSuccess(res, { ...result, overrides }, StatusCodes.OK);
-    } catch (error) {
-      logger.error(
-        { err: error, discordUserId, personalityId },
-        '[LlmConfig] Failed to resolve config'
-      );
-      return sendError(res, ErrorResponses.internalError('Failed to resolve config'));
-    }
   };
 }
 

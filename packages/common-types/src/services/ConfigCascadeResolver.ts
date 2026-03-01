@@ -2,14 +2,14 @@
  * Config Cascade Resolver
  *
  * Resolves the effective config overrides for a user+personality+channel combination
- * using a 5-tier cascade:
+ * using a 5-tier cascade (plus hardcoded baseline):
  *
- *   1. HARDCODED_CONFIG_DEFAULTS (always present, lowest priority)
- *   2. AdminSettings.configDefaults (admin tier)
- *   3. Personality.configDefaults (personality tier)
- *   4. ChannelSettings.configOverrides (channel tier)
- *   5. User.configDefaults (user-default tier)
- *   6. UserPersonalityConfig.configOverrides (user+personality tier, highest priority)
+ *   Baseline: HARDCODED_CONFIG_DEFAULTS (always present, lowest priority)
+ *   1. AdminSettings.configDefaults (admin tier)
+ *   2. Personality.configDefaults (personality tier)
+ *   3. ChannelSettings.configOverrides (channel tier)
+ *   4. User.configDefaults (user-default tier)
+ *   5. UserPersonalityConfig.configOverrides (user+personality tier, highest priority)
  *
  * Higher tiers override lower tiers on a per-field basis.
  * Each resolved field tracks which tier provided it.
@@ -127,11 +127,11 @@ export class ConfigCascadeResolver {
     ]);
 
     // Assemble in cascade priority order (lowest first):
-    // Tier 2: admin → Tier 3: personality → Tier 4: channel → Tier 5: user-default → Tier 6: user-personality
+    // Tier 1: admin → Tier 2: personality → Tier 3: channel → Tier 4: user-default → Tier 5: user-personality
     return [...adminTiers, ...personalityTiers, ...channelTiers, ...userTiers];
   }
 
-  /** Load admin tier (Tier 2: singleton admin settings) */
+  /** Load admin tier (Tier 1: singleton admin settings) */
   private async loadAdminTier(): Promise<TierData[]> {
     const tiers: TierData[] = [];
     try {
@@ -146,7 +146,7 @@ export class ConfigCascadeResolver {
     return tiers;
   }
 
-  /** Load personality tier (Tier 3) */
+  /** Load personality tier (Tier 2) */
   private async loadPersonalityTier(personalityId: string): Promise<TierData[]> {
     const tiers: TierData[] = [];
     try {
@@ -161,7 +161,7 @@ export class ConfigCascadeResolver {
     return tiers;
   }
 
-  /** Load channel tier (Tier 4: channel-level overrides set by moderators) */
+  /** Load channel tier (Tier 3: channel-level overrides set by moderators) */
   private async loadChannelTier(channelId: string): Promise<TierData[]> {
     const tiers: TierData[] = [];
     try {
@@ -176,7 +176,7 @@ export class ConfigCascadeResolver {
     return tiers;
   }
 
-  /** Load user-default (Tier 5) and user-personality (Tier 6) tiers in a single query */
+  /** Load user-default (Tier 4) and user-personality (Tier 5) tiers in a single query */
   private async loadUserTiers(userId: string, personalityId?: string): Promise<TierData[]> {
     const tiers: TierData[] = [];
     try {
@@ -199,10 +199,10 @@ export class ConfigCascadeResolver {
         return tiers;
       }
 
-      // Tier 5: User defaults
+      // Tier 4: User defaults
       this.pushIfValid(tiers, user.configDefaults, 'user-default');
 
-      // Tier 6: User-personality overrides
+      // Tier 5: User-personality overrides
       this.pushIfValid(tiers, user.personalityConfigs?.[0]?.configOverrides, 'user-personality');
     } catch (error) {
       logger.warn({ err: error, userId }, 'Failed to load user config defaults');
