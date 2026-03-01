@@ -239,6 +239,32 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.fields).toHaveLength(8);
     });
 
+    it('should extract user-personality overrides as local values', async () => {
+      const context = createMockContext();
+      const resolvedWithUserOverride: ResolvedConfigOverrides = {
+        ...mockResolvedOverrides,
+        maxMessages: 75,
+        sources: {
+          ...mockResolvedOverrides.sources,
+          maxMessages: 'user-personality',
+        },
+      };
+      mockCallGatewayApi
+        .mockResolvedValueOnce({ ok: true, data: mockPersonality })
+        .mockResolvedValueOnce({ ok: true, data: resolvedWithUserOverride });
+
+      await handleSettings(context, mockConfig);
+
+      const editReplyCall = context.editReply.mock.calls[0][0];
+      const embedJson = editReplyCall.embeds[0].toJSON();
+      const maxMessagesField = embedJson.fields?.find((f: { name: string }) =>
+        f.name?.includes('Max Messages')
+      );
+
+      // user-personality source should show as Override (localValue extracted)
+      expect(maxMessagesField?.value).toContain('Override');
+    });
+
     it('should handle character not found', async () => {
       const context = createMockContext();
       mockCallGatewayApi.mockResolvedValue({

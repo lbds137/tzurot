@@ -24,6 +24,12 @@ describe('mergeConfigOverrides', () => {
     expect(result).toBeNull();
   });
 
+  it('should preserve existing valid fields when input has only unknown keys', () => {
+    // Existing valid fields survive a no-op PATCH with unknown fields
+    const result = mergeConfigOverrides({ maxMessages: 50 }, { unknownField: true });
+    expect(result).toEqual({ maxMessages: 50 });
+  });
+
   it('should strip null fields inherited from existing JSONB', () => {
     // Existing JSONB may contain nulls from prior clears; they get cleaned on merge
     const existing = { maxMessages: 50, maxImages: null };

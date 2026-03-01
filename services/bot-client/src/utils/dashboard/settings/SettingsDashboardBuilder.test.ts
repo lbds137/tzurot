@@ -184,6 +184,58 @@ describe('SettingsDashboardBuilder', () => {
       expect(maxMessagesField?.value).toContain('Auto (from admin)');
     });
 
+    it('should show "Auto (from personality)" for personality-sourced values', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxMessages: { localValue: null, effectiveValue: 60, source: 'personality' },
+      });
+
+      const embed = buildOverviewEmbed(config, session);
+      const fields = getEmbedFields(embed);
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
+
+      expect(maxMessagesField?.value).toContain('Auto (from personality)');
+    });
+
+    it('should show "Auto (from channel)" for channel-sourced values', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxMessages: { localValue: null, effectiveValue: 40, source: 'channel' },
+      });
+
+      const embed = buildOverviewEmbed(config, session);
+      const fields = getEmbedFields(embed);
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
+
+      expect(maxMessagesField?.value).toContain('Auto (from channel)');
+    });
+
+    it('should show "Auto (from your defaults)" for user-default-sourced values', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxMessages: { localValue: null, effectiveValue: 30, source: 'user-default' },
+      });
+
+      const embed = buildOverviewEmbed(config, session);
+      const fields = getEmbedFields(embed);
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
+
+      expect(maxMessagesField?.value).toContain('Auto (from your defaults)');
+    });
+
+    it('should show "Auto (from your override)" for user-personality-sourced values', () => {
+      const config = createTestConfig();
+      const session = createTestSession({
+        maxMessages: { localValue: null, effectiveValue: 25, source: 'user-personality' },
+      });
+
+      const embed = buildOverviewEmbed(config, session);
+      const fields = getEmbedFields(embed);
+      const maxMessagesField = fields.find(f => f.name?.includes('Max Messages'));
+
+      expect(maxMessagesField?.value).toContain('Auto (from your override)');
+    });
+
     it('should show "Auto (default)" for hardcoded-sourced values', () => {
       const config = createTestConfig();
       const session = createTestSession({
