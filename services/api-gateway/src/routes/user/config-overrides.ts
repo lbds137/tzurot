@@ -83,7 +83,7 @@ export function createConfigOverrideRoutes(
   }
 
   // All routes require authentication
-  router.use(requireUserAuth);
+  router.use(requireUserAuth());
 
   /**
    * GET /user/config-overrides/resolve-defaults
