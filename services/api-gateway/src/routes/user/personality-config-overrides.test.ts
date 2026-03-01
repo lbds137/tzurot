@@ -263,6 +263,33 @@ describe('/user/config-overrides personality routes', () => {
       expect(mockInvalidation.invalidatePersonality).toHaveBeenCalledWith(TEST_PERSONALITY_ID);
     });
 
+    it('should still succeed when cascade invalidation fails', async () => {
+      mockPrisma.personality.findUnique.mockResolvedValue({
+        ownerId: 'internal-user-id',
+        configDefaults: null,
+      });
+
+      const mockInvalidation = {
+        invalidatePersonality: vi.fn().mockRejectedValue(new Error('Redis connection lost')),
+      };
+
+      const router = createPersonalityConfigOverrideRoutes(
+        mockPrisma as unknown as PrismaClient,
+        mockInvalidation as unknown as Parameters<typeof createPersonalityConfigOverrideRoutes>[1]
+      );
+      const handler = getHandler(router, 'patch', '/personality/:personalityId');
+      const { req, res } = createMockReqRes(
+        { maxMessages: 25 },
+        { personalityId: TEST_PERSONALITY_ID }
+      );
+
+      await handler(req, res);
+
+      expect(mockInvalidation.invalidatePersonality).toHaveBeenCalledWith(TEST_PERSONALITY_ID);
+      // Should still return 200 despite invalidation failure
+      expect(res.status).toHaveBeenCalledWith(200);
+    });
+
     it('should reject invalid config format', async () => {
       mockPrisma.personality.findUnique.mockResolvedValue({
         ownerId: 'internal-user-id',
