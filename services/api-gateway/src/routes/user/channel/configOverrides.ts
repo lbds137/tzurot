@@ -84,7 +84,9 @@ export function createPatchConfigOverridesHandler(
       });
 
       if (input === null) {
-        // Clear all overrides
+        // Clear all overrides (consistent with user/personality PATCH handlers).
+        // Note: unreachable with Express's default strict:true body parser;
+        // DELETE is the primary clear mechanism.
         if (existing !== null) {
           await prisma.channelSettings.update({
             where: { channelId },
