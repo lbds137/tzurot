@@ -264,6 +264,38 @@ describe('Channel Context Dashboard', () => {
       );
     });
 
+    it('should handle no activated personality gracefully', async () => {
+      const context = createMockContext(true);
+      // Channel has no activated personality
+      mockGetChannelSettings.mockResolvedValue({ settings: {} });
+
+      await handleContext(context);
+
+      // Should still display the dashboard (resolve is skipped, uses fallbacks)
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+          components: expect.any(Array),
+        })
+      );
+    });
+
+    it('should use fallback values when resolve endpoint fails', async () => {
+      const context = createMockContext(true);
+      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
+      // Resolve endpoint returns error
+      mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Not found' });
+
+      await handleContext(context);
+
+      // Should still display the dashboard with fallback data
+      expect(context.editReply).toHaveBeenCalledWith(
+        expect.objectContaining({
+          embeds: expect.any(Array),
+        })
+      );
+    });
+
     it('should handle unexpected errors gracefully', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockRejectedValue(new Error('Network error'));
@@ -522,6 +554,22 @@ describe('Channel Context Dashboard', () => {
 
       // When update fails, handler returns early - verify interaction.editReply wasn't called
       expect(interaction.editReply).not.toHaveBeenCalled();
+    });
+
+    it('should handle API error response gracefully', async () => {
+      const interaction = createMockModalInteraction(
+        'channel-settings::modal::channel-123::maxMessages',
+        '50'
+      );
+
+      mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
+      // First call is PATCH (returns error), second would be resolve (not called)
+      mockCallGatewayApi.mockResolvedValue({ ok: false, error: 'Validation failed' });
+
+      await handleChannelContextModal(interaction as never);
+
+      // Cache should NOT be invalidated on failure
+      expect(mockInvalidateChannelSettingsCache).not.toHaveBeenCalled();
     });
   });
 });

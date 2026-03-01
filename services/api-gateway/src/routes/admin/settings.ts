@@ -132,6 +132,9 @@ function createConfigDefaultsPatchHandler(
 /**
  * PATCH /admin/settings handler
  * Accepts wrapped body: { configDefaults?: Partial<ConfigOverrides> | null }
+ *
+ * @deprecated Prefer PATCH /admin/settings/config-defaults with flat body shape.
+ * This wrapped endpoint is preserved for backward compatibility.
  */
 function createSettingsPatchHandler(
   prisma: PrismaClient,

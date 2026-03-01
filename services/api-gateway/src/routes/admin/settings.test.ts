@@ -262,6 +262,39 @@ describe('Admin Settings Routes (Singleton)', () => {
     });
   });
 
+  describe('PATCH /admin/settings (cascade invalidation)', () => {
+    it('should swallow cascade invalidation errors', async () => {
+      const mockInvalidation = {
+        invalidateAdmin: vi.fn().mockRejectedValue(new Error('Redis down')),
+      };
+
+      const appWithInvalidation = express();
+      appWithInvalidation.use(express.json());
+      appWithInvalidation.use((req, _res, next) => {
+        (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
+        next();
+      });
+      appWithInvalidation.use(
+        '/admin/settings',
+        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+      );
+
+      const updatedSettings = createDefaultSettings({
+        configDefaults: null,
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(appWithInvalidation)
+        .patch('/admin/settings')
+        .send({ configDefaults: null });
+
+      // Should still succeed even though invalidation failed
+      expect(response.status).toBe(200);
+      expect(mockInvalidation.invalidateAdmin).toHaveBeenCalled();
+    });
+  });
+
   describe('PATCH /admin/settings/config-defaults (flat body)', () => {
     it('should accept flat body and update configDefaults', async () => {
       const updatedSettings = createDefaultSettings({
