@@ -17,7 +17,7 @@ import { z } from 'zod';
 /**
  * Schema for JSONB config override columns.
  * All fields optional — each tier only specifies the fields it wants to override.
- * `.strict()` rejects unknown keys to prevent JSONB column drift.
+ * `.strip()` discards unknown keys to prevent JSONB column drift.
  */
 export const ConfigOverridesSchema = z
   .object({
@@ -38,7 +38,7 @@ export const ConfigOverridesSchema = z
     /** Share long-term memories across all personalities (migrated from Persona column) */
     shareLtmAcrossPersonalities: z.boolean().optional(),
   })
-  .strict();
+  .strip();
 
 export type ConfigOverrides = z.infer<typeof ConfigOverridesSchema>;
 

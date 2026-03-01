@@ -120,20 +120,24 @@ describe('ConfigOverridesSchema', () => {
     });
   });
 
-  describe('strict mode', () => {
-    it('should reject unknown keys', () => {
+  describe('unknown key handling', () => {
+    it('should strip unknown keys from input', () => {
       const result = ConfigOverridesSchema.safeParse({
         maxMessages: 50,
-        unknownField: 'should fail',
+        unknownField: 'should be stripped',
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({ maxMessages: 50 });
+      expect(result.data).not.toHaveProperty('unknownField');
     });
 
-    it('should reject llm-related fields (not part of config overrides)', () => {
+    it('should strip llm-related fields (not part of config overrides)', () => {
       const result = ConfigOverridesSchema.safeParse({
         model: 'openai/gpt-4o',
       });
-      expect(result.success).toBe(false);
+      expect(result.success).toBe(true);
+      expect(result.data).toEqual({});
+      expect(result.data).not.toHaveProperty('model');
     });
   });
 });

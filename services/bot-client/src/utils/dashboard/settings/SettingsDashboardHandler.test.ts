@@ -48,42 +48,42 @@ const createTestData = (): SettingsData => ({
   maxMessages: {
     localValue: null,
     effectiveValue: 50,
-    source: 'global',
+    source: 'admin',
   },
   maxAge: {
     localValue: null,
     effectiveValue: 7200,
-    source: 'global',
+    source: 'admin',
   },
   maxImages: {
     localValue: null,
     effectiveValue: 10,
-    source: 'global',
+    source: 'admin',
   },
   focusModeEnabled: {
     localValue: null,
     effectiveValue: false,
-    source: 'default',
+    source: 'hardcoded',
   },
   crossChannelHistoryEnabled: {
     localValue: null,
     effectiveValue: false,
-    source: 'default',
+    source: 'hardcoded',
   },
   shareLtmAcrossPersonalities: {
     localValue: null,
     effectiveValue: false,
-    source: 'default',
+    source: 'hardcoded',
   },
   memoryScoreThreshold: {
     localValue: null,
     effectiveValue: 0.5,
-    source: 'default',
+    source: 'hardcoded',
   },
   memoryLimit: {
     localValue: null,
     effectiveValue: 20,
-    source: 'default',
+    source: 'hardcoded',
   },
 });
 
@@ -394,14 +394,22 @@ describe('SettingsDashboardHandler', () => {
     it('should handle null values in settings data', async () => {
       const config = createTestConfig();
       const data: SettingsData = {
-        maxMessages: { localValue: null, effectiveValue: 50, source: 'global' },
-        maxAge: { localValue: null, effectiveValue: null, source: 'global' },
-        maxImages: { localValue: null, effectiveValue: 0, source: 'global' },
-        focusModeEnabled: { localValue: null, effectiveValue: false, source: 'default' },
-        crossChannelHistoryEnabled: { localValue: null, effectiveValue: false, source: 'default' },
-        shareLtmAcrossPersonalities: { localValue: null, effectiveValue: false, source: 'default' },
-        memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'default' },
-        memoryLimit: { localValue: null, effectiveValue: 20, source: 'default' },
+        maxMessages: { localValue: null, effectiveValue: 50, source: 'admin' },
+        maxAge: { localValue: null, effectiveValue: null, source: 'admin' },
+        maxImages: { localValue: null, effectiveValue: 0, source: 'admin' },
+        focusModeEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
+        crossChannelHistoryEnabled: {
+          localValue: null,
+          effectiveValue: false,
+          source: 'hardcoded',
+        },
+        shareLtmAcrossPersonalities: {
+          localValue: null,
+          effectiveValue: false,
+          source: 'hardcoded',
+        },
+        memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
+        memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();
@@ -424,11 +432,19 @@ describe('SettingsDashboardHandler', () => {
         maxMessages: { localValue: 25, effectiveValue: 25, source: 'channel' },
         maxAge: { localValue: 3600, effectiveValue: 3600, source: 'channel' },
         maxImages: { localValue: 5, effectiveValue: 5, source: 'channel' },
-        focusModeEnabled: { localValue: null, effectiveValue: false, source: 'default' },
-        crossChannelHistoryEnabled: { localValue: null, effectiveValue: false, source: 'default' },
-        shareLtmAcrossPersonalities: { localValue: null, effectiveValue: false, source: 'default' },
-        memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'default' },
-        memoryLimit: { localValue: null, effectiveValue: 20, source: 'default' },
+        focusModeEnabled: { localValue: null, effectiveValue: false, source: 'hardcoded' },
+        crossChannelHistoryEnabled: {
+          localValue: null,
+          effectiveValue: false,
+          source: 'hardcoded',
+        },
+        shareLtmAcrossPersonalities: {
+          localValue: null,
+          effectiveValue: false,
+          source: 'hardcoded',
+        },
+        memoryScoreThreshold: { localValue: null, effectiveValue: 0.5, source: 'hardcoded' },
+        memoryLimit: { localValue: null, effectiveValue: 20, source: 'hardcoded' },
       };
       const interaction = createMockInteraction();
       const updateHandler = vi.fn();

@@ -20,10 +20,31 @@ import {
   type SettingsDashboardSession,
   type SettingValue,
   type SettingDefinition,
+  type SettingSource,
   SettingType,
   buildSettingsCustomId,
 } from './types.js';
 import { ALL_SETTINGS } from './settingsConfig.js';
+
+/**
+ * Map cascade source to a user-friendly display name.
+ */
+function friendlySourceName(source: SettingSource): string {
+  switch (source) {
+    case 'admin':
+      return 'admin';
+    case 'personality':
+      return 'personality';
+    case 'channel':
+      return 'channel';
+    case 'user-default':
+      return 'your defaults';
+    case 'user-personality':
+      return 'your override';
+    case 'hardcoded':
+      return 'default';
+  }
+}
 
 /**
  * Format a setting value for display
@@ -33,15 +54,6 @@ function formatSettingValue(
   value: SettingValue<unknown>
 ): { display: string; status: string } {
   const { localValue, effectiveValue, source } = value;
-
-  // Determine if this level has an override
-  const isOverridden = localValue !== null;
-  const sourceLabel =
-    source === 'default'
-      ? 'default'
-      : source === 'user-personality'
-        ? 'your override'
-        : `from ${source}`;
 
   let display: string;
   let status: string;
@@ -69,10 +81,12 @@ function formatSettingValue(
       display = String(effectiveValue);
   }
 
-  if (isOverridden) {
+  if (localValue !== null) {
     status = '🔵 Override';
+  } else if (source === 'hardcoded') {
+    status = '⚪ Auto (default)';
   } else {
-    status = `⚪ Auto (${sourceLabel})`;
+    status = `⚪ Auto (from ${friendlySourceName(source)})`;
   }
 
   return { display, status };
@@ -150,7 +164,7 @@ export function buildSettingEmbed(
   });
 
   // Show inherited value if this level has an override
-  if (value.localValue !== null && value.source !== 'default') {
+  if (value.localValue !== null && value.source !== 'hardcoded') {
     let inheritedDisplay: string;
     switch (setting.type) {
       case SettingType.TRI_STATE: {
