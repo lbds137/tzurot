@@ -49,6 +49,11 @@ export function createPersonalityConfigOverrideRoutes(
     '/resolve-personality/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
+
+      if (!UUID_PATTERN.test(personalityId)) {
+        return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+      }
+
       // Pass undefined for userId and channelId to skip user/channel tiers
       const resolved = await cascadeResolver.resolveOverrides(undefined, personalityId, undefined);
       sendCustomSuccess(res, resolved, StatusCodes.OK);
