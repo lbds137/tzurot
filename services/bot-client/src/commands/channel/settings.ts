@@ -272,6 +272,9 @@ function buildSettingsData(
   channelOverrides: Partial<ConfigOverrides> | null,
   resolved: ResolvedConfigOverrides | null
 ): SettingsData {
+  // Safety: HARDCODED_CONFIG_DEFAULTS covers all ConfigOverrides fields, so the
+  // fallback always produces a real value. The `as T` casts are safe because
+  // callers below match field names to their corresponding generic types.
   function buildValue<T>(field: keyof ConfigOverrides): SettingValue<T> {
     const localValue = (channelOverrides?.[field] ?? null) as T | null;
     const effectiveValue =
