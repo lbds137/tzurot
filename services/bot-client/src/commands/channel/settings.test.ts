@@ -314,6 +314,9 @@ describe('Channel Context Dashboard', () => {
       );
       expect(maxImgField).toBeDefined();
       expect(maxImgField.value).toContain('Auto');
+
+      // Warning note should be shown when no personality is activated
+      expect(embedJson.description).toContain('No personality activated');
     });
 
     it('should use fallback values when resolve endpoint fails', async () => {
