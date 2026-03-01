@@ -129,6 +129,8 @@ export interface SettingsDashboardConfig {
   color: number;
   /** Available settings */
   settings: SettingDefinition[];
+  /** Optional note appended to the overview embed description */
+  descriptionNote?: string;
 }
 
 /**
