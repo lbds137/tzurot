@@ -24,6 +24,32 @@ import { MemoryBudgetManager, type MemorySelectionResult } from './MemoryBudgetM
 
 const logger = createLogger('ContextWindowManager');
 
+/** Pre-compute <current_conversation> wrapper token overhead and location XML. */
+function computeCurrentConversationOverhead(environment: DiscordEnvironment): {
+  overhead: number;
+  locationXml: string;
+} {
+  const locationXml = formatLocationAsXml(environment);
+  const wrapperText = `<current_conversation>\n${locationXml}\n</current_conversation>`;
+  return { overhead: countTextTokens(wrapperText), locationXml };
+}
+
+/** Wrap current channel XML in <current_conversation> with location, or return as-is. */
+function wrapCurrentChannel(currentChannelXml: string, locationXml: string): string {
+  if (currentChannelXml.length === 0 || locationXml.length === 0) {
+    return currentChannelXml;
+  }
+  return `<current_conversation>\n${locationXml}\n${currentChannelXml}\n</current_conversation>`;
+}
+
+/** Combine cross-channel and current-channel sections (cross-channel first). */
+function combineHistorySections(crossChannelXml: string, currentXml: string): string {
+  if (crossChannelXml.length > 0 && currentXml.length > 0) {
+    return `${crossChannelXml}\n${currentXml}`;
+  }
+  return crossChannelXml || currentXml;
+}
+
 export class ContextWindowManager {
   private memoryBudgetManager: MemoryBudgetManager;
 
@@ -62,14 +88,12 @@ export class ContextWindowManager {
       };
     }
 
-    // Pre-compute <current_conversation> wrapper overhead (location XML + tags)
-    let currentConversationOverhead = 0;
-    let locationXml = '';
-    if (currentEnvironment !== undefined) {
-      locationXml = formatLocationAsXml(currentEnvironment);
-      const wrapperText = `<current_conversation>\n${locationXml}\n</current_conversation>`;
-      currentConversationOverhead = countTextTokens(wrapperText);
-    }
+    // Pre-compute <current_conversation> wrapper overhead and location XML.
+    // Only applies when both environment and current-channel messages exist.
+    const { overhead: currentConversationOverhead, locationXml } =
+      currentEnvironment !== undefined && hasCurrentChannel
+        ? computeCurrentConversationOverhead(currentEnvironment)
+        : { overhead: 0, locationXml: '' };
 
     // Select current-channel messages within budget, reserving space for the wrapper.
     // Deducting overhead upfront avoids a bounded overrun where selected messages +
@@ -98,18 +122,10 @@ export class ContextWindowManager {
     const actualTokens = adjustedTokensUsed + crossTokens;
 
     // Wrap current channel in <current_conversation> when environment is available
-    let wrappedCurrentXml = currentChannelXml;
-    if (currentChannelXml.length > 0 && currentEnvironment !== undefined) {
-      wrappedCurrentXml = `<current_conversation>\n${locationXml}\n${currentChannelXml}\n</current_conversation>`;
-    }
+    const wrappedCurrentXml = wrapCurrentChannel(currentChannelXml, locationXml);
 
     // Combine: cross-channel before current channel (older context first)
-    let serializedHistory: string;
-    if (crossChannelXml.length > 0 && wrappedCurrentXml.length > 0) {
-      serializedHistory = `${crossChannelXml}\n${wrappedCurrentXml}`;
-    } else {
-      serializedHistory = crossChannelXml || wrappedCurrentXml;
-    }
+    const serializedHistory = combineHistorySections(crossChannelXml, wrappedCurrentXml);
 
     return {
       serializedHistory,

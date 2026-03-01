@@ -387,6 +387,48 @@ describe('ContextWindowManager', () => {
       expect(priorIdx).toBeLessThan(currentIdx);
     });
 
+    it('should not reduce cross-channel budget when environment is provided but no current history exists', () => {
+      const crossChannelGroups = [
+        {
+          channelEnvironment: {
+            type: 'guild' as const,
+            guild: { id: 'g-1', name: 'Server' },
+            channel: { id: 'ch-other', name: 'general', type: 'text' },
+          },
+          messages: [
+            {
+              role: MessageRole.User,
+              content: 'Cross msg in other channel',
+              createdAt: '2026-02-26T10:00:00Z',
+              personaName: 'User',
+              tokenCount: 10,
+            },
+          ],
+        },
+      ];
+      const environment: DiscordEnvironment = {
+        type: 'guild',
+        guild: { id: 'g-1', name: 'Server' },
+        channel: { id: 'ch-current', name: 'dev', type: 'text' },
+      };
+
+      // No current history — environment is provided but nothing to wrap
+      const withEnv = manager.selectAndSerializeHistory(
+        [],
+        'TestAI',
+        5000,
+        crossChannelGroups,
+        environment
+      );
+      const withoutEnv = manager.selectAndSerializeHistory([], 'TestAI', 5000, crossChannelGroups);
+
+      // Cross-channel should get the full budget in both cases (no wrapper overhead deducted)
+      expect(withEnv.serializedHistory).toContain('Cross msg in other channel');
+      expect(withEnv.serializedHistory).not.toContain('<current_conversation>');
+      expect(withEnv.historyTokensUsed).toBe(withoutEnv.historyTokensUsed);
+      expect(withEnv.crossChannelMessagesIncluded).toBe(1);
+    });
+
     it('should not add <current_conversation> wrapper when no current messages fit budget', () => {
       const rawHistory = [
         {
