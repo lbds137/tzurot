@@ -22,6 +22,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import {
   createLogger,
   DISCORD_COLORS,
+  GATEWAY_TIMEOUTS,
   type ResolvedConfigOverrides,
   type ConfigOverrides,
 } from '@tzurot/common-types';
@@ -232,14 +233,14 @@ async function fetchAndConvertSettingsData(
     personalityId !== undefined
       ? callGatewayApi<ResolvedConfigOverrides>(
           `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}?channelId=${encodeURIComponent(channelId)}`,
-          { method: 'GET', userId }
+          { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
         )
       : Promise.resolve(null);
 
   const [channelOverridesResult, resolvedResult] = await Promise.all([
     callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
       `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      { method: 'GET', userId }
+      { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     ),
     resolvePromise,
   ]);
@@ -279,7 +280,7 @@ async function handleSettingUpdate(
     // Send update to channel config-overrides endpoint
     const result = await callGatewayApi(
       `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      { method: 'PATCH', body, userId }
+      { method: 'PATCH', body, userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     );
 
     if (!result.ok) {
