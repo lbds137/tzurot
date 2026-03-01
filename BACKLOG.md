@@ -1,7 +1,7 @@
 # Backlog
 
-> **Last Updated**: 2026-02-23
-> **Version**: v3.0.0-beta.81
+> **Last Updated**: 2026-03-01
+> **Version**: v3.0.0-beta.84
 
 Single source of truth for all work. Tech debt competes for the same time as features.
 
@@ -13,7 +13,17 @@ Single source of truth for all work. Tech debt competes for the same time as fea
 
 _Active bugs observed in production. Fix before new features._
 
-_None currently._
+### 🐛 Stop Sequence `<message` Causes Premature Response Truncation
+
+The stop sequence `<message` (from `generateStopSequences()` in `RAGUtils.ts`) is too broad — it triggers on any `<message` substring in the model's output, not just actual XML message tags. This causes premature response truncation observed in production across multiple debug captures (`debug/debug-compact-*.json`), all showing `"stopSequenceTriggered": "inferred:non-xml-stop"`.
+
+**Root cause**: Stop sequences `['</message>', '<message']` were added to prevent the model from generating fake conversation history. But `<message` matches mid-word (e.g., `<messages`, `<messaging`) and inside natural prose that happens to contain angle brackets. The model's response gets cut off mid-thought.
+
+**Key finding**: `stripResponseArtifacts()` in `responseArtifacts.ts` already strips XML tags from the response in post-processing, making the `<message` stop sequence redundant for its intended purpose.
+
+**Proposed fix**: Remove stop sequences entirely and rely on post-processing (`stripResponseArtifacts`) to clean up any XML artifacts. If stop sequences are still needed for cost savings (stopping early on runaway generation), use more specific patterns that won't match partial words.
+
+**Evidence**: Three debug JSON files in `debug/` all show truncated responses with the `inferred:non-xml-stop` marker.
 
 ---
 
