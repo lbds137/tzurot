@@ -38,7 +38,7 @@ export function createPersonalityConfigOverrideRoutes(
   const userService = new UserService(prisma);
   const cascadeResolver = new ConfigCascadeResolver(prisma, { enableCleanup: false });
 
-  router.use(requireUserAuth);
+  router.use(requireUserAuth());
 
   /**
    * GET /resolve-personality/:personalityId
