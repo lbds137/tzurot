@@ -70,8 +70,11 @@ export interface SettingsData {
   maxMessages: SettingValue<number>;
   maxAge: SettingValue<number | null>; // null = disabled
   maxImages: SettingValue<number>;
+  focusModeEnabled: SettingValue<boolean>;
   crossChannelHistoryEnabled: SettingValue<boolean>;
   shareLtmAcrossPersonalities: SettingValue<boolean>;
+  memoryScoreThreshold: SettingValue<number>;
+  memoryLimit: SettingValue<number>;
 }
 
 /**
