@@ -6,6 +6,11 @@
  * - GET /user/channel/:channelId/config-overrides - Get channel overrides
  * - PATCH /user/channel/:channelId/config-overrides - Update channel overrides (merge semantics)
  * - DELETE /user/channel/:channelId/config-overrides - Clear channel overrides
+ *
+ * Authorization: These endpoints use requireUserAuth() only (no guild permission check).
+ * Discord permission enforcement (ManageMessages) happens in the bot-client layer before
+ * calling the gateway. This is consistent with all other channel routes (activate, deactivate,
+ * updateGuild) which follow the same trust model.
  */
 
 import { type Response, type RequestHandler } from 'express';
