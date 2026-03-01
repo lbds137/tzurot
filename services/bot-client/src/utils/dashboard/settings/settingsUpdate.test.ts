@@ -62,6 +62,48 @@ describe('mapSettingToApiUpdate', () => {
     });
   });
 
+  describe('focusModeEnabled', () => {
+    it('should map boolean value', () => {
+      expect(mapSettingToApiUpdate('focusModeEnabled', true)).toEqual({
+        focusModeEnabled: true,
+      });
+    });
+
+    it('should map null (auto/clear)', () => {
+      expect(mapSettingToApiUpdate('focusModeEnabled', null)).toEqual({
+        focusModeEnabled: null,
+      });
+    });
+  });
+
+  describe('memoryScoreThreshold', () => {
+    it('should map numeric value', () => {
+      expect(mapSettingToApiUpdate('memoryScoreThreshold', 0.7)).toEqual({
+        memoryScoreThreshold: 0.7,
+      });
+    });
+
+    it('should map null (auto/clear)', () => {
+      expect(mapSettingToApiUpdate('memoryScoreThreshold', null)).toEqual({
+        memoryScoreThreshold: null,
+      });
+    });
+  });
+
+  describe('memoryLimit', () => {
+    it('should map numeric value', () => {
+      expect(mapSettingToApiUpdate('memoryLimit', 50)).toEqual({
+        memoryLimit: 50,
+      });
+    });
+
+    it('should map null (auto/clear)', () => {
+      expect(mapSettingToApiUpdate('memoryLimit', null)).toEqual({
+        memoryLimit: null,
+      });
+    });
+  });
+
   describe('unknown setting', () => {
     it('should return null for unrecognized setting ID', () => {
       expect(mapSettingToApiUpdate('unknownSetting', 42)).toBeNull();
