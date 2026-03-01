@@ -377,6 +377,15 @@ describe('Settings Command Index', () => {
 
       expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
     });
+
+    it('should log warning for unknown button custom ID', async () => {
+      const interaction = {
+        customId: 'unknown-entity::action::id',
+      } as any;
+
+      // Should not throw
+      await handleButton(interaction);
+    });
   });
 
   describe('handleSelectMenu - select menu routing', () => {
@@ -390,6 +399,15 @@ describe('Settings Command Index', () => {
       await handleSelectMenu(interaction);
 
       expect(handleUserDefaultsSelectMenu).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should log warning for unknown select menu custom ID', async () => {
+      const interaction = {
+        customId: 'unknown-entity::select::id',
+      } as any;
+
+      // Should not throw
+      await handleSelectMenu(interaction);
     });
   });
 
