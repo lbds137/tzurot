@@ -177,6 +177,7 @@ describe('User Default Settings Dashboard', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/config-overrides/resolve-defaults', {
         method: 'GET',
         userId: 'user-456',
+        timeout: 10000,
       });
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -494,6 +495,7 @@ describe('User Default Settings Dashboard', () => {
         method: 'PATCH',
         body: { maxMessages: 30 },
         userId: 'user-456',
+        timeout: 10000,
       });
     });
 
@@ -514,6 +516,7 @@ describe('User Default Settings Dashboard', () => {
         method: 'PATCH',
         body: { maxAge: 7200 },
         userId: 'user-456',
+        timeout: 10000,
       });
     });
 
@@ -534,6 +537,7 @@ describe('User Default Settings Dashboard', () => {
         method: 'PATCH',
         body: { maxMessages: null },
         userId: 'user-456',
+        timeout: 10000,
       });
     });
 

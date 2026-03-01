@@ -21,6 +21,7 @@ import type { DeferredCommandContext } from '../../../utils/commandContext/types
 import {
   createLogger,
   DISCORD_COLORS,
+  GATEWAY_TIMEOUTS,
   type ConfigOverrideSource,
   type ConfigOverrides,
   type ResolvedConfigOverrides,
@@ -158,7 +159,7 @@ export function isUserDefaultsInteraction(customId: string): boolean {
 async function fetchAndConvertSettingsData(userId: string): Promise<SettingsData> {
   const result = await callGatewayApi<ResolveDefaultsResponse>(
     '/user/config-overrides/resolve-defaults',
-    { method: 'GET', userId }
+    { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
   );
 
   if (!result.ok) {
@@ -215,6 +216,7 @@ async function handleSettingUpdate(
       method: 'PATCH',
       body,
       userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
     if (!result.ok) {

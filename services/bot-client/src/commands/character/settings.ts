@@ -18,6 +18,7 @@ import type {
 import {
   createLogger,
   DISCORD_COLORS,
+  GATEWAY_TIMEOUTS,
   type EnvConfig,
   type ConfigOverrides,
   type ResolvedConfigOverrides,
@@ -92,6 +93,7 @@ export async function handleSettings(
     const result = await callGatewayApi<PersonalityResponse>(`/user/personality/${characterSlug}`, {
       method: 'GET',
       userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
     if (!result.ok) {
@@ -112,7 +114,7 @@ export async function handleSettings(
     // Resolve cascade overrides for this user+personality
     const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
       `/user/config-overrides/resolve/${personality.id}`,
-      { method: 'GET', userId }
+      { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     );
 
     if (!cascadeResult.ok) {
@@ -315,6 +317,7 @@ async function handleSettingUpdate(
       method: 'PATCH',
       body,
       userId,
+      timeout: GATEWAY_TIMEOUTS.DEFERRED,
     });
 
     if (!result.ok) {
@@ -328,7 +331,7 @@ async function handleSettingUpdate(
     // Re-resolve cascade to get updated effective values
     const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
       `/user/config-overrides/resolve/${personalityId}`,
-      { method: 'GET', userId }
+      { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     );
 
     if (!cascadeResult.ok) {
