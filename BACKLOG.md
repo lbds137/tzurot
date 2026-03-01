@@ -46,6 +46,19 @@ Unit tests mock away Express middleware (auth, error handlers, route mounting), 
 
 **Discovered during**: PR #691 production debugging — `/settings defaults edit` hung until bot-client timeout
 
+### 🏗️ Fix `getCrossChannelHistory` Integration Test State-Sharing
+
+The `getCrossChannelHistory` describe block in `ConversationHistoryService.int.test.ts` has tests that depend on accumulated DB state from prior `it()` blocks — violating the self-contained test rule. Test 1 inserts data that test 2 implicitly relies on, so a reorder or isolation change could cause cascading failures.
+
+**Fix**: Use unique `personaId`/`personalityId` combos per test so queries don't bleed across, or wrap in a sub-describe with a `beforeEach` that clears relevant rows.
+
+**While in the area**:
+
+- Add a `logger.debug` in `wrapCurrentChannel()` (ContextWindowManager.ts) when `locationXml` is empty but `currentChannelXml` has content — aids telemetry for the no-environment fallback path
+- Clarify `.strip()` doc comment on `ConfigOverridesSchema` (configOverrides.ts) — `.strip()` _tolerates_ JSONB drift rather than preventing it; the protection comes from the schema being the single write path
+
+**Discovered during**: PR #693 Claude review agent feedback
+
 ### 🏗️ Audit API Routes for Zod Validation at Boundaries
 
 Several api-gateway routes use manual `typeof` checks and utility functions (e.g., `isValidDiscordId()`) for query/path param validation instead of Zod schemas. Per code standards, service boundaries should validate with Zod. Audit all routes and convert manual validation to Zod `.safeParse()` for consistency.
