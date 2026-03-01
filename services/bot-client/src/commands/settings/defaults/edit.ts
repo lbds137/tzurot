@@ -86,7 +86,7 @@ export async function handleDefaultsEdit(context: DeferredCommandContext): Promi
 
     if (!context.interaction.replied) {
       await context.editReply({
-        content: 'An error occurred while opening the default settings dashboard.',
+        content: '❌ An error occurred while opening the default settings dashboard.',
       });
     }
   }

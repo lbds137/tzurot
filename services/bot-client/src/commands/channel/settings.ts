@@ -81,7 +81,7 @@ export async function handleContext(context: DeferredCommandContext): Promise<vo
   // Check permissions: Manage Messages required
   if (member?.permissions.has(PermissionFlagsBits.ManageMessages) !== true) {
     await context.editReply({
-      content: 'You need the **Manage Messages** permission to manage channel context settings.',
+      content: '❌ You need the **Manage Messages** permission to manage channel context settings.',
     });
     return;
   }
@@ -126,7 +126,7 @@ export async function handleContext(context: DeferredCommandContext): Promise<vo
     // Check if already replied via interaction (dashboard may have responded)
     if (!interaction.replied) {
       await context.editReply({
-        content: 'An error occurred while opening the context settings dashboard.',
+        content: '❌ An error occurred while opening the context settings dashboard.',
       });
     }
   }
