@@ -13,8 +13,10 @@ export {
   type SettingSource,
   type SettingUpdateResult,
   type SettingValue,
+  type PersonalityResponse,
   parseSettingsCustomId,
   isSettingsInteraction,
+  parseCharacterEntityId,
 } from './types.js';
 
 // Configuration

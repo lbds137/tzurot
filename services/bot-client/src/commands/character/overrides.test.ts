@@ -278,7 +278,7 @@ describe('Character Overrides Dashboard', () => {
       await handleOverrides(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: expect.stringContaining('Failed to fetch character'),
+        content: expect.stringContaining('Failed to load character data'),
       });
     });
 
@@ -291,7 +291,7 @@ describe('Character Overrides Dashboard', () => {
       await handleOverrides(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: 'Failed to fetch config settings.',
+        content: '❌ Failed to fetch config settings.',
       });
     });
 
@@ -302,7 +302,7 @@ describe('Character Overrides Dashboard', () => {
       await handleOverrides(context, mockConfig);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: 'An error occurred while opening the overrides dashboard.',
+        content: '❌ An error occurred while opening the overrides dashboard.',
       });
     });
   });

@@ -32,12 +32,14 @@ import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingUpdateResult,
+  type PersonalityResponse,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
   handleSettingsModal,
   isSettingsInteraction,
   parseSettingsCustomId,
+  parseCharacterEntityId,
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   mapSettingToApiUpdate,
@@ -65,18 +67,6 @@ const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
 };
 
 /**
- * Response type for personality API
- */
-interface PersonalityResponse {
-  personality: {
-    id: string;
-    name: string;
-    slug: string;
-    ownerId: string;
-  };
-}
-
-/**
  * Handle /character settings command - shows interactive dashboard
  */
 export async function handleSettings(
@@ -100,12 +90,13 @@ export async function handleSettings(
     if (!result.ok) {
       if (result.status === 404) {
         await context.editReply({
-          content: `Character "${characterSlug}" not found.`,
+          content: `❌ Character "${characterSlug}" not found.`,
         });
         return;
       }
+      logger.warn({ error: result.error, characterSlug }, '[Character Settings] Fetch failed');
       await context.editReply({
-        content: `Failed to fetch character: ${result.error}`,
+        content: '❌ Failed to load character data.',
       });
       return;
     }
@@ -120,7 +111,7 @@ export async function handleSettings(
 
     if (!cascadeResult.ok) {
       await context.editReply({
-        content: 'Failed to fetch config settings.',
+        content: '❌ Failed to fetch config settings.',
       });
       return;
     }
@@ -143,7 +134,7 @@ export async function handleSettings(
     logger.error({ err: error, characterSlug }, '[Character Settings] Error opening dashboard');
 
     await context.editReply({
-      content: 'An error occurred while opening the settings dashboard.',
+      content: '❌ An error occurred while opening the settings dashboard.',
     });
   }
 }
@@ -164,7 +155,7 @@ export async function handleCharacterSettingsSelectMenu(
     return;
   }
 
-  const [characterSlug, personalityId] = parseEntityId(entityId);
+  const [characterSlug, personalityId] = parseCharacterEntityId(entityId);
   if (characterSlug === null) {
     return;
   }
@@ -190,7 +181,7 @@ export async function handleCharacterSettingsButton(interaction: ButtonInteracti
     return;
   }
 
-  const [characterSlug, personalityId] = parseEntityId(entityId);
+  const [characterSlug, personalityId] = parseCharacterEntityId(entityId);
   if (characterSlug === null) {
     return;
   }
@@ -218,7 +209,7 @@ export async function handleCharacterSettingsModal(
     return;
   }
 
-  const [characterSlug, personalityId] = parseEntityId(entityId);
+  const [characterSlug, personalityId] = parseCharacterEntityId(entityId);
   if (characterSlug === null) {
     return;
   }
@@ -238,18 +229,6 @@ export function isCharacterSettingsInteraction(customId: string): boolean {
 }
 
 /**
- * Parse entityId into [characterSlug, personalityId]
- * Format: "slug--uuid" (uses -- to avoid conflict with :: custom ID delimiter)
- */
-function parseEntityId(entityId: string): [string | null, string | null] {
-  const idx = entityId.indexOf('--');
-  if (idx !== -1) {
-    return [entityId.slice(0, idx), entityId.slice(idx + 2)];
-  }
-  return [entityId, null];
-}
-
-/**
  * Convert cascade-resolved overrides to dashboard SettingsData format.
  * Extracts local overrides by checking which fields the personality tier set.
  */
@@ -257,6 +236,9 @@ function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData 
   const localOverrides: Partial<ConfigOverrides> = {};
   for (const [field, source] of Object.entries(resolved.sources)) {
     if (source === 'personality') {
+      // Safe: we only iterate config field keys from resolved.sources, never the
+      // `sources` key itself, so the indexed value is always a config primitive.
+      // `as never` satisfies the union type that includes Record<string, string>.
       localOverrides[field as keyof ConfigOverrides] = resolved[
         field as keyof ResolvedConfigOverrides
       ] as never;

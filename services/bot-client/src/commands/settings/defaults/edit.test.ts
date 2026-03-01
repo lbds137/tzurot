@@ -285,7 +285,7 @@ describe('User Default Settings Dashboard', () => {
       await handleDefaultsEdit(context);
 
       expect(context.editReply).toHaveBeenCalledWith({
-        content: 'An error occurred while opening the default settings dashboard.',
+        content: '❌ An error occurred while opening the default settings dashboard.',
       });
     });
 

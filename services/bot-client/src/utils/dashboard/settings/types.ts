@@ -217,3 +217,31 @@ export function parseSettingsCustomId(customId: string): {
 export function isSettingsInteraction(customId: string, entityType: string): boolean {
   return customId.startsWith(`${entityType}${SETTINGS_CUSTOM_ID_DELIMITER}`);
 }
+
+/**
+ * Parse a compound entityId into [slug, id] parts.
+ * Format: "slug--uuid" (uses -- to avoid conflict with :: custom ID delimiter)
+ *
+ * Shared by /character settings and /character overrides — both encode
+ * the personality slug and ID in a single entityId string.
+ */
+export function parseCharacterEntityId(entityId: string): [string, string | null] {
+  const idx = entityId.indexOf('--');
+  if (idx !== -1) {
+    return [entityId.slice(0, idx), entityId.slice(idx + 2)];
+  }
+  return [entityId, null];
+}
+
+/**
+ * Response shape from the personality API used by character dashboards.
+ * Shared by /character settings and /character overrides.
+ */
+export interface PersonalityResponse {
+  personality: {
+    id: string;
+    name: string;
+    slug: string;
+    ownerId: string;
+  };
+}
