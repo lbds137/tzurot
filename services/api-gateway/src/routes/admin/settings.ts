@@ -81,6 +81,9 @@ async function resolveUserUuid(prisma: PrismaClient, discordId: string): Promise
     where: { discordId },
     select: { id: true },
   });
+  if (user === null) {
+    logger.warn({ discordId }, 'Admin operation by unknown user — updatedBy will be null');
+  }
   return user?.id ?? null;
 }
 
