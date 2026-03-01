@@ -339,13 +339,14 @@ export function formatCrossChannelHistoryAsXml(
     return '';
   }
 
-  const parts: string[] = [];
-  parts.push('<prior_conversations>');
+  let hasContent = false;
+  const parts: string[] = ['<prior_conversations>'];
 
   for (const group of groups) {
     if (group.messages.length === 0) {
       continue;
     }
+    hasContent = true;
     parts.push('<channel_history>');
     parts.push(formatLocationAsXml(group.channelEnvironment));
     const messagesXml = formatConversationHistoryAsXml(group.messages, personalityName);
@@ -355,8 +356,7 @@ export function formatCrossChannelHistoryAsXml(
     parts.push('</channel_history>');
   }
 
-  // parts[0] is only the opening tag — no channel blocks were added (all groups empty)
-  if (parts.length === 1) {
+  if (!hasContent) {
     return '';
   }
 
