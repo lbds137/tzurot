@@ -168,7 +168,8 @@ export function createConfigOverrideRoutes(
     '/resolve/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-      const channelId = (req.query.channelId as string) || undefined;
+      const channelId =
+        typeof req.query.channelId === 'string' ? req.query.channelId || undefined : undefined;
       const resolved = await cascadeResolver.resolveOverrides(req.userId, personalityId, channelId);
       sendCustomSuccess(res, resolved, StatusCodes.OK);
     })
