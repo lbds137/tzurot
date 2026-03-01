@@ -10,7 +10,9 @@
  * Authorization: These endpoints use requireUserAuth() only (no guild permission check).
  * Discord permission enforcement (ManageMessages) happens in the bot-client layer before
  * calling the gateway. This is consistent with all other channel routes (activate, deactivate,
- * updateGuild) which follow the same trust model.
+ * updateGuild) which follow the same trust model. An authenticated user bypassing the bot
+ * could set overrides on any channel they know the snowflake of — acceptable for a
+ * single-operator deployment with controlled API access.
  */
 
 import { type Response, type RequestHandler } from 'express';
