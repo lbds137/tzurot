@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextWindowManager } from './ContextWindowManager.js';
-import { MessageRole } from '@tzurot/common-types';
+import { MessageRole, type DiscordEnvironment } from '@tzurot/common-types';
 
 describe('ContextWindowManager', () => {
   let manager: ContextWindowManager;
@@ -262,6 +262,172 @@ describe('ContextWindowManager', () => {
 
       expect(result.serializedHistory).toBe('');
       expect(result.historyTokensUsed).toBe(0);
+    });
+
+    it('should not add <current_conversation> wrapper when no environment is provided', () => {
+      const rawHistory = [
+        { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
+      ];
+
+      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 1000);
+
+      expect(result.serializedHistory).toContain('Hello');
+      expect(result.serializedHistory).not.toContain('<current_conversation>');
+      expect(result.serializedHistory).not.toContain('<location');
+    });
+
+    it('should wrap current channel in <current_conversation> with location when environment is provided', () => {
+      const rawHistory = [
+        { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
+        {
+          role: 'assistant',
+          content: 'Hi there!',
+          createdAt: '2026-02-26T10:01:00Z',
+          tokenCount: 5,
+        },
+      ];
+      const environment: DiscordEnvironment = {
+        type: 'guild',
+        guild: { id: 'g-1', name: 'Test Server' },
+        channel: { id: 'ch-1', name: 'chat', type: 'text' },
+      };
+
+      const result = manager.selectAndSerializeHistory(
+        rawHistory,
+        'TestAI',
+        1000,
+        undefined,
+        environment
+      );
+
+      expect(result.serializedHistory).toContain('<current_conversation>');
+      expect(result.serializedHistory).toContain('</current_conversation>');
+      expect(result.serializedHistory).toContain('<location type="guild">');
+      expect(result.serializedHistory).toContain('<server name="Test Server"/>');
+      expect(result.serializedHistory).toContain('<channel name="chat" type="text"/>');
+      expect(result.serializedHistory).toContain('Hello');
+      expect(result.serializedHistory).toContain('Hi there!');
+      expect(result.messagesIncluded).toBe(2);
+    });
+
+    it('should wrap current channel with DM location', () => {
+      const rawHistory = [
+        { role: 'user', content: 'DM hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
+      ];
+      const environment: DiscordEnvironment = {
+        type: 'dm',
+        channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+      };
+
+      const result = manager.selectAndSerializeHistory(
+        rawHistory,
+        'TestAI',
+        1000,
+        undefined,
+        environment
+      );
+
+      expect(result.serializedHistory).toContain('<current_conversation>');
+      expect(result.serializedHistory).toContain(
+        '<location type="dm">Direct Message (private one-on-one chat)</location>'
+      );
+      expect(result.serializedHistory).toContain('DM hello');
+    });
+
+    it('should combine cross-channel and current_conversation wrapper correctly', () => {
+      const rawHistory = [
+        {
+          role: 'user',
+          content: 'Current msg',
+          createdAt: '2026-02-27T10:00:00Z',
+          tokenCount: 10,
+        },
+      ];
+      const crossChannelGroups = [
+        {
+          channelEnvironment: {
+            type: 'guild' as const,
+            guild: { id: 'g-1', name: 'Server' },
+            channel: { id: 'ch-other', name: 'general', type: 'text' },
+          },
+          messages: [
+            {
+              role: MessageRole.User,
+              content: 'Cross msg',
+              createdAt: '2026-02-26T10:00:00Z',
+              personaName: 'User',
+              tokenCount: 10,
+            },
+          ],
+        },
+      ];
+      const environment: DiscordEnvironment = {
+        type: 'guild',
+        guild: { id: 'g-1', name: 'Server' },
+        channel: { id: 'ch-current', name: 'dev', type: 'text' },
+      };
+
+      const result = manager.selectAndSerializeHistory(
+        rawHistory,
+        'TestAI',
+        5000,
+        crossChannelGroups,
+        environment
+      );
+
+      // Cross-channel should come first (prior_conversations)
+      expect(result.serializedHistory).toContain('<prior_conversations>');
+      // Current channel should be wrapped in <current_conversation>
+      expect(result.serializedHistory).toContain('<current_conversation>');
+      expect(result.serializedHistory).toContain('<channel name="dev" type="text"/>');
+
+      // Verify ordering: prior_conversations before current_conversation
+      const priorIdx = result.serializedHistory.indexOf('<prior_conversations>');
+      const currentIdx = result.serializedHistory.indexOf('<current_conversation>');
+      expect(priorIdx).toBeLessThan(currentIdx);
+    });
+
+    it('should not add <current_conversation> wrapper when no current messages fit budget', () => {
+      const rawHistory = [{ role: 'user', content: 'A'.repeat(4000), tokenCount: 2000 }];
+      const environment: DiscordEnvironment = {
+        type: 'dm',
+        channel: { id: 'dm-1', name: 'DM', type: 'dm' },
+      };
+
+      const result = manager.selectAndSerializeHistory(
+        rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
+        'TestAI',
+        10,
+        undefined,
+        environment
+      );
+
+      // No messages fit, so no wrapper should be added
+      expect(result.serializedHistory).toBe('');
+      expect(result.messagesIncluded).toBe(0);
+    });
+
+    it('should account for <current_conversation> wrapper overhead in token budget', () => {
+      const rawHistory = [
+        { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
+      ];
+      const environment: DiscordEnvironment = {
+        type: 'guild',
+        guild: { id: 'g-1', name: 'Test Server' },
+        channel: { id: 'ch-1', name: 'chat', type: 'text' },
+      };
+
+      const withEnv = manager.selectAndSerializeHistory(
+        rawHistory,
+        'TestAI',
+        1000,
+        undefined,
+        environment
+      );
+      const withoutEnv = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 1000);
+
+      // With environment should use more tokens due to wrapper overhead
+      expect(withEnv.historyTokensUsed).toBeGreaterThan(withoutEnv.historyTokensUsed);
     });
   });
 });

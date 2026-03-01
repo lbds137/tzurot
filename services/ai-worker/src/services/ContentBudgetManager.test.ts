@@ -316,5 +316,33 @@ describe('ContentBudgetManager', () => {
       expect(call[3]![0].channelEnvironment.type).toBe('guild');
       expect(call[3]![0].messages[0].content).toBe('Cross-channel msg');
     });
+
+    it('should pass environment to selectAndSerializeHistory as 5th arg', () => {
+      const options = createBaseOptions();
+      const environment = {
+        type: 'guild' as const,
+        guild: { id: 'g-1', name: 'Server' },
+        channel: { id: 'ch-1', name: 'chat', type: 'text' },
+      };
+      (options.context as unknown as Record<string, unknown>).environment = environment;
+
+      budgetManager.allocate(options);
+
+      const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
+      expect(call).toBeDefined();
+      expect(call[4]).toBeDefined(); // 5th arg = currentEnvironment
+      expect(call[4]).toEqual(environment);
+    });
+
+    it('should pass undefined environment when not available in context', () => {
+      const options = createBaseOptions();
+      // No environment set in context
+
+      budgetManager.allocate(options);
+
+      const call = vi.mocked(mockContextWindowManager.selectAndSerializeHistory).mock.calls[0];
+      expect(call).toBeDefined();
+      expect(call[4]).toBeUndefined(); // 5th arg = undefined when no environment
+    });
   });
 });
