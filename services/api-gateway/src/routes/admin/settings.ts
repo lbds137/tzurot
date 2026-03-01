@@ -5,6 +5,7 @@
  * Endpoints:
  * - GET /admin/settings - Get the AdminSettings singleton
  * - PATCH /admin/settings/config-defaults - Update configDefaults directly (flat body)
+ * - DELETE /admin/settings/config-defaults - Clear all admin config defaults
  */
 
 import { Router, type Request, type Response } from 'express';
@@ -148,6 +149,32 @@ export function createAdminSettingsRoutes(
 
   // PATCH /admin/settings/config-defaults - Flat body (same shape as all cascade tiers)
   router.patch('/config-defaults', createConfigDefaultsPatchHandler(prisma, cascadeInvalidation));
+
+  // DELETE /admin/settings/config-defaults - Clear all admin config defaults
+  router.delete(
+    '/config-defaults',
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      if (!isAuthorizedForWrite(req.userId)) {
+        sendError(res, ErrorResponses.unauthorized('Only bot owners can update settings'));
+        return;
+      }
+
+      const userUuid = await resolveUserUuid(prisma, req.userId);
+      await getOrCreateSettings(prisma); // Ensure singleton exists
+
+      await prisma.adminSettings.update({
+        where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+        data: {
+          configDefaults: Prisma.JsonNull,
+          updatedBy: userUuid,
+        },
+      });
+
+      await tryInvalidateAdmin(cascadeInvalidation);
+
+      sendCustomSuccess(res, { success: true }, StatusCodes.OK);
+    })
+  );
 
   return router;
 }

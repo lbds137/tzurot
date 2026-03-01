@@ -276,4 +276,69 @@ describe('Admin Settings Routes (Singleton)', () => {
       expect(mockInvalidation.invalidateAdmin).toHaveBeenCalled();
     });
   });
+
+  describe('DELETE /admin/settings/config-defaults', () => {
+    it('should clear configDefaults and return success', async () => {
+      mockPrisma.adminSettings.update.mockResolvedValue(
+        createDefaultSettings({ configDefaults: null, updatedBy: MOCK_USER_UUID })
+      );
+
+      const response = await request(app).delete('/admin/settings/config-defaults');
+
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+      expect(mockPrisma.adminSettings.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            configDefaults: expect.anything(), // Prisma.JsonNull
+            updatedBy: MOCK_USER_UUID,
+          }),
+        })
+      );
+    });
+
+    it('should reject non-owners', async () => {
+      mockIsBotOwner.mockReturnValue(false);
+
+      const response = await request(app).delete('/admin/settings/config-defaults');
+
+      expect(response.status).toBe(403);
+      expect(response.body.error).toBe('UNAUTHORIZED');
+    });
+
+    it('should ensure singleton exists before clearing', async () => {
+      mockPrisma.adminSettings.update.mockResolvedValue(createDefaultSettings());
+
+      await request(app).delete('/admin/settings/config-defaults');
+
+      // upsert is called first (getOrCreateSettings), then update
+      expect(mockPrisma.adminSettings.upsert).toHaveBeenCalledBefore(
+        mockPrisma.adminSettings.update
+      );
+    });
+
+    it('should trigger cascade invalidation', async () => {
+      const mockInvalidation = {
+        invalidateAdmin: vi.fn().mockResolvedValue(undefined),
+      };
+
+      const appWithInvalidation = express();
+      appWithInvalidation.use(express.json());
+      appWithInvalidation.use((req, _res, next) => {
+        (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
+        next();
+      });
+      appWithInvalidation.use(
+        '/admin/settings',
+        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+      );
+
+      mockPrisma.adminSettings.update.mockResolvedValue(createDefaultSettings());
+
+      const response = await request(appWithInvalidation).delete('/admin/settings/config-defaults');
+
+      expect(response.status).toBe(200);
+      expect(mockInvalidation.invalidateAdmin).toHaveBeenCalled();
+    });
+  });
 });
