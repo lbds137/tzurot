@@ -182,12 +182,12 @@ describe('Character Settings Dashboard', () => {
       expect(mockCallGatewayApi).toHaveBeenCalledWith('/user/personality/aurora', {
         method: 'GET',
         userId: 'user-456',
-        timeout: 10000,
+        timeout: 25000,
       });
       // Second call: resolve cascade overrides
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
         '/user/config-overrides/resolve/personality-123',
-        { method: 'GET', userId: 'user-456', timeout: 10000 }
+        { method: 'GET', userId: 'user-456', timeout: 25000 }
       );
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({

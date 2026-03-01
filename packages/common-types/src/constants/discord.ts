@@ -82,8 +82,10 @@ export const DISCORD_LIMITS = {
 export const GATEWAY_TIMEOUTS = {
   /** Timeout for autocomplete handlers (Discord 3s limit) */
   AUTOCOMPLETE: 2500,
-  /** Timeout for deferred operations (post-deferReply) */
-  DEFERRED: 10000,
+  /** Timeout for deferred operations (post-deferReply).
+   *  25s gives headroom for cold-start Prisma connection establishment
+   *  on Railway redeploys — still well within Discord's 15-minute window. */
+  DEFERRED: 25000,
 } as const;
 
 /**
