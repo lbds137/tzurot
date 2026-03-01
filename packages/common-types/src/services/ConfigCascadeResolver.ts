@@ -303,7 +303,8 @@ export class ConfigCascadeResolver {
   invalidateChannelCache(channelId: string): void {
     for (const key of this.cache.keys()) {
       // Cache key format: userId|personalityId|channelId
-      if (key.endsWith(`|${channelId}`)) {
+      const parts = key.split('|');
+      if (parts[2] === channelId) {
         this.cache.delete(key);
       }
     }
