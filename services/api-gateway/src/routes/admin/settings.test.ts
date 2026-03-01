@@ -172,130 +172,7 @@ describe('Admin Settings Routes (Singleton)', () => {
     });
   });
 
-  describe('PATCH /admin/settings', () => {
-    it('should reject non-owners', async () => {
-      mockIsBotOwner.mockReturnValue(false);
-
-      const response = await request(app)
-        .patch('/admin/settings')
-        .send({ configDefaults: { maxMessages: 30 } });
-
-      expect(response.status).toBe(403);
-      expect(response.body.error).toBe('UNAUTHORIZED');
-    });
-
-    it('should update configDefaults with valid overrides', async () => {
-      const updatedSettings = createDefaultSettings({
-        configDefaults: { maxMessages: 30 },
-        updatedBy: MOCK_USER_UUID,
-      });
-      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
-
-      const response = await request(app)
-        .patch('/admin/settings')
-        .send({ configDefaults: { maxMessages: 30 } });
-
-      expect(response.status).toBe(200);
-      expect(response.body.configDefaults).toEqual({ maxMessages: 30 });
-      expect(response.body.updatedBy).toBe(MOCK_USER_UUID);
-    });
-
-    it('should clear configDefaults when null is sent', async () => {
-      const updatedSettings = createDefaultSettings({
-        configDefaults: null,
-        updatedBy: MOCK_USER_UUID,
-      });
-      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
-
-      const response = await request(app).patch('/admin/settings').send({ configDefaults: null });
-
-      expect(response.status).toBe(200);
-      expect(response.body.configDefaults).toBeNull();
-    });
-
-    it('should reject invalid configDefaults format', async () => {
-      const response = await request(app)
-        .patch('/admin/settings')
-        .send({ configDefaults: { maxMessages: 'not-a-number' } });
-
-      expect(response.status).toBe(400);
-      expect(response.body.error).toBe('VALIDATION_ERROR');
-    });
-
-    it('should merge with existing configDefaults', async () => {
-      // Existing settings have maxImages: 5
-      mockPrisma.adminSettings.upsert.mockResolvedValue(
-        createDefaultSettings({ configDefaults: { maxImages: 5 } })
-      );
-
-      const updatedSettings = createDefaultSettings({
-        configDefaults: { maxImages: 5, maxMessages: 30 },
-        updatedBy: MOCK_USER_UUID,
-      });
-      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
-
-      const response = await request(app)
-        .patch('/admin/settings')
-        .send({ configDefaults: { maxMessages: 30 } });
-
-      expect(response.status).toBe(200);
-      expect(response.body.configDefaults).toEqual({ maxImages: 5, maxMessages: 30 });
-    });
-
-    it('should set updatedBy on update', async () => {
-      const updatedSettings = createDefaultSettings({
-        updatedBy: MOCK_USER_UUID,
-      });
-      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
-
-      const response = await request(app).patch('/admin/settings').send({ configDefaults: null });
-
-      // Route resolves Discord ID → user UUID via prisma.user.findFirst
-      expect(mockPrisma.adminSettings.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
-            updatedBy: MOCK_USER_UUID,
-          }),
-        })
-      );
-      expect(response.status).toBe(200);
-    });
-  });
-
-  describe('PATCH /admin/settings (cascade invalidation)', () => {
-    it('should swallow cascade invalidation errors', async () => {
-      const mockInvalidation = {
-        invalidateAdmin: vi.fn().mockRejectedValue(new Error('Redis down')),
-      };
-
-      const appWithInvalidation = express();
-      appWithInvalidation.use(express.json());
-      appWithInvalidation.use((req, _res, next) => {
-        (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
-        next();
-      });
-      appWithInvalidation.use(
-        '/admin/settings',
-        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
-      );
-
-      const updatedSettings = createDefaultSettings({
-        configDefaults: null,
-        updatedBy: MOCK_USER_UUID,
-      });
-      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
-
-      const response = await request(appWithInvalidation)
-        .patch('/admin/settings')
-        .send({ configDefaults: null });
-
-      // Should still succeed even though invalidation failed
-      expect(response.status).toBe(200);
-      expect(mockInvalidation.invalidateAdmin).toHaveBeenCalled();
-    });
-  });
-
-  describe('PATCH /admin/settings/config-defaults (flat body)', () => {
+  describe('PATCH /admin/settings/config-defaults', () => {
     it('should accept flat body and update configDefaults', async () => {
       const updatedSettings = createDefaultSettings({
         configDefaults: { maxMessages: 42 },
@@ -346,6 +223,57 @@ describe('Admin Settings Routes (Singleton)', () => {
 
       expect(response.status).toBe(200);
       expect(response.body.configDefaults).toEqual({ maxImages: 5, maxMessages: 30 });
+    });
+
+    it('should set updatedBy on update', async () => {
+      const updatedSettings = createDefaultSettings({
+        configDefaults: { maxMessages: 30 },
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxMessages: 30 });
+
+      expect(mockPrisma.adminSettings.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            updatedBy: MOCK_USER_UUID,
+          }),
+        })
+      );
+      expect(response.status).toBe(200);
+    });
+
+    it('should swallow cascade invalidation errors', async () => {
+      const mockInvalidation = {
+        invalidateAdmin: vi.fn().mockRejectedValue(new Error('Redis down')),
+      };
+
+      const appWithInvalidation = express();
+      appWithInvalidation.use(express.json());
+      appWithInvalidation.use((req, _res, next) => {
+        (req as express.Request & { userId: string }).userId = MOCK_USER_ID;
+        next();
+      });
+      appWithInvalidation.use(
+        '/admin/settings',
+        createAdminSettingsRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+      );
+
+      const updatedSettings = createDefaultSettings({
+        configDefaults: { maxMessages: 30 },
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(appWithInvalidation)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxMessages: 30 });
+
+      expect(response.status).toBe(200);
+      expect(mockInvalidation.invalidateAdmin).toHaveBeenCalled();
     });
   });
 });
