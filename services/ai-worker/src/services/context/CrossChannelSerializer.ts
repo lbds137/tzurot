@@ -83,6 +83,16 @@ export function serializeCrossChannelHistory(
         messages: selectedMessages,
       });
       tokensUsed += groupTokens;
+    } else {
+      logger.debug(
+        {
+          channelId: group.channelEnvironment.channel.id,
+          channelOverhead,
+          tokensUsed,
+          availableBudget,
+        },
+        '[CrossChannelSerializer] Skipping group: no messages fit within remaining budget'
+      );
     }
 
     if (tokensUsed >= availableBudget) {

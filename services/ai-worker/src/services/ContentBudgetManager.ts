@@ -272,13 +272,22 @@ export class ContentBudgetManager {
       messagesDropped,
       crossChannelMessagesIncluded,
     } = opts;
-    const crossChannelSuffix =
-      crossChannelMessagesIncluded > 0 ? `, crossChannel=${crossChannelMessagesIncluded}` : '';
     logger.info(
-      `[Budget] Token allocation: total=${contextWindowTokens}, base=${systemPromptBaseTokens}, current=${currentMessageTokens}, memories=${memoryTokensUsed}/${this.countMemoryTokensSafe(retrievedMemories)}, historyBudget=${historyBudget}, historyUsed=${historyTokensUsed}${crossChannelSuffix}`
+      {
+        contextWindowTokens,
+        systemPromptBaseTokens,
+        currentMessageTokens,
+        memoryTokensUsed,
+        memoryTokensTotal: this.countMemoryTokensSafe(retrievedMemories),
+        historyBudget,
+        historyTokensUsed,
+        crossChannelMessagesIncluded:
+          crossChannelMessagesIncluded > 0 ? crossChannelMessagesIncluded : undefined,
+      },
+      '[Budget] Token allocation'
     );
     if (messagesDropped > 0) {
-      logger.debug(`[Budget] Dropped ${messagesDropped} history messages due to token budget`);
+      logger.debug({ messagesDropped }, '[Budget] Dropped history messages due to token budget');
     }
   }
 
