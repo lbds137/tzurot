@@ -129,7 +129,10 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   // NSFW verification routes (for DM interactions)
   router.use('/nsfw', createNsfwRoutes(prisma));
 
-  // Config override routes (cascade overrides for context/memory settings)
+  // Config override routes — two routers layered on the same path.
+  // Express chains them sequentially and route patterns don't overlap:
+  // - config-overrides.ts: /resolve/:id, /resolve-defaults, PATCH /:id, etc. (user/channel tiers)
+  // - personality-config-overrides.ts: /resolve-personality/:id, /personality/:id (creator tier)
   router.use('/config-overrides', createConfigOverrideRoutes(prisma, cascadeInvalidation));
   router.use(
     '/config-overrides',

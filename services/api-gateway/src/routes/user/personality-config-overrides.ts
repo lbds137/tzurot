@@ -44,6 +44,9 @@ export function createPersonalityConfigOverrideRoutes(
    * GET /resolve-personality/:personalityId
    * Resolve 3-tier cascade: hardcoded → admin → personality.
    * Used by personality creator dashboards to see what their defaults resolve to.
+   *
+   * Intentionally no creator-check: the resolved 3-tier cascade is non-sensitive
+   * (same data any user would experience). Only writes (PATCH) are creator-gated.
    */
   router.get(
     '/resolve-personality/:personalityId',
