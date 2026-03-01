@@ -141,16 +141,10 @@ export function createDeleteConfigOverridesHandler(
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
 
-      const existing = await prisma.channelSettings.findUnique({
+      await prisma.channelSettings.updateMany({
         where: { channelId },
+        data: { configOverrides: Prisma.JsonNull },
       });
-
-      if (existing !== null) {
-        await prisma.channelSettings.update({
-          where: { channelId },
-          data: { configOverrides: Prisma.JsonNull },
-        });
-      }
 
       await tryInvalidateChannel(cascadeInvalidation, channelId);
 

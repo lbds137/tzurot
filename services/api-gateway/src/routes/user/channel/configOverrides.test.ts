@@ -162,12 +162,7 @@ describe('Channel Config Overrides Routes', () => {
 
   describe('DELETE /:channelId/config-overrides (cascade invalidation)', () => {
     it('should swallow cascade invalidation errors on delete', async () => {
-      mockPrisma.channelSettings.findUnique.mockResolvedValue({
-        id: 'some-id',
-        channelId: CHANNEL_ID,
-        configOverrides: { maxMessages: 30 },
-      });
-      mockPrisma.channelSettings.update.mockResolvedValue({});
+      mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 1 });
 
       const mockInvalidation = {
         invalidateChannel: vi.fn().mockRejectedValue(new Error('Redis down')),
@@ -191,22 +186,21 @@ describe('Channel Config Overrides Routes', () => {
   });
 
   describe('DELETE /:channelId/config-overrides', () => {
-    it('should clear overrides when they exist', async () => {
-      mockPrisma.channelSettings.findUnique.mockResolvedValue({
-        id: 'some-id',
-        channelId: CHANNEL_ID,
-        configOverrides: { maxMessages: 30 },
-      });
-      mockPrisma.channelSettings.update.mockResolvedValue({});
+    it('should clear overrides via updateMany', async () => {
+      mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 1 });
 
       const response = await request(app).delete(`/user/channel/${CHANNEL_ID}/config-overrides`);
 
       expect(response.status).toBe(200);
       expect(response.body.success).toBe(true);
+      expect(mockPrisma.channelSettings.updateMany).toHaveBeenCalledWith({
+        where: { channelId: CHANNEL_ID },
+        data: { configOverrides: expect.anything() },
+      });
     });
 
-    it('should succeed when no overrides exist', async () => {
-      mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
+    it('should succeed when no matching rows exist', async () => {
+      mockPrisma.channelSettings.updateMany.mockResolvedValue({ count: 0 });
 
       const response = await request(app).delete(`/user/channel/${CHANNEL_ID}/config-overrides`);
 
