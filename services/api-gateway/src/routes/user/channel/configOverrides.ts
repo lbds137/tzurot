@@ -32,7 +32,8 @@ import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('channel-config-overrides');
 
-const CASCADE_INVALIDATION_WARN = 'Failed to publish cascade invalidation';
+const CASCADE_INVALIDATION_WARN =
+  '[ChannelConfigOverrides] Failed to publish cascade cache invalidation';
 
 /**
  * Create GET handler for channel config overrides

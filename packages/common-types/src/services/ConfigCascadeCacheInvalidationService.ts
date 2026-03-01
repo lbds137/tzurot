@@ -69,19 +69,18 @@ export class ConfigCascadeCacheInvalidationService extends BaseCacheInvalidation
           return {};
         },
         getEventDescription: event => {
-          if (event.type === 'all') {
-            return 'ALL caches';
+          switch (event.type) {
+            case 'all':
+              return 'ALL caches';
+            case 'admin':
+              return 'admin defaults changed';
+            case 'user':
+              return `user ${event.discordId}`;
+            case 'channel':
+              return `channel ${event.channelId}`;
+            case 'personality':
+              return `personality ${event.personalityId}`;
           }
-          if (event.type === 'admin') {
-            return 'admin defaults changed';
-          }
-          if (event.type === 'user') {
-            return `user ${event.discordId}`;
-          }
-          if (event.type === 'channel') {
-            return `channel ${event.channelId}`;
-          }
-          return `personality ${event.personalityId}`;
         },
       }
     );

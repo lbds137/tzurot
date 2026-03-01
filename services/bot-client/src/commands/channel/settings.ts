@@ -22,6 +22,7 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import {
   createLogger,
   DISCORD_COLORS,
+  HARDCODED_CONFIG_DEFAULTS,
   type ConfigOverrideSource,
   type ResolvedConfigOverrides,
   type ConfigOverrides,
@@ -237,18 +238,22 @@ async function fetchAndConvertSettingsData(
   personalityId: string | undefined,
   channelId: string
 ): Promise<SettingsData> {
-  // Fetch channel's local overrides and resolved cascade in parallel
-  const [channelOverridesResult, resolvedResult] = await Promise.all([
-    callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
-      `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
-      { method: 'GET', userId }
-    ),
+  // Fetch channel's local overrides and resolved cascade in parallel.
+  // When no personality is activated, resolve is skipped (returns null).
+  const resolvePromise =
     personalityId !== undefined
       ? callGatewayApi<ResolvedConfigOverrides>(
           `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}?channelId=${encodeURIComponent(channelId)}`,
           { method: 'GET', userId }
         )
-      : null,
+      : Promise.resolve(null);
+
+  const [channelOverridesResult, resolvedResult] = await Promise.all([
+    callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
+      `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
+      { method: 'GET', userId }
+    ),
+    resolvePromise,
   ]);
 
   const channelOverrides = channelOverridesResult.ok
@@ -272,7 +277,7 @@ function buildSettingsData(
     const effectiveValue =
       resolved !== null
         ? (resolved[field as keyof ResolvedConfigOverrides] as T)
-        : (localValue as T);
+        : ((localValue ?? HARDCODED_CONFIG_DEFAULTS[field]) as T);
     const source =
       resolved !== null
         ? mapCascadeSource(resolved.sources[field])
