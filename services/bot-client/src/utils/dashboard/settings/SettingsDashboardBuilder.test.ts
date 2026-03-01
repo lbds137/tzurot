@@ -69,9 +69,24 @@ const createTestSession = (
       effectiveValue: false,
       source: 'default',
     },
+    focusModeEnabled: {
+      localValue: null,
+      effectiveValue: false,
+      source: 'default',
+    },
     shareLtmAcrossPersonalities: {
       localValue: null,
       effectiveValue: false,
+      source: 'default',
+    },
+    memoryScoreThreshold: {
+      localValue: null,
+      effectiveValue: 0.5,
+      source: 'default',
+    },
+    memoryLimit: {
+      localValue: null,
+      effectiveValue: 20,
       source: 'default',
     },
     ...dataOverrides,

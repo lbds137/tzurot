@@ -19,6 +19,7 @@ import {
   ConfigCascadeResolver,
   Prisma,
   generateUserPersonalityConfigUuid,
+  isValidDiscordId,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
@@ -88,7 +89,7 @@ export function createConfigOverrideRoutes(
   /**
    * PATCH /user/config-overrides/defaults
    * Update user's global config defaults (merge semantics)
-   * Body: Partial<ConfigOverrides> | null (null to clear)
+   * Body: Partial<ConfigOverrides>
    */
   router.patch(
     '/defaults',
@@ -98,19 +99,7 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
       }
 
-      const input = req.body as Record<string, unknown> | null;
-
-      if (input === null) {
-        await prisma.user.update({
-          where: { id: userId },
-          data: { configDefaults: Prisma.JsonNull },
-        });
-
-        await tryInvalidateUser(req.userId);
-
-        sendCustomSuccess(res, { configDefaults: null }, StatusCodes.OK);
-        return;
-      }
+      const input = req.body as Record<string, unknown>;
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -168,9 +157,17 @@ export function createConfigOverrideRoutes(
     '/resolve/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-      const channelId =
+      const rawChannelId =
         typeof req.query.channelId === 'string' ? req.query.channelId || undefined : undefined;
-      const resolved = await cascadeResolver.resolveOverrides(req.userId, personalityId, channelId);
+      if (rawChannelId !== undefined && !isValidDiscordId(rawChannelId)) {
+        sendError(res, ErrorResponses.validationError('Invalid channelId format'));
+        return;
+      }
+      const resolved = await cascadeResolver.resolveOverrides(
+        req.userId,
+        personalityId,
+        rawChannelId
+      );
       sendCustomSuccess(res, resolved, StatusCodes.OK);
     })
   );
@@ -178,7 +175,7 @@ export function createConfigOverrideRoutes(
   /**
    * PATCH /user/config-overrides/:personalityId
    * Update per-personality config overrides (merge semantics)
-   * Body: Partial<ConfigOverrides> | null (null to clear)
+   * Body: Partial<ConfigOverrides>
    */
   router.patch(
     '/:personalityId',
@@ -189,7 +186,7 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
       }
 
-      const input = req.body as Record<string, unknown> | null;
+      const input = req.body as Record<string, unknown>;
 
       // Upsert UserPersonalityConfig with deterministic UUID
       const upcId = generateUserPersonalityConfigUuid(userId, personalityId);
@@ -198,21 +195,6 @@ export function createConfigOverrideRoutes(
         where: { id: upcId },
         select: { configOverrides: true },
       });
-
-      if (input === null) {
-        // Clear overrides
-        if (existing !== null) {
-          await prisma.userPersonalityConfig.update({
-            where: { id: upcId },
-            data: { configOverrides: Prisma.JsonNull },
-          });
-        }
-
-        await tryInvalidateUser(req.userId);
-
-        sendCustomSuccess(res, { configOverrides: null }, StatusCodes.OK);
-        return;
-      }
 
       const merged = mergeConfigOverrides(existing?.configOverrides, input);
       if (merged === 'invalid') {

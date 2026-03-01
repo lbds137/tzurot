@@ -13,8 +13,11 @@
 const SETTING_FIELDS = [
   'maxMessages',
   'maxImages',
+  'focusModeEnabled',
   'crossChannelHistoryEnabled',
   'shareLtmAcrossPersonalities',
+  'memoryScoreThreshold',
+  'memoryLimit',
 ] as const;
 
 /**

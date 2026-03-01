@@ -219,7 +219,9 @@ function extractChannelId(customId: string): string | null {
 }
 
 /**
- * Map ConfigOverrideSource to dashboard SettingSource
+ * Map ConfigOverrideSource to dashboard SettingSource.
+ * Both 'admin' and 'user-default' map to 'global' because from the channel
+ * moderator's perspective, both are "outside this channel's control".
  */
 function mapCascadeSource(source: ConfigOverrideSource): SettingSource {
   switch (source) {
@@ -305,8 +307,11 @@ function buildSettingsData(
     maxMessages: buildValue<number>('maxMessages'),
     maxAge: buildValue<number | null>('maxAge'),
     maxImages: buildValue<number>('maxImages'),
+    focusModeEnabled: buildValue<boolean>('focusModeEnabled'),
     crossChannelHistoryEnabled: buildValue<boolean>('crossChannelHistoryEnabled'),
     shareLtmAcrossPersonalities: buildValue<boolean>('shareLtmAcrossPersonalities'),
+    memoryScoreThreshold: buildValue<number>('memoryScoreThreshold'),
+    memoryLimit: buildValue<number>('memoryLimit'),
   };
 }
 

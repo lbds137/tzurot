@@ -95,7 +95,7 @@ const TEST_DISCORD_USER_ID = 'discord-user-123';
 const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000003';
 
 function createMockReqRes(
-  body: Record<string, unknown> | null = {},
+  body: Record<string, unknown> = {},
   params: Record<string, string> = {},
   query: Record<string, string> = {}
 ) {
@@ -182,22 +182,6 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('PATCH /defaults', () => {
-    it('should clear defaults when body is null', async () => {
-      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'patch', '/defaults');
-      const { req, res } = createMockReqRes(null);
-
-      await handler(req, res);
-
-      expect(mockPrisma.user.update).toHaveBeenCalledWith(
-        expect.objectContaining({
-          where: { id: 'internal-user-id' },
-        })
-      );
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ configDefaults: null }));
-    });
-
     it('should merge valid overrides with existing defaults', async () => {
       mockPrisma.user.findUnique.mockResolvedValue({
         configDefaults: { maxMessages: 30 },
@@ -277,7 +261,7 @@ describe('/user/config-overrides routes', () => {
       const { req, res } = createMockReqRes(
         {},
         { personalityId: TEST_PERSONALITY_ID },
-        { channelId: 'channel-123' }
+        { channelId: '999888777666555444' }
       );
 
       await handler(req, res);
@@ -285,8 +269,23 @@ describe('/user/config-overrides routes', () => {
       expect(mockResolveOverrides).toHaveBeenCalledWith(
         TEST_DISCORD_USER_ID,
         TEST_PERSONALITY_ID,
-        'channel-123'
+        '999888777666555444'
       );
+    });
+
+    it('should reject invalid channelId format', async () => {
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve/:personalityId');
+      const { req, res } = createMockReqRes(
+        {},
+        { personalityId: TEST_PERSONALITY_ID },
+        { channelId: 'not-a-snowflake' }
+      );
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(mockResolveOverrides).not.toHaveBeenCalled();
     });
 
     it('should pass undefined channelId when query param not provided', async () => {
@@ -305,22 +304,6 @@ describe('/user/config-overrides routes', () => {
   });
 
   describe('PATCH /:personalityId', () => {
-    it('should clear overrides when body is null', async () => {
-      mockPrisma.userPersonalityConfig.findUnique.mockResolvedValue({
-        configOverrides: { maxMessages: 30 },
-      });
-
-      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
-      const handler = getHandler(router, 'patch', '/:personalityId');
-      const { req, res } = createMockReqRes(null, { personalityId: TEST_PERSONALITY_ID });
-
-      await handler(req, res);
-
-      expect(mockPrisma.userPersonalityConfig.update).toHaveBeenCalled();
-      expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ configOverrides: null }));
-    });
-
     it('should upsert valid per-personality overrides', async () => {
       const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
       const handler = getHandler(router, 'patch', '/:personalityId');

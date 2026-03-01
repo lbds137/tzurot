@@ -225,7 +225,7 @@ describe('Character Settings Dashboard', () => {
       expect(embedJson.description).toContain('Aurora');
     });
 
-    it('should include all 5 settings fields', async () => {
+    it('should include all 8 settings fields', async () => {
       const context = createMockContext();
       mockCallGatewayApi
         .mockResolvedValueOnce({ ok: true, data: mockPersonality })
@@ -236,7 +236,7 @@ describe('Character Settings Dashboard', () => {
       const editReplyCall = context.editReply.mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      expect(embedJson.fields).toHaveLength(5);
+      expect(embedJson.fields).toHaveLength(8);
     });
 
     it('should handle character not found', async () => {

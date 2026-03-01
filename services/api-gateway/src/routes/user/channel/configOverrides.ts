@@ -19,6 +19,7 @@ import {
   createLogger,
   Prisma,
   generateChannelSettingsUuid,
+  isValidDiscordId,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
@@ -32,6 +33,15 @@ import type { AuthenticatedRequest } from '../../../types.js';
 
 const logger = createLogger('channel-config-overrides');
 
+/** Validate channelId is a Discord snowflake. Returns false and sends error if invalid. */
+function validateChannelId(channelId: string, res: Response): boolean {
+  if (!isValidDiscordId(channelId)) {
+    sendError(res, ErrorResponses.validationError('Invalid channelId format'));
+    return false;
+  }
+  return true;
+}
+
 const CASCADE_INVALIDATION_WARN =
   '[ChannelConfigOverrides] Failed to publish cascade cache invalidation';
 
@@ -44,6 +54,9 @@ export function createGetConfigOverridesHandler(prisma: PrismaClient): RequestHa
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
+      if (!validateChannelId(channelId, res)) {
+        return;
+      }
 
       const settings = await prisma.channelSettings.findUnique({
         where: { channelId },
@@ -74,7 +87,10 @@ export function createPatchConfigOverridesHandler(
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
-      const input = req.body as Record<string, unknown> | null;
+      if (!validateChannelId(channelId, res)) {
+        return;
+      }
+      const input = req.body as Record<string, unknown>;
 
       // Get or create channel settings
       const settingsId = generateChannelSettingsUuid(channelId);
@@ -82,23 +98,6 @@ export function createPatchConfigOverridesHandler(
         where: { channelId },
         select: { configOverrides: true },
       });
-
-      if (input === null) {
-        // Clear all overrides (consistent with user/personality PATCH handlers).
-        // Note: unreachable with Express's default strict:true body parser;
-        // DELETE is the primary clear mechanism.
-        if (existing !== null) {
-          await prisma.channelSettings.update({
-            where: { channelId },
-            data: { configOverrides: Prisma.JsonNull },
-          });
-        }
-
-        await tryInvalidateChannel(cascadeInvalidation, channelId);
-
-        sendCustomSuccess(res, { configOverrides: null }, StatusCodes.OK);
-        return;
-      }
 
       const merged = mergeConfigOverrides(existing?.configOverrides, input);
       if (merged === 'invalid') {
@@ -142,6 +141,9 @@ export function createDeleteConfigOverridesHandler(
     requireUserAuth(),
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const channelId = getRequiredParam(req.params.channelId, 'channelId');
+      if (!validateChannelId(channelId, res)) {
+        return;
+      }
 
       await prisma.channelSettings.updateMany({
         where: { channelId },
