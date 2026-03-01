@@ -251,7 +251,8 @@ export class ContentBudgetManager {
         context.rawConversationHistory,
         personality.name,
         historyBudget,
-        crossChannelGroups
+        crossChannelGroups,
+        context.environment
       );
 
     return {
