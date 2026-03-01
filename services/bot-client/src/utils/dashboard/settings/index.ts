@@ -23,6 +23,9 @@ export { EXTENDED_CONTEXT_SETTINGS, MEMORY_SETTINGS, ALL_SETTINGS } from './sett
 // Shared update logic
 export { mapSettingToApiUpdate } from './settingsUpdate.js';
 
+// Shared data builder
+export { buildCascadeSettingsData, buildFallbackSettingsData } from './settingsDataBuilder.js';
+
 // Dashboard Builder
 // Modal Factory
 // Dashboard Handler

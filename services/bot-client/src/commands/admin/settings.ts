@@ -25,16 +25,15 @@ import type { DeferredCommandContext } from '../../utils/commandContext/types.js
 import {
   createLogger,
   DISCORD_COLORS,
-  HARDCODED_CONFIG_DEFAULTS,
   type GetAdminSettingsResponse,
+  type ConfigOverrides,
 } from '@tzurot/common-types';
 import { adminFetch, adminPatchJson } from '../../utils/adminApiClient.js';
 import {
+  type SettingsData,
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
-  type SettingsData,
   type SettingUpdateResult,
-  type SettingValue,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -43,6 +42,7 @@ import {
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
   mapSettingToApiUpdate,
+  buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('admin-settings');
@@ -169,44 +169,13 @@ async function fetchAdminSettings(userId: string): Promise<GetAdminSettingsRespo
   return (await response.json()) as GetAdminSettingsResponse;
 }
 
-/** Build a SettingValue for an admin config field */
-function buildAdminSettingValue<T>(
-  defaults: Record<string, unknown> | undefined,
-  field: string
-): SettingValue<T> {
-  const localValue = (defaults?.[field] ?? null) as T | null;
-  const hardcodedDefault =
-    HARDCODED_CONFIG_DEFAULTS[field as keyof typeof HARDCODED_CONFIG_DEFAULTS];
-  return {
-    localValue,
-    effectiveValue: (localValue ?? hardcodedDefault) as T,
-    source: defaults?.[field] !== undefined ? 'global' : 'default',
-  };
-}
-
 /**
  * Convert API response to dashboard SettingsData format.
- * Reads from configDefaults JSONB (config cascade admin tier).
+ * Admin is the lowest tier — no resolve endpoint needed, uses hardcoded + local.
  */
 function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData {
-  const defaults = settings.configDefaults as Record<string, unknown> | undefined;
-
-  return {
-    maxMessages: buildAdminSettingValue<number>(defaults, 'maxMessages'),
-    maxAge: buildAdminSettingValue<number | null>(defaults, 'maxAge'),
-    maxImages: buildAdminSettingValue<number>(defaults, 'maxImages'),
-    focusModeEnabled: buildAdminSettingValue<boolean>(defaults, 'focusModeEnabled'),
-    crossChannelHistoryEnabled: buildAdminSettingValue<boolean>(
-      defaults,
-      'crossChannelHistoryEnabled'
-    ),
-    shareLtmAcrossPersonalities: buildAdminSettingValue<boolean>(
-      defaults,
-      'shareLtmAcrossPersonalities'
-    ),
-    memoryScoreThreshold: buildAdminSettingValue<number>(defaults, 'memoryScoreThreshold'),
-    memoryLimit: buildAdminSettingValue<number>(defaults, 'memoryLimit'),
-  };
+  const defaults = (settings.configDefaults ?? null) as Partial<ConfigOverrides> | null;
+  return buildCascadeSettingsData(null, defaults, 'admin');
 }
 
 /**

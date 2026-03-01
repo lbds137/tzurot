@@ -6,6 +6,7 @@
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
+import type { ConfigOverrideSource } from '@tzurot/common-types';
 
 /**
  * Setting type determines the UI pattern used
@@ -21,11 +22,9 @@ export enum SettingType {
 
 /**
  * Source of a resolved setting value.
- * Maps to cascade tiers: admin → 'global', personality → 'personality',
- * channel → 'channel', user-default → 'global', user-personality → 'user-personality',
- * hardcoded → 'default'.
+ * 1:1 alias for ConfigOverrideSource — preserves full cascade tier information.
  */
-export type SettingSource = 'global' | 'channel' | 'user-personality' | 'personality' | 'default';
+export type SettingSource = ConfigOverrideSource;
 
 /**
  * A single setting definition
