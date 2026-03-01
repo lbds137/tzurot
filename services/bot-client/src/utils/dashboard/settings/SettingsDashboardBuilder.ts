@@ -88,7 +88,7 @@ export function buildOverviewEmbed(
   let description =
     `Configure extended context settings for **${session.entityName}**.\n` +
     'Select a setting below to modify it.';
-  if (config.descriptionNote !== undefined) {
+  if (config.descriptionNote !== undefined && config.descriptionNote.length > 0) {
     description += `\n\n${config.descriptionNote}`;
   }
 

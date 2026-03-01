@@ -191,14 +191,19 @@ describe('SettingsModalFactory', () => {
         }
       });
 
-      it('should return error for decimal number (parsed as integer)', () => {
+      it('should accept decimal numbers', () => {
         const result = parseNumericInput('5.7', 1, 100);
-        expect(result).toEqual({ type: 'value', value: 5 }); // parseInt truncates
+        expect(result).toEqual({ type: 'value', value: 5.7 });
       });
 
-      it('should return error for mixed input', () => {
+      it('should accept decimal in 0-1 range (memoryScoreThreshold)', () => {
+        const result = parseNumericInput('0.5', 0, 1);
+        expect(result).toEqual({ type: 'value', value: 0.5 });
+      });
+
+      it('should reject mixed input like 50abc', () => {
         const result = parseNumericInput('50abc', 1, 100);
-        expect(result).toEqual({ type: 'value', value: 50 }); // parseInt parses initial digits
+        expect(result).toEqual({ type: 'error', message: 'Invalid number: "50abc"' });
       });
     });
   });
