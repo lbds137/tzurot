@@ -2,7 +2,7 @@
  * Settings Dashboard Types
  *
  * Type definitions for the interactive settings dashboard pattern.
- * Used by /admin settings, /channel context, and /character settings commands.
+ * Used by /admin settings, /channel context, /character settings, and /settings defaults commands.
  */
 
 import type { ButtonInteraction, ModalSubmitInteraction } from 'discord.js';
@@ -78,9 +78,13 @@ export interface SettingsData {
 }
 
 /**
- * Dashboard level determines which entity we're editing
+ * Dashboard level determines which entity we're editing.
+ * - 'global': Admin settings (bot owner)
+ * - 'channel': Channel-level overrides (moderators)
+ * - 'personality': Per-personality user settings
+ * - 'user-default': User's global defaults (any user)
  */
-export type DashboardLevel = 'global' | 'channel' | 'personality';
+export type DashboardLevel = 'global' | 'channel' | 'personality' | 'user-default';
 
 /**
  * Dashboard view state
