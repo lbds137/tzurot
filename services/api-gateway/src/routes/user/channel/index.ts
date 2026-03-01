@@ -52,7 +52,7 @@ export function createChannelRoutes(
   // Update guildId - PATCH /update-guild (for lazy backfill)
   router.patch('/update-guild', ...createUpdateGuildHandler(prisma));
 
-  // Channel config overrides - must come before /:channelId to avoid route conflicts
+  // Channel config overrides
   const configOverridesPath = '/:channelId/config-overrides';
   router.get(configOverridesPath, ...createGetConfigOverridesHandler(prisma));
   router.patch(

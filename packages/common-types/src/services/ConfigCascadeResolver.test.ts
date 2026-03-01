@@ -345,6 +345,23 @@ describe('ConfigCascadeResolver', () => {
       expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(3);
     });
 
+    it('should invalidate personality cache entries with channelId in key', async () => {
+      // Exercises pipe-separated key format: userId|personalityId|channelId
+      await resolver.resolveOverrides('user-111', 'personality-456', 'channel-A');
+      await resolver.resolveOverrides('user-222', 'personality-456', 'channel-B');
+      await resolver.resolveOverrides('user-333', 'personality-999', 'channel-A');
+
+      resolver.invalidatePersonalityCache('personality-456');
+
+      // personality-456 entries re-query; personality-999 stays cached
+      await resolver.resolveOverrides('user-111', 'personality-456', 'channel-A');
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(4);
+
+      await resolver.resolveOverrides('user-333', 'personality-999', 'channel-A');
+      // Still cached — not invalidated
+      expect(mockPrisma.adminSettings.findUnique).toHaveBeenCalledTimes(4);
+    });
+
     it('should use different cache keys for different channelIds', async () => {
       await resolver.resolveOverrides('user-123', 'personality-456', 'channel-A');
       await resolver.resolveOverrides('user-123', 'personality-456', 'channel-B');

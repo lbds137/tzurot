@@ -97,9 +97,20 @@ export async function handleContext(context: DeferredCommandContext): Promise<vo
     // Fetch resolved config with channel tier
     const data = await fetchAndConvertSettingsData(userId, personalityId, channelId);
 
+    // When no personality is activated, the resolve endpoint can't be called so
+    // effective values fall back to hardcoded defaults (admin/personality tiers missing).
+    const config =
+      personalityId === undefined
+        ? {
+            ...CHANNEL_CONTEXT_CONFIG,
+            descriptionNote:
+              '⚠️ No personality activated — effective values shown without full cascade context.',
+          }
+        : CHANNEL_CONTEXT_CONFIG;
+
     // Create and display the dashboard - uses interaction for Discord.js compatibility
     await createSettingsDashboard(interaction, {
-      config: CHANNEL_CONTEXT_CONFIG,
+      config,
       data,
       entityId: channelId,
       entityName: `<#${channelId}>`,
