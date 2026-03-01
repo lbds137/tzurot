@@ -9,7 +9,9 @@
 import {
   countTextTokens,
   createLogger,
+  formatLocationAsXml,
   type CrossChannelHistoryGroupEntry,
+  type DiscordEnvironment,
 } from '@tzurot/common-types';
 import type { MemoryDocument } from './PromptContext.js';
 import {
@@ -38,7 +40,8 @@ export class ContextWindowManager {
     rawHistory: RawHistoryEntry[] | undefined,
     personalityName: string,
     historyBudget: number,
-    crossChannelGroups?: CrossChannelHistoryGroupEntry[]
+    crossChannelGroups?: CrossChannelHistoryGroupEntry[],
+    currentEnvironment?: DiscordEnvironment
   ): {
     serializedHistory: string;
     historyTokensUsed: number;
@@ -59,24 +62,50 @@ export class ContextWindowManager {
       };
     }
 
+    // Pre-compute <current_conversation> wrapper overhead (location XML + tags)
+    let currentConversationOverhead = 0;
+    let locationXml = '';
+    if (currentEnvironment !== undefined) {
+      locationXml = formatLocationAsXml(currentEnvironment);
+      const wrapperText = `<current_conversation>\n${locationXml}\n</current_conversation>`;
+      currentConversationOverhead = countTextTokens(wrapperText);
+    }
+
     // Select current-channel messages within budget
     const { selectedEntries, currentChannelXml, tokensUsed } = hasCurrentChannel
       ? this.selectCurrentChannelEntries(rawHistory, personalityName, historyBudget)
       : { selectedEntries: [] as RawHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
 
+    // Account for <current_conversation> wrapper overhead when content exists
+    const adjustedTokensUsed =
+      selectedEntries.length > 0 && currentConversationOverhead > 0
+        ? tokensUsed + currentConversationOverhead
+        : tokensUsed;
+
     // Serialize cross-channel history if available and budget remains
     const { crossChannelXml, crossChannelMessagesIncluded, crossTokens } = hasCrossChannel
-      ? this.serializeCrossChannel(crossChannelGroups, personalityName, historyBudget, tokensUsed)
+      ? this.serializeCrossChannel(
+          crossChannelGroups,
+          personalityName,
+          historyBudget,
+          adjustedTokensUsed
+        )
       : { crossChannelXml: '', crossChannelMessagesIncluded: 0, crossTokens: 0 };
 
-    const actualTokens = tokensUsed + crossTokens;
+    const actualTokens = adjustedTokensUsed + crossTokens;
+
+    // Wrap current channel in <current_conversation> when environment is available
+    let wrappedCurrentXml = currentChannelXml;
+    if (currentChannelXml.length > 0 && currentEnvironment !== undefined) {
+      wrappedCurrentXml = `<current_conversation>\n${locationXml}\n${currentChannelXml}\n</current_conversation>`;
+    }
 
     // Combine: cross-channel before current channel (older context first)
     let serializedHistory: string;
-    if (crossChannelXml.length > 0 && currentChannelXml.length > 0) {
-      serializedHistory = `${crossChannelXml}\n${currentChannelXml}`;
+    if (crossChannelXml.length > 0 && wrappedCurrentXml.length > 0) {
+      serializedHistory = `${crossChannelXml}\n${wrappedCurrentXml}`;
     } else {
-      serializedHistory = crossChannelXml || currentChannelXml;
+      serializedHistory = crossChannelXml || wrappedCurrentXml;
     }
 
     return {
