@@ -134,6 +134,62 @@ describe('Channel Config Overrides Routes', () => {
     });
   });
 
+  describe('PATCH /:channelId/config-overrides (cascade invalidation)', () => {
+    it('should swallow cascade invalidation errors', async () => {
+      mockPrisma.channelSettings.findUnique.mockResolvedValue(null);
+      mockPrisma.channelSettings.upsert.mockResolvedValue({});
+
+      const mockInvalidation = {
+        invalidateChannel: vi.fn().mockRejectedValue(new Error('Redis down')),
+      };
+
+      const appWithInvalidation = express();
+      appWithInvalidation.use(express.json());
+      appWithInvalidation.use(
+        '/user/channel',
+        createChannelRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+      );
+
+      const response = await request(appWithInvalidation)
+        .patch(`/user/channel/${CHANNEL_ID}/config-overrides`)
+        .send({ maxMessages: 25 });
+
+      // Should still succeed even though invalidation failed
+      expect(response.status).toBe(200);
+      expect(mockInvalidation.invalidateChannel).toHaveBeenCalledWith(CHANNEL_ID);
+    });
+  });
+
+  describe('DELETE /:channelId/config-overrides (cascade invalidation)', () => {
+    it('should swallow cascade invalidation errors on delete', async () => {
+      mockPrisma.channelSettings.findUnique.mockResolvedValue({
+        id: 'some-id',
+        channelId: CHANNEL_ID,
+        configOverrides: { maxMessages: 30 },
+      });
+      mockPrisma.channelSettings.update.mockResolvedValue({});
+
+      const mockInvalidation = {
+        invalidateChannel: vi.fn().mockRejectedValue(new Error('Redis down')),
+      };
+
+      const appWithInvalidation = express();
+      appWithInvalidation.use(express.json());
+      appWithInvalidation.use(
+        '/user/channel',
+        createChannelRoutes(mockPrisma as unknown as PrismaClient, mockInvalidation as never)
+      );
+
+      const response = await request(appWithInvalidation).delete(
+        `/user/channel/${CHANNEL_ID}/config-overrides`
+      );
+
+      // Should still succeed even though invalidation failed
+      expect(response.status).toBe(200);
+      expect(response.body.success).toBe(true);
+    });
+  });
+
   describe('DELETE /:channelId/config-overrides', () => {
     it('should clear overrides when they exist', async () => {
       mockPrisma.channelSettings.findUnique.mockResolvedValue({
