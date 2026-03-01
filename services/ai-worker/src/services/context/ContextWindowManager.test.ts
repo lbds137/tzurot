@@ -64,6 +64,50 @@ describe('ContextWindowManager', () => {
       expect(result.messagesDropped).toBe(1);
     });
 
+    it('should return empty when budget is 0 even with both current and cross-channel history', () => {
+      const rawHistory = [
+        { role: 'user', content: 'Hi', createdAt: '2026-02-27T10:00:00Z', tokenCount: 5 },
+      ];
+
+      const crossChannelGroups = [
+        {
+          channelEnvironment: {
+            type: 'guild' as const,
+            guild: { id: 'g-1', name: 'Server' },
+            channel: { id: 'ch-other', name: 'general', type: 'text' },
+          },
+          messages: [
+            {
+              role: MessageRole.User,
+              content: 'Cross message',
+              createdAt: '2026-02-26T10:00:00Z',
+              tokenCount: 5,
+            },
+          ],
+        },
+      ];
+
+      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 0, crossChannelGroups);
+
+      expect(result.serializedHistory).toBe('');
+      expect(result.messagesDropped).toBe(1);
+      expect(result.crossChannelMessagesIncluded).toBe(0);
+    });
+
+    it('should return empty current-channel when budget barely covers wrapper overhead', () => {
+      const rawHistory = [
+        { role: 'user', content: 'Hello', createdAt: '2026-02-26T10:00:00Z', tokenCount: 5 },
+      ];
+
+      // Budget of 2 is positive (passes the historyBudget <= 0 check) but smaller than
+      // the <chat_log> wrapper overhead (~3+ tokens), so budgetAfterOverhead <= 0
+      const result = manager.selectAndSerializeHistory(rawHistory, 'TestAI', 2);
+
+      expect(result.serializedHistory).toBe('');
+      expect(result.messagesIncluded).toBe(0);
+      expect(result.messagesDropped).toBe(1);
+    });
+
     it('should include cross-channel history when provided and budget remains', () => {
       const rawHistory = [
         {
