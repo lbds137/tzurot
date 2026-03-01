@@ -48,7 +48,11 @@ function parseConfigTier(raw: unknown): Record<string, unknown> | null {
     return null;
   }
   const result = ConfigOverridesSchema.partial().safeParse(raw);
-  return result.success ? (result.data as Record<string, unknown>) : null;
+  if (!result.success) {
+    logger.warn({ errors: result.error.issues }, 'Config tier JSONB failed validation');
+    return null;
+  }
+  return result.data as Record<string, unknown>;
 }
 
 /** Query schema for resolve endpoint */
@@ -178,6 +182,9 @@ export function createConfigOverrideRoutes(
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
       }
 
+      if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+        return sendError(res, ErrorResponses.validationError('Request body must be a JSON object'));
+      }
       const input = req.body as Record<string, unknown>;
 
       const user = await prisma.user.findUnique({
@@ -259,11 +266,19 @@ export function createConfigOverrideRoutes(
     '/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
+
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personalityId)) {
+        return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+      }
+
       const userId = await userService.getOrCreateUser(req.userId, req.userId);
       if (userId === null) {
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
       }
 
+      if (typeof req.body !== 'object' || req.body === null || Array.isArray(req.body)) {
+        return sendError(res, ErrorResponses.validationError('Request body must be a JSON object'));
+      }
       const input = req.body as Record<string, unknown>;
 
       // Upsert UserPersonalityConfig with deterministic UUID
@@ -307,6 +322,11 @@ export function createConfigOverrideRoutes(
     '/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
+
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(personalityId)) {
+        return sendError(res, ErrorResponses.validationError('Invalid personalityId format'));
+      }
+
       const userId = await userService.getOrCreateUser(req.userId, req.userId);
       if (userId === null) {
         return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
