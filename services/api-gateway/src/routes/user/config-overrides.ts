@@ -3,6 +3,7 @@
  * CRUD for user-level and per-personality config cascade overrides
  *
  * Endpoints:
+ * - GET /user/config-overrides/resolve-defaults - Resolve admin → user-default cascade
  * - GET /user/config-overrides/resolve/:personalityId - Resolve cascade overrides
  * - PATCH /user/config-overrides/:personalityId - Update per-personality overrides
  * - DELETE /user/config-overrides/:personalityId - Clear per-personality overrides
@@ -21,8 +22,12 @@ import {
   Prisma,
   generateUserPersonalityConfigUuid,
   DISCORD_SNOWFLAKE,
+  HARDCODED_CONFIG_DEFAULTS,
+  ADMIN_SETTINGS_SINGLETON_ID,
+  ConfigOverridesSchema,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
+  type ConfigOverrideSource,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -37,12 +42,21 @@ const logger = createLogger('user-config-overrides');
 const BOT_USER_ERROR = 'Cannot create user for bot';
 const CASCADE_INVALIDATION_WARN = 'Failed to publish cascade invalidation';
 
+/** Parse and validate a config tier's JSONB value. Returns null if absent or invalid. */
+function parseConfigTier(raw: unknown): Record<string, unknown> | null {
+  if (raw === null || raw === undefined || typeof raw !== 'object') {
+    return null;
+  }
+  const result = ConfigOverridesSchema.partial().safeParse(raw);
+  return result.success ? (result.data as Record<string, unknown>) : null;
+}
+
 /** Query schema for resolve endpoint */
 const resolveQuerySchema = z.object({
   channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, 'Invalid channelId format').optional(),
 });
 
-// eslint-disable-next-line max-lines-per-function -- Route factory with 6 endpoints following model-override.ts pattern
+// eslint-disable-next-line max-lines-per-function -- Route factory with 7 endpoints following model-override.ts pattern
 export function createConfigOverrideRoutes(
   prisma: PrismaClient,
   cascadeInvalidation?: ConfigCascadeCacheInvalidationService
@@ -66,6 +80,65 @@ export function createConfigOverrideRoutes(
 
   // All routes require authentication
   router.use(requireUserAuth);
+
+  /**
+   * GET /user/config-overrides/resolve-defaults
+   * Resolve admin → user-default cascade (no personality/channel context).
+   * Returns resolved values with per-field source tracking and raw user overrides.
+   */
+  router.get(
+    '/resolve-defaults',
+    asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
+      const userId = await userService.getOrCreateUser(req.userId, req.userId);
+      if (userId === null) {
+        return sendError(res, ErrorResponses.validationError(BOT_USER_ERROR));
+      }
+
+      // Load admin and user tiers in parallel
+      const [adminSettings, user] = await Promise.all([
+        prisma.adminSettings.findUnique({
+          where: { id: ADMIN_SETTINGS_SINGLETON_ID },
+          select: { configDefaults: true },
+        }),
+        prisma.user.findUnique({
+          where: { id: userId },
+          select: { configDefaults: true },
+        }),
+      ]);
+
+      // Parse and validate each tier
+      const adminDefaults = parseConfigTier(adminSettings?.configDefaults);
+      const userDefaults = parseConfigTier(user?.configDefaults);
+
+      // Merge: hardcoded → admin → user-default
+      const resolved: Record<string, unknown> = { ...HARDCODED_CONFIG_DEFAULTS };
+      const sources: Record<string, ConfigOverrideSource> = {};
+
+      for (const key of Object.keys(HARDCODED_CONFIG_DEFAULTS)) {
+        sources[key] = 'hardcoded';
+      }
+
+      if (adminDefaults !== null) {
+        for (const [key, value] of Object.entries(adminDefaults)) {
+          if (value !== undefined) {
+            resolved[key] = value;
+            sources[key] = 'admin';
+          }
+        }
+      }
+
+      if (userDefaults !== null) {
+        for (const [key, value] of Object.entries(userDefaults)) {
+          if (value !== undefined) {
+            resolved[key] = value;
+            sources[key] = 'user-default';
+          }
+        }
+      }
+
+      sendCustomSuccess(res, { ...resolved, sources, userOverrides: userDefaults }, StatusCodes.OK);
+    })
+  );
 
   /**
    * GET /user/config-overrides/defaults

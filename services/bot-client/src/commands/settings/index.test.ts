@@ -1,6 +1,6 @@
 /**
  * Tests for Settings Command Index
- * Tests command routing for consolidated settings (timezone, apikey, preset)
+ * Tests command routing for consolidated settings (timezone, apikey, preset, defaults)
  *
  * History:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
@@ -10,7 +10,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import settingsCommand from './index.js';
 
 // Destructure from default export
-const { data, execute, autocomplete, handleModal } = settingsCommand;
+const { data, execute, autocomplete, handleModal, handleButton, handleSelectMenu } =
+  settingsCommand;
 
 // Mock timezone handlers
 vi.mock('./timezone/set.js', () => ({
@@ -65,6 +66,17 @@ vi.mock('./preset/clear-default.js', () => ({
 
 vi.mock('./preset/autocomplete.js', () => ({
   handleAutocomplete: vi.fn().mockResolvedValue(undefined),
+}));
+
+// Mock defaults handlers
+vi.mock('./defaults/edit.js', () => ({
+  handleDefaultsEdit: vi.fn().mockResolvedValue(undefined),
+  handleUserDefaultsButton: vi.fn().mockResolvedValue(undefined),
+  handleUserDefaultsSelectMenu: vi.fn().mockResolvedValue(undefined),
+  handleUserDefaultsModal: vi.fn().mockResolvedValue(undefined),
+  isUserDefaultsInteraction: vi.fn((customId: string) =>
+    customId.startsWith('user-defaults-settings::')
+  ),
 }));
 
 // Mock logger
@@ -144,6 +156,25 @@ describe('Settings Command Index', () => {
       expect(subcommands).toContain('reset');
       expect(subcommands).toContain('default');
       expect(subcommands).toContain('clear-default');
+    });
+
+    it('should have defaults subcommand group with edit', () => {
+      const json = data.toJSON();
+      const options = json.options ?? [];
+
+      const groups = options.filter((opt: { type: number }) => opt.type === 2);
+      const defaultsGroup = groups.find((g: { name: string }) => g.name === 'defaults');
+
+      expect(defaultsGroup).toBeDefined();
+
+      const subcommands = (
+        (defaultsGroup as { options?: Array<{ name: string }> })?.options ?? []
+      ).map(s => s.name);
+      expect(subcommands).toContain('edit');
+    });
+
+    it('should have componentPrefixes for user-defaults-settings', () => {
+      expect(settingsCommand.componentPrefixes).toEqual(['user-defaults-settings']);
     });
 
     it('should have correct deferral modes', () => {
@@ -286,6 +317,17 @@ describe('Settings Command Index', () => {
       });
     });
 
+    describe('defaults group', () => {
+      it('should route to defaults edit handler', async () => {
+        const { handleDefaultsEdit } = await import('./defaults/edit.js');
+        const context = createMockContext('defaults', 'edit');
+
+        await execute(context);
+
+        expect(handleDefaultsEdit).toHaveBeenCalledWith(context);
+      });
+    });
+
     it('should handle unknown group gracefully', async () => {
       const context = createMockContext('unknown', 'test');
 
@@ -308,6 +350,46 @@ describe('Settings Command Index', () => {
       await handleModal(interaction);
 
       expect(handleApikeyModalSubmit).toHaveBeenCalledWith(interaction);
+    });
+
+    it('should route user-defaults modals to defaults handler', async () => {
+      const { handleUserDefaultsModal } = await import('./defaults/edit.js');
+
+      const interaction = {
+        customId: 'user-defaults-settings::modal::user-456::maxMessages',
+      } as any;
+
+      await handleModal(interaction);
+
+      expect(handleUserDefaultsModal).toHaveBeenCalledWith(interaction);
+    });
+  });
+
+  describe('handleButton - button routing', () => {
+    it('should route user-defaults buttons to defaults handler', async () => {
+      const { handleUserDefaultsButton } = await import('./defaults/edit.js');
+
+      const interaction = {
+        customId: 'user-defaults-settings::set::user-456::maxMessages:auto',
+      } as any;
+
+      await handleButton(interaction);
+
+      expect(handleUserDefaultsButton).toHaveBeenCalledWith(interaction);
+    });
+  });
+
+  describe('handleSelectMenu - select menu routing', () => {
+    it('should route user-defaults select menus to defaults handler', async () => {
+      const { handleUserDefaultsSelectMenu } = await import('./defaults/edit.js');
+
+      const interaction = {
+        customId: 'user-defaults-settings::select::user-456',
+      } as any;
+
+      await handleSelectMenu(interaction);
+
+      expect(handleUserDefaultsSelectMenu).toHaveBeenCalledWith(interaction);
     });
   });
 

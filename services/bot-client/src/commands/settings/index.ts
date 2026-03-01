@@ -6,13 +6,19 @@
  * - /settings timezone get|set - Manage timezone
  * - /settings apikey set|browse|remove|test - Manage API keys (BYOK)
  * - /settings preset browse|set|reset|default|clear-default - Manage preset overrides
+ * - /settings defaults edit - Manage global default settings (config cascade)
  *
  * HISTORY:
  * - Consolidated from former /me timezone, /wallet, and /me preset commands
  */
 
 import { SlashCommandBuilder } from 'discord.js';
-import type { ModalSubmitInteraction, AutocompleteInteraction } from 'discord.js';
+import type {
+  ModalSubmitInteraction,
+  AutocompleteInteraction,
+  ButtonInteraction,
+  StringSelectMenuInteraction,
+} from 'discord.js';
 import {
   createLogger,
   DISCORD_LIMITS,
@@ -46,6 +52,15 @@ import { handleReset as handlePresetReset } from './preset/reset.js';
 import { handleDefault as handlePresetDefault } from './preset/default.js';
 import { handleClearDefault as handlePresetClearDefault } from './preset/clear-default.js';
 import { handleAutocomplete as handlePresetAutocomplete } from './preset/autocomplete.js';
+
+// Defaults handlers (user-default config cascade settings)
+import {
+  handleDefaultsEdit,
+  handleUserDefaultsButton,
+  handleUserDefaultsSelectMenu,
+  handleUserDefaultsModal,
+  isUserDefaultsInteraction,
+} from './defaults/edit.js';
 
 const logger = createLogger('settings-command');
 
@@ -103,6 +118,8 @@ async function execute(context: SafeCommandContext): Promise<void> {
     await apikeyRouter(context);
   } else if (group === 'preset') {
     await presetRouter(context as DeferredCommandContext);
+  } else if (group === 'defaults') {
+    await handleDefaultsEdit(context as DeferredCommandContext);
   } else {
     logger.warn({ group }, '[Settings] Unknown subcommand group');
     await (context as DeferredCommandContext).editReply({
@@ -112,7 +129,7 @@ async function execute(context: SafeCommandContext): Promise<void> {
 }
 
 /**
- * Modal submit handler for API key input
+ * Modal submit handler for API key input and user-defaults settings
  */
 async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
   // Check if this is an apikey modal (settings::apikey::*)
@@ -121,7 +138,37 @@ async function handleModal(interaction: ModalSubmitInteraction): Promise<void> {
     return;
   }
 
+  // Check if this is a user-defaults settings modal
+  if (isUserDefaultsInteraction(interaction.customId)) {
+    await handleUserDefaultsModal(interaction);
+    return;
+  }
+
   logger.warn({ customId: interaction.customId }, '[Settings] Unknown modal customId');
+}
+
+/**
+ * Button interaction handler for user-defaults settings dashboard
+ */
+async function handleButton(interaction: ButtonInteraction): Promise<void> {
+  if (isUserDefaultsInteraction(interaction.customId)) {
+    await handleUserDefaultsButton(interaction);
+    return;
+  }
+
+  logger.warn({ customId: interaction.customId }, '[Settings] Unknown button customId');
+}
+
+/**
+ * Select menu interaction handler for user-defaults settings dashboard
+ */
+async function handleSelectMenu(interaction: StringSelectMenuInteraction): Promise<void> {
+  if (isUserDefaultsInteraction(interaction.customId)) {
+    await handleUserDefaultsSelectMenu(interaction);
+    return;
+  }
+
+  logger.warn({ customId: interaction.customId }, '[Settings] Unknown select menu customId');
 }
 
 /**
@@ -288,8 +335,20 @@ export default defineCommand({
         .addSubcommand(subcommand =>
           subcommand.setName('clear-default').setDescription('Clear your global default preset')
         )
+    )
+    // Defaults subcommand group (user-default config cascade settings)
+    .addSubcommandGroup(group =>
+      group
+        .setName('defaults')
+        .setDescription('Manage your global default settings')
+        .addSubcommand(subcommand =>
+          subcommand.setName('edit').setDescription('Open your default settings dashboard')
+        )
     ),
   execute,
   autocomplete,
   handleModal,
+  handleButton,
+  handleSelectMenu,
+  componentPrefixes: ['user-defaults-settings'],
 });

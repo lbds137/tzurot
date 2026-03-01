@@ -846,6 +846,23 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     ],
     "type": 2,
   },
+  {
+    "description": "Manage your global default settings",
+    "description_localizations": undefined,
+    "name": "defaults",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "description": "Open your default settings dashboard",
+        "description_localizations": undefined,
+        "name": "edit",
+        "name_localizations": undefined,
+        "options": [],
+        "type": 1,
+      },
+    ],
+    "type": 2,
+  },
 ]
 `;
 

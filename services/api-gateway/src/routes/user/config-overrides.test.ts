@@ -2,6 +2,7 @@
  * Tests for /user/config-overrides routes
  *
  * Tests config cascade CRUD endpoints:
+ * - GET /resolve-defaults - Resolve admin → user-default cascade
  * - GET /defaults - Get user's global config defaults
  * - PATCH /defaults - Update user's global config defaults
  * - DELETE /defaults - Clear user's global config defaults
@@ -76,6 +77,9 @@ vi.mock('../../utils/asyncHandler.js', () => ({
 
 // Mock Prisma
 const mockPrisma = {
+  adminSettings: {
+    findUnique: vi.fn(),
+  },
   user: {
     findUnique: vi.fn(),
     update: vi.fn(),
@@ -89,7 +93,7 @@ const mockPrisma = {
 
 import { createConfigOverrideRoutes } from './config-overrides.js';
 import { getRouteHandler, findRoute } from '../../test/expressRouterUtils.js';
-import type { PrismaClient } from '@tzurot/common-types';
+import { HARDCODED_CONFIG_DEFAULTS, type PrismaClient } from '@tzurot/common-types';
 
 const TEST_DISCORD_USER_ID = 'discord-user-123';
 const TEST_PERSONALITY_ID = '00000000-0000-0000-0000-000000000003';
@@ -126,6 +130,7 @@ describe('/user/config-overrides routes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
+    mockPrisma.adminSettings.findUnique.mockResolvedValue(null);
     mockPrisma.user.findUnique.mockResolvedValue({
       configDefaults: null,
     });
@@ -140,12 +145,120 @@ describe('/user/config-overrides routes', () => {
       const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
 
       expect(router).toBeDefined();
+      expect(findRoute(router, 'get', '/resolve-defaults')).toBeDefined();
       expect(findRoute(router, 'get', '/defaults')).toBeDefined();
       expect(findRoute(router, 'patch', '/defaults')).toBeDefined();
       expect(findRoute(router, 'delete', '/defaults')).toBeDefined();
       expect(findRoute(router, 'get', '/resolve/:personalityId')).toBeDefined();
       expect(findRoute(router, 'patch', '/:personalityId')).toBeDefined();
       expect(findRoute(router, 'delete', '/:personalityId')).toBeDefined();
+    });
+  });
+
+  describe('GET /resolve-defaults', () => {
+    it('should return hardcoded defaults when no overrides exist', async () => {
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve-defaults');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxMessages: HARDCODED_CONFIG_DEFAULTS.maxMessages,
+          maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
+          sources: expect.objectContaining({
+            maxMessages: 'hardcoded',
+            maxImages: 'hardcoded',
+          }),
+          userOverrides: null,
+        })
+      );
+    });
+
+    it('should return admin values when admin has set overrides', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75, focusModeEnabled: true },
+      });
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve-defaults');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxMessages: 75,
+          focusModeEnabled: true,
+          maxImages: HARDCODED_CONFIG_DEFAULTS.maxImages,
+          sources: expect.objectContaining({
+            maxMessages: 'admin',
+            focusModeEnabled: 'admin',
+            maxImages: 'hardcoded',
+          }),
+          userOverrides: null,
+        })
+      );
+    });
+
+    it('should return user values as highest priority', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75 },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 30, maxImages: 5 },
+      });
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve-defaults');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxMessages: 30,
+          maxImages: 5,
+          sources: expect.objectContaining({
+            maxMessages: 'user-default',
+            maxImages: 'user-default',
+          }),
+          userOverrides: { maxMessages: 30, maxImages: 5 },
+        })
+      );
+    });
+
+    it('should track sources accurately across tiers', async () => {
+      mockPrisma.adminSettings.findUnique.mockResolvedValue({
+        configDefaults: { maxMessages: 75 },
+      });
+      mockPrisma.user.findUnique.mockResolvedValue({
+        configDefaults: { maxImages: 5 },
+      });
+
+      const router = createConfigOverrideRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'get', '/resolve-defaults');
+      const { req, res } = createMockReqRes();
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          maxMessages: 75,
+          maxImages: 5,
+          memoryLimit: HARDCODED_CONFIG_DEFAULTS.memoryLimit,
+          sources: expect.objectContaining({
+            maxMessages: 'admin',
+            maxImages: 'user-default',
+            memoryLimit: 'hardcoded',
+          }),
+        })
+      );
     });
   });
 
