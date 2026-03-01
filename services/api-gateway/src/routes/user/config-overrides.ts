@@ -140,6 +140,8 @@ export function createConfigOverrideRoutes(
         }
       }
 
+      // Note: 'sources' and 'userOverrides' are reserved metadata keys in this flat response.
+      // Config field names (from ConfigOverridesSchema) must not collide with them.
       sendCustomSuccess(res, { ...resolved, sources, userOverrides: userDefaults }, StatusCodes.OK);
     })
   );
