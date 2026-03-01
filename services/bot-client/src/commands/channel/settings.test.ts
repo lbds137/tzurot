@@ -274,7 +274,13 @@ describe('Channel Context Dashboard', () => {
 
       await handleContext(context);
 
-      // Should still display the dashboard (resolve is skipped, uses fallbacks)
+      // Should call resolve-defaults as fallback (not full resolve which needs personalityId)
+      expect(mockCallGatewayApi).toHaveBeenCalledWith(
+        '/user/config-overrides/resolve-defaults',
+        expect.objectContaining({ method: 'GET' })
+      );
+
+      // Should still display the dashboard
       expect(context.editReply).toHaveBeenCalledWith(
         expect.objectContaining({
           embeds: expect.any(Array),
@@ -283,39 +289,62 @@ describe('Channel Context Dashboard', () => {
       );
     });
 
-    it('should use channel overrides with hardcoded defaults when no personality activated', async () => {
+    it('should show admin overrides via resolve-defaults when no personality activated', async () => {
       const context = createMockContext(true);
       // No personality activated
       mockGetChannelSettings.mockResolvedValue({ settings: {} });
-      // Channel has local overrides for maxMessages
-      mockCallGatewayApi.mockResolvedValue({
-        ok: true,
-        data: { configOverrides: { maxMessages: 25 } },
-      });
+      // resolvePromise is created first (resolve-defaults), then channel overrides inside Promise.all
+      mockCallGatewayApi
+        .mockResolvedValueOnce({
+          ok: true,
+          data: {
+            maxMessages: 75,
+            maxAge: null,
+            maxImages: 10,
+            memoryScoreThreshold: 0.5,
+            memoryLimit: 20,
+            focusModeEnabled: false,
+            crossChannelHistoryEnabled: false,
+            shareLtmAcrossPersonalities: false,
+            sources: {
+              maxMessages: 'admin',
+              maxAge: 'hardcoded',
+              maxImages: 'hardcoded',
+              memoryScoreThreshold: 'hardcoded',
+              memoryLimit: 'hardcoded',
+              focusModeEnabled: 'hardcoded',
+              crossChannelHistoryEnabled: 'hardcoded',
+              shareLtmAcrossPersonalities: 'hardcoded',
+            },
+            userOverrides: null,
+          },
+        })
+        .mockResolvedValueOnce({
+          ok: true,
+          data: { configOverrides: { maxMessages: 25 } },
+        });
 
       await handleContext(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      // maxMessages should show the channel override value
+      // maxMessages: effective value from cascade is 75 (admin), with local override badge
       const maxMsgField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Max Messages')
       );
       expect(maxMsgField).toBeDefined();
-      // The channel override (25) should be reflected in the display
-      expect(maxMsgField.value).toContain('25');
-      // Override indicator shown (local value is set)
+      expect(maxMsgField.value).toContain('75');
       expect(maxMsgField.value).toContain('Override');
 
-      // Fields without overrides should show hardcoded defaults with Auto indicator
+      // Fields without overrides should show Auto indicator
       const maxImgField = embedJson.fields.find((f: { name: string }) =>
         f.name.includes('Max Images')
       );
       expect(maxImgField).toBeDefined();
       expect(maxImgField.value).toContain('Auto');
 
-      // Warning note should be shown when no personality is activated
+      // Info note about no personality activated
       expect(embedJson.description).toContain('No personality activated');
     });
 

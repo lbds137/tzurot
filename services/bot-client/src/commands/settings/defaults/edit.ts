@@ -18,20 +18,14 @@ import type {
   ModalSubmitInteraction,
 } from 'discord.js';
 import type { DeferredCommandContext } from '../../../utils/commandContext/types.js';
-import {
-  createLogger,
-  DISCORD_COLORS,
-  GATEWAY_TIMEOUTS,
-  type ConfigOverrideSource,
-  type ConfigOverrides,
-  type ResolvedConfigOverrides,
-} from '@tzurot/common-types';
+import { createLogger, DISCORD_COLORS, GATEWAY_TIMEOUTS } from '@tzurot/common-types';
 import { callGatewayApi } from '../../../utils/userGatewayClient.js';
 import {
-  type SettingsData,
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingUpdateResult,
+  type SettingsData,
+  type ResolveDefaultsResponse,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -42,6 +36,7 @@ import {
   mapSettingToApiUpdate,
   buildCascadeSettingsData,
   buildFallbackSettingsData,
+  convertResolveDefaultsResponse,
 } from '../../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('user-defaults-settings');
@@ -64,20 +59,6 @@ const USER_DEFAULTS_CONFIG: SettingsDashboardConfig = {
   settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
   descriptionNote: 'These defaults apply across all personalities unless overridden.',
 };
-
-/** Response shape from GET /user/config-overrides/resolve-defaults */
-interface ResolveDefaultsResponse {
-  maxMessages: number;
-  maxAge: number | null;
-  maxImages: number;
-  focusModeEnabled: boolean;
-  crossChannelHistoryEnabled: boolean;
-  shareLtmAcrossPersonalities: boolean;
-  memoryScoreThreshold: number;
-  memoryLimit: number;
-  sources: Record<string, ConfigOverrideSource>;
-  userOverrides: Record<string, unknown> | null;
-}
 
 /**
  * Handle /settings defaults edit command — opens interactive dashboard
@@ -167,27 +148,7 @@ async function fetchAndConvertSettingsData(userId: string): Promise<SettingsData
     return buildFallbackSettingsData();
   }
 
-  return convertToSettingsData(result.data);
-}
-
-/**
- * Convert API response to dashboard SettingsData format.
- * Builds a ResolvedConfigOverrides from the flat resolve-defaults response,
- * then delegates to the shared builder.
- */
-function convertToSettingsData(response: ResolveDefaultsResponse): SettingsData {
-  const resolved: ResolvedConfigOverrides = {
-    maxMessages: response.maxMessages,
-    maxAge: response.maxAge,
-    maxImages: response.maxImages,
-    focusModeEnabled: response.focusModeEnabled,
-    crossChannelHistoryEnabled: response.crossChannelHistoryEnabled,
-    shareLtmAcrossPersonalities: response.shareLtmAcrossPersonalities,
-    memoryScoreThreshold: response.memoryScoreThreshold,
-    memoryLimit: response.memoryLimit,
-    sources: response.sources as Record<keyof ConfigOverrides, ConfigOverrideSource>,
-  };
-  const userOverrides = (response.userOverrides ?? null) as Partial<ConfigOverrides> | null;
+  const { resolved, userOverrides } = convertResolveDefaultsResponse(result.data);
   return buildCascadeSettingsData(resolved, userOverrides, 'user-default');
 }
 

@@ -1,9 +1,9 @@
 /**
- * Character Settings Dashboard (Creator/Owner Only)
+ * Character Overrides Dashboard
  *
- * Interactive dashboard for managing personality-level config defaults.
- * Shows effective values from the 3-tier cascade (hardcoded → admin → personality)
- * with source indicators. Only the personality creator can edit these defaults.
+ * Interactive dashboard for managing per-user per-personality config overrides.
+ * Shows effective values from the full cascade with source indicators.
+ * Any user can set their own overrides for any personality.
  *
  * Settings:
  * - Max Messages: 1-100 or Auto
@@ -44,22 +44,22 @@ import {
   buildCascadeSettingsData,
 } from '../../utils/dashboard/settings/index.js';
 
-const logger = createLogger('character-settings');
+const logger = createLogger('character-overrides');
 
 /**
  * Entity type for custom IDs
  * Uses hyphen separator to avoid conflicts with :: delimiter
- * CommandHandler uses alias mapping to route 'character-settings' → 'character'
+ * CommandHandler uses alias mapping to route 'character-overrides' → 'character'
  */
-const ENTITY_TYPE = 'character-settings';
+const ENTITY_TYPE = 'character-overrides';
 
 /**
- * Dashboard configuration for character settings
+ * Dashboard configuration for character overrides
  */
-const CHARACTER_SETTINGS_CONFIG: SettingsDashboardConfig = {
+const CHARACTER_OVERRIDES_CONFIG: SettingsDashboardConfig = {
   level: 'personality',
   entityType: ENTITY_TYPE,
-  titlePrefix: 'Character',
+  titlePrefix: 'Character Override',
   color: DISCORD_COLORS.BLURPLE,
   settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
 };
@@ -77,17 +77,18 @@ interface PersonalityResponse {
 }
 
 /**
- * Handle /character settings command - shows interactive dashboard
+ * Handle /character overrides command - shows interactive dashboard
  */
-export async function handleSettings(
+export async function handleOverrides(
   context: DeferredCommandContext,
   _config: EnvConfig
 ): Promise<void> {
+  // Reuse characterSettingsOptions — same option shape (character: string)
   const options = characterSettingsOptions(context.interaction);
   const characterSlug = options.character();
   const userId = context.user.id;
 
-  logger.debug({ characterSlug, userId }, '[Character Settings] Opening dashboard');
+  logger.debug({ characterSlug, userId }, '[Character Overrides] Opening dashboard');
 
   try {
     // Fetch current character data from API gateway
@@ -112,9 +113,9 @@ export async function handleSettings(
 
     const personality = result.data.personality;
 
-    // Resolve 3-tier cascade (hardcoded → admin → personality) for creator view
+    // Resolve full cascade overrides for this user+personality
     const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
-      `/user/config-overrides/resolve-personality/${encodeURIComponent(personality.id)}`,
+      `/user/config-overrides/resolve/${encodeURIComponent(personality.id)}`,
       { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     );
 
@@ -130,7 +131,7 @@ export async function handleSettings(
 
     // Create and display the dashboard
     await createSettingsDashboard(context.interaction, {
-      config: CHARACTER_SETTINGS_CONFIG,
+      config: CHARACTER_OVERRIDES_CONFIG,
       data,
       entityId: `${characterSlug}--${personality.id}`,
       entityName: `${personality.name} (${personality.slug})`,
@@ -138,20 +139,20 @@ export async function handleSettings(
       updateHandler: createUpdateHandler(characterSlug, personality.id),
     });
 
-    logger.info({ characterSlug, userId }, '[Character Settings] Dashboard opened');
+    logger.info({ characterSlug, userId }, '[Character Overrides] Dashboard opened');
   } catch (error) {
-    logger.error({ err: error, characterSlug }, '[Character Settings] Error opening dashboard');
+    logger.error({ err: error, characterSlug }, '[Character Overrides] Error opening dashboard');
 
     await context.editReply({
-      content: 'An error occurred while opening the settings dashboard.',
+      content: 'An error occurred while opening the overrides dashboard.',
     });
   }
 }
 
 /**
- * Handle select menu interactions for character settings
+ * Handle select menu interactions for character overrides
  */
-export async function handleCharacterSettingsSelectMenu(
+export async function handleCharacterOverridesSelectMenu(
   interaction: StringSelectMenuInteraction
 ): Promise<void> {
   if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
@@ -171,15 +172,17 @@ export async function handleCharacterSettingsSelectMenu(
 
   await handleSettingsSelectMenu(
     interaction,
-    CHARACTER_SETTINGS_CONFIG,
+    CHARACTER_OVERRIDES_CONFIG,
     createUpdateHandler(characterSlug, personalityId)
   );
 }
 
 /**
- * Handle button interactions for character settings
+ * Handle button interactions for character overrides
  */
-export async function handleCharacterSettingsButton(interaction: ButtonInteraction): Promise<void> {
+export async function handleCharacterOverridesButton(
+  interaction: ButtonInteraction
+): Promise<void> {
   if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
     return;
   }
@@ -197,15 +200,15 @@ export async function handleCharacterSettingsButton(interaction: ButtonInteracti
 
   await handleSettingsButton(
     interaction,
-    CHARACTER_SETTINGS_CONFIG,
+    CHARACTER_OVERRIDES_CONFIG,
     createUpdateHandler(characterSlug, personalityId)
   );
 }
 
 /**
- * Handle modal submissions for character settings
+ * Handle modal submissions for character overrides
  */
-export async function handleCharacterSettingsModal(
+export async function handleCharacterOverridesModal(
   interaction: ModalSubmitInteraction
 ): Promise<void> {
   if (!isSettingsInteraction(interaction.customId, ENTITY_TYPE)) {
@@ -225,15 +228,15 @@ export async function handleCharacterSettingsModal(
 
   await handleSettingsModal(
     interaction,
-    CHARACTER_SETTINGS_CONFIG,
+    CHARACTER_OVERRIDES_CONFIG,
     createUpdateHandler(characterSlug, personalityId)
   );
 }
 
 /**
- * Check if a custom ID belongs to character settings dashboard
+ * Check if a custom ID belongs to character overrides dashboard
  */
-export function isCharacterSettingsInteraction(customId: string): boolean {
+export function isCharacterOverridesInteraction(customId: string): boolean {
   return isSettingsInteraction(customId, ENTITY_TYPE);
 }
 
@@ -251,12 +254,12 @@ function parseEntityId(entityId: string): [string | null, string | null] {
 
 /**
  * Convert cascade-resolved overrides to dashboard SettingsData format.
- * Extracts local overrides by checking which fields the personality tier set.
+ * Extracts local overrides by checking which fields the user-personality tier set.
  */
 function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData {
   const localOverrides: Partial<ConfigOverrides> = {};
   for (const [field, source] of Object.entries(resolved.sources)) {
-    if (source === 'personality') {
+    if (source === 'user-personality') {
       localOverrides[field as keyof ConfigOverrides] = resolved[
         field as keyof ResolvedConfigOverrides
       ] as never;
@@ -265,7 +268,7 @@ function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData 
   return buildCascadeSettingsData(
     resolved,
     Object.keys(localOverrides).length > 0 ? localOverrides : null,
-    'personality'
+    'user-personality'
   );
 }
 
@@ -285,7 +288,7 @@ function createUpdateHandler(characterSlug: string, personalityId: string | null
 
 /**
  * Handle setting updates from the dashboard
- * Writes to personality-level config defaults via cascade endpoint (creator-only)
+ * Writes to user's per-personality config overrides via cascade endpoint
  */
 async function handleSettingUpdate(
   interaction: ButtonInteraction | ModalSubmitInteraction,
@@ -302,7 +305,7 @@ async function handleSettingUpdate(
 
   logger.debug(
     { settingId, newValue, characterSlug, personalityId, userId },
-    '[Character Settings] Updating setting'
+    '[Character Overrides] Updating setting'
   );
 
   try {
@@ -313,9 +316,9 @@ async function handleSettingUpdate(
       return { success: false, error: 'Unknown setting' };
     }
 
-    // Write to personality-level config defaults (creator-only)
+    // Write to per-personality config overrides
     const result = await callGatewayApi(
-      `/user/config-overrides/personality/${encodeURIComponent(personalityId)}`,
+      `/user/config-overrides/${encodeURIComponent(personalityId)}`,
       {
         method: 'PATCH',
         body,
@@ -327,14 +330,14 @@ async function handleSettingUpdate(
     if (!result.ok) {
       logger.warn(
         { settingId, error: result.error, characterSlug },
-        '[Character Settings] Update failed'
+        '[Character Overrides] Update failed'
       );
       return { success: false, error: result.error };
     }
 
-    // Re-resolve 3-tier cascade to get updated effective values
+    // Re-resolve cascade to get updated effective values
     const cascadeResult = await callGatewayApi<ResolvedConfigOverrides>(
-      `/user/config-overrides/resolve-personality/${encodeURIComponent(personalityId)}`,
+      `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}`,
       { method: 'GET', userId, timeout: GATEWAY_TIMEOUTS.DEFERRED }
     );
 
@@ -346,14 +349,14 @@ async function handleSettingUpdate(
 
     logger.info(
       { settingId, newValue, characterSlug, userId },
-      '[Character Settings] Setting updated'
+      '[Character Overrides] Setting updated'
     );
 
     return { success: true, newData };
   } catch (error) {
     logger.error(
       { err: error, settingId, characterSlug },
-      '[Character Settings] Error updating setting'
+      '[Character Overrides] Error updating setting'
     );
     return { success: false, error: 'Failed to update setting' };
   }

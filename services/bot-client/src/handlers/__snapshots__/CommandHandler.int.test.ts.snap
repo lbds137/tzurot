@@ -471,6 +471,27 @@ exports[`CommandHandler (component) > command structure snapshots > should have 
     ],
     "type": 1,
   },
+  {
+    "description": "Manage your personal overrides for a character",
+    "description_localizations": undefined,
+    "name": "overrides",
+    "name_localizations": undefined,
+    "options": [
+      {
+        "autocomplete": true,
+        "choices": undefined,
+        "description": "Character to override settings for",
+        "description_localizations": undefined,
+        "max_length": undefined,
+        "min_length": undefined,
+        "name": "character",
+        "name_localizations": undefined,
+        "required": true,
+        "type": 3,
+      },
+    ],
+    "type": 1,
+  },
 ]
 `;
 
