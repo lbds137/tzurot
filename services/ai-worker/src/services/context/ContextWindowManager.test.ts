@@ -388,14 +388,21 @@ describe('ContextWindowManager', () => {
     });
 
     it('should not add <current_conversation> wrapper when no current messages fit budget', () => {
-      const rawHistory = [{ role: 'user', content: 'A'.repeat(4000), tokenCount: 2000 }];
+      const rawHistory = [
+        {
+          role: 'user',
+          content: 'A'.repeat(4000),
+          createdAt: '2026-02-26T10:00:00Z',
+          tokenCount: 2000,
+        },
+      ];
       const environment: DiscordEnvironment = {
         type: 'dm',
         channel: { id: 'dm-1', name: 'DM', type: 'dm' },
       };
 
       const result = manager.selectAndSerializeHistory(
-        rawHistory as Parameters<typeof manager.selectAndSerializeHistory>[0],
+        rawHistory,
         'TestAI',
         10,
         undefined,
