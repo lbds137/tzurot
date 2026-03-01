@@ -393,6 +393,45 @@ describe('fetchCrossChannelHistory', () => {
     expect(env.channel.name).toBe('general');
   });
 
+  it('should handle thread with null parent (deletion race)', async () => {
+    const groups: CrossChannelHistoryGroup[] = [
+      {
+        channelId: 'thread-1',
+        guildId: 'guild-1',
+        messages: [createMockMessage()],
+      },
+    ];
+
+    const discordClient = createMockDiscordClient({
+      'thread-1': {
+        type: ChannelType.PublicThread,
+        name: 'orphan-thread',
+        id: 'thread-1',
+        guild: { id: 'guild-1', name: 'Test Server' },
+        isThread: () => true,
+        parent: null, // Deletion race: parent channel was deleted
+      } as never,
+    });
+
+    const result = await fetchCrossChannelHistory({
+      personaId: 'persona-1',
+      personalityId: 'personality-1',
+      currentChannelId: 'channel-1',
+      remainingMessageCount: 50,
+      discordClient,
+      conversationHistoryService: createMockConversationHistoryService(groups),
+    });
+
+    expect(result).toHaveLength(1);
+    const env = result[0].channelEnvironment;
+    expect(env.type).toBe('guild');
+    // Thread appears as a regular channel (no parent swap)
+    expect(env.channel.id).toBe('thread-1');
+    expect(env.channel.name).toBe('orphan-thread');
+    // No thread info since parent is null
+    expect(env.thread).toBeUndefined();
+  });
+
   it('should use "unknown" for unmapped channel types', async () => {
     const groups: CrossChannelHistoryGroup[] = [
       {

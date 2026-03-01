@@ -70,6 +70,14 @@ describe('serializeCrossChannelHistory', () => {
     expect(result.messagesIncluded).toBe(0);
   });
 
+  it('should return empty when budget is positive but less than wrapper overhead', () => {
+    // Budget of 1 is positive (passes tokenBudget <= 0 check) but smaller than
+    // the <prior_conversations> wrapper overhead, so availableBudget <= 0
+    const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 1);
+    expect(result.xml).toBe('');
+    expect(result.messagesIncluded).toBe(0);
+  });
+
   it('should serialize a single group with location block', () => {
     const result = serializeCrossChannelHistory([createGroup()], 'TestAI', 5000);
     expect(result.xml).toContain('<prior_conversations>');
