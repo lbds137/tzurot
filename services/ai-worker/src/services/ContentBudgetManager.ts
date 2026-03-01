@@ -174,7 +174,15 @@ export class ContentBudgetManager {
 
     if (memoriesDroppedCount > 0) {
       logger.info(
-        `[Budget] Memory budget applied: kept ${relevantMemories.length}/${retrievedMemories.length} memories (${memoryTokensUsed} tokens, budget: ${memoryBudget}, dropped: ${memoriesDroppedCount}, oversized: ${droppedDueToSize})`
+        {
+          kept: relevantMemories.length,
+          total: retrievedMemories.length,
+          tokensUsed: memoryTokensUsed,
+          budget: memoryBudget,
+          dropped: memoriesDroppedCount,
+          oversized: droppedDueToSize,
+        },
+        '[Budget] Memory budget applied'
       );
     }
 
@@ -226,7 +234,12 @@ export class ContentBudgetManager {
     if (historyReductionPercent !== undefined && historyReductionPercent > 0) {
       const reducedBudget = Math.floor(historyBudget * (1 - historyReductionPercent));
       logger.info(
-        `[Budget] Reducing history budget by ${Math.round(historyReductionPercent * 100)}% for duplicate retry: ${historyBudget} → ${reducedBudget} tokens`
+        {
+          reductionPercent: Math.round(historyReductionPercent * 100),
+          originalBudget: historyBudget,
+          reducedBudget,
+        },
+        '[Budget] Reducing history budget for duplicate retry'
       );
       historyBudget = reducedBudget;
     }
