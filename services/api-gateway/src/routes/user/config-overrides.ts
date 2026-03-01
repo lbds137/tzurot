@@ -13,13 +13,14 @@
 
 import { Router, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
+import { z } from 'zod';
 import {
   createLogger,
   UserService,
   ConfigCascadeResolver,
   Prisma,
   generateUserPersonalityConfigUuid,
-  isValidDiscordId,
+  DISCORD_SNOWFLAKE,
   type PrismaClient,
   type ConfigCascadeCacheInvalidationService,
 } from '@tzurot/common-types';
@@ -35,6 +36,11 @@ const logger = createLogger('user-config-overrides');
 
 const BOT_USER_ERROR = 'Cannot create user for bot';
 const CASCADE_INVALIDATION_WARN = 'Failed to publish cascade invalidation';
+
+/** Query schema for resolve endpoint */
+const resolveQuerySchema = z.object({
+  channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, 'Invalid channelId format').optional(),
+});
 
 // eslint-disable-next-line max-lines-per-function -- Route factory with 6 endpoints following model-override.ts pattern
 export function createConfigOverrideRoutes(
@@ -157,16 +163,15 @@ export function createConfigOverrideRoutes(
     '/resolve/:personalityId',
     asyncHandler(async (req: AuthenticatedRequest, res: Response) => {
       const personalityId = getRequiredParam(req.params.personalityId, 'personalityId');
-      const rawChannelId =
-        typeof req.query.channelId === 'string' ? req.query.channelId || undefined : undefined;
-      if (rawChannelId !== undefined && !isValidDiscordId(rawChannelId)) {
+      const queryResult = resolveQuerySchema.safeParse(req.query);
+      if (!queryResult.success) {
         sendError(res, ErrorResponses.validationError('Invalid channelId format'));
         return;
       }
       const resolved = await cascadeResolver.resolveOverrides(
         req.userId,
         personalityId,
-        rawChannelId
+        queryResult.data.channelId
       );
       sendCustomSuccess(res, resolved, StatusCodes.OK);
     })

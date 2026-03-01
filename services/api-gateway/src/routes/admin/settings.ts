@@ -11,6 +11,7 @@ import { Router, type Request, type Response } from 'express';
 import { StatusCodes } from 'http-status-codes';
 import {
   type PrismaClient,
+  type GetAdminSettingsResponse,
   Prisma,
   AdminSettingsSchema,
   ADMIN_SETTINGS_SINGLETON_ID,
@@ -62,14 +63,8 @@ async function tryInvalidateAdmin(
   }
 }
 
-/** Build response object from DB settings */
-function buildResponse(settings: Prisma.AdminSettingsGetPayload<object>): {
-  id: string;
-  updatedBy: string | null;
-  configDefaults: Record<string, unknown> | null;
-  createdAt: string;
-  updatedAt: string;
-} {
+/** Build response object from DB settings (type stays in sync via z.infer) */
+function buildResponse(settings: Prisma.AdminSettingsGetPayload<object>): GetAdminSettingsResponse {
   return {
     id: settings.id,
     updatedBy: settings.updatedBy,

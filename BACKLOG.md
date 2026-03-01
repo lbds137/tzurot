@@ -21,25 +21,13 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
-### 🏗️ Unify Config Cascade API Endpoints
+### 🏗️ Audit API Routes for Zod Validation at Boundaries
 
-Each cascade tier uses a different API shape for the same operation (merging partial config overrides into JSONB):
+Several api-gateway routes use manual `typeof` checks and utility functions (e.g., `isValidDiscordId()`) for query/path param validation instead of Zod schemas. Per code standards, service boundaries should validate with Zod. Audit all routes and convert manual validation to Zod `.safeParse()` for consistency.
 
-| Tier      | Endpoint                                   | Body Shape                             | Why Different                                       |
-| --------- | ------------------------------------------ | -------------------------------------- | --------------------------------------------------- |
-| Admin     | `PATCH /admin/settings`                    | `{ configDefaults: { field: value } }` | General-purpose endpoint, wraps in `configDefaults` |
-| Character | `PATCH /user/config-overrides/:id`         | `{ field: value }`                     | Cascade-specific endpoint, direct fields            |
-| Channel   | `PATCH /user/channel/:id/extended-context` | `{ extendedContextField: value }`      | Pre-cascade legacy, different field names entirely  |
+**Known examples**: `config-overrides.ts` resolve endpoint uses manual `typeof req.query.channelId === 'string'` + `isValidDiscordId()` instead of a Zod query schema.
 
-The asymmetry caused a real bug (admin null handling diverged from character) and forces each dashboard to implement its own `mapSettingToApiUpdate` with subtly different semantics.
-
-**Goal**: All cascade tiers accept `Partial<ConfigOverrides>` directly through `mergeConfigOverrides`. Specific changes:
-
-- Add `/admin/config-defaults` sub-endpoint (or refactor existing PATCH to accept direct fields)
-- Migrate channel settings from legacy `extendedContext*` fields to config cascade
-- Move `mapSettingToApiUpdate` into the dashboard settings framework (only the API URL varies per tier)
-
-**Discovered during**: PR #684 review (cross-channel history config cascade work)
+**Discovered during**: PR #688 review (channel tier config cascade)
 
 ---
 
@@ -80,16 +68,6 @@ Retry threshold: score ≥ 0.5. Max 1 content retry (these failures are slow). R
 **Integration point**: After successful HTTP response in the AI pipeline, before returning to user. Log all assessments for tuning.
 
 **Reference**: `debug/debug-compact-736e6c99-*.json` (the "N" response).
-
-### 🏗️ Tooling Package Test Coverage Gaps
-
-Three pre-existing tooling logic files need colocated tests (excluded in `structure.test.ts` as tech debt):
-
-- [ ] `packages/tooling/src/dev/check-duplicate-exports.ts` — Complex parsing/matching logic (333 lines)
-- [ ] `packages/tooling/src/lint/complexity-report.ts` — Analysis logic
-- [ ] `packages/tooling/src/memory/cleanup-duplicates.ts` — Data processing
-
-`structure.test.ts` now enforces tooling coverage — any NEW file will fail without a test.
 
 ---
 
