@@ -324,7 +324,7 @@ describe('ContentBudgetManager', () => {
         guild: { id: 'g-1', name: 'Server' },
         channel: { id: 'ch-1', name: 'chat', type: 'text' },
       };
-      (options.context as unknown as Record<string, unknown>).environment = environment;
+      options.context.environment = environment;
 
       budgetManager.allocate(options);
 

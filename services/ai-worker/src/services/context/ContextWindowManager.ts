@@ -71,12 +71,15 @@ export class ContextWindowManager {
       currentConversationOverhead = countTextTokens(wrapperText);
     }
 
-    // Select current-channel messages within budget
+    // Select current-channel messages within budget, reserving space for the wrapper.
+    // Deducting overhead upfront avoids a bounded overrun where selected messages +
+    // wrapper could silently exceed historyBudget.
+    const adjustedBudget = historyBudget - currentConversationOverhead;
     const { selectedEntries, currentChannelXml, tokensUsed } = hasCurrentChannel
-      ? this.selectCurrentChannelEntries(rawHistory, personalityName, historyBudget)
+      ? this.selectCurrentChannelEntries(rawHistory, personalityName, adjustedBudget)
       : { selectedEntries: [] as RawHistoryEntry[], currentChannelXml: '', tokensUsed: 0 };
 
-    // Account for <current_conversation> wrapper overhead when content exists
+    // Include wrapper overhead in tokens used (only when content exists to wrap)
     const adjustedTokensUsed =
       selectedEntries.length > 0 && currentConversationOverhead > 0
         ? tokensUsed + currentConversationOverhead
