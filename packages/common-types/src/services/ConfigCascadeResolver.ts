@@ -75,7 +75,7 @@ export class ConfigCascadeResolver {
     personalityId?: string,
     channelId?: string
   ): Promise<ResolvedConfigOverrides> {
-    // Sentinels use non-numeric strings; Discord snowflake IDs are purely numeric, so no collisions
+    // Sentinels ('anon','none','no-ch') can't collide: snowflakes are numeric, UUIDs are hex+hyphens
     const cacheKey = `${userId ?? 'anon'}|${personalityId ?? 'none'}|${channelId ?? 'no-ch'}`;
 
     // Check cache
