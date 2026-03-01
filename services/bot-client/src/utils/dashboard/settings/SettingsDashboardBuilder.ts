@@ -85,12 +85,16 @@ export function buildOverviewEmbed(
   config: SettingsDashboardConfig,
   session: SettingsDashboardSession
 ): EmbedBuilder {
+  let description =
+    `Configure extended context settings for **${session.entityName}**.\n` +
+    'Select a setting below to modify it.';
+  if (config.descriptionNote !== undefined) {
+    description += `\n\n${config.descriptionNote}`;
+  }
+
   const embed = new EmbedBuilder()
     .setTitle(`${config.titlePrefix} Settings`)
-    .setDescription(
-      `Configure extended context settings for **${session.entityName}**.\n` +
-        'Select a setting below to modify it.'
-    )
+    .setDescription(description)
     .setColor(config.color)
     .setTimestamp();
 
