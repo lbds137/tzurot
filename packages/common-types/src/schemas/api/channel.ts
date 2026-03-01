@@ -20,6 +20,7 @@ export const ChannelSettingsSchema = z.object({
   id: z.string().uuid(),
   channelId: z.string().min(1),
   guildId: z.string().nullable(), // Nullable for DM channels
+  activatedPersonalityId: z.string().uuid().nullable(), // Raw FK for config cascade resolve
   personalitySlug: z.string().min(1).nullable(), // Null if no personality activated
   personalityName: z.string().min(1).nullable(), // Null if no personality activated
   autoRespond: z.boolean(),

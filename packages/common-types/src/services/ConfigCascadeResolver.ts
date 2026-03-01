@@ -1,14 +1,15 @@
 /**
  * Config Cascade Resolver
  *
- * Resolves the effective config overrides for a user+personality combination
- * using a 4-tier cascade:
+ * Resolves the effective config overrides for a user+personality+channel combination
+ * using a 5-tier cascade:
  *
  *   1. HARDCODED_CONFIG_DEFAULTS (always present, lowest priority)
  *   2. AdminSettings.configDefaults (admin tier)
  *   3. Personality.configDefaults (personality tier)
- *   4. User.configDefaults (user-default tier)
- *   5. UserPersonalityConfig.configOverrides (user+personality tier, highest priority)
+ *   4. ChannelSettings.configOverrides (channel tier)
+ *   5. User.configDefaults (user-default tier)
+ *   6. UserPersonalityConfig.configOverrides (user+personality tier, highest priority)
  *
  * Higher tiers override lower tiers on a per-field basis.
  * Each resolved field tracks which tier provided it.
@@ -44,7 +45,7 @@ interface TierData {
 }
 
 /**
- * Config Cascade Resolver - resolves per-field config overrides across 4 tiers
+ * Config Cascade Resolver - resolves per-field config overrides across 5 tiers
  */
 export class ConfigCascadeResolver {
   private prisma: PrismaClient;
@@ -62,30 +63,32 @@ export class ConfigCascadeResolver {
   }
 
   /**
-   * Resolve the effective config overrides for a user+personality combination.
+   * Resolve the effective config overrides for a user+personality+channel combination.
    *
    * @param userId - Discord user ID (or undefined for anonymous)
    * @param personalityId - Personality UUID (or undefined for no personality context)
+   * @param channelId - Discord channel ID (or undefined for no channel context)
    * @returns Fully resolved config with per-field source tracking
    */
   async resolveOverrides(
     userId?: string,
-    personalityId?: string
+    personalityId?: string,
+    channelId?: string
   ): Promise<ResolvedConfigOverrides> {
-    const cacheKey = `${userId ?? 'anon'}-${personalityId ?? 'none'}`;
+    const cacheKey = `${userId ?? 'anon'}|${personalityId ?? 'none'}|${channelId ?? 'no-ch'}`;
 
     // Check cache
     const cached = this.cache.get(cacheKey);
     if (cached !== undefined && cached.expiresAt > Date.now()) {
       logger.debug(
-        { userId, personalityId, source: 'cache' },
+        { userId, personalityId, channelId, source: 'cache' },
         'Config overrides resolved from cache'
       );
       return cached.result;
     }
 
     // Load tiers from DB
-    const tiers = await this.loadTiers(userId, personalityId);
+    const tiers = await this.loadTiers(userId, personalityId, channelId);
 
     // Deep-merge tiers (higher index = higher priority)
     const result = this.mergeTiers(tiers);
@@ -94,7 +97,7 @@ export class ConfigCascadeResolver {
     this.cache.set(cacheKey, { result, expiresAt: Date.now() + this.cacheTtlMs });
 
     logger.debug(
-      { userId, personalityId, tierCount: tiers.length },
+      { userId, personalityId, channelId, tierCount: tiers.length },
       'Config overrides resolved from database'
     );
 
@@ -105,7 +108,11 @@ export class ConfigCascadeResolver {
    * Load all applicable tiers from the database.
    * Returns tiers in priority order (lowest first).
    */
-  private async loadTiers(userId?: string, personalityId?: string): Promise<TierData[]> {
+  private async loadTiers(
+    userId?: string,
+    personalityId?: string,
+    channelId?: string
+  ): Promise<TierData[]> {
     const tiers: TierData[] = [];
 
     // Tier 1: Admin defaults (singleton)
@@ -116,7 +123,12 @@ export class ConfigCascadeResolver {
       await this.loadPersonalityTier(tiers, personalityId);
     }
 
-    // Tier 3 & 4: User defaults + user-personality overrides
+    // Tier 3: Channel overrides
+    if (channelId !== undefined) {
+      await this.loadChannelTier(tiers, channelId);
+    }
+
+    // Tier 4 & 5: User defaults + user-personality overrides
     if (userId !== undefined) {
       await this.loadUserTiers(tiers, userId, personalityId);
     }
@@ -147,6 +159,19 @@ export class ConfigCascadeResolver {
       this.pushIfValid(tiers, personality?.configDefaults, 'personality');
     } catch (error) {
       logger.warn({ err: error, personalityId }, 'Failed to load personality config defaults');
+    }
+  }
+
+  /** Load channel tier (channel-level overrides set by moderators) */
+  private async loadChannelTier(tiers: TierData[], channelId: string): Promise<void> {
+    try {
+      const channel = await this.prisma.channelSettings.findUnique({
+        where: { channelId },
+        select: { configOverrides: true },
+      });
+      this.pushIfValid(tiers, channel?.configOverrides, 'channel');
+    } catch (error) {
+      logger.warn({ err: error, channelId }, 'Failed to load channel config overrides');
     }
   }
 
@@ -254,7 +279,7 @@ export class ConfigCascadeResolver {
   /** Invalidate cache for a specific user */
   invalidateUserCache(userId: string): void {
     for (const key of this.cache.keys()) {
-      if (key.startsWith(`${userId}-`)) {
+      if (key.startsWith(`${userId}|`)) {
         this.cache.delete(key);
       }
     }
@@ -264,11 +289,24 @@ export class ConfigCascadeResolver {
   /** Invalidate cache for a specific personality */
   invalidatePersonalityCache(personalityId: string): void {
     for (const key of this.cache.keys()) {
-      if (key.endsWith(`-${personalityId}`)) {
+      // Cache key format: userId|personalityId|channelId
+      const parts = key.split('|');
+      if (parts[1] === personalityId) {
         this.cache.delete(key);
       }
     }
     logger.debug({ personalityId }, 'Invalidated config cascade cache for personality');
+  }
+
+  /** Invalidate cache for a specific channel */
+  invalidateChannelCache(channelId: string): void {
+    for (const key of this.cache.keys()) {
+      // Cache key format: userId|personalityId|channelId
+      if (key.endsWith(`|${channelId}`)) {
+        this.cache.delete(key);
+      }
+    }
+    logger.debug({ channelId }, 'Invalidated config cascade cache for channel');
   }
 
   /** Clear all cache entries */

@@ -40,17 +40,14 @@ vi.mock('../../utils/userGatewayClient.js', () => ({
 }));
 
 // Mock GatewayClient - use vi.hoisted() for proper mock hoisting
-const { mockGetChannelSettings, mockGetAdminSettings, mockInvalidateChannelSettingsCache } =
-  vi.hoisted(() => ({
-    mockGetChannelSettings: vi.fn(),
-    mockGetAdminSettings: vi.fn(),
-    mockInvalidateChannelSettingsCache: vi.fn(),
-  }));
+const { mockGetChannelSettings, mockInvalidateChannelSettingsCache } = vi.hoisted(() => ({
+  mockGetChannelSettings: vi.fn(),
+  mockInvalidateChannelSettingsCache: vi.fn(),
+}));
 
 vi.mock('../../utils/GatewayClient.js', () => ({
   GatewayClient: class MockGatewayClient {
     getChannelSettings = mockGetChannelSettings;
-    getAdminSettings = mockGetAdminSettings;
   },
   invalidateChannelSettingsCache: mockInvalidateChannelSettingsCache,
 }));
@@ -71,10 +68,11 @@ vi.mock('../../utils/dashboard/SessionManager.js', () => ({
 
 describe('Channel Context Dashboard', () => {
   const mockChannelSettings = {
-    settings: {},
+    settings: {
+      activatedPersonalityId: 'personality-123',
+    },
+    activatedPersonalityId: 'personality-123',
   };
-
-  const mockAdminSettings = {};
 
   /**
    * Create a mock DeferredCommandContext for testing.
@@ -166,6 +164,30 @@ describe('Channel Context Dashboard', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    // Default: resolve endpoint returns hardcoded defaults
+    mockCallGatewayApi.mockResolvedValue({
+      ok: true,
+      data: {
+        maxMessages: 50,
+        maxAge: null,
+        maxImages: 10,
+        memoryScoreThreshold: 0.5,
+        memoryLimit: 20,
+        focusModeEnabled: false,
+        crossChannelHistoryEnabled: false,
+        shareLtmAcrossPersonalities: false,
+        sources: {
+          maxMessages: 'hardcoded',
+          maxAge: 'hardcoded',
+          maxImages: 'hardcoded',
+          memoryScoreThreshold: 'hardcoded',
+          memoryLimit: 'hardcoded',
+          focusModeEnabled: 'hardcoded',
+          crossChannelHistoryEnabled: 'hardcoded',
+          shareLtmAcrossPersonalities: 'hardcoded',
+        },
+      },
+    });
   });
 
   describe('handleContext', () => {
@@ -182,7 +204,6 @@ describe('Channel Context Dashboard', () => {
     it('should display settings dashboard embed with permission', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleContext(context);
 
@@ -198,7 +219,6 @@ describe('Channel Context Dashboard', () => {
     it('should include Channel Settings title in embed', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleContext(context);
 
@@ -212,7 +232,6 @@ describe('Channel Context Dashboard', () => {
     it('should include channel mention in embed description', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleContext(context);
 
@@ -222,39 +241,27 @@ describe('Channel Context Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 3 extended context settings fields (memory settings excluded at channel tier)', async () => {
+    it('should include all 5 settings fields (extended context + memory)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleContext(context);
 
       const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
       const embedJson = editReplyCall.embeds[0].toJSON();
 
-      // Only extended context settings shown — memory settings (crossChannelHistoryEnabled,
-      // shareLtmAcrossPersonalities) are not wired at the channel tier yet
-      expect(embedJson.fields).toHaveLength(3);
+      // Both extended context and memory settings are shown at channel tier
+      expect(embedJson.fields).toHaveLength(5);
       const fieldNames = embedJson.fields.map((f: { name: string }) => f.name);
       expect(fieldNames).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
           expect.stringContaining('Max Age'),
           expect.stringContaining('Max Images'),
+          expect.stringContaining('Cross-Channel History'),
+          expect.stringContaining('Share Memories'),
         ])
       );
-    });
-
-    it('should handle admin settings fetch failure', async () => {
-      const context = createMockContext(true);
-      mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(null);
-
-      await handleContext(context);
-
-      expect(context.editReply).toHaveBeenCalledWith({
-        content: 'Failed to fetch global settings.',
-      });
     });
 
     it('should handle unexpected errors gracefully', async () => {
@@ -401,7 +408,7 @@ describe('Channel Context Dashboard', () => {
       expect(interaction.reply).not.toHaveBeenCalled();
     });
 
-    it('should update maxMessages setting', async () => {
+    it('should update maxMessages setting via config-overrides endpoint', async () => {
       const interaction = createMockModalInteraction(
         'channel-settings::modal::channel-123::maxMessages',
         '75'
@@ -410,15 +417,15 @@ describe('Channel Context Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleChannelContextModal(interaction as never);
 
+      // Should use new config-overrides endpoint with flat body shape
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/extended-context',
+        '/user/channel/channel-123/config-overrides',
         expect.objectContaining({
           method: 'PATCH',
-          body: { extendedContextMaxMessages: 75 },
+          body: { maxMessages: 75 },
         })
       );
     });
@@ -432,15 +439,14 @@ describe('Channel Context Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleChannelContextModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/extended-context',
+        '/user/channel/channel-123/config-overrides',
         expect.objectContaining({
           method: 'PATCH',
-          body: { extendedContextMaxAge: 7200 },
+          body: { maxAge: 7200 },
         })
       );
     });
@@ -454,16 +460,15 @@ describe('Channel Context Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxAge'));
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleChannelContextModal(interaction as never);
 
-      // "off" maps to null for channel settings
+      // "off" maps to -1 in the modal, mapSettingToApiUpdate converts -1 → null
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/extended-context',
+        '/user/channel/channel-123/config-overrides',
         expect.objectContaining({
           method: 'PATCH',
-          body: { extendedContextMaxAge: null },
+          body: { maxAge: null },
         })
       );
     });
@@ -477,15 +482,14 @@ describe('Channel Context Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxImages'));
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleChannelContextModal(interaction as never);
 
       expect(mockCallGatewayApi).toHaveBeenCalledWith(
-        '/user/channel/channel-123/extended-context',
+        '/user/channel/channel-123/config-overrides',
         expect.objectContaining({
           method: 'PATCH',
-          body: { extendedContextMaxImages: 10 },
+          body: { maxImages: 10 },
         })
       );
     });
@@ -499,7 +503,6 @@ describe('Channel Context Dashboard', () => {
       mockSessionManager.get.mockReturnValue(createSessionWithSetting('maxMessages'));
       mockCallGatewayApi.mockResolvedValue({ ok: true });
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
-      mockGetAdminSettings.mockResolvedValue(mockAdminSettings);
 
       await handleChannelContextModal(interaction as never);
 

@@ -19,7 +19,7 @@ export const mockIsBotOwner = createMockIsBotOwner();
 
 // Valid UUIDs for testing
 export const MOCK_USER_UUID = '550e8400-e29b-41d4-a716-446655440000';
-const MOCK_PERSONALITY_UUID = '550e8400-e29b-41d4-a716-446655440001';
+export const MOCK_PERSONALITY_UUID = '550e8400-e29b-41d4-a716-446655440001';
 export const MOCK_ACTIVATION_UUID = '550e8400-e29b-41d4-a716-446655440002';
 export const MOCK_DISCORD_USER_ID = '123456789012345678';
 

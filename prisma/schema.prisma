@@ -407,6 +407,9 @@ model ChannelSettings {
   activatedPersonalityId String? @map("activated_personality_id") @db.Uuid
   autoRespond            Boolean @default(true) @map("auto_respond")
 
+  // Config cascade overrides (channel tier — between personality and user tiers)
+  configOverrides Json? @map("config_overrides")
+
   createdBy String?  @map("created_by") @db.Uuid
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")

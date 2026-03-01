@@ -66,6 +66,9 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
       'Fill unused context budget with conversation history from other channels. ' +
       'When enabled, personalities remember conversations from other channels with you.',
     type: SettingType.TRI_STATE,
+    helpText:
+      'When enabled, fills unused context with conversation history from other channels ' +
+      "where you've talked to this personality",
   },
   {
     id: 'shareLtmAcrossPersonalities',
@@ -75,6 +78,9 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
       'Share long-term memories across all personalities. ' +
       'When enabled, what you tell one personality is remembered by all others.',
     type: SettingType.TRI_STATE,
+    helpText:
+      'When enabled, long-term memories are shared across all personalities ' +
+      'instead of being per-personality',
   },
 ];
 

@@ -13,6 +13,7 @@ import {
   createMockCreatedAt,
   MOCK_USER_UUID,
   MOCK_ACTIVATION_UUID,
+  MOCK_PERSONALITY_UUID,
   MOCK_DISCORD_USER_ID,
   MOCK_GUILD_ID,
 } from './test-utils.js';
@@ -127,6 +128,7 @@ describe('GET /user/channel/list', () => {
           id: MOCK_ACTIVATION_UUID,
           channelId: MOCK_DISCORD_USER_ID,
           guildId: MOCK_GUILD_ID,
+          activatedPersonalityId: MOCK_PERSONALITY_UUID,
           personalitySlug: 'test-character',
           personalityName: 'Test Character',
           autoRespond: true,

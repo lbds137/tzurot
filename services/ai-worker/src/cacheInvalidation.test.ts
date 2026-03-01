@@ -26,6 +26,7 @@ const mockCascadeResolver = {
   clearCache: vi.fn(),
   invalidateUserCache: vi.fn(),
   invalidatePersonalityCache: vi.fn(),
+  invalidateChannelCache: vi.fn(),
 };
 
 vi.mock('@tzurot/common-types', async () => {
@@ -68,6 +69,7 @@ vi.mock('@tzurot/common-types', async () => {
       clearCache = mockCascadeResolver.clearCache;
       invalidateUserCache = mockCascadeResolver.invalidateUserCache;
       invalidatePersonalityCache = mockCascadeResolver.invalidatePersonalityCache;
+      invalidateChannelCache = mockCascadeResolver.invalidateChannelCache;
     },
     ConfigCascadeCacheInvalidationService: class {
       subscribe = vi.fn().mockImplementation((cb: SubscribeCallback) => {
@@ -210,6 +212,12 @@ describe('setupCacheInvalidation', () => {
       await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
       capturedCallbacks.cascade?.({ type: 'personality', personalityId: 'pers-456' });
       expect(mockCascadeResolver.invalidatePersonalityCache).toHaveBeenCalledWith('pers-456');
+    });
+
+    it('should invalidate channel cascade cache on "channel" event', async () => {
+      await setupCacheInvalidation({ cacheRedis: mockRedis, prisma: mockPrisma });
+      capturedCallbacks.cascade?.({ type: 'channel', channelId: 'channel-789' });
+      expect(mockCascadeResolver.invalidateChannelCache).toHaveBeenCalledWith('channel-789');
     });
   });
 });

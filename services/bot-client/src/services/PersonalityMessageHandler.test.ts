@@ -475,6 +475,40 @@ describe('PersonalityMessageHandler', () => {
       );
     });
 
+    it('should pass channelId to resolve config call', async () => {
+      const mockMessage = createMockMessage();
+      const mockPersonality = createMockPersonality();
+
+      const mockBuildResult = {
+        context: {
+          userMessage: 'Test channelId',
+          conversationHistory: [],
+          attachments: [],
+          referencedMessages: [],
+          environment: {},
+        },
+        personaId: 'persona-123',
+        messageContent: 'Test channelId',
+        referencedMessages: [],
+        conversationHistory: [],
+      };
+
+      mockContextBuilder.buildContext.mockResolvedValue(mockBuildResult);
+      mockGatewayClient.generate.mockResolvedValue({ jobId: 'job-123' });
+
+      await handler.handleMessage(mockMessage, mockPersonality, 'Test channelId');
+
+      // Verify callGatewayApi was called with channelId in the body
+      expect(callGatewayApi).toHaveBeenCalledWith(
+        '/user/llm-config/resolve',
+        expect.objectContaining({
+          body: expect.objectContaining({
+            channelId: 'channel-123', // from createMockMessage().channel.id
+          }),
+        })
+      );
+    });
+
     it('should handle voice transcript content', async () => {
       const mockMessage = createMockMessage();
       const mockPersonality = createMockPersonality();

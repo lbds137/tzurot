@@ -120,7 +120,7 @@ export function createUserRouter(opts: UserRouterOptions): Router {
   router.use('/history', createHistoryRoutes(prisma));
 
   // Channel activation routes (auto-respond to all messages in a channel)
-  router.use('/channel', createChannelRoutes(prisma));
+  router.use('/channel', createChannelRoutes(prisma, cascadeInvalidation));
 
   // Memory routes (LTM management - stats, focus mode, search, browse, incognito)
   router.use('/memory', createMemoryRoutes(prisma, redis));

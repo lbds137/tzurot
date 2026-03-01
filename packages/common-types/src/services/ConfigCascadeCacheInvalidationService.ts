@@ -29,6 +29,7 @@ import type { Redis } from 'ioredis';
 export type ConfigCascadeInvalidationEvent =
   | { type: 'user'; discordId: string }
   | { type: 'personality'; personalityId: string }
+  | { type: 'channel'; channelId: string }
   | { type: 'admin' }
   | { type: 'all' };
 
@@ -39,6 +40,7 @@ export const isValidConfigCascadeInvalidationEvent =
   createEventValidator<ConfigCascadeInvalidationEvent>([
     { type: 'user', fields: { discordId: 'string' } },
     { type: 'personality', fields: { personalityId: 'string' } },
+    { type: 'channel', fields: { channelId: 'string' } },
     { type: 'admin' },
     { type: 'all' },
   ]);
@@ -61,6 +63,9 @@ export class ConfigCascadeCacheInvalidationService extends BaseCacheInvalidation
           if (event.type === 'personality') {
             return { personalityId: event.personalityId };
           }
+          if (event.type === 'channel') {
+            return { channelId: event.channelId };
+          }
           return {};
         },
         getEventDescription: event => {
@@ -72,6 +77,9 @@ export class ConfigCascadeCacheInvalidationService extends BaseCacheInvalidation
           }
           if (event.type === 'user') {
             return `user ${event.discordId}`;
+          }
+          if (event.type === 'channel') {
+            return `channel ${event.channelId}`;
           }
           return `personality ${event.personalityId}`;
         },
@@ -87,6 +95,11 @@ export class ConfigCascadeCacheInvalidationService extends BaseCacheInvalidation
   /** Invalidate cache for a specific personality */
   async invalidatePersonality(personalityId: string): Promise<void> {
     await this.publish({ type: 'personality', personalityId });
+  }
+
+  /** Invalidate cache for a specific channel */
+  async invalidateChannel(channelId: string): Promise<void> {
+    await this.publish({ type: 'channel', channelId });
   }
 
   /** Invalidate all caches (admin defaults changed) */

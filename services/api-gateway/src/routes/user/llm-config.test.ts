@@ -1139,6 +1139,25 @@ describe('/user/llm-config routes', () => {
       );
     });
 
+    it('should pass channelId to cascade resolver when provided', async () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityId: 'personality-123',
+        personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
+        channelId: 'channel-456',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(mockResolveOverrides).toHaveBeenCalledWith(
+        'discord-user-123',
+        'personality-123',
+        'channel-456'
+      );
+    });
+
     it('should return 500 when resolver throws', async () => {
       mockResolveConfig.mockRejectedValueOnce(new Error('DB error'));
       const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);

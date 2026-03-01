@@ -1,19 +1,15 @@
 /**
- * Channel Context Dashboard
+ * Channel Config Cascade Dashboard
  *
- * Interactive dashboard for managing channel-level extended context settings.
- * Supports tri-state (auto/on/off) with inheritance from global defaults.
+ * Interactive dashboard for managing channel-level config cascade overrides.
+ * Channel tier sits between personality and user tiers in the cascade:
+ *   hardcoded → admin → personality → CHANNEL → user-default → user-personality
  *
- * Settings:
- * - Extended Context: Auto/Enable/Disable
- * - Max Messages: 1-100 or Auto
- * - Max Age: Duration, Off, or Auto
- * - Max Images: 0-20 or Auto
+ * Channel moderators can set defaults for the channel. Individual users
+ * retain control via their own user-level overrides.
  *
  * This handler receives DeferredCommandContext (no deferReply method!)
  * because the parent command uses deferralMode: 'ephemeral'.
- *
- * @see docs/standards/TRI_STATE_PATTERN.md
  */
 
 import type {
@@ -23,14 +19,22 @@ import type {
 } from 'discord.js';
 import { PermissionFlagsBits } from 'discord.js';
 import type { DeferredCommandContext } from '../../utils/commandContext/types.js';
-import { createLogger, DISCORD_COLORS } from '@tzurot/common-types';
+import {
+  createLogger,
+  DISCORD_COLORS,
+  type ConfigOverrideSource,
+  type ResolvedConfigOverrides,
+  type ConfigOverrides,
+} from '@tzurot/common-types';
 import { callGatewayApi } from '../../utils/userGatewayClient.js';
 import { GatewayClient, invalidateChannelSettingsCache } from '../../utils/GatewayClient.js';
 import {
   type SettingsDashboardConfig,
   type SettingsDashboardSession,
   type SettingsData,
+  type SettingValue,
   type SettingUpdateResult,
+  type SettingSource,
   createSettingsDashboard,
   handleSettingsSelectMenu,
   handleSettingsButton,
@@ -38,6 +42,8 @@ import {
   isSettingsInteraction,
   parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
+  MEMORY_SETTINGS,
+  mapSettingToApiUpdate,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('channel-context');
@@ -50,17 +56,16 @@ const logger = createLogger('channel-context');
 const ENTITY_TYPE = 'channel-settings';
 
 /**
- * Dashboard configuration for channel context settings
+ * Dashboard configuration for channel context settings.
+ * Includes both extended context and memory settings — all are now wirable
+ * via the channel tier of the config cascade.
  */
 const CHANNEL_CONTEXT_CONFIG: SettingsDashboardConfig = {
   level: 'channel',
   entityType: ENTITY_TYPE,
   titlePrefix: 'Channel',
   color: DISCORD_COLORS.BLURPLE,
-  // Only include extended context settings — memory settings (crossChannelHistoryEnabled,
-  // shareLtmAcrossPersonalities) are not yet wirable at the channel tier, so they're
-  // excluded to avoid showing uneditable toggles.
-  settings: EXTENDED_CONTEXT_SETTINGS,
+  settings: [...EXTENDED_CONTEXT_SETTINGS, ...MEMORY_SETTINGS],
 };
 
 /**
@@ -83,20 +88,13 @@ export async function handleContext(context: DeferredCommandContext): Promise<vo
   logger.debug({ channelId, userId }, '[Channel Context] Opening dashboard');
 
   try {
-    // Fetch current settings from API gateway
+    // Get the activated personality for this channel (needed for resolve endpoint)
     const gatewayClient = new GatewayClient();
-    const settings = await gatewayClient.getChannelSettings(channelId);
-    const adminSettings = await gatewayClient.getAdminSettings();
+    const channelSettings = await gatewayClient.getChannelSettings(channelId);
+    const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
 
-    if (adminSettings === null) {
-      await context.editReply({
-        content: 'Failed to fetch global settings.',
-      });
-      return;
-    }
-
-    // Convert to dashboard data format
-    const data = convertToSettingsData(settings, adminSettings);
+    // Fetch resolved config with channel tier
+    const data = await fetchAndConvertSettingsData(userId, personalityId, channelId);
 
     // Create and display the dashboard - uses interaction for Discord.js compatibility
     await createSettingsDashboard(interaction, {
@@ -209,47 +207,93 @@ function extractChannelId(customId: string): string | null {
 }
 
 /**
- * Convert API responses to dashboard SettingsData format
+ * Map ConfigOverrideSource to dashboard SettingSource
  */
-function convertToSettingsData(
-  _channelSettings: { settings?: Record<string, unknown> } | null,
-  _adminSettings: Record<string, unknown>
+function mapCascadeSource(source: ConfigOverrideSource): SettingSource {
+  switch (source) {
+    case 'admin':
+    case 'user-default':
+      return 'global';
+    case 'personality':
+      return 'personality';
+    case 'channel':
+      return 'channel';
+    case 'user-personality':
+      return 'user-personality';
+    case 'hardcoded':
+    default:
+      return 'default';
+  }
+}
+
+/**
+ * Fetch resolved config from API and convert to dashboard SettingsData format.
+ *
+ * Gets the channel's own overrides (localValue) and the fully resolved values
+ * (effectiveValue) with source tracking from the config cascade.
+ */
+async function fetchAndConvertSettingsData(
+  userId: string,
+  personalityId: string | undefined,
+  channelId: string
+): Promise<SettingsData> {
+  // Fetch channel's local overrides and resolved cascade in parallel
+  const [channelOverridesResult, resolvedResult] = await Promise.all([
+    callGatewayApi<{ configOverrides: Record<string, unknown> | null }>(
+      `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
+      { method: 'GET', userId }
+    ),
+    personalityId !== undefined
+      ? callGatewayApi<ResolvedConfigOverrides>(
+          `/user/config-overrides/resolve/${encodeURIComponent(personalityId)}?channelId=${encodeURIComponent(channelId)}`,
+          { method: 'GET', userId }
+        )
+      : null,
+  ]);
+
+  const channelOverrides = channelOverridesResult.ok
+    ? (channelOverridesResult.data.configOverrides as Partial<ConfigOverrides> | null)
+    : null;
+
+  const resolved = resolvedResult?.ok === true ? resolvedResult.data : null;
+
+  return buildSettingsData(channelOverrides, resolved);
+}
+
+/**
+ * Build SettingsData from channel overrides and resolved cascade.
+ */
+function buildSettingsData(
+  channelOverrides: Partial<ConfigOverrides> | null,
+  resolved: ResolvedConfigOverrides | null
 ): SettingsData {
-  // Note: Channel-level context limits are now managed via LlmConfig.
-  // These dashboards show defaults until fully migrated.
+  function buildValue<T>(field: keyof ConfigOverrides): SettingValue<T> {
+    const localValue = (channelOverrides?.[field] ?? null) as T | null;
+    const effectiveValue =
+      resolved !== null
+        ? (resolved[field as keyof ResolvedConfigOverrides] as T)
+        : (localValue as T);
+    const source =
+      resolved !== null
+        ? mapCascadeSource(resolved.sources[field])
+        : localValue !== null
+          ? ('channel' as SettingSource)
+          : ('default' as SettingSource);
+    return { localValue, effectiveValue, source };
+  }
+
   return {
-    maxMessages: {
-      localValue: null,
-      effectiveValue: 20,
-      source: 'default',
-    },
-    maxAge: {
-      localValue: null,
-      effectiveValue: null,
-      source: 'default',
-    },
-    maxImages: {
-      localValue: null,
-      effectiveValue: 0,
-      source: 'default',
-    },
-    // Memory settings are not displayed in the channel dashboard (not in settings config),
-    // but required by SettingsData type. Provide defaults for type satisfaction.
-    crossChannelHistoryEnabled: {
-      localValue: null,
-      effectiveValue: false,
-      source: 'default',
-    },
-    shareLtmAcrossPersonalities: {
-      localValue: null,
-      effectiveValue: false,
-      source: 'default',
-    },
+    maxMessages: buildValue<number>('maxMessages'),
+    maxAge: buildValue<number | null>('maxAge'),
+    maxImages: buildValue<number>('maxImages'),
+    crossChannelHistoryEnabled: buildValue<boolean>('crossChannelHistoryEnabled'),
+    shareLtmAcrossPersonalities: buildValue<boolean>('shareLtmAcrossPersonalities'),
   };
 }
 
 /**
- * Handle setting updates from the dashboard
+ * Handle setting updates from the dashboard.
+ * Sends updates to the channel config-overrides API endpoint.
  */
 async function handleSettingUpdate(
   interaction: ButtonInteraction | ModalSubmitInteraction,
@@ -263,19 +307,18 @@ async function handleSettingUpdate(
   logger.debug({ settingId, newValue, channelId, userId }, '[Channel Context] Updating setting');
 
   try {
-    // Map setting ID to API field name
+    // Map setting ID to API body using shared utility
     const body = mapSettingToApiUpdate(settingId, newValue);
 
     if (body === null) {
       return { success: false, error: 'Unknown setting' };
     }
 
-    // Send update to API gateway
-    const result = await callGatewayApi(`/user/channel/${channelId}/extended-context`, {
-      method: 'PATCH',
-      body,
-      userId,
-    });
+    // Send update to channel config-overrides endpoint
+    const result = await callGatewayApi(
+      `/user/channel/${encodeURIComponent(channelId)}/config-overrides`,
+      { method: 'PATCH', body, userId }
+    );
 
     if (!result.ok) {
       logger.warn({ settingId, error: result.error, channelId }, '[Channel Context] Update failed');
@@ -285,16 +328,11 @@ async function handleSettingUpdate(
     // Invalidate cache
     invalidateChannelSettingsCache(channelId);
 
-    // Fetch fresh data
+    // Fetch fresh data with resolved values
     const gatewayClient = new GatewayClient();
-    const newChannelSettings = await gatewayClient.getChannelSettings(channelId);
-    const adminSettings = await gatewayClient.getAdminSettings();
-
-    if (adminSettings === null) {
-      return { success: false, error: 'Failed to fetch updated settings' };
-    }
-
-    const newData = convertToSettingsData(newChannelSettings, adminSettings);
+    const channelSettings = await gatewayClient.getChannelSettings(channelId);
+    const personalityId = channelSettings?.settings?.activatedPersonalityId ?? undefined;
+    const newData = await fetchAndConvertSettingsData(userId, personalityId, channelId);
 
     logger.info({ settingId, newValue, channelId, userId }, '[Channel Context] Setting updated');
 
@@ -302,35 +340,5 @@ async function handleSettingUpdate(
   } catch (error) {
     logger.error({ err: error, settingId, channelId }, '[Channel Context] Error updating setting');
     return { success: false, error: 'Failed to update setting' };
-  }
-}
-
-/**
- * Map dashboard setting ID to API field update
- */
-function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
-  switch (settingId) {
-    case 'maxMessages':
-      // null means auto (inherit from global)
-      return { extendedContextMaxMessages: value };
-
-    case 'maxAge': {
-      // value can be:
-      // - null: auto (inherit from global)
-      // - -1: "off" (disabled)
-      // - number: seconds
-      if (value === -1) {
-        // "off" means disabled - store as special null value
-        return { extendedContextMaxAge: null };
-      }
-      return { extendedContextMaxAge: value };
-    }
-
-    case 'maxImages':
-      // null means auto (inherit from global)
-      return { extendedContextMaxImages: value };
-
-    default:
-      return null;
   }
 }

@@ -261,4 +261,58 @@ describe('Admin Settings Routes (Singleton)', () => {
       expect(response.status).toBe(200);
     });
   });
+
+  describe('PATCH /admin/settings/config-defaults (flat body)', () => {
+    it('should accept flat body and update configDefaults', async () => {
+      const updatedSettings = createDefaultSettings({
+        configDefaults: { maxMessages: 42 },
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxMessages: 42 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.configDefaults).toEqual({ maxMessages: 42 });
+    });
+
+    it('should reject non-owners', async () => {
+      mockIsBotOwner.mockReturnValue(false);
+
+      const response = await request(app)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxMessages: 30 });
+
+      expect(response.status).toBe(403);
+    });
+
+    it('should reject invalid config format', async () => {
+      const response = await request(app)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxMessages: 'not-a-number' });
+
+      expect(response.status).toBe(400);
+    });
+
+    it('should merge with existing configDefaults', async () => {
+      mockPrisma.adminSettings.upsert.mockResolvedValue(
+        createDefaultSettings({ configDefaults: { maxImages: 5 } })
+      );
+
+      const updatedSettings = createDefaultSettings({
+        configDefaults: { maxImages: 5, maxMessages: 30 },
+        updatedBy: MOCK_USER_UUID,
+      });
+      mockPrisma.adminSettings.update.mockResolvedValue(updatedSettings);
+
+      const response = await request(app)
+        .patch('/admin/settings/config-defaults')
+        .send({ maxMessages: 30 });
+
+      expect(response.status).toBe(200);
+      expect(response.body.configDefaults).toEqual({ maxImages: 5, maxMessages: 30 });
+    });
+  });
 });

@@ -127,6 +127,12 @@ export async function setupCacheInvalidation(
         { discordId: event.discordId },
         '[AIWorker] Invalidated config cascade cache for user'
       );
+    } else if (event.type === 'channel') {
+      cascadeResolver.invalidateChannelCache(event.channelId);
+      logger.info(
+        { channelId: event.channelId },
+        '[AIWorker] Invalidated config cascade cache for channel'
+      );
     } else {
       cascadeResolver.invalidatePersonalityCache(event.personalityId);
       logger.info(
