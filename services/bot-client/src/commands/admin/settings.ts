@@ -195,6 +195,7 @@ function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData
     maxMessages: buildAdminSettingValue<number>(defaults, 'maxMessages'),
     maxAge: buildAdminSettingValue<number | null>(defaults, 'maxAge'),
     maxImages: buildAdminSettingValue<number>(defaults, 'maxImages'),
+    focusModeEnabled: buildAdminSettingValue<boolean>(defaults, 'focusModeEnabled'),
     crossChannelHistoryEnabled: buildAdminSettingValue<boolean>(
       defaults,
       'crossChannelHistoryEnabled'
@@ -203,6 +204,8 @@ function convertToSettingsData(settings: GetAdminSettingsResponse): SettingsData
       defaults,
       'shareLtmAcrossPersonalities'
     ),
+    memoryScoreThreshold: buildAdminSettingValue<number>(defaults, 'memoryScoreThreshold'),
+    memoryLimit: buildAdminSettingValue<number>(defaults, 'memoryLimit'),
   };
 }
 

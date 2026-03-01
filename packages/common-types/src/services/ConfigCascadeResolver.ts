@@ -108,37 +108,32 @@ export class ConfigCascadeResolver {
   /**
    * Load all applicable tiers from the database.
    * Returns tiers in priority order (lowest first).
+   * All tier queries are independent and run concurrently via Promise.all.
    */
   private async loadTiers(
     userId?: string,
     personalityId?: string,
     channelId?: string
   ): Promise<TierData[]> {
-    const tiers: TierData[] = [];
+    const [adminTiers, personalityTiers, channelTiers, userTiers] = await Promise.all([
+      this.loadAdminTier(),
+      personalityId !== undefined
+        ? this.loadPersonalityTier(personalityId)
+        : Promise.resolve([] as TierData[]),
+      channelId !== undefined ? this.loadChannelTier(channelId) : Promise.resolve([] as TierData[]),
+      userId !== undefined
+        ? this.loadUserTiers(userId, personalityId)
+        : Promise.resolve([] as TierData[]),
+    ]);
 
-    // Tier 1: Admin defaults (singleton)
-    await this.loadAdminTier(tiers);
-
-    // Tier 2: Personality defaults
-    if (personalityId !== undefined) {
-      await this.loadPersonalityTier(tiers, personalityId);
-    }
-
-    // Tier 3: Channel overrides
-    if (channelId !== undefined) {
-      await this.loadChannelTier(tiers, channelId);
-    }
-
-    // Tier 4 & 5: User defaults + user-personality overrides
-    if (userId !== undefined) {
-      await this.loadUserTiers(tiers, userId, personalityId);
-    }
-
-    return tiers;
+    // Assemble in cascade priority order (lowest first):
+    // Tier 2: admin → Tier 3: personality → Tier 4: channel → Tier 5: user-default → Tier 6: user-personality
+    return [...adminTiers, ...personalityTiers, ...channelTiers, ...userTiers];
   }
 
-  /** Load admin tier (singleton admin settings) */
-  private async loadAdminTier(tiers: TierData[]): Promise<void> {
+  /** Load admin tier (Tier 2: singleton admin settings) */
+  private async loadAdminTier(): Promise<TierData[]> {
+    const tiers: TierData[] = [];
     try {
       const admin = await this.prisma.adminSettings.findUnique({
         where: { id: ADMIN_SETTINGS_SINGLETON_ID },
@@ -148,10 +143,12 @@ export class ConfigCascadeResolver {
     } catch (error) {
       logger.warn({ err: error }, 'Failed to load admin config defaults');
     }
+    return tiers;
   }
 
-  /** Load personality tier */
-  private async loadPersonalityTier(tiers: TierData[], personalityId: string): Promise<void> {
+  /** Load personality tier (Tier 3) */
+  private async loadPersonalityTier(personalityId: string): Promise<TierData[]> {
+    const tiers: TierData[] = [];
     try {
       const personality = await this.prisma.personality.findUnique({
         where: { id: personalityId },
@@ -161,10 +158,12 @@ export class ConfigCascadeResolver {
     } catch (error) {
       logger.warn({ err: error, personalityId }, 'Failed to load personality config defaults');
     }
+    return tiers;
   }
 
-  /** Load channel tier (channel-level overrides set by moderators) */
-  private async loadChannelTier(tiers: TierData[], channelId: string): Promise<void> {
+  /** Load channel tier (Tier 4: channel-level overrides set by moderators) */
+  private async loadChannelTier(channelId: string): Promise<TierData[]> {
+    const tiers: TierData[] = [];
     try {
       const channel = await this.prisma.channelSettings.findUnique({
         where: { channelId },
@@ -174,14 +173,12 @@ export class ConfigCascadeResolver {
     } catch (error) {
       logger.warn({ err: error, channelId }, 'Failed to load channel config overrides');
     }
+    return tiers;
   }
 
-  /** Load user-default and user-personality tiers (single query) */
-  private async loadUserTiers(
-    tiers: TierData[],
-    userId: string,
-    personalityId?: string
-  ): Promise<void> {
+  /** Load user-default (Tier 5) and user-personality (Tier 6) tiers in a single query */
+  private async loadUserTiers(userId: string, personalityId?: string): Promise<TierData[]> {
+    const tiers: TierData[] = [];
     try {
       const user = await this.prisma.user.findFirst({
         where: { discordId: userId },
@@ -199,17 +196,18 @@ export class ConfigCascadeResolver {
         },
       });
       if (user === null) {
-        return;
+        return tiers;
       }
 
-      // Tier 3: User defaults
+      // Tier 5: User defaults
       this.pushIfValid(tiers, user.configDefaults, 'user-default');
 
-      // Tier 4: User-personality overrides
+      // Tier 6: User-personality overrides
       this.pushIfValid(tiers, user.personalityConfigs?.[0]?.configOverrides, 'user-personality');
     } catch (error) {
       logger.warn({ err: error, userId }, 'Failed to load user config defaults');
     }
+    return tiers;
   }
 
   /** Validate JSONB and push to tiers if valid and non-null */

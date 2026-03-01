@@ -59,6 +59,16 @@ export const EXTENDED_CONTEXT_SETTINGS: SettingDefinition[] = [
  */
 export const MEMORY_SETTINGS: SettingDefinition[] = [
   {
+    id: 'focusModeEnabled',
+    label: 'Focus Mode',
+    emoji: '🎯',
+    description:
+      'When enabled, only the most recent messages are used for context. ' +
+      'Disables extended context features like cross-channel history and memory retrieval.',
+    type: SettingType.TRI_STATE,
+    helpText: 'Useful for performance-sensitive channels or when context is not needed',
+  },
+  {
     id: 'crossChannelHistoryEnabled',
     label: 'Cross-Channel History',
     emoji: '🔀',
@@ -81,6 +91,32 @@ export const MEMORY_SETTINGS: SettingDefinition[] = [
     helpText:
       'When enabled, long-term memories are shared across all personalities ' +
       'instead of being per-personality',
+  },
+  {
+    id: 'memoryScoreThreshold',
+    label: 'Memory Relevance',
+    emoji: '📊',
+    description:
+      'Minimum similarity score for memory retrieval. ' +
+      'Higher values return only highly relevant memories; lower values cast a wider net.',
+    type: SettingType.NUMERIC,
+    min: 0,
+    max: 1,
+    placeholder: 'Enter a number (0-1) or "auto"',
+    helpText: 'Default: 0.5. Range 0 (everything) to 1 (exact match only)',
+  },
+  {
+    id: 'memoryLimit',
+    label: 'Memory Limit',
+    emoji: '📝',
+    description:
+      'Maximum number of long-term memories to retrieve per message. ' +
+      'Higher values provide more context but increase processing time.',
+    type: SettingType.NUMERIC,
+    min: 0,
+    max: 100,
+    placeholder: 'Enter a number (0-100) or "auto"',
+    helpText: 'Default: 20. Set to 0 to disable memory retrieval',
   },
 ];
 

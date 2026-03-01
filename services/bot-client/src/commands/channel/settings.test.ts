@@ -241,7 +241,7 @@ describe('Channel Context Dashboard', () => {
       expect(embedJson.description).toContain('<#channel-123>');
     });
 
-    it('should include all 5 settings fields (extended context + memory)', async () => {
+    it('should include all 8 settings fields (extended context + memory)', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);
 
@@ -251,15 +251,18 @@ describe('Channel Context Dashboard', () => {
       const embedJson = editReplyCall.embeds[0].toJSON();
 
       // Both extended context and memory settings are shown at channel tier
-      expect(embedJson.fields).toHaveLength(5);
+      expect(embedJson.fields).toHaveLength(8);
       const fieldNames = embedJson.fields.map((f: { name: string }) => f.name);
       expect(fieldNames).toEqual(
         expect.arrayContaining([
           expect.stringContaining('Max Messages'),
           expect.stringContaining('Max Age'),
           expect.stringContaining('Max Images'),
+          expect.stringContaining('Focus Mode'),
           expect.stringContaining('Cross-Channel History'),
           expect.stringContaining('Share Memories'),
+          expect.stringContaining('Memory Relevance'),
+          expect.stringContaining('Memory Limit'),
         ])
       );
     });

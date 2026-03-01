@@ -48,6 +48,23 @@ describe('Channel Config Overrides Routes', () => {
     app.use('/user/channel', createChannelRoutes(mockPrisma as unknown as PrismaClient));
   });
 
+  describe('channelId validation', () => {
+    it('should reject invalid channelId format', async () => {
+      const response = await request(app).get('/user/channel/not-a-snowflake/config-overrides');
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toContain('Invalid channelId');
+    });
+
+    it('should reject channelId with non-numeric characters', async () => {
+      const response = await request(app)
+        .patch('/user/channel/abc123/config-overrides')
+        .send({ maxMessages: 10 });
+
+      expect(response.status).toBe(400);
+    });
+  });
+
   describe('GET /:channelId/config-overrides', () => {
     it('should return null when no overrides exist', async () => {
       mockPrisma.channelSettings.findUnique.mockResolvedValue(null);

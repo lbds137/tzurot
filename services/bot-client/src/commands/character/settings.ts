@@ -29,6 +29,7 @@ import {
   type SettingsDashboardSession,
   type SettingsData,
   type SettingSource,
+  type SettingValue,
   type SettingUpdateResult,
   createSettingsDashboard,
   handleSettingsSelectMenu,
@@ -38,6 +39,7 @@ import {
   parseSettingsCustomId,
   EXTENDED_CONTEXT_SETTINGS,
   MEMORY_SETTINGS,
+  mapSettingToApiUpdate,
 } from '../../utils/dashboard/settings/index.js';
 
 const logger = createLogger('character-settings');
@@ -269,40 +271,26 @@ function mapSource(source: string): SettingSource {
  * Convert cascade-resolved overrides to dashboard SettingsData format
  */
 function convertToSettingsData(resolved: ResolvedConfigOverrides): SettingsData {
+  function buildField<T>(
+    field: keyof ResolvedConfigOverrides & keyof typeof resolved.sources
+  ): SettingValue<T> {
+    return {
+      localValue:
+        resolved.sources[field] === USER_PERSONALITY_SOURCE ? (resolved[field] as T) : null,
+      effectiveValue: resolved[field] as T,
+      source: mapSource(resolved.sources[field]),
+    };
+  }
+
   return {
-    maxMessages: {
-      localValue:
-        resolved.sources.maxMessages === USER_PERSONALITY_SOURCE ? resolved.maxMessages : null,
-      effectiveValue: resolved.maxMessages,
-      source: mapSource(resolved.sources.maxMessages),
-    },
-    maxAge: {
-      localValue: resolved.sources.maxAge === USER_PERSONALITY_SOURCE ? resolved.maxAge : null,
-      effectiveValue: resolved.maxAge,
-      source: mapSource(resolved.sources.maxAge),
-    },
-    maxImages: {
-      localValue:
-        resolved.sources.maxImages === USER_PERSONALITY_SOURCE ? resolved.maxImages : null,
-      effectiveValue: resolved.maxImages,
-      source: mapSource(resolved.sources.maxImages),
-    },
-    crossChannelHistoryEnabled: {
-      localValue:
-        resolved.sources.crossChannelHistoryEnabled === USER_PERSONALITY_SOURCE
-          ? resolved.crossChannelHistoryEnabled
-          : null,
-      effectiveValue: resolved.crossChannelHistoryEnabled,
-      source: mapSource(resolved.sources.crossChannelHistoryEnabled),
-    },
-    shareLtmAcrossPersonalities: {
-      localValue:
-        resolved.sources.shareLtmAcrossPersonalities === USER_PERSONALITY_SOURCE
-          ? resolved.shareLtmAcrossPersonalities
-          : null,
-      effectiveValue: resolved.shareLtmAcrossPersonalities,
-      source: mapSource(resolved.sources.shareLtmAcrossPersonalities),
-    },
+    maxMessages: buildField<number>('maxMessages'),
+    maxAge: buildField<number | null>('maxAge'),
+    maxImages: buildField<number>('maxImages'),
+    focusModeEnabled: buildField<boolean>('focusModeEnabled'),
+    crossChannelHistoryEnabled: buildField<boolean>('crossChannelHistoryEnabled'),
+    shareLtmAcrossPersonalities: buildField<boolean>('shareLtmAcrossPersonalities'),
+    memoryScoreThreshold: buildField<number>('memoryScoreThreshold'),
+    memoryLimit: buildField<number>('memoryLimit'),
   };
 }
 
@@ -389,37 +377,5 @@ async function handleSettingUpdate(
       '[Character Settings] Error updating setting'
     );
     return { success: false, error: 'Failed to update setting' };
-  }
-}
-
-/**
- * Map dashboard setting ID to cascade config override field.
- *
- * Dashboard values: null = auto (inherit), -1 = off (duration only), number = explicit
- * Cascade API: null body = clear all, field absent = inherit, field null = no limit
- */
-function mapSettingToApiUpdate(settingId: string, value: unknown): Record<string, unknown> | null {
-  switch (settingId) {
-    case 'maxMessages':
-      // null means auto (inherit from lower tier)
-      return { maxMessages: value };
-
-    case 'maxAge':
-      // null = auto (inherit), -1 = "off" (no limit), number = seconds
-      // -1 sentinel from framework means "disabled" → null in cascade (no age limit)
-      return { maxAge: value === -1 ? null : value };
-
-    case 'maxImages':
-      // null means auto (inherit from lower tier)
-      return { maxImages: value };
-
-    case 'crossChannelHistoryEnabled':
-      return { crossChannelHistoryEnabled: value };
-
-    case 'shareLtmAcrossPersonalities':
-      return { shareLtmAcrossPersonalities: value };
-
-    default:
-      return null;
   }
 }
