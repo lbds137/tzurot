@@ -37,8 +37,8 @@ const { mockResolveOverrides, mockResolveConfig } = vi.hoisted(() => ({
 }));
 
 // Mock dependencies before imports
-vi.mock('@tzurot/common-types', async () => {
-  const actual = await vi.importActual('@tzurot/common-types');
+vi.mock('@tzurot/common-types', async importOriginal => {
+  const actual = await importOriginal<typeof import('@tzurot/common-types')>();
   return {
     ...actual,
     createLogger: () => ({
@@ -1145,7 +1145,7 @@ describe('/user/llm-config routes', () => {
       const { req, res } = createMockReqRes({
         personalityId: 'personality-123',
         personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
-        channelId: 'channel-456',
+        channelId: '999888777666555444',
       });
 
       await handler(req, res);
@@ -1154,8 +1154,22 @@ describe('/user/llm-config routes', () => {
       expect(mockResolveOverrides).toHaveBeenCalledWith(
         'discord-user-123',
         'personality-123',
-        'channel-456'
+        '999888777666555444'
       );
+    });
+
+    it('should reject invalid channelId format', async () => {
+      const router = createLlmConfigRoutes(mockPrisma as unknown as PrismaClient);
+      const handler = getHandler(router, 'post', '/resolve');
+      const { req, res } = createMockReqRes({
+        personalityId: 'personality-123',
+        personalityConfig: { id: 'p-1', name: 'Test', model: 'gpt-4' },
+        channelId: 'not-a-snowflake',
+      });
+
+      await handler(req, res);
+
+      expect(res.status).toHaveBeenCalledWith(400);
     });
 
     it('should return 500 when resolver throws', async () => {
