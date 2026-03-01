@@ -4,7 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { PrismaClient } from '@tzurot/common-types';
+import { Prisma, type PrismaClient } from '@tzurot/common-types';
 import express from 'express';
 import request from 'supertest';
 import { createChannelRoutes } from './index.js';
@@ -195,7 +195,7 @@ describe('Channel Config Overrides Routes', () => {
       expect(response.body.success).toBe(true);
       expect(mockPrisma.channelSettings.updateMany).toHaveBeenCalledWith({
         where: { channelId: CHANNEL_ID },
-        data: { configOverrides: expect.anything() },
+        data: { configOverrides: Prisma.JsonNull },
       });
     });
 
