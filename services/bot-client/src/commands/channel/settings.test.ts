@@ -283,6 +283,39 @@ describe('Channel Context Dashboard', () => {
       );
     });
 
+    it('should use channel overrides with hardcoded defaults when no personality activated', async () => {
+      const context = createMockContext(true);
+      // No personality activated
+      mockGetChannelSettings.mockResolvedValue({ settings: {} });
+      // Channel has local overrides for maxMessages
+      mockCallGatewayApi.mockResolvedValue({
+        ok: true,
+        data: { configOverrides: { maxMessages: 25 } },
+      });
+
+      await handleContext(context);
+
+      const editReplyCall = (context.editReply as ReturnType<typeof vi.fn>).mock.calls[0][0];
+      const embedJson = editReplyCall.embeds[0].toJSON();
+
+      // maxMessages should show the channel override value
+      const maxMsgField = embedJson.fields.find((f: { name: string }) =>
+        f.name.includes('Max Messages')
+      );
+      expect(maxMsgField).toBeDefined();
+      // The channel override (25) should be reflected in the display
+      expect(maxMsgField.value).toContain('25');
+      // Override indicator shown (local value is set)
+      expect(maxMsgField.value).toContain('Override');
+
+      // Fields without overrides should show hardcoded defaults with Auto indicator
+      const maxImgField = embedJson.fields.find((f: { name: string }) =>
+        f.name.includes('Max Images')
+      );
+      expect(maxImgField).toBeDefined();
+      expect(maxImgField.value).toContain('Auto');
+    });
+
     it('should use fallback values when resolve endpoint fails', async () => {
       const context = createMockContext(true);
       mockGetChannelSettings.mockResolvedValue(mockChannelSettings);

@@ -27,6 +27,7 @@ import {
   // Shared schemas from common-types - single source of truth
   LlmConfigCreateSchema,
   LlmConfigUpdateSchema,
+  DISCORD_SNOWFLAKE,
 } from '@tzurot/common-types';
 import { requireUserAuth } from '../../services/AuthMiddleware.js';
 import { asyncHandler } from '../../utils/asyncHandler.js';
@@ -368,7 +369,7 @@ const resolveConfigBodySchema = z.object({
       model: z.string(),
     })
     .passthrough(), // Allow additional LoadedPersonality fields
-  channelId: z.string().min(1).optional(),
+  channelId: z.string().regex(DISCORD_SNOWFLAKE.PATTERN, 'Invalid channelId format').optional(),
 });
 
 /**

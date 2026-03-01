@@ -47,6 +47,7 @@ export {
   DISCORD_MENTIONS,
   DISCORD_ID_PREFIX,
   DISCORD_PROVIDER_CHOICES,
+  DISCORD_SNOWFLAKE,
   BOT_FOOTER_TEXT,
   buildModelFooterText,
   isValidDiscordId,

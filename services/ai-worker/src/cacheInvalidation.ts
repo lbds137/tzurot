@@ -133,7 +133,7 @@ export async function setupCacheInvalidation(
         { channelId: event.channelId },
         '[AIWorker] Invalidated config cascade cache for channel'
       );
-    } else {
+    } else if (event.type === 'personality') {
       cascadeResolver.invalidatePersonalityCache(event.personalityId);
       logger.info(
         { personalityId: event.personalityId },
