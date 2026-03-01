@@ -21,6 +21,21 @@ _None currently._
 
 _New items go here. Triage to appropriate section weekly._
 
+### 🏗️ API Gateway Middleware Wiring Integration Tests
+
+Unit tests mock away Express middleware (auth, error handlers, route mounting), so wiring bugs slip through — e.g., `router.use(requireUserAuth)` vs `router.use(requireUserAuth())` caused all config-override routes to hang in production (PR #691 hotfix). The mocks matched the buggy code, not the correct calling convention.
+
+**Scope**: Add supertest-style integration tests that boot the actual Express app with real middleware and verify:
+
+- Auth middleware is correctly applied (factory functions called, not just passed)
+- Routes respond with expected status codes (not hanging/timing out)
+- Error middleware catches and formats errors properly
+- Route mounting order doesn't shadow endpoints
+
+**Audit first**: Grep all `router.use(...)` and `app.use(...)` calls for middleware factory functions passed without `()`. The `requireUserAuth` bug may exist in other route files.
+
+**Discovered during**: PR #691 production debugging — `/settings defaults edit` hung until bot-client timeout
+
 ### 🏗️ Audit API Routes for Zod Validation at Boundaries
 
 Several api-gateway routes use manual `typeof` checks and utility functions (e.g., `isValidDiscordId()`) for query/path param validation instead of Zod schemas. Per code standards, service boundaries should validate with Zod. Audit all routes and convert manual validation to Zod `.safeParse()` for consistency.
@@ -560,7 +575,7 @@ _Decided not to do yet._
 | Item                                        | Why                                                                                                                                          |
 | ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | Schema versioning for BullMQ jobs           | No breaking changes yet                                                                                                                      |
-| Contract tests for HTTP API                 | Single consumer, integration tests sufficient                                                                                                |
+| Contract tests for HTTP API                 | Single consumer, but middleware wiring tests needed (see Inbox). Revisit after wiring audit.                                                 |
 | Redis pipelining                            | Fast enough at current traffic                                                                                                               |
 | BYOK `lastUsedAt` tracking                  | Nice-to-have, not breaking                                                                                                                   |
 | Handler factory generator                   | Add when creating many new routes                                                                                                            |
