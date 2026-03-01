@@ -58,7 +58,7 @@ export function formatLocationAsXml(environment: DiscordEnvironment): string {
   const topic = environment.channel.topic;
   const topicAttr = topic !== undefined && topic.length > 0 ? ` topic="${escapeXml(topic)}"` : '';
   parts.push(
-    `<channel name="${escapeXml(environment.channel.name)}" type="${environment.channel.type}"${topicAttr}/>`
+    `<channel name="${escapeXml(environment.channel.name)}" type="${escapeXml(environment.channel.type)}"${topicAttr}/>`
   );
 
   // Thread (if exists) - escape to prevent prompt injection
